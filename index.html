@@ -2530,38 +2530,118 @@ function processDefect(id,action){
   renderInvTable();renderDefects();renderInvLogs();
 }
 function renderDefects(){
-  const pending=defects.filter(d=>d.status==='pending');
-  document.getElementById('cat-summary').innerHTML=categories.map(cat=>{
-    const tot=pending.filter(d=>d.cat===cat).reduce((s,d)=>s+d.qty,0);
-    return `<div class="cat-card"><div class="cat-lbl">${cat}</div><div class="cat-val">${tot}本</div><div style="font-size:11px;color:#999">処理待ち</div></div>`;
-  }).join('');
-  const grp=document.getElementById('defect-groups');
-  if(!pending.length){grp.innerHTML='<div style="color:#999;font-size:13px;padding:8px 0">処理待ちの不良品はありません</div>';return;}
-  grp.innerHTML=categories.map(cat=>{
-    const items=pending.filter(d=>d.cat===cat);if(!items.length) return '';
-    const tot=items.reduce((s,d)=>s+d.qty,0);
-    const makeBtns=(id,cat)=>{
-      const shipBtn = `<button style="font-size:11px;padding:3px 8px;border:1px solid #185fa5;border-radius:6px;background:#dbeafe;color:#1e3a8a;cursor:pointer" onclick="openDefectShipModal(${id})">📦 値引き出荷</button>`;
-      if(cat==='蓋不良（漏れあり）') return shipBtn+`<button class="btn-resolve-ng" onclick="processDefect(${id},'disposed')">廃棄</button><button class="btn-resolve-ret" onclick="processDefect(${id},'returned')">返品</button>`;
-      if(cat==='ラベル不良（漏れなし）') return shipBtn+`<button class="btn-resolve-ok" onclick="processDefect(${id},'restored')">再ラベル復活</button><button class="btn-resolve-ret" onclick="processDefect(${id},'returned')">返品</button><button class="btn-resolve-ng" onclick="processDefect(${id},'disposed')">廃棄</button>`;
-      return shipBtn+`<button class="btn-resolve-ok" onclick="processDefect(${id},'restored')">復活</button><button class="btn-resolve-ret" onclick="processDefect(${id},'returned')">返品</button><button class="btn-resolve-ng" onclick="processDefect(${id},'disposed')">廃棄</button>`;
-    };
-    return `<div class="dcard">
-      <div class="dcard-hd"><span style="font-weight:700;color:#a32d2d;flex:1">${cat}</span><span style="font-weight:700;color:#a32d2d">計 ${tot}本</span></div>
-      ${items.map(d=>{
-        const p=products.find(x=>x.id===d.pid),lot=lots.find(l=>l.id===d.lotId);
-        return `<div class="drow">
-          <div style="flex:1">
-            <span style="font-weight:700">${p?p.name:'?'}</span>
-            <span class="lot-badge ${lot?lotBadgeClass(lot):'lot-new'}" style="margin-left:4px">${lot?lotLabel(lot):'?'}</span>
-            <span style="color:#666;margin-left:6px">${d.qty}本</span>
-            ${d.note?`<span style="color:#999;font-size:11px;margin-left:6px">${d.note}</span>`:''}
-          </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap">${makeBtns(d.id,cat)}</div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  }).filter(Boolean).join('');
+  const pending = defects.filter(function(d){ return d.status==='pending'; });
+  const allDefects = defects; // 処理済み含む全件
+
+  // ── ① サマリーカード（商品別・不良理由別）──
+  const prodSummary = {};
+  pending.forEach(function(d){
+    const p = products.find(function(x){ return x.id===d.pid; });
+    const pname = p ? p.name : '不明';
+    const group = p ? p.group : 'その他';
+    if(!prodSummary[pname]) prodSummary[pname] = {name:pname, group:group, total:0, cats:{}};
+    prodSummary[pname].total += d.qty;
+    prodSummary[pname].cats[d.cat] = (prodSummary[pname].cats[d.cat]||0) + d.qty;
+  });
+
+  const catTotals = {};
+  pending.forEach(function(d){
+    catTotals[d.cat] = (catTotals[d.cat]||0) + d.qty;
+  });
+
+  let summaryHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:1rem">';
+  categories.forEach(function(cat){
+    const tot = catTotals[cat]||0;
+    summaryHtml += '<div class="cat-card"><div class="cat-lbl">'+cat+'</div>'
+      +'<div class="cat-val">'+tot+'本</div>'
+      +'<div style="font-size:11px;color:#999">処理待ち</div></div>';
+  });
+  summaryHtml += '</div>';
+  document.getElementById('cat-summary').innerHTML = summaryHtml;
+
+  // ── ② 不良在庫一覧表 ──
+  const grp = document.getElementById('defect-groups');
+  if(!pending.length){
+    grp.innerHTML = '<div style="color:#999;font-size:13px;padding:1rem 0">処理待ちの不良品はありません</div>';
+  } else {
+    let tableHtml = '<div style="margin-bottom:1.5rem">';
+    tableHtml += '<div style="font-weight:700;font-size:14px;margin-bottom:10px;color:#7f1d1d">⚠️ 不良在庫一覧（処理待ち）</div>';
+    tableHtml += '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">';
+    tableHtml += '<thead><tr style="background:#fee2e2">'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:left">商品名</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:left">不良理由</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;width:60px">本数</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:left">ロット</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:left">発生日</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:left">メモ</th>'
+      +'<th style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;min-width:200px">操作</th>'
+      +'</tr></thead><tbody>';
+
+    pending.forEach(function(d, i){
+      const p   = products.find(function(x){ return x.id===d.pid; });
+      const lot = lots.find(function(l){ return l.id===d.lotId; });
+      const bg  = i%2===0 ? '#ffffff' : '#fff5f5';
+      const catColor = d.cat==='蓋不良（漏れあり）' ? '#dc2626' : d.cat==='ラベル不良（漏れなし）' ? '#b45309' : '#7f1d1d';
+      const catBg    = d.cat==='蓋不良（漏れあり）' ? '#fee2e2' : d.cat==='ラベル不良（漏れなし）' ? '#fef3c7' : '#f1f5f9';
+
+      // 操作ボタン
+      let btns = '<button onclick="openDefectShipModal('+d.id+')" style="font-size:11px;padding:4px 8px;border:1px solid #185fa5;border-radius:6px;background:#dbeafe;color:#1e3a8a;cursor:pointer;margin:2px">📦 値引き出荷</button>';
+      if(d.cat==='ラベル不良（漏れなし）'){
+        btns += '<button class="btn-resolve-ok" style="margin:2px" onclick="processDefect('+d.id+',\'restored\')">再ラベル復活</button>';
+      } else {
+        btns += '<button class="btn-resolve-ok" style="margin:2px" onclick="processDefect('+d.id+',\'restored\')">復活</button>';
+      }
+      btns += '<button class="btn-resolve-ret" style="margin:2px" onclick="processDefect('+d.id+',\'returned\')">返品</button>';
+      btns += '<button class="btn-resolve-ng" style="margin:2px" onclick="processDefect('+d.id+',\'disposed\')">廃棄</button>';
+
+      tableHtml += '<tr style="background:'+bg+'">'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5;font-weight:600">'+(p?p.name:'不明')+'</td>'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5">'
+          +'<span style="background:'+catBg+';color:'+catColor+';padding:3px 8px;border-radius:99px;font-size:11px;font-weight:700">'+d.cat+'</span>'
+        +'</td>'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;font-weight:700;color:#dc2626">'+d.qty+'本</td>'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5;font-size:11px">'+(lot?lotLabel(lot):'-')+'</td>'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5;font-size:11px;white-space:nowrap">'+d.note+'</td>'
+        +'<td style="padding:8px 10px;border:1px solid #fca5a5;font-size:11px;color:#888"></td>'
+        +'<td style="padding:6px 8px;border:1px solid #fca5a5;white-space:nowrap">'+btns+'</td>'
+        +'</tr>';
+    });
+
+    // 総計行
+    const total = pending.reduce(function(s,d){ return s+d.qty; }, 0);
+    tableHtml += '<tr style="background:#fee2e2;font-weight:700">'
+      +'<td colspan="2" style="padding:8px 10px;border:1px solid #fca5a5">合計</td>'
+      +'<td style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;color:#dc2626">'+total+'本</td>'
+      +'<td colspan="4" style="border:1px solid #fca5a5"></td>'
+      +'</tr>';
+
+    tableHtml += '</tbody></table></div></div>';
+
+    // ── ③ 商品別・農園別レポート ──
+    tableHtml += '<details style="margin-bottom:1rem"><summary style="cursor:pointer;font-weight:700;font-size:13px;color:#7f1d1d;padding:8px 12px;background:#fff0f0;border-radius:8px">📊 商品別・農園別 不良集計（農園フィードバック用）</summary>';
+    tableHtml += '<div style="margin-top:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    tableHtml += '<thead><tr style="background:#f9f8f5">'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:left">商品名</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:left">グループ</th>'
+      +categories.map(function(c){ return '<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center">'+c+'</th>'; }).join('')
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center">合計</th>'
+      +'</tr></thead><tbody>';
+
+    Object.values(prodSummary).sort(function(a,b){ return b.total-a.total; }).forEach(function(ps, i){
+      tableHtml += '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'">'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;font-weight:600">'+ps.name+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;font-size:11px;color:#888">'+ps.group+'</td>'
+        +categories.map(function(c){
+          const n = ps.cats[c]||0;
+          return '<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(n>0?'font-weight:700;color:#dc2626':'color:#ccc')+'">'+( n>0?n+'本':'-')+'</td>';
+        }).join('')
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;font-weight:700;color:#7f1d1d">'+ps.total+'本</td>'
+        +'</tr>';
+    });
+    tableHtml += '</tbody></table></div></details>';
+
+    grp.innerHTML = tableHtml;
+  }
 }
 
 // =====================
