@@ -420,8 +420,8 @@ tr:last-child td{border-bottom:none}
         <option value="">出荷指示書を作成する受注を選択...</option>
       </select>
       <button class="btn btn-primary" onclick="generateSlip()">作成</button>
-      <button class="btn-print no-print" onclick="window.print()">印刷/PDF保存</button>
-      <button class="btn btn-primary no-print" onclick="generateInvoice()" id="invoice-btn" style="display:none">📄 納品書を作成</button>
+      <button class="btn-print no-print" onclick="printSlip()">🖨 出荷指示書を印刷</button>
+      <button class="btn btn-primary no-print" onclick="printInvoice()" id="invoice-btn" style="display:none">📄 納品書を印刷（お客様用）</button>
     </div>
     <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
       <button class="btn btn-green" onclick="generateAllSlip()">出荷待ち全件まとめて作成</button>
@@ -819,7 +819,7 @@ const PRODUCTS = [
 // ════════════════════════════════════
 // Googleスプレッドシート連携
 // ════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyt_MvrG319MMugprE0oI9hz6OU56Kx167CojV6PLfnSt78hL3x1e1lmBQGh7f3A-_4/exec';
 let gasSyncEnabled = true; // 同期ON/OFF
 
 // データをGASに保存
@@ -2722,6 +2722,54 @@ function showModal(msg){
 
 
 // ════════════════════════════════════
+// 印刷機能（出荷指示書・納品書を別々に印刷）
+// ════════════════════════════════════
+function printSlip(){
+  // 納品書を非表示にして出荷指示書だけ印刷
+  const invoiceArea = document.getElementById('invoice-area');
+  const slipArea = document.getElementById('slip-area');
+  const prevInvoice = invoiceArea.style.display;
+  invoiceArea.style.display = 'none';
+  window.print();
+  invoiceArea.style.display = prevInvoice;
+}
+
+function printInvoice(){
+  // 先に納品書を生成してから、出荷指示書を非表示にして印刷
+  generateInvoice();
+  setTimeout(function(){
+    const slipArea = document.getElementById('slip-area');
+    const lineSendBtn = document.getElementById('line-send-btn');
+    const invoiceBtn = document.getElementById('invoice-btn');
+    const allSlipBtns = document.querySelector('#panel-slip .no-print');
+    // 出荷指示書エリアを一時的に非表示
+    slipArea.style.display = 'none';
+    if(allSlipBtns) allSlipBtns.style.display = 'none';
+    window.print();
+    // 印刷後に戻す
+    slipArea.style.display = '';
+    if(allSlipBtns) allSlipBtns.style.display = '';
+  }, 300);
+}
+
+// ════════════════════════════════════
+// 不良在庫をGASに送信
+// ════════════════════════════════════
+function syncDefectToGAS(defect){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({action:'addDefect', defect: defect}),
+    headers: {'Content-Type':'application/json'}
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(d.status==='ok') showSyncStatus('✅ 不良在庫をスプシに保存しました');
+    else showSyncStatus('⚠️ 保存エラー: '+d.message, true);
+  }).catch(function(){
+    showSyncStatus('⚠️ 接続エラー', true);
+  });
+}
+
+// ════════════════════════════════════
 // 初期化
 // ════════════════════════════════════
 window.orders = orders;
@@ -3146,108 +3194,108 @@ function generateInvoice(){
   const invoiceArea = document.getElementById('invoice-area');
   let html = '';
 
-  currentSlipOrders.forEach(o=>{
-    const lines = (o.lines||[]).filter(l=>!MATERIAL_IDS.includes(l.productId));
+  currentSlipOrders.forEach(function(o){
+    const lines = (o.lines||[]).filter(function(l){ return !MATERIAL_IDS.includes(l.productId); });
     const ctype = o.customerType||'general';
-    const ctypeLabel = CUSTOMER_TYPE_LABEL[ctype]||'一般';
     const isRecycle = o.useRecycle || false;
-    const totalBottles = lines.reduce((s,l)=>{
-      const p=PRODUCTS.find(x=>x.id==l.productId);
-      const bq=(p&&p.boxQty)?p.boxQty:1;
-      return s+(l.bottles||0)+(l.boxes||0)*bq;
-    },0);
 
-    html += `<div class="invoice" id="invoice-${o.id}">
-      <div class="invoice-title">納 品 書</div>
-      <div class="invoice-meta">
-        <div class="invoice-box">
-          <div class="invoice-box-label">お届け先</div>
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px">${o.client||''} 様</div>
-          <div style="font-size:12px;color:#555">${o.zip?'〒'+o.zip+' ':''}</div>
-          <div style="font-size:12px;color:#555">${o.addr||''}</div>
-          <div style="font-size:12px;color:#555">${o.tel?'TEL: '+o.tel:''}</div>
-        </div>
-        <div class="invoice-box">
-          <div class="invoice-box-label">送り主</div>
-          ${o.senderName ? `
-            <div style="font-size:14px;font-weight:700;margin-bottom:4px">${o.senderName}</div>
-            <div style="font-size:12px;color:#555">${o.senderZip?'〒'+o.senderZip+' ':''}</div>
-            <div style="font-size:12px;color:#555">${o.senderAddr||''}</div>
-            <div style="font-size:12px;color:#555">${o.senderTel?'TEL: '+o.senderTel:''}</div>
-          ` : `
-            <div style="font-size:13px;font-weight:700">オリーブオイル・ストーリーズ</div>
-            <div style="font-size:12px;color:#555">〒 xxx-xxxx 住所を設定してください</div>
-          `}
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12px;color:#555">
-        <span>注文番号: ${o.num||'―'}</span>
-        <span>区分: <strong>${ctypeLabel}</strong></span>
-        <span>発送: ${o.registeredAt||''}</span>
-        ${isRecycle ? '<span class="recycle-badge">♻️ リサイクル箱使用</span>' : ''}
-      </div>
-      <table class="invoice-table">
-        <thead><tr>
-          <th>商品名</th>
-          <th style="text-align:center;width:80px">本数</th>
-          <th style="text-align:center;width:80px">箱数</th>
-          <th style="text-align:center;width:80px">合計</th>
-          <th style="text-align:center;width:60px">種別</th>
-        </tr></thead>
-        <tbody>
-        ${lines.map(l=>{
-          const p=PRODUCTS.find(x=>x.id==l.productId);
-          const bq=(p&&p.boxQty)?p.boxQty:0;
-          const tot=(l.bottles||0)+(l.boxes||0)*bq;
-          const gt=GIFT_TYPES.find(g=>g.value===l.giftType);
-          return `<tr>
-            <td style="font-weight:600">${p?p.name.replace(/ A[45]\(.*?\)/,''):'?'}</td>
-            <td style="text-align:center">${l.bottles||0}本</td>
-            <td style="text-align:center">${l.boxes||0}箱</td>
-            <td style="text-align:center;font-weight:700">計${tot}本</td>
-            <td style="text-align:center"><span style="font-size:10px;background:#f1f5f9;padding:2px 6px;border-radius:4px">${gt?gt.label:''}</span></td>
-          </tr>`;
-        }).join('')}
-        </tbody>
-      </table>
-      <div class="invoice-total">合計 ${totalBottles}本</div>
-      ${(()=>{
-        let sub8=0,sub10=0;
-        lines.forEach(function(l){
-          const p=PRODUCTS.find(function(x){return x.id==l.productId;});
-          if(!p||!p.priceOpen) return;
-          const unitPrice=getUnitPrice(p,ctype);
-          if(unitPrice===null) return;
-          const bq=p.boxQty||1;
-          const tot=(l.bottles||0)+(l.boxes||0)*bq;
-          if(p.tax===0.10) sub10+=unitPrice*tot;
-          else sub8+=unitPrice*tot;
-        });
-        const t8=Math.floor(sub8*0.08),t10=Math.floor(sub10*0.10),total=sub8+t8+sub10+t10;
-        if(!total) return '';
-        const pLabel=ctypeLabel(ctype);
-        return '<div style="border-top:1px solid #e8e7e3;margin-top:12px;padding-top:12px;font-size:12px">'
-          +'<div style="font-weight:700;margin-bottom:6px">金額（税抜：'+pLabel+'）</div>'
-          +(sub8?'<div style="display:flex;justify-content:space-between"><span>小計（8%対象）</span><span>'+sub8.toLocaleString()+'円</span></div>':'')
-          +(sub10?'<div style="display:flex;justify-content:space-between"><span>小計（10%対象）</span><span>'+sub10.toLocaleString()+'円</span></div>':'')
-          +(sub8?'<div style="display:flex;justify-content:space-between;color:#888"><span>消費税（8%）</span><span>'+t8.toLocaleString()+'円</span></div>':'')
-          +(sub10?'<div style="display:flex;justify-content:space-between;color:#888"><span>消費税（10%）</span><span>'+t10.toLocaleString()+'円</span></div>':'')
-          +(()=>{
-            const hasBaraInv = lines.some(function(l2){return (l2.bottles||0)>0;});
-            let pFee=0,pLabel='';
-            if(hasBaraInv){
-              if(ctype==='rt'){pFee=700;pLabel='ピッキング料（バラ・ホテル）';}
-              else if(isWholesale(ctype)){pFee=250;pLabel='ピッキング料（バラ発送）';}
-            }
-            const grandTotalInv=total+pFee;
-            return (pFee?'<div style="display:flex;justify-content:space-between;color:#b45309"><span>'+pLabel+'</span><span>'+pFee.toLocaleString()+'円</span></div>':'')
-              +'<div style="display:flex;justify-content:space-between;font-weight:700;font-size:14px;border-top:1px solid #e8e7e3;margin-top:4px;padding-top:4px"><span>合計（税込）</span><span>'+grandTotalInv.toLocaleString()+'円</span></div>';
-          })()
-          +'</div>';
-      })()}
-      ${o.note ? `<div style="background:#fef3c7;border-radius:6px;padding:8px 12px;font-size:12px;margin-top:10px">⚠️ ${o.note}</div>` : ''}
-      <div style="text-align:center;color:#aaa;font-size:11px;margin-top:1.5rem">オリーブオイル・ストーリーズ</div>
-    </div>`;
+    // 金額計算
+    let sub8=0, sub10=0;
+    lines.forEach(function(l){
+      const p = PRODUCTS.find(function(x){ return x.id==l.productId; });
+      if(!p) return;
+      const unitPrice = getUnitPrice(p, ctype);
+      if(!unitPrice) return;
+      const bq = p.boxQty||1;
+      const tot = (l.bottles||0) + (l.boxes||0)*bq;
+      if(p.tax===0.10) sub10 += unitPrice*tot;
+      else sub8 += unitPrice*tot;
+    });
+    const tax8  = Math.floor(sub8  * 0.08);
+    const tax10 = Math.floor(sub10 * 0.10);
+    const total = sub8 + tax8 + sub10 + tax10;
+
+    html += '<div class="invoice" id="invoice-'+o.id+'">';
+    html += '<div class="invoice-title">納 品 書</div>';
+
+    // お届け先・送り主
+    html += '<div class="invoice-meta">';
+    html += '<div class="invoice-box">';
+    html += '<div class="invoice-box-label">お届け先</div>';
+    html += '<div style="font-size:16px;font-weight:700;margin-bottom:6px">'+(o.client||'')+'　様</div>';
+    if(o.zip)  html += '<div style="font-size:12px;color:#555">〒'+o.zip+'</div>';
+    if(o.addr) html += '<div style="font-size:12px;color:#555">'+o.addr+'</div>';
+    if(o.tel)  html += '<div style="font-size:12px;color:#555">TEL: '+o.tel+'</div>';
+    html += '</div>';
+
+    html += '<div class="invoice-box">';
+    html += '<div class="invoice-box-label">送り主</div>';
+    if(o.senderName){
+      html += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">'+o.senderName+'</div>';
+      if(o.senderZip)  html += '<div style="font-size:12px;color:#555">〒'+o.senderZip+'</div>';
+      if(o.senderAddr) html += '<div style="font-size:12px;color:#555">'+o.senderAddr+'</div>';
+      if(o.senderTel)  html += '<div style="font-size:12px;color:#555">TEL: '+o.senderTel+'</div>';
+    } else {
+      html += '<div style="font-size:13px;font-weight:700">オリーブオイル・ストーリーズ</div>';
+      html += '<div style="font-size:12px;color:#555">福岡県</div>';
+      html += '<div style="font-size:12px;color:#555">https://oliveoilstories.net/</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    // 発送日・注文番号
+    html += '<div style="font-size:12px;color:#888;margin-bottom:12px">';
+    html += '発送日: '+(o.registeredAt||'').split(' ')[0];
+    if(o.num) html += '　注文番号: '+o.num;
+    if(isRecycle) html += '　<span style="background:#dcfce7;color:#14532d;padding:2px 8px;border-radius:4px;font-size:11px">♻️ リサイクル箱使用</span>';
+    html += '</div>';
+
+    // 商品テーブル（シンプル）
+    html += '<table class="invoice-table">';
+    html += '<thead><tr>';
+    html += '<th>商品名</th>';
+    html += '<th style="text-align:center;width:70px">数量</th>';
+    html += '<th style="text-align:right;width:90px">単価（税抜）</th>';
+    html += '<th style="text-align:right;width:90px">金額（税抜）</th>';
+    html += '</tr></thead><tbody>';
+
+    lines.forEach(function(l){
+      const p = PRODUCTS.find(function(x){ return x.id==l.productId; });
+      if(!p) return;
+      const bq = p.boxQty||1;
+      const tot = (l.bottles||0) + (l.boxes||0)*bq;
+      const unitPrice = getUnitPrice(p, ctype);
+      const lineTotal = unitPrice ? unitPrice*tot : 0;
+      // 商品名からロット情報を除去
+      const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
+      html += '<tr>';
+      html += '<td style="font-weight:600">'+cleanName+'</td>';
+      html += '<td style="text-align:center">'+tot+'本</td>';
+      html += '<td style="text-align:right">'+(unitPrice ? unitPrice.toLocaleString()+'円' : '―')+'</td>';
+      html += '<td style="text-align:right">'+(lineTotal ? lineTotal.toLocaleString()+'円' : '―')+'</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+
+    // 金額合計
+    if(total > 0){
+      html += '<div style="text-align:right;margin-top:10px;font-size:13px">';
+      if(sub8)  html += '<div style="display:flex;justify-content:flex-end;gap:20px"><span>小計（8%対象）</span><span>'+sub8.toLocaleString()+'円</span></div>';
+      if(sub10) html += '<div style="display:flex;justify-content:flex-end;gap:20px"><span>小計（10%対象）</span><span>'+sub10.toLocaleString()+'円</span></div>';
+      if(sub8)  html += '<div style="display:flex;justify-content:flex-end;gap:20px;color:#888"><span>消費税（8%）</span><span>'+tax8.toLocaleString()+'円</span></div>';
+      if(sub10) html += '<div style="display:flex;justify-content:flex-end;gap:20px;color:#888"><span>消費税（10%）</span><span>'+tax10.toLocaleString()+'円</span></div>';
+      html += '<div style="display:flex;justify-content:flex-end;gap:20px;font-weight:700;font-size:15px;border-top:1px solid #e8e7e3;margin-top:6px;padding-top:6px"><span>合計（税込）</span><span>'+total.toLocaleString()+'円</span></div>';
+      html += '</div>';
+    }
+
+    if(o.note){
+      html += '<div style="margin-top:12px;font-size:12px;color:#555;border-top:1px solid #e8e7e3;padding-top:8px">備考: '+o.note+'</div>';
+    }
+
+    html += '<div style="text-align:center;color:#aaa;font-size:11px;margin-top:1.5rem;border-top:1px solid #f0efe9;padding-top:10px">';
+    html += '株式会社オリーブオイル・ストーリーズ　https://oliveoilstories.net/';
+    html += '</div>';
+    html += '</div>';
   });
 
   invoiceArea.innerHTML = html;
