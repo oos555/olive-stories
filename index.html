@@ -822,20 +822,29 @@ const PRODUCTS = [
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbySPMtTyWU6nVM1-2TeHTAzgDSPqhVZ4ZJH2t_k-BJygFdN6VVl9OOteLIMPvwCM07L/exec';
 let gasSyncEnabled = true; // 同期ON/OFF
 
-// データをGASに保存
+// データをGASに保存（GETリクエスト方式 - CORSエラー回避）
 function syncToGAS(action, payload) {
   if(!gasSyncEnabled) return;
-  const body = Object.assign({action}, payload);
-  fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: {'Content-Type':'application/json'}
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-    else showSyncStatus('⚠️ 保存エラー: '+d.message, true);
-  }).catch(function(e){
-    showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
-  });
+  const data = Object.assign({action:action}, payload);
+  const encoded = encodeURIComponent(JSON.stringify(data.orders||[]));
+  const url = GAS_URL + '?action=' + action + '&data=' + encoded;
+  
+  // script タグを使ったJSONP方式でCORSを回避
+  const callbackName = 'gasCallback_' + Date.now();
+  window[callbackName] = function(d){
+    delete window[callbackName];
+    if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+    else showSyncStatus('⚠️ 保存エラー', true);
+  };
+  
+  fetch(GAS_URL + '?action=' + action + '&data=' + encoded)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+    }).catch(function(e){
+      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    });
 }
 
 function showSyncStatus(msg, isError){
@@ -855,7 +864,6 @@ function showSyncStatus(msg, isError){
 
 // 受注データを全件同期
 function syncOrders(){
-  // 商品名を付けて送信
   const ordersWithName = orders.map(function(o){
     return Object.assign({}, o, {
       lines: (o.lines||[]).map(function(l){
@@ -867,7 +875,17 @@ function syncOrders(){
       })
     });
   });
-  syncToGAS('saveOrders', {orders: ordersWithName});
+  // GETリクエストでデータを送信
+  const encoded = encodeURIComponent(JSON.stringify(ordersWithName));
+  const url = GAS_URL + '?action=saveOrders&data=' + encoded;
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+    }).catch(function(e){
+      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    });
 }
 
 const MATERIAL_IDS = [32, 33];
