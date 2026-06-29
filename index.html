@@ -1277,6 +1277,50 @@ function registerOrder(){
     });
   }
   alert(msg);
+
+  // 在庫から自動取り置き
+  autoHoldFromOrder(order);
+}
+
+function autoHoldFromOrder(order){
+  const lines = (order.lines||[]).filter(function(l){
+    return !MATERIAL_IDS.includes(l.productId);
+  });
+  if(!lines.length) return;
+
+  let holdMsg = '';
+  lines.forEach(function(l){
+    const p = products.find(function(x){ return x.id == l.productId; });
+    if(!p) return;
+    const bq = (p && p.boxQty) ? p.boxQty : 1;
+    const qty = (l.bottles||0) + (l.boxes||0)*bq;
+    if(!qty) return;
+
+    // 販売可能数チェック
+    const avail = totalAvail(p.id);
+    if(avail < qty){
+      holdMsg += '⚠️ '+p.name+': 在庫不足（必要'+qty+'本・販売可能'+avail+'本）\n';
+    }
+
+    // 取り置き登録
+    holds.push({
+      id: order.id + '_' + l.productId,
+      pid: p.id,
+      client: order.client,
+      qty: qty,
+      date: '',
+      orderId: order.id,
+      auto: true
+    });
+  });
+
+  if(holdMsg){
+    alert('【在庫不足の商品があります】\n' + holdMsg + '\n在庫を確認してください。');
+  }
+
+  // 在庫表示を更新
+  renderInvTable();
+  updSummary();
 }
 
 function clearForm(){
@@ -1384,13 +1428,57 @@ function markShipped(id){
   if(!confirm(`「${o.client}」の注文を出荷済みにしますか？`)) return;
   o.status='shipped';
   o.shippedAt=ts();
+
+  // 取り置きを解除して在庫から出庫
+  autoShipFromOrder(o);
+
   updSummary(); renderList();
-  syncOrders(); // 出荷済みをスプレッドシートに反映
+  syncOrders();
+}
+
+function autoShipFromOrder(order){
+  const lines = (order.lines||[]).filter(function(l){
+    return !MATERIAL_IDS.includes(l.productId);
+  });
+  lines.forEach(function(l){
+    const p = products.find(function(x){ return x.id == l.productId; });
+    if(!p) return;
+    const bq = (p && p.boxQty) ? p.boxQty : 1;
+    const qty = (l.bottles||0) + (l.boxes||0)*bq;
+    if(!qty) return;
+
+    // 取り置きを削除
+    holds = holds.filter(function(h){
+      return !(h.orderId === order.id && h.pid === p.id);
+    });
+
+    // 在庫から出庫（新しいロットから順に）
+    let remaining = qty;
+    const pLotList = lots.filter(function(lt){ return lt.pid === p.id && lt.status === 'new'; });
+    pLotList.forEach(function(lt){
+      if(remaining <= 0) return;
+      const canOut = lt.stock - lt.defect;
+      const outQty = Math.min(canOut, remaining);
+      if(outQty > 0){
+        lt.stock -= outQty;
+        remaining -= outQty;
+        logs.unshift({type:'out', tag:'出庫（出荷）', name:p.name, lot:lotLabel(lt), qty:outQty, note:order.client, time:ts()});
+      }
+    });
+    if(remaining > 0){
+      logs.unshift({type:'out', tag:'⚠出庫不足', name:p.name, lot:'', qty:remaining, note:'在庫不足', time:ts()});
+    }
+  });
+
+  renderInvTable();
+  renderInvLogs();
 }
 
 function deleteOrder(id){
   if(!confirm('この受注を削除しますか？')) return;
+  holds = holds.filter(function(h){ return h.orderId !== id; });
   orders=orders.filter(x=>x.id!==id);
+  renderInvTable();
   updSummary(); renderList(); updSlipSelect();
 }
 
@@ -2048,67 +2136,67 @@ let products = [
 // status: 'new'=最新, 'old'=旧ロット, 'supply'=備品（賞味期限なし）
 let lots = [
   // オルガニック A5（最新）
-  {id:101, pid:1,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:102, pid:2,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:103, pid:3,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:104, pid:4,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:105, pid:5,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:106, pid:6,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:101, pid:1,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:102, pid:2,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:103, pid:3,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:104, pid:4,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:105, pid:5,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:106, pid:6,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // オルガニック A4（旧ロット）
-  {id:107, pid:2,  lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
-  {id:108, pid:3,  lotCode:'A4', expiry:'2026.7',  stock:0, defect:0, status:'old', note:''},
-  {id:109, pid:3,  lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
+  {id:107, pid:2,  lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
+  {id:108, pid:3,  lotCode:'A4', expiry:'2026.7',  stock:100, defect:0, status:'old', note:''},
+  {id:109, pid:3,  lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
   // メメジック A5
-  {id:110, pid:7,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:111, pid:8,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:112, pid:9,  lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:113, pid:10, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:114, pid:11, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:115, pid:12, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:110, pid:7,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:111, pid:8,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:112, pid:9,  lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:113, pid:10, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:114, pid:11, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:115, pid:12, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // メメジック A4
-  {id:116, pid:8,  lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
-  {id:117, pid:9,  lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
-  {id:118, pid:11, lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
+  {id:116, pid:8,  lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
+  {id:117, pid:9,  lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
+  {id:118, pid:11, lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
   // シェフズブレンド A5
-  {id:119, pid:13, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:120, pid:14, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:121, pid:15, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:119, pid:13, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:120, pid:14, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:121, pid:15, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // シェフズブレンド A4
-  {id:122, pid:14, lotCode:'A4', expiry:'2026.7',  stock:0, defect:0, status:'old', note:''},
-  {id:123, pid:14, lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
-  {id:124, pid:15, lotCode:'A4', expiry:'2026.12', stock:0, defect:0, status:'old', note:''},
+  {id:122, pid:14, lotCode:'A4', expiry:'2026.7',  stock:100, defect:0, status:'old', note:''},
+  {id:123, pid:14, lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
+  {id:124, pid:15, lotCode:'A4', expiry:'2026.12', stock:100, defect:0, status:'old', note:''},
   // プリモフルット A5
-  {id:125, pid:16, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:126, pid:17, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:127, pid:18, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:128, pid:19, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:125, pid:16, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:126, pid:17, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:127, pid:18, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:128, pid:19, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // プリモフルット A4
-  {id:129, pid:17, lotCode:'A4', expiry:'2026.7',  stock:0, defect:0, status:'old', note:''},
+  {id:129, pid:17, lotCode:'A4', expiry:'2026.7',  stock:100, defect:0, status:'old', note:''},
   // ザイトゥーン A5
-  {id:130, pid:20, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:131, pid:21, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:130, pid:20, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:131, pid:21, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // アグルミ A5
-  {id:132, pid:22, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:133, pid:23, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:134, pid:24, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:132, pid:22, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:133, pid:23, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:134, pid:24, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // その他 A5
-  {id:135, pid:25, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:136, pid:26, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:137, pid:27, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:138, pid:28, lotCode:'A5', expiry:'-',       stock:0, defect:0, status:'new', note:''},
-  {id:139, pid:29, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:135, pid:25, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:136, pid:26, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:137, pid:27, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:138, pid:28, lotCode:'A5', expiry:'-',       stock:100, defect:0, status:'new', note:''},
+  {id:139, pid:29, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
   // 備品（賞味期限なし）
-  {id:140, pid:30, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:141, pid:31, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:142, pid:32, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:143, pid:33, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:144, pid:34, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:145, pid:35, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:146, pid:36, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:147, pid:37, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''},
-  {id:148, pid:38, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:149, pid:39, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
-  {id:150, pid:40, lotCode:'A5', expiry:'2027.11', stock:0, defect:0, status:'new', note:''},
+  {id:140, pid:30, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:141, pid:31, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:142, pid:32, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:143, pid:33, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:144, pid:34, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:145, pid:35, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:146, pid:36, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:147, pid:37, lotCode:'-', expiry:'-', stock:100, defect:0, status:'supply', note:''},
+  {id:148, pid:38, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:149, pid:39, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
+  {id:150, pid:40, lotCode:'A5', expiry:'2027.11', stock:100, defect:0, status:'new', note:''},
 ];
 
 let holds = [];
@@ -2201,7 +2289,7 @@ function renderInvTable(){
             ? '<span style="color:#7c3aed;font-size:11px">'+
               (p.components||[]).map(c=>{const cp=products.find(x=>x.id===c.pid);return (cp?cp.name:'?')+'×'+c.qty;}).join('<br>')+
               '</span>'
-            : stock+unit}
+            : '<span onclick="editStock('+p.id+')" title="クリックで在庫編集" style="cursor:pointer;border-bottom:1px dashed #aaa">'+stock+unit+'</span>'}
         </td>
         <td style="color:#b45309;font-weight:600">${old?old+unit:'-'}</td>
         <td style="color:#dc2626;font-weight:600">${def?def+unit:'-'}</td>
@@ -2838,6 +2926,45 @@ updCustomerSelects();
 
 
 // ════════════════════════════════════
+// 在庫を手入力で編集
+// ════════════════════════════════════
+function editStock(pid){
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p) return;
+  const current = totalStock(pid);
+  const input = prompt(p.name+'の実在庫数を入力してください（現在: '+current+'本）', current);
+  if(input===null) return; // キャンセル
+  const newQty = parseInt(input);
+  if(isNaN(newQty) || newQty < 0){ alert('正しい数値を入力してください'); return; }
+
+  // 差分を計算して在庫調整
+  const diff = newQty - current;
+  const pLotList = lots.filter(function(lt){ return lt.pid===pid && lt.status==='new'; });
+  
+  if(pLotList.length === 0){
+    alert('登録されているロットがありません。ロット管理から先に登録してください。');
+    return;
+  }
+
+  // 最初の最新ロットに差分を適用
+  const targetLot = pLotList[0];
+  targetLot.stock = Math.max(0, targetLot.stock + diff);
+
+  logs.unshift({
+    type: diff>=0?'in':'out',
+    tag: '在庫手入力修正',
+    name: p.name,
+    lot: lotLabel(targetLot),
+    qty: Math.abs(diff),
+    note: current+'本→'+newQty+'本',
+    time: ts()
+  });
+
+  renderInvTable();
+  renderInvLogs();
+}
+
+// ════════════════════════════════════
 // キャンセル機能
 // ════════════════════════════════════
 function cancelOrder(id){
@@ -2846,10 +2973,15 @@ function cancelOrder(id){
   if(!confirm(`「${o.client}」の注文をキャンセルしますか？\n在庫の取り置きが解除されます。`)) return;
   o.status = 'cancelled';
   o.cancelledAt = ts();
+
+  // 取り置きを解除（在庫に戻す）
+  holds = holds.filter(function(h){ return h.orderId !== o.id; });
+  renderInvTable();
+
   updSummary();
   renderList();
   updSlipSelect();
-  syncOrders(); // キャンセルをスプレッドシートに反映
+  syncOrders();
   alert('キャンセルしました。在庫の取り置きを解除しました。');
 }
 
