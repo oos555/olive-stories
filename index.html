@@ -272,10 +272,7 @@ tr:last-child td{border-bottom:none}
           </div>
         </div>
       </div>
-      <div class="g2">
-        <div class="fg"><label>注文番号（任意）</label><input type="text" id="o-num" placeholder="#1045"></div>
-        <div class="fg"><label>配送希望日（任意）</label><input type="date" id="o-date"></div>
-      </div>
+      <div class="fg"><label>注文番号（任意）</label><input type="text" id="o-num" placeholder="#1045"></div>
       <div class="g2">
         <div class="fg">
           <label>発送区分 <span style="font-size:11px;color:#dc2626;font-weight:400">※出荷指示書に大きく表示されます</span></label>
@@ -2771,6 +2768,49 @@ function printInvoice(){
 }
 
 // ════════════════════════════════════
+// 納品書をGoogleドライブに保存
+// ════════════════════════════════════
+function saveInvoiceToGAS(order){
+  if(!gasSyncEnabled) return;
+  // 納品書HTMLを生成
+  const invoiceEl = document.getElementById('invoice-'+order.id);
+  if(!invoiceEl) return;
+  const html = '<html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ccc}th{background:#f5f5f5}</style></head><body>'+invoiceEl.innerHTML+'</body></html>';
+  
+  const today = new Date().toISOString().split('T')[0];
+  const invoiceData = {
+    orderId: order.id,
+    orderNum: order.num||'',
+    client: order.client||'',
+    date: today,
+    html: html
+  };
+  
+  const encoded = encodeURIComponent(JSON.stringify(invoiceData));
+  fetch(GAS_URL + '?action=saveInvoice&invoiceData=' + encoded)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status==='ok'){
+        showSyncStatus('✅ 納品書をドライブに保存しました');
+        // リンクを表示
+        if(d.url){
+          const btn = document.createElement('a');
+          btn.href = d.url;
+          btn.target = '_blank';
+          btn.textContent = '📄 Googleドライブで開く';
+          btn.style.cssText = 'display:inline-block;margin-top:10px;padding:6px 14px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-size:13px';
+          const area = document.getElementById('invoice-area');
+          if(area) area.appendChild(btn);
+        }
+      } else {
+        showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+      }
+    }).catch(function(){
+      showSyncStatus('⚠️ 接続エラー', true);
+    });
+}
+
+// ════════════════════════════════════
 // 不良在庫をGASに送信
 // ════════════════════════════════════
 function syncDefectToGAS(defect){
@@ -3318,6 +3358,15 @@ function generateInvoice(){
 
   invoiceArea.innerHTML = html;
   invoiceArea.scrollIntoView({behavior:'smooth'});
+  
+  // GAS保存ボタンを追加
+  if(currentSlipOrders.length === 1){
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '☁️ 納品書をGoogleドライブに保存';
+    saveBtn.style.cssText = 'margin-top:12px;padding:8px 20px;background:#4285f4;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer';
+    saveBtn.onclick = function(){ saveInvoiceToGAS(currentSlipOrders[0]); };
+    invoiceArea.appendChild(saveBtn);
+  }
 }
 
 
