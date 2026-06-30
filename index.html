@@ -3733,6 +3733,35 @@ function shipFromPreorder(preId){
 }
 
 // ════════════════════════════════════
+// お客様区分の変更ミス防止アラート
+// ════════════════════════════════════
+function checkCtypeMismatch(newType){
+  const client = (document.getElementById('o-client')||{value:''}).value.trim();
+  if(!client) return;
+
+  // 過去の受注履歴から同じお客様名の最新の区分を探す
+  const pastOrders = orders.filter(function(o){
+    return o.client === client && o.status !== 'cancelled' && o.customerType;
+  }).sort(function(a,b){ return (b.registeredAt||'').localeCompare(a.registeredAt||''); });
+
+  if(!pastOrders.length) return; // 過去履歴なし
+
+  const lastType = pastOrders[0].customerType;
+  if(lastType && lastType !== newType){
+    const labels = {'general':'定価','wholesale1':'卸①（仲卸価格）','wholesale2':'卸②（一般卸価格）','rt':'RT（ホテル）'};
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea){
+      warnArea.innerHTML = '<div class="alert-bar alert-danger" style="margin-bottom:10px">'
+        +'⚠️ 「'+client+'」様は前回「'+(labels[lastType]||lastType)+'」でご注文されています。今回は「'+(labels[newType]||newType)+'」が選択されています。区分の変更で間違いないですか？'
+        +'</div>';
+    }
+  } else {
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea) warnArea.innerHTML = '';
+  }
+}
+
+// ════════════════════════════════════
 // 注文番号の自動採番
 // ════════════════════════════════════
 function generateOrderNum(){
