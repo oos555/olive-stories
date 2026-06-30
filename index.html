@@ -281,7 +281,7 @@ tr:last-child td{border-bottom:none}
           </div>
         </div>
       </div>
-      <div class="fg"><label>注文番号（任意）</label><input type="text" id="o-num" placeholder="#1045"></div>
+      <div class="fg"><label>注文番号（自動採番）</label><input type="text" id="o-num" readonly style="background:#f5f4f0;color:#555"></div>
       <div class="g2">
         <div class="fg">
           <label>発送区分 <span style="font-size:11px;color:#dc2626;font-weight:400">※出荷指示書に大きく表示されます</span></label>
@@ -1400,6 +1400,9 @@ function registerOrder(){
   };
   orders.unshift(order);
 
+  // お客様マスタに自動追加・更新
+  ensureCustomerInMaster(client, ctype, zip, addr, tel);
+
   document.getElementById('confirm-area').style.display='none';
   clearForm();
   updSummary();
@@ -1485,7 +1488,7 @@ function autoHoldFromOrder(order){
 
 function clearForm(){
   document.getElementById('o-client').value='';
-  document.getElementById('o-num').value='';
+  setNewOrderNum();
   document.getElementById('o-note').value='';
   document.getElementById('o-lead').value='normal';
   document.getElementById('o-lead-date').value='';
@@ -3352,6 +3355,7 @@ updatePreview();
 renderInvTable();
 renderInvLogs();
 updCustomerSelects();
+setNewOrderNum();
 loadAllDataFromGAS(); // 保存されたデータを読み込む
 
 // ページを離れる時に警告（誤操作防止）
@@ -3726,6 +3730,51 @@ function shipFromPreorder(preId){
   document.getElementById('invoice-btn').style.display = 'inline-flex';
 
   alert('出荷指示書を作成しました。');
+}
+
+// ════════════════════════════════════
+// 注文番号の自動採番
+// ════════════════════════════════════
+function generateOrderNum(){
+  const now = new Date();
+  const ym = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字(0,O,1,I)を除外
+  let rand = '';
+  for(let i=0; i<4; i++){
+    rand += chars[Math.floor(Math.random()*chars.length)];
+  }
+  return ym + '-' + rand;
+}
+
+// フォームを開いたとき・クリア時に新しい番号を自動セット
+function setNewOrderNum(){
+  const el = document.getElementById('o-num');
+  if(el) el.value = generateOrderNum();
+}
+
+// ════════════════════════════════════
+// お客様マスタへの自動追加
+// ════════════════════════════════════
+function ensureCustomerInMaster(client, ctype, zip, addr, tel){
+  if(!client) return;
+  const existing = customers.find(function(c){ return c.name === client; });
+  if(existing){
+    // 既存があれば最新の情報で区分・住所を更新（変わっていれば）
+    existing.type = ctype || existing.type;
+    if(zip)  existing.zip  = zip;
+    if(addr) existing.addr = addr;
+    if(tel)  existing.tel  = tel;
+  } else {
+    customers.push({
+      id: ++customerIdCounter,
+      name: client,
+      zip: zip||'', addr: addr||'', tel: tel||'',
+      type: ctype||'general',
+      recycle: isWholesale(ctype),
+      note: ''
+    });
+  }
+  updCustomerSelects();
 }
 
 // ════════════════════════════════════
