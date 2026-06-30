@@ -562,12 +562,16 @@ tr:last-child td{border-bottom:none}
     <div id="pre-list"></div>
     <div class="card">
       <div class="sec">予約を受け付ける</div>
-      <div class="g3">
-        <div class="fg"><label>商品</label><select id="p-product"></select></div>
-        <div class="fg"><label>数量</label><input type="number" id="p-qty" min="1" value="1"></div>
+      <div class="g2">
+        <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
         <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
       </div>
-      <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付など"></div>
+      <div class="g3">
+        <div class="fg"><label>本数（バラ）</label><input type="number" id="p-bottles" min="0" value="0" oninput="updPreorderTotal()"></div>
+        <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
+        <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
+      </div>
+      <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
       <button class="btn-primary btn" onclick="addPreorder()">予約登録</button>
     </div>
   </div>
@@ -711,103 +715,103 @@ const PRODUCTS = [
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
   {id:2,   name:'オルガニック 250ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:201, name:'オルガニック 250ml A4(2026.12)',  group:'オルガニック', lot:'A4', old:true, boxQty:20,
+  {id:201, name:'オルガニック 250ml A4(2026.12)',  sku:'ORG250', group:'オルガニック', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:3,   name:'オルガニック 500ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:12,
+  {id:3,   name:'オルガニック 500ml A5(2027.11)',  sku:'ORG500', group:'オルガニック', lot:'A5', boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:301, name:'オルガニック 500ml A4(2026.7)',   group:'オルガニック', lot:'A4', old:true, boxQty:12,
+  {id:301, name:'オルガニック 500ml A4(2026.7)',   sku:'ORG500', group:'オルガニック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:302, name:'オルガニック 500ml A4(2026.12)',  group:'オルガニック', lot:'A4', old:true, boxQty:12,
+  {id:302, name:'オルガニック 500ml A4(2026.12)',  sku:'ORG500', group:'オルガニック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:4,   name:'オルガニック 750ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:12,
+  {id:4,   name:'オルガニック 750ml A5(2027.11)',  sku:'ORG750', group:'オルガニック', lot:'A5', boxQty:12,
    priceOpen:9485, priceRT:7588, priceW1:5691, priceW2:7588, tax:0.08},
-  {id:5,   name:'オルガニック 2L A5(2027.11)',     group:'オルガニック', lot:'A5', boxQty:6,
+  {id:5,   name:'オルガニック 2L A5(2027.11)',     sku:'ORG2L', group:'オルガニック', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:6,   name:'オルガニック 5L A5(2027.11)',     group:'オルガニック', lot:'A5', boxQty:4,
+  {id:6,   name:'オルガニック 5L A5(2027.11)',     sku:'ORG5L', group:'オルガニック', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:33000, priceW2:44000, tax:0.08},
   // ── メメジック ──────────────────────
-  {id:7,   name:'メメジック 100ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:24,
+  {id:7,   name:'メメジック 100ml A5(2027.11)',    sku:'MEM100', group:'メメジック', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:8,   name:'メメジック 250ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:20,
+  {id:8,   name:'メメジック 250ml A5(2027.11)',    sku:'MEM100', group:'メメジック', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:801, name:'メメジック 250ml A4(2026.12)',    group:'メメジック', lot:'A4', old:true, boxQty:20,
+  {id:801, name:'メメジック 250ml A4(2026.12)',    sku:'MEM250', group:'メメジック', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:9,   name:'メメジック 500ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:12,
+  {id:9,   name:'メメジック 500ml A5(2027.11)',    sku:'MEM500', group:'メメジック', lot:'A5', boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:901, name:'メメジック 500ml A4(2026.12)',    group:'メメジック', lot:'A4', old:true, boxQty:12,
+  {id:901, name:'メメジック 500ml A4(2026.12)',    sku:'MEM500', group:'メメジック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:10,  name:'メメジック 750ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:12,
+  {id:10,  name:'メメジック 750ml A5(2027.11)',    sku:'MEM750', group:'メメジック', lot:'A5', boxQty:12,
    priceOpen:9485, priceRT:7588, priceW1:5691, priceW2:7588, tax:0.08},
-  {id:11,  name:'メメジック 2L A5(2027.11)',       group:'メメジック', lot:'A5', boxQty:6,
+  {id:11,  name:'メメジック 2L A5(2027.11)',       sku:'MEM2L', group:'メメジック', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:111, name:'メメジック 2L A4(2026.12)',       group:'メメジック', lot:'A4', old:true, boxQty:6,
+  {id:111, name:'メメジック 2L A4(2026.12)',       sku:'MEM2L', group:'メメジック', lot:'A4', old:true, boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:12,  name:'メメジック 5L A5(2027.11)',       group:'メメジック', lot:'A5', boxQty:4,
+  {id:12,  name:'メメジック 5L A5(2027.11)',       sku:'MEM5L', group:'メメジック', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:33000, priceW2:44000, tax:0.08},
   // ── シェフズブレンド ──────────────────────
-  {id:13,  name:'シェフズブレンド 100ml A5(2027.11)', group:'シェフズブレンド', lot:'A5', boxQty:24,
+  {id:13,  name:'シェフズブレンド 100ml A5(2027.11)', sku:'CHF100', group:'シェフズブレンド', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:14,  name:'シェフズブレンド 250ml A5(2027.11)', group:'シェフズブレンド', lot:'A5', boxQty:20,
+  {id:14,  name:'シェフズブレンド 250ml A5(2027.11)', sku:'CHF100', group:'シェフズブレンド', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:141, name:'シェフズブレンド 250ml A4(2026.7)',  group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
+  {id:141, name:'シェフズブレンド 250ml A4(2026.7)',  sku:'CHF250', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:142, name:'シェフズブレンド 250ml A4(2026.12)', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
+  {id:142, name:'シェフズブレンド 250ml A4(2026.12)', sku:'CHF250', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:15,  name:'シェフズブレンド 2L A5(2027.11)',    group:'シェフズブレンド', lot:'A5', boxQty:6,
+  {id:15,  name:'シェフズブレンド 2L A5(2027.11)',    sku:'CHF2L', group:'シェフズブレンド', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:151, name:'シェフズブレンド 2L A4(2026.12)',    group:'シェフズブレンド', lot:'A4', old:true, boxQty:6,
+  {id:151, name:'シェフズブレンド 2L A4(2026.12)',    sku:'CHF2L', group:'シェフズブレンド', lot:'A4', old:true, boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
   // ── プリモフルット ──────────────────────
-  {id:16,  name:'プリモフルット 100ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:24,
+  {id:16,  name:'プリモフルット 100ml A5(2027.11)',  sku:'PRI100', group:'プリモフルット', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:17,  name:'プリモフルット 250ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:6,
+  {id:17,  name:'プリモフルット 250ml A5(2027.11)',  sku:'PRI100', group:'プリモフルット', lot:'A5', boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:171, name:'プリモフルット 250ml A4(2026.7)',   group:'プリモフルット', lot:'A4', old:true, boxQty:6,
+  {id:171, name:'プリモフルット 250ml A4(2026.7)',   sku:'PRI250', group:'プリモフルット', lot:'A4', old:true, boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:18,  name:'プリモフルット 500ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:6,
+  {id:18,  name:'プリモフルット 500ml A5(2027.11)',  sku:'PRI500', group:'プリモフルット', lot:'A5', boxQty:6,
    priceOpen:9121, priceRT:6884, priceW1:6884, priceW2:6884, tax:0.08},
-  {id:19,  name:'プリモフルット 3L A5(2027.11)',     group:'プリモフルット', lot:'A5', boxQty:4,
+  {id:19,  name:'プリモフルット 3L A5(2027.11)',     sku:'PRI3L', group:'プリモフルット', lot:'A5', boxQty:4,
    priceOpen:29000, priceRT:23200, priceW1:23200, priceW2:23200, tax:0.08},
   // ── ザイトゥーン ──────────────────────
-  {id:20,  name:'ザイトゥーン 250ml A5(2027.11)',   group:'ザイトゥーン', lot:'A5', boxQty:6,
+  {id:20,  name:'ザイトゥーン 250ml A5(2027.11)',   sku:'ZAI250', group:'ザイトゥーン', lot:'A5', boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:21,  name:'ザイトゥーン 500ml A5(2027.11)',   group:'ザイトゥーン', lot:'A5', boxQty:6,
+  {id:21,  name:'ザイトゥーン 500ml A5(2027.11)',   sku:'ZAI500', group:'ザイトゥーン', lot:'A5', boxQty:6,
    priceOpen:9121, priceRT:6884, priceW1:6884, priceW2:6884, tax:0.08},
   // ── アグルミ ──────────────────────
-  {id:22,  name:'アグルミ 100ml A5(2027.11)',       group:'アグルミ', lot:'A5', boxQty:6,
+  {id:22,  name:'アグルミ 100ml A5(2027.11)',       sku:'AGR100', group:'アグルミ', lot:'A5', boxQty:6,
    priceOpen:2700, priceRT:2025, priceW1:2025, priceW2:2025, tax:0.08},
-  {id:23,  name:'アグルミ 250ml A5(2027.11)',       group:'アグルミ', lot:'A5', boxQty:6,
+  {id:23,  name:'アグルミ 250ml A5(2027.11)',       sku:'AGR250', group:'アグルミ', lot:'A5', boxQty:6,
    priceOpen:6200, priceRT:4960, priceW1:4960, priceW2:4960, tax:0.08},
-  {id:24,  name:'アグルミ 3L A5(2027.11)',          group:'アグルミ', lot:'A5', boxQty:5,
+  {id:24,  name:'アグルミ 3L A5(2027.11)',          sku:'AGR3L', group:'アグルミ', lot:'A5', boxQty:5,
    priceOpen:29000, priceRT:23200, priceW1:23200, priceW2:23200, tax:0.08},
   // ── その他オイル ──────────────────────
-  {id:25,  name:'唐辛子オイル 100ml A5(2027.11)',   group:'その他オイル', lot:'A5', boxQty:12,
+  {id:25,  name:'唐辛子オイル 100ml A5(2027.11)',   sku:'TGR100', group:'その他オイル', lot:'A5', boxQty:12,
    priceOpen:2700, priceRT:2025, priceW1:2025, priceW2:2025, tax:0.08},
-  {id:26,  name:'アルモニア 500ml A5(2027.11)',     group:'その他オイル', lot:'A5', boxQty:6,
+  {id:26,  name:'アルモニア 500ml A5(2027.11)',     sku:'ARM500', group:'その他オイル', lot:'A5', boxQty:6,
    priceOpen:11202, priceRT:8400, priceW1:8400, priceW2:8400, tax:0.08},
-  {id:27,  name:'アルモニア 3L A5(2027.11)',        group:'その他オイル', lot:'A5', boxQty:6,
+  {id:27,  name:'アルモニア 3L A5(2027.11)',        sku:'ARM3L', group:'その他オイル', lot:'A5', boxQty:6,
    priceOpen:36663, priceRT:29850, priceW1:29850, priceW2:29850, tax:0.08},
-  {id:28,  name:'カサアルバート 5L',                group:'その他オイル', boxQty:4,
+  {id:28,  name:'カサアルバート 5L',                sku:'CAS5L', group:'その他オイル', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:44000, priceW2:44000, tax:0.08},
-  {id:29,  name:'レイトハーベスト 5L A5(2027.11)', group:'その他オイル', lot:'A5', boxQty:4,
+  {id:29,  name:'レイトハーベスト 5L A5(2027.11)', sku:'LAT5L', group:'その他オイル', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:44000, priceW2:44000, tax:0.08},
   // ── カップオイル ──────────────────────
-  {id:38,  name:'カップオイル グリーンブーケ（オルガニック）A5(2027.11)', group:'カップオイル', lot:'A5', boxQty:120,
+  {id:38,  name:'カップオイル グリーンブーケ（オルガニック）A5(2027.11)', sku:'CUP001', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
-  {id:39,  name:'カップオイル グリーンバナナ（メメジック）A5(2027.11)',   group:'カップオイル', lot:'A5', boxQty:120,
+  {id:39,  name:'カップオイル グリーンバナナ（メメジック）A5(2027.11)',   sku:'CUP002', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
-  {id:40,  name:'カップオイル オレンジ&レモン（アグルミ）A5(2027.11)',   group:'カップオイル', lot:'A5', boxQty:120,
+  {id:40,  name:'カップオイル オレンジ&レモン（アグルミ）A5(2027.11)',   sku:'CUP003', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
   // ── セット商品（今後追加予定）──────────────────────
   // ── ギフト箱・備品 ──────────────────────
-  {id:30,  name:'★ カップオイル3個ギフト箱 oliveNOVA +紙袋', group:'ギフト箱・備品',
+  {id:30,  name:'★ カップオイル3個ギフト箱 oliveNOVA +紙袋', sku:'GFT001', group:'ギフト箱・備品',
    priceOpen:3555, priceRT:2613, priceW1:2613, priceW2:2613, tax:0.10},
-  {id:31,  name:'★ 100ml3本ギフト箱 your story +紙袋',        group:'ギフト箱・備品',
+  {id:31,  name:'★ 100ml3本ギフト箱 your story +紙袋',        sku:'GFT002', group:'ギフト箱・備品',
    priceOpen:9600, priceRT:7110, priceW1:7110, priceW2:7110, tax:0.10},
-  {id:37,  name:'★ 250ml2本ギフト箱 your story +紙袋',        group:'ギフト箱・備品',
+  {id:37,  name:'★ 250ml2本ギフト箱 your story +紙袋',        sku:'GFT003', group:'ギフト箱・備品',
    priceOpen:9600, priceRT:7110, priceW1:7110, priceW2:7110, tax:0.10},
-  {id:32,  name:'紙袋 黒 小', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
-  {id:33,  name:'紙袋 黒 大', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
+  {id:32,  name:'紙袋 黒 小', sku:'BAG001', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
+  {id:33,  name:'紙袋 黒 大', sku:'BAG002', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
   // ── その他 ──────────────────────
   {id:34,  name:'初版ピッツァ本 サイン入り', group:'その他'},
   {id:35,  name:'トルコ500ml用 空瓶',        group:'その他'},
@@ -861,6 +865,150 @@ function showSyncStatus(msg, isError){
 }
 
 // 受注データを全件同期
+// ════════════════════════════════════
+// 全データの自動保存（在庫・不良在庫・取り置き・予約・マスタ）
+// ════════════════════════════════════
+let autoSaveTimer = null;
+function scheduleAutoSave(){
+  if(autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(saveAllDataToGAS, 2000); // 2秒後にまとめて保存（連続操作対応）
+}
+
+function saveAllDataToGAS(){
+  if(!gasSyncEnabled) return;
+
+  const lotsWithName = lots.map(function(l){
+    const p = products.find(function(x){ return x.id===l.pid; });
+    return Object.assign({}, l, {productName: p?p.name:''});
+  });
+  const defectsWithName = defects.map(function(d){
+    const p = products.find(function(x){ return x.id===d.pid; });
+    return Object.assign({}, d, {productName: p?p.name:''});
+  });
+  const holdsWithName = holds.map(function(h){
+    const p = products.find(function(x){ return x.id===h.pid; });
+    return Object.assign({}, h, {productName: p?p.name:''});
+  });
+  const defectHoldsWithName = defectHolds.map(function(h){
+    const p = products.find(function(x){ return x.id===h.pid; });
+    return Object.assign({}, h, {productName: p?p.name:''});
+  });
+  const preordersWithName = preorders.map(function(r){
+    const p = products.find(function(x){ return x.id===r.pid; });
+    return Object.assign({}, r, {productName: p?p.name:''});
+  });
+
+  const payload = {
+    lots: lotsWithName,
+    defects: defectsWithName,
+    holds: holdsWithName,
+    defectHolds: defectHoldsWithName,
+    preorders: preordersWithName,
+    customers: customers,
+    facilities: facilities
+  };
+
+  const encoded = encodeURIComponent(JSON.stringify(payload));
+  fetch(GAS_URL + '?action=saveAllData&data=' + encoded)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status==='ok'){
+        showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      } else {
+        showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+      }
+    }).catch(function(){
+      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    });
+}
+
+// アプリ起動時に全データを読み込む
+function loadAllDataFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAllData')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status!=='ok' || !d.data) return;
+      const data = d.data;
+
+      // 在庫データを復元
+      if(data.lots && data.lots.length){
+        lots = data.lots.map(function(l){
+          return {
+            id: l.id, pid: parseInt(l.pid), lotCode: l.lotCode, expiry: l.expiry,
+            stock: parseInt(l.stock)||0, defect: parseInt(l.defect)||0,
+            status: l.status, note: l.note, incoming: parseInt(l.incoming)||0
+          };
+        });
+      }
+      // 不良在庫を復元
+      if(data.defects && data.defects.length){
+        defects = data.defects.map(function(d2){
+          return {
+            id: parseInt(d2.id), pid: parseInt(d2.pid), lotId: d2.lotId,
+            qty: parseInt(d2.qty)||0, cat: d2.cat, note: d2.note, status: d2.status,
+            shippedQty: parseInt(d2.shippedQty)||0, processedAt: d2.processedAt
+          };
+        });
+      }
+      // 取り置きを復元
+      if(data.holds && data.holds.length){
+        holds = data.holds.map(function(h){
+          return {
+            id: h.id, pid: parseInt(h.pid), client: h.client,
+            qty: parseInt(h.qty)||0, date: h.date, orderId: h.orderId
+          };
+        });
+      }
+      // 不良在庫取り置きを復元
+      if(data.defectHolds && data.defectHolds.length){
+        defectHolds = data.defectHolds.map(function(h){
+          return {
+            id: parseInt(h.id), pid: parseInt(h.pid), client: h.client,
+            qty: parseInt(h.qty)||0, until: h.until, note: h.note
+          };
+        });
+      }
+      // 予約を復元
+      if(data.preorders && data.preorders.length){
+        preorders = data.preorders.map(function(r){
+          return {
+            id: parseInt(r.id), pid: parseInt(r.pid), client: r.client,
+            qty: parseInt(r.qty)||0, bottles: parseInt(r.bottles)||0,
+            boxes: parseInt(r.boxes)||0, note: r.note
+          };
+        });
+      }
+      // お客様マスタを復元
+      if(data.customers && data.customers.length){
+        customers = data.customers.map(function(c){
+          return {
+            id: parseInt(c.id), name: c.name, zip: c.zip, addr: c.addr,
+            tel: c.tel, type: c.type, recycle: c.recycle, note: c.note
+          };
+        });
+      }
+      // 施設マスタを復元
+      if(data.facilities && data.facilities.length){
+        facilities = data.facilities.map(function(f){
+          return {
+            id: parseInt(f.id), name: f.name, chef: f.chef,
+            type: f.type, comment: f.comment, createdAt: f.createdAt
+          };
+        });
+      }
+
+      // 画面を再描画
+      renderInvTable();
+      renderInvLogs();
+      updCustomerSelects();
+loadAllDataFromGAS(); // 保存されたデータを読み込む
+      showSyncStatus('✅ 保存されたデータを読み込みました');
+    }).catch(function(){
+      console.log('データ読み込みエラー（初回起動時は正常）');
+    });
+}
+
 function syncOrders(){
   const ordersWithName = orders.map(function(o){
     return Object.assign({}, o, {
@@ -920,14 +1068,17 @@ function dateStr(){
 
 // 商品セレクトのHTML
 function productOptions(){
-  // 現在の区分を取得
   const ctype = (document.getElementById('o-ctype')||{value:'general'}).value;
   const isWS = isWholesale(ctype);
   const groups={};
-  // noWholesale=trueの商品は卸には表示しない
   PRODUCTS.filter(p=>!(isWS && p.noWholesale)).forEach(p=>{if(!groups[p.group])groups[p.group]=[];groups[p.group].push(p);});
   return Object.entries(groups).map(([g,ps])=>
-    `<optgroup label="${g}">${ps.map(p=>`<option value="${p.id}" style="${p.old?'color:#b45309':''}">${p.old?'【旧】':''}${p.isSet?'★セット ':''}${p.name}</option>`).join('')}</optgroup>`
+    '<optgroup label="'+g+'">'+ps.map(p=>{
+      const skuLabel = p.sku ? '['+p.sku+'] ' : '';
+      const nameClean = p.name.replace(/ A[45]\(.*?\)/,'');
+      return '<option value="'+p.id+'" style="'+(p.old?'color:#b45309':'')+'">'
+        +(p.old?'【旧】':'')+skuLabel+nameClean+'</option>';
+    }).join('')+'</optgroup>'
   ).join('');
 }
 
@@ -1898,12 +2049,28 @@ function parseCSVLine(line){
 function matchProduct(storeName){
   // 1. マッピングテーブルで検索
   if(productMappings[storeName]) return productMappings[storeName];
-  // 2. 商品名の部分一致で自動マッチング
-  const matched = PRODUCTS.find(p=>
-    storeName.includes(p.name.replace(/ A[45]\(.*?\)/,'').trim()) ||
-    p.name.replace(/ A[45]\(.*?\)/,'').trim().includes(storeName.replace(/\s/g,''))
-  );
-  return matched ? matched.id : null;
+
+  // 2. SKU（管理番号）で検索 - 最優先
+  // STORESの商品名に管理番号が含まれているか確認
+  // 例: "ORG250 オルガニック250ml【予約】" → ORG250でマッチ
+  const skuMatch = PRODUCTS.find(function(p){
+    if(!p.sku) return false;
+    return storeName.toUpperCase().includes(p.sku.toUpperCase());
+  });
+  if(skuMatch){
+    // 最新ロット（A5）を優先
+    const latestLot = PRODUCTS.find(function(p){
+      return p.sku===skuMatch.sku && !p.old;
+    });
+    return latestLot ? latestLot.id : skuMatch.id;
+  }
+
+  // 3. 商品名の部分一致
+  const nameMatch = PRODUCTS.find(function(p){
+    const clean = p.name.replace(/ A[45]\(.*?\)/,'').trim();
+    return storeName.includes(clean) || clean.includes(storeName.replace(/\s/g,''));
+  });
+  return nameMatch ? nameMatch.id : null;
 }
 
 function showCSVPreview(orders){
@@ -1965,9 +2132,12 @@ function importCSV(){
 
   csvParsed.forEach(o=>{
     if(existingNums.has(o.num)){ skipped++; return; }
-    const lines = o.items.map(item=>{
+    const isReservation = o.items.some(function(item){
+      return item.productName.includes('予約') || item.productName.includes('reservation');
+    });
+    const lines = o.items.map(function(item){
       const pid = matchProduct(item.productName);
-      const prod = pid ? PRODUCTS.find(x=>x.id===pid) : null;
+      const prod = pid ? PRODUCTS.find(function(x){return x.id===pid;}) : null;
       return {
         productId: pid||0,
         giftType:'normal',
@@ -1975,10 +2145,24 @@ function importCSV(){
         boxes: 0,
         qty: item.qty,
         memo: pid?'':`要確認: ${item.productName}`,
-        isSet: prod?.isSet||false,
-        components: prod?.components||[]
+        isSet: prod?prod.isSet||false:false,
+        components: prod?prod.components||[]:[]
       };
     });
+    // 予約商品の場合はpreordersにも追加
+    if(isReservation){
+      lines.forEach(function(l){
+        if(!l.productId) return;
+        preorders.push({
+          id: Date.now()+imported+l.productId,
+          pid: l.productId,
+          client: o.buyer,
+          qty: l.qty,
+          note: 'STORES予約 '+o.num,
+          source: 'STORES'
+        });
+      });
+    }
     window.orders.unshift({
       id: Date.now()+imported,
       client: o.buyer,
@@ -1987,10 +2171,11 @@ function importCSV(){
       note: o.note,
       lines,
       totalBox:0, totalBag:0,
-      status:'pending',
+      status: isReservation ? 'reservation' : 'pending',
       registeredAt: o.date||ts(),
       shippedAt: null,
-      source: 'STORES'
+      source: 'STORES',
+      isReservation: isReservation
     });
     imported++;
   });
@@ -2390,6 +2575,7 @@ function recordMovement(){
   logs.unshift({type,tag:type==='in'?'入庫':'出庫',name:p.name,lot:lotLabel(lot),qty,note,time:ts()});
   document.getElementById('f-qty').value=1; document.getElementById('f-note').value='';
   renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
 }
 
 // =====================
@@ -2497,6 +2683,7 @@ function addLot(){
   document.getElementById('l-lot').value='';document.getElementById('l-exp').value='';
   document.getElementById('l-qty').value=0;document.getElementById('l-note').value='';
   renderInvTable(); renderLotPanel(); renderInvLogs();
+  scheduleAutoSave();
 }
 
 // =====================
@@ -2523,6 +2710,7 @@ function addDefect(){
   logs.unshift({type:'defect',tag:'不良登録',name:p.name,lot:lotLabel(lot),qty,note:cat+(note?'/'+note:''),time:ts()});
   document.getElementById('d-qty').value=1;document.getElementById('d-note').value='';
   renderInvTable();renderDefects();renderInvLogs();
+  scheduleAutoSave();
 }
 function processDefect(id,action){
   const d  =defects.find(x=>x.id===id); if(!d) return;
@@ -2544,6 +2732,7 @@ function processDefect(id,action){
   }
   logs.unshift({type:'defect-resolve',tag:'不良処理:'+labels[action],name:p.name,lot:lotLabel(lot),qty:d.qty,note:d.cat,time:ts()});
   renderInvTable();renderDefects();renderInvLogs();
+  scheduleAutoSave();
 }
 function renderDefects(){
   const pending = defects.filter(function(d){ return d.status==='pending'; });
@@ -2790,6 +2979,7 @@ function addHold(){
   logs.unshift({type:'hold',tag:'取り置き登録',name:p.name,lot:'',qty,note:client,time:ts()});
   document.getElementById('h-qty').value=1;document.getElementById('h-client').value='';document.getElementById('h-date').value='';
   renderInvTable();renderHolds();renderInvLogs();
+  scheduleAutoSave();
 }
 function removeHold(id){
   const h=holds.find(x=>x.id===id); if(!h) return;
@@ -2866,19 +3056,35 @@ function openDefectShipFromHold(holdId){
 // =====================
 // 予約販売
 // =====================
+function updPreorderTotal(){
+  const pid = parseInt(document.getElementById('p-product').value)||0;
+  const p = products.find(function(x){ return x.id===pid; });
+  const bq = p ? (p.boxQty||1) : 1;
+  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes   = parseInt(document.getElementById('p-boxes').value)||0;
+  const total   = bottles + boxes*bq;
+  const el = document.getElementById('p-total-preview');
+  if(el) el.value = total+'本'+(boxes>0?' ('+boxes+'箱×'+bq+'本+バラ'+bottles+'本)':'');
+}
+
 function addPreorder(){
   const pid=parseInt(document.getElementById('p-product').value);
-  const qty=parseInt(document.getElementById('p-qty').value)||1;
+  const bottles=parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes=parseInt(document.getElementById('p-boxes').value)||0;
   const client=document.getElementById('p-client').value||'未入力';
   const note=document.getElementById('p-note').value;
-  const p=products.find(x=>x.id===pid); if(!p) return;
+  const p=products.find(function(x){return x.id===pid;}); if(!p) return;
+  const bq = p.boxQty||1;
+  const qty = bottles + boxes*bq;
+  if(!qty){ alert('本数または箱数を入力してください'); return; }
   // 入庫予定数チェック
-  const totalPre = preorders.filter(r=>r.pid===pid).reduce((s,r)=>s+r.qty,0);
+  const totalPre = preorders.filter(function(r){return r.pid===pid;}).reduce(function(s,r){return s+r.qty;},0);
   const remaining = (p.incoming||0) - totalPre;
   if(remaining < qty){
     if(!confirm('入庫予定数を超えています（入庫予定: '+(p.incoming||0)+'本、予約済み: '+totalPre+'本、残り: '+remaining+'本）\n続けて予約しますか？')) return;
   }
-  preorders.push({id:Date.now(),pid,client,qty,note});
+  preorders.push({id:Date.now(),pid,client,qty,bottles,boxes,note});
+  scheduleAutoSave();
   logs.unshift({type:'pre',tag:'予約登録',name:p.name,lot:'',qty,note:client,time:ts()});
   document.getElementById('p-qty').value=1;document.getElementById('p-client').value='';document.getElementById('p-note').value='';
   renderInvTable();renderPreorders();renderInvLogs();
@@ -2908,6 +3114,7 @@ function renderPreorders(){
       ${rs.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #e8e7e3;font-size:12px">
         <span style="flex:1;color:#555">${r.client}</span><span style="font-weight:700">${r.qty}点</span>
         ${r.note?`<span style="color:#999">${r.note}</span>`:''}
+        <button class="btn-sm" style="background:#dbeafe;color:#1e3a8a;border-color:#185fa5" onclick="shipFromPreorder(${r.id})">📦 出荷指示</button>
         <button class="btn-sm" onclick="removePreorder(${r.id})">取消</button>
       </div>`).join('')}
     </div>`;
@@ -3289,6 +3496,7 @@ function openDefectHoldModal(pid){
     modal.style.display = 'none';
     renderDefects();
     checkDefectHoldAlerts();
+    scheduleAutoSave();
     alert('取り置きを登録しました。\n'+client+' 様 '+qty+'本 期限: '+until);
   });
   document.getElementById('dh-close-btn').addEventListener('click', function(){
@@ -3300,6 +3508,7 @@ function removeDefectHold(id){
   if(!confirm('この取り置きを解除しますか？')) return;
   defectHolds = defectHolds.filter(function(h){ return h.id!==id; });
   renderDefects();
+  scheduleAutoSave();
 }
 
 // 取り置き期限アラートチェック（1週間前）
@@ -3470,6 +3679,7 @@ function executeDefectShip(defectId, normalPrice, suggestPrice){
   document.getElementById('line-send-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-flex';
 
+  scheduleAutoSave();
   alert('出荷指示書を作成しました。\n特価: '+price.toLocaleString()+'円/本\n\n倉庫チェック表にも転記しました。');
 }
 
@@ -3485,6 +3695,7 @@ function editIncoming(pid){
   if(isNaN(newQty)||newQty<0){ alert('正しい数値を入力してください'); return; }
   p.incoming = newQty;
   renderInvTable();
+  scheduleAutoSave();
 }
 
 function editStock(pid){
@@ -3521,6 +3732,63 @@ function editStock(pid){
 
   renderInvTable();
   renderInvLogs();
+}
+
+// ════════════════════════════════════
+// 予約から出荷指示を作成
+// ════════════════════════════════════
+function shipFromPreorder(preId){
+  const r = preorders.find(function(x){ return x.id===preId; });
+  if(!r) return;
+  const p = products.find(function(x){ return x.id===r.pid; });
+  if(!p){ alert('商品が見つかりません'); return; }
+
+  if(!confirm(r.client+' 様の予約（'+r.qty+'本）の出荷指示を作成しますか？')) return;
+
+  const preOrder = {
+    id: Date.now(),
+    client: r.client,
+    num: r.note||'',
+    date: '',
+    note: '【予約出荷】'+r.note,
+    leadType: 'normal',
+    leadDate: '',
+    delivTime: '',
+    lines: [{
+      productId: p.id,
+      productName: p.name,
+      giftType: 'normal',
+      bottles: r.bottles||r.qty,
+      boxes: r.boxes||0,
+      qty: r.qty,
+      memo: '予約分',
+      boxQty: p.boxQty||1
+    }],
+    totalBox:0, totalBag:0,
+    status:'pending',
+    registeredAt: ts(),
+    shippedAt: null,
+    isReservation: true
+  };
+
+  orders.unshift(preOrder);
+  // 予約から削除
+  preorders = preorders.filter(function(x){ return x.id!==preId; });
+
+  updSummary();
+  updSlipSelect();
+  renderPreorders();
+  syncOrders();
+
+  // 出荷指示書タブへ
+  currentSlipOrders = [preOrder];
+  switchSection('order', document.querySelectorAll('.topnav-tab')[0]);
+  showOrderPanel('slip', document.querySelectorAll('#sec-order .tab')[3]);
+  renderSlip([preOrder]);
+  document.getElementById('line-send-btn').style.display = 'flex';
+  document.getElementById('invoice-btn').style.display = 'inline-flex';
+
+  alert('出荷指示書を作成しました。');
 }
 
 // ════════════════════════════════════
@@ -3597,6 +3865,7 @@ function saveFacility(){
   renderFacMaster();
   // 受注登録の施設選択も更新
   updFacSelects();
+  scheduleAutoSave();
 }
 
 function editFacility(id){
