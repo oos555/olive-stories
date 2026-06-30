@@ -255,11 +255,13 @@ tr:last-child td{border-bottom:none}
           </select>
         </div>
       </div>
-      <div id="billing-type-area" style="display:none;margin-bottom:10px">
-        <label style="font-size:12px;color:#666;font-weight:500">請求方法</label>
-        <select id="o-billing-type" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+      <div id="ctype-mismatch-warn"></div>
+      <div id="billing-type-area" style="display:none;margin-bottom:10px;background:#fef9c3;border:2px solid #f59e0b;border-radius:8px;padding:12px 14px">
+        <label style="font-size:13px;color:#78350f;font-weight:700">⚠️ 請求方法を必ず選択してください</label>
+        <select id="o-billing-type" style="width:100%;padding:8px 10px;border:1px solid #d97706;border-radius:6px;font-size:13px;margin-top:6px;background:#fff">
           <option value="each">都度請求（納品書 兼 請求書として発行）</option>
           <option value="monthly">月末まとめ請求（月末請求対象リストに集計）</option>
+          <option value="other">その他</option>
         </select>
       </div>
       <div class="g3">
@@ -863,30 +865,6 @@ const PRODUCTS = [
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwDB38ZSkvMJim2ke4a5p5h7NRDV6gV-N_7ZXnhY7AleMYZ9E0Vx7g8Jtc59NfXhnVb/exec';
 let gasSyncEnabled = true; // 同期ON/OFF
 
-// データをGASに保存（GETリクエスト方式 - CORSエラー回避）
-function syncToGAS(action, payload) {
-  if(!gasSyncEnabled) return;
-  const data = Object.assign({action:action}, payload);
-  const encoded = encodeURIComponent(JSON.stringify(data.orders||[]));
-  const url = GAS_URL + '?action=' + action + '&data=' + encoded;
-  
-  // script タグを使ったJSONP方式でCORSを回避
-  const callbackName = 'gasCallback_' + Date.now();
-  window[callbackName] = function(d){
-    delete window[callbackName];
-    if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-    else showSyncStatus('⚠️ 保存エラー', true);
-  };
-  
-  fetch(GAS_URL + '?action=' + action + '&data=' + encoded)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-      else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
-    }).catch(function(e){
-      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
-    });
-}
 
 function showSyncStatus(msg, isError){
   let el = document.getElementById('sync-status');
@@ -1991,14 +1969,6 @@ function renderSlip(targetOrders){
   });
 }
 
-function showOrderPanel(name,btn){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('panel-'+name).classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(name==='stores') initStoresPanel();
-  if(name==='list') renderList();
-}
 
 // 初期化
 updSummary();
@@ -3409,65 +3379,7 @@ function printInvoice(){
   }, 300);
 }
 
-// ════════════════════════════════════
-// 納品書をGoogleドライブに保存
-// ════════════════════════════════════
-function saveInvoiceToGAS(order){
-  if(!gasSyncEnabled) return;
-  // 納品書HTMLを生成
-  const invoiceEl = document.getElementById('invoice-'+order.id);
-  if(!invoiceEl) return;
-  const html = '<html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ccc}th{background:#f5f5f5}</style></head><body>'+invoiceEl.innerHTML+'</body></html>';
-  
-  const today = new Date().toISOString().split('T')[0];
-  const invoiceData = {
-    orderId: order.id,
-    orderNum: order.num||'',
-    client: order.client||'',
-    date: today,
-    html: html
-  };
-  
-  const encoded = encodeURIComponent(JSON.stringify(invoiceData));
-  fetch(GAS_URL + '?action=saveInvoice&invoiceData=' + encoded)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.status==='ok'){
-        showSyncStatus('✅ 納品書をドライブに保存しました');
-        // リンクを表示
-        if(d.url){
-          const btn = document.createElement('a');
-          btn.href = d.url;
-          btn.target = '_blank';
-          btn.textContent = '📄 Googleドライブで開く';
-          btn.style.cssText = 'display:inline-block;margin-top:10px;padding:6px 14px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-size:13px';
-          const area = document.getElementById('invoice-area');
-          if(area) area.appendChild(btn);
-        }
-      } else {
-        showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
-      }
-    }).catch(function(){
-      showSyncStatus('⚠️ 接続エラー', true);
-    });
-}
 
-// ════════════════════════════════════
-// 不良在庫をGASに送信
-// ════════════════════════════════════
-function syncDefectToGAS(defect){
-  if(!gasSyncEnabled) return;
-  fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({action:'addDefect', defect: defect}),
-    headers: {'Content-Type':'application/json'}
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 不良在庫をスプシに保存しました');
-    else showSyncStatus('⚠️ 保存エラー: '+d.message, true);
-  }).catch(function(){
-    showSyncStatus('⚠️ 接続エラー', true);
-  });
-}
 
 // ════════════════════════════════════
 // 初期化
@@ -3857,8 +3769,6 @@ function shipFromPreorder(preId){
 // ════════════════════════════════════
 // 月末請求管理
 // ════════════════════════════════════
-function switchSectionBilling(){} // placeholder
-
 function showBillingPanel(name, btn){
   document.querySelectorAll('#sec-billing .panel').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('#sec-billing .tab').forEach(function(t){ t.classList.remove('active'); });
@@ -4053,6 +3963,35 @@ function generateMonthlyInvoice(client, monthVal){
     + '<button onclick="document.getElementById(\'monthly-invoice-modal\').style.display=\'none\'" class="btn btn-gray">閉じる</button>'
     + '</div></div>';
   modal.style.display = 'flex';
+}
+
+// ════════════════════════════════════
+// お客様区分の変更ミス防止アラート
+// ════════════════════════════════════
+function checkCtypeMismatch(newType){
+  const client = (document.getElementById('o-client')||{value:''}).value.trim();
+  if(!client) return;
+
+  // 過去の受注履歴から同じお客様名の最新の区分を探す
+  const pastOrders = orders.filter(function(o){
+    return o.client === client && o.status !== 'cancelled' && o.customerType;
+  }).sort(function(a,b){ return (b.registeredAt||'').localeCompare(a.registeredAt||''); });
+
+  if(!pastOrders.length) return; // 過去履歴なし
+
+  const lastType = pastOrders[0].customerType;
+  if(lastType && lastType !== newType){
+    const labels = {'general':'定価','wholesale1':'卸①（仲卸価格）','wholesale2':'卸②（一般卸価格）','rt':'RT（ホテル）'};
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea){
+      warnArea.innerHTML = '<div class="alert-bar alert-danger" style="margin-bottom:10px">'
+        +'⚠️ 「'+client+'」様は前回「'+(labels[lastType]||lastType)+'」でご注文されています。今回は「'+(labels[newType]||newType)+'」が選択されています。区分の変更で間違いないですか？'
+        +'</div>';
+    }
+  } else {
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea) warnArea.innerHTML = '';
+  }
 }
 
 // ════════════════════════════════════
@@ -4436,6 +4375,8 @@ function onCustomerSelect(){
 
 function onClientInput(){
   document.getElementById('o-customer-select').value = '';
+  const ctype = document.getElementById('o-ctype').value;
+  checkCtypeMismatch(ctype);
 }
 
 function clearCustomerSelect(){
@@ -4450,6 +4391,7 @@ function clearCustomerSelect(){
 
 function onCtypeChange(){
   const type = document.getElementById('o-ctype').value;
+  checkCtypeMismatch(type);
   const recycleArea = document.getElementById('recycle-badge-area');
   if(isWholesale(type) || type==='rt'){
     // 卸・RTは自動でリサイクル箱ON（チェック済みで表示）
