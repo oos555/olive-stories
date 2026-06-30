@@ -259,6 +259,12 @@ tr:last-child td{border-bottom:none}
         <div class="fg"><label>電話番号</label><input type="text" id="o-tel" placeholder="03-1234-5678"></div>
       </div>
       <div id="recycle-badge-area"></div>
+      <details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:11px;color:#888">📌 納品書の区分表記ルール（社内用メモ）</summary>
+        <div style="font-size:11px;color:#666;background:#f9f8f5;border-radius:6px;padding:8px 12px;margin-top:4px">
+          納品書には金額の妥当性確認のため区分バッジが入ります（お客様には区分名は伝えていません）<br>
+          卸①（仲卸価格）→「卸」　卸②（一般卸価格）→「卸※」　RT（ホテル）→「卸●」　不良在庫特価→「特化」
+        </div>
+      </details>
       <div id="gift-sender-area" style="display:none">
         <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">🎁 送り主情報</div>
@@ -1725,7 +1731,7 @@ function renderSlip(targetOrders){
       html += '</div>';
     }
 
-    html += '<div class="slip-title">'+(isDefectSale?'出 荷 指 示 書（訳あり品）':'出 荷 指 示 書')+'</div>';
+    html += '<div class="slip-title">'+(isDefectSale?'出 荷 指 示 書（特化）':'出 荷 指 示 書')+'</div>';
     html += '<div class="slip-meta">'
       +'<div class="slip-meta-item"><div class="slip-meta-label">お届け先</div><div class="slip-meta-val" style="font-size:16px">'+(o.client||'')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+(o.num||'―')+'</div></div>'
@@ -4324,7 +4330,17 @@ function generateInvoice(){
       const lineTotal = unitPrice ? unitPrice*tot : 0;
       // 商品名からロット情報を除去
       const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
-      const displayName = o.isDefectSale ? cleanName+'　※訳あり品' : cleanName;
+      // 区分バッジ（社外秘のため記号化：卸①=「卸」卸②=「卸※」RT=「卸●」）
+      const ctypeBadgeMap = {'wholesale1':'卸','wholesale2':'卸※','rt':'卸●'};
+      const ctypeBadge = ctypeBadgeMap[ctype];
+      const badgeHtml = ctypeBadge
+        ? '<span style="display:inline-block;background:#dbeafe;color:#1e3a8a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px">'+ctypeBadge+'</span>'
+        : '';
+      // 不良在庫の特価出荷は「特化」バッジ
+      const defectBadge = o.isDefectSale
+        ? '<span style="display:inline-block;background:#fef3c7;color:#78350f;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px">特化</span>'
+        : '';
+      const displayName = badgeHtml + defectBadge + cleanName;
       html += '<tr>';
       html += '<td style="font-weight:600">'+displayName+'</td>';
       html += '<td style="text-align:center">'+tot+'本</td>';
