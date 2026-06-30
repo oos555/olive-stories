@@ -3169,7 +3169,10 @@ function showOrderPanel(name, btn){
   document.getElementById('panel-'+name).classList.add('active');
   if(btn) btn.classList.add('active');
   if(name==='stores') initStoresPanel();
-  if(name==='list') renderList();
+  if(name==='list'){
+    renderList();
+    syncOrderStatusFromGAS(); // タブを開くたびに最新化
+  }
 }
 
 function showInvPanel(name, btn){
@@ -3357,6 +3360,7 @@ renderInvLogs();
 updCustomerSelects();
 setNewOrderNum();
 loadAllDataFromGAS(); // 保存されたデータを読み込む
+syncOrderStatusFromGAS(); // 受注ステータスを最新化
 
 // ページを離れる時に警告（誤操作防止）
 window.addEventListener('beforeunload', function(e){
@@ -4154,6 +4158,34 @@ function showFacPanel(name, btn){
   if(name==='master')  renderFacMaster();
   if(name==='history'){ updFacSelects(); renderHistory(); }
   if(name==='ranking') renderRanking();
+}
+
+// ════════════════════════════════════
+// 受注ステータスをスプレッドシートと同期
+// ════════════════════════════════════
+function syncOrderStatusFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAll')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status!=='ok' || !d.data || !d.data.orders) return;
+      const remoteOrders = d.data.orders;
+
+      // 受注IDごとに、スプシ側の最新ステータスでローカルを更新
+      remoteOrders.forEach(function(ro){
+        const local = orders.find(function(o){ return String(o.id)===String(ro.id); });
+        if(local && ro.status && local.status !== ro.status){
+          local.status = ro.status;
+          if(ro.shippedAt) local.shippedAt = ro.shippedAt;
+        }
+      });
+
+      renderList();
+      updSummary();
+      updSlipSelect();
+    }).catch(function(){
+      console.log('受注ステータス同期エラー（オフライン時は正常）');
+    });
 }
 
 // ════════════════════════════════════
