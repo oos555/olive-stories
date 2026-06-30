@@ -209,6 +209,7 @@ tr:last-child td{border-bottom:none}
     <button class="topnav-tab active" onclick="switchSection('order',this)">📋 受注・出荷</button>
     <button class="topnav-tab" onclick="switchSection('inv',this)">📦 在庫管理</button>
     <button class="topnav-tab" onclick="switchSection('facility',this)">🏨 RT管理</button>
+    <button class="topnav-tab" onclick="switchSection('billing',this)">💰 請求管理</button>
   </div>
 </div>
 
@@ -253,6 +254,13 @@ tr:last-child td{border-bottom:none}
             <option value="rt">RT（ホテル）</option>
           </select>
         </div>
+      </div>
+      <div id="billing-type-area" style="display:none;margin-bottom:10px">
+        <label style="font-size:12px;color:#666;font-weight:500">請求方法</label>
+        <select id="o-billing-type" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+          <option value="each">都度請求（納品書 兼 請求書として発行）</option>
+          <option value="monthly">月末まとめ請求（月末請求対象リストに集計）</option>
+        </select>
       </div>
       <div class="g3">
         <div class="fg"><label>郵便番号</label><input type="text" id="o-zip" placeholder="100-0001"></div>
@@ -689,6 +697,33 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+
+<!-- ════════════════════════════════════
+     請求管理セクション
+════════════════════════════════════ -->
+<div id="sec-billing" class="section-panel">
+  <div class="tab-row no-print">
+    <button class="tab active" onclick="showBillingPanel('monthly',this)">月末請求対象リスト</button>
+    <button class="tab" onclick="showBillingPanel('payment',this)">入金管理</button>
+  </div>
+
+  <!-- 月末請求対象リスト -->
+  <div id="panel-monthly" class="panel active">
+    <div class="info-box">「請求方法：月末まとめ請求」に設定されたお客様の、対象月の注文を自動集計します。</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
+      <input type="month" id="billing-month" onchange="renderMonthlyBilling()" style="padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+      <span id="billing-month-label" style="font-size:13px;color:#666"></span>
+    </div>
+    <div id="monthly-billing-list"></div>
+  </div>
+
+  <!-- 入金管理 -->
+  <div id="panel-payment" class="panel">
+    <div class="info-box">月末まとめ請求のお客様の入金状況を管理します。入金確認後「入金済み」にしてください。</div>
+    <div id="payment-list"></div>
+  </div>
+</div>
+
 </div><!-- /.app -->
 <script>
 
@@ -698,12 +733,9 @@ tr:last-child td{border-bottom:none}
 // ════════════════════════════════════
 // 区分: 'general'=一般, 'wholesale1'=卸①, 'wholesale2'=卸②, 'rt'=RT(ホテル)
 let customers = [
-  {id:1,  name:'田中商店',        zip:'100-0001', addr:'東京都千代田区丸の内1-1-1', tel:'03-1234-5678', type:'wholesale1', recycle:true,  note:''},
-  {id:2,  name:'山田食品株式会社', zip:'530-0001', addr:'大阪府大阪市北区梅田1-1-1',  tel:'06-1234-5678', type:'wholesale2', recycle:true,  note:''},
-  {id:3,  name:'鈴木商店',        zip:'460-0001', addr:'愛知県名古屋市中区栄1-1-1',  tel:'052-123-4567', type:'wholesale1', recycle:true,  note:''},
-  {id:4,  name:'サンクチュアリコート高山', zip:'506-0055', addr:'岐阜県高山市',      tel:'',             type:'rt',         recycle:false, note:''},
 ];
 let customerIdCounter = 100;
+// billingType: 'each'=都度請求, 'monthly'=月末まとめ請求
 
 const CUSTOMER_TYPE_LABEL = {
   'general':    '定価',
@@ -1406,12 +1438,15 @@ function registerOrder(){
   const senderZip  = (document.getElementById('o-sender-zip')||{value:''}).value.trim();
   const senderAddr = (document.getElementById('o-sender-addr')||{value:''}).value.trim();
   const senderTel  = (document.getElementById('o-sender-tel')||{value:''}).value.trim();
+  const billingType = (document.getElementById('o-billing-type')||{value:'each'}).value;
 
   const order={
     id:Date.now(),
     client,num,date,note,
     zip, addr, tel,
     customerType: ctype,
+    billingType: billingType||'each',
+    paymentStatus: 'unpaid',
     useRecycle: useRecycle,
     senderName, senderZip, senderAddr, senderTel,
     leadType: leadType||'normal',
@@ -2282,30 +2317,8 @@ function removeMapping(name){
 }
 
 // ordersをwindowに公開（CSV取込から参照するため）
-
-
-// サンプル受注データ
-(function(){
-  orders.push({
-    id:1,client:'田中商店',num:'#1045',date:'2026-07-05',note:'のし希望',
-    lines:[
-      {productId:2,giftType:'gift',qty:2,memo:''},
-      {productId:9,giftType:'gift',qty:1,memo:''},
-      {productId:3,giftType:'normal',qty:3,memo:''},
-    ],
-    totalBox:3,totalBag:3,status:'pending',registeredAt:'2026/7/1 10:30',shippedAt:null
-  });
-  orders.push({
-    id:2,client:'山田食品株式会社',num:'#1046',date:'',note:'',
-    lines:[
-      {productId:8,giftType:'simple',qty:5,memo:''},
-      {productId:14,giftType:'normal',qty:10,memo:'法人注文'},
-    ],
-    totalBox:5,totalBag:0,status:'pending',registeredAt:'2026/7/1 14:15',shippedAt:null
-  });
-  updSummary();
-  updSlipSelect();
-})();
+updSummary();
+updSlipSelect();
 
 
 let categories = ['蓋不良（漏れあり）','ラベル不良（漏れなし）','その他'];
@@ -3200,6 +3213,9 @@ function switchSection(name, btn){
     renderFacMaster();
     updFacSelects();
   }
+  if(name==='billing'){
+    showBillingPanel('monthly', document.querySelector('#sec-billing .tab'));
+  }
 }
 
 function toggleTimeOther(){
@@ -3839,6 +3855,207 @@ function shipFromPreorder(preId){
 }
 
 // ════════════════════════════════════
+// 月末請求管理
+// ════════════════════════════════════
+function switchSectionBilling(){} // placeholder
+
+function showBillingPanel(name, btn){
+  document.querySelectorAll('#sec-billing .panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('#sec-billing .tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('panel-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='monthly'){
+    // デフォルトで今月をセット
+    const monthInput = document.getElementById('billing-month');
+    if(monthInput && !monthInput.value){
+      const now = new Date();
+      monthInput.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    }
+    renderMonthlyBilling();
+  }
+  if(name==='payment') renderPaymentList();
+}
+
+function renderMonthlyBilling(){
+  const monthVal = document.getElementById('billing-month').value; // "2026-07"
+  if(!monthVal){
+    document.getElementById('monthly-billing-list').innerHTML = '<div style="color:#999;font-size:13px">対象月を選択してください</div>';
+    return;
+  }
+  const [year, month] = monthVal.split('-');
+  document.getElementById('billing-month-label').textContent = year+'年'+month+'月の請求対象';
+
+  // 月末まとめ請求のお客様の、対象月の注文を集計
+  const targetOrders = orders.filter(function(o){
+    if(o.billingType !== 'monthly') return false;
+    if(o.status === 'cancelled') return false;
+    if(!o.registeredAt) return false;
+    const orderYearMonth = o.registeredAt.substring(0,7).replace('/', '-'); // "2026/07/01..." → "2026-07"
+    return orderYearMonth === monthVal;
+  });
+
+  if(!targetOrders.length){
+    document.getElementById('monthly-billing-list').innerHTML = '<div style="color:#999;font-size:13px;padding:1rem">この月の月末請求対象はありません</div>';
+    return;
+  }
+
+  // お客様ごとにグループ化
+  const byClient = {};
+  targetOrders.forEach(function(o){
+    if(!byClient[o.client]) byClient[o.client] = [];
+    byClient[o.client].push(o);
+  });
+
+  let html = '';
+  Object.entries(byClient).forEach(function(entry){
+    const client = entry[0];
+    const clientOrders = entry[1];
+    let grandSub8 = 0, grandSub10 = 0;
+
+    const orderRows = clientOrders.map(function(o){
+      const lines = (o.lines||[]).filter(function(l){ return !MATERIAL_IDS.includes(l.productId); });
+      let sub8 = 0, sub10 = 0;
+      const itemSummary = lines.map(function(l){
+        const p = PRODUCTS.find(function(x){ return x.id==l.productId; });
+        if(!p) return '';
+        const unitPrice = getUnitPrice(p, o.customerType);
+        const bq = p.boxQty||1;
+        const tot = (l.bottles||0)+(l.boxes||0)*bq;
+        const lineTotal = unitPrice ? unitPrice*tot : 0;
+        if(p.tax===0.10) sub10 += lineTotal; else sub8 += lineTotal;
+        const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
+        return cleanName+'×'+tot+'本';
+      }).filter(Boolean).join('、');
+      grandSub8 += sub8; grandSub10 += sub10;
+      return {date: o.registeredAt.split(' ')[0], num: o.num, items: itemSummary, sub: sub8+sub10};
+    });
+
+    const tax8 = Math.floor(grandSub8*0.08);
+    const tax10 = Math.floor(grandSub10*0.10);
+    const total = grandSub8+tax8+grandSub10+tax10;
+    const paid = clientOrders.every(function(o){ return o.paymentStatus==='paid'; });
+
+    html += '<div class="card">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<div style="font-size:16px;font-weight:700">'+client+'</div>';
+    html += '<span style="font-size:12px;padding:3px 10px;border-radius:99px;font-weight:700;background:'+(paid?'#dcfce7':'#fee2e2')+';color:'+(paid?'#14532d':'#991b1b')+'">'+(paid?'入金済み':'未入金')+'</span>';
+    html += '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">';
+    html += '<thead><tr style="background:#f9f8f5"><th style="padding:6px 8px;text-align:left;border:1px solid #e8e7e3">日付</th><th style="padding:6px 8px;text-align:left;border:1px solid #e8e7e3">注文番号</th><th style="padding:6px 8px;text-align:left;border:1px solid #e8e7e3">商品</th><th style="padding:6px 8px;text-align:right;border:1px solid #e8e7e3">金額</th></tr></thead><tbody>';
+    orderRows.forEach(function(r){
+      html += '<tr><td style="padding:6px 8px;border:1px solid #e8e7e3">'+r.date+'</td><td style="padding:6px 8px;border:1px solid #e8e7e3">'+(r.num||'―')+'</td><td style="padding:6px 8px;border:1px solid #e8e7e3;font-size:11px">'+r.items+'</td><td style="padding:6px 8px;border:1px solid #e8e7e3;text-align:right">'+r.sub.toLocaleString()+'円</td></tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="text-align:right;font-size:13px">';
+    html += '<div>小計（税抜）: '+(grandSub8+grandSub10).toLocaleString()+'円</div>';
+    html += '<div style="color:#888">消費税: '+(tax8+tax10).toLocaleString()+'円</div>';
+    html += '<div style="font-weight:700;font-size:16px;margin-top:4px">合計（税込）: '+total.toLocaleString()+'円</div>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;margin-top:10px">';
+    html += '<button class="btn btn-primary" onclick="generateMonthlyInvoice(\''+client.replace(/'/g,"\\'")+'\',\''+monthVal+'\')">請求書を作成</button>';
+    html += '<button class="btn '+(paid?'btn-gray':'btn-green')+'" onclick="togglePaymentStatus(\''+client.replace(/'/g,"\\'")+'\',\''+monthVal+'\')">'+(paid?'未入金に戻す':'入金済みにする')+'</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+
+  document.getElementById('monthly-billing-list').innerHTML = html;
+}
+
+function togglePaymentStatus(client, monthVal){
+  orders.forEach(function(o){
+    if(o.client!==client || o.billingType!=='monthly') return;
+    const orderYearMonth = o.registeredAt.substring(0,7).replace('/', '-');
+    if(orderYearMonth !== monthVal) return;
+    o.paymentStatus = o.paymentStatus==='paid' ? 'unpaid' : 'paid';
+  });
+  syncOrders();
+  renderMonthlyBilling();
+}
+
+function renderPaymentList(){
+  const monthlyClients = [...new Set(orders.filter(function(o){ return o.billingType==='monthly' && o.status!=='cancelled'; }).map(function(o){ return o.client; }))];
+  if(!monthlyClients.length){
+    document.getElementById('payment-list').innerHTML = '<div style="color:#999;font-size:13px;padding:1rem">月末まとめ請求のお客様はまだいません</div>';
+    return;
+  }
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9f8f5"><th style="padding:8px;text-align:left;border:1px solid #e8e7e3">お客様名</th><th style="padding:8px;text-align:center;border:1px solid #e8e7e3">未入金注文数</th><th style="padding:8px;text-align:center;border:1px solid #e8e7e3">ステータス</th></tr></thead><tbody>';
+  monthlyClients.forEach(function(client){
+    const clientOrders = orders.filter(function(o){ return o.client===client && o.billingType==='monthly' && o.status!=='cancelled'; });
+    const unpaidCount = clientOrders.filter(function(o){ return o.paymentStatus!=='paid'; }).length;
+    html += '<tr><td style="padding:8px;border:1px solid #e8e7e3;font-weight:600">'+client+'</td><td style="padding:8px;border:1px solid #e8e7e3;text-align:center">'+unpaidCount+'件</td><td style="padding:8px;border:1px solid #e8e7e3;text-align:center">'+(unpaidCount===0?'<span style="color:#16a34a;font-weight:700">✓全て入金済み</span>':'<span style="color:#dc2626;font-weight:700">未入金あり</span>')+'</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('payment-list').innerHTML = html;
+}
+
+// 月末請求書（納品書と別に、まとめた請求書として生成）
+function generateMonthlyInvoice(client, monthVal){
+  const [year, month] = monthVal.split('-');
+  const targetOrders = orders.filter(function(o){
+    if(o.client!==client || o.billingType!=='monthly' || o.status==='cancelled') return false;
+    const orderYearMonth = o.registeredAt.substring(0,7).replace('/', '-');
+    return orderYearMonth === monthVal;
+  });
+  if(!targetOrders.length) return;
+
+  let sub8=0, sub10=0;
+  let allRows = '';
+  targetOrders.forEach(function(o){
+    const lines = (o.lines||[]).filter(function(l){ return !MATERIAL_IDS.includes(l.productId); });
+    lines.forEach(function(l){
+      const p = PRODUCTS.find(function(x){ return x.id==l.productId; });
+      if(!p) return;
+      const unitPrice = getUnitPrice(p, o.customerType);
+      const bq = p.boxQty||1;
+      const tot = (l.bottles||0)+(l.boxes||0)*bq;
+      const lineTotal = unitPrice ? unitPrice*tot : 0;
+      if(p.tax===0.10) sub10 += lineTotal; else sub8 += lineTotal;
+      const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
+      allRows += '<tr><td style="padding:8px 10px;border:1px solid #e8e7e3">'+o.registeredAt.split(' ')[0]+'</td><td style="padding:8px 10px;border:1px solid #e8e7e3;font-weight:600">'+cleanName+'</td><td style="padding:8px 10px;border:1px solid #e8e7e3;text-align:center">'+tot+'本</td><td style="padding:8px 10px;border:1px solid #e8e7e3;text-align:right">'+(unitPrice?unitPrice.toLocaleString()+'円':'―')+'</td><td style="padding:8px 10px;border:1px solid #e8e7e3;text-align:right">'+(lineTotal?lineTotal.toLocaleString()+'円':'―')+'</td></tr>';
+    });
+  });
+
+  const tax8 = Math.floor(sub8*0.08);
+  const tax10 = Math.floor(sub10*0.10);
+  const total = sub8+tax8+sub10+tax10;
+  const today = new Date();
+  const issueDate = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+
+  let html = '<div class="invoice">';
+  html += '<div class="invoice-title">請 求 書（'+year+'年'+month+'月分）</div>';
+  html += '<div class="invoice-meta">';
+  html += '<div class="invoice-box"><div class="invoice-box-label">請求先</div><div style="font-size:16px;font-weight:700">'+client+'　御中</div></div>';
+  html += '<div class="invoice-box"><div class="invoice-box-label">発行元</div><div style="font-size:13px;font-weight:700">株式会社オリーブオイル・ストーリーズ</div><div style="font-size:12px;color:#555">福岡県　https://oliveoilstories.net/</div></div>';
+  html += '</div>';
+  html += '<div style="font-size:12px;color:#888;margin-bottom:12px">発行日: '+issueDate+'</div>';
+  html += '<table class="invoice-table"><thead><tr><th>日付</th><th>商品名</th><th style="text-align:center">数量</th><th style="text-align:right">単価</th><th style="text-align:right">金額</th></tr></thead><tbody>'+allRows+'</tbody></table>';
+  html += '<div style="text-align:right;margin-top:10px;font-size:13px">';
+  html += '<div>小計（8%対象）: '+sub8.toLocaleString()+'円</div>';
+  html += '<div>小計（10%対象）: '+sub10.toLocaleString()+'円</div>';
+  html += '<div style="color:#888">消費税: '+(tax8+tax10).toLocaleString()+'円</div>';
+  html += '<div style="font-weight:700;font-size:18px;border-top:1px solid #e8e7e3;margin-top:6px;padding-top:6px">ご請求金額: '+total.toLocaleString()+'円</div>';
+  html += '</div>';
+  html += '<div style="text-align:center;color:#aaa;font-size:11px;margin-top:1.5rem;border-top:1px solid #f0efe9;padding-top:10px">株式会社オリーブオイル・ストーリーズ　https://oliveoilstories.net/</div>';
+  html += '</div>';
+
+  // モーダルで表示して印刷できるようにする
+  let modal = document.getElementById('monthly-invoice-modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'monthly-invoice-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:700px;width:100%;max-height:90vh;overflow:auto;padding:1.5rem">'
+    + html
+    + '<div style="display:flex;gap:8px;margin-top:1rem">'
+    + '<button onclick="window.print()" class="btn btn-primary" style="flex:1">印刷</button>'
+    + '<button onclick="document.getElementById(\'monthly-invoice-modal\').style.display=\'none\'" class="btn btn-gray">閉じる</button>'
+    + '</div></div>';
+  modal.style.display = 'flex';
+}
+
+// ════════════════════════════════════
 // キャンセル機能
 // ════════════════════════════════════
 function cancelOrder(id){
@@ -4245,6 +4462,10 @@ function onCtypeChange(){
       +'<input type="checkbox" id="o-recycle" style="width:16px;height:16px"> '
       +'<span style="color:#555">♻️ リサイクル箱使用（任意）</span></label>';
   }
+  // 卸の場合のみ請求方法欄を表示
+  const billingArea = document.getElementById('billing-type-area');
+  if(billingArea) billingArea.style.display = isWholesale(type) ? 'block' : 'none';
+
   checkGiftSender();
   calcOrderTotal();
   // 区分変更で商品リストを再描画（卸では100ml非表示）
