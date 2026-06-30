@@ -1710,6 +1710,14 @@ function renderSlip(targetOrders){
     }
 
     html += '<div class="slip-title">'+(isDefectSale?'出 荷 指 示 書（特化）':'出 荷 指 示 書')+'</div>';
+
+    // リサイクル箱の使用有無を大きく表示（倉庫が一目で判断できるように）
+    if(o.useRecycle){
+      html += '<div style="background:#dcfce7;border:2px solid #16a34a;border-radius:8px;padding:10px 16px;margin-bottom:12px;text-align:center;font-weight:700;color:#14532d;font-size:14px">♻️ リサイクル箱使用OK</div>';
+    } else if(o.customerType && (o.customerType==='wholesale1'||o.customerType==='wholesale2'||o.customerType==='rt')){
+      html += '<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:10px 16px;margin-bottom:12px;text-align:center;font-weight:700;color:#78350f;font-size:14px">🆕 新品箱を使用（リサイクル箱は使用しません）</div>';
+    }
+
     html += '<div class="slip-meta">'
       +'<div class="slip-meta-item"><div class="slip-meta-label">お届け先</div><div class="slip-meta-val" style="font-size:16px">'+(o.client||'')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+(o.num||'―')+'</div></div>'
@@ -3169,7 +3177,10 @@ function showOrderPanel(name, btn){
   document.getElementById('panel-'+name).classList.add('active');
   if(btn) btn.classList.add('active');
   if(name==='stores') initStoresPanel();
-  if(name==='list') renderList();
+  if(name==='list'){
+    renderList();
+    syncOrderStatusFromGAS(); // タブを開くたびに最新化
+  }
 }
 
 function showInvPanel(name, btn){
@@ -3198,6 +3209,18 @@ function buildLineMsg(){
     msg += '\nお届け先: ' + o.client;
     if(o.num) msg += ' (' + o.num + ')';
     msg += '\n';
+
+    // お客様区分（社外秘記号で表示：卸かどうか・リサイクル箱の判断材料）
+    const ctypeBadgeMap = {'wholesale1':'卸','wholesale2':'卸※','rt':'卸●'};
+    const ctypeBadge = ctypeBadgeMap[o.customerType];
+    if(ctypeBadge) msg += '区分: ' + ctypeBadge + '\n';
+
+    // リサイクル箱使用の有無を明示
+    if(o.useRecycle){
+      msg += '♻️ リサイクル箱使用OK\n';
+    } else if(ctypeBadge){
+      msg += '🆕 新品箱を使用（リサイクル箱は使用しません）\n';
+    }
 
     const lt = o.leadType||'normal';
     const ltLabel = {'urgent':'🚨 急ぎ：明日までに発送','normal':'📦 通常：3日以内','scheduled':'🗓 日程指定：'+(o.leadDate||'')+'着'}[lt]||'通常';
@@ -3357,6 +3380,7 @@ renderInvLogs();
 updCustomerSelects();
 setNewOrderNum();
 loadAllDataFromGAS(); // 保存されたデータを読み込む
+syncOrderStatusFromGAS(); // 受注ステータスを最新化
 
 // ページを離れる時に警告（誤操作防止）
 window.addEventListener('beforeunload', function(e){
@@ -4154,6 +4178,49 @@ function showFacPanel(name, btn){
   if(name==='master')  renderFacMaster();
   if(name==='history'){ updFacSelects(); renderHistory(); }
   if(name==='ranking') renderRanking();
+}
+
+// ════════════════════════════════════
+// 受注ステータスをスプレッドシートと同期
+// ════════════════════════════════════
+function syncOrderStatusFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAll')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status!=='ok' || !d.data || !d.data.orders) return;
+      const remoteOrders = d.data.orders;
+
+      remoteOrders.forEach(function(ro){
+        const local = orders.find(function(o){ return String(o.id)===String(ro.id); });
+        if(local){
+          // 既にローカルにある注文：ステータスだけ最新化
+          if(ro.status && local.status !== ro.status){
+            local.status = ro.status;
+            if(ro.shippedAt) local.shippedAt = ro.shippedAt;
+          }
+        } else {
+          // ローカルにない過去の注文：復元する（区分変更チェック・履歴表示のため）
+          orders.push({
+            id: ro.id, client: ro.client, num: ro.num,
+            customerType: ro.customerType, zip: ro.zip, addr: ro.addr, tel: ro.tel,
+            leadType: ro.leadType, date: ro.date, delivTime: ro.delivTime, note: ro.note,
+            status: ro.status, registeredAt: ro.registeredAt, shippedAt: ro.shippedAt,
+            cancelledAt: ro.cancelledAt, useRecycle: ro.useRecycle,
+            lines: [] // 商品明細は持たない簡易復元（ステータス・区分判定にのみ使用）
+          });
+        }
+      });
+
+      // 登録日時の新しい順に並び替え
+      orders.sort(function(a,b){ return (b.registeredAt||'').localeCompare(a.registeredAt||''); });
+
+      renderList();
+      updSummary();
+      updSlipSelect();
+    }).catch(function(){
+      console.log('受注ステータス同期エラー（オフライン時は正常）');
+    });
 }
 
 // ════════════════════════════════════
