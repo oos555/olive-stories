@@ -1003,6 +1003,14 @@ function loadAllDataFromGAS(){
       renderInvLogs();
       updCustomerSelects();
 loadAllDataFromGAS(); // 保存されたデータを読み込む
+
+// ページを離れる時に警告（誤操作防止）
+window.addEventListener('beforeunload', function(e){
+  if(orders.length > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
       showSyncStatus('✅ 保存されたデータを読み込みました');
     }).catch(function(){
       console.log('データ読み込みエラー（初回起動時は正常）');
@@ -3331,9 +3339,10 @@ function showModal(msg){
 // 印刷機能（出荷指示書・納品書を別々に印刷）
 // ════════════════════════════════════
 function printSlip(){
-  // 納品書を非表示にして出荷指示書だけ印刷
+  // 印刷前に必ずデータを保存（ブラウザの戻るボタンで消えても復元できるように）
+  syncOrders();
+  saveAllDataToGAS();
   const invoiceArea = document.getElementById('invoice-area');
-  const slipArea = document.getElementById('slip-area');
   const prevInvoice = invoiceArea.style.display;
   invoiceArea.style.display = 'none';
   window.print();
@@ -3341,18 +3350,16 @@ function printSlip(){
 }
 
 function printInvoice(){
-  // 先に納品書を生成してから、出荷指示書を非表示にして印刷
+  // 印刷前に必ずデータを保存
+  syncOrders();
+  saveAllDataToGAS();
   generateInvoice();
   setTimeout(function(){
     const slipArea = document.getElementById('slip-area');
-    const lineSendBtn = document.getElementById('line-send-btn');
-    const invoiceBtn = document.getElementById('invoice-btn');
     const allSlipBtns = document.querySelector('#panel-slip .no-print');
-    // 出荷指示書エリアを一時的に非表示
     slipArea.style.display = 'none';
     if(allSlipBtns) allSlipBtns.style.display = 'none';
     window.print();
-    // 印刷後に戻す
     slipArea.style.display = '';
     if(allSlipBtns) allSlipBtns.style.display = '';
   }, 300);
@@ -3428,6 +3435,14 @@ renderInvTable();
 renderInvLogs();
 updCustomerSelects();
 loadAllDataFromGAS(); // 保存されたデータを読み込む
+
+// ページを離れる時に警告（誤操作防止）
+window.addEventListener('beforeunload', function(e){
+  if(orders.length > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 
 // ════════════════════════════════════
