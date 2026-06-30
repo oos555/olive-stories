@@ -196,6 +196,7 @@ tr:last-child td{border-bottom:none}
   #panel-slip{display:block!important}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -1744,6 +1745,10 @@ function renderSlip(targetOrders){
       +'<div class="slip-meta-item"><div class="slip-meta-label">受注日時</div><div class="slip-meta-val">'+(o.registeredAt||'')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">配送希望日</div><div class="slip-meta-val">'+(o.date||'指定なし')+'</div></div>'
       +'</div>';
+    html += '<div style="text-align:center;margin:12px 0;padding:14px;background:#f0f9ff;border:2px dashed #185fa5;border-radius:10px">';
+    html += '<div style="font-size:12px;color:#185fa5;font-weight:700;margin-bottom:8px">📱 スマホでこのQRを読み取ってピッキング開始</div>';
+    html += '<div id="qr-'+o.id+'" style="display:inline-block"></div>';
+    html += '</div>';
 
     // ── ギフト（ギフトbox＋紙袋）──
     if(byGift.gift.length){
@@ -1941,6 +1946,21 @@ function renderSlip(targetOrders){
   });
 
   document.getElementById('slip-area').innerHTML = html || '<div style="color:#999;padding:1rem">受注を選択してください</div>';
+
+  // QRコードを生成（ピッキングページへのリンク）
+  targetOrders.forEach(function(o){
+    const qrEl = document.getElementById('qr-'+o.id);
+    if(qrEl && typeof QRCode !== 'undefined'){
+      const pickupUrl = window.location.origin + window.location.pathname.replace('index.html','') + 'pickup.html?id=' + o.id;
+      new QRCode(qrEl, {
+        text: pickupUrl,
+        width: 140,
+        height: 140,
+        colorDark: '#1a1a18',
+        colorLight: '#ffffff'
+      });
+    }
+  });
 }
 
 function showOrderPanel(name,btn){
