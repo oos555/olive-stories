@@ -2524,8 +2524,19 @@ function processDefect(id,action){
   const lot=lots.find(l=>l.id===d.lotId); if(!lot) return;
   const p  =products.find(x=>x.id===d.pid); if(!p) return;
   const labels={disposed:'廃棄',returned:'返品',restored:'再ラベルで復活'};
-  d.status=action;lot.defect=Math.max(0,lot.defect-d.qty);
+
+  // 処理履歴を記録
+  d.status = action;
+  d.processedAt = ts();
+  d.processedAction = action;
+  d.processedQty = d.qty;
+
+  lot.defect=Math.max(0,lot.defect-d.qty);
   if(action==='disposed'||action==='returned') lot.stock=Math.max(0,lot.stock-d.qty);
+  if(action==='restored') {
+    // 復活した場合は在庫に戻す
+    logs.unshift({type:'in',tag:'不良→復活',name:p.name,lot:lotLabel(lot),qty:d.qty,note:d.cat,time:ts()});
+  }
   logs.unshift({type:'defect-resolve',tag:'不良処理:'+labels[action],name:p.name,lot:lotLabel(lot),qty:d.qty,note:d.cat,time:ts()});
   renderInvTable();renderDefects();renderInvLogs();
 }
@@ -2653,8 +2664,59 @@ function renderDefects(){
 
     tableHtml += '</tbody></table></div></div>';
 
-    // ── ③ 商品別・農園別レポート ──
-    tableHtml += '<details style="margin-bottom:1rem"><summary style="cursor:pointer;font-weight:700;font-size:13px;color:#7f1d1d;padding:8px 12px;background:#fff0f0;border-radius:8px">📊 商品別・農園別 不良集計（農園フィードバック用）</summary>';
+    // ── ③ 処理済み履歴カウント ──
+    const processed = defects.filter(function(d){ return d.status!=='pending'; });
+    // 商品別に処理結果を集計
+    const procSummary = {};
+    defects.forEach(function(d){
+      const p = products.find(function(x){ return x.id===d.pid; });
+      const pname = p ? p.name : '不明';
+      if(!procSummary[pname]) procSummary[pname] = {name:pname, group:p?p.group:'', registered:0, shipped:0, disposed:0, restored:0, returned:0};
+      procSummary[pname].registered += d.qty;
+      if(d.status==='shipped')  procSummary[pname].shipped  += d.processedQty||d.qty;
+      if(d.status==='disposed') procSummary[pname].disposed += d.processedQty||d.qty;
+      if(d.status==='restored') procSummary[pname].restored += d.processedQty||d.qty;
+      if(d.status==='returned') procSummary[pname].returned += d.processedQty||d.qty;
+    });
+    // 処理待ちも含める
+    pending.forEach(function(d){
+      const p = products.find(function(x){ return x.id===d.pid; });
+      const pname = p ? p.name : '不明';
+      if(!procSummary[pname]) procSummary[pname] = {name:pname, group:p?p.group:'', registered:0, shipped:0, disposed:0, restored:0, returned:0};
+    });
+
+    tableHtml += '<details style="margin-bottom:1rem"><summary style="cursor:pointer;font-weight:700;font-size:13px;color:#7f1d1d;padding:8px 12px;background:#fff0f0;border-radius:8px">📊 不良在庫 処理履歴レポート（農園フィードバック用）</summary>';
+    tableHtml += '<div style="margin-top:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    tableHtml += '<thead><tr style="background:#f9f8f5">'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:left">商品名</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:left">グループ</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;color:#dc2626">不良登録計</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;color:#185fa5">値引出荷</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;color:#16a34a">復活</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;color:#b45309">返品</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;color:#6b7280">廃棄</th>'
+      +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center">処理待ち</th>'
+      +'</tr></thead><tbody>';
+
+    Object.values(procSummary).sort(function(a,b){ return b.registered-a.registered; }).forEach(function(ps, i){
+      const pendingQty = ps.registered - ps.shipped - ps.disposed - ps.restored - ps.returned;
+      tableHtml += '<tr style="background:'+(i%2===0?'#fff':'#fafaf8')+'">'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;font-weight:600">'+ps.name+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;font-size:11px;color:#888">'+ps.group+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;font-weight:700;color:#dc2626">'+ps.registered+'本</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(ps.shipped?'font-weight:700;color:#185fa5':'color:#ccc')+'">'+( ps.shipped?ps.shipped+'本':'-')+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(ps.restored?'font-weight:700;color:#16a34a':'color:#ccc')+'">'+( ps.restored?ps.restored+'本':'-')+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(ps.returned?'font-weight:700;color:#b45309':'color:#ccc')+'">'+( ps.returned?ps.returned+'本':'-')+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(ps.disposed?'font-weight:700;color:#6b7280':'color:#ccc')+'">'+( ps.disposed?ps.disposed+'本':'-')+'</td>'
+        +'<td style="padding:7px 10px;border:1px solid #e8e7e3;text-align:center;'+(pendingQty>0?'font-weight:700;color:#dc2626':'color:#ccc')+'">'+( pendingQty>0?pendingQty+'本':'-')+'</td>'
+        +'</tr>';
+    });
+    tableHtml += '</tbody></table></div>';
+    tableHtml += '<div style="font-size:11px;color:#888;padding:8px 12px">※ 値引出荷＝訳あり品として販売済み　復活＝再ラベル等で通常在庫に戻した本数</div>';
+    tableHtml += '</details>';
+
+    // 商品別・不良理由別集計
+    tableHtml += '<details style="margin-bottom:1rem"><summary style="cursor:pointer;font-weight:700;font-size:13px;color:#7f1d1d;padding:8px 12px;background:#fff0f0;border-radius:8px">📋 商品別・不良理由別 集計</summary>';
     tableHtml += '<div style="margin-top:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
     tableHtml += '<thead><tr style="background:#f9f8f5">'
       +'<th style="padding:7px 10px;border:1px solid #e8e7e3;text-align:left">商品名</th>'
