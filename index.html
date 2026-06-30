@@ -446,7 +446,6 @@ tr:last-child td{border-bottom:none}
 <div id="sec-inv" class="section-panel">
   <div class="tab-row no-print">
     <button class="tab active" onclick="showInvPanel('inv',this)">在庫一覧</button>
-    <button class="tab" onclick="showInvPanel('lot',this)">ロット管理</button>
     <button class="tab" onclick="showInvPanel('defect',this)">不良在庫</button>
     <button class="tab" onclick="showInvPanel('hold',this)">取り置き</button>
     <button class="tab" onclick="showInvPanel('pre',this)">予約販売</button>
@@ -487,31 +486,21 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <!-- ロット管理 -->
-  <div id="panel-lot" class="panel">
-    <div class="info-box">同じ商品でも<strong>ロット（A4/A5）と賞味期限が異なる在庫を別管理</strong>します。旧ロットは実在庫に含まれますが、<strong>販売可能数からは除外</strong>されます。</div>
-    <div id="lot-alerts"></div>
-    <div class="sec">ロット・賞味期限別 在庫一覧</div>
-    <div id="lot-list"></div>
-    <div class="card">
-      <div class="sec">新しいロットを登録（入庫）</div>
-      <div class="g3">
-        <div class="fg"><label>商品</label><select id="l-product"></select></div>
-        <div class="fg"><label>ロット（例：A5）</label><input type="text" id="l-lot" placeholder="A5"></div>
-        <div class="fg"><label>賞味期限（例：2027.11）</label><input type="text" id="l-exp" placeholder="2027.11"></div>
-      </div>
-      <div class="g3">
-        <div class="fg"><label>数量</label><input type="number" id="l-qty" min="1" value="0"></div>
-        <div class="fg"><label>ステータス</label>
-          <select id="l-status">
-            <option value="new">最新ロット（販売可能に算入）</option>
-            <option value="old">旧ロット（販売可能から除外）</option>
-            <option value="supply">備品（賞味期限なし）</option>
-          </select>
-        </div>
-        <div class="fg"><label>メモ</label><input type="text" id="l-note" placeholder="輸入便・備考など"></div>
-      </div>
-      <button class="btn-primary btn" onclick="addLot()">登録する</button>
+  <div style="margin-top:2rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1.25rem 1.5rem">
+    <div style="font-weight:700;font-size:14px;color:#0369a1;margin-bottom:10px">📖 在庫一覧の使い方</div>
+    <div style="font-size:12px;color:#334155;line-height:1.8">
+      <b>【実在庫の数字をクリック】</b><br>クリックすると数字を直接入力できます。緊急で在庫数を修正したい時に使ってください。<br><br>
+      <b>【入庫予定の数字をクリック】</b><br>次回入庫予定の数量を入力しておきます。例：輸入予定が50本なら「50」と入力。<br><br>
+      <b>【操作：＋入庫ボタン】</b><br>入庫予定数が入っている場合 → 「入庫予定○本を実在庫に追加しますか？」と確認ダイアログが出ます。OKで実在庫が増え、入庫予定がゼロになります。入庫予定がゼロの場合 → 通常の入庫フォームが開きます。<br><br>
+      <b>【操作：－出庫ボタン】</b><br>通常の出庫フォームが開きます。受注による出庫は自動で行われるため、廃棄・サンプル提供などの際に手動で使います。<br><br>
+      <b>【ロットを新規登録したい時】</b><br>
+      ＋入庫ボタンを押して通常の入庫フォームから登録できます。新しいロット（A5）は「ロット記号」欄にA5と入力してください。<br><br>
+      <b>【旧ロット（A4）の非表示について】</b><br>
+      旧ロットの在庫が0本になると自動的に在庫一覧から非表示になります。データは削除されずログに残ります。<br><br>
+      <b>【管理番号（SKU）について】</b><br>
+      商品名の右側に薄く表示されている英数字（例：ORG250）が管理番号です。STORESの商品名にもこの番号を付けることで、CSVの自動マッチングが機能します。<br><br>
+      <b>【セット商品について】</b><br>「★構成品の最小在庫に連動」と表示されている商品は、構成している単品・備品の在庫に連動して販売可能数が自動計算されます。直接数字を変えることはできません。<br><br>
+      <b>【列の意味】</b><br>取り置き：受注時に自動確保された数 ／ 予約：入庫前の先行予約数 ／ 入庫予定：次回入荷予定数 ／ 販売可能数：実在庫から取り置き・不良を引いた今すぐ売れる数
     </div>
   </div>
 
@@ -542,6 +531,21 @@ tr:last-child td{border-bottom:none}
       </div>
       <div class="fg"><label>メモ（発見日など）</label><input type="text" id="d-note" placeholder="例：発見日12/3"></div>
       <button class="btn-danger btn" onclick="addDefect()">不良品として登録</button>
+    </div>
+  </div>
+
+  <div style="margin-top:2rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1.25rem 1.5rem">
+    <div style="font-weight:700;font-size:14px;color:#0369a1;margin-bottom:10px">📖 不良在庫の使い方</div>
+    <div style="font-size:12px;color:#334155;line-height:1.8">
+      <b>【不良品を登録する】</b><br>発見した不良品は、商品・不良理由・本数・メモを入力して「不良品として登録」ボタンを押します。登録された不良品は実在庫・販売可能数から自動除外されます。<br><br>
+      <b>【不良在庫の処理方法】</b><br>
+      📦 値引き出荷：お客様に特価で販売する場合。お届け先・価格を入力すると出荷指示書が自動作成され、納品書に「訳あり品（特化）」と記載されます。<br>
+      再ラベル復活：ラベル不良のみ。貼り直せば通常販売できる場合。実行すると通常在庫に戻ります。<br>
+      廃棄：販売・復活できない場合。実在庫から削除されます。<br>
+      返品：農園・仕入先に返品する場合。<br><br>
+      <b>【取り置き】</b><br>「📌 取り置き」ボタンで、不良品のまま特定のお客様のために確保できます。期限を設定でき、1週間前にアラートが出ます。<br><br>
+      <b>【農園フィードバック用レポート】</b><br>「不良在庫 処理履歴レポート」で商品ごとの不良発生状況と処理結果を集計できます。農園へのフィードバック資料としてご活用ください。<br><br>
+      <b>【不良理由の種類】</b><br>蓋不良（漏れあり）：値引き出荷・廃棄・返品が選べます。ラベル不良（漏れなし）：再ラベルで通常在庫に復活させることができます。その他：状況に応じて処理方法を選択してください。
     </div>
   </div>
 
@@ -2323,9 +2327,42 @@ let products = [
   // 備品・資材
   // セット商品（選ぶと構成商品の在庫が自動計算される）
   {id:50, name:'your story 100ml×3本セット', group:'セット商品', type:'set',
-    components:[{pid:1,qty:1, incoming:0},{pid:7,qty:1, incoming:0},{pid:13,qty:1, incoming:0}], incoming:0},
-  {id:51, name:'your story 250ml×2本セット', group:'セット商品', type:'set',
-    components:[{pid:2,qty:1, incoming:0},{pid:8,qty:1, incoming:0}], incoming:0},
+    components:[
+      {pid:1, qty:1},   // オルガニック100ml
+      {pid:7, qty:1},   // メメジック100ml
+      {pid:13,qty:1},   // シェフズブレンド100ml
+      {pid:31,qty:1},   // 100ml3本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:51, name:'your story 250ml×2本セット A（ORG+MEM）', group:'セット商品', type:'set',
+    components:[
+      {pid:2, qty:1},   // オルガニック250ml
+      {pid:8, qty:1},   // メメジック250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:52, name:'your story 250ml×2本セット B（MEM+CHF）', group:'セット商品', type:'set',
+    components:[
+      {pid:8, qty:1},   // メメジック250ml
+      {pid:14,qty:1},   // シェフズブレンド250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:53, name:'your story 250ml×2本セット C（ORG+CHF）', group:'セット商品', type:'set',
+    components:[
+      {pid:2, qty:1},   // オルガニック250ml
+      {pid:14,qty:1},   // シェフズブレンド250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:54, name:'カップオイル3個ギフトセット oliveNOVA', group:'セット商品', type:'set',
+    components:[
+      {pid:23,qty:1},   // カップオイル グリーンブーケ（オルガニック）
+      {pid:24,qty:1},   // カップオイル グリーンバナナ（メメジック）
+      {pid:25,qty:1},   // カップオイル オレンジ&レモン（アグルミ）
+      {pid:30,qty:1},   // カップオイル用ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
   {id:30, name:'カップオイル3個ギフト箱 oliveNOVA', group:'備品・資材', type:'supply', incoming:0},
   {id:31, name:'100ml3本ギフト箱 your story',        group:'備品・資材', type:'supply', incoming:0},
   {id:32, name:'紙袋 黒 小',              group:'備品・資材', type:'supply', incoming:0},
@@ -2423,7 +2460,19 @@ function totalAvail(pid){
   if(p.type==='set'){
     // セット商品：構成商品の在庫から計算（最小値がセット可能数）
     if(!p.components||!p.components.length) return 0;
-    return Math.min(...p.components.map(c=>Math.floor(totalAvail(c.pid)/c.qty)));
+    // 構成品（オイル・備品全て含む）の最小在庫でセット可能数を計算
+    const mins = p.components.map(function(c){
+      const cp = products.find(function(x){ return x.id===c.pid; });
+      if(!cp) return 0;
+      if(cp.type==='supply'){
+        // 備品は実在庫をそのまま使う
+        const supplyStock = lots.filter(function(l){ return l.pid===c.pid; })
+          .reduce(function(s,l){ return s+l.stock; }, 0);
+        return Math.floor(supplyStock / (c.qty||1));
+      }
+      return Math.floor(totalAvail(c.pid) / (c.qty||1));
+    });
+    return mins.length ? Math.min.apply(null, mins) : 0;
   }
   if(p.type==='supply'){
     return pLots(pid).reduce((s,l)=>s+l.stock-l.defect,0);
@@ -2485,13 +2534,17 @@ function renderInvTable(){
       if(hold>0) pills.push(`<span class="pill pill-hold">取置 ${hold}</span>`);
       const preqty=preorders.filter(r=>r.pid===p.id).reduce((s,r)=>s+r.qty,0);
       const unit = p.type==='supply'?'個':p.type==='set'?'セット':'本';
+      // SKU管理番号を取得
+      const skuLabel = p.sku ? '<span style="font-size:10px;color:#9ca3af;font-weight:400;margin-left:6px;background:#f3f4f6;padding:1px 5px;border-radius:3px">'+p.sku+'</span>' : '';
       html += `<tr>
-        <td style="font-weight:600;font-size:12px;padding-left:16px">${p.name}</td>
+        <td style="font-weight:600;font-size:12px;padding-left:16px">${p.name}${skuLabel}</td>
         <td style="font-weight:600">
           ${p.type==='set'
             ? '<span style="color:#7c3aed;font-size:11px">'+
               (p.components||[]).map(c=>{const cp=products.find(x=>x.id===c.pid);return (cp?cp.name:'?')+'×'+c.qty;}).join('<br>')+
-              '</span>'
+              '<br><span style="color:#9d174d;font-weight:700">★構成品の最小在庫に連動</span></span>'
+            : p.type==='supply'
+            ? '<span onclick="editStock('+p.id+')" title="クリックで在庫編集" style="cursor:pointer;border-bottom:1px dashed #aaa">'+stock+unit+'</span>'
             : '<span onclick="editStock('+p.id+')" title="クリックで在庫編集" style="cursor:pointer;border-bottom:1px dashed #aaa">'+stock+unit+'</span>'}
         </td>
         <td style="color:#b45309;font-weight:600">${old?old+unit:'-'}</td>
@@ -2505,6 +2558,29 @@ function renderInvTable(){
         <td><span class="${ac}" style="font-size:15px;font-weight:700">${avail}${unit}</span><div style="margin-top:2px">${pills.join('')}</div></td>
         <td><button class="btn-sm" onclick="setForm(${p.id},'in')">＋入庫</button> <button class="btn-sm" onclick="setForm(${p.id},'out')">－出庫</button></td>
       </tr>`;
+      // ロット行を商品行の直後に表示（オイルのみ）
+      if(p.type==='oil'){
+        const pLots = lots.filter(function(l){ return l.pid===p.id && (l.stock>0||l.defect>0); })
+          .sort(function(a,b){ return a.status==='new'?-1:1; });
+        pLots.forEach(function(lt){
+          const isOld = lt.status==='old';
+          const expiryStr = String(lt.expiry||'');
+          const parts = expiryStr.split('.');
+          let expiryWarn = false;
+          if(parts.length>=2){
+            const exp = new Date(parseInt(parts[0]), parseInt(parts[1])-1, 1);
+            expiryWarn = (exp-new Date())/(1000*60*60*24*30) < 6;
+          }
+          html += '<tr style="background:'+(isOld?'#fffbeb':'#f9fafb')+'">';
+          html += '<td style="padding:3px 10px 3px 32px;font-size:11px;color:'+(isOld?'#b45309':'#555')+'">';
+          html += (isOld?'⚠️ ':'✓ ')+'['+lt.lotCode+'] '+expiryStr+(expiryWarn?' <span style="color:#dc2626;font-weight:700">期限近い</span>':'');
+          html += '</td>';
+          html += '<td style="padding:3px 8px;font-size:11px;font-weight:600;color:'+(isOld?'#b45309':'#374151')+'">'+lt.stock+'本</td>';
+          html += '<td style="padding:3px 8px;font-size:11px;color:#dc2626">'+(lt.defect||0)+'</td>';
+          html += '<td colspan="5" style="padding:3px 8px;font-size:10px;color:#9ca3af">'+(isOld?'⚠ 旧ロット'+(lt.stock>0?' — 値引き消化を検討':''):'最新ロット')+'</td>';
+          html += '</tr>';
+        });
+      }
     });
   });
   document.getElementById('inv-tbl-body').innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:#999;padding:2rem">該当する商品がありません</td></tr>';
@@ -2549,6 +2625,37 @@ function updInvAlerts(){
 }
 
 function setForm(pid,type){
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p || p.type==='set') return;
+
+  // ＋入庫ボタンで「入庫予定数を実在庫に反映する」フローを優先
+  if(type==='in' && (p.incoming||0) > 0){
+    const incoming = p.incoming||0;
+    const unit = p.type==='supply'?'個':'本';
+    if(confirm('【入庫確認】\n'+p.name+'\n入庫予定数: '+incoming+unit+'\n\nこの数量を実在庫に追加しますか？\n（入庫予定はゼロになります）')){
+      // 入庫予定を実在庫に移す
+      let targetLot = lots.find(function(l){ return l.pid===pid && (l.status==='new'||l.status==='supply'); });
+      if(!targetLot && p.type==='supply'){
+        // 備品にlotsがなければ自動作成
+        targetLot = {id:Date.now(), pid:pid, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''};
+        lots.push(targetLot);
+      }
+      if(targetLot){
+        targetLot.stock += incoming;
+        logs.unshift({type:'in', tag:'入庫（予定→実在庫）', name:p.name, lot:lotLabel(targetLot), qty:incoming, note:'入庫予定'+incoming+unit+'を実在庫に反映', time:ts()});
+        p.incoming = 0;
+        renderInvTable();
+        renderInvLogs();
+        scheduleAutoSave();
+        showSyncStatus('✅ 入庫完了：'+p.name+' '+incoming+unit+'を実在庫に追加しました');
+      } else {
+        alert('ロットが登録されていません。ロット管理から先に登録してください。');
+      }
+      return;
+    }
+    // キャンセルなら通常フォームへ
+  }
+
   document.getElementById('f-product').value=pid;
   onProdChange('f-product','f-lot');
   document.getElementById('f-type').value=type;
