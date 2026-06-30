@@ -64,15 +64,33 @@ function render(){
   const lines = orderData.lines || [];
   let html = '';
 
+  const ctypeLabels = {'wholesale1':'卸①','wholesale2':'卸②','rt':'RT'};
+  const ctypeBadge = ctypeLabels[orderData.customerType];
+
   html += '<div class="header">';
   html += '<div class="header-title">出荷チェックリスト</div>';
   html += '<div class="header-client">'+(orderData.client||'')+' 様</div>';
   html += '<div class="header-num">'+(orderData.num?'注文番号: '+orderData.num:'')+'</div>';
+  html += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">';
+  if(orderData.leadType==='urgent'){
+    html += '<span style="background:#fee2e2;color:#7f1d1d;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">🚨急ぎ</span>';
+  }
+  if(ctypeBadge){
+    html += '<span style="background:#dbeafe;color:#1e3a8a;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">'+ctypeBadge+'</span>';
+  }
+  if(orderData.useRecycle){
+    html += '<span style="background:#dcfce7;color:#14532d;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">♻️リサイクル箱OK</span>';
+  } else if(ctypeBadge){
+    html += '<span style="background:#fef3c7;color:#78350f;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">🆕新品箱</span>';
+  }
+  html += '</div>';
   html += '</div>';
 
   if(orderData.note){
     html += '<div class="note-box">⚠️ '+orderData.note+'</div>';
   }
+
+  const giftLabels = {gift:'🎁ギフト',simple:'📦簡易ギフト',normal:'',sample_free:'🆓無償サンプル',sample_paid:'💰有償サンプル'};
 
   let doneCount = 0;
   lines.forEach(function(l, idx){
@@ -84,11 +102,12 @@ function render(){
     if(boxes>0 && bottles>0) qtyStr = boxes+'箱 ＋ '+bottles+'本';
     else if(boxes>0) qtyStr = boxes+'箱';
     else qtyStr = bottles+'本';
+    const giftLabel = giftLabels[l.giftType||'normal'] || '';
 
     html += '<div class="item-card '+(isDone?'done':'')+'" onclick="toggleItem('+idx+')">';
     html += '<div class="item-check '+(isDone?'checked':'')+'">'+(isDone?'✓':'')+'</div>';
     html += '<div class="item-info">';
-    html += '<div class="item-name">'+(l.productName||'商品')+'</div>';
+    html += '<div class="item-name">'+(l.productName||'商品')+(giftLabel?' <span style="font-size:12px;font-weight:700;color:#9d174d">'+giftLabel+'</span>':'')+'</div>';
     html += '<div class="item-qty">'+qtyStr+'</div>';
     html += '</div>';
     html += '</div>';
