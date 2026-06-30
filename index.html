@@ -509,6 +509,7 @@ tr:last-child td{border-bottom:none}
   <!-- 不良在庫 -->
   <div id="panel-defect" class="panel">
     <div class="info-box">不良品は<strong>実在庫・販売可能数から自動除外</strong>されます。原因別に登録し処理してください。</div>
+    <div id="defect-hold-alerts"></div>
     <div class="cat-grid" id="cat-summary"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="sec" style="margin:0">処理待ちの不良品</div>
@@ -2219,6 +2220,7 @@ let lots = [
 ];
 
 let holds = [];
+let defectHolds = []; // 不良在庫の取り置き
 let preorders = [];
 let defects = [];
 let logs = [];
@@ -2625,6 +2627,7 @@ function renderDefects(){
       // 値引き出荷は最初のIDで開く（モーダル内で数量指定可能）
       const firstId = allIds[0];
       let btns = '<button onclick="openDefectShipModal('+firstId+')" style="font-size:11px;padding:4px 8px;border:1px solid #185fa5;border-radius:6px;background:#dbeafe;color:#1e3a8a;cursor:pointer;margin:2px">📦 値引き出荷</button>';
+      btns += '<button onclick="openDefectHoldModal('+bp.pid+')" style="font-size:11px;padding:4px 8px;border:1px solid #d97706;border-radius:6px;background:#fef3c7;color:#78350f;cursor:pointer;margin:2px">📌 取り置き</button>';
       // ラベル不良があれば再ラベルボタン
       const labelIds = (bp.cats['ラベル不良（漏れなし）']||{ids:[]}).ids;
       if(labelIds.length){
@@ -2644,7 +2647,14 @@ function renderDefects(){
               +(qty>0?'<span style="font-weight:700;color:'+catColor+';font-size:14px">'+qty+'本</span>'+memoStr:'<span style="color:#ddd">―</span>')
               +'</td>';
           }).join('')
-        +'<td style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;font-weight:700;font-size:15px;color:#7f1d1d">'+bp.total+'本</td>'
+        +(function(){
+          const dh = defectHolds.filter(function(h){ return h.pid===bp.pid; });
+          const dhQty = dh.reduce(function(s,h){ return s+h.qty; }, 0);
+          const dhBadge = dhQty>0
+            ? '<div style="font-size:10px;background:#fef3c7;color:#78350f;padding:2px 6px;border-radius:4px;margin-top:3px">📌取り置き '+dhQty+'本</div>'
+            : '';
+          return '<td style="padding:8px 10px;border:1px solid #fca5a5;text-align:center;font-weight:700;font-size:15px;color:#7f1d1d">'+bp.total+'本'+dhBadge+'</td>';
+        })()
         +'<td style="padding:6px 8px;border:1px solid #fca5a5">'+btns+'</td>'
         +'</tr>';
     });
@@ -2895,7 +2905,7 @@ function showInvPanel(name, btn){
   document.getElementById('panel-'+name).classList.add('active');
   if(btn) btn.classList.add('active');
   if(name==='lot')    renderLotPanel();
-  if(name==='defect') renderDefects();
+  if(name==='defect'){ renderDefects(); checkDefectHoldAlerts(); }
   if(name==='hold')   renderHolds();
   if(name==='pre')    renderPreorders();
   if(name==='ilog')   renderInvLogs();
@@ -3132,6 +3142,109 @@ renderInvTable();
 renderInvLogs();
 updCustomerSelects();
 
+
+// ════════════════════════════════════
+// 不良在庫 取り置き
+// ════════════════════════════════════
+function openDefectHoldModal(pid){
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p) return;
+  const pending = defects.filter(function(d){ return d.status==='pending' && d.pid===pid; });
+  const totalQty = pending.reduce(function(s,d){ return s+d.qty; }, 0);
+  if(!totalQty){ alert('取り置きできる不良在庫がありません'); return; }
+
+  // 既存の取り置き確認
+  const existingHolds = defectHolds.filter(function(h){ return h.pid===pid; });
+  const holdQty = existingHolds.reduce(function(s,h){ return s+h.qty; }, 0);
+  const available = totalQty - holdQty;
+
+  let modal = document.getElementById('defect-hold-modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'defect-hold-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+    document.body.appendChild(modal);
+  }
+
+  // 今日から1ヶ月後をデフォルト期限に
+  const defaultDate = new Date();
+  defaultDate.setMonth(defaultDate.getMonth()+1);
+  const defaultDateStr = defaultDate.toISOString().split('T')[0];
+
+  modal.innerHTML = [
+    '<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:460px;width:90%;display:flex;flex-direction:column;gap:14px">',
+    '<div style="font-weight:700;font-size:16px;color:#78350f">📌 不良在庫 取り置き</div>',
+    '<div style="background:#fef3c7;border-radius:8px;padding:10px 14px;font-size:13px">',
+    '<div style="font-weight:700">'+p.name+'</div>',
+    '<div style="color:#555">不良在庫: '+totalQty+'本　取り置き済み: '+holdQty+'本　取り置き可能: '+available+'本</div>',
+    '</div>',
+    existingHolds.length ? '<div style="font-size:12px;color:#78350f;background:#fef9c3;padding:8px 12px;border-radius:6px">現在の取り置き:<br>'+existingHolds.map(function(h){ return '・'+h.client+' '+h.qty+'本（期限: '+h.until+'）'; }).join('<br>')+'</div>' : '',
+    '<div style="display:flex;flex-direction:column;gap:10px">',
+    '<div><label style="font-size:12px;color:#666;font-weight:600">お客様名</label><input id="dh-client" type="text" placeholder="お客様名" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:4px"></div>',
+    '<div><label style="font-size:12px;color:#666;font-weight:600">取り置き本数（取り置き可能: '+available+'本）</label><input id="dh-qty" type="number" value="1" min="1" max="'+available+'" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:4px"></div>',
+    '<div><label style="font-size:12px;color:#666;font-weight:600">取り置き期限</label><input id="dh-until" type="date" value="'+defaultDateStr+'" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:4px"></div>',
+    '<div><label style="font-size:12px;color:#666;font-weight:600">メモ</label><input id="dh-note" type="text" placeholder="例：来週確認予定" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:4px"></div>',
+    '</div>',
+    '<div style="display:flex;gap:8px">',
+    '<button id="dh-save-btn" style="flex:1;padding:9px;background:#d97706;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">取り置き登録</button>',
+    '<button id="dh-close-btn" style="padding:9px 16px;background:#f5f4f0;border:1px solid #ccc;border-radius:8px;cursor:pointer">キャンセル</button>',
+    '</div>',
+    '</div>'
+  ].join('');
+  modal.style.display = 'flex';
+
+  document.getElementById('dh-save-btn').addEventListener('click', function(){
+    const client = document.getElementById('dh-client').value.trim();
+    if(!client){ alert('お客様名を入力してください'); return; }
+    const qty = parseInt(document.getElementById('dh-qty').value)||1;
+    const until = document.getElementById('dh-until').value;
+    if(!until){ alert('取り置き期限を入力してください'); return; }
+    const note = document.getElementById('dh-note').value;
+    if(qty > available){ alert('取り置き可能数（'+available+'本）を超えています'); return; }
+    defectHolds.push({
+      id: Date.now(),
+      pid: pid,
+      client: client,
+      qty: qty,
+      until: until,
+      note: note,
+      createdAt: ts()
+    });
+    modal.style.display = 'none';
+    renderDefects();
+    checkDefectHoldAlerts();
+    alert('取り置きを登録しました。\n'+client+' 様 '+qty+'本 期限: '+until);
+  });
+  document.getElementById('dh-close-btn').addEventListener('click', function(){
+    document.getElementById('defect-hold-modal').style.display = 'none';
+  });
+}
+
+function removeDefectHold(id){
+  if(!confirm('この取り置きを解除しますか？')) return;
+  defectHolds = defectHolds.filter(function(h){ return h.id!==id; });
+  renderDefects();
+}
+
+// 取り置き期限アラートチェック（1週間前）
+function checkDefectHoldAlerts(){
+  const now = new Date();
+  const alertArea = document.getElementById('defect-hold-alerts');
+  if(!alertArea) return;
+  const alerts = defectHolds.filter(function(h){
+    const until = new Date(h.until);
+    const diff = (until - now) / (1000*60*60*24);
+    return diff <= 7 && diff >= 0;
+  });
+  if(!alerts.length){ alertArea.innerHTML=''; return; }
+  alertArea.innerHTML = alerts.map(function(h){
+    const p = products.find(function(x){ return x.id===h.pid; });
+    const until = new Date(h.until);
+    const diff = Math.ceil((until - now)/(1000*60*60*24));
+    return '<div class="alert-bar alert-amber">⏰ 不良在庫取り置き期限が'+(diff===0?'今日':'あと'+diff+'日')+'です：'+(p?p.name:'?')+' / '+h.client+' 様 '+h.qty+'本（期限: '+h.until+'）'
+      +'<button onclick="removeDefectHold('+h.id+')" style="margin-left:10px;font-size:11px;padding:2px 8px;border:1px solid #d97706;border-radius:4px;background:#fff;cursor:pointer">解除</button></div>';
+  }).join('');
+}
 
 // ════════════════════════════════════
 // 不良在庫 値引き出荷
