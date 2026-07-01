@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オリーブオイル・ストーリーズ 在庫管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f4f0;color:#1a1a18;font-size:14px}
+.app{max-width:980px;margin:0 auto;padding:1rem}
+.topnav{display:flex;align-items:center;justify-content:space-between;background:#1a1a18;color:#fff;padding:10px 20px;border-radius:12px;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.topnav-title{font-size:15px;font-weight:700;color:#fff}
+.topnav-tabs{display:flex;gap:4px}
+.topnav-tab{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:#aaa;background:transparent;border:none;cursor:pointer;text-decoration:none;display:inline-block}
+.topnav-tab.active{background:#fff;color:#1a1a18;font-weight:700}
+.topnav-tab:hover:not(.active){background:#333;color:#fff}
+.savebtn{background:#16a34a;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600}
+.tab-row{display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:1.25rem;background:#fff;flex-wrap:wrap}
+.tab{flex:1;padding:8px 4px;font-size:12px;color:#666;background:transparent;border:none;cursor:pointer;border-right:1px solid #ddd;text-align:center;min-width:70px}
+.tab:last-child{border-right:none}
+.tab.active{background:#fff;color:#1a1a18;font-weight:700;border-bottom:2px solid #1a1a18}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.sec{font-size:14px;font-weight:700;margin:0 0 12px}
+.info-box{background:#f9f8f5;border-radius:8px;padding:11px 14px;font-size:13px;color:#555;line-height:1.6;margin-bottom:1rem;border:1px solid #e8e7e3}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.fg label{font-size:12px;color:#666;font-weight:500}
+.fg input,.fg select,.fg textarea{width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:#fff;color:#1a1a18}
+.fg input:focus,.fg select:focus{outline:none;border-color:#185fa5}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+.btn-primary{background:#dbeafe;color:#1e3a8a;border:1px solid #185fa5}
+.btn-primary:hover{background:#bfdbfe}
+.btn-green{background:#dcfce7;color:#14532d;border:1px solid #16a34a}
+.btn-green:hover{background:#bbf7d0}
+.btn-danger{padding:7px 16px;border:1px solid #dc2626;border-radius:8px;background:#fee2e2;color:#7f1d1d;font-size:13px;font-weight:600;cursor:pointer}
+.btn-gray{background:#f5f4f0;color:#444;border:1px solid #ccc}
+.btn-gray:hover{background:#e8e7e3}
+.btn-sm{font-size:11px;padding:3px 8px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#333;cursor:pointer}
+.btn-sm:hover{background:#f5f5f3}
+.btn-amber-sm{font-size:11px;padding:3px 8px;border:1px solid #d97706;border-radius:6px;background:#fef3c7;color:#78350f;cursor:pointer}
+.btn-resolve-ok{font-size:11px;padding:3px 8px;border:1px solid #16a34a;border-radius:6px;background:#dcfce7;color:#14532d;cursor:pointer}
+.btn-resolve-ret{font-size:11px;padding:3px 8px;border:1px solid #b45309;border-radius:6px;background:#fef3c7;color:#78350f;cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.25rem}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e8e7e3}
+.stat-label{font-size:11px;color:#888;margin-bottom:3px}
+.stat-val{font-size:18px;font-weight:700}
+.stat-sub{font-size:10px;color:#aaa;margin-top:2px}
+.tbl-wrap{background:#fff;border:1px solid #e8e7e3;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:580px}
+th{font-size:11px;font-weight:600;color:#888;padding:8px 10px;text-align:left;border-bottom:1px solid #e8e7e3;background:#f9f8f5;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #f0efe9;vertical-align:middle}
+tr:hover td{background:#fafaf8}
+tr:last-child td{border-bottom:none}
+.group-header{background:#f5f4f0;padding:6px 10px;font-size:11px;font-weight:700;color:#888;letter-spacing:.05em;border-bottom:1px solid #e8e7e3}
+.pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 6px;border-radius:99px;font-weight:600;margin:1px}
+.pill-hold{background:#fef3c7;color:#92400e}
+.pill-pre{background:#dbeafe;color:#1e40af}
+.lot-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:3px;white-space:nowrap}
+.lot-new{background:#dcfce7;color:#14532d}
+.lot-old{background:#fef3c7;color:#78350f}
+.lot-supply{background:#f3e8ff;color:#6b21a8}
+.old-banner{display:inline-block;font-size:10px;padding:2px 7px;border-radius:99px;font-weight:700;background:#fef3c7;color:#78350f;margin-left:4px}
+.sku-tag{font-size:10px;color:#999;font-family:monospace}
+.jan-tag{font-size:10px;color:#bbb;font-family:monospace}
+.alert-bar{border-radius:8px;padding:8px 12px;display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px}
+.alert-warn{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}
+.alert-danger{background:#fee2e2;border:1px solid #f87171;color:#991b1b}
+.alert-info{background:#dbeafe;border:1px solid #60a5fa;color:#1e3a8a}
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.25rem}
+@media(max-width:640px){.cat-grid{grid-template-columns:repeat(2,1fr)}}
+.cat-card{background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px}
+.cat-lbl{font-size:11px;color:#a32d2d;margin-bottom:4px;font-weight:600}
+.cat-val{font-size:20px;font-weight:700;color:#a32d2d}
+.dcard{background:#fff;border:1px solid #fca5a5;border-radius:12px;padding:1rem 1.25rem;margin-bottom:10px}
+.dcard-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;justify-content:space-between}
+.drow{display:flex;align-items:center;gap:8px;padding:7px 8px;background:#fef9f9;border-radius:8px;font-size:12px;margin-bottom:4px;flex-wrap:wrap}
+.lot-pcard{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:1rem 1.25rem;margin-bottom:10px}
+.lot-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.lot-tbl th{padding:6px 8px;text-align:left;border-bottom:1px solid #e8e7e3;background:#f9f8f5;font-size:11px;color:#888;font-weight:600}
+.lot-tbl td{padding:7px 8px;border-bottom:1px solid #f5f4f0;vertical-align:middle}
+.lot-tbl tr:last-child td{border-bottom:none}
+.log-item{display:flex;align-items:center;gap:7px;padding:7px 12px;background:#f9f8f5;border-radius:8px;font-size:12px;flex-wrap:wrap;margin-bottom:4px}
+.lmeta{color:#999;font-size:11px;margin-left:auto}
+.hold-item{background:#fff;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:6px;flex-wrap:wrap}
+.pre-item{background:#fff;border:1px solid #60a5fa;border-radius:12px;padding:1rem 1.25rem;margin-bottom:10px}
+.search-row{display:flex;gap:8px;margin-bottom:1rem}
+.search-row input{flex:1;padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px}
+.c-green{color:#16a34a}.c-red{color:#a32d2d}.c-amber{color:#b45309}.c-blue{color:#185fa5}.c-gray{color:#555}
+.avail-ok{color:#16a34a;font-weight:700}.avail-warn{color:#b45309;font-weight:700}.avail-zero{color:#dc2626;font-weight:700}
+.set-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:99px;font-weight:700;background:#f3e8ff;color:#6b21a8;margin-left:4px}
+#sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topnav no-print">
+  <span class="topnav-title">🫒 在庫管理 (アプリB)</span>
+  <button class="savebtn" onclick="saveAllDataToGAS()">☁️ 今すぐ保存</button>
+  <div class="topnav-tabs">
+    <a class="topnav-tab" href="index.html">📋 受注・出荷 A</a>
+    <a class="topnav-tab active" href="stock.html">📦 在庫管理 B</a>
+    <a class="topnav-tab" href="billing.html">💰 請求管理 C</a>
+  </div>
+</div>
+
+<div class="tab-row">
+  <button class="tab active" onclick="showPanel('inv',this)">在庫一覧</button>
+  <button class="tab" onclick="showPanel('lot',this)">ロット管理</button>
+  <button class="tab" onclick="showPanel('defect',this)">不良在庫</button>
+  <button class="tab" onclick="showPanel('hold',this)">取り置き</button>
+  <button class="tab" onclick="showPanel('pre',this)">予約販売</button>
+  <button class="tab" onclick="showPanel('ilog',this)">ログ</button>
+  <button class="tab" onclick="showPanel('manual',this)">操作マニュアル</button>
+</div>
+
+<!-- 在庫一覧 -->
+<div id="panel-inv" class="panel active">
+  <div id="inv-alert-area"></div>
+  <div class="stats">
+    <div class="stat" style="border-left:3px solid #555"><div class="stat-label">倉庫の実在庫</div><div class="stat-val c-gray" id="s-stock">-</div><div class="stat-sub">旧ロット・不良含む</div></div>
+    <div class="stat" style="border-left:3px solid #16a34a"><div class="stat-label">販売可能</div><div class="stat-val c-green" id="s-avail">-</div><div class="stat-sub">今すぐ売れる数</div></div>
+    <div class="stat" style="border-left:3px solid #d97706"><div class="stat-label">旧ロット在庫</div><div class="stat-val c-amber" id="s-old">-</div><div class="stat-sub">値引き要検討</div></div>
+    <div class="stat"><div class="stat-label">不良在庫</div><div class="stat-val c-red" id="s-defect">-</div></div>
+    <div class="stat"><div class="stat-label">取り置き中</div><div class="stat-val c-amber" id="s-hold-inv">-</div></div>
+  </div>
+  <div class="search-row">
+    <input type="text" id="inv-search" placeholder="商品名・SKUで検索..." oninput="renderInvTable()">
+    <button class="btn-sm" onclick="document.getElementById('inv-search').value='';renderInvTable()">クリア</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <colgroup><col style="width:26%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:12%"><col style="width:18%"></colgroup>
+      <thead><tr><th>商品名（SKU）</th><th>実在庫</th><th>旧ロット</th><th>不良</th><th>取置</th><th>予約</th><th>入庫予定</th><th>販売可能数</th><th>操作</th></tr></thead>
+      <tbody id="inv-tbl-body"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="sec">入庫 / 出庫を記録</div>
+    <div class="g4">
+      <div class="fg"><label>商品</label><select id="f-product" onchange="onProdChange('f-product','f-lot')"></select></div>
+      <div class="fg"><label>ロット・賞味期限</label><select id="f-lot"></select></div>
+      <div class="fg"><label>区分</label><select id="f-type"><option value="in">入庫</option><option value="out">出庫</option></select></div>
+      <div class="fg"><label>数量</label><input type="number" id="f-qty" min="1" value="1"></div>
+    </div>
+    <div class="fg"><label>メモ</label><input type="text" id="f-note" placeholder="入荷便・注文番号など"></div>
+    <button class="btn-primary btn" onclick="recordMovement()">記録する</button>
+  </div>
+</div>
+
+<!-- ロット管理 -->
+<div id="panel-lot" class="panel">
+  <div class="info-box">同じ商品でも<strong>ロット（賞味期限）が異なる在庫を別管理</strong>します。旧ロットは実在庫に含まれますが、<strong>販売可能数からは除外</strong>されます。入庫予定は確認入庫ボタンで実在庫に反映されます。</div>
+  <div id="lot-alerts"></div>
+  <div class="sec">ロット・賞味期限別 在庫一覧</div>
+  <div id="lot-list"></div>
+  <div class="card">
+    <div class="sec">新しいロットを登録（入庫 / 入庫予定）</div>
+    <div class="g3">
+      <div class="fg"><label>商品</label><select id="l-product"></select></div>
+      <div class="fg"><label>ロット（例：A5）</label><input type="text" id="l-lot" placeholder="A5"></div>
+      <div class="fg"><label>賞味期限（例：2027.11）</label><input type="text" id="l-exp" placeholder="2027.11"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>数量</label><input type="number" id="l-qty" min="0" value="0"></div>
+      <div class="fg"><label>ステータス</label>
+        <select id="l-status">
+          <option value="new">最新ロット（販売可能に算入）</option>
+          <option value="old">旧ロット（販売可能から除外）</option>
+          <option value="supply">備品（賞味期限なし）</option>
+          <option value="incoming">入庫予定（まだ実在庫ではない）</option>
+        </select>
+      </div>
+      <div class="fg"><label>メモ</label><input type="text" id="l-note" placeholder="輸入便・備考など"></div>
+    </div>
+    <button class="btn-primary btn" onclick="addLot()">登録する</button>
+  </div>
+</div>
+
+<!-- 不良在庫 -->
+<div id="panel-defect" class="panel">
+  <div class="info-box">不良品は<strong>実在庫・販売可能数から自動除外</strong>されます。原因別に登録し、値引き出荷・取り置き・処理履歴で管理してください。</div>
+  <div id="defect-hold-alerts"></div>
+  <div class="cat-grid" id="cat-summary"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div class="sec" style="margin:0">処理待ちの不良品</div>
+    <button class="btn-sm" onclick="toggleAddCat()">＋ カテゴリを追加</button>
+  </div>
+  <div id="add-cat-form" style="display:none;background:#fff;border:1px solid #e8e7e3;border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <div class="fg" style="flex:1;margin:0"><label>新しいカテゴリ名</label><input type="text" id="new-cat-name" placeholder="例：底部破損"></div>
+      <button class="btn-primary btn" onclick="addCategory()">追加</button>
+      <button class="btn-sm" onclick="document.getElementById('add-cat-form').style.display='none'">キャンセル</button>
+    </div>
+  </div>
+  <div id="defect-groups"></div>
+
+  <div class="card">
+    <div class="sec">不良品を登録</div>
+    <div class="g4">
+      <div class="fg"><label>商品</label><select id="d-product" onchange="onProdChange('d-product','d-lot')"></select></div>
+      <div class="fg"><label>ロット・賞味期限</label><select id="d-lot"></select></div>
+      <div class="fg"><label>数量</label><input type="number" id="d-qty" min="1" value="1"></div>
+      <div class="fg"><label>不良原因</label><select id="d-cat"></select></div>
+    </div>
+    <div class="fg"><label>メモ（発見日など）</label><input type="text" id="d-note" placeholder="例：発見日12/3"></div>
+    <button class="btn-danger btn" onclick="addDefect()">不良品として登録</button>
+  </div>
+
+  <div class="sec" style="margin-top:1.5rem">処理履歴レポート</div>
+  <div id="defect-history"></div>
+</div>
+
+<!-- 取り置き -->
+<div id="panel-hold" class="panel">
+  <div class="info-box">卸先からの取り置きを登録します。取り置き分は<strong>販売可能数から自動的に差し引かれます</strong>。</div>
+  <div class="sec">現在の取り置き</div>
+  <div id="hold-list"></div>
+  <div class="card">
+    <div class="sec">取り置きを新規登録</div>
+    <div class="g2">
+      <div class="fg"><label>商品</label><select id="h-product"></select></div>
+      <div class="fg"><label>数量</label><input type="number" id="h-qty" min="1" value="1"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>卸先・顧客名</label><input type="text" id="h-client" placeholder="〇〇食品株式会社"></div>
+      <div class="fg"><label>期限（任意）</label><input type="date" id="h-date"></div>
+    </div>
+    <button class="btn-primary btn" onclick="addHold()">登録する</button>
+  </div>
+</div>
+
+<!-- 予約販売 -->
+<div id="panel-pre" class="panel">
+  <div class="info-box">輸入予定分などの予約を受け付けます。予約数は<strong>実在庫とは別にカウント</strong>されます（販売可能数からは引かれません）。</div>
+  <div class="alert-info alert-bar"><span id="pre-total-bar">予約合計: 0本</span></div>
+  <div id="pre-list"></div>
+  <div class="card">
+    <div class="sec">予約を受け付ける</div>
+    <div class="g2">
+      <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
+      <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>本数（バラ）</label><input type="number" id="p-bottles" min="0" value="0" oninput="updPreorderTotal()"></div>
+      <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
+      <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
+    </div>
+    <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
+    <button class="btn-primary btn" onclick="addPreorder()">予約登録</button>
+  </div>
+</div>
+
+<!-- ログ -->
+<div id="panel-ilog" class="panel">
+  <div class="sec">操作ログ</div>
+  <div id="inv-log-list"></div>
+</div>
+
+<!-- 操作マニュアル -->
+<div id="panel-manual" class="panel">
+  <div class="card">
+    <div class="sec">📖 操作マニュアル</div>
+    <details style="margin-bottom:10px" open>
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">在庫一覧の見方</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        「実在庫」は倉庫にある全ての数（旧ロット・不良品も含む）。<br>
+        「販売可能数」は実在庫から旧ロット・不良・取り置きを引いた、今すぐ売れる数です。<br>
+        セット商品（your story・oliveNOVA）は、構成するオイル・ギフト箱・紙袋のうち<strong>一番少ないもの</strong>が販売可能数になります。
+      </div>
+    </details>
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">ロットの登録・入庫予定の確認入庫</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        新しい商品が届いたら「ロット管理」タブでロットを登録します。<br>
+        まだ倉庫に届いていない発注分は、ステータスを「入庫予定」にして登録してください。実在庫には反映されません。<br>
+        実際に倉庫に届いたら、ロット一覧の「確認入庫」ボタンを押すと実在庫（新ロット扱い）に切り替わります。
+      </div>
+    </details>
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">不良在庫の処理（値引き出荷・取り置き）</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        不良品は原因別カテゴリで登録します。カテゴリは「＋カテゴリを追加」で自由に増やせます。<br>
+        「値引き出荷」ボタンで出荷済み数量を記録すると、処理履歴レポートに残ります。<br>
+        「取り置き」ボタンで特定の卸先向けにキープできます。
+      </div>
+    </details>
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">保存について</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        操作すると2秒後に自動でスプレッドシートに保存されます。右上の「☁️ 今すぐ保存」でも即時保存できます。<br>
+        通信エラー時は画面右下に赤色で表示されます。オフラインのまま操作を続けても手元のデータは消えませんが、他の端末とはずれるので早めに保存してください。
+      </div>
+    </details>
+  </div>
+</div>
+
+</div><!-- /.app -->
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   GAS 連携仕様
+   ────────────────────────────────────────────────────────────────
+   GET  ?action=loadAllData
+        既存実装。{status:'ok', data:{lots, defects, holds, defectHolds,
+        preorders, customers, facilities}} を返す想定。
+
+   POST { action:'saveAllData', payload:{ lots, defects, holds,
+          defectHolds, preorders } }
+        アプリBが管理するデータのみ送信します（customers/facilities は
+        アプリA側が管理するため、ここでは送らず上書きしないようにして
+        います）。もし既存のGAS実装が「payloadに無いキーは削除/空にする」
+        仕様であれば、GAS側で「送られてきたキーだけ更新する」方式に
+        直すか、教えてください。
+   ════════════════════════════════════════════════════════════════ */
+
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+let gasSyncEnabled = true;
+
+// ── 商品マスタ（アプリAと共有。確定したらこちらからAへコピーしてください）────
+const PRODUCTS = [
+{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true},
+{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック'},
+{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック'},
+{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック'},
+{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック'},
+{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック'},
+{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック', noWholesale:true},
+{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック'},
+{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック'},
+{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック'},
+{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック'},
+{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック'},
+{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true},
+{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド'},
+{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド'},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true},
+{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット'},
+{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット'},
+{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット'},
+{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン'},
+{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン'},
+{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ'},
+{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ'},
+{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ'},
+{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル'},
+{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル'},
+{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル'},
+{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル'},
+{id:29, sku:'LAT5L',  name:'レイトハーベスト 5L',   group:'その他オイル'},
+{id:38, sku:'CUP001', jan:'7012', name:'カップオイル グリーンブーケ（オルガニック）13g', group:'カップオイル'},
+{id:39, sku:'CUP002', jan:'7036', name:'カップオイル グリーンバナナ（メメジック）13g',   group:'カップオイル'},
+{id:40, sku:'CUP003', jan:'7029', name:'カップオイル オレンジ＆レモン（アグルミ）13g',   group:'カップオイル'},
+// セット商品（構成＝オイル＋ギフト箱＋紙袋黒大）
+{id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
+{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
+// ギフト箱・備品
+{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用', group:'ギフト箱・備品'},
+{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用', group:'ギフト箱・備品'},
+{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）', group:'ギフト箱・備品'},
+{id:32, sku:'BAG001', name:'紙袋 黒 小', group:'ギフト箱・備品'},
+{id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品'},
+// その他
+{id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
+{id:35, sku:'MISC002', name:'トルコ500ml用 空瓶', group:'その他'},
+{id:36, sku:'MISC003', name:'750ml用 注ぎ口', group:'その他'},
+];
+
+function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
+function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+function productGroups(){
+  const groups = {};
+  PRODUCTS.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
+  return groups;
+}
+function productOptionsHtml(selected){
+  const groups = productGroups();
+  let html = '<option value="">商品を選択...</option>';
+  Object.keys(groups).forEach(function(g){
+    html += '<optgroup label="'+g+'">';
+    groups[g].forEach(p=>{ html += '<option value="'+p.id+'" '+(p.id==selected?'selected':'')+'>'+p.name+'</option>'; });
+    html += '</optgroup>';
+  });
+  return html;
+}
+
+// ── 状態 ────────────────────────────────────────────
+let lots = [];          // {id, pid, lotCode, expiry, stock, status, note, incoming}
+let defects = [];       // {id, pid, lotId, qty, cat, note, status, shippedQty, processedAt}
+let defectHolds = [];   // {id, pid, client, qty, until, note}
+let holds = [];         // {id, pid, client, qty, date, orderId}
+let preorders = [];     // {id, pid, client, qty, bottles, boxes, note}
+let invLogs = [];       // {id, ts, type, text}
+let defectCategories = ['破損','汚れ','ラベル不良','賞味期限間近'];
+let idSeq = 1;
+function nextId(){ return Date.now()+'-'+(idSeq++); }
+
+document.addEventListener('DOMContentLoaded', function(){
+  fillProductSelects();
+  loadAllDataFromGAS();
+});
+
+function showSyncStatus(msg,isError){
+  let el = document.getElementById('sync-status');
+  if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.style.background = isError ? '#fee2e2' : '#dcfce7';
+  el.style.color = isError ? '#7f1d1d' : '#14532d';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+function showPanel(name, btn){
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='inv') renderInvTable();
+  if(name==='lot') renderLotList();
+  if(name==='defect'){ renderCatSummary(); renderDefectGroups(); renderDefectHistory(); }
+  if(name==='hold') renderHoldList();
+  if(name==='pre') renderPreList();
+  if(name==='ilog') renderInvLogs();
+}
+
+function fillProductSelects(){
+  ['f-product','d-product','l-product','h-product','p-product'].forEach(function(id){
+    document.getElementById(id).innerHTML = productOptionsHtml();
+  });
+  document.getElementById('f-product').addEventListener('change', function(){});
+  onProdChange('f-product','f-lot');
+  onProdChange('d-product','d-lot');
+  renderCatOptions();
+}
+
+function lotOptionsFor(pid, includeIncoming){
+  return lots.filter(l=>l.pid==pid && (includeIncoming || l.status!=='incoming'))
+    .map(l=>'<option value="'+l.id+'">'+(l.lotCode||'-')+' / '+(l.expiry||'期限なし')+'　['+lotStatusLabel(l.status)+'] 在庫'+(l.stock||0)+'</option>').join('');
+}
+function lotStatusLabel(s){ return {new:'新',old:'旧',supply:'備品',incoming:'入庫予定'}[s]||s; }
+
+function onProdChange(prodId, lotId){
+  const pid = document.getElementById(prodId).value;
+  document.getElementById(lotId).innerHTML = '<option value="">（新規ロットとして扱う）</option>' + lotOptionsFor(pid, false);
+}
+
+// ── GAS 読み込み・保存 ────────────────────────────────────────────
+function loadAllDataFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).then(function(d){
+    if(d.status!=='ok' || !d.data) return;
+    const data = d.data;
+    if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
+      stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
+    if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
+      cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'' }; });
+    if(data.defectHolds) defectHolds = data.defectHolds.map(function(x){ return { id:x.id, pid:parseInt(x.pid), client:x.client, qty:parseInt(x.qty)||0, until:x.until, note:x.note }; });
+    if(data.holds) holds = data.holds.map(function(h){ return { id:h.id, pid:parseInt(h.pid), client:h.client, qty:parseInt(h.qty)||0, date:h.date, orderId:h.orderId }; });
+    if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
+    if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
+    renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderDefectHistory();
+    renderHoldList(); renderPreList(); renderInvLogs(); renderCatOptions();
+    showSyncStatus('✅ 保存されたデータを読み込みました');
+  }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
+}
+
+let autoSaveTimer = null;
+function scheduleAutoSave(){
+  if(autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(saveAllDataToGAS, 2000);
+}
+function withProductName(arr){
+  return arr.map(function(x){ const p = findProduct(x.pid); return Object.assign({}, x, {productName: p?p.name:''}); });
+}
+function saveAllDataToGAS(){
+  if(!gasSyncEnabled) return;
+  const payload = {
+    lots: withProductName(lots),
+    defects: withProductName(defects),
+    defectHolds: withProductName(defectHolds),
+    holds: withProductName(holds),
+    preorders: withProductName(preorders),
+    defectCategories: defectCategories
+  };
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveAllData', payload: payload }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).then(r=>r.json()).then(function(d){
+    if(d.status==='ok') showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+    else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+  }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
+}
+
+function addLog(type, text){
+  invLogs.unshift({ id: nextId(), ts: new Date().toISOString(), type: type, text: text });
+  if(invLogs.length>300) invLogs.length = 300;
+}
+
+// ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
+function computeStockNumbers(pid){
+  let stock=0, oldStock=0;
+  lots.forEach(function(l){ if(l.pid==pid && l.status!=='incoming'){ stock += (l.stock||0); if(l.status==='old') oldStock += (l.stock||0); } });
+  let defectQty = 0;
+  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  let holdQty = 0;
+  holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
+  let preQty = 0;
+  preorders.forEach(function(r){ if(r.pid==pid) preQty += (r.qty||r.bottles||0); });
+  let incoming = 0;
+  lots.forEach(function(l){ if(l.pid==pid && l.status==='incoming') incoming += (l.stock||0); });
+  const avail = Math.max(0, stock - oldStock - defectQty - holdQty);
+  return { stock, oldStock, defectQty, holdQty, preQty, incoming, avail };
+}
+function computeAvailable(sku){
+  const p = findProductBySku(sku);
+  if(!p) return null;
+  if(p.isSet){
+    if(!p.components || !p.components.length) return null;
+    return Math.min.apply(null, p.components.map(c=>{ const v = computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
+  }
+  return computeStockNumbers(p.id).avail;
+}
+
+// ── 在庫一覧 ────────────────────────────────────────────
+function renderInvTable(){
+  const search = (document.getElementById('inv-search').value||'').toLowerCase();
+  const groups = productGroups();
+  let totalStock=0, totalAvail=0, totalOld=0, totalDefect=0, totalHold=0;
+  let rows = '';
+  Object.keys(groups).forEach(function(g){
+    const items = groups[g].filter(p=>!search || p.name.toLowerCase().includes(search) || (p.sku||'').toLowerCase().includes(search));
+    if(!items.length) return;
+    rows += '<tr><td colspan="9" class="group-header">'+g+'</td></tr>';
+    items.forEach(function(p){
+      let n;
+      if(p.isSet){
+        const avail = computeAvailable(p.sku);
+        n = { stock:'-', oldStock:'-', defectQty:'-', holdQty:'-', preQty:'-', incoming:'-', avail: avail===null?0:avail };
+      } else {
+        n = computeStockNumbers(p.id);
+        totalStock += n.stock; totalAvail += n.avail; totalOld += n.oldStock; totalDefect += n.defectQty; totalHold += n.holdQty;
+      }
+      const cls = n.avail<=0 ? 'avail-zero' : n.avail<10 ? 'avail-warn' : 'avail-ok';
+      rows += '<tr><td>'+p.name+' <span class="sku-tag">'+(p.sku||'')+'</span>'+(p.jan?' <span class="jan-tag">JAN:'+p.jan+'</span>':'')+(p.isSet?'<span class="set-badge">SET</span>':'')+'</td>'+
+        '<td>'+n.stock+'</td><td>'+(n.oldStock>0?'<span class="c-amber">'+n.oldStock+'</span>':n.oldStock)+'</td>'+
+        '<td>'+(n.defectQty>0?'<span class="c-red">'+n.defectQty+'</span>':n.defectQty)+'</td>'+
+        '<td>'+(n.holdQty>0?'<span class="c-amber">'+n.holdQty+'</span>':n.holdQty)+'</td>'+
+        '<td>'+n.preQty+'</td><td>'+(n.incoming>0?'<span class="c-blue">'+n.incoming+'</span>':n.incoming)+'</td>'+
+        '<td class="'+cls+'">'+n.avail+'</td>'+
+        '<td>'+(p.isSet?'<span style="color:#bbb;font-size:11px">構成品で管理</span>':'<button class="btn-sm" onclick="quickSelectProduct('+p.id+')">入出庫</button>')+'</td></tr>';
+    });
+  });
+  document.getElementById('inv-tbl-body').innerHTML = rows || '<tr><td colspan="9" style="color:#999;text-align:center;padding:20px">該当する商品がありません</td></tr>';
+  document.getElementById('s-stock').textContent = totalStock;
+  document.getElementById('s-avail').textContent = totalAvail;
+  document.getElementById('s-old').textContent = totalOld;
+  document.getElementById('s-defect').textContent = totalDefect;
+  document.getElementById('s-hold-inv').textContent = totalHold;
+}
+function quickSelectProduct(pid){
+  document.getElementById('f-product').value = pid;
+  onProdChange('f-product','f-lot');
+  document.getElementById('panel-inv').scrollIntoView({behavior:'smooth'});
+}
+
+// ── 入出庫記録 ────────────────────────────────────────────
+function recordMovement(){
+  const pid = document.getElementById('f-product').value;
+  const lotId = document.getElementById('f-lot').value;
+  const type = document.getElementById('f-type').value;
+  const qty = parseInt(document.getElementById('f-qty').value)||0;
+  const note = document.getElementById('f-note').value;
+  if(!pid || qty<=0){ alert('商品と数量を指定してください'); return; }
+  const p = findProduct(pid);
+  let lot = lots.find(l=>l.id===lotId);
+  if(!lot){
+    lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'new', note:'' };
+    lots.push(lot);
+  }
+  if(type==='in') lot.stock = (lot.stock||0) + qty;
+  else lot.stock = Math.max(0, (lot.stock||0) - qty);
+  addLog(type==='in'?'入庫':'出庫', p.name+'　'+(type==='in'?'+':'-')+qty+'　'+note);
+  document.getElementById('f-qty').value = 1;
+  document.getElementById('f-note').value = '';
+  renderInvTable(); renderLotList(); renderInvLogs();
+  scheduleAutoSave();
+}
+
+// ── ロット管理 ────────────────────────────────────────────
+function renderLotList(){
+  const groups = {};
+  lots.forEach(function(l){ (groups[l.pid]=groups[l.pid]||[]).push(l); });
+  let html = '';
+  const oldAlerts = [];
+  Object.keys(groups).forEach(function(pid){
+    const p = findProduct(pid);
+    if(!p) return;
+    html += '<div class="lot-pcard"><div class="sec" style="margin-bottom:8px">'+p.name+' <span class="sku-tag">'+(p.sku||'')+'</span></div>';
+    html += '<table class="lot-tbl"><thead><tr><th>ロット</th><th>賞味期限</th><th>状態</th><th>在庫数</th><th>メモ</th><th>操作</th></tr></thead><tbody>';
+    groups[pid].forEach(function(l){
+      const badge = l.status==='old' ? '<span class="lot-badge lot-old">旧</span>' : l.status==='supply' ? '<span class="lot-badge lot-supply">備品</span>' : l.status==='incoming' ? '<span class="lot-badge lot-supply">入庫予定</span>' : '<span class="lot-badge lot-new">新</span>';
+      if(l.status==='old') oldAlerts.push(p.name+'（'+l.lotCode+'／'+l.expiry+'）');
+      html += '<tr><td>'+(l.lotCode||'-')+'</td><td>'+(l.expiry||'-')+'</td><td>'+badge+'</td><td>'+(l.stock||0)+'</td><td>'+(l.note||'')+'</td><td>'+
+        (l.status==='incoming' ? '<button class="btn-sm" onclick="confirmIncoming(\''+l.id+'\')">確認入庫</button>' : '')+
+        ' <button class="btn-sm" onclick="toggleOldStatus(\''+l.id+'\')">'+(l.status==='old'?'新ロットに戻す':'旧ロットにする')+'</button>'+
+        '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+  document.getElementById('lot-list').innerHTML = html || '<div style="color:#999;font-size:13px;padding:8px 0">まだロットが登録されていません。</div>';
+  document.getElementById('lot-alerts').innerHTML = oldAlerts.length ? '<div class="alert-bar alert-warn">⚠️ 旧ロットがあります：'+oldAlerts.join('、')+'</div>' : '';
+}
+function confirmIncoming(lotId){
+  const lot = lots.find(l=>l.id===lotId);
+  if(!lot) return;
+  lot.status = 'new';
+  const p = findProduct(lot.pid);
+  addLog('確認入庫', (p?p.name:'')+'　'+lot.stock+'本を実在庫に反映');
+  renderLotList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function toggleOldStatus(lotId){
+  const lot = lots.find(l=>l.id===lotId);
+  if(!lot) return;
+  lot.status = lot.status==='old' ? 'new' : 'old';
+  renderLotList(); renderInvTable();
+  scheduleAutoSave();
+}
+function addLot(){
+  const pid = document.getElementById('l-product').value;
+  if(!pid){ alert('商品を選択してください'); return; }
+  const lot = {
+    id: nextId(), pid: parseInt(pid),
+    lotCode: document.getElementById('l-lot').value || '-',
+    expiry: document.getElementById('l-exp').value,
+    stock: parseInt(document.getElementById('l-qty').value)||0,
+    status: document.getElementById('l-status').value,
+    note: document.getElementById('l-note').value
+  };
+  lots.push(lot);
+  const p = findProduct(pid);
+  addLog('ロット登録', p.name+'　'+lot.lotCode+'／'+(lot.expiry||'期限なし')+'　'+lot.stock+'本（'+lotStatusLabel(lot.status)+'）');
+  document.getElementById('l-lot').value = '';
+  document.getElementById('l-exp').value = '';
+  document.getElementById('l-qty').value = 0;
+  document.getElementById('l-note').value = '';
+  renderLotList(); renderInvTable(); renderInvLogs();
+  onProdChange('f-product','f-lot'); onProdChange('d-product','d-lot');
+  scheduleAutoSave();
+}
+
+// ── 不良在庫 ────────────────────────────────────────────
+function renderCatOptions(){
+  const sel = document.getElementById('d-cat');
+  if(sel) sel.innerHTML = defectCategories.map(c=>'<option value="'+c+'">'+c+'</option>').join('');
+}
+function toggleAddCat(){
+  const el = document.getElementById('add-cat-form');
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+function addCategory(){
+  const name = document.getElementById('new-cat-name').value.trim();
+  if(!name) return;
+  if(!defectCategories.includes(name)) defectCategories.push(name);
+  document.getElementById('new-cat-name').value = '';
+  document.getElementById('add-cat-form').style.display = 'none';
+  renderCatOptions(); renderCatSummary();
+  scheduleAutoSave();
+}
+function renderCatSummary(){
+  const el = document.getElementById('cat-summary');
+  el.innerHTML = defectCategories.map(function(cat){
+    const total = defects.filter(d=>d.cat===cat && d.status!=='resolved').reduce((s,d)=>s+Math.max(0,(d.qty||0)-(d.shippedQty||0)),0);
+    return '<div class="cat-card"><div class="cat-lbl">'+cat+'</div><div class="cat-val">'+total+'本</div></div>';
+  }).join('');
+}
+function renderDefectGroups(){
+  const pending = defects.filter(d=>d.status!=='resolved' && ((d.qty||0)-(d.shippedQty||0))>0);
+  const el = document.getElementById('defect-groups');
+  if(!pending.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">処理待ちの不良品はありません。</div>'; return; }
+  el.innerHTML = pending.map(function(d){
+    const p = findProduct(d.pid);
+    const remain = (d.qty||0)-(d.shippedQty||0);
+    return '<div class="dcard"><div class="dcard-hd"><div><strong>'+(p?p.name:'')+'</strong>　残り '+remain+'本　<span class="pill pill-hold">'+d.cat+'</span></div><div style="font-size:11px;color:#888">'+(d.note||'')+'</div></div>'+
+      '<div class="drow">'+
+      '<input type="number" min="1" max="'+remain+'" value="1" id="ship-qty-'+d.id+'" style="width:70px;padding:4px 6px;border:1px solid #ccc;border-radius:6px">'+
+      '<button class="btn-amber-sm" onclick="discountShip(\''+d.id+'\')">値引き出荷</button>'+
+      '<input type="text" id="hold-client-'+d.id+'" placeholder="卸先名" style="width:120px;padding:4px 6px;border:1px solid #ccc;border-radius:6px">'+
+      '<button class="btn-resolve-ret" onclick="holdDefect(\''+d.id+'\')">取り置き</button>'+
+      '<button class="btn-resolve-ok" onclick="resolveDefect(\''+d.id+'\')">処理完了にする</button>'+
+      '</div></div>';
+  }).join('');
+}
+function addDefect(){
+  const pid = document.getElementById('d-product').value;
+  const qty = parseInt(document.getElementById('d-qty').value)||0;
+  if(!pid || qty<=0){ alert('商品と数量を指定してください'); return; }
+  const d = { id: nextId(), pid: parseInt(pid), lotId: document.getElementById('d-lot').value||'',
+    qty: qty, cat: document.getElementById('d-cat').value, note: document.getElementById('d-note').value,
+    status:'pending', shippedQty:0, processedAt:'' };
+  defects.push(d);
+  const p = findProduct(pid);
+  addLog('不良登録', p.name+'　'+qty+'本　['+d.cat+']');
+  document.getElementById('d-qty').value = 1;
+  document.getElementById('d-note').value = '';
+  renderCatSummary(); renderDefectGroups(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function discountShip(defectId){
+  const d = defects.find(x=>x.id===defectId);
+  if(!d) return;
+  const qtyEl = document.getElementById('ship-qty-'+defectId);
+  const qty = parseInt(qtyEl.value)||0;
+  const remain = (d.qty||0)-(d.shippedQty||0);
+  if(qty<=0 || qty>remain){ alert('出荷数量が正しくありません'); return; }
+  d.shippedQty = (d.shippedQty||0)+qty;
+  d.processedAt = new Date().toISOString();
+  if(d.shippedQty>=d.qty) d.status='resolved';
+  const p = findProduct(d.pid);
+  addLog('値引き出荷', p.name+'　'+qty+'本　['+d.cat+']');
+  renderCatSummary(); renderDefectGroups(); renderDefectHistory(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function holdDefect(defectId){
+  const d = defects.find(x=>x.id===defectId);
+  if(!d) return;
+  const clientEl = document.getElementById('hold-client-'+defectId);
+  const qtyEl = document.getElementById('ship-qty-'+defectId);
+  const client = clientEl.value.trim();
+  const qty = parseInt(qtyEl.value)||0;
+  const remain = (d.qty||0)-(d.shippedQty||0);
+  if(!client){ alert('卸先名を入力してください'); return; }
+  if(qty<=0 || qty>remain){ alert('数量が正しくありません'); return; }
+  defectHolds.push({ id: nextId(), pid: d.pid, client: client, qty: qty, until:'', note:'不良品('+d.cat+')取り置き' });
+  d.shippedQty = (d.shippedQty||0)+qty;
+  if(d.shippedQty>=d.qty) d.status='resolved';
+  const p = findProduct(d.pid);
+  addLog('不良品取り置き', p.name+'　'+qty+'本　→ '+client);
+  renderCatSummary(); renderDefectGroups(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function resolveDefect(defectId){
+  const d = defects.find(x=>x.id===defectId);
+  if(!d) return;
+  if(!confirm('残り数量を破棄・処理完了として記録しますか？')) return;
+  d.shippedQty = d.qty; d.status='resolved'; d.processedAt = new Date().toISOString();
+  const p = findProduct(d.pid);
+  addLog('不良在庫処理完了', p.name);
+  renderCatSummary(); renderDefectGroups(); renderDefectHistory(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function renderDefectHistory(){
+  const done = defects.filter(d=>(d.shippedQty||0)>0).sort((a,b)=>(b.processedAt||'').localeCompare(a.processedAt||''));
+  const el = document.getElementById('defect-history');
+  if(!done.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">処理履歴はまだありません。</div>'; return; }
+  el.innerHTML = done.map(function(d){
+    const p = findProduct(d.pid);
+    return '<div class="log-item">'+(p?p.name:'')+'　'+d.shippedQty+'本　['+d.cat+']　'+(d.status==='resolved'?'<span class="pill pill-hold">完了</span>':'')+'<span class="lmeta">'+(d.processedAt||'').slice(0,16).replace('T',' ')+'</span></div>';
+  }).join('');
+}
+
+// ── 取り置き ────────────────────────────────────────────
+function renderHoldList(){
+  const el = document.getElementById('hold-list');
+  if(!holds.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の取り置きはありません。</div>'; return; }
+  el.innerHTML = holds.map(function(h){
+    const p = findProduct(h.pid);
+    return '<div class="hold-item"><span style="flex:1"><strong>'+(p?p.name:'')+'</strong>　'+h.qty+'本　→ '+h.client+(h.date?'　期限:'+h.date:'')+'</span><button class="btn-sm" onclick="removeHold(\''+h.id+'\')">解除</button></div>';
+  }).join('');
+}
+function addHold(){
+  const pid = document.getElementById('h-product').value;
+  const qty = parseInt(document.getElementById('h-qty').value)||0;
+  const client = document.getElementById('h-client').value.trim();
+  if(!pid || qty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
+  holds.push({ id: nextId(), pid: parseInt(pid), client: client, qty: qty, date: document.getElementById('h-date').value, orderId:'' });
+  const p = findProduct(pid);
+  addLog('取り置き登録', p.name+'　'+qty+'本　→ '+client);
+  document.getElementById('h-client').value = ''; document.getElementById('h-qty').value = 1; document.getElementById('h-date').value = '';
+  renderHoldList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function removeHold(id){
+  const h = holds.find(x=>x.id===id);
+  holds = holds.filter(x=>x.id!==id);
+  if(h){ const p = findProduct(h.pid); addLog('取り置き解除', (p?p.name:'')+'　'+h.qty+'本　'+h.client); }
+  renderHoldList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+
+// ── 予約販売 ────────────────────────────────────────────
+function updPreorderTotal(){
+  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
+  const pid = document.getElementById('p-product').value;
+  const p = findProduct(pid);
+  const boxQty = 1; // 箱入数はロット管理側で扱わないため単純合算（本数として扱う）
+  document.getElementById('p-total-preview').value = (bottles + boxes*boxQty) + '本';
+}
+function renderPreList(){
+  const el = document.getElementById('pre-list');
+  let total = 0;
+  if(!preorders.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の予約はありません。</div>'; }
+  else {
+    el.innerHTML = preorders.map(function(r){
+      total += (r.qty||r.bottles||0);
+      const p = findProduct(r.pid);
+      return '<div class="pre-item"><div style="display:flex;justify-content:space-between;align-items:center"><strong>'+(p?p.name:'')+'</strong><button class="btn-sm" onclick="removePreorder(\''+r.id+'\')">削除</button></div>'+
+        '<div style="font-size:13px;color:#555">'+r.client+'　'+(r.bottles||0)+'本 + '+(r.boxes||0)+'箱　'+(r.note||'')+'</div></div>';
+    }).join('');
+  }
+  document.getElementById('pre-total-bar').textContent = '予約合計: '+total+'本';
+}
+function addPreorder(){
+  const pid = document.getElementById('p-product').value;
+  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
+  const client = document.getElementById('p-client').value.trim();
+  if(!pid || !client || (bottles+boxes)<=0){ alert('商品・お客様名・数量を入力してください'); return; }
+  preorders.push({ id: nextId(), pid: parseInt(pid), client: client, qty: bottles+boxes, bottles: bottles, boxes: boxes, note: document.getElementById('p-note').value });
+  const p = findProduct(pid);
+  addLog('予約登録', p.name+'　'+client+'　'+(bottles+boxes)+'本相当');
+  document.getElementById('p-client').value=''; document.getElementById('p-bottles').value=0; document.getElementById('p-boxes').value=0; document.getElementById('p-note').value='';
+  updPreorderTotal();
+  renderPreList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+function removePreorder(id){
+  const r = preorders.find(x=>x.id===id);
+  preorders = preorders.filter(x=>x.id!==id);
+  if(r){ const p = findProduct(r.pid); addLog('予約削除', (p?p.name:'')+'　'+r.client); }
+  renderPreList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+}
+
+// ── ログ ────────────────────────────────────────────
+function renderInvLogs(){
+  const el = document.getElementById('inv-log-list');
+  if(!invLogs.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">ログはまだありません。</div>'; return; }
+  el.innerHTML = invLogs.slice(0,100).map(function(l){
+    return '<div class="log-item">'+l.text+'<span class="lmeta">'+l.type+'　'+l.ts.slice(0,16).replace('T',' ')+'</span></div>';
+  }).join('');
+}
+</script>
+</body>
+</html>
