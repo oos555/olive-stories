@@ -209,11 +209,14 @@ body{background:#fff}
         </select>
       </div>
       <div class="fg" id="d-sender-custom-wrap" style="display:none"><label>送り主名（自由入力）</label><input type="text" id="d-sender-custom" placeholder="例：〇〇株式会社"></div>
-      <div class="g2">
-        <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
-        <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+      <div id="d-sender-self-box" style="display:none;background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px">株式会社オリーブオイル・ストーリーズ　〒107-0062 東京都港区南青山2-2-15</div>
+      <div id="d-sender-manual-fields">
+        <div class="g2">
+          <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
+          <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+        </div>
+        <div class="fg"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
       </div>
-      <div class="fg"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
       <div class="g2">
         <div class="fg">
           <label>発送区分</label>
@@ -630,8 +633,12 @@ function onCtypeChange(){
 }
 
 function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('d-lead').value==='scheduled' ? 'block' : 'none'; }
+const SELF_SENDER = { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' };
 function onSenderModeChange(){
-  document.getElementById('d-sender-custom-wrap').style.display = document.getElementById('d-sender-mode').value==='custom' ? 'block' : 'none';
+  const mode = document.getElementById('d-sender-mode').value;
+  document.getElementById('d-sender-custom-wrap').style.display = mode==='custom' ? 'block' : 'none';
+  document.getElementById('d-sender-self-box').style.display = mode==='self' ? 'block' : 'none';
+  document.getElementById('d-sender-manual-fields').style.display = mode==='self' ? 'none' : 'block';
 }
 function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('d-time').value==='other' ? 'block' : 'none'; }
 
@@ -883,10 +890,10 @@ function buildOrdersFromForm(){
   const ctype = document.getElementById('o-ctype').value;
   const saveCustomer = document.getElementById('o-save-customer').checked;
   const senderMode = document.getElementById('d-sender-mode').value;
-  const dSenderName = senderMode==='self' ? 'オリーブオイル・ストーリーズ' : senderMode==='custom' ? (document.getElementById('d-sender-custom').value || client) : client;
-  const dSenderTel = document.getElementById('d-sender-tel').value;
-  const dSenderZip = document.getElementById('d-sender-zip').value;
-  const dSenderAddr = document.getElementById('d-sender-addr').value;
+  const dSenderName = senderMode==='self' ? SELF_SENDER.name : senderMode==='custom' ? (document.getElementById('d-sender-custom').value || client) : client;
+  const dSenderTel = senderMode==='self' ? '' : document.getElementById('d-sender-tel').value;
+  const dSenderZip = senderMode==='self' ? SELF_SENDER.zip : document.getElementById('d-sender-zip').value;
+  const dSenderAddr = senderMode==='self' ? SELF_SENDER.addr : document.getElementById('d-sender-addr').value;
   const dLead = document.getElementById('d-lead').value;
   const dLeadDate = document.getElementById('d-lead-date').value;
   const dTime = document.getElementById('d-time').value==='other' ? document.getElementById('d-time-other').value : document.getElementById('d-time').value;
@@ -916,29 +923,43 @@ function buildOrdersFromForm(){
 }
 
 function previewOrder(){
-  const client = document.getElementById('o-client').value;
-  if(!client){ alert('お客様名（発注元）を入力してください'); return; }
-  const list = buildOrdersFromForm();
-  if(!list.length){ alert('届け先には「氏名」と「商品」を1件以上入力してください'); return; }
-  let html = '<div style="font-size:13px;line-height:1.8">';
-  html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+list.length+'件の届け先へ発送します</div>';
-  list.forEach(function(o, i){
-    const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
-    html += '<div style="border:1px solid #e8e7e3;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
-    html += '<div><strong>#'+(i+1)+'　'+o.recipientName+'</strong>　'+o.num+'</div>';
-    html += '<div style="color:#666">〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
-    html += '<div>発送区分：'+leadLabel+(o.delivTime?'　配送時間：'+o.delivTime:'')+'</div>';
-    if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
-    if(o.note) html += '<div>備考：'+o.note+'</div>';
-    html += '<div>送り主表記：'+o.senderName+'</div>';
-    html += '<div>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
+  try{
+    document.getElementById('order-alerts').innerHTML = '';
+    const client = document.getElementById('o-client').value;
+    if(!client){
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ お客様名（発注元）を入力してください</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      return;
+    }
+    const list = buildOrdersFromForm();
+    if(!list.length){
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ 届け先が登録されていません。各届け先カードで「お名前」と「商品（本数）」を入力してください。商品を選び忘れている行は取り込まれません。</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      return;
+    }
+    let html = '<div style="font-size:13px;line-height:1.8">';
+    html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+list.length+'件の届け先へ発送します</div>';
+    list.forEach(function(o, i){
+      const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
+      html += '<div style="border:1px solid #e8e7e3;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+      html += '<div><strong>#'+(i+1)+'　'+o.recipientName+'</strong>　'+o.num+'</div>';
+      html += '<div style="color:#666">〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
+      html += '<div>発送区分：'+leadLabel+(o.delivTime?'　配送時間：'+o.delivTime:'')+'</div>';
+      if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
+      if(o.note) html += '<div>備考：'+o.note+'</div>';
+      html += '<div>送り主表記：'+o.senderName+'</div>';
+      html += '<div>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
+      html += '</div>';
+    });
     html += '</div>';
-  });
-  html += '</div>';
-  document.getElementById('confirm-content').innerHTML = html;
-  document.getElementById('confirm-area').style.display = 'block';
-  document.getElementById('confirm-area').scrollIntoView({behavior:'smooth'});
-  window._pendingOrders = list;
+    document.getElementById('confirm-content').innerHTML = html;
+    document.getElementById('confirm-area').style.display = 'block';
+    document.getElementById('confirm-area').scrollIntoView({behavior:'smooth'});
+    window._pendingOrders = list;
+  }catch(err){
+    document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ エラーが発生しました：'+err.message+'<br>このメッセージのスクリーンショットを送ってもらえれば、原因を調べます。</div>';
+    document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+  }
 }
 
 function registerOrder(){
@@ -966,6 +987,8 @@ function clearForm(){
   document.getElementById('d-sender-mode').value = 'client';
   document.getElementById('d-sender-custom').value = '';
   document.getElementById('d-sender-custom-wrap').style.display = 'none';
+  document.getElementById('d-sender-self-box').style.display = 'none';
+  document.getElementById('d-sender-manual-fields').style.display = 'block';
   document.getElementById('d-sender-tel').value = '';
   document.getElementById('d-sender-zip').value = '';
   document.getElementById('d-sender-addr').value = '';
