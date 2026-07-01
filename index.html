@@ -136,6 +136,7 @@ body{background:#fff}
 .topnav,.tab-row,.no-print{display:none!important}
 .invoice{border:none;padding:1cm}
 .slip{border:2px solid #000;page-break-inside:avoid}
+.slip:not(:last-child){page-break-after:always}
 #panel-order,#panel-stores,#panel-list{display:none!important}
 #panel-slip{display:block!important}
 }
@@ -359,6 +360,11 @@ body{background:#fff}
         <option value="client">お客様名順</option>
       </select>
       <span id="list-count" style="font-size:12px;color:#888;align-self:center"></span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button class="btn-sm" onclick="toggleSelectAllOrders()">全選択/解除</button>
+      <button class="btn btn-primary" onclick="generateBulkSlips()" style="font-size:12px;padding:6px 14px">🖨 選択した受注の出荷指示書をまとめて作成</button>
+      <span id="list-selected-count" style="font-size:12px;color:#888"></span>
     </div>
   </div>
   <div id="order-list"></div>
@@ -671,6 +677,11 @@ function addRecipient(){
     '</div>'+
     '<div data-role="overridePanel" style="display:none;background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
       '<div class="fg" style="margin-bottom:0"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
+      '<div class="g2">'+
+        '<div class="fg"><label>送り主郵便番号（上書き）</label><input type="text" data-role="senderZipOv" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>'+
+        '<div class="fg"><label>送り主電話番号（上書き）</label><input type="text" data-role="senderTelOv" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>'+
+      '</div>'+
+      '<div class="fg" style="margin-bottom:0"><label>送り主住所（上書き）</label><input type="text" data-role="senderAddrOv" placeholder="空欄なら共通の送り主情報を使用"></div>'+
     '</div>'+
     '<div class="fg"><label>届け先</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0;flex-wrap:wrap">'+
@@ -902,6 +913,9 @@ function collectRecipients(){
       tel: isSame ? document.getElementById('o-tel').value : card.querySelector('[data-role=tel]').value,
       recycle: card.querySelector('[data-role=recycle]').checked,
       senderNameOverride: card.querySelector('[data-role=senderName]').value,
+      senderZipOverride: card.querySelector('[data-role=senderZipOv]').value,
+      senderTelOverride: card.querySelector('[data-role=senderTelOv]').value,
+      senderAddrOverride: card.querySelector('[data-role=senderAddrOv]').value,
       lead: card.querySelector('[data-role=lead]').value,
       leadDate: card.querySelector('[data-role=leadDate]').value,
       delivTime: timeSel==='other' ? card.querySelector('[data-role=timeOther]').value : timeSel,
@@ -954,7 +968,10 @@ function buildOrdersFromForm(){
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
       leadType: r.lead, leadDate: r.leadDate, delivTime: r.delivTime,
       note: r.note,
-      senderName: r.senderNameOverride || dSenderName, senderTel: dSenderTel, senderZip: dSenderZip, senderAddr: dSenderAddr,
+      senderName: r.senderNameOverride || dSenderName,
+      senderTel: r.senderTelOverride || dSenderTel,
+      senderZip: r.senderZipOverride || dSenderZip,
+      senderAddr: r.senderAddrOverride || dSenderAddr,
       lines: r.lines,
       isDefectSale: (ctype==='defectprice' || r.lead==='defect'),
       status: 'pending', source: 'manual', registeredAt: new Date().toISOString()
@@ -1092,7 +1109,8 @@ function renderList(){
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div>'+
+        '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount()" style="margin-top:4px">'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -1135,6 +1153,40 @@ function gotoSlip(id){
   if(o) document.getElementById('slip-select').value = o.id;
   generateSlip();
 }
+function toggleSelectAllOrders(){
+  const boxes = document.querySelectorAll('.order-select-cb');
+  const allChecked = Array.from(boxes).every(b=>b.checked);
+  boxes.forEach(b=>b.checked = !allChecked);
+  updateSelectedCount();
+}
+function updateSelectedCount(){
+  const n = document.querySelectorAll('.order-select-cb:checked').length;
+  document.getElementById('list-selected-count').textContent = n ? n+'件選択中' : '';
+}
+function generateBulkSlips(){
+  const ids = Array.from(document.querySelectorAll('.order-select-cb:checked')).map(cb=>cb.value);
+  if(!ids.length){ alert('出荷指示書を作成する受注にチェックを入れてください'); return; }
+  const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
+  document.getElementById('panel-slip').classList.add('active');
+  renderSlipSelect();
+  window._currentSlipOrder = list[0];
+  const html = list.map((o,i)=>buildSlipHtml(o, 'slip-qr-'+i)).join('');
+  document.getElementById('slip-area').innerHTML = html;
+  list.forEach(function(o,i){
+    const qrWrap = document.getElementById('slip-qr-'+i);
+    if(window.QRCode && qrWrap){
+      new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
+    }
+  });
+  document.getElementById('line-send-btn').style.display = 'none'; // 複数件のためLINEコピーは1件用のみ対応
+  document.getElementById('invoice-btn').style.display = 'none'; // 納品書は1件ずつ「出荷指示書へ」から作成してください
+  document.getElementById('invoice-area').innerHTML = '';
+  showSyncStatus('🖨 '+list.length+'件の出荷指示書をまとめて作成しました');
+  document.getElementById('panel-slip').scrollIntoView({behavior:'smooth'});
+}
 
 // ── 出荷指示書 ────────────────────────────────────────────
 function renderSlipSelect(){
@@ -1151,20 +1203,18 @@ function recipientAddressBlock(o){
   }
   return (o.recipientName||o.client||'');
 }
-function generateSlip(){
-  const id = document.getElementById('slip-select').value;
-  if(!id){ alert('受注を選択してください'); return; }
-  const o = orders.find(x=>x.id===id);
-  if(!o) return;
-  window._currentSlipOrder = o;
+function buildSlipHtml(o, qrId){
   const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
+  const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '<div class="slip">';
-  html += '<div class="slip-title">出荷指示書</div>';
+  html += '<div class="slip-title">出荷指示書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#888;font-size:14px">（ギフトなし）</span>')+'</div>';
   html += '<div class="slip-meta">';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+o.num+'</div></div>';
-  html += '<div class="slip-meta-item"><div class="slip-meta-label">お届け先</div><div class="slip-meta-val">'+recipientAddressBlock(o)+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">お届け先氏名</div><div class="slip-meta-val">'+recipientAddressBlock(o)+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">郵便番号・住所</div><div class="slip-meta-val">〒'+(o.zip||'')+' '+(o.addr||'')+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">電話番号</div><div class="slip-meta-val">'+(o.tel||'-')+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">発送区分</div><div class="slip-meta-val">'+leadLabel+'</div></div>';
-  html += '<div class="slip-meta-item"><div class="slip-meta-label">配送時間</div><div class="slip-meta-val">'+(o.delivTime||'指定なし')+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">配達時間指定</div><div class="slip-meta-val">'+(o.delivTime||'指定なし')+'</div></div>';
   html += '</div>';
   if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
   if(o.note) html += '<div class="alert-bar alert-danger">📝 '+o.note+'</div>';
@@ -1174,10 +1224,18 @@ function generateSlip(){
     html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
   html += '</tbody></table>';
-  html += '<div class="slip-qr" id="slip-qr"></div>';
+  html += '<div class="slip-qr" id="'+qrId+'"></div>';
   html += '<div style="text-align:center;font-size:11px;color:#888">スマホでQRを読み込むとピッキング画面が開きます</div>';
   html += '</div>';
-  document.getElementById('slip-area').innerHTML = html;
+  return html;
+}
+function generateSlip(){
+  const id = document.getElementById('slip-select').value;
+  if(!id){ alert('受注を選択してください'); return; }
+  const o = orders.find(x=>x.id===id);
+  if(!o) return;
+  window._currentSlipOrder = o;
+  document.getElementById('slip-area').innerHTML = buildSlipHtml(o, 'slip-qr');
   const qrWrap = document.getElementById('slip-qr');
   if(window.QRCode && qrWrap){
     new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
@@ -1208,6 +1266,8 @@ function copyForLine(){
 }
 
 // ── 納品書 ────────────────────────────────────────────
+const COMPANY_WEBSITE = 'https://oliveoilstories.net/';
+const COMPANY_EMAIL = 'office@oliveoilstories.net';
 function buildInvoice(o){
   const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
   let html = '<div class="invoice">';
@@ -1223,6 +1283,15 @@ function buildInvoice(o){
   (o.lines||[]).forEach(function(l){ html += '<tr><td>'+l.productName+'</td><td>'+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+'</td></tr>'; });
   html += '</tbody></table>';
   if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
+  html += '<div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e8e7e3;font-size:11px;color:#555;line-height:1.8">';
+  html += '<div style="font-weight:700;margin-bottom:4px">■キャンセル・変更について</div>';
+  html += '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございますので、あらかじめご了承ください。<br><br>';
+  html += '<div style="font-weight:700;margin-bottom:4px">■破損していた場合</div>';
+  html += '直ちにご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br><br>';
+  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
+  html += '<div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
+  html += (COMPANY_WEBSITE ? COMPANY_WEBSITE+'<br>' : '') + 'E-mail: '+COMPANY_EMAIL;
+  html += '</div>';
   html += '</div>';
   document.getElementById('invoice-area').innerHTML = html;
 }
