@@ -228,12 +228,16 @@ body{background:#fff}
           <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
           <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
         </div>
-        <div class="fg"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
+        <div class="fg" style="margin-bottom:0"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
       </div>
+    </div>
+
+    <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">⚡ 発送区分・配達時間・備考をまとめて設定（下の「全届け先にコピー」を押すまでは反映されません）</div>
       <div class="g2">
         <div class="fg">
           <label>発送区分</label>
-          <select id="d-lead" onchange="toggleLeadDate()">
+          <select id="bulk-lead" onchange="document.getElementById('bulk-lead-date-wrap').style.display=this.value==='scheduled'?'block':'none'">
             <option value="normal">通常（3日以内に発送）</option>
             <option value="urgent">🚨 急ぎ（明日までに発送）</option>
             <option value="defect">🔵 不良在庫出荷</option>
@@ -241,11 +245,11 @@ body{background:#fff}
             <option value="scheduled">🗓 日程指定</option>
           </select>
         </div>
-        <div class="fg" id="lead-date-wrap" style="display:none"><label>希望到着日</label><input type="date" id="d-lead-date"></div>
+        <div class="fg" id="bulk-lead-date-wrap" style="display:none"><label>希望到着日</label><input type="date" id="bulk-lead-date"></div>
       </div>
       <div class="g2">
         <div class="fg"><label>配送時間指定</label>
-          <select id="d-time" onchange="toggleTimeOther()">
+          <select id="bulk-time" onchange="document.getElementById('bulk-time-other-wrap').style.display=this.value==='other'?'block':'none'">
             <option value="">指定なし</option>
             <option value="午前中">午前中</option>
             <option value="日中（12〜18時）">日中（12〜18時）</option>
@@ -253,9 +257,10 @@ body{background:#fff}
             <option value="other">その他（記入）</option>
           </select>
         </div>
-        <div class="fg" id="time-other-wrap" style="display:none"><label>時間帯を記入</label><input type="text" id="d-time-other" placeholder="例：14〜16時"></div>
+        <div class="fg" id="bulk-time-other-wrap" style="display:none"><label>時間帯を記入</label><input type="text" id="bulk-time-other" placeholder="例：14〜16時"></div>
       </div>
-      <div class="fg" style="margin-bottom:0"><label>備考</label><input type="text" id="d-note" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"></div>
+      <div class="fg" style="margin-bottom:8px"><label>備考</label><input type="text" id="bulk-note" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"></div>
+      <button class="btn-sm" onclick="copySettingsToAllRecipients()" style="width:100%">↓ この内容を全届け先にコピーする</button>
     </div>
 
     <div id="recipients"></div>
@@ -665,7 +670,6 @@ function onCtypeChange(){
   warnEl.innerHTML = '';
 }
 
-function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('d-lead').value==='scheduled' ? 'block' : 'none'; }
 const SELF_SENDER = { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' };
 function onSenderModeChange(){
   const mode = document.getElementById('d-sender-mode').value;
@@ -673,7 +677,6 @@ function onSenderModeChange(){
   document.getElementById('d-sender-self-box').style.display = mode==='self' ? 'block' : 'none';
   document.getElementById('d-sender-manual-fields').style.display = mode==='self' ? 'none' : 'block';
 }
-function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('d-time').value==='other' ? 'block' : 'none'; }
 
 // ── 商品セレクトHTML ────────────────────────────────────────────
 function productOptionsHtml(selected){
@@ -704,16 +707,12 @@ function addRecipient(){
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
       '<div style="font-weight:700;font-size:13px">📦 届け先 <span class="r-idx"></span></div>'+
       '<div style="display:flex;gap:6px">'+
-        '<button class="btn-sm" onclick="toggleRecipientOverride(\''+id+'\')">✏️ この届け先だけ送り主・発送区分を変更</button>'+
+        '<button class="btn-sm" onclick="toggleRecipientOverride(\''+id+'\')">✏️ この届け先だけ送り主名を変更</button>'+
         '<button class="btn-sm" onclick="removeRecipient(\''+id+'\')">✕ この届け先を削除</button>'+
       '</div>'+
     '</div>'+
     '<div data-role="overridePanel" style="display:none;background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
-      '<div class="g2">'+
-        '<div class="fg"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
-        '<div class="fg"><label>発送区分（上書き）</label><select data-role="lead"><option value="">共通の設定を使う</option><option value="normal">通常（3日以内）</option><option value="urgent">🚨急ぎ（明日まで）</option><option value="defect">🔵不良在庫出荷</option><option value="caution">🟡特別注意</option></select></div>'+
-      '</div>'+
-      '<div class="fg" style="margin-bottom:0"><label>備考（上書き）</label><input type="text" data-role="note" placeholder="空欄なら共通の備考を使用"></div>'+
+      '<div class="fg" style="margin-bottom:0"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
     '</div>'+
     '<div class="fg"><label>届け先の種類</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0">'+
@@ -736,6 +735,32 @@ function addRecipient(){
     '</div>'+
     '<div class="fg"><label>住所</label><input type="text" data-role="addr" placeholder="東京都千代田区..."></div>'+
     '<div class="fg"><label><input type="checkbox" data-role="recycle" style="width:auto;display:inline-block;margin-right:6px">リサイクル箱を使用する</label></div>'+
+    '<div class="g2">'+
+      '<div class="fg">'+
+        '<label>発送区分</label>'+
+        '<select data-role="lead" onchange="toggleCardLeadDate(\''+id+'\')">'+
+          '<option value="normal">通常（3日以内に発送）</option>'+
+          '<option value="urgent">🚨 急ぎ（明日までに発送）</option>'+
+          '<option value="defect">🔵 不良在庫出荷</option>'+
+          '<option value="caution">🟡 特別注意</option>'+
+          '<option value="scheduled">🗓 日程指定</option>'+
+        '</select>'+
+      '</div>'+
+      '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日</label><input type="date" data-role="leadDate"></div>'+
+    '</div>'+
+    '<div class="g2">'+
+      '<div class="fg"><label>配送時間指定</label>'+
+        '<select data-role="time" onchange="toggleCardTimeOther(\''+id+'\')">'+
+          '<option value="">指定なし</option>'+
+          '<option value="午前中">午前中</option>'+
+          '<option value="日中（12〜18時）">日中（12〜18時）</option>'+
+          '<option value="夜間（18〜21時）">夜間（18〜21時）</option>'+
+          '<option value="other">その他（記入）</option>'+
+        '</select>'+
+      '</div>'+
+      '<div class="fg" data-role="timeOtherWrap" style="display:none"><label>時間帯を記入</label><input type="text" data-role="timeOther" placeholder="例：14〜16時"></div>'+
+    '</div>'+
+    '<div class="fg"><label>備考</label><input type="text" data-role="note" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"></div>'+
     '<div style="margin:10px 0 4px">'+
       '<div class="order-line-header">'+
         '<div style="font-size:11px;font-weight:700;color:#888">商品</div>'+
@@ -887,6 +912,7 @@ function updateCardGiftSummary(cardId){
 }
 function collectRecipients(){
   return Array.from(document.querySelectorAll('.recipient-card')).map(function(card){
+    const timeSel = card.querySelector('[data-role=time]').value;
     return {
       name: recipientDisplayName(card),
       isCompany: card.querySelector('[data-role=rtypeCom]').checked,
@@ -899,11 +925,38 @@ function collectRecipients(){
       tel: card.querySelector('[data-role=tel]').value,
       recycle: card.querySelector('[data-role=recycle]').checked,
       senderNameOverride: card.querySelector('[data-role=senderName]').value,
-      leadOverride: card.querySelector('[data-role=lead]').value,
-      noteOverride: card.querySelector('[data-role=note]').value,
+      lead: card.querySelector('[data-role=lead]').value,
+      leadDate: card.querySelector('[data-role=leadDate]').value,
+      delivTime: timeSel==='other' ? card.querySelector('[data-role=timeOther]').value : timeSel,
+      note: card.querySelector('[data-role=note]').value,
       lines: getRecipientLines(card.id)
     };
   });
+}
+function toggleCardLeadDate(cardId){
+  const card = document.getElementById(cardId);
+  card.querySelector('[data-role=leadDateWrap]').style.display = card.querySelector('[data-role=lead]').value==='scheduled' ? 'block' : 'none';
+}
+function toggleCardTimeOther(cardId){
+  const card = document.getElementById(cardId);
+  card.querySelector('[data-role=timeOtherWrap]').style.display = card.querySelector('[data-role=time]').value==='other' ? 'block' : 'none';
+}
+function copySettingsToAllRecipients(){
+  const lead = document.getElementById('bulk-lead').value;
+  const leadDate = document.getElementById('bulk-lead-date').value;
+  const time = document.getElementById('bulk-time').value;
+  const timeOther = document.getElementById('bulk-time-other').value;
+  const note = document.getElementById('bulk-note').value;
+  document.querySelectorAll('.recipient-card').forEach(function(card){
+    card.querySelector('[data-role=lead]').value = lead;
+    card.querySelector('[data-role=leadDate]').value = leadDate;
+    card.querySelector('[data-role=time]').value = time;
+    card.querySelector('[data-role=timeOther]').value = timeOther;
+    card.querySelector('[data-role=note]').value = note;
+    toggleCardLeadDate(card.id);
+    toggleCardTimeOther(card.id);
+  });
+  showSyncStatus('⚡ 全届け先（'+document.querySelectorAll('.recipient-card').length+'件）に設定をコピーしました');
 }
 
 // ── 注文番号自動採番 ────────────────────────────────────────────
@@ -928,16 +981,11 @@ function buildOrdersFromForm(){
   const dSenderTel = senderMode==='self' ? '' : document.getElementById('d-sender-tel').value;
   const dSenderZip = senderMode==='self' ? SELF_SENDER.zip : document.getElementById('d-sender-zip').value;
   const dSenderAddr = senderMode==='self' ? SELF_SENDER.addr : document.getElementById('d-sender-addr').value;
-  const dLead = document.getElementById('d-lead').value;
-  const dLeadDate = document.getElementById('d-lead-date').value;
-  const dTime = document.getElementById('d-time').value==='other' ? document.getElementById('d-time-other').value : document.getElementById('d-time').value;
-  const dNote = document.getElementById('d-note').value;
 
   const recipients = collectRecipients();
   const list = [];
   recipients.forEach(function(r, i){
     if(!r.name || !r.lines.length) return; // 氏名・商品が無い届け先はスキップ
-    const lead = r.leadOverride || dLead;
     list.push({
       id: generateOrderId(),
       num: nextOrderNum(list.length),
@@ -945,11 +993,11 @@ function buildOrdersFromForm(){
       recipientName: r.name, isCompany: r.isCompany, companyName: r.companyName, deptName: r.deptName,
       positionName: r.positionName, personName: r.personName,
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
-      leadType: lead, leadDate: dLeadDate, delivTime: dTime,
-      note: r.noteOverride || dNote,
+      leadType: r.lead, leadDate: r.leadDate, delivTime: r.delivTime,
+      note: r.note,
       senderName: r.senderNameOverride || dSenderName, senderTel: dSenderTel, senderZip: dSenderZip, senderAddr: dSenderAddr,
       lines: r.lines,
-      isDefectSale: (ctype==='defectprice' || lead==='defect'),
+      isDefectSale: (ctype==='defectprice' || r.lead==='defect'),
       status: 'pending', source: 'manual', registeredAt: new Date().toISOString()
     });
   });
@@ -1026,14 +1074,15 @@ function clearForm(){
   document.getElementById('d-sender-tel').value = '';
   document.getElementById('d-sender-zip').value = '';
   document.getElementById('d-sender-addr').value = '';
-  document.getElementById('d-lead').value = 'normal';
-  document.getElementById('d-lead-date').value = '';
-  document.getElementById('d-time').value = '';
-  document.getElementById('d-time-other').value = '';
-  document.getElementById('d-note').value = '';
+  document.getElementById('bulk-lead').value = 'normal';
+  document.getElementById('bulk-lead-date').value = '';
+  document.getElementById('bulk-lead-date-wrap').style.display = 'none';
+  document.getElementById('bulk-time').value = '';
+  document.getElementById('bulk-time-other').value = '';
+  document.getElementById('bulk-time-other-wrap').style.display = 'none';
+  document.getElementById('bulk-note').value = '';
   document.getElementById('recipients').innerHTML = '';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
-  toggleLeadDate(); toggleTimeOther();
   addRecipient();
 }
 
