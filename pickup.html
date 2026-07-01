@@ -2,152 +2,186 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>出荷チェックリスト</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ピッキング確認</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f4f0;color:#1a1a18;font-size:15px;-webkit-tap-highlight-color:transparent}
-.app{max-width:480px;margin:0 auto;padding:1rem;min-height:100vh}
-.header{background:#1a1a18;color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:1rem}
-.header-title{font-size:14px;opacity:.7;margin-bottom:2px}
-.header-client{font-size:20px;font-weight:700}
-.header-num{font-size:12px;opacity:.6;margin-top:2px}
-.note-box{background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:1rem;font-size:14px;font-weight:700;color:#78350f}
-.item-card{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:10px;border:2px solid #e8e7e3;display:flex;align-items:center;gap:14px;cursor:pointer}
-.item-card.done{border-color:#16a34a;background:#f0fdf4}
-.item-check{width:32px;height:32px;border-radius:50%;border:2px solid #ccc;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.item-check.checked{background:#16a34a;border-color:#16a34a;color:#fff}
-.item-info{flex:1}
-.item-name{font-size:16px;font-weight:700;margin-bottom:4px}
-.item-qty{font-size:14px;color:#555}
-.photo-reminder{background:#fff;border:2px dashed #185fa5;border-radius:10px;padding:14px;margin:1.5rem 0;text-align:center;font-size:13px;color:#185fa5}
-.complete-btn{width:100%;padding:16px;background:#ccc;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:not-allowed}
-.complete-btn.ready{background:#16a34a;cursor:pointer}
-.loading{text-align:center;padding:3rem 1rem;color:#888}
-.progress-text{text-align:center;font-size:13px;color:#888;margin-bottom:1rem}
+.app{max-width:520px;margin:0 auto;padding:14px}
+.topbar{background:#1a1a18;color:#fff;padding:12px 16px;border-radius:12px;margin-bottom:14px;text-align:center;font-weight:700;font-size:15px}
+.card{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:16px;margin-bottom:14px}
+.center{text-align:center}
+.spinner{font-size:14px;color:#888;padding:40px 0;text-align:center}
+.alert-danger{background:#fee2e2;border:2px solid #dc2626;color:#7f1d1d;border-radius:10px;padding:16px;margin-bottom:14px;font-size:14px;line-height:1.7}
+.alert-shipped-btn{width:100%;padding:14px;margin-top:10px;border-radius:8px;border:1px solid #dc2626;background:#fff;color:#dc2626;font-weight:700;font-size:14px}
+.badge{display:inline-block;padding:5px 12px;border-radius:99px;font-size:13px;font-weight:700;margin:2px 4px 2px 0}
+.b-urgent{background:#fee2e2;color:#991b1b}
+.b-defect{background:#dbeafe;color:#1e3a8a}
+.b-caution{background:#fef3c7;color:#78350f}
+.b-normal{background:#f1f5f9;color:#475569}
+.b-gift{background:#fce7f3;color:#9d174d}
+.b-recycle{background:#dcfce7;color:#14532d}
+.meta-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0efe9;font-size:14px}
+.meta-row:last-child{border-bottom:none}
+.meta-label{color:#888;font-size:12px}
+.meta-val{font-weight:700;text-align:right}
+.note-box{background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-top:10px;font-size:14px;color:#7f1d1d;font-weight:600}
+.sec-title{font-size:13px;font-weight:700;color:#888;margin:18px 0 8px}
+.item{display:flex;align-items:center;gap:12px;background:#f9f8f5;border-radius:10px;padding:14px;margin-bottom:8px;border:2px solid transparent}
+.item.checked{background:#dcfce7;border-color:#16a34a}
+.item .cb{width:26px;height:26px;flex-shrink:0}
+.item .info{flex:1}
+.item .pname{font-weight:700;font-size:15px}
+.item .psub{font-size:12px;color:#666;margin-top:2px}
+.item .pmemo{font-size:12px;color:#dc2626;margin-top:2px}
+.actions{position:sticky;bottom:0;background:#f5f4f0;padding:10px 0;margin-top:10px}
+.btn-big{width:100%;padding:16px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
+.btn-complete{background:#16a34a;color:#fff}
+.btn-complete:disabled{background:#a7d8b8;color:#eee}
+.btn-print{background:#fff;color:#1a1a18;border:1px solid #ccc}
+.done-banner{background:#dcfce7;border:2px solid #16a34a;color:#14532d;border-radius:10px;padding:16px;text-align:center;font-weight:700;font-size:16px;margin-bottom:14px}
+@media print{
+  .no-print{display:none!important}
+  body{background:#fff}
+}
 </style>
 </head>
 <body>
-<div class="app" id="app">
-  <div class="loading">読み込み中...</div>
+<div class="app">
+  <div class="topbar no-print">📦 ピッキング確認</div>
+  <div id="content"><div class="spinner">読み込み中...</div></div>
 </div>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwDB38ZSkvMJim2ke4a5p5h7NRDV6gV-N_7ZXnhY7AleMYZ9E0Vx7g8Jtc59NfXhnVb/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
+const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect', caution:'b-caution', scheduled:'b-normal'};
+const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
-const params = new URLSearchParams(window.location.search);
-const orderId = params.get('id');
+let currentOrder = null;
 
-let orderData = null;
-let checkedItems = {}; // {index: true/false}
+function getParam(name){
+  const params = new URLSearchParams(location.search);
+  return params.get(name);
+}
+
+function esc(s){ return (s==null?'':String(s)); }
 
 async function init(){
-  if(!orderId){
-    document.getElementById('app').innerHTML = '<div class="loading">受注IDが見つかりません</div>';
+  const id = getParam('id');
+  if(!id){
+    document.getElementById('content').innerHTML = '<div class="alert-danger">注文IDが指定されていません。出荷指示書のQRコードから開いてください。</div>';
     return;
   }
-  try {
-    const res = await fetch(GAS_URL + '?action=getPickOrder&orderId=' + orderId);
+  try{
+    const res = await fetch(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id));
     const data = await res.json();
-    if(data.status !== 'ok' || !data.order){
-      document.getElementById('app').innerHTML = '<div class="loading">受注データが見つかりません</div>';
+    if(data.status !== 'ok'){
+      document.getElementById('content').innerHTML = '<div class="alert-danger">受注が見つかりませんでした。QRコードが古い可能性があります。</div>';
       return;
     }
-    orderData = data.order;
-    render();
-  } catch(e){
-    document.getElementById('app').innerHTML = '<div class="loading">読み込みエラー。電波の良い場所で再度お試しください。</div>';
+    currentOrder = data.order;
+    if(currentOrder.orderStatus === 'shipped'){
+      renderAlreadyShipped();
+    } else {
+      renderOrder();
+    }
+  }catch(err){
+    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
   }
 }
 
-function render(){
-  const lines = orderData.lines || [];
+function renderAlreadyShipped(){
+  const o = currentOrder;
+  document.getElementById('content').innerHTML =
+    '<div class="alert-danger">'+
+      '⚠️ この注文（'+esc(o.num)+'）は<strong>すでに発送完了として処理されています。</strong><br><br>'+
+      '二重にスキャンした可能性があります。内容を確認したい場合だけ、下のボタンを押してください。'+
+      '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
+    '</div>';
+}
+
+function renderOrder(){
+  const o = currentOrder;
+  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : (LEAD_LABEL[o.leadType]||o.leadType);
+  const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
+  const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '';
-
-  const ctypeLabels = {'wholesale1':'卸①','wholesale2':'卸②','rt':'RT'};
-  const ctypeBadge = ctypeLabels[orderData.customerType];
-
-  html += '<div class="header">';
-  html += '<div class="header-title">出荷チェックリスト</div>';
-  html += '<div class="header-client">'+(orderData.client||'')+' 様</div>';
-  html += '<div class="header-num">'+(orderData.num?'注文番号: '+orderData.num:'')+'</div>';
-  html += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">';
-  if(orderData.leadType==='urgent'){
-    html += '<span style="background:#fee2e2;color:#7f1d1d;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">🚨急ぎ</span>';
-  }
-  if(ctypeBadge){
-    html += '<span style="background:#dbeafe;color:#1e3a8a;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">'+ctypeBadge+'</span>';
-  }
-  if(orderData.useRecycle){
-    html += '<span style="background:#dcfce7;color:#14532d;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">♻️リサイクル箱OK</span>';
-  } else if(ctypeBadge){
-    html += '<span style="background:#fef3c7;color:#78350f;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px">🆕新品箱</span>';
-  }
+  html += '<div class="card">';
+  html += '<div class="center" style="font-size:12px;color:#888;margin-bottom:4px">注文番号</div>';
+  html += '<div class="center" style="font-size:20px;font-weight:700;margin-bottom:10px">'+esc(o.num)+'</div>';
+  html += '<div class="center" style="margin-bottom:10px">';
+  html += '<span class="badge '+leadCls+'">'+leadLabel+'</span>';
+  if(hasGift) html += '<span class="badge b-gift">🎁 ギフトあり</span>';
+  if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
   html += '</div>';
+  html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(o.client)+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
   html += '</div>';
-
-  if(orderData.note){
-    html += '<div class="note-box">⚠️ '+orderData.note+'</div>';
+  if(o.note){
+    html += '<div class="note-box">📝 '+esc(o.note)+'</div>';
   }
-
-  const giftLabels = {gift:'🎁ギフト',simple:'📦簡易ギフト',normal:'',sample_free:'🆓無償サンプル',sample_paid:'💰有償サンプル'};
-
-  let doneCount = 0;
-  lines.forEach(function(l, idx){
-    const isDone = !!checkedItems[idx];
-    if(isDone) doneCount++;
-    const boxes = l.boxes||0;
-    const bottles = l.bottles||0;
-    let qtyStr = '';
-    if(boxes>0 && bottles>0) qtyStr = boxes+'箱 ＋ '+bottles+'本';
-    else if(boxes>0) qtyStr = boxes+'箱';
-    else qtyStr = bottles+'本';
-    const giftLabel = giftLabels[l.giftType||'normal'] || '';
-
-    html += '<div class="item-card '+(isDone?'done':'')+'" onclick="toggleItem('+idx+')">';
-    html += '<div class="item-check '+(isDone?'checked':'')+'">'+(isDone?'✓':'')+'</div>';
-    html += '<div class="item-info">';
-    html += '<div class="item-name">'+(l.productName||'商品')+(giftLabel?' <span style="font-size:12px;font-weight:700;color:#9d174d">'+giftLabel+'</span>':'')+'</div>';
-    html += '<div class="item-qty">'+qtyStr+'</div>';
-    html += '</div>';
-    html += '</div>';
+  html += '<div class="sec-title no-print">商品チェックリスト（タップしてチェック）</div>';
+  html += '<div class="sec-title" style="display:none" id="print-sec-title">商品チェックリスト</div>';
+  html += '<div id="item-list">';
+  (o.lines||[]).forEach(function(l, i){
+    html += '<div class="item" id="item-'+i+'" onclick="toggleItem('+i+')">'+
+      '<input type="checkbox" class="cb" id="cb-'+i+'" onclick="event.stopPropagation();toggleItem('+i+')">'+
+      '<div class="info">'+
+        '<div class="pname">'+esc(l.productName)+'</div>'+
+        '<div class="psub">'+esc(l.bottles)+'本'+(l.boxes?'（'+esc(l.boxes)+'箱）':'')+'　['+esc(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+']</div>'+
+        (l.memo ? '<div class="pmemo">📝 '+esc(l.memo)+'</div>' : '')+
+      '</div>'+
+    '</div>';
   });
-
-  html += '<div class="progress-text">'+doneCount+'/'+lines.length+' 確認済み</div>';
-
-  html += '<div class="photo-reminder">📸 梱包完了後、中身が揃った写真を最低1枚、倉庫グループLINEに送ってください</div>';
-
-  const allDone = lines.length > 0 && doneCount === lines.length;
-  html += '<button class="complete-btn '+(allDone?'ready':'')+'" '+(allDone?'onclick="completeShipping()"':'disabled')+'>'
-    + (allDone ? '✅ 発送完了' : '🔒 全商品確認後に押せます')+'</button>';
-
-  document.getElementById('app').innerHTML = html;
+  html += '</div>';
+  html += '<div class="actions no-print">';
+  html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()">✅ 発送完了にする</button>';
+  html += '<button class="btn-big btn-print" onclick="window.print()">🖨 この内容を印刷する</button>';
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
 }
 
-function toggleItem(idx){
-  checkedItems[idx] = !checkedItems[idx];
-  render();
+function toggleItem(i){
+  const item = document.getElementById('item-'+i);
+  const cb = document.getElementById('cb-'+i);
+  cb.checked = !cb.checked;
+  item.classList.toggle('checked', cb.checked);
 }
 
-function completeShipping(){
-  if(!confirm(orderData.client+' 様の梱包写真は倉庫グループLINEに送りましたか？\n\n発送完了として記録します。')) return;
-
-  fetch(GAS_URL + '?action=completePickOrder&orderId=' + orderId)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.status==='ok'){
-        document.getElementById('app').innerHTML =
-          '<div style="text-align:center;padding:3rem 1rem">'
-          +'<div style="font-size:48px;margin-bottom:1rem">✅</div>'
-          +'<div style="font-size:18px;font-weight:700;margin-bottom:8px">発送完了しました</div>'
-          +'<div style="color:#888;font-size:14px">'+orderData.client+' 様<br>お疲れ様でした</div>'
-          +'</div>';
-      } else {
-        alert('エラーが発生しました。もう一度お試しください。');
-      }
-    }).catch(function(){
-      alert('接続エラー。電波の良い場所で再度お試しください。');
+async function completeOrder(){
+  if(!currentOrder) return;
+  const allItems = document.querySelectorAll('#item-list .item').length;
+  const checkedItems = document.querySelectorAll('#item-list .item.checked').length;
+  if(checkedItems < allItems){
+    if(!confirm('まだチェックしていない商品があります（'+checkedItems+'/'+allItems+'）。それでも発送完了にしますか？')) return;
+  }
+  const btn = document.getElementById('complete-btn');
+  btn.disabled = true;
+  btn.textContent = '処理中...';
+  try{
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'completePickOrder', orderId: currentOrder.id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
+    const data = await res.json();
+    if(data.status === 'ok'){
+      document.getElementById('content').innerHTML =
+        '<div class="done-banner">✅ 発送完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
+        '<button class="btn-big btn-print no-print" onclick="window.print()">🖨 この内容を印刷する</button>';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '✅ 発送完了にする';
+      alert('処理に失敗しました：'+(data.message||''));
+    }
+  }catch(err){
+    btn.disabled = false;
+    btn.textContent = '✅ 発送完了にする';
+    alert('通信エラーが発生しました：'+err.message);
+  }
 }
 
 init();
