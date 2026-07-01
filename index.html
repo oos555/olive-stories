@@ -365,7 +365,7 @@ body{background:#fff}
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
       <button class="btn-sm" onclick="toggleSelectAllOrders()">全選択/解除</button>
-      <button class="btn btn-primary" onclick="generateBulkSlips()" style="font-size:12px;padding:6px 14px">🖨 選択した受注の出荷指示書をまとめて作成</button>
+      <button class="btn btn-primary" onclick="generateBulkSlips()" style="font-size:12px;padding:6px 14px">🖨 選択した受注の出荷指示書をまとめて作成（最大5件）</button>
       <span id="list-selected-count" style="font-size:12px;color:#888"></span>
     </div>
   </div>
@@ -1115,7 +1115,7 @@ function renderList(){
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
-        '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount()" style="margin-top:4px">'+
+        '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
         '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
@@ -1159,26 +1159,42 @@ function gotoSlip(id){
   if(o) document.getElementById('slip-select').value = o.id;
   generateSlip();
 }
+const MAX_BULK_SLIP = 5;
 function toggleSelectAllOrders(){
-  const boxes = document.querySelectorAll('.order-select-cb');
-  const allChecked = Array.from(boxes).every(b=>b.checked);
-  boxes.forEach(b=>b.checked = !allChecked);
+  const boxes = Array.from(document.querySelectorAll('.order-select-cb'));
+  const allChecked = boxes.every(b=>b.checked);
+  if(allChecked){
+    boxes.forEach(b=>b.checked = false);
+  } else {
+    boxes.forEach((b,i)=>{ b.checked = i < MAX_BULK_SLIP; });
+    if(boxes.length > MAX_BULK_SLIP){
+      showSyncStatus('⚡ 一度に選べるのは'+MAX_BULK_SLIP+'件までのため、先頭'+MAX_BULK_SLIP+'件を選択しました');
+    }
+  }
   updateSelectedCount();
 }
-function updateSelectedCount(){
+function updateSelectedCount(cb){
+  const checked = document.querySelectorAll('.order-select-cb:checked');
+  if(checked.length > MAX_BULK_SLIP){
+    if(cb) cb.checked = false;
+    else checked[checked.length-1].checked = false;
+    alert('一度に選べるのは'+MAX_BULK_SLIP+'件までです。まず'+MAX_BULK_SLIP+'件を送り終えてから、続きを選んで送ってください。');
+  }
   const n = document.querySelectorAll('.order-select-cb:checked').length;
-  document.getElementById('list-selected-count').textContent = n ? n+'件選択中' : '';
+  document.getElementById('list-selected-count').textContent = n ? n+'件選択中（最大'+MAX_BULK_SLIP+'件）' : '';
 }
 function generateBulkSlips(){
   const ids = Array.from(document.querySelectorAll('.order-select-cb:checked')).map(cb=>cb.value);
   if(!ids.length){ alert('出荷指示書を作成する受注にチェックを入れてください'); return; }
+  if(ids.length > MAX_BULK_SLIP){ alert('一度に選べるのは'+MAX_BULK_SLIP+'件までです。'); return; }
   const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
   document.getElementById('panel-slip').classList.add('active');
   renderSlipSelect();
-  window._currentSlipOrder = list[0];
+  window._currentSlipOrder = null;
+  window._currentSlipOrders = list;
   const html = list.map((o,i)=>buildSlipHtml(o, 'slip-qr-'+i)).join('');
   document.getElementById('slip-area').innerHTML = html;
   list.forEach(function(o,i){
@@ -1187,7 +1203,7 @@ function generateBulkSlips(){
       new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
     }
   });
-  document.getElementById('line-send-btn').style.display = 'none'; // 複数件のためLINEコピーは1件用のみ対応
+  document.getElementById('line-send-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'none'; // 納品書は1件ずつ「出荷指示書へ」から作成してください
   document.getElementById('invoice-pdf-btn').style.display = 'none';
   document.getElementById('invoice-area').innerHTML = '';
@@ -1242,6 +1258,7 @@ function generateSlip(){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
   window._currentSlipOrder = o;
+  window._currentSlipOrders = null;
   document.getElementById('slip-area').innerHTML = buildSlipHtml(o, 'slip-qr');
   const qrWrap = document.getElementById('slip-qr');
   if(window.QRCode && qrWrap){
@@ -1274,16 +1291,28 @@ function buildLineText(o){
   if(o.note) text += '備考：'+o.note+'\n';
   return text;
 }
+function buildLineTextMulti(list){
+  return list.map(function(o,i){ return '━━━ '+(i+1)+'/'+list.length+' ━━━\n'+buildLineText(o); }).join('\n');
+}
 function copyForLine(){
+  const list = window._currentSlipOrders;
   const o = window._currentSlipOrder;
-  if(!o) return;
-  const text = buildLineText(o);
+  let text;
+  if(list && list.length){ text = buildLineTextMulti(list); }
+  else if(o){ text = buildLineText(o); }
+  else return;
   navigator.clipboard.writeText(text).then(function(){ showSyncStatus('📋 テキストをコピーしました'); }).catch(function(){ alert(text); });
 }
 function sendToLine(){
+  const list = window._currentSlipOrders;
   const o = window._currentSlipOrder;
-  if(!o) return;
-  const text = buildLineText(o);
+  let text;
+  if(list && list.length){ text = buildLineTextMulti(list); }
+  else if(o){ text = buildLineText(o); }
+  else return;
+  if(text.length > 3500){
+    if(!confirm('件数が多く、メッセージがかなり長くなります（'+text.length+'文字）。LINE側で送れない場合があります。それでも送りますか？\n（「キャンセル」を押すと、件数を絞ってから再度お試しください）')) return;
+  }
   // LINEアプリを開き、送り先（グループ）を選んで送信できる画面を表示します
   window.open('https://line.me/R/msg/text/?'+encodeURIComponent(text), '_blank');
   navigator.clipboard.writeText(text).catch(function(){});
