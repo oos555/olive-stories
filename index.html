@@ -81,6 +81,19 @@ tr:last-child td{border-bottom:none}
 .alert-info{background:#dbeafe;border:1px solid #60a5fa;color:#1e3a8a}
 .order-line{display:grid;grid-template-columns:2fr 1.1fr 64px 64px 1.2fr 28px;gap:8px;align-items:center;padding:8px 10px;background:#f9f8f5;border-radius:8px;margin-bottom:6px}
 .order-line-header{display:grid;grid-template-columns:2fr 1.1fr 64px 64px 1.2fr 28px;gap:8px;padding:4px 10px;margin-bottom:4px}
+@media(max-width:640px){
+  .order-line-header{display:none}
+  .order-line{grid-template-columns:1fr 1fr;grid-template-areas:"product product" "gift gift" "bottles boxes" "memo memo" "del del";padding:10px}
+  .order-line select[data-role=product]{grid-area:product}
+  .order-line select[data-role=gift]{grid-area:gift}
+  .order-line input[data-role=bottles]{grid-area:bottles}
+  .order-line input[data-role=boxes]{grid-area:boxes}
+  .order-line input[data-role=memo]{grid-area:memo}
+  .order-line button{grid-area:del;width:100%;padding:8px}
+  .order-line select,.order-line input{padding:9px 8px;font-size:14px}
+  .btn-sm{padding:7px 12px;font-size:12px}
+  .tab{padding:10px 4px;font-size:12px}
+}
 .order-line select,.order-line input{padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;background:#fff;width:100%}
 .order-card{background:#fff;border:1px solid #e8e7e3;border-radius:10px;padding:1rem 1.25rem;margin-bottom:10px}
 .order-card .oc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -473,9 +486,9 @@ const PRODUCTS = [
   components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
 {id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
   components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
-{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用', group:'ギフト箱・備品'},
-{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用', group:'ギフト箱・備品'},
-{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）', group:'ギフト箱・備品'},
+{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用（空箱）', group:'ギフト箱・備品'},
+{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用（空箱）', group:'ギフト箱・備品'},
+{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）（空箱）', group:'ギフト箱・備品'},
 {id:32, sku:'BAG001', name:'紙袋 黒 小', group:'ギフト箱・備品'},
 {id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品'},
 {id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
@@ -588,11 +601,13 @@ function updCustomerSelects(){
   sel.innerHTML = '<option value="">マスタから選択...</option>' +
     customers.map(c=>'<option value="'+c.id+'">'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>').join('');
 }
+let selectedCustomerRecord = null;
 function onCustomerSelect(){
   const id = document.getElementById('o-customer-select').value;
   if(!id) return;
   const c = customers.find(x=>x.id==id);
   if(!c) return;
+  selectedCustomerRecord = c;
   document.getElementById('o-client').value = c.name;
   document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-client').dataset.custId = c.id;
@@ -611,11 +626,29 @@ function clearCustomerSelect(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
+  selectedCustomerRecord = null;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
 function onClientInput(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
+  selectedCustomerRecord = null;
+}
+function fillSelfAddress(cardId){
+  if(!selectedCustomerRecord){
+    alert('先に「お客様名（発注元）」をお客様マスタから選択してください。手入力のみの場合はこの機能は使えません（住所を記憶している相手がいないためです）。');
+    return;
+  }
+  const card = document.getElementById(cardId);
+  const c = selectedCustomerRecord;
+  card.querySelector('[data-role=rtypeInd]').checked = true;
+  onRecipientTypeChange(cardId);
+  card.querySelector('[data-role=personName]').value = c.name;
+  card.querySelector('[data-role=zip]').value = c.zip||'';
+  card.querySelector('[data-role=addr]').value = c.addr||'';
+  card.querySelector('[data-role=tel]').value = c.tel||'';
+  card.querySelector('[data-role=recycle]').checked = !!c.recycle;
+  showSyncStatus('🏠 発注者と同じ住所を入力しました');
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
@@ -688,6 +721,7 @@ function addRecipient(){
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="company" data-role="rtypeCom" onchange="onRecipientTypeChange(\''+id+'\')">企業</label>'+
       '</div>'+
     '</div>'+
+    '<button class="btn-sm" onclick="fillSelfAddress(\''+id+'\')" style="width:100%;margin-bottom:10px">🏠 発注者（お客様）と同じ住所にする</button>'+
     '<div data-role="companyFields" style="display:none">'+
       '<div class="g3">'+
         '<div class="fg"><label>会社名</label><input type="text" data-role="companyName" placeholder="株式会社〇〇"></div>'+
