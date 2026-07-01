@@ -371,120 +371,110 @@ body{background:#fff}
 
 <script>
 /* ════════════════════════════════════════════════════════════════
-   GAS 連携仕様（このフロントが期待するエンドポイント）
+   GAS 連携仕様（実際のGASコードに合わせています）
    ────────────────────────────────────────────────────────────────
-   GET  ?action=loadAllData
-        → 既存実装。{status:'ok', data:{lots, defects, holds, preorders,
-          customers, facilities, ...}} を返す想定（在庫サマリー算出用に
-          lots/defects/holds/preordersのみ使用）。
+   GET  ?action=loadAllData → 在庫サマリー用データ（既存そのまま）
+   GET  ?action=loadAll     → { status:'ok', data:{ orders:[...] } }
+        受注データシートを全件返す（GASに小さな追加が必要。別途お渡しした
+        パッチ済みの saveOrdersMain / loadAll に置き換えてください）
+   POST { action:'saveOrders', orders: Order[] }
+        ★重要：受注データシートは毎回「渡された配列で丸ごと書き換え」られる
+        ため、必ず「今ある受注を全部」送ります（新規1件だけを送ってはいけない）。
 
-   GET  ?action=loadOrders
-        → { status:'ok', data: Order[] } を返す。
-          ※ 未実装の場合は新規追加が必要です。受注登録・出荷指示書・
-          受注一覧はこの一覧を正として動作します。
-
-   POST { action:'saveOrders', payload:{ orders: Order[] } }
-        → 新規/更新の受注をまとめて保存（発注書シート＋メインDB）。
-          既存の saveOrders と役割は同じですが、リクエスト形を
-          { orders:[...] } に統一しています。中身が異なる場合は
-          GAS側かこのファイルのどちらかを合わせてください。
-
-   POST { action:'updateOrderStatus', payload:{ orderNum, status, shippedAt } }
-        → ステータス変更（出荷済み／キャンセル）のみを反映する軽量API。
-          未実装なら saveOrders に status を含めて丸ごと送る方式でも可。
-
-   Order の形（このファイルが送受信する想定の型）:
+   Order の形（実際のGASコードの項目名に合わせています）:
    {
-     orderNum, client, custId, ctype, zip, addr, tel, recycle,
-     lead, leadDate, time, timeOther, note,
+     id,            // 一意なID（表示用の注文番号とは別）
+     num,           // 表示用の注文番号 OS-20260701-001 など
+     client, customerType, zip, addr, tel,
+     leadType,      // 'urgent'|'normal'|'scheduled'|'defect'|'caution'
+     leadDate, delivTime, note,
+     useRecycle, isDefectSale,
+     status,        // 'pending'|'shipped'|'cancelled'
+     registeredAt, shippedAt, cancelledAt,
+     storesOrderNum, source,
      senderName, senderTel, senderZip, senderAddr,
-     lines: [{ pid, name, giftType, qty, boxes, memo }],
-     status: 'pending' | 'shipped' | 'cancelled',
-     source: 'manual' | 'stores', storesOrderNum,
-     createdAt, shippedAt
+     lines: [{ productId, productName, boxQty, giftType, bottles, boxes, memo }]
    }
    ════════════════════════════════════════════════════════════════ */
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwDB38ZSkvMJim2ke4a5p5h7NRDV6gV-N_7ZXnhY7AleMYZ9E0Vx7g8Jtc59NfXhnVb/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 let gasSyncEnabled = true;
 
-// ── 商品マスタ ────────────────────────────────────────────
-// 区分: general=定価, wholesale1=卸①, wholesale2=卸②, rt=RT(ホテル), defectprice=不良在庫特価
 const CUSTOMER_TYPE_LABEL = {
   general:'定価', wholesale1:'卸①（仲卸価格）', wholesale2:'卸②（一般卸価格）',
   rt:'RT（ホテル）', defectprice:'不良在庫特価'
 };
 const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
 
+// boxQty ＝ 1箱に入っている本数（発注書シートで「箱数→本数」換算に使われます）
 const PRODUCTS = [
-{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true},
-{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック'},
-{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック'},
-{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック'},
-{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック'},
-{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック'},
-{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック', noWholesale:true},
-{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック'},
-{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック'},
-{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック'},
-{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック'},
-{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック'},
-{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true},
-{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド'},
-{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド'},
-{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true},
-{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット'},
-{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット'},
-{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット'},
-{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン'},
-{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン'},
-{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ'},
-{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ'},
-{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ'},
-{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル'},
-{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル'},
-{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル'},
-{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル'},
-{id:29, sku:'LAT5L',  name:'レイトハーベスト 5L',   group:'その他オイル'},
-// カップオイル単体（JANコードあり）
-{id:38, sku:'CUP001', jan:'7012', name:'カップオイル グリーンブーケ（オルガニック）', group:'カップオイル'},
-{id:39, sku:'CUP002', jan:'7036', name:'カップオイル グリーンバナナ（メメジック）',   group:'カップオイル'},
-{id:40, sku:'CUP003', jan:'7029', name:'カップオイル オレンジ＆レモン（アグルミ）',   group:'カップオイル'},
-// セット商品
-{id:50, sku:'YS100',  name:'your story 100ml×3本セット', group:'セット商品', isSet:true,
-  components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1}]},
-{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）', group:'セット商品', isSet:true,
-  components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1}]},
-{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）', group:'セット商品', isSet:true,
-  components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1}]},
-{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）', group:'セット商品', isSet:true,
-  components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1}]},
-{id:54, sku:'GFT001', jan:'', name:'カップオイル3個ギフトセット', group:'セット商品', isSet:true,
-  components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1}]},
-// ギフト箱・備品
+{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true, boxQty:24},
+{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック', boxQty:20},
+{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック', boxQty:12},
+{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック', boxQty:12},
+{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック', boxQty:6},
+{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック', boxQty:4},
+{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック', noWholesale:true, boxQty:24},
+{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック', boxQty:20},
+{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック', boxQty:12},
+{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック', boxQty:12},
+{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック', boxQty:6},
+{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック', boxQty:4},
+{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true, boxQty:24},
+{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド', boxQty:20},
+{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド', boxQty:6},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true, boxQty:24},
+{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット', boxQty:6},
+{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット', boxQty:6},
+{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット', boxQty:4},
+{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン', boxQty:6},
+{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン', boxQty:6},
+{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ', boxQty:6},
+{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ', boxQty:6},
+{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ', boxQty:5},
+{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル', boxQty:12},
+{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル', boxQty:6},
+{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル', boxQty:6},
+{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル', boxQty:4},
+{id:29, sku:'LAT5L',  name:'レイトハーベスト 5L',   group:'その他オイル', boxQty:4},
+{id:38, sku:'CUP001', jan:'7012', name:'カップオイル グリーンブーケ（オルガニック）13g', group:'カップオイル', boxQty:120},
+{id:39, sku:'CUP002', jan:'7036', name:'カップオイル グリーンバナナ（メメジック）13g',   group:'カップオイル', boxQty:120},
+{id:40, sku:'CUP003', jan:'7029', name:'カップオイル オレンジ＆レモン（アグルミ）13g',   group:'カップオイル', boxQty:120},
+{id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
+{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
+{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用', group:'ギフト箱・備品'},
+{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用', group:'ギフト箱・備品'},
+{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）', group:'ギフト箱・備品'},
 {id:32, sku:'BAG001', name:'紙袋 黒 小', group:'ギフト箱・備品'},
 {id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品'},
-// その他
 {id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶', group:'その他'},
 {id:36, sku:'MISC003', name:'750ml用 注ぎ口', group:'その他'},
 ];
+
 const GIFT_TYPE_LABEL = { normal:'通常', ua:'UA向け', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)', material:'資材', simple:'簡易包装' };
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
 
 // ── 状態 ────────────────────────────────────────────
-let customers = [];      // GASから読み込み（お客様マスタ）
-let orders = [];         // GASから読み込み／このセッションで登録した受注
-let lots = [];           // 在庫サマリー算出用（アプリB管理データを読み取り専用で使用）
+let customers = [];
+let orders = [];
+let lots = [];
 let defects = [];
 let holds = [];
 let preorders = [];
 let orderLineCounter = 0;
 let csvParsedRows = null;
 
-// ── 初期化 ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function(){
   addLine();
   generateOrderNumber();
@@ -506,7 +496,7 @@ function loadInitialData(){
   if(!gasSyncEnabled) return;
   Promise.all([
     fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
-    fetch(GAS_URL + '?action=loadOrders').then(r=>r.json()).catch(()=>null)
+    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
   ]).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
     if(dataRes && dataRes.status==='ok' && dataRes.data){
@@ -514,14 +504,15 @@ function loadInitialData(){
       lots = d.lots||[]; defects = d.defects||[]; holds = d.holds||[]; preorders = d.preorders||[];
       customers = d.customers||[];
     }
-    if(ordersRes && ordersRes.status==='ok' && Array.isArray(ordersRes.data)){
-      orders = ordersRes.data;
+    if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
+      orders = ordersRes.data.orders;
     }
     updCustomerSelects();
     renderStockStrip();
     updateSummary();
     renderList();
     renderSlipSelect();
+    generateOrderNumber();
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
     showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
@@ -529,22 +520,22 @@ function loadInitialData(){
   });
 }
 
-// ── 在庫サマリー ────────────────────────────────────────────
+// ── 在庫サマリー（読み取り専用。実際の在庫はアプリBで管理）────────────────
 function computeAvailable(sku){
   const p = findProductBySku(sku);
   if(!p) return null;
   if(p.isSet){
     if(!p.components || !p.components.length) return null;
-    return Math.min.apply(null, p.components.map(c=>computeAvailable(c.sku) ?? 0));
+    return Math.min.apply(null, p.components.map(c=>{ const v=computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
   }
   const pid = p.id;
   let stock = 0, oldStock = 0, defectQty = 0, holdQty = 0;
   lots.forEach(function(l){
-    if(l.pid != pid) return;
+    if(l.pid != pid || l.status==='incoming') return;
     stock += (l.stock||0);
     if(l.status==='old') oldStock += (l.stock||0);
   });
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += (d.qty||0)-(d.shippedQty||0); });
+  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
   return Math.max(0, stock - oldStock - defectQty - holdQty);
 }
@@ -576,7 +567,6 @@ function updCustomerSelects(){
   sel.innerHTML = '<option value="">マスタから選択...</option>' +
     customers.map(c=>'<option value="'+c.id+'">'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>').join('');
 }
-
 function onCustomerSelect(){
   const id = document.getElementById('o-customer-select').value;
   if(!id) return;
@@ -587,13 +577,10 @@ function onCustomerSelect(){
   document.getElementById('o-addr').value = c.addr||'';
   document.getElementById('o-tel').value = c.tel||'';
   document.getElementById('o-recycle').checked = !!c.recycle;
-  const ctypeSel = document.getElementById('o-ctype');
-  ctypeSel._masterType = c.type;
-  ctypeSel.value = c.type;
+  document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-client').dataset.custId = c.id;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
-
 function clearCustomerSelect(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
@@ -604,14 +591,10 @@ function clearCustomerSelect(){
   document.getElementById('o-recycle').checked = false;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
-
 function onClientInput(){
-  // 直接入力された場合はマスタ選択を解除
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
 }
-
-// お客様区分変更ミス防止アラート
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
   const warnEl = document.getElementById('ctype-mismatch-warn');
@@ -627,13 +610,8 @@ function onCtypeChange(){
   warnEl.innerHTML = '';
 }
 
-// ── 発送区分 / 配送時間 ────────────────────────────────────────────
-function toggleLeadDate(){
-  document.getElementById('lead-date-wrap').style.display = document.getElementById('o-lead').value==='scheduled' ? 'block' : 'none';
-}
-function toggleTimeOther(){
-  document.getElementById('time-other-wrap').style.display = document.getElementById('o-time').value==='other' ? 'block' : 'none';
-}
+function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('o-lead').value==='scheduled' ? 'block' : 'none'; }
+function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('o-time').value==='other' ? 'block' : 'none'; }
 
 // ── 注文明細行 ────────────────────────────────────────────
 function productOptionsHtml(selected){
@@ -647,7 +625,6 @@ function productOptionsHtml(selected){
   });
   return html;
 }
-
 function addLine(){
   const id = 'line'+(++orderLineCounter);
   const wrap = document.getElementById('order-lines');
@@ -657,34 +634,29 @@ function addLine(){
   row.innerHTML =
     '<select onchange="onLineProductChange(\''+id+'\')" data-role="product">'+productOptionsHtml()+'</select>'+
     '<select data-role="gift">'+Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('')+'</select>'+
-    '<input type="number" min="0" value="0" data-role="qty" oninput="updateGiftSummary()">'+
-    '<input type="number" min="0" value="0" data-role="boxes">'+
+    '<input type="number" min="0" value="0" data-role="bottles" oninput="updateGiftSummary()">'+
+    '<input type="number" min="0" value="0" data-role="boxes" oninput="updateGiftSummary()">'+
     '<input type="text" placeholder="メモ" data-role="memo">'+
     '<button class="btn-sm" onclick="removeLine(\''+id+'\')" title="削除">✕</button>';
   wrap.appendChild(row);
   updateGiftSummary();
 }
-function removeLine(id){
-  const el = document.getElementById(id);
-  if(el) el.remove();
-  updateGiftSummary();
-}
-function onLineProductChange(id){
-  updateGiftSummary();
-}
+function removeLine(id){ const el = document.getElementById(id); if(el) el.remove(); updateGiftSummary(); }
+function onLineProductChange(id){ updateGiftSummary(); }
 function getLineData(){
   return Array.from(document.getElementById('order-lines').children).map(function(row){
     const pid = row.querySelector('[data-role=product]').value;
     const p = findProduct(pid);
     return {
-      pid: pid, sku: p?p.sku:'', name: p?p.name:'',
+      productId: p?p.id:'', productName: p?p.name:'', boxQty: p?(p.boxQty||1):1,
       giftType: row.querySelector('[data-role=gift]').value,
-      qty: parseInt(row.querySelector('[data-role=qty]').value)||0,
+      bottles: parseInt(row.querySelector('[data-role=bottles]').value)||0,
       boxes: parseInt(row.querySelector('[data-role=boxes]').value)||0,
       memo: row.querySelector('[data-role=memo]').value
     };
-  }).filter(l=>l.pid && l.qty>0);
+  }).filter(l=>l.productId && (l.bottles>0 || l.boxes>0));
 }
+function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
 
 function updateGiftSummary(){
   const lines = getLineData();
@@ -697,61 +669,66 @@ function updateGiftSummary(){
   }
   const hasGift = lines.some(l=>l.giftType && l.giftType!=='normal');
   senderArea.style.display = hasGift ? 'block' : 'none';
-  el.innerHTML = lines.map(l=>l.name+' × '+l.qty+'本'+(l.boxes?'（'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>');
+  el.innerHTML = lines.map(l=>l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>');
 }
 
 // ── 注文番号自動採番 ────────────────────────────────────────────
+function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
 function generateOrderNumber(){
-  const today = new Date();
-  const ymd = today.getFullYear()+String(today.getMonth()+1).padStart(2,'0')+String(today.getDate()).padStart(2,'0');
-  const todays = orders.filter(o=>(o.orderNum||'').indexOf('OS-'+ymd)===0);
-  const seq = String(todays.length+1).padStart(3,'0');
-  document.getElementById('o-num').value = 'OS-'+ymd+'-'+seq;
+  const ymd = todayYmd();
+  const todays = orders.filter(o=>(o.num||'').indexOf('OS-'+ymd)===0);
+  document.getElementById('o-num').value = 'OS-'+ymd+'-'+String(todays.length+1).padStart(3,'0');
 }
+function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
 
 // ── プレビュー・登録 ────────────────────────────────────────────
 function collectFormOrder(){
   const lines = getLineData();
+  const ctype = document.getElementById('o-ctype').value;
+  const lead = document.getElementById('o-lead').value;
   return {
-    orderNum: document.getElementById('o-num').value,
+    id: generateOrderId(),
+    num: document.getElementById('o-num').value,
     client: document.getElementById('o-client').value,
     custId: document.getElementById('o-client').dataset.custId || '',
-    ctype: document.getElementById('o-ctype').value,
+    customerType: ctype,
     zip: document.getElementById('o-zip').value,
     addr: document.getElementById('o-addr').value,
     tel: document.getElementById('o-tel').value,
-    recycle: document.getElementById('o-recycle').checked,
+    useRecycle: document.getElementById('o-recycle').checked,
     saveCustomer: document.getElementById('o-save-customer').checked,
-    lead: document.getElementById('o-lead').value,
+    leadType: lead,
     leadDate: document.getElementById('o-lead-date').value,
-    time: document.getElementById('o-time').value,
-    timeOther: document.getElementById('o-time-other').value,
+    delivTime: document.getElementById('o-time').value==='other' ? document.getElementById('o-time-other').value : document.getElementById('o-time').value,
     note: document.getElementById('o-note').value,
     senderName: document.getElementById('o-sender-name').value,
     senderTel: document.getElementById('o-sender-tel').value,
     senderZip: document.getElementById('o-sender-zip').value,
     senderAddr: document.getElementById('o-sender-addr').value,
     lines: lines,
+    isDefectSale: (ctype==='defectprice' || lead==='defect'),
     status: 'pending',
     source: 'manual',
-    createdAt: new Date().toISOString()
+    registeredAt: new Date().toISOString()
   };
 }
+
+const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
 function previewOrder(){
   const o = collectFormOrder();
   if(!o.client){ alert('お客様名を入力してください'); return; }
   if(!o.lines.length){ alert('商品を1件以上追加してください'); return; }
-  const leadLabel = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 '+(o.leadDate||'日程未指定')}[o.lead];
+  const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
   let html = '<div style="font-size:13px;line-height:1.8">';
-  html += '<div><strong>お客様：</strong>'+o.client+'　（'+(CUSTOMER_TYPE_LABEL[o.ctype]||o.ctype)+'）</div>';
+  html += '<div><strong>お客様：</strong>'+o.client+'　（'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'）</div>';
   html += '<div><strong>住所：</strong>〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
-  html += '<div><strong>注文番号：</strong>'+o.orderNum+'</div>';
+  html += '<div><strong>注文番号：</strong>'+o.num+'</div>';
   html += '<div><strong>発送区分：</strong>'+leadLabel+'</div>';
-  if(o.time) html += '<div><strong>配送時間：</strong>'+(o.time==='other'?o.timeOther:o.time)+'</div>';
+  if(o.delivTime) html += '<div><strong>配送時間：</strong>'+o.delivTime+'</div>';
   if(o.note) html += '<div><strong>備考：</strong>'+o.note+'</div>';
-  if(o.recycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
-  html += '<div style="margin-top:8px"><strong>商品：</strong><br>'+o.lines.map(l=>'・'+l.name+' × '+l.qty+'本'+(l.boxes?'（'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')).join('<br>')+'</div>';
+  if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
+  html += '<div style="margin-top:8px"><strong>商品：</strong><br>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')).join('<br>')+'</div>';
   html += '</div>';
   document.getElementById('confirm-content').innerHTML = html;
   document.getElementById('confirm-area').style.display = 'block';
@@ -764,16 +741,14 @@ function registerOrder(){
   if(!o) return;
   orders.push(o);
   if(o.saveCustomer && !o.custId){
-    customers.push({ id: 'c'+Date.now(), name:o.client, zip:o.zip, addr:o.addr, tel:o.tel, type:o.ctype, recycle:o.recycle, note:'' });
+    customers.push({ id: 'c'+Date.now(), name:o.client, zip:o.zip, addr:o.addr, tel:o.tel, type:o.customerType, recycle:o.useRecycle, note:'' });
     updCustomerSelects();
   }
   document.getElementById('confirm-area').style.display = 'none';
   clearForm();
-  updateSummary();
-  renderList();
-  renderSlipSelect();
-  syncOrdersToGAS([o]);
-  showSyncStatus('✅ 受注を登録しました：'+o.orderNum);
+  updateSummary(); renderList(); renderSlipSelect();
+  syncOrdersToGAS();
+  showSyncStatus('✅ 受注を登録しました：'+o.num);
 }
 
 function clearForm(){
@@ -803,7 +778,6 @@ function clearForm(){
   updateGiftSummary();
 }
 
-// ── サマリー・パネル切替 ────────────────────────────────────────────
 function showPanel(name, btn){
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -816,10 +790,10 @@ function showPanel(name, btn){
 function updateSummary(){
   const today = new Date().toISOString().slice(0,10);
   const thisMonth = new Date().toISOString().slice(0,7);
-  document.getElementById('sum-today').textContent = orders.filter(o=>(o.createdAt||'').slice(0,10)===today).length+'件';
+  document.getElementById('sum-today').textContent = orders.filter(o=>(o.registeredAt||'').slice(0,10)===today).length+'件';
   document.getElementById('sum-pending').textContent = orders.filter(o=>o.status==='pending').length+'件';
   document.getElementById('sum-shipped').textContent = orders.filter(o=>o.status==='shipped' && (o.shippedAt||'').slice(0,10)===today).length+'件';
-  document.getElementById('sum-month').textContent = orders.filter(o=>(o.createdAt||'').slice(0,7)===thisMonth).length+'件';
+  document.getElementById('sum-month').textContent = orders.filter(o=>(o.registeredAt||'').slice(0,7)===thisMonth).length+'件';
 }
 
 // ── 受注一覧 ────────────────────────────────────────────
@@ -830,10 +804,10 @@ function renderList(){
   const search = (document.getElementById('list-search').value||'').toLowerCase();
   let list = orders.slice();
   if(filter!=='all') list = list.filter(o=>o.status===filter);
-  if(ctypeFilter!=='all') list = list.filter(o=>o.ctype===ctypeFilter);
-  if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.orderNum||'').toLowerCase().includes(search));
-  if(sort==='newest') list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  if(sort==='oldest') list.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+  if(ctypeFilter!=='all') list = list.filter(o=>o.customerType===ctypeFilter);
+  if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
+  if(sort==='newest') list.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
+  if(sort==='oldest') list.sort((a,b)=>(a.registeredAt||'').localeCompare(b.registeredAt||''));
   if(sort==='client') list.sort((a,b)=>(a.client||'').localeCompare(b.client||'','ja'));
   document.getElementById('list-count').textContent = list.length+'件';
   const el = document.getElementById('order-list');
@@ -841,50 +815,52 @@ function renderList(){
   el.innerHTML = list.map(function(o){
     const statusCls = {pending:'os-pending',shipped:'os-shipped',cancelled:'os-cancelled'}[o.status]||'os-pending';
     const statusLabel = {pending:'出荷待ち',shipped:'出荷済み',cancelled:'キャンセル'}[o.status]||o.status;
-    const badge = CTYPE_BADGE[o.ctype] ? '<span class="pill pill-'+o.ctype+'">'+CTYPE_BADGE[o.ctype]+'</span>' : '';
-    const urgentBadge = o.lead==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
-    const recycleBadge = o.recycle ? '<span class="pill pill-recycle">♻</span>' : '';
+    const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
+    const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
+    const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
-        '<div><span class="oc-name">'+o.client+'</span> '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.orderNum+'　'+(o.createdAt||'').slice(0,16).replace('T',' ')+'</div></div>'+
+        '<div><span class="oc-name">'+o.client+'</span> '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
-      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.name+' × '+l.qty+'本').join('　')+'</div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626">📝 '+o.note+'</div>' : '')+
       '<div class="oc-actions no-print">'+
-        (o.status==='pending' ? '<button class="btn-sm" onclick="markShipped(\''+o.orderNum+'\')">出荷済みにする</button>' : '')+
-        (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.orderNum+'\')">キャンセル</button>' : '')+
-        '<button class="btn-sm" onclick="gotoSlip(\''+o.orderNum+'\')">出荷指示書へ</button>'+
+        (o.status==='pending' ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
+        (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')+
+        '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷指示書へ</button>'+
       '</div>'+
     '</div>';
   }).join('');
 }
 
-function markShipped(orderNum){
-  const o = orders.find(x=>x.orderNum===orderNum);
+function markShipped(id){
+  const o = orders.find(x=>x.id===id);
   if(!o) return;
   o.status = 'shipped';
   o.shippedAt = new Date().toISOString();
   updateSummary(); renderList();
-  updateOrderStatusToGAS(o);
-  showSyncStatus('✅ 出荷済みにしました：'+orderNum);
+  syncOrdersToGAS();
+  showSyncStatus('✅ 出荷済みにしました：'+o.num);
 }
-function cancelOrder(orderNum){
-  if(!confirm(orderNum+' をキャンセルしますか？')) return;
-  const o = orders.find(x=>x.orderNum===orderNum);
+function cancelOrder(id){
+  const o = orders.find(x=>x.id===id);
   if(!o) return;
+  if(!confirm(o.num+' をキャンセルしますか？')) return;
   o.status = 'cancelled';
+  o.cancelledAt = new Date().toISOString();
   updateSummary(); renderList();
-  updateOrderStatusToGAS(o);
-  showSyncStatus('キャンセルしました：'+orderNum);
+  syncOrdersToGAS();
+  showSyncStatus('キャンセルしました：'+o.num);
 }
-function gotoSlip(orderNum){
+function gotoSlip(id){
+  const o = orders.find(x=>x.id===id);
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
   document.getElementById('panel-slip').classList.add('active');
   renderSlipSelect();
-  document.getElementById('slip-select').value = orderNum;
+  if(o) document.getElementById('slip-select').value = o.id;
   generateSlip();
 }
 
@@ -894,31 +870,30 @@ function renderSlipSelect(){
   const current = sel.value;
   const pending = orders.filter(o=>o.status==='pending');
   sel.innerHTML = '<option value="">出荷指示書を作成する受注を選択...</option>' +
-    pending.map(o=>'<option value="'+o.orderNum+'">'+o.orderNum+'　'+o.client+'</option>').join('');
+    pending.map(o=>'<option value="'+o.id+'">'+o.num+'　'+o.client+'</option>').join('');
   if(current) sel.value = current;
 }
-
 function generateSlip(){
-  const num = document.getElementById('slip-select').value;
-  if(!num){ alert('受注を選択してください'); return; }
-  const o = orders.find(x=>x.orderNum===num);
+  const id = document.getElementById('slip-select').value;
+  if(!id){ alert('受注を選択してください'); return; }
+  const o = orders.find(x=>x.id===id);
   if(!o) return;
   window._currentSlipOrder = o;
-  const leadLabel = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定：'+(o.leadDate||'')}[o.lead] || o.lead;
+  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
   let html = '<div class="slip">';
   html += '<div class="slip-title">出荷指示書</div>';
   html += '<div class="slip-meta">';
-  html += '<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+o.orderNum+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+o.num+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">お客様名</div><div class="slip-meta-val">'+o.client+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">発送区分</div><div class="slip-meta-val">'+leadLabel+'</div></div>';
-  html += '<div class="slip-meta-item"><div class="slip-meta-label">配送時間</div><div class="slip-meta-val">'+((o.time==='other'?o.timeOther:o.time)||'指定なし')+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">配送時間</div><div class="slip-meta-val">'+(o.delivTime||'指定なし')+'</div></div>';
   html += '</div>';
-  if(o.recycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
+  if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
   if(o.note) html += '<div class="alert-bar alert-danger">📝 '+o.note+'</div>';
   html += '<div class="slip-section-title">商品チェックリスト</div>';
   html += '<table class="slip-table"><thead><tr><th style="width:40px">✓</th><th>商品名</th><th>ギフト種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
   (o.lines||[]).forEach(function(l){
-    html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.name+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.qty+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
   html += '</tbody></table>';
   html += '<div class="slip-qr" id="slip-qr"></div>';
@@ -927,56 +902,49 @@ function generateSlip(){
   document.getElementById('slip-area').innerHTML = html;
   const qrWrap = document.getElementById('slip-qr');
   if(window.QRCode && qrWrap){
-    // pickup.html?num=注文番号 をQRに埋め込む
-    new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?num=' + encodeURIComponent(o.orderNum), width:140, height:140 });
+    new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
   }
   document.getElementById('line-send-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-block';
   buildInvoice(o);
 }
-
 function printSlip(){
   document.getElementById('invoice-area').style.display = 'none';
   window.print();
   document.getElementById('invoice-area').style.display = '';
 }
-
 function copyForLine(){
   const o = window._currentSlipOrder;
   if(!o) return;
-  const leadLabel = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定：'+(o.leadDate||'')}[o.lead] || o.lead;
-  let text = '【出荷指示】'+o.orderNum+'\n';
+  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
+  let text = '【出荷指示】'+o.num+'\n';
   text += 'お客様：'+o.client+'\n';
   text += '区分：'+leadLabel+'\n';
-  if(o.recycle) text += '♻ リサイクル箱使用\n';
+  if(o.useRecycle) text += '♻ リサイクル箱使用\n';
   text += '商品：\n';
   (o.lines||[]).forEach(function(l){
-    text += '・'+l.name+' × '+l.qty+'本'+(l.boxes?'（'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')+'\n';
+    text += '・'+l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')+'\n';
   });
   if(o.note) text += '備考：'+o.note+'\n';
-  navigator.clipboard.writeText(text).then(function(){
-    showSyncStatus('📋 テキストをコピーしました');
-  }).catch(function(){
-    alert(text);
-  });
+  navigator.clipboard.writeText(text).then(function(){ showSyncStatus('📋 テキストをコピーしました'); }).catch(function(){ alert(text); });
 }
 
 // ── 納品書 ────────────────────────────────────────────
 function buildInvoice(o){
-  const badge = CTYPE_BADGE[o.ctype] ? '<span class="badge-ctype badge-'+o.ctype+'">'+CTYPE_BADGE[o.ctype]+'</span>' : '';
+  const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
   let html = '<div class="invoice">';
   html += '<div class="invoice-title">納　品　書'+badge+'</div>';
   html += '<div class="invoice-meta">';
   html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+o.client+' 様<br>〒'+o.zip+'<br>'+o.addr+'<br>'+o.tel+'</div>';
-  html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+o.orderNum+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
+  html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+o.num+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
   html += '</div>';
   if(o.senderName){
     html += '<div class="invoice-box" style="margin-bottom:1rem"><div class="invoice-box-label">送り主</div>'+o.senderName+'　'+o.senderTel+'<br>〒'+o.senderZip+' '+o.senderAddr+'</div>';
   }
   html += '<table class="invoice-table"><thead><tr><th>商品名</th><th>数量</th></tr></thead><tbody>';
-  (o.lines||[]).forEach(function(l){ html += '<tr><td>'+l.name+'</td><td>'+l.qty+'本'+(l.boxes?'（'+l.boxes+'箱）':'')+'</td></tr>'; });
+  (o.lines||[]).forEach(function(l){ html += '<tr><td>'+l.productName+'</td><td>'+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+'</td></tr>'; });
   html += '</tbody></table>';
-  if(o.recycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
+  if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
   html += '</div>';
   document.getElementById('invoice-area').innerHTML = html;
 }
@@ -1000,24 +968,15 @@ function handleFileSelect(e){
 }
 function readCsvFile(file){
   const reader = new FileReader();
-  reader.onload = function(ev){
-    parseCsvText(ev.target.result);
-  };
+  reader.onload = function(ev){ parseCsvText(ev.target.result); };
   reader.readAsText(file, 'Shift_JIS'); // STORES CSVは多くの場合Shift_JIS。文字化けする場合はUTF-8に変更してください
 }
 function parseCsvLine(line){
-  // 簡易CSVパーサ（ダブルクォート対応）
   const result = []; let cur=''; let inQ=false;
   for(let i=0;i<line.length;i++){
     const ch = line[i];
-    if(inQ){
-      if(ch==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else { inQ=false; } }
-      else cur+=ch;
-    } else {
-      if(ch==='"') inQ=true;
-      else if(ch===','){ result.push(cur); cur=''; }
-      else cur+=ch;
-    }
+    if(inQ){ if(ch==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else { inQ=false; } } else cur+=ch; }
+    else { if(ch==='"') inQ=true; else if(ch===','){ result.push(cur); cur=''; } else cur+=ch; }
   }
   result.push(cur);
   return result;
@@ -1034,22 +993,17 @@ function parseCsvText(text){
   const idxProduct = headers.findIndex(h=>h.includes('商品名'));
   const idxQty = headers.findIndex(h=>h.includes('数量'));
   const rows = lines.slice(1).map(l=>parseCsvLine(l));
-  // 注文番号ごとにグルーピング（STORESは1商品1行のことが多い）
   const grouped = {};
   rows.forEach(function(r){
     const num = idxOrderNum>=0 ? r[idxOrderNum] : ('STORES-'+Math.random().toString(36).slice(2,8));
     if(!grouped[num]) grouped[num] = {
-      storesOrderNum: num,
-      client: idxName>=0 ? r[idxName] : '',
-      zip: idxZip>=0 ? r[idxZip] : '',
-      addr: idxAddr>=0 ? r[idxAddr] : '',
-      tel: idxTel>=0 ? r[idxTel] : '',
-      lines: []
+      storesOrderNum: num, client: idxName>=0?r[idxName]:'', zip: idxZip>=0?r[idxZip]:'',
+      addr: idxAddr>=0?r[idxAddr]:'', tel: idxTel>=0?r[idxTel]:'', lines: []
     };
     const productName = idxProduct>=0 ? r[idxProduct] : '';
     const qty = idxQty>=0 ? (parseInt(r[idxQty])||1) : 1;
     const matched = PRODUCTS.find(p=>productName && (productName.includes(p.name) || p.name.includes(productName)));
-    grouped[num].lines.push({ raw:productName, pid: matched?matched.id:'', name: matched?matched.name:productName, giftType:'normal', qty:qty, boxes:0, memo:'' });
+    grouped[num].lines.push({ raw:productName, productId: matched?matched.id:'', productName: matched?matched.name:productName, boxQty: matched?(matched.boxQty||1):1, giftType:'normal', bottles:qty, boxes:0, memo:'' });
   });
   csvParsedRows = Object.values(grouped);
   renderCsvPreview();
@@ -1063,9 +1017,9 @@ function renderCsvPreview(){
     html += '<div class="order-card" style="'+(dup?'opacity:.5':'')+'">';
     html += '<div class="oc-top"><div class="oc-name">'+(g.client||'（氏名なし）')+' <span class="oc-num">STORES #'+g.storesOrderNum+'</span></div>'+(dup?'<span class="order-status os-cancelled">取込済み・スキップ</span>':'')+'</div>';
     html += g.lines.map(function(l,li){
-      if(l.pid) return '・'+l.name+' × '+l.qty;
-      return '・<span style="color:#dc2626">'+l.raw+'（未マッチ）</span> × '+l.qty+
-        ' <select onchange="csvParsedRows['+gi+'].lines['+li+'].pid=this.value;csvParsedRows['+gi+'].lines['+li+'].name=this.options[this.selectedIndex].text" style="font-size:11px;padding:2px 4px">'+productOptionsHtml()+'</select>';
+      if(l.productId) return '・'+l.productName+' × '+l.bottles;
+      return '・<span style="color:#dc2626">'+l.raw+'（未マッチ）</span> × '+l.bottles+
+        ' <select onchange="csvParsedRows['+gi+'].lines['+li+'].productId=this.value;csvParsedRows['+gi+'].lines['+li+'].productName=this.options[this.selectedIndex].text" style="font-size:11px;padding:2px 4px">'+productOptionsHtml()+'</select>';
     }).join('<br>');
     html += '</div>';
   });
@@ -1081,58 +1035,41 @@ function importCSV(){
   if(!csvParsedRows) return;
   const existingNums = new Set(orders.map(o=>o.storesOrderNum).filter(Boolean));
   let imported = 0, skipped = 0;
-  const newOrders = [];
   csvParsedRows.forEach(function(g){
     if(existingNums.has(g.storesOrderNum)){ skipped++; return; }
-    const validLines = g.lines.filter(l=>l.pid);
+    const validLines = g.lines.filter(l=>l.productId);
     if(!validLines.length) return;
     const o = {
-      orderNum: 'OS-'+generateOrderNumberString(),
+      id: generateOrderId(), num: 'OS-'+todayYmd()+'-'+String(orders.filter(x=>(x.num||'').indexOf('OS-'+todayYmd())===0).length+1).padStart(3,'0'),
       storesOrderNum: g.storesOrderNum,
       client: g.client, zip: g.zip, addr: g.addr, tel: g.tel,
-      ctype: 'general', recycle: false,
-      lead: 'normal', leadDate:'', time:'', timeOther:'', note:'',
+      customerType: 'general', useRecycle: false, isDefectSale:false,
+      leadType: 'normal', leadDate:'', delivTime:'', note:'',
       senderName:'', senderTel:'', senderZip:'', senderAddr:'',
-      lines: validLines.map(l=>({pid:l.pid,sku:findProduct(l.pid)?.sku||'',name:l.name,giftType:'normal',qty:l.qty,boxes:l.boxes,memo:l.memo})),
-      status: 'pending', source: 'stores', createdAt: new Date().toISOString()
+      lines: validLines,
+      status: 'pending', source: 'stores', registeredAt: new Date().toISOString()
     };
     orders.push(o);
-    newOrders.push(o);
     imported++;
   });
   document.getElementById('csv-result').style.display = 'block';
   document.getElementById('csv-result').innerHTML = '<div class="alert-bar alert-info">✅ '+imported+'件を取り込みました（'+skipped+'件は重複のためスキップ）</div>';
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
-  if(newOrders.length) syncOrdersToGAS(newOrders);
-}
-function generateOrderNumberString(){
-  const today = new Date();
-  const ymd = today.getFullYear()+String(today.getMonth()+1).padStart(2,'0')+String(today.getDate()).padStart(2,'0');
-  const todays = orders.filter(o=>(o.orderNum||'').indexOf('OS-'+ymd)===0);
-  return ymd+'-'+String(todays.length+1).padStart(3,'0');
+  if(imported) syncOrdersToGAS();
 }
 
-// ── GAS 保存 ────────────────────────────────────────────
-function syncOrdersToGAS(newOrdersOnly){
+// ── GAS 保存（必ず「今ある受注を全部」送る）────────────────────────────
+function syncOrdersToGAS(){
   if(!gasSyncEnabled) return;
-  const payload = { orders: newOrdersOnly || orders };
   fetch(GAS_URL, {
     method:'POST',
-    body: JSON.stringify({ action:'saveOrders', payload: payload }),
+    body: JSON.stringify({ action:'saveOrders', orders: orders }),
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).then(r=>r.json()).then(function(d){
     if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
     else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
   }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
-}
-function updateOrderStatusToGAS(order){
-  if(!gasSyncEnabled) return;
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'updateOrderStatus', payload:{ orderNum:order.orderNum, status:order.status, shippedAt:order.shippedAt||'' } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
 }
 </script>
 </body>
