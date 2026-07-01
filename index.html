@@ -201,6 +201,14 @@ body{background:#fff}
 
     <div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px">送り主情報（送り状に送り主として記載されます）</div>
+      <div class="fg"><label>送り主の氏名・名義</label>
+        <select id="d-sender-mode" onchange="onSenderModeChange()">
+          <option value="client">お客様名（発注者名）をそのまま使う</option>
+          <option value="self">オリーブオイル・ストーリーズ（自社）を送り主にする</option>
+          <option value="custom">別の名前を入力する</option>
+        </select>
+      </div>
+      <div class="fg" id="d-sender-custom-wrap" style="display:none"><label>送り主名（自由入力）</label><input type="text" id="d-sender-custom" placeholder="例：〇〇株式会社"></div>
       <div class="g2">
         <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
         <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
@@ -622,6 +630,9 @@ function onCtypeChange(){
 }
 
 function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('d-lead').value==='scheduled' ? 'block' : 'none'; }
+function onSenderModeChange(){
+  document.getElementById('d-sender-custom-wrap').style.display = document.getElementById('d-sender-mode').value==='custom' ? 'block' : 'none';
+}
 function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('d-time').value==='other' ? 'block' : 'none'; }
 
 // ── 商品セレクトHTML ────────────────────────────────────────────
@@ -871,7 +882,8 @@ function buildOrdersFromForm(){
   const custId = document.getElementById('o-client').dataset.custId || '';
   const ctype = document.getElementById('o-ctype').value;
   const saveCustomer = document.getElementById('o-save-customer').checked;
-  const dSenderName = client;
+  const senderMode = document.getElementById('d-sender-mode').value;
+  const dSenderName = senderMode==='self' ? 'オリーブオイル・ストーリーズ' : senderMode==='custom' ? (document.getElementById('d-sender-custom').value || client) : client;
   const dSenderTel = document.getElementById('d-sender-tel').value;
   const dSenderZip = document.getElementById('d-sender-zip').value;
   const dSenderAddr = document.getElementById('d-sender-addr').value;
@@ -951,6 +963,9 @@ function clearForm(){
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
   document.getElementById('o-save-customer').checked = false;
+  document.getElementById('d-sender-mode').value = 'client';
+  document.getElementById('d-sender-custom').value = '';
+  document.getElementById('d-sender-custom-wrap').style.display = 'none';
   document.getElementById('d-sender-tel').value = '';
   document.getElementById('d-sender-zip').value = '';
   document.getElementById('d-sender-addr').value = '';
