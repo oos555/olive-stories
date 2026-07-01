@@ -201,6 +201,12 @@ body{background:#fff}
       </div>
     </div>
     <div id="ctype-mismatch-warn"></div>
+    <div class="g3">
+      <div class="fg"><label>発注元郵便番号</label><input type="text" id="o-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+      <div class="fg"><label>発注元住所</label><input type="text" id="o-addr" placeholder="東京都..."></div>
+      <div class="fg"><label>発注元電話番号</label><input type="text" id="o-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
+    </div>
+    <div class="fg"><label>社内メモ（このお客様についての備考）</label><input type="text" id="o-memo" placeholder="例：いつも急ぎ希望、支払いは月末締めなど"></div>
     <div class="fg"><label>この情報をお客様マスタに保存する</label>
       <label style="font-weight:400;font-size:12px;color:#555"><input type="checkbox" id="o-save-customer" style="width:auto;display:inline-block;margin-right:6px">新規お客様として保存</label>
     </div>
@@ -230,37 +236,6 @@ body{background:#fff}
         </div>
         <div class="fg" style="margin-bottom:0"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
       </div>
-    </div>
-
-    <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">⚡ 発送区分・配達時間・備考をまとめて設定（下の「全届け先にコピー」を押すまでは反映されません）</div>
-      <div class="g2">
-        <div class="fg">
-          <label>発送区分</label>
-          <select id="bulk-lead" onchange="document.getElementById('bulk-lead-date-wrap').style.display=this.value==='scheduled'?'block':'none'">
-            <option value="normal">通常（3日以内に発送）</option>
-            <option value="urgent">🚨 急ぎ（明日までに発送）</option>
-            <option value="defect">🔵 不良在庫出荷</option>
-            <option value="caution">🟡 特別注意</option>
-            <option value="scheduled">🗓 日程指定</option>
-          </select>
-        </div>
-        <div class="fg" id="bulk-lead-date-wrap" style="display:none"><label>希望到着日</label><input type="date" id="bulk-lead-date"></div>
-      </div>
-      <div class="g2">
-        <div class="fg"><label>配送時間指定</label>
-          <select id="bulk-time" onchange="document.getElementById('bulk-time-other-wrap').style.display=this.value==='other'?'block':'none'">
-            <option value="">指定なし</option>
-            <option value="午前中">午前中</option>
-            <option value="日中（12〜18時）">日中（12〜18時）</option>
-            <option value="夜間（18〜21時）">夜間（18〜21時）</option>
-            <option value="other">その他（記入）</option>
-          </select>
-        </div>
-        <div class="fg" id="bulk-time-other-wrap" style="display:none"><label>時間帯を記入</label><input type="text" id="bulk-time-other" placeholder="例：14〜16時"></div>
-      </div>
-      <div class="fg" style="margin-bottom:8px"><label>備考</label><input type="text" id="bulk-note" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"></div>
-      <button class="btn-sm" onclick="copySettingsToAllRecipients()" style="width:100%">↓ この内容を全届け先にコピーする</button>
     </div>
 
     <div id="recipients"></div>
@@ -616,21 +591,20 @@ function onCustomerSelect(){
   document.getElementById('o-client').value = c.name;
   document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-client').dataset.custId = c.id;
-  // 届け先が1件だけ・まだ未入力なら、お客様マスタの住所を最初の届け先（個人）に補完します
-  const firstCard = document.querySelector('.recipient-card');
-  if(firstCard && !firstCard.querySelector('[data-role=zip]').value){
-    firstCard.querySelector('[data-role=personName]').value = c.name;
-    firstCard.querySelector('[data-role=zip]').value = c.zip||'';
-    firstCard.querySelector('[data-role=addr]').value = c.addr||'';
-    firstCard.querySelector('[data-role=tel]').value = c.tel||'';
-    firstCard.querySelector('[data-role=recycle]').checked = !!c.recycle;
-  }
+  document.getElementById('o-zip').value = c.zip||'';
+  document.getElementById('o-addr').value = c.addr||'';
+  document.getElementById('o-tel').value = c.tel||'';
+  document.getElementById('o-memo').value = c.note||'';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
 function clearCustomerSelect(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
+  document.getElementById('o-zip').value = '';
+  document.getElementById('o-addr').value = '';
+  document.getElementById('o-tel').value = '';
+  document.getElementById('o-memo').value = '';
   selectedCustomerRecord = null;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
@@ -638,22 +612,6 @@ function onClientInput(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
   selectedCustomerRecord = null;
-}
-function fillSelfAddress(cardId){
-  if(!selectedCustomerRecord){
-    alert('先に「お客様名（発注元）」をお客様マスタから選択してください。手入力のみの場合はこの機能は使えません（住所を記憶している相手がいないためです）。');
-    return;
-  }
-  const card = document.getElementById(cardId);
-  const c = selectedCustomerRecord;
-  card.querySelector('[data-role=rtypeInd]').checked = true;
-  onRecipientTypeChange(cardId);
-  card.querySelector('[data-role=personName]').value = c.name;
-  card.querySelector('[data-role=zip]').value = c.zip||'';
-  card.querySelector('[data-role=addr]').value = c.addr||'';
-  card.querySelector('[data-role=tel]').value = c.tel||'';
-  card.querySelector('[data-role=recycle]').checked = !!c.recycle;
-  showSyncStatus('🏠 発注者と同じ住所を入力しました');
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
@@ -714,13 +672,20 @@ function addRecipient(){
     '<div data-role="overridePanel" style="display:none;background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
       '<div class="fg" style="margin-bottom:0"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
     '</div>'+
+    '<div class="fg"><label>届け先</label>'+
+      '<div style="display:flex;gap:16px;padding:4px 0;flex-wrap:wrap">'+
+        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="raddr-'+id+'" value="same" data-role="addrModeSame" onchange="onRecipientAddrModeChange(\''+id+'\')">発注者と同じ住所にする</label>'+
+        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="raddr-'+id+'" value="diff" data-role="addrModeDiff" checked onchange="onRecipientAddrModeChange(\''+id+'\')">発注者と異なる住所に送る</label>'+
+      '</div>'+
+    '</div>'+
+    '<div data-role="sameAddrBox" style="display:none;background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px">✓ 発注者と同じ住所（住所・電話番号は登録時に自動で入ります）</div>'+
+    '<div data-role="addrFields">'+
     '<div class="fg"><label>届け先の種類</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0">'+
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="individual" data-role="rtypeInd" checked onchange="onRecipientTypeChange(\''+id+'\')">個人</label>'+
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="company" data-role="rtypeCom" onchange="onRecipientTypeChange(\''+id+'\')">企業</label>'+
       '</div>'+
     '</div>'+
-    '<button class="btn-sm" onclick="fillSelfAddress(\''+id+'\')" style="width:100%;margin-bottom:10px">🏠 発注者（お客様）と同じ住所にする</button>'+
     '<div data-role="companyFields" style="display:none">'+
       '<div class="g3">'+
         '<div class="fg"><label>会社名</label><input type="text" data-role="companyName" placeholder="株式会社〇〇"></div>'+
@@ -734,6 +699,7 @@ function addRecipient(){
       '<div class="fg"><label>電話番号</label><input type="text" data-role="tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>'+
     '</div>'+
     '<div class="fg"><label>住所</label><input type="text" data-role="addr" placeholder="東京都千代田区..."></div>'+
+    '</div>'+
     '<div class="fg"><label><input type="checkbox" data-role="recycle" style="width:auto;display:inline-block;margin-right:6px">リサイクル箱を使用する</label></div>'+
     '<div class="g2">'+
       '<div class="fg">'+
@@ -809,7 +775,16 @@ function onRecipientTypeChange(cardId){
   card.querySelector('[data-role=nameLabel]').textContent = isCompany ? 'ご担当者名' : 'お名前';
   card.querySelector('[data-role=personName]').placeholder = isCompany ? '荒木 知太朗' : '山田太郎';
 }
+function onRecipientAddrModeChange(cardId){
+  const card = document.getElementById(cardId);
+  const isSame = card.querySelector('[data-role=addrModeSame]').checked;
+  card.querySelector('[data-role=sameAddrBox]').style.display = isSame ? 'block' : 'none';
+  card.querySelector('[data-role=addrFields]').style.display = isSame ? 'none' : 'block';
+}
 function recipientDisplayName(card){
+  if(card.querySelector('[data-role=addrModeSame]').checked){
+    return document.getElementById('o-client').value;
+  }
   const isCompany = card.querySelector('[data-role=rtypeCom]').checked;
   const person = card.querySelector('[data-role=personName]').value;
   if(!isCompany) return person;
@@ -913,16 +888,18 @@ function updateCardGiftSummary(cardId){
 function collectRecipients(){
   return Array.from(document.querySelectorAll('.recipient-card')).map(function(card){
     const timeSel = card.querySelector('[data-role=time]').value;
+    const isSame = card.querySelector('[data-role=addrModeSame]').checked;
     return {
       name: recipientDisplayName(card),
-      isCompany: card.querySelector('[data-role=rtypeCom]').checked,
-      companyName: card.querySelector('[data-role=companyName]').value,
-      deptName: card.querySelector('[data-role=deptName]').value,
-      positionName: card.querySelector('[data-role=positionName]').value,
-      personName: card.querySelector('[data-role=personName]').value,
-      zip: card.querySelector('[data-role=zip]').value,
-      addr: card.querySelector('[data-role=addr]').value,
-      tel: card.querySelector('[data-role=tel]').value,
+      addrMode: isSame ? 'same' : 'diff',
+      isCompany: isSame ? false : card.querySelector('[data-role=rtypeCom]').checked,
+      companyName: isSame ? '' : card.querySelector('[data-role=companyName]').value,
+      deptName: isSame ? '' : card.querySelector('[data-role=deptName]').value,
+      positionName: isSame ? '' : card.querySelector('[data-role=positionName]').value,
+      personName: isSame ? document.getElementById('o-client').value : card.querySelector('[data-role=personName]').value,
+      zip: isSame ? document.getElementById('o-zip').value : card.querySelector('[data-role=zip]').value,
+      addr: isSame ? document.getElementById('o-addr').value : card.querySelector('[data-role=addr]').value,
+      tel: isSame ? document.getElementById('o-tel').value : card.querySelector('[data-role=tel]').value,
       recycle: card.querySelector('[data-role=recycle]').checked,
       senderNameOverride: card.querySelector('[data-role=senderName]').value,
       lead: card.querySelector('[data-role=lead]').value,
@@ -941,24 +918,6 @@ function toggleCardTimeOther(cardId){
   const card = document.getElementById(cardId);
   card.querySelector('[data-role=timeOtherWrap]').style.display = card.querySelector('[data-role=time]').value==='other' ? 'block' : 'none';
 }
-function copySettingsToAllRecipients(){
-  const lead = document.getElementById('bulk-lead').value;
-  const leadDate = document.getElementById('bulk-lead-date').value;
-  const time = document.getElementById('bulk-time').value;
-  const timeOther = document.getElementById('bulk-time-other').value;
-  const note = document.getElementById('bulk-note').value;
-  document.querySelectorAll('.recipient-card').forEach(function(card){
-    card.querySelector('[data-role=lead]').value = lead;
-    card.querySelector('[data-role=leadDate]').value = leadDate;
-    card.querySelector('[data-role=time]').value = time;
-    card.querySelector('[data-role=timeOther]').value = timeOther;
-    card.querySelector('[data-role=note]').value = note;
-    toggleCardLeadDate(card.id);
-    toggleCardTimeOther(card.id);
-  });
-  showSyncStatus('⚡ 全届け先（'+document.querySelectorAll('.recipient-card').length+'件）に設定をコピーしました');
-}
-
 // ── 注文番号自動採番 ────────────────────────────────────────────
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
 function nextOrderNum(offset){
@@ -1050,7 +1009,12 @@ function registerOrder(){
   list.forEach(o=>orders.push(o));
   const saveCustomer = list[0].saveCustomer;
   if(saveCustomer && !list[0].custId){
-    customers.push({ id:'c'+Date.now(), name:list[0].client, zip:list[0].zip, addr:list[0].addr, tel:list[0].tel, type:list[0].customerType, recycle:false, note:'' });
+    customers.push({
+      id:'c'+Date.now(), name: document.getElementById('o-client').value,
+      zip: document.getElementById('o-zip').value, addr: document.getElementById('o-addr').value,
+      tel: document.getElementById('o-tel').value, type: list[0].customerType,
+      recycle:false, note: document.getElementById('o-memo').value
+    });
     updCustomerSelects();
   }
   document.getElementById('confirm-area').style.display = 'none';
@@ -1065,6 +1029,10 @@ function clearForm(){
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
+  document.getElementById('o-zip').value = '';
+  document.getElementById('o-addr').value = '';
+  document.getElementById('o-tel').value = '';
+  document.getElementById('o-memo').value = '';
   document.getElementById('o-save-customer').checked = false;
   document.getElementById('d-sender-mode').value = 'client';
   document.getElementById('d-sender-custom').value = '';
@@ -1074,15 +1042,9 @@ function clearForm(){
   document.getElementById('d-sender-tel').value = '';
   document.getElementById('d-sender-zip').value = '';
   document.getElementById('d-sender-addr').value = '';
-  document.getElementById('bulk-lead').value = 'normal';
-  document.getElementById('bulk-lead-date').value = '';
-  document.getElementById('bulk-lead-date-wrap').style.display = 'none';
-  document.getElementById('bulk-time').value = '';
-  document.getElementById('bulk-time-other').value = '';
-  document.getElementById('bulk-time-other-wrap').style.display = 'none';
-  document.getElementById('bulk-note').value = '';
   document.getElementById('recipients').innerHTML = '';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
+  selectedCustomerRecord = null;
   addRecipient();
 }
 
