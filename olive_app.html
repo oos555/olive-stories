@@ -196,6 +196,7 @@ tr:last-child td{border-bottom:none}
   #panel-slip{display:block!important}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -225,6 +226,11 @@ tr:last-child td{border-bottom:none}
   <!-- 受注登録 -->
   <div id="panel-order" class="panel active">
     <div id="order-alerts"></div>
+    <!-- 在庫サマリー -->
+    <div style="background:#f9fafb;border:1px solid #e8e7e3;border-radius:10px;padding:10px 14px;margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">📦 現在の在庫（販売可能数）</div>
+      <div id="order-stock-summary" style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px"></div>
+    </div>
     <div class="summary-grid">
       <div class="summary-card"><div class="summary-label">本日の受注</div><div class="summary-val" id="sum-today">0件</div></div>
       <div class="summary-card"><div class="summary-label">出荷待ち</div><div class="summary-val" style="color:#b45309" id="sum-pending">0件</div></div>
@@ -253,12 +259,20 @@ tr:last-child td{border-bottom:none}
           </select>
         </div>
       </div>
+      <div id="ctype-mismatch-warn"></div>
+
       <div class="g3">
         <div class="fg"><label>郵便番号</label><input type="text" id="o-zip" placeholder="100-0001"></div>
         <div class="fg"><label>住所</label><input type="text" id="o-addr" placeholder="東京都千代田区..."></div>
         <div class="fg"><label>電話番号</label><input type="text" id="o-tel" placeholder="03-1234-5678"></div>
       </div>
       <div id="recycle-badge-area"></div>
+      <details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:11px;color:#888">📌 納品書の区分表記ルール（社内用メモ）</summary>
+        <div style="font-size:11px;color:#666;background:#f9f8f5;border-radius:6px;padding:8px 12px;margin-top:4px">
+          納品書には金額の妥当性確認のため区分バッジが入ります（お客様には区分名は伝えていません）<br>
+          卸①（仲卸価格）→「卸」　卸②（一般卸価格）→「卸※」　RT（ホテル）→「卸●」　不良在庫特価→「特化」
+        </div>
+      </details>
       <div id="gift-sender-area" style="display:none">
         <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">🎁 送り主情報</div>
@@ -272,7 +286,7 @@ tr:last-child td{border-bottom:none}
           </div>
         </div>
       </div>
-      <div class="fg"><label>注文番号（任意）</label><input type="text" id="o-num" placeholder="#1045"></div>
+      <div class="fg"><label>注文番号（自動採番）</label><input type="text" id="o-num" readonly style="background:#f5f4f0;color:#555"></div>
       <div class="g2">
         <div class="fg">
           <label>発送区分 <span style="font-size:11px;color:#dc2626;font-weight:400">※出荷指示書に大きく表示されます</span></label>
@@ -387,8 +401,8 @@ tr:last-child td{border-bottom:none}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="list-filter" onchange="renderList()" style="padding:5px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px">
+          <option value="pending" selected>出荷待ち</option>
           <option value="all">すべてのステータス</option>
-          <option value="pending">出荷待ち</option>
           <option value="shipped">出荷済み</option>
           <option value="cancelled">キャンセル</option>
         </select>
@@ -418,7 +432,13 @@ tr:last-child td{border-bottom:none}
       </select>
       <button class="btn btn-primary" onclick="generateSlip()">作成</button>
       <button class="btn-print no-print" onclick="printSlip()">🖨 出荷指示書を印刷</button>
-      <button class="btn btn-primary no-print" onclick="printInvoice()" id="invoice-btn" style="display:none">📄 納品書を印刷（お客様用）</button>
+      <button class="btn btn-primary no-print" onclick="startInvoiceView()" id="invoice-btn" style="display:none">📄 納品書を作成</button>
+    </div>
+    <div id="invoice-nav" class="no-print" style="display:none;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn btn-gray" onclick="invoicePage(-1)">◀ 前の件</button>
+      <span id="invoice-page-label" style="font-size:13px;color:#555;min-width:80px;text-align:center;font-weight:700"></span>
+      <button class="btn btn-gray" onclick="invoicePage(1)">次の件 ▶</button>
+      <button class="btn btn-primary" onclick="printCurrentInvoice()">🖨️ この納品書を印刷</button>
     </div>
     <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
       <button class="btn btn-green" onclick="generateAllSlip()">出荷待ち全件まとめて作成</button>
@@ -437,7 +457,6 @@ tr:last-child td{border-bottom:none}
 <div id="sec-inv" class="section-panel">
   <div class="tab-row no-print">
     <button class="tab active" onclick="showInvPanel('inv',this)">在庫一覧</button>
-    <button class="tab" onclick="showInvPanel('lot',this)">ロット管理</button>
     <button class="tab" onclick="showInvPanel('defect',this)">不良在庫</button>
     <button class="tab" onclick="showInvPanel('hold',this)">取り置き</button>
     <button class="tab" onclick="showInvPanel('pre',this)">予約販売</button>
@@ -446,6 +465,7 @@ tr:last-child td{border-bottom:none}
 
   <!-- 在庫一覧 -->
   <div id="panel-inv" class="panel active">
+    <div id="old-stock-banner"></div>
     <div id="inv-alert-area"></div>
     <div class="stats">
       <div class="stat" style="border-left:3px solid #555"><div class="stat-label">倉庫の実在庫</div><div class="stat-val c-gray" id="s-stock">-</div><div class="stat-sub">旧ロット・不良含む</div></div>
@@ -478,31 +498,21 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <!-- ロット管理 -->
-  <div id="panel-lot" class="panel">
-    <div class="info-box">同じ商品でも<strong>ロット（A4/A5）と賞味期限が異なる在庫を別管理</strong>します。旧ロットは実在庫に含まれますが、<strong>販売可能数からは除外</strong>されます。</div>
-    <div id="lot-alerts"></div>
-    <div class="sec">ロット・賞味期限別 在庫一覧</div>
-    <div id="lot-list"></div>
-    <div class="card">
-      <div class="sec">新しいロットを登録（入庫）</div>
-      <div class="g3">
-        <div class="fg"><label>商品</label><select id="l-product"></select></div>
-        <div class="fg"><label>ロット（例：A5）</label><input type="text" id="l-lot" placeholder="A5"></div>
-        <div class="fg"><label>賞味期限（例：2027.11）</label><input type="text" id="l-exp" placeholder="2027.11"></div>
-      </div>
-      <div class="g3">
-        <div class="fg"><label>数量</label><input type="number" id="l-qty" min="1" value="0"></div>
-        <div class="fg"><label>ステータス</label>
-          <select id="l-status">
-            <option value="new">最新ロット（販売可能に算入）</option>
-            <option value="old">旧ロット（販売可能から除外）</option>
-            <option value="supply">備品（賞味期限なし）</option>
-          </select>
-        </div>
-        <div class="fg"><label>メモ</label><input type="text" id="l-note" placeholder="輸入便・備考など"></div>
-      </div>
-      <button class="btn-primary btn" onclick="addLot()">登録する</button>
+  <details style="margin-top:1.5rem;border:1px solid #bae6fd;border-radius:10px;overflow:hidden">
+    <summary style="background:#f0f9ff;padding:10px 16px;font-weight:700;font-size:13px;color:#0369a1;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">❓ 在庫一覧の使い方を見る</summary>
+    <div style="padding:1rem 1.25rem;background:#fff;font-size:12px;color:#334155;line-height:1.8">
+      <b>【実在庫の数字をクリック】</b><br>クリックすると数字を直接入力できます。緊急で在庫数を修正したい時に使ってください。<br><br>
+      <b>【入庫予定の数字をクリック】</b><br>次回入庫予定の数量を入力しておきます。例：輸入予定が50本なら「50」と入力。<br><br>
+      <b>【操作：＋入庫ボタン】</b><br>入庫予定数が入っている場合 → 「入庫予定○本を実在庫に追加しますか？」と確認ダイアログが出ます。OKで実在庫が増え、入庫予定がゼロになります。入庫予定がゼロの場合 → 通常の入庫フォームが開きます。<br><br>
+      <b>【操作：－出庫ボタン】</b><br>通常の出庫フォームが開きます。受注による出庫は自動で行われるため、廃棄・サンプル提供などの際に手動で使います。<br><br>
+      <b>【ロットを新規登録したい時】</b><br>
+      ＋入庫ボタンを押して通常の入庫フォームから登録できます。新しいロット（A5）は「ロット記号」欄にA5と入力してください。<br><br>
+      <b>【旧ロット（A4）の非表示について】</b><br>
+      旧ロットの在庫が0本になると自動的に在庫一覧から非表示になります。データは削除されずログに残ります。<br><br>
+      <b>【管理番号（SKU）について】</b><br>
+      商品名の右側に薄く表示されている英数字（例：ORG250）が管理番号です。STORESの商品名にもこの番号を付けることで、CSVの自動マッチングが機能します。<br><br>
+      <b>【セット商品について】</b><br>「★構成品の最小在庫に連動」と表示されている商品は、構成している単品・備品の在庫に連動して販売可能数が自動計算されます。直接数字を変えることはできません。<br><br>
+      <b>【列の意味】</b><br>取り置き：受注時に自動確保された数 ／ 予約：入庫前の先行予約数 ／ 入庫予定：次回入荷予定数 ／ 販売可能数：実在庫から取り置き・不良を引いた今すぐ売れる数
     </div>
   </div>
 
@@ -536,6 +546,21 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
+  <details style="margin-top:1.5rem;border:1px solid #bae6fd;border-radius:10px;overflow:hidden">
+    <summary style="background:#f0f9ff;padding:10px 16px;font-weight:700;font-size:13px;color:#0369a1;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">❓ 不良在庫の使い方を見る</summary>
+    <div style="padding:1rem 1.25rem;background:#fff;font-size:12px;color:#334155;line-height:1.8">
+      <b>【不良品を登録する】</b><br>発見した不良品は、商品・不良理由・本数・メモを入力して「不良品として登録」ボタンを押します。登録された不良品は実在庫・販売可能数から自動除外されます。<br><br>
+      <b>【不良在庫の処理方法】</b><br>
+      📦 値引き出荷：お客様に特価で販売する場合。お届け先・価格を入力すると出荷指示書が自動作成され、納品書に「訳あり品（特化）」と記載されます。<br>
+      再ラベル復活：ラベル不良のみ。貼り直せば通常販売できる場合。実行すると通常在庫に戻ります。<br>
+      廃棄：販売・復活できない場合。実在庫から削除されます。<br>
+      返品：農園・仕入先に返品する場合。<br><br>
+      <b>【取り置き】</b><br>「📌 取り置き」ボタンで、不良品のまま特定のお客様のために確保できます。期限を設定でき、1週間前にアラートが出ます。<br><br>
+      <b>【農園フィードバック用レポート】</b><br>「不良在庫 処理履歴レポート」で商品ごとの不良発生状況と処理結果を集計できます。農園へのフィードバック資料としてご活用ください。<br><br>
+      <b>【不良理由の種類】</b><br>蓋不良（漏れあり）：値引き出荷・廃棄・返品が選べます。ラベル不良（漏れなし）：再ラベルで通常在庫に復活させることができます。その他：状況に応じて処理方法を選択してください。
+    </div>
+  </details>
+
   <!-- 取り置き -->
   <div id="panel-hold" class="panel">
     <div class="info-box">卸先からの取り置きを登録します。取り置き分は<strong>販売可能数から自動的に差し引かれます</strong>。</div>
@@ -562,12 +587,16 @@ tr:last-child td{border-bottom:none}
     <div id="pre-list"></div>
     <div class="card">
       <div class="sec">予約を受け付ける</div>
-      <div class="g3">
-        <div class="fg"><label>商品</label><select id="p-product"></select></div>
-        <div class="fg"><label>数量</label><input type="number" id="p-qty" min="1" value="1"></div>
+      <div class="g2">
+        <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
         <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
       </div>
-      <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付など"></div>
+      <div class="g3">
+        <div class="fg"><label>本数（バラ）</label><input type="number" id="p-bottles" min="0" value="0" oninput="updPreorderTotal()"></div>
+        <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
+        <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
+      </div>
+      <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
       <button class="btn-primary btn" onclick="addPreorder()">予約登録</button>
     </div>
   </div>
@@ -678,6 +707,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+
 </div><!-- /.app -->
 <script>
 
@@ -687,10 +717,6 @@ tr:last-child td{border-bottom:none}
 // ════════════════════════════════════
 // 区分: 'general'=一般, 'wholesale1'=卸①, 'wholesale2'=卸②, 'rt'=RT(ホテル)
 let customers = [
-  {id:1,  name:'田中商店',        zip:'100-0001', addr:'東京都千代田区丸の内1-1-1', tel:'03-1234-5678', type:'wholesale1', recycle:true,  note:''},
-  {id:2,  name:'山田食品株式会社', zip:'530-0001', addr:'大阪府大阪市北区梅田1-1-1',  tel:'06-1234-5678', type:'wholesale2', recycle:true,  note:''},
-  {id:3,  name:'鈴木商店',        zip:'460-0001', addr:'愛知県名古屋市中区栄1-1-1',  tel:'052-123-4567', type:'wholesale1', recycle:true,  note:''},
-  {id:4,  name:'サンクチュアリコート高山', zip:'506-0055', addr:'岐阜県高山市',      tel:'',             type:'rt',         recycle:false, note:''},
 ];
 let customerIdCounter = 100;
 
@@ -711,103 +737,103 @@ const PRODUCTS = [
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
   {id:2,   name:'オルガニック 250ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:201, name:'オルガニック 250ml A4(2026.12)',  group:'オルガニック', lot:'A4', old:true, boxQty:20,
+  {id:201, name:'オルガニック 250ml A4(2026.12)',  sku:'ORG250', group:'オルガニック', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:3,   name:'オルガニック 500ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:12,
+  {id:3,   name:'オルガニック 500ml A5(2027.11)',  sku:'ORG500', group:'オルガニック', lot:'A5', boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:301, name:'オルガニック 500ml A4(2026.7)',   group:'オルガニック', lot:'A4', old:true, boxQty:12,
+  {id:301, name:'オルガニック 500ml A4(2026.7)',   sku:'ORG500', group:'オルガニック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:302, name:'オルガニック 500ml A4(2026.12)',  group:'オルガニック', lot:'A4', old:true, boxQty:12,
+  {id:302, name:'オルガニック 500ml A4(2026.12)',  sku:'ORG500', group:'オルガニック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:4,   name:'オルガニック 750ml A5(2027.11)',  group:'オルガニック', lot:'A5', boxQty:12,
+  {id:4,   name:'オルガニック 750ml A5(2027.11)',  sku:'ORG750', group:'オルガニック', lot:'A5', boxQty:12,
    priceOpen:9485, priceRT:7588, priceW1:5691, priceW2:7588, tax:0.08},
-  {id:5,   name:'オルガニック 2L A5(2027.11)',     group:'オルガニック', lot:'A5', boxQty:6,
+  {id:5,   name:'オルガニック 2L A5(2027.11)',     sku:'ORG2L', group:'オルガニック', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:6,   name:'オルガニック 5L A5(2027.11)',     group:'オルガニック', lot:'A5', boxQty:4,
+  {id:6,   name:'オルガニック 5L A5(2027.11)',     sku:'ORG5L', group:'オルガニック', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:33000, priceW2:44000, tax:0.08},
   // ── メメジック ──────────────────────
-  {id:7,   name:'メメジック 100ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:24,
+  {id:7,   name:'メメジック 100ml A5(2027.11)',    sku:'MEM100', group:'メメジック', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:8,   name:'メメジック 250ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:20,
+  {id:8,   name:'メメジック 250ml A5(2027.11)',    sku:'MEM100', group:'メメジック', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:801, name:'メメジック 250ml A4(2026.12)',    group:'メメジック', lot:'A4', old:true, boxQty:20,
+  {id:801, name:'メメジック 250ml A4(2026.12)',    sku:'MEM250', group:'メメジック', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:9,   name:'メメジック 500ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:12,
+  {id:9,   name:'メメジック 500ml A5(2027.11)',    sku:'MEM500', group:'メメジック', lot:'A5', boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:901, name:'メメジック 500ml A4(2026.12)',    group:'メメジック', lot:'A4', old:true, boxQty:12,
+  {id:901, name:'メメジック 500ml A4(2026.12)',    sku:'MEM500', group:'メメジック', lot:'A4', old:true, boxQty:12,
    priceOpen:9121, priceRT:6884, priceW1:5473, priceW2:6884, tax:0.08},
-  {id:10,  name:'メメジック 750ml A5(2027.11)',    group:'メメジック', lot:'A5', boxQty:12,
+  {id:10,  name:'メメジック 750ml A5(2027.11)',    sku:'MEM750', group:'メメジック', lot:'A5', boxQty:12,
    priceOpen:9485, priceRT:7588, priceW1:5691, priceW2:7588, tax:0.08},
-  {id:11,  name:'メメジック 2L A5(2027.11)',       group:'メメジック', lot:'A5', boxQty:6,
+  {id:11,  name:'メメジック 2L A5(2027.11)',       sku:'MEM2L', group:'メメジック', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:111, name:'メメジック 2L A4(2026.12)',       group:'メメジック', lot:'A4', old:true, boxQty:6,
+  {id:111, name:'メメジック 2L A4(2026.12)',       sku:'MEM2L', group:'メメジック', lot:'A4', old:true, boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:12,  name:'メメジック 5L A5(2027.11)',       group:'メメジック', lot:'A5', boxQty:4,
+  {id:12,  name:'メメジック 5L A5(2027.11)',       sku:'MEM5L', group:'メメジック', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:33000, priceW2:44000, tax:0.08},
   // ── シェフズブレンド ──────────────────────
-  {id:13,  name:'シェフズブレンド 100ml A5(2027.11)', group:'シェフズブレンド', lot:'A5', boxQty:24,
+  {id:13,  name:'シェフズブレンド 100ml A5(2027.11)', sku:'CHF100', group:'シェフズブレンド', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:14,  name:'シェフズブレンド 250ml A5(2027.11)', group:'シェフズブレンド', lot:'A5', boxQty:20,
+  {id:14,  name:'シェフズブレンド 250ml A5(2027.11)', sku:'CHF100', group:'シェフズブレンド', lot:'A5', boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:141, name:'シェフズブレンド 250ml A4(2026.7)',  group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
+  {id:141, name:'シェフズブレンド 250ml A4(2026.7)',  sku:'CHF250', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:142, name:'シェフズブレンド 250ml A4(2026.12)', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
+  {id:142, name:'シェフズブレンド 250ml A4(2026.12)', sku:'CHF250', group:'シェフズブレンド', lot:'A4', old:true, boxQty:20,
    priceOpen:4750, priceRT:3800, priceW1:2850, priceW2:3800, tax:0.08},
-  {id:15,  name:'シェフズブレンド 2L A5(2027.11)',    group:'シェフズブレンド', lot:'A5', boxQty:6,
+  {id:15,  name:'シェフズブレンド 2L A5(2027.11)',    sku:'CHF2L', group:'シェフズブレンド', lot:'A5', boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
-  {id:151, name:'シェフズブレンド 2L A4(2026.12)',    group:'シェフズブレンド', lot:'A4', old:true, boxQty:6,
+  {id:151, name:'シェフズブレンド 2L A4(2026.12)',    sku:'CHF2L', group:'シェフズブレンド', lot:'A4', old:true, boxQty:6,
    priceOpen:24300, priceRT:18225, priceW1:14580, priceW2:18225, tax:0.08},
   // ── プリモフルット ──────────────────────
-  {id:16,  name:'プリモフルット 100ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:24,
+  {id:16,  name:'プリモフルット 100ml A5(2027.11)',  sku:'PRI100', group:'プリモフルット', lot:'A5', boxQty:24,
    priceOpen:2750, priceRT:1920, priceW1:null, priceW2:null, tax:0.08, noWholesale:true},
-  {id:17,  name:'プリモフルット 250ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:6,
+  {id:17,  name:'プリモフルット 250ml A5(2027.11)',  sku:'PRI100', group:'プリモフルット', lot:'A5', boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:171, name:'プリモフルット 250ml A4(2026.7)',   group:'プリモフルット', lot:'A4', old:true, boxQty:6,
+  {id:171, name:'プリモフルット 250ml A4(2026.7)',   sku:'PRI250', group:'プリモフルット', lot:'A4', old:true, boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:18,  name:'プリモフルット 500ml A5(2027.11)',  group:'プリモフルット', lot:'A5', boxQty:6,
+  {id:18,  name:'プリモフルット 500ml A5(2027.11)',  sku:'PRI500', group:'プリモフルット', lot:'A5', boxQty:6,
    priceOpen:9121, priceRT:6884, priceW1:6884, priceW2:6884, tax:0.08},
-  {id:19,  name:'プリモフルット 3L A5(2027.11)',     group:'プリモフルット', lot:'A5', boxQty:4,
+  {id:19,  name:'プリモフルット 3L A5(2027.11)',     sku:'PRI3L', group:'プリモフルット', lot:'A5', boxQty:4,
    priceOpen:29000, priceRT:23200, priceW1:23200, priceW2:23200, tax:0.08},
   // ── ザイトゥーン ──────────────────────
-  {id:20,  name:'ザイトゥーン 250ml A5(2027.11)',   group:'ザイトゥーン', lot:'A5', boxQty:6,
+  {id:20,  name:'ザイトゥーン 250ml A5(2027.11)',   sku:'ZAI250', group:'ザイトゥーン', lot:'A5', boxQty:6,
    priceOpen:4750, priceRT:4350, priceW1:4350, priceW2:4350, tax:0.08},
-  {id:21,  name:'ザイトゥーン 500ml A5(2027.11)',   group:'ザイトゥーン', lot:'A5', boxQty:6,
+  {id:21,  name:'ザイトゥーン 500ml A5(2027.11)',   sku:'ZAI500', group:'ザイトゥーン', lot:'A5', boxQty:6,
    priceOpen:9121, priceRT:6884, priceW1:6884, priceW2:6884, tax:0.08},
   // ── アグルミ ──────────────────────
-  {id:22,  name:'アグルミ 100ml A5(2027.11)',       group:'アグルミ', lot:'A5', boxQty:6,
+  {id:22,  name:'アグルミ 100ml A5(2027.11)',       sku:'AGR100', group:'アグルミ', lot:'A5', boxQty:6,
    priceOpen:2700, priceRT:2025, priceW1:2025, priceW2:2025, tax:0.08},
-  {id:23,  name:'アグルミ 250ml A5(2027.11)',       group:'アグルミ', lot:'A5', boxQty:6,
+  {id:23,  name:'アグルミ 250ml A5(2027.11)',       sku:'AGR250', group:'アグルミ', lot:'A5', boxQty:6,
    priceOpen:6200, priceRT:4960, priceW1:4960, priceW2:4960, tax:0.08},
-  {id:24,  name:'アグルミ 3L A5(2027.11)',          group:'アグルミ', lot:'A5', boxQty:5,
+  {id:24,  name:'アグルミ 3L A5(2027.11)',          sku:'AGR3L', group:'アグルミ', lot:'A5', boxQty:5,
    priceOpen:29000, priceRT:23200, priceW1:23200, priceW2:23200, tax:0.08},
   // ── その他オイル ──────────────────────
-  {id:25,  name:'唐辛子オイル 100ml A5(2027.11)',   group:'その他オイル', lot:'A5', boxQty:12,
+  {id:25,  name:'唐辛子オイル 100ml A5(2027.11)',   sku:'TGR100', group:'その他オイル', lot:'A5', boxQty:12,
    priceOpen:2700, priceRT:2025, priceW1:2025, priceW2:2025, tax:0.08},
-  {id:26,  name:'アルモニア 500ml A5(2027.11)',     group:'その他オイル', lot:'A5', boxQty:6,
+  {id:26,  name:'アルモニア 500ml A5(2027.11)',     sku:'ARM500', group:'その他オイル', lot:'A5', boxQty:6,
    priceOpen:11202, priceRT:8400, priceW1:8400, priceW2:8400, tax:0.08},
-  {id:27,  name:'アルモニア 3L A5(2027.11)',        group:'その他オイル', lot:'A5', boxQty:6,
+  {id:27,  name:'アルモニア 3L A5(2027.11)',        sku:'ARM3L', group:'その他オイル', lot:'A5', boxQty:6,
    priceOpen:36663, priceRT:29850, priceW1:29850, priceW2:29850, tax:0.08},
-  {id:28,  name:'カサアルバート 5L',                group:'その他オイル', boxQty:4,
+  {id:28,  name:'カサアルバート 5L',                sku:'CAS5L', group:'その他オイル', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:44000, priceW2:44000, tax:0.08},
-  {id:29,  name:'レイトハーベスト 5L A5(2027.11)', group:'その他オイル', lot:'A5', boxQty:4,
+  {id:29,  name:'レイトハーベスト 5L A5(2027.11)', sku:'LAT5L', group:'その他オイル', lot:'A5', boxQty:4,
    priceOpen:55000, priceRT:44000, priceW1:44000, priceW2:44000, tax:0.08},
   // ── カップオイル ──────────────────────
-  {id:38,  name:'カップオイル グリーンブーケ（オルガニック）A5(2027.11)', group:'カップオイル', lot:'A5', boxQty:120,
+  {id:38,  name:'カップオイル グリーンブーケ（オルガニック）A5(2027.11)', sku:'CUP001', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
-  {id:39,  name:'カップオイル グリーンバナナ（メメジック）A5(2027.11)',   group:'カップオイル', lot:'A5', boxQty:120,
+  {id:39,  name:'カップオイル グリーンバナナ（メメジック）A5(2027.11)',   sku:'CUP002', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
-  {id:40,  name:'カップオイル オレンジ&レモン（アグルミ）A5(2027.11)',   group:'カップオイル', lot:'A5', boxQty:120,
+  {id:40,  name:'カップオイル オレンジ&レモン（アグルミ）A5(2027.11)',   sku:'CUP003', group:'カップオイル', lot:'A5', boxQty:120,
    priceOpen:785, priceRT:471, priceW1:471, priceW2:471, tax:0.08},
   // ── セット商品（今後追加予定）──────────────────────
   // ── ギフト箱・備品 ──────────────────────
-  {id:30,  name:'★ カップオイル3個ギフト箱 oliveNOVA +紙袋', group:'ギフト箱・備品',
+  {id:30,  name:'★ カップオイル3個ギフト箱 oliveNOVA +紙袋', sku:'GFT001', group:'ギフト箱・備品',
    priceOpen:3555, priceRT:2613, priceW1:2613, priceW2:2613, tax:0.10},
-  {id:31,  name:'★ 100ml3本ギフト箱 your story +紙袋',        group:'ギフト箱・備品',
+  {id:31,  name:'★ 100ml3本ギフト箱 your story +紙袋',        sku:'GFT002', group:'ギフト箱・備品',
    priceOpen:9600, priceRT:7110, priceW1:7110, priceW2:7110, tax:0.10},
-  {id:37,  name:'★ 250ml2本ギフト箱 your story +紙袋',        group:'ギフト箱・備品',
+  {id:37,  name:'★ 250ml2本ギフト箱 your story +紙袋',        sku:'GFT003', group:'ギフト箱・備品',
    priceOpen:9600, priceRT:7110, priceW1:7110, priceW2:7110, tax:0.10},
-  {id:32,  name:'紙袋 黒 小', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
-  {id:33,  name:'紙袋 黒 大', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
+  {id:32,  name:'紙袋 黒 小', sku:'BAG001', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
+  {id:33,  name:'紙袋 黒 大', sku:'BAG002', group:'ギフト箱・備品', priceOpen:160, priceRT:160, priceW1:160, priceW2:160, tax:0.10},
   // ── その他 ──────────────────────
   {id:34,  name:'初版ピッツァ本 サイン入り', group:'その他'},
   {id:35,  name:'トルコ500ml用 空瓶',        group:'その他'},
@@ -817,33 +843,9 @@ const PRODUCTS = [
 // ════════════════════════════════════
 // Googleスプレッドシート連携
 // ════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbySPMtTyWU6nVM1-2TeHTAzgDSPqhVZ4ZJH2t_k-BJygFdN6VVl9OOteLIMPvwCM07L/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwDB38ZSkvMJim2ke4a5p5h7NRDV6gV-N_7ZXnhY7AleMYZ9E0Vx7g8Jtc59NfXhnVb/exec';
 let gasSyncEnabled = true; // 同期ON/OFF
 
-// データをGASに保存（GETリクエスト方式 - CORSエラー回避）
-function syncToGAS(action, payload) {
-  if(!gasSyncEnabled) return;
-  const data = Object.assign({action:action}, payload);
-  const encoded = encodeURIComponent(JSON.stringify(data.orders||[]));
-  const url = GAS_URL + '?action=' + action + '&data=' + encoded;
-  
-  // script タグを使ったJSONP方式でCORSを回避
-  const callbackName = 'gasCallback_' + Date.now();
-  window[callbackName] = function(d){
-    delete window[callbackName];
-    if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-    else showSyncStatus('⚠️ 保存エラー', true);
-  };
-  
-  fetch(GAS_URL + '?action=' + action + '&data=' + encoded)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-      else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
-    }).catch(function(e){
-      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
-    });
-}
 
 function showSyncStatus(msg, isError){
   let el = document.getElementById('sync-status');
@@ -861,6 +863,153 @@ function showSyncStatus(msg, isError){
 }
 
 // 受注データを全件同期
+// ════════════════════════════════════
+// 全データの自動保存（在庫・不良在庫・取り置き・予約・マスタ）
+// ════════════════════════════════════
+let autoSaveTimer = null;
+function scheduleAutoSave(){
+  if(autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(saveAllDataToGAS, 2000); // 2秒後にまとめて保存（連続操作対応）
+}
+
+function saveAllDataToGAS(){
+  if(!gasSyncEnabled) return;
+
+  const lotsWithName = lots.map(function(l){
+    const p = products.find(function(x){ return x.id===l.pid; });
+    return Object.assign({}, l, {productName: p?p.name:''});
+  });
+  const defectsWithName = defects.map(function(d){
+    const p = products.find(function(x){ return x.id===d.pid; });
+    return Object.assign({}, d, {productName: p?p.name:''});
+  });
+  const holdsWithName = holds.map(function(h){
+    const p = products.find(function(x){ return x.id===h.pid; });
+    return Object.assign({}, h, {productName: p?p.name:''});
+  });
+  const defectHoldsWithName = defectHolds.map(function(h){
+    const p = products.find(function(x){ return x.id===h.pid; });
+    return Object.assign({}, h, {productName: p?p.name:''});
+  });
+  const preordersWithName = preorders.map(function(r){
+    const p = products.find(function(x){ return x.id===r.pid; });
+    return Object.assign({}, r, {productName: p?p.name:''});
+  });
+
+  const payload = {
+    lots: lotsWithName,
+    defects: defectsWithName,
+    holds: holdsWithName,
+    defectHolds: defectHoldsWithName,
+    preorders: preordersWithName,
+    customers: customers,
+    facilities: facilities
+  };
+
+  // データが大きいのでPOSTで送信
+  fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({action:'saveAllData', payload: payload}),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status==='ok'){
+        showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      } else {
+        showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+      }
+    }).catch(function(){
+      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    });
+}
+
+// アプリ起動時に全データを読み込む
+function loadAllDataFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAllData')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status!=='ok' || !d.data) return;
+      const data = d.data;
+
+      // 在庫データを復元
+      if(data.lots && data.lots.length){
+        lots = data.lots.map(function(l){
+          return {
+            id: l.id, pid: parseInt(l.pid), lotCode: l.lotCode, expiry: l.expiry,
+            stock: parseInt(l.stock)||0, defect: parseInt(l.defect)||0,
+            status: l.status, note: l.note, incoming: parseInt(l.incoming)||0
+          };
+        });
+      }
+      // 不良在庫を復元
+      if(data.defects && data.defects.length){
+        defects = data.defects.map(function(d2){
+          return {
+            id: parseInt(d2.id), pid: parseInt(d2.pid), lotId: d2.lotId,
+            qty: parseInt(d2.qty)||0, cat: d2.cat, note: d2.note, status: d2.status,
+            shippedQty: parseInt(d2.shippedQty)||0, processedAt: d2.processedAt
+          };
+        });
+      }
+      // 取り置きを復元
+      if(data.holds && data.holds.length){
+        holds = data.holds.map(function(h){
+          return {
+            id: h.id, pid: parseInt(h.pid), client: h.client,
+            qty: parseInt(h.qty)||0, date: h.date, orderId: h.orderId
+          };
+        });
+      }
+      // 不良在庫取り置きを復元
+      if(data.defectHolds && data.defectHolds.length){
+        defectHolds = data.defectHolds.map(function(h){
+          return {
+            id: parseInt(h.id), pid: parseInt(h.pid), client: h.client,
+            qty: parseInt(h.qty)||0, until: h.until, note: h.note
+          };
+        });
+      }
+      // 予約を復元
+      if(data.preorders && data.preorders.length){
+        preorders = data.preorders.map(function(r){
+          return {
+            id: parseInt(r.id), pid: parseInt(r.pid), client: r.client,
+            qty: parseInt(r.qty)||0, bottles: parseInt(r.bottles)||0,
+            boxes: parseInt(r.boxes)||0, note: r.note
+          };
+        });
+      }
+      // お客様マスタを復元
+      if(data.customers && data.customers.length){
+        customers = data.customers.map(function(c){
+          return {
+            id: parseInt(c.id), name: c.name, zip: c.zip, addr: c.addr,
+            tel: c.tel, type: c.type, recycle: c.recycle, note: c.note
+          };
+        });
+      }
+      // 施設マスタを復元
+      if(data.facilities && data.facilities.length){
+        facilities = data.facilities.map(function(f){
+          return {
+            id: parseInt(f.id), name: f.name, chef: f.chef,
+            type: f.type, comment: f.comment, createdAt: f.createdAt
+          };
+        });
+      }
+
+      // 画面を再描画
+      renderInvTable();
+      renderInvLogs();
+      updCustomerSelects();
+      showSyncStatus('✅ 保存されたデータを読み込みました');
+    }).catch(function(){
+      console.log('データ読み込みエラー（初回起動時は正常）');
+    });
+}
+
 function syncOrders(){
   const ordersWithName = orders.map(function(o){
     return Object.assign({}, o, {
@@ -873,10 +1022,12 @@ function syncOrders(){
       })
     });
   });
-  // GETリクエストでデータを送信
-  const encoded = encodeURIComponent(JSON.stringify(ordersWithName));
-  const url = GAS_URL + '?action=saveOrders&data=' + encoded;
-  fetch(url)
+  // データが大きいのでPOSTで送信（URL長さ制限を回避）
+  fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({action:'saveOrders', orders: ordersWithName}),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
@@ -911,23 +1062,32 @@ let lineCount = 0;
 
 function ts(){
   const d=new Date();
-  return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return d.getFullYear()+'/'+mm+'/'+dd+' '+hh+':'+mi;
 }
 function dateStr(){
   const d=new Date();
-  return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'/'+mm+'/'+dd;
 }
 
 // 商品セレクトのHTML
 function productOptions(){
-  // 現在の区分を取得
   const ctype = (document.getElementById('o-ctype')||{value:'general'}).value;
   const isWS = isWholesale(ctype);
   const groups={};
-  // noWholesale=trueの商品は卸には表示しない
   PRODUCTS.filter(p=>!(isWS && p.noWholesale)).forEach(p=>{if(!groups[p.group])groups[p.group]=[];groups[p.group].push(p);});
   return Object.entries(groups).map(([g,ps])=>
-    `<optgroup label="${g}">${ps.map(p=>`<option value="${p.id}" style="${p.old?'color:#b45309':''}">${p.old?'【旧】':''}${p.isSet?'★セット ':''}${p.name}</option>`).join('')}</optgroup>`
+    '<optgroup label="'+g+'">'+ps.map(p=>{
+      const skuLabel = p.sku ? '['+p.sku+'] ' : '';
+      const nameClean = p.name.replace(/ A[45]\(.*?\)/,'');
+      return '<option value="'+p.id+'" style="'+(p.old?'color:#b45309':'')+'">'
+        +(p.old?'【旧】':'')+skuLabel+nameClean+'</option>';
+    }).join('')+'</optgroup>'
   ).join('');
 }
 
@@ -973,6 +1133,30 @@ function onProductSelect(sel, lineId){
       giftSel.disabled = false;
       giftSel.style.color = '';
       giftSel.style.background = '';
+    }
+  }
+
+  // 在庫ヒントを商品セレクトの直後に表示
+  let hintEl = document.getElementById('stock-hint-'+lineId);
+  if(!hintEl){
+    hintEl = document.createElement('div');
+    hintEl.id = 'stock-hint-'+lineId;
+    hintEl.style.cssText = 'font-size:11px;margin:2px 0 4px 2px;min-height:14px';
+    sel.parentNode.insertBefore(hintEl, sel.nextSibling);
+  }
+  if(!pid){ hintEl.textContent=''; }
+  else {
+    const p = products.find(function(x){ return x.id===pid; });
+    if(p){
+      const avail = totalAvail(pid);
+      const unit = p.type==='supply'?'個':'本';
+      if(avail<=0){
+        hintEl.innerHTML = '<span style="color:#dc2626;font-weight:700">⚠️ 在庫不足（販売可能: 0'+unit+'）</span>';
+      } else if(avail<=5){
+        hintEl.innerHTML = '<span style="color:#f59e0b;font-weight:700">⚠️ 残り少ない（販売可能: '+avail+unit+'）</span>';
+      } else {
+        hintEl.innerHTML = '<span style="color:#16a34a">✓ 販売可能: '+avail+unit+'</span>';
+      }
     }
   }
   updatePreview();
@@ -1256,6 +1440,9 @@ function registerOrder(){
   };
   orders.unshift(order);
 
+  // お客様マスタに自動追加・更新
+  ensureCustomerInMaster(client, ctype, zip, addr, tel);
+
   document.getElementById('confirm-area').style.display='none';
   clearForm();
   updSummary();
@@ -1277,10 +1464,11 @@ function registerOrder(){
       msg += `\n資材: ${p?p.name:'?'} × ${l.bottles||l.qty||0}枚`;
     });
   }
-  alert(msg);
 
-  // 在庫から自動取り置き
+  // 在庫から自動取り置き（alertより先に実行）
   autoHoldFromOrder(order);
+
+  alert(msg);
 }
 
 function autoHoldFromOrder(order){
@@ -1335,11 +1523,12 @@ function autoHoldFromOrder(order){
 
   renderInvTable();
   updSummary();
+  scheduleAutoSave();
 }
 
 function clearForm(){
   document.getElementById('o-client').value='';
-  document.getElementById('o-num').value='';
+  setNewOrderNum();
   document.getElementById('o-note').value='';
   document.getElementById('o-lead').value='normal';
   document.getElementById('o-lead-date').value='';
@@ -1475,6 +1664,7 @@ function autoShipFromOrder(order){
 
   renderInvTable();
   renderInvLogs();
+  scheduleAutoSave();
 }
 
 function deleteOrder(id){
@@ -1559,13 +1749,25 @@ function renderSlip(targetOrders){
       html += '</div>';
     }
 
-    html += '<div class="slip-title">'+(isDefectSale?'出 荷 指 示 書（訳あり品）':'出 荷 指 示 書')+'</div>';
+    html += '<div class="slip-title">'+(isDefectSale?'出 荷 指 示 書（特化）':'出 荷 指 示 書')+'</div>';
+
+    // リサイクル箱の使用有無を大きく表示（倉庫が一目で判断できるように）
+    if(o.useRecycle){
+      html += '<div style="background:#dcfce7;border:2px solid #16a34a;border-radius:8px;padding:10px 16px;margin-bottom:12px;text-align:center;font-weight:700;color:#14532d;font-size:14px">♻️ リサイクル箱使用OK</div>';
+    } else if(o.customerType && (o.customerType==='wholesale1'||o.customerType==='wholesale2'||o.customerType==='rt')){
+      html += '<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:10px 16px;margin-bottom:12px;text-align:center;font-weight:700;color:#78350f;font-size:14px">🆕 新品箱を使用（リサイクル箱は使用しません）</div>';
+    }
+
     html += '<div class="slip-meta">'
       +'<div class="slip-meta-item"><div class="slip-meta-label">お届け先</div><div class="slip-meta-val" style="font-size:16px">'+(o.client||'')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+(o.num||'―')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">受注日時</div><div class="slip-meta-val">'+(o.registeredAt||'')+'</div></div>'
       +'<div class="slip-meta-item"><div class="slip-meta-label">配送希望日</div><div class="slip-meta-val">'+(o.date||'指定なし')+'</div></div>'
       +'</div>';
+    html += '<div style="text-align:center;margin:12px 0;padding:14px;background:#f0f9ff;border:2px dashed #185fa5;border-radius:10px">';
+    html += '<div style="font-size:12px;color:#185fa5;font-weight:700;margin-bottom:8px">📱 スマホでこのQRを読み取ってピッキング開始</div>';
+    html += '<div id="qr-'+o.id+'" style="display:inline-block"></div>';
+    html += '</div>';
 
     // ── ギフト（ギフトbox＋紙袋）──
     if(byGift.gift.length){
@@ -1763,16 +1965,23 @@ function renderSlip(targetOrders){
   });
 
   document.getElementById('slip-area').innerHTML = html || '<div style="color:#999;padding:1rem">受注を選択してください</div>';
+
+  // QRコードを生成（ピッキングページへのリンク）
+  targetOrders.forEach(function(o){
+    const qrEl = document.getElementById('qr-'+o.id);
+    if(qrEl && typeof QRCode !== 'undefined'){
+      const pickupUrl = window.location.origin + window.location.pathname.replace('index.html','') + 'pickup.html?id=' + o.id;
+      new QRCode(qrEl, {
+        text: pickupUrl,
+        width: 140,
+        height: 140,
+        colorDark: '#1a1a18',
+        colorLight: '#ffffff'
+      });
+    }
+  });
 }
 
-function showOrderPanel(name,btn){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('panel-'+name).classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(name==='stores') initStoresPanel();
-  if(name==='list') renderList();
-}
 
 // 初期化
 updSummary();
@@ -1898,12 +2107,28 @@ function parseCSVLine(line){
 function matchProduct(storeName){
   // 1. マッピングテーブルで検索
   if(productMappings[storeName]) return productMappings[storeName];
-  // 2. 商品名の部分一致で自動マッチング
-  const matched = PRODUCTS.find(p=>
-    storeName.includes(p.name.replace(/ A[45]\(.*?\)/,'').trim()) ||
-    p.name.replace(/ A[45]\(.*?\)/,'').trim().includes(storeName.replace(/\s/g,''))
-  );
-  return matched ? matched.id : null;
+
+  // 2. SKU（管理番号）で検索 - 最優先
+  // STORESの商品名に管理番号が含まれているか確認
+  // 例: "ORG250 オルガニック250ml【予約】" → ORG250でマッチ
+  const skuMatch = PRODUCTS.find(function(p){
+    if(!p.sku) return false;
+    return storeName.toUpperCase().includes(p.sku.toUpperCase());
+  });
+  if(skuMatch){
+    // 最新ロット（A5）を優先
+    const latestLot = PRODUCTS.find(function(p){
+      return p.sku===skuMatch.sku && !p.old;
+    });
+    return latestLot ? latestLot.id : skuMatch.id;
+  }
+
+  // 3. 商品名の部分一致
+  const nameMatch = PRODUCTS.find(function(p){
+    const clean = p.name.replace(/ A[45]\(.*?\)/,'').trim();
+    return storeName.includes(clean) || clean.includes(storeName.replace(/\s/g,''));
+  });
+  return nameMatch ? nameMatch.id : null;
 }
 
 function showCSVPreview(orders){
@@ -1965,9 +2190,12 @@ function importCSV(){
 
   csvParsed.forEach(o=>{
     if(existingNums.has(o.num)){ skipped++; return; }
-    const lines = o.items.map(item=>{
+    const isReservation = o.items.some(function(item){
+      return item.productName.includes('予約') || item.productName.includes('reservation');
+    });
+    const lines = o.items.map(function(item){
       const pid = matchProduct(item.productName);
-      const prod = pid ? PRODUCTS.find(x=>x.id===pid) : null;
+      const prod = pid ? PRODUCTS.find(function(x){return x.id===pid;}) : null;
       return {
         productId: pid||0,
         giftType:'normal',
@@ -1975,10 +2203,24 @@ function importCSV(){
         boxes: 0,
         qty: item.qty,
         memo: pid?'':`要確認: ${item.productName}`,
-        isSet: prod?.isSet||false,
-        components: prod?.components||[]
+        isSet: prod?prod.isSet||false:false,
+        components: prod?prod.components||[]:[]
       };
     });
+    // 予約商品の場合はpreordersにも追加
+    if(isReservation){
+      lines.forEach(function(l){
+        if(!l.productId) return;
+        preorders.push({
+          id: Date.now()+imported+l.productId,
+          pid: l.productId,
+          client: o.buyer,
+          qty: l.qty,
+          note: 'STORES予約 '+o.num,
+          source: 'STORES'
+        });
+      });
+    }
     window.orders.unshift({
       id: Date.now()+imported,
       client: o.buyer,
@@ -1987,10 +2229,11 @@ function importCSV(){
       note: o.note,
       lines,
       totalBox:0, totalBag:0,
-      status:'pending',
+      status: isReservation ? 'reservation' : 'pending',
       registeredAt: o.date||ts(),
       shippedAt: null,
-      source: 'STORES'
+      source: 'STORES',
+      isReservation: isReservation
     });
     imported++;
   });
@@ -2057,30 +2300,8 @@ function removeMapping(name){
 }
 
 // ordersをwindowに公開（CSV取込から参照するため）
-
-
-// サンプル受注データ
-(function(){
-  orders.push({
-    id:1,client:'田中商店',num:'#1045',date:'2026-07-05',note:'のし希望',
-    lines:[
-      {productId:2,giftType:'gift',qty:2,memo:''},
-      {productId:9,giftType:'gift',qty:1,memo:''},
-      {productId:3,giftType:'normal',qty:3,memo:''},
-    ],
-    totalBox:3,totalBag:3,status:'pending',registeredAt:'2026/7/1 10:30',shippedAt:null
-  });
-  orders.push({
-    id:2,client:'山田食品株式会社',num:'#1046',date:'',note:'',
-    lines:[
-      {productId:8,giftType:'simple',qty:5,memo:''},
-      {productId:14,giftType:'normal',qty:10,memo:'法人注文'},
-    ],
-    totalBox:5,totalBag:0,status:'pending',registeredAt:'2026/7/1 14:15',shippedAt:null
-  });
-  updSummary();
-  updSlipSelect();
-})();
+updSummary();
+updSlipSelect();
 
 
 let categories = ['蓋不良（漏れあり）','ラベル不良（漏れなし）','その他'];
@@ -2142,9 +2363,42 @@ let products = [
   // 備品・資材
   // セット商品（選ぶと構成商品の在庫が自動計算される）
   {id:50, name:'your story 100ml×3本セット', group:'セット商品', type:'set',
-    components:[{pid:1,qty:1, incoming:0},{pid:7,qty:1, incoming:0},{pid:13,qty:1, incoming:0}], incoming:0},
-  {id:51, name:'your story 250ml×2本セット', group:'セット商品', type:'set',
-    components:[{pid:2,qty:1, incoming:0},{pid:8,qty:1, incoming:0}], incoming:0},
+    components:[
+      {pid:1, qty:1},   // オルガニック100ml
+      {pid:7, qty:1},   // メメジック100ml
+      {pid:13,qty:1},   // シェフズブレンド100ml
+      {pid:31,qty:1},   // 100ml3本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:51, name:'your story 250ml×2本セット A（ORG+MEM）', group:'セット商品', type:'set',
+    components:[
+      {pid:2, qty:1},   // オルガニック250ml
+      {pid:8, qty:1},   // メメジック250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:52, name:'your story 250ml×2本セット B（MEM+CHF）', group:'セット商品', type:'set',
+    components:[
+      {pid:8, qty:1},   // メメジック250ml
+      {pid:14,qty:1},   // シェフズブレンド250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:53, name:'your story 250ml×2本セット C（ORG+CHF）', group:'セット商品', type:'set',
+    components:[
+      {pid:2, qty:1},   // オルガニック250ml
+      {pid:14,qty:1},   // シェフズブレンド250ml
+      {pid:37,qty:1},   // 250ml2本ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
+  {id:54, name:'カップオイル3個ギフトセット oliveNOVA', group:'セット商品', type:'set',
+    components:[
+      {pid:23,qty:1},   // カップオイル グリーンブーケ（オルガニック）
+      {pid:24,qty:1},   // カップオイル グリーンバナナ（メメジック）
+      {pid:25,qty:1},   // カップオイル オレンジ&レモン（アグルミ）
+      {pid:30,qty:1},   // カップオイル用ギフト箱
+      {pid:33,qty:1}    // 紙袋 黒 大
+    ], incoming:0},
   {id:30, name:'カップオイル3個ギフト箱 oliveNOVA', group:'備品・資材', type:'supply', incoming:0},
   {id:31, name:'100ml3本ギフト箱 your story',        group:'備品・資材', type:'supply', incoming:0},
   {id:32, name:'紙袋 黒 小',              group:'備品・資材', type:'supply', incoming:0},
@@ -2231,7 +2485,6 @@ let logs = [];
 // =====================
 // ヘルパー
 // =====================
-function ts(){const d=new Date();return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');}
 function pLots(pid){return lots.filter(l=>l.pid===pid);}
 function totalStock(pid){return pLots(pid).reduce((s,l)=>s+l.stock,0);}
 function oldStock(pid){return pLots(pid).filter(l=>l.status==='old').reduce((s,l)=>s+l.stock,0);}
@@ -2243,7 +2496,19 @@ function totalAvail(pid){
   if(p.type==='set'){
     // セット商品：構成商品の在庫から計算（最小値がセット可能数）
     if(!p.components||!p.components.length) return 0;
-    return Math.min(...p.components.map(c=>Math.floor(totalAvail(c.pid)/c.qty)));
+    // 構成品（オイル・備品全て含む）の最小在庫でセット可能数を計算
+    const mins = p.components.map(function(c){
+      const cp = products.find(function(x){ return x.id===c.pid; });
+      if(!cp) return 0;
+      if(cp.type==='supply'){
+        // 備品は実在庫をそのまま使う
+        const supplyStock = lots.filter(function(l){ return l.pid===c.pid; })
+          .reduce(function(s,l){ return s+l.stock; }, 0);
+        return Math.floor(supplyStock / (c.qty||1));
+      }
+      return Math.floor(totalAvail(c.pid) / (c.qty||1));
+    });
+    return mins.length ? Math.min.apply(null, mins) : 0;
   }
   if(p.type==='supply'){
     return pLots(pid).reduce((s,l)=>s+l.stock-l.defect,0);
@@ -2288,6 +2553,26 @@ function updInvSels(){
 // =====================
 function renderInvTable(){
   const q = document.getElementById('inv-search').value.toLowerCase();
+
+  // 旧在庫バナーを更新
+  const oldLots = lots.filter(function(l){ return l.status==='old' && l.stock>0; });
+  const oldBannerEl = document.getElementById('old-stock-banner');
+  if(oldBannerEl){
+    if(oldLots.length > 0){
+      const oldItems = oldLots.map(function(l){
+        const p = products.find(function(x){ return x.id===l.pid; });
+        return (p?p.name.replace(/ A[45]\(.*?\)/,''):'?')+' '+l.stock+'本';
+      }).join('　/　');
+      oldBannerEl.innerHTML = '<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:12px">'
+        +'<span style="font-weight:700;color:#78350f">⚠️ 旧在庫（A4）あり：</span>'
+        +'<span style="color:#92400e">'+oldItems+'</span>'
+        +'<span style="color:#b45309;margin-left:10px;font-size:11px">— 値引き消化をご検討ください</span>'
+        +'</div>';
+    } else {
+      oldBannerEl.innerHTML = '';
+    }
+  }
+
   const groups = {};
   products.forEach(p=>{if(!groups[p.group]) groups[p.group]=[];groups[p.group].push(p);});
 
@@ -2305,13 +2590,17 @@ function renderInvTable(){
       if(hold>0) pills.push(`<span class="pill pill-hold">取置 ${hold}</span>`);
       const preqty=preorders.filter(r=>r.pid===p.id).reduce((s,r)=>s+r.qty,0);
       const unit = p.type==='supply'?'個':p.type==='set'?'セット':'本';
+      // SKU管理番号を取得
+      const skuLabel = p.sku ? '<span style="font-size:10px;color:#9ca3af;font-weight:400;margin-left:6px;background:#f3f4f6;padding:1px 5px;border-radius:3px">'+p.sku+'</span>' : '';
       html += `<tr>
-        <td style="font-weight:600;font-size:12px;padding-left:16px">${p.name}</td>
+        <td style="font-weight:600;font-size:12px;padding-left:16px">${p.name}${skuLabel}</td>
         <td style="font-weight:600">
           ${p.type==='set'
             ? '<span style="color:#7c3aed;font-size:11px">'+
               (p.components||[]).map(c=>{const cp=products.find(x=>x.id===c.pid);return (cp?cp.name:'?')+'×'+c.qty;}).join('<br>')+
-              '</span>'
+              '<br><span style="color:#9d174d;font-weight:700">★構成品の最小在庫に連動</span></span>'
+            : p.type==='supply'
+            ? '<span onclick="editStock('+p.id+')" title="クリックで在庫編集" style="cursor:pointer;border-bottom:1px dashed #aaa">'+stock+unit+'</span>'
             : '<span onclick="editStock('+p.id+')" title="クリックで在庫編集" style="cursor:pointer;border-bottom:1px dashed #aaa">'+stock+unit+'</span>'}
         </td>
         <td style="color:#b45309;font-weight:600">${old?old+unit:'-'}</td>
@@ -2325,10 +2614,39 @@ function renderInvTable(){
         <td><span class="${ac}" style="font-size:15px;font-weight:700">${avail}${unit}</span><div style="margin-top:2px">${pills.join('')}</div></td>
         <td><button class="btn-sm" onclick="setForm(${p.id},'in')">＋入庫</button> <button class="btn-sm" onclick="setForm(${p.id},'out')">－出庫</button></td>
       </tr>`;
+      // ロット行を商品行の直後に表示（オイルのみ）
+      if(p.type==='oil'){
+        const pLots = lots.filter(function(l){ return l.pid===p.id && (l.stock>0||l.defect>0); })
+          .sort(function(a,b){ return a.status==='new'?-1:1; });
+        pLots.forEach(function(lt){
+          const isOld = lt.status==='old';
+          const expiryStr = String(lt.expiry||'');
+          const parts = expiryStr.split('.');
+          let expiryWarn = false;
+          if(parts.length>=2){
+            const exp = new Date(parseInt(parts[0]), parseInt(parts[1])-1, 1);
+            expiryWarn = (exp-new Date())/(1000*60*60*24*30) < 6;
+          }
+          const lotBg = isOld ? '#fffbeb' : '#f9fafb';
+          const lotColor = isOld ? '#b45309' : '#6b7280';
+          const lotStockColor = isOld ? '#b45309' : '#374151';
+          html += '<tr style="background:'+lotBg+'">';
+          html += '<td style="padding:2px 10px 2px 36px;font-size:11px;color:'+lotColor+'">'
+            +(isOld?'└ ⚠️ A4':'└ ✓ A5')
+            +' <span style="color:#9ca3af">'+expiryStr+'</span>'
+            +(expiryWarn?' <span style="color:#dc2626;font-weight:700;font-size:10px">期限近い</span>':'')
+            +'</td>';
+          html += '<td style="padding:2px 8px;font-size:12px;font-weight:700;color:'+lotStockColor+'">'+lt.stock+'本'+(lt.defect?' <span style="color:#dc2626;font-size:10px">(不良'+lt.defect+')</span>':'')+'</td>';
+          html += '<td style="padding:2px 8px;font-size:10px;color:#dc2626">'+(lt.defect||0)+'</td>';
+          html += '<td colspan="5" style="padding:2px 8px;font-size:10px;color:#9ca3af">'+(isOld?'旧ロット'+(lt.stock>0?' — 値引き消化を検討':''):'')+'</td>';
+          html += '</tr>';
+        });
+      }
     });
   });
   document.getElementById('inv-tbl-body').innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:#999;padding:2rem">該当する商品がありません</td></tr>';
   updInvStats(); updInvAlerts(); updInvSels();
+  renderOrderStockSummary(); // 受注登録画面の在庫サマリーも更新
 }
 
 function updInvStats(){
@@ -2346,9 +2664,12 @@ function updInvAlerts(){
   const now = new Date();
   const warnLots = lots.filter(l=>{
     if(!l.expiry||l.expiry==='-') return false;
-    const parts = l.expiry.split('.');
+    const expiryStr = String(l.expiry); // 数値やDateオブジェクトでも安全に文字列化
+    const parts = expiryStr.split('.');
     if(parts.length<2) return false;
-    const exp = new Date(parseInt(parts[0]), parseInt(parts[1])-1, 1);
+    const y = parseInt(parts[0]), m = parseInt(parts[1]);
+    if(isNaN(y) || isNaN(m)) return false;
+    const exp = new Date(y, m-1, 1);
     const diff = (exp-now)/(1000*60*60*24*30);
     return diff < 6 && l.stock > 0;
   });
@@ -2366,6 +2687,37 @@ function updInvAlerts(){
 }
 
 function setForm(pid,type){
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p || p.type==='set') return;
+
+  // ＋入庫ボタンで「入庫予定数を実在庫に反映する」フローを優先
+  if(type==='in' && (p.incoming||0) > 0){
+    const incoming = p.incoming||0;
+    const unit = p.type==='supply'?'個':'本';
+    if(confirm('【入庫確認】\n'+p.name+'\n入庫予定数: '+incoming+unit+'\n\nこの数量を実在庫に追加しますか？\n（入庫予定はゼロになります）')){
+      // 入庫予定を実在庫に移す
+      let targetLot = lots.find(function(l){ return l.pid===pid && (l.status==='new'||l.status==='supply'); });
+      if(!targetLot && p.type==='supply'){
+        // 備品にlotsがなければ自動作成
+        targetLot = {id:Date.now(), pid:pid, lotCode:'-', expiry:'-', stock:0, defect:0, status:'supply', note:''};
+        lots.push(targetLot);
+      }
+      if(targetLot){
+        targetLot.stock += incoming;
+        logs.unshift({type:'in', tag:'入庫（予定→実在庫）', name:p.name, lot:lotLabel(targetLot), qty:incoming, note:'入庫予定'+incoming+unit+'を実在庫に反映', time:ts()});
+        p.incoming = 0;
+        renderInvTable();
+        renderInvLogs();
+        scheduleAutoSave();
+        showSyncStatus('✅ 入庫完了：'+p.name+' '+incoming+unit+'を実在庫に追加しました');
+      } else {
+        alert('ロットが登録されていません。ロット管理から先に登録してください。');
+      }
+      return;
+    }
+    // キャンセルなら通常フォームへ
+  }
+
   document.getElementById('f-product').value=pid;
   onProdChange('f-product','f-lot');
   document.getElementById('f-type').value=type;
@@ -2390,6 +2742,7 @@ function recordMovement(){
   logs.unshift({type,tag:type==='in'?'入庫':'出庫',name:p.name,lot:lotLabel(lot),qty,note,time:ts()});
   document.getElementById('f-qty').value=1; document.getElementById('f-note').value='';
   renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
 }
 
 // =====================
@@ -2421,7 +2774,7 @@ function renderLotPanel(){
           const unit=p.type==='supply'?'個':'本';
           const expColor = (()=>{
             if(!l.expiry||l.expiry==='-') return '';
-            const parts=l.expiry.split('.');
+            const parts=String(l.expiry).split('.');
             if(parts.length<2) return '';
             const exp=new Date(parseInt(parts[0]),parseInt(parts[1])-1,1);
             const diff=(exp-new Date())/(1000*60*60*24*30);
@@ -2497,6 +2850,7 @@ function addLot(){
   document.getElementById('l-lot').value='';document.getElementById('l-exp').value='';
   document.getElementById('l-qty').value=0;document.getElementById('l-note').value='';
   renderInvTable(); renderLotPanel(); renderInvLogs();
+  scheduleAutoSave();
 }
 
 // =====================
@@ -2523,6 +2877,7 @@ function addDefect(){
   logs.unshift({type:'defect',tag:'不良登録',name:p.name,lot:lotLabel(lot),qty,note:cat+(note?'/'+note:''),time:ts()});
   document.getElementById('d-qty').value=1;document.getElementById('d-note').value='';
   renderInvTable();renderDefects();renderInvLogs();
+  scheduleAutoSave();
 }
 function processDefect(id,action){
   const d  =defects.find(x=>x.id===id); if(!d) return;
@@ -2544,6 +2899,7 @@ function processDefect(id,action){
   }
   logs.unshift({type:'defect-resolve',tag:'不良処理:'+labels[action],name:p.name,lot:lotLabel(lot),qty:d.qty,note:d.cat,time:ts()});
   renderInvTable();renderDefects();renderInvLogs();
+  scheduleAutoSave();
 }
 function renderDefects(){
   const pending = defects.filter(function(d){ return d.status==='pending'; });
@@ -2790,6 +3146,7 @@ function addHold(){
   logs.unshift({type:'hold',tag:'取り置き登録',name:p.name,lot:'',qty,note:client,time:ts()});
   document.getElementById('h-qty').value=1;document.getElementById('h-client').value='';document.getElementById('h-date').value='';
   renderInvTable();renderHolds();renderInvLogs();
+  scheduleAutoSave();
 }
 function removeHold(id){
   const h=holds.find(x=>x.id===id); if(!h) return;
@@ -2866,19 +3223,35 @@ function openDefectShipFromHold(holdId){
 // =====================
 // 予約販売
 // =====================
+function updPreorderTotal(){
+  const pid = parseInt(document.getElementById('p-product').value)||0;
+  const p = products.find(function(x){ return x.id===pid; });
+  const bq = p ? (p.boxQty||1) : 1;
+  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes   = parseInt(document.getElementById('p-boxes').value)||0;
+  const total   = bottles + boxes*bq;
+  const el = document.getElementById('p-total-preview');
+  if(el) el.value = total+'本'+(boxes>0?' ('+boxes+'箱×'+bq+'本+バラ'+bottles+'本)':'');
+}
+
 function addPreorder(){
   const pid=parseInt(document.getElementById('p-product').value);
-  const qty=parseInt(document.getElementById('p-qty').value)||1;
+  const bottles=parseInt(document.getElementById('p-bottles').value)||0;
+  const boxes=parseInt(document.getElementById('p-boxes').value)||0;
   const client=document.getElementById('p-client').value||'未入力';
   const note=document.getElementById('p-note').value;
-  const p=products.find(x=>x.id===pid); if(!p) return;
+  const p=products.find(function(x){return x.id===pid;}); if(!p) return;
+  const bq = p.boxQty||1;
+  const qty = bottles + boxes*bq;
+  if(!qty){ alert('本数または箱数を入力してください'); return; }
   // 入庫予定数チェック
-  const totalPre = preorders.filter(r=>r.pid===pid).reduce((s,r)=>s+r.qty,0);
+  const totalPre = preorders.filter(function(r){return r.pid===pid;}).reduce(function(s,r){return s+r.qty;},0);
   const remaining = (p.incoming||0) - totalPre;
   if(remaining < qty){
     if(!confirm('入庫予定数を超えています（入庫予定: '+(p.incoming||0)+'本、予約済み: '+totalPre+'本、残り: '+remaining+'本）\n続けて予約しますか？')) return;
   }
-  preorders.push({id:Date.now(),pid,client,qty,note});
+  preorders.push({id:Date.now(),pid,client,qty,bottles,boxes,note});
+  scheduleAutoSave();
   logs.unshift({type:'pre',tag:'予約登録',name:p.name,lot:'',qty,note:client,time:ts()});
   document.getElementById('p-qty').value=1;document.getElementById('p-client').value='';document.getElementById('p-note').value='';
   renderInvTable();renderPreorders();renderInvLogs();
@@ -2908,6 +3281,7 @@ function renderPreorders(){
       ${rs.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #e8e7e3;font-size:12px">
         <span style="flex:1;color:#555">${r.client}</span><span style="font-weight:700">${r.qty}点</span>
         ${r.note?`<span style="color:#999">${r.note}</span>`:''}
+        <button class="btn-sm" style="background:#dbeafe;color:#1e3a8a;border-color:#185fa5" onclick="shipFromPreorder(${r.id})">📦 出荷指示</button>
         <button class="btn-sm" onclick="removePreorder(${r.id})">取消</button>
       </div>`).join('')}
     </div>`;
@@ -2971,8 +3345,12 @@ function showOrderPanel(name, btn){
   document.querySelectorAll('#sec-order .tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(btn) btn.classList.add('active');
+  if(name==='order') renderOrderStockSummary();
   if(name==='stores') initStoresPanel();
-  if(name==='list') renderList();
+  if(name==='list'){
+    renderList();
+    syncOrderStatusFromGAS(); // タブを開くたびに最新化
+  }
 }
 
 function showInvPanel(name, btn){
@@ -3001,6 +3379,18 @@ function buildLineMsg(){
     msg += '\nお届け先: ' + o.client;
     if(o.num) msg += ' (' + o.num + ')';
     msg += '\n';
+
+    // お客様区分（社外秘記号で表示：卸かどうか・リサイクル箱の判断材料）
+    const ctypeBadgeMap = {'wholesale1':'卸','wholesale2':'卸※','rt':'卸●'};
+    const ctypeBadge = ctypeBadgeMap[o.customerType];
+    if(ctypeBadge) msg += '区分: ' + ctypeBadge + '\n';
+
+    // リサイクル箱使用の有無を明示
+    if(o.useRecycle){
+      msg += '♻️ リサイクル箱使用OK\n';
+    } else if(ctypeBadge){
+      msg += '🆕 新品箱を使用（リサイクル箱は使用しません）\n';
+    }
 
     const lt = o.leadType||'normal';
     const ltLabel = {'urgent':'🚨 急ぎ：明日までに発送','normal':'📦 通常：3日以内','scheduled':'🗓 日程指定：'+(o.leadDate||'')+'着'}[lt]||'通常';
@@ -3121,9 +3511,10 @@ function showModal(msg){
 // 印刷機能（出荷指示書・納品書を別々に印刷）
 // ════════════════════════════════════
 function printSlip(){
-  // 納品書を非表示にして出荷指示書だけ印刷
+  // 印刷前に必ずデータを保存（ブラウザの戻るボタンで消えても復元できるように）
+  syncOrders();
+  saveAllDataToGAS();
   const invoiceArea = document.getElementById('invoice-area');
-  const slipArea = document.getElementById('slip-area');
   const prevInvoice = invoiceArea.style.display;
   invoiceArea.style.display = 'none';
   window.print();
@@ -3131,82 +3522,10 @@ function printSlip(){
 }
 
 function printInvoice(){
-  // 先に納品書を生成してから、出荷指示書を非表示にして印刷
-  generateInvoice();
-  setTimeout(function(){
-    const slipArea = document.getElementById('slip-area');
-    const lineSendBtn = document.getElementById('line-send-btn');
-    const invoiceBtn = document.getElementById('invoice-btn');
-    const allSlipBtns = document.querySelector('#panel-slip .no-print');
-    // 出荷指示書エリアを一時的に非表示
-    slipArea.style.display = 'none';
-    if(allSlipBtns) allSlipBtns.style.display = 'none';
-    window.print();
-    // 印刷後に戻す
-    slipArea.style.display = '';
-    if(allSlipBtns) allSlipBtns.style.display = '';
-  }, 300);
+  printCurrentInvoice();
 }
 
-// ════════════════════════════════════
-// 納品書をGoogleドライブに保存
-// ════════════════════════════════════
-function saveInvoiceToGAS(order){
-  if(!gasSyncEnabled) return;
-  // 納品書HTMLを生成
-  const invoiceEl = document.getElementById('invoice-'+order.id);
-  if(!invoiceEl) return;
-  const html = '<html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ccc}th{background:#f5f5f5}</style></head><body>'+invoiceEl.innerHTML+'</body></html>';
-  
-  const today = new Date().toISOString().split('T')[0];
-  const invoiceData = {
-    orderId: order.id,
-    orderNum: order.num||'',
-    client: order.client||'',
-    date: today,
-    html: html
-  };
-  
-  const encoded = encodeURIComponent(JSON.stringify(invoiceData));
-  fetch(GAS_URL + '?action=saveInvoice&invoiceData=' + encoded)
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.status==='ok'){
-        showSyncStatus('✅ 納品書をドライブに保存しました');
-        // リンクを表示
-        if(d.url){
-          const btn = document.createElement('a');
-          btn.href = d.url;
-          btn.target = '_blank';
-          btn.textContent = '📄 Googleドライブで開く';
-          btn.style.cssText = 'display:inline-block;margin-top:10px;padding:6px 14px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-size:13px';
-          const area = document.getElementById('invoice-area');
-          if(area) area.appendChild(btn);
-        }
-      } else {
-        showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
-      }
-    }).catch(function(){
-      showSyncStatus('⚠️ 接続エラー', true);
-    });
-}
 
-// ════════════════════════════════════
-// 不良在庫をGASに送信
-// ════════════════════════════════════
-function syncDefectToGAS(defect){
-  if(!gasSyncEnabled) return;
-  fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({action:'addDefect', defect: defect}),
-    headers: {'Content-Type':'application/json'}
-  }).then(function(r){ return r.json(); }).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 不良在庫をスプシに保存しました');
-    else showSyncStatus('⚠️ 保存エラー: '+d.message, true);
-  }).catch(function(){
-    showSyncStatus('⚠️ 接続エラー', true);
-  });
-}
 
 // ════════════════════════════════════
 // 初期化
@@ -3217,6 +3536,18 @@ updatePreview();
 renderInvTable();
 renderInvLogs();
 updCustomerSelects();
+setNewOrderNum();
+renderOrderStockSummary();
+loadAllDataFromGAS(); // 保存されたデータを読み込む
+syncOrderStatusFromGAS(); // 受注ステータスを最新化
+
+// ページを離れる時に警告（誤操作防止）
+window.addEventListener('beforeunload', function(e){
+  if(orders.length > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 
 // ════════════════════════════════════
@@ -3289,6 +3620,7 @@ function openDefectHoldModal(pid){
     modal.style.display = 'none';
     renderDefects();
     checkDefectHoldAlerts();
+    scheduleAutoSave();
     alert('取り置きを登録しました。\n'+client+' 様 '+qty+'本 期限: '+until);
   });
   document.getElementById('dh-close-btn').addEventListener('click', function(){
@@ -3300,6 +3632,7 @@ function removeDefectHold(id){
   if(!confirm('この取り置きを解除しますか？')) return;
   defectHolds = defectHolds.filter(function(h){ return h.id!==id; });
   renderDefects();
+  scheduleAutoSave();
 }
 
 // 取り置き期限アラートチェック（1週間前）
@@ -3470,6 +3803,7 @@ function executeDefectShip(defectId, normalPrice, suggestPrice){
   document.getElementById('line-send-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-flex';
 
+  scheduleAutoSave();
   alert('出荷指示書を作成しました。\n特価: '+price.toLocaleString()+'円/本\n\n倉庫チェック表にも転記しました。');
 }
 
@@ -3485,6 +3819,7 @@ function editIncoming(pid){
   if(isNaN(newQty)||newQty<0){ alert('正しい数値を入力してください'); return; }
   p.incoming = newQty;
   renderInvTable();
+  scheduleAutoSave();
 }
 
 function editStock(pid){
@@ -3524,6 +3859,185 @@ function editStock(pid){
 }
 
 // ════════════════════════════════════
+// 予約から出荷指示を作成
+// ════════════════════════════════════
+function shipFromPreorder(preId){
+  const r = preorders.find(function(x){ return x.id===preId; });
+  if(!r) return;
+  const p = products.find(function(x){ return x.id===r.pid; });
+  if(!p){ alert('商品が見つかりません'); return; }
+
+  if(!confirm(r.client+' 様の予約（'+r.qty+'本）の出荷指示を作成しますか？')) return;
+
+  const preOrder = {
+    id: Date.now(),
+    client: r.client,
+    num: r.note||'',
+    date: '',
+    note: '【予約出荷】'+r.note,
+    leadType: 'normal',
+    leadDate: '',
+    delivTime: '',
+    lines: [{
+      productId: p.id,
+      productName: p.name,
+      giftType: 'normal',
+      bottles: r.bottles||r.qty,
+      boxes: r.boxes||0,
+      qty: r.qty,
+      memo: '予約分',
+      boxQty: p.boxQty||1
+    }],
+    totalBox:0, totalBag:0,
+    status:'pending',
+    registeredAt: ts(),
+    shippedAt: null,
+    isReservation: true
+  };
+
+  orders.unshift(preOrder);
+  // 予約から削除
+  preorders = preorders.filter(function(x){ return x.id!==preId; });
+
+  updSummary();
+  updSlipSelect();
+  renderPreorders();
+  syncOrders();
+
+  // 出荷指示書タブへ
+  currentSlipOrders = [preOrder];
+  switchSection('order', document.querySelectorAll('.topnav-tab')[0]);
+  showOrderPanel('slip', document.querySelectorAll('#sec-order .tab')[3]);
+  renderSlip([preOrder]);
+  document.getElementById('line-send-btn').style.display = 'flex';
+  document.getElementById('invoice-btn').style.display = 'inline-flex';
+
+  alert('出荷指示書を作成しました。');
+}
+
+// ════════════════════════════════════
+// お客様区分の変更ミス防止アラート
+// ════════════════════════════════════
+function checkCtypeMismatch(newType){
+  const client = (document.getElementById('o-client')||{value:''}).value.trim();
+  if(!client) return;
+
+  // 過去の受注履歴から同じお客様名の最新の区分を探す
+  const pastOrders = orders.filter(function(o){
+    return o.client === client && o.status !== 'cancelled' && o.customerType;
+  }).sort(function(a,b){ return (b.registeredAt||'').localeCompare(a.registeredAt||''); });
+
+  if(!pastOrders.length) return; // 過去履歴なし
+
+  const lastType = pastOrders[0].customerType;
+  if(lastType && lastType !== newType){
+    const labels = {'general':'定価','wholesale1':'卸①（仲卸価格）','wholesale2':'卸②（一般卸価格）','rt':'RT（ホテル）'};
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea){
+      warnArea.innerHTML = '<div class="alert-bar alert-danger" style="margin-bottom:10px">'
+        +'⚠️ 「'+client+'」様は前回「'+(labels[lastType]||lastType)+'」でご注文されています。今回は「'+(labels[newType]||newType)+'」が選択されています。区分の変更で間違いないですか？'
+        +'</div>';
+    }
+  } else {
+    const warnArea = document.getElementById('ctype-mismatch-warn');
+    if(warnArea) warnArea.innerHTML = '';
+  }
+}
+
+// ════════════════════════════════════
+// 注文番号の自動採番
+// ════════════════════════════════════
+function generateOrderNum(){
+  const now = new Date();
+  const ym = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字(0,O,1,I)を除外
+  let rand = '';
+  for(let i=0; i<4; i++){
+    rand += chars[Math.floor(Math.random()*chars.length)];
+  }
+  return ym + '-' + rand;
+}
+
+// フォームを開いたとき・クリア時に新しい番号を自動セット
+function setNewOrderNum(){
+  const el = document.getElementById('o-num');
+  if(el) el.value = generateOrderNum();
+}
+
+// ════════════════════════════════════
+// お客様マスタへの自動追加
+// ════════════════════════════════════
+function ensureCustomerInMaster(client, ctype, zip, addr, tel){
+  if(!client) return;
+  const existing = customers.find(function(c){ return c.name === client; });
+  if(existing){
+    // 既存があれば最新の情報で区分・住所を更新（変わっていれば）
+    existing.type = ctype || existing.type;
+    if(zip)  existing.zip  = zip;
+    if(addr) existing.addr = addr;
+    if(tel)  existing.tel  = tel;
+  } else {
+    customers.push({
+      id: ++customerIdCounter,
+      name: client,
+      zip: zip||'', addr: addr||'', tel: tel||'',
+      type: ctype||'general',
+      recycle: isWholesale(ctype),
+      note: ''
+    });
+  }
+  updCustomerSelects();
+}
+
+// ════════════════════════════════════
+// 受注登録画面の在庫サマリー
+// ════════════════════════════════════
+function renderOrderStockSummary(){
+  const el = document.getElementById('order-stock-summary');
+  if(!el) return;
+  const oilProducts = products.filter(function(p){
+    return p.type==='oil' && !p.old && !p.noWholesale;
+  });
+  el.innerHTML = oilProducts.map(function(p){
+    const avail = totalAvail(p.id);
+    const old = oldStock(p.id);
+    const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
+    let color = '#374151';
+    let bg = '#fff';
+    let border = '#e8e7e3';
+    if(avail <= 0){ color='#dc2626'; bg='#fee2e2'; border='#fca5a5'; }
+    else if(avail <= 5){ color='#b45309'; bg='#fef3c7'; border='#f59e0b'; }
+    return '<div style="background:'+bg+';border:1px solid '+border+';border-radius:6px;padding:4px 8px;color:'+color+';white-space:nowrap">'
+      +'<span style="font-weight:600">'+cleanName+'</span>'
+      +' <span style="font-weight:700">'+avail+'本</span>'
+      +(old>0?' <span style="font-size:10px;color:#b45309">旧+'+old+'</span>':'')
+      +'</div>';
+  }).join('');
+}
+
+// ════════════════════════════════════
+// 受注登録時の在庫ヒント表示
+// ════════════════════════════════════
+function showStockHint(sel){
+  const pid = parseInt(sel.value);
+  const hintEl = sel.parentNode.querySelector('.stock-hint');
+  if(!hintEl) return;
+  if(!pid){ hintEl.textContent=''; return; }
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p){ hintEl.textContent=''; return; }
+  const avail = totalAvail(pid);
+  const stock = totalStock(pid);
+  const unit = p.type==='supply'?'個':'本';
+  if(avail <= 0){
+    hintEl.innerHTML = '<span style="color:#dc2626;font-weight:700">⚠️ 在庫不足（販売可能: 0'+unit+'）</span>';
+  } else if(avail <= 5){
+    hintEl.innerHTML = '<span style="color:#f59e0b;font-weight:700">⚠️ 残り少ない（販売可能: '+avail+unit+'）</span>';
+  } else {
+    hintEl.innerHTML = '<span style="color:#16a34a">✓ 販売可能: '+avail+unit+'（実在庫: '+stock+unit+'）</span>';
+  }
+}
+
+// ════════════════════════════════════
 // キャンセル機能
 // ════════════════════════════════════
 function cancelOrder(id){
@@ -3551,6 +4065,7 @@ function cancelOrder(id){
   holds = holds.filter(function(h){ return h.orderId !== o.id; });
   renderInvTable();
   renderInvLogs();
+  scheduleAutoSave();
 
   updSummary();
   renderList();
@@ -3597,6 +4112,7 @@ function saveFacility(){
   renderFacMaster();
   // 受注登録の施設選択も更新
   updFacSelects();
+  scheduleAutoSave();
 }
 
 function editFacility(id){
@@ -3872,6 +4388,49 @@ function showFacPanel(name, btn){
 }
 
 // ════════════════════════════════════
+// 受注ステータスをスプレッドシートと同期
+// ════════════════════════════════════
+function syncOrderStatusFromGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL + '?action=loadAll')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status!=='ok' || !d.data || !d.data.orders) return;
+      const remoteOrders = d.data.orders;
+
+      remoteOrders.forEach(function(ro){
+        const local = orders.find(function(o){ return String(o.id)===String(ro.id); });
+        if(local){
+          // 既にローカルにある注文：ステータスだけ最新化
+          if(ro.status && local.status !== ro.status){
+            local.status = ro.status;
+            if(ro.shippedAt) local.shippedAt = ro.shippedAt;
+          }
+        } else {
+          // ローカルにない過去の注文：復元する（区分変更チェック・履歴表示のため）
+          orders.push({
+            id: ro.id, client: ro.client, num: ro.num,
+            customerType: ro.customerType, zip: ro.zip, addr: ro.addr, tel: ro.tel,
+            leadType: ro.leadType, date: ro.date, delivTime: ro.delivTime, note: ro.note,
+            status: ro.status, registeredAt: ro.registeredAt, shippedAt: ro.shippedAt,
+            cancelledAt: ro.cancelledAt, useRecycle: ro.useRecycle,
+            lines: [] // 商品明細は持たない簡易復元（ステータス・区分判定にのみ使用）
+          });
+        }
+      });
+
+      // 登録日時の新しい順に並び替え
+      orders.sort(function(a,b){ return (b.registeredAt||'').localeCompare(a.registeredAt||''); });
+
+      renderList();
+      updSummary();
+      updSlipSelect();
+    }).catch(function(){
+      console.log('受注ステータス同期エラー（オフライン時は正常）');
+    });
+}
+
+// ════════════════════════════════════
 // お客様マスタ連動
 // ════════════════════════════════════
 function updCustomerSelects(){
@@ -3902,6 +4461,8 @@ function onCustomerSelect(){
 
 function onClientInput(){
   document.getElementById('o-customer-select').value = '';
+  const ctype = document.getElementById('o-ctype').value;
+  checkCtypeMismatch(ctype);
 }
 
 function clearCustomerSelect(){
@@ -3916,6 +4477,7 @@ function clearCustomerSelect(){
 
 function onCtypeChange(){
   const type = document.getElementById('o-ctype').value;
+  checkCtypeMismatch(type);
   const recycleArea = document.getElementById('recycle-badge-area');
   if(isWholesale(type) || type==='rt'){
     // 卸・RTは自動でリサイクル箱ON（チェック済みで表示）
@@ -3949,15 +4511,67 @@ function checkGiftSender(){
 // ════════════════════════════════════
 // 納品書生成
 // ════════════════════════════════════
-function generateInvoice(){
+// 納品書ページ管理
+let currentInvoiceIdx = 0;
+
+function startInvoiceView(){
   if(!currentSlipOrders || !currentSlipOrders.length){
     alert('先に出荷指示書を作成してください');
     return;
   }
+  currentInvoiceIdx = 0;
+  document.getElementById('invoice-nav').style.display = 'flex';
+  showInvoicePage(0);
+}
+
+function invoicePage(delta){
+  const newIdx = currentInvoiceIdx + delta;
+  if(newIdx < 0 || newIdx >= currentSlipOrders.length) return;
+  currentInvoiceIdx = newIdx;
+  showInvoicePage(newIdx);
+}
+
+function showInvoicePage(idx){
+  const o = currentSlipOrders[idx];
+  if(!o) return;
+  const total = currentSlipOrders.length;
+  document.getElementById('invoice-page-label').textContent = (idx+1)+' / '+total+'件';
+  generateInvoiceForOrder(o);
+  document.getElementById('invoice-area').scrollIntoView({behavior:'smooth'});
+}
+
+function printCurrentInvoice(){
+  // 印刷前に保存
+  syncOrders();
+  saveAllDataToGAS();
+  const slipArea = document.getElementById('slip-area');
+  const allSlipBtns = document.querySelector('#panel-slip .no-print');
+  slipArea.style.display = 'none';
+  if(allSlipBtns) allSlipBtns.style.display = 'none';
+  window.print();
+  slipArea.style.display = '';
+  if(allSlipBtns) allSlipBtns.style.display = '';
+}
+
+function generateInvoice(){
+  // 後方互換（1件の場合はそのままstartInvoiceViewを呼ぶ）
+  startInvoiceView();
+}
+
+function generateInvoiceForOrder(o){
+  if(!currentSlipOrders || !currentSlipOrders.length){
+    alert('先に出荷指示書を作成してください');
+    return;
+  }
+  currentInvoiceIdx = 0;
+  document.getElementById('invoice-nav').style.display = 'flex';
+  showInvoicePage(0);
+}
+
+function generateInvoiceForOrder(o){
   const invoiceArea = document.getElementById('invoice-area');
   let html = '';
-
-  currentSlipOrders.forEach(function(o){
+  (function(){
     const lines = (o.lines||[]).filter(function(l){ return !MATERIAL_IDS.includes(l.productId); });
     const ctype = o.customerType||'general';
     const isRecycle = o.useRecycle || false;
@@ -4031,7 +4645,17 @@ function generateInvoice(){
       const lineTotal = unitPrice ? unitPrice*tot : 0;
       // 商品名からロット情報を除去
       const cleanName = p.name.replace(/ A[45]\(.*?\)/,'');
-      const displayName = o.isDefectSale ? cleanName+'　※訳あり品' : cleanName;
+      // 区分バッジ（社外秘のため記号化：卸①=「卸」卸②=「卸※」RT=「卸●」）
+      const ctypeBadgeMap = {'wholesale1':'卸','wholesale2':'卸※','rt':'卸●'};
+      const ctypeBadge = ctypeBadgeMap[ctype];
+      const badgeHtml = ctypeBadge
+        ? '<span style="display:inline-block;background:#dbeafe;color:#1e3a8a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px">'+ctypeBadge+'</span>'
+        : '';
+      // 不良在庫の特価出荷は「特化」バッジ
+      const defectBadge = o.isDefectSale
+        ? '<span style="display:inline-block;background:#fef3c7;color:#78350f;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px">特化</span>'
+        : '';
+      const displayName = badgeHtml + defectBadge + cleanName;
       html += '<tr>';
       html += '<td style="font-weight:600">'+displayName+'</td>';
       html += '<td style="text-align:center">'+tot+'本</td>';
@@ -4074,14 +4698,6 @@ function generateInvoice(){
   invoiceArea.innerHTML = html;
   invoiceArea.scrollIntoView({behavior:'smooth'});
   
-  // GAS保存ボタンを追加
-  if(currentSlipOrders.length === 1){
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = '☁️ 納品書をGoogleドライブに保存';
-    saveBtn.style.cssText = 'margin-top:12px;padding:8px 20px;background:#4285f4;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer';
-    saveBtn.onclick = function(){ saveInvoiceToGAS(currentSlipOrders[0]); };
-    invoiceArea.appendChild(saveBtn);
-  }
 }
 
 
