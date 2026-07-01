@@ -384,10 +384,12 @@ body{background:#fff}
     <button class="btn btn-primary no-print" onclick="downloadInvoicePdf()" id="invoice-pdf-btn" style="display:none">⬇️ 納品書をPDF化</button>
   </div>
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
-    <button class="btn-line" id="line-send-btn" onclick="copyForLine()" style="display:none">
-      <span style="font-size:16px">📋</span> テキストをコピーしてLINEで送る
+    <button class="btn-line" id="line-send-btn" onclick="sendToLine()" style="display:none">
+      <span style="font-size:16px">📱</span> LINEで送る（送り先グループを選択）
     </button>
+    <button class="btn-sm no-print" onclick="copyForLine()">📋 テキストだけコピー</button>
   </div>
+
   <div id="slip-area"></div>
   <div id="invoice-area"></div>
 </div>
@@ -1255,20 +1257,36 @@ function printSlip(){
   window.print();
   document.getElementById('invoice-area').style.display = '';
 }
-function copyForLine(){
-  const o = window._currentSlipOrder;
-  if(!o) return;
+function buildLineText(o){
   const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
-  let text = '【出荷指示】'+o.num+'\n';
+  const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
+  let text = '【出荷指示】'+o.num+(hasGift?'　🎁ギフトあり':'')+'\n';
   text += 'お届け先：'+(o.isCompany ? [o.companyName,o.deptName,o.positionName,o.personName].filter(Boolean).join(' ') : (o.recipientName||o.client))+'\n';
+  text += '〒'+(o.zip||'')+' '+(o.addr||'')+'\n';
+  text += 'TEL：'+(o.tel||'-')+'\n';
   text += '区分：'+leadLabel+'\n';
+  if(o.delivTime) text += '配達時間：'+o.delivTime+'\n';
   if(o.useRecycle) text += '♻ リサイクル箱使用\n';
   text += '商品：\n';
   (o.lines||[]).forEach(function(l){
     text += '・'+l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')+'\n';
   });
   if(o.note) text += '備考：'+o.note+'\n';
+  return text;
+}
+function copyForLine(){
+  const o = window._currentSlipOrder;
+  if(!o) return;
+  const text = buildLineText(o);
   navigator.clipboard.writeText(text).then(function(){ showSyncStatus('📋 テキストをコピーしました'); }).catch(function(){ alert(text); });
+}
+function sendToLine(){
+  const o = window._currentSlipOrder;
+  if(!o) return;
+  const text = buildLineText(o);
+  // LINEアプリを開き、送り先（グループ）を選んで送信できる画面を表示します
+  window.open('https://line.me/R/msg/text/?'+encodeURIComponent(text), '_blank');
+  navigator.clipboard.writeText(text).catch(function(){});
 }
 
 // ── 納品書 ────────────────────────────────────────────
