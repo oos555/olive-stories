@@ -454,6 +454,7 @@ tr:last-child td{border-bottom:none}
 
   <!-- 在庫一覧 -->
   <div id="panel-inv" class="panel active">
+    <div id="old-stock-banner"></div>
     <div id="inv-alert-area"></div>
     <div class="stats">
       <div class="stat" style="border-left:3px solid #555"><div class="stat-label">倉庫の実在庫</div><div class="stat-val c-gray" id="s-stock">-</div><div class="stat-sub">旧ロット・不良含む</div></div>
@@ -486,9 +487,9 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <div style="margin-top:2rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1.25rem 1.5rem">
-    <div style="font-weight:700;font-size:14px;color:#0369a1;margin-bottom:10px">📖 在庫一覧の使い方</div>
-    <div style="font-size:12px;color:#334155;line-height:1.8">
+  <details style="margin-top:1.5rem;border:1px solid #bae6fd;border-radius:10px;overflow:hidden">
+    <summary style="background:#f0f9ff;padding:10px 16px;font-weight:700;font-size:13px;color:#0369a1;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">❓ 在庫一覧の使い方を見る</summary>
+    <div style="padding:1rem 1.25rem;background:#fff;font-size:12px;color:#334155;line-height:1.8">
       <b>【実在庫の数字をクリック】</b><br>クリックすると数字を直接入力できます。緊急で在庫数を修正したい時に使ってください。<br><br>
       <b>【入庫予定の数字をクリック】</b><br>次回入庫予定の数量を入力しておきます。例：輸入予定が50本なら「50」と入力。<br><br>
       <b>【操作：＋入庫ボタン】</b><br>入庫予定数が入っている場合 → 「入庫予定○本を実在庫に追加しますか？」と確認ダイアログが出ます。OKで実在庫が増え、入庫予定がゼロになります。入庫予定がゼロの場合 → 通常の入庫フォームが開きます。<br><br>
@@ -534,9 +535,9 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <div style="margin-top:2rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:1.25rem 1.5rem">
-    <div style="font-weight:700;font-size:14px;color:#0369a1;margin-bottom:10px">📖 不良在庫の使い方</div>
-    <div style="font-size:12px;color:#334155;line-height:1.8">
+  <details style="margin-top:1.5rem;border:1px solid #bae6fd;border-radius:10px;overflow:hidden">
+    <summary style="background:#f0f9ff;padding:10px 16px;font-weight:700;font-size:13px;color:#0369a1;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">❓ 不良在庫の使い方を見る</summary>
+    <div style="padding:1rem 1.25rem;background:#fff;font-size:12px;color:#334155;line-height:1.8">
       <b>【不良品を登録する】</b><br>発見した不良品は、商品・不良理由・本数・メモを入力して「不良品として登録」ボタンを押します。登録された不良品は実在庫・販売可能数から自動除外されます。<br><br>
       <b>【不良在庫の処理方法】</b><br>
       📦 値引き出荷：お客様に特価で販売する場合。お届け先・価格を入力すると出荷指示書が自動作成され、納品書に「訳あり品（特化）」と記載されます。<br>
@@ -547,7 +548,7 @@ tr:last-child td{border-bottom:none}
       <b>【農園フィードバック用レポート】</b><br>「不良在庫 処理履歴レポート」で商品ごとの不良発生状況と処理結果を集計できます。農園へのフィードバック資料としてご活用ください。<br><br>
       <b>【不良理由の種類】</b><br>蓋不良（漏れあり）：値引き出荷・廃棄・返品が選べます。ラベル不良（漏れなし）：再ラベルで通常在庫に復活させることができます。その他：状況に応じて処理方法を選択してください。
     </div>
-  </div>
+  </details>
 
   <!-- 取り置き -->
   <div id="panel-hold" class="panel">
@@ -1121,6 +1122,30 @@ function onProductSelect(sel, lineId){
       giftSel.disabled = false;
       giftSel.style.color = '';
       giftSel.style.background = '';
+    }
+  }
+
+  // 在庫ヒントを商品セレクトの直後に表示
+  let hintEl = document.getElementById('stock-hint-'+lineId);
+  if(!hintEl){
+    hintEl = document.createElement('div');
+    hintEl.id = 'stock-hint-'+lineId;
+    hintEl.style.cssText = 'font-size:11px;margin:2px 0 4px 2px;min-height:14px';
+    sel.parentNode.insertBefore(hintEl, sel.nextSibling);
+  }
+  if(!pid){ hintEl.textContent=''; }
+  else {
+    const p = products.find(function(x){ return x.id===pid; });
+    if(p){
+      const avail = totalAvail(pid);
+      const unit = p.type==='supply'?'個':'本';
+      if(avail<=0){
+        hintEl.innerHTML = '<span style="color:#dc2626;font-weight:700">⚠️ 在庫不足（販売可能: 0'+unit+'）</span>';
+      } else if(avail<=5){
+        hintEl.innerHTML = '<span style="color:#f59e0b;font-weight:700">⚠️ 残り少ない（販売可能: '+avail+unit+'）</span>';
+      } else {
+        hintEl.innerHTML = '<span style="color:#16a34a">✓ 販売可能: '+avail+unit+'</span>';
+      }
     }
   }
   updatePreview();
@@ -2517,6 +2542,26 @@ function updInvSels(){
 // =====================
 function renderInvTable(){
   const q = document.getElementById('inv-search').value.toLowerCase();
+
+  // 旧在庫バナーを更新
+  const oldLots = lots.filter(function(l){ return l.status==='old' && l.stock>0; });
+  const oldBannerEl = document.getElementById('old-stock-banner');
+  if(oldBannerEl){
+    if(oldLots.length > 0){
+      const oldItems = oldLots.map(function(l){
+        const p = products.find(function(x){ return x.id===l.pid; });
+        return (p?p.name.replace(/ A[45]\(.*?\)/,''):'?')+' '+l.stock+'本';
+      }).join('　/　');
+      oldBannerEl.innerHTML = '<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:12px">'
+        +'<span style="font-weight:700;color:#78350f">⚠️ 旧在庫（A4）あり：</span>'
+        +'<span style="color:#92400e">'+oldItems+'</span>'
+        +'<span style="color:#b45309;margin-left:10px;font-size:11px">— 値引き消化をご検討ください</span>'
+        +'</div>';
+    } else {
+      oldBannerEl.innerHTML = '';
+    }
+  }
+
   const groups = {};
   products.forEach(p=>{if(!groups[p.group]) groups[p.group]=[];groups[p.group].push(p);});
 
@@ -2571,13 +2616,18 @@ function renderInvTable(){
             const exp = new Date(parseInt(parts[0]), parseInt(parts[1])-1, 1);
             expiryWarn = (exp-new Date())/(1000*60*60*24*30) < 6;
           }
-          html += '<tr style="background:'+(isOld?'#fffbeb':'#f9fafb')+'">';
-          html += '<td style="padding:3px 10px 3px 32px;font-size:11px;color:'+(isOld?'#b45309':'#555')+'">';
-          html += (isOld?'⚠️ ':'✓ ')+'['+lt.lotCode+'] '+expiryStr+(expiryWarn?' <span style="color:#dc2626;font-weight:700">期限近い</span>':'');
-          html += '</td>';
-          html += '<td style="padding:3px 8px;font-size:11px;font-weight:600;color:'+(isOld?'#b45309':'#374151')+'">'+lt.stock+'本</td>';
-          html += '<td style="padding:3px 8px;font-size:11px;color:#dc2626">'+(lt.defect||0)+'</td>';
-          html += '<td colspan="5" style="padding:3px 8px;font-size:10px;color:#9ca3af">'+(isOld?'⚠ 旧ロット'+(lt.stock>0?' — 値引き消化を検討':''):'最新ロット')+'</td>';
+          const lotBg = isOld ? '#fffbeb' : '#f9fafb';
+          const lotColor = isOld ? '#b45309' : '#6b7280';
+          const lotStockColor = isOld ? '#b45309' : '#374151';
+          html += '<tr style="background:'+lotBg+'">';
+          html += '<td style="padding:2px 10px 2px 36px;font-size:11px;color:'+lotColor+'">'
+            +(isOld?'└ ⚠️ A4':'└ ✓ A5')
+            +' <span style="color:#9ca3af">'+expiryStr+'</span>'
+            +(expiryWarn?' <span style="color:#dc2626;font-weight:700;font-size:10px">期限近い</span>':'')
+            +'</td>';
+          html += '<td style="padding:2px 8px;font-size:12px;font-weight:700;color:'+lotStockColor+'">'+lt.stock+'本'+(lt.defect?' <span style="color:#dc2626;font-size:10px">(不良'+lt.defect+')</span>':'')+'</td>';
+          html += '<td style="padding:2px 8px;font-size:10px;color:#dc2626">'+(lt.defect||0)+'</td>';
+          html += '<td colspan="5" style="padding:2px 8px;font-size:10px;color:#9ca3af">'+(isOld?'旧ロット'+(lt.stock>0?' — 値引き消化を検討':''):'')+'</td>';
           html += '</tr>';
         });
       }
@@ -3935,6 +3985,28 @@ function ensureCustomerInMaster(client, ctype, zip, addr, tel){
     });
   }
   updCustomerSelects();
+}
+
+// ════════════════════════════════════
+// 受注登録時の在庫ヒント表示
+// ════════════════════════════════════
+function showStockHint(sel){
+  const pid = parseInt(sel.value);
+  const hintEl = sel.parentNode.querySelector('.stock-hint');
+  if(!hintEl) return;
+  if(!pid){ hintEl.textContent=''; return; }
+  const p = products.find(function(x){ return x.id===pid; });
+  if(!p){ hintEl.textContent=''; return; }
+  const avail = totalAvail(pid);
+  const stock = totalStock(pid);
+  const unit = p.type==='supply'?'個':'本';
+  if(avail <= 0){
+    hintEl.innerHTML = '<span style="color:#dc2626;font-weight:700">⚠️ 在庫不足（販売可能: 0'+unit+'）</span>';
+  } else if(avail <= 5){
+    hintEl.innerHTML = '<span style="color:#f59e0b;font-weight:700">⚠️ 残り少ない（販売可能: '+avail+unit+'）</span>';
+  } else {
+    hintEl.innerHTML = '<span style="color:#16a34a">✓ 販売可能: '+avail+unit+'（実在庫: '+stock+unit+'）</span>';
+  }
 }
 
 // ════════════════════════════════════
