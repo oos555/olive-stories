@@ -128,6 +128,7 @@ body{background:#fff}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -169,7 +170,7 @@ body{background:#fff}
     <div class="sec">新規受注を登録</div>
     <div class="g2">
       <div class="fg">
-        <label>お客様名 <span style="font-size:11px;color:#888">（選択または直接入力）</span></label>
+        <label>お客様名（発注元） <span style="font-size:11px;color:#888">（選択または直接入力）</span></label>
         <div style="display:flex;gap:6px">
           <select id="o-customer-select" onchange="onCustomerSelect()" style="flex:1"><option value="">マスタから選択...</option></select>
           <button class="btn-sm" onclick="clearCustomerSelect()" title="クリア">✕</button>
@@ -187,86 +188,54 @@ body{background:#fff}
       </div>
     </div>
     <div id="ctype-mismatch-warn"></div>
-    <div class="g3">
-      <div class="fg"><label>郵便番号</label><input type="text" id="o-zip" placeholder="100-0001"></div>
-      <div class="fg"><label>住所</label><input type="text" id="o-addr" placeholder="東京都千代田区..."></div>
-      <div class="fg"><label>電話番号</label><input type="text" id="o-tel" placeholder="03-1234-5678"></div>
-    </div>
-    <div class="fg"><label><input type="checkbox" id="o-recycle" style="width:auto;display:inline-block;margin-right:6px">リサイクル箱を使用する</label></div>
     <div class="fg"><label>この情報をお客様マスタに保存する</label>
       <label style="font-weight:400;font-size:12px;color:#555"><input type="checkbox" id="o-save-customer" style="width:auto;display:inline-block;margin-right:6px">新規お客様として保存</label>
     </div>
 
-    <details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:11px;color:#888">📌 納品書の区分表記ルール（社内用メモ）</summary>
+    <details style="margin-bottom:14px"><summary style="cursor:pointer;font-size:11px;color:#888">📌 納品書の区分表記ルール（社内用メモ）</summary>
       <div style="font-size:11px;color:#666;background:#f9f8f5;border-radius:6px;padding:8px 12px;margin-top:4px">
         納品書には金額確認用の区分バッジが入ります（お客様には区分名は伝えていません）<br>
         卸①（仲卸価格）→「卸」　卸②（一般卸価格）→「卸※」　RT（ホテル）→「卸●」　不良在庫特価→「特化」
       </div>
     </details>
 
-    <div id="gift-sender-area" style="display:none">
-      <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">🎁 送り主情報（ギフト商品を含む場合）</div>
-        <div class="g2">
-          <div class="fg"><label>送り主氏名</label><input type="text" id="o-sender-name" placeholder="山田太郎"></div>
-          <div class="fg"><label>送り主電話番号</label><input type="text" id="o-sender-tel" placeholder="090-1234-5678"></div>
+    <div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px">送り主情報（送り状に送り主として記載されます）</div>
+      <div class="g2">
+        <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
+        <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+      </div>
+      <div class="fg"><label>送り主住所</label><input type="text" id="d-sender-addr" placeholder="東京都..."></div>
+      <div class="g2">
+        <div class="fg">
+          <label>発送区分</label>
+          <select id="d-lead" onchange="toggleLeadDate()">
+            <option value="normal">通常（3日以内に発送）</option>
+            <option value="urgent">🚨 急ぎ（明日までに発送）</option>
+            <option value="defect">🔵 不良在庫出荷</option>
+            <option value="caution">🟡 特別注意</option>
+            <option value="scheduled">🗓 日程指定</option>
+          </select>
         </div>
-        <div class="g2">
-          <div class="fg"><label>送り主郵便番号</label><input type="text" id="o-sender-zip" placeholder="100-0001"></div>
-          <div class="fg"><label>送り主住所</label><input type="text" id="o-sender-addr" placeholder="東京都..."></div>
+        <div class="fg" id="lead-date-wrap" style="display:none"><label>希望到着日</label><input type="date" id="d-lead-date"></div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label>配送時間指定</label>
+          <select id="d-time" onchange="toggleTimeOther()">
+            <option value="">指定なし</option>
+            <option value="午前中">午前中</option>
+            <option value="日中（12〜18時）">日中（12〜18時）</option>
+            <option value="夜間（18〜21時）">夜間（18〜21時）</option>
+            <option value="other">その他（記入）</option>
+          </select>
         </div>
+        <div class="fg" id="time-other-wrap" style="display:none"><label>時間帯を記入</label><input type="text" id="d-time-other" placeholder="例：14〜16時"></div>
       </div>
+      <div class="fg" style="margin-bottom:0"><label>備考</label><input type="text" id="d-note" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"></div>
     </div>
 
-    <div class="fg"><label>注文番号（自動採番）</label><input type="text" id="o-num" readonly style="background:#f5f4f0;color:#555"></div>
-
-    <div class="g2">
-      <div class="fg">
-        <label>発送区分 <span style="font-size:11px;color:#dc2626;font-weight:400">※出荷指示書に大きく表示されます</span></label>
-        <select id="o-lead" onchange="toggleLeadDate()">
-          <option value="normal">通常（3日以内に発送）</option>
-          <option value="urgent">🚨 急ぎ（明日までに発送）</option>
-          <option value="defect">🔵 不良在庫出荷</option>
-          <option value="caution">🟡 特別注意</option>
-          <option value="scheduled">🗓 日程指定</option>
-        </select>
-      </div>
-      <div class="fg" id="lead-date-wrap" style="display:none"><label>希望到着日</label><input type="date" id="o-lead-date"></div>
-    </div>
-
-    <div class="g2">
-      <div class="fg"><label>配送時間指定</label>
-        <select id="o-time" onchange="toggleTimeOther()">
-          <option value="">指定なし</option>
-          <option value="午前中">午前中</option>
-          <option value="日中（12〜18時）">日中（12〜18時）</option>
-          <option value="夜間（18〜21時）">夜間（18〜21時）</option>
-          <option value="other">その他（記入）</option>
-        </select>
-      </div>
-      <div class="fg" id="time-other-wrap" style="display:none"><label>時間帯を記入</label><input type="text" id="o-time-other" placeholder="例：14〜16時"></div>
-    </div>
-
-    <div class="fg"><label>特別指示・備考 <span style="font-size:11px;color:#dc2626;font-weight:400">※出荷指示書に大きく表示されます</span></label>
-      <input type="text" id="o-note" placeholder="例：ピッツァ本を同封、のし希望（名前：田中）など"></div>
-
-    <div style="margin:14px 0 4px">
-      <div class="order-line-header">
-        <div style="font-size:11px;font-weight:700;color:#888">商品</div>
-        <div style="font-size:11px;font-weight:700;color:#888">ギフト種別</div>
-        <div style="font-size:11px;font-weight:700;color:#888">本数</div>
-        <div style="font-size:11px;font-weight:700;color:#888">箱数</div>
-        <div style="font-size:11px;font-weight:700;color:#888">メモ</div>
-        <div></div>
-      </div>
-      <div id="order-lines"></div>
-    </div>
-    <button class="btn btn-gray" onclick="addLine()" style="margin-bottom:14px;width:100%">＋ 商品を追加</button>
-
-    <div style="background:#f9f8f5;border-radius:8px;padding:12px;margin-bottom:10px;font-size:12px" id="gift-summary-preview">
-      <span style="color:#999">商品を追加すると内訳が表示されます</span>
-    </div>
-    <div id="price-preview" style="margin-bottom:10px"></div>
+    <div id="recipients"></div>
+    <button class="btn btn-gray" onclick="addRecipient()" style="margin-bottom:14px;width:100%">＋ 届け先を追加</button>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="previewOrder()">内容を確認する</button>
@@ -288,28 +257,71 @@ body{background:#fff}
 
 <!-- STORES取込 -->
 <div id="panel-stores" class="panel">
-  <div class="card">
-    <div class="sec">STORES 注文CSVを取り込む</div>
-    <div class="info-box"><strong>手順：</strong>STORES管理画面 → 注文管理 → CSVダウンロード → ここにドロップ<br>同じSTORES注文番号は自動的にスキップされます（重複取込防止）。商品名が一致しない行は取込時に手動で紐付けできます。</div>
-    <div style="border:2px dashed #d1d5db;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#fafaf8"
-      onclick="document.getElementById('csv-file').click()"
-      ondragover="event.preventDefault();this.style.borderColor='#185fa5'"
-      ondragleave="this.style.borderColor='#d1d5db'"
-      ondrop="handleDrop(event)">
-      <div style="font-size:32px;margin-bottom:8px">📄</div>
-      <div style="font-weight:600;color:#374151;margin-bottom:4px">CSVファイルをここにドロップ</div>
-      <div style="font-size:13px;color:#888">またはクリックしてファイルを選択</div>
-      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+  <div class="tab-row no-print" style="margin-bottom:1rem">
+    <button class="tab active" id="import-tab-csv" onclick="switchImportMode('csv')">STORES CSV取込</button>
+    <button class="tab" id="import-tab-pdf" onclick="switchImportMode('pdf')">お客様リスト（PDF）取込</button>
+  </div>
+
+  <div id="import-mode-csv">
+    <div class="card">
+      <div class="sec">STORES 注文CSVを取り込む</div>
+      <div class="info-box"><strong>手順：</strong>STORES管理画面 → 注文管理 → CSVダウンロード → ここにドロップ<br>同じSTORES注文番号は自動的にスキップされます（重複取込防止）。商品名が一致しない行は取込時に手動で紐付けできます。</div>
+      <div style="border:2px dashed #d1d5db;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#fafaf8"
+        onclick="document.getElementById('csv-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='#185fa5'"
+        ondragleave="this.style.borderColor='#d1d5db'"
+        ondrop="handleDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px">📄</div>
+        <div style="font-weight:600;color:#374151;margin-bottom:4px">CSVファイルをここにドロップ</div>
+        <div style="font-size:13px;color:#888">またはクリックしてファイルを選択</div>
+        <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+      </div>
+      <div id="csv-preview" style="display:none">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">取り込み内容の確認</div>
+        <div id="csv-preview-content"></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn btn-green" onclick="importCSV()">この内容で取り込む</button>
+          <button class="btn btn-gray" onclick="cancelCSV()">キャンセル</button>
+        </div>
+      </div>
+      <div id="csv-result" style="display:none;margin-top:1rem"></div>
     </div>
-    <div id="csv-preview" style="display:none">
-      <div style="font-size:14px;font-weight:700;margin-bottom:10px">取り込み内容の確認</div>
-      <div id="csv-preview-content"></div>
-      <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn btn-green" onclick="importCSV()">この内容で取り込む</button>
-        <button class="btn btn-gray" onclick="cancelCSV()">キャンセル</button>
+  </div>
+
+  <div id="import-mode-pdf" style="display:none">
+    <div class="card">
+      <div class="sec">お客様からいただいた発送先リスト（PDF）を取り込む</div>
+      <div class="info-box"><strong>使い方：</strong>お中元・お歳暮などの発送先リストPDFをここに読み込むと、氏名・会社名・住所・電話番号を自動で拾い、届け先カードにあらかじめ入力しておきます。<br>
+      <strong>完璧には拾えません。</strong>PDFのレイアウトによって精度が変わるので、取り込んだあとに内容を確認し、足りない部分（商品など）を入力してから登録してください。1件ずつ手入力するより早く終わるはずです。</div>
+      <div style="border:2px dashed #d1d5db;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#fafaf8"
+        onclick="document.getElementById('pdf-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='#185fa5'"
+        ondragleave="this.style.borderColor='#d1d5db'"
+        ondrop="handlePdfDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px">📕</div>
+        <div style="font-weight:600;color:#374151;margin-bottom:4px">PDFファイルをここにドロップ</div>
+        <div style="font-size:13px;color:#888">またはクリックしてファイルを選択</div>
+        <input type="file" id="pdf-file" accept=".pdf" style="display:none" onchange="handlePdfFileSelect(event)">
+      </div>
+      <div id="pdf-loading" style="display:none;text-align:center;color:#888;font-size:13px;padding:12px 0">📖 PDFを読み取り中...</div>
+      <div id="pdf-preview" style="display:none">
+        <div style="background:#fef9c3;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:#78350f;margin-bottom:8px">共通の商品（全員に同じ商品を届ける場合はここで一括設定できます）</div>
+          <div class="g3">
+            <div class="fg"><label>商品</label><select id="pdf-common-product"></select></div>
+            <div class="fg"><label>本数</label><input type="number" id="pdf-common-bottles" min="0" value="1"></div>
+            <div class="fg"><label>種別</label><select id="pdf-common-gift"></select></div>
+          </div>
+          <button class="btn-sm" onclick="applyCommonProductToPdfRows()">この商品を全員に反映</button>
+        </div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">取り込み内容の確認・修正（<span id="pdf-row-count">0</span>件）</div>
+        <div id="pdf-preview-content"></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn btn-green" onclick="applyPdfToOrderForm()">受注登録画面に反映する</button>
+          <button class="btn btn-gray" onclick="cancelPdfImport()">キャンセル</button>
+        </div>
       </div>
     </div>
-    <div id="csv-result" style="display:none;margin-top:1rem"></div>
   </div>
 </div>
 
@@ -460,7 +472,7 @@ const PRODUCTS = [
 {id:36, sku:'MISC003', name:'750ml用 注ぎ口', group:'その他'},
 ];
 
-const GIFT_TYPE_LABEL = { normal:'通常', ua:'UA向け', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)', material:'資材', simple:'簡易包装' };
+const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
@@ -476,8 +488,7 @@ let orderLineCounter = 0;
 let csvParsedRows = null;
 
 document.addEventListener('DOMContentLoaded', function(){
-  addLine();
-  generateOrderNumber();
+  addRecipient();
   loadInitialData();
 });
 
@@ -512,7 +523,6 @@ function loadInitialData(){
     updateSummary();
     renderList();
     renderSlipSelect();
-    generateOrderNumber();
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
     showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
@@ -573,22 +583,23 @@ function onCustomerSelect(){
   const c = customers.find(x=>x.id==id);
   if(!c) return;
   document.getElementById('o-client').value = c.name;
-  document.getElementById('o-zip').value = c.zip||'';
-  document.getElementById('o-addr').value = c.addr||'';
-  document.getElementById('o-tel').value = c.tel||'';
-  document.getElementById('o-recycle').checked = !!c.recycle;
   document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-client').dataset.custId = c.id;
+  // 届け先が1件だけ・まだ未入力なら、お客様マスタの住所を最初の届け先（個人）に補完します
+  const firstCard = document.querySelector('.recipient-card');
+  if(firstCard && !firstCard.querySelector('[data-role=zip]').value){
+    firstCard.querySelector('[data-role=personName]').value = c.name;
+    firstCard.querySelector('[data-role=zip]').value = c.zip||'';
+    firstCard.querySelector('[data-role=addr]').value = c.addr||'';
+    firstCard.querySelector('[data-role=tel]').value = c.tel||'';
+    firstCard.querySelector('[data-role=recycle]').checked = !!c.recycle;
+  }
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
 function clearCustomerSelect(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
-  document.getElementById('o-zip').value = '';
-  document.getElementById('o-addr').value = '';
-  document.getElementById('o-tel').value = '';
-  document.getElementById('o-recycle').checked = false;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
 }
 function onClientInput(){
@@ -610,10 +621,10 @@ function onCtypeChange(){
   warnEl.innerHTML = '';
 }
 
-function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('o-lead').value==='scheduled' ? 'block' : 'none'; }
-function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('o-time').value==='other' ? 'block' : 'none'; }
+function toggleLeadDate(){ document.getElementById('lead-date-wrap').style.display = document.getElementById('d-lead').value==='scheduled' ? 'block' : 'none'; }
+function toggleTimeOther(){ document.getElementById('time-other-wrap').style.display = document.getElementById('d-time').value==='other' ? 'block' : 'none'; }
 
-// ── 注文明細行 ────────────────────────────────────────────
+// ── 商品セレクトHTML ────────────────────────────────────────────
 function productOptionsHtml(selected){
   const groups = {};
   PRODUCTS.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
@@ -625,130 +636,313 @@ function productOptionsHtml(selected){
   });
   return html;
 }
-function addLine(){
-  const id = 'line'+(++orderLineCounter);
-  const wrap = document.getElementById('order-lines');
+function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
+
+// ── 届け先カード（複数追加可能）────────────────────────────────────
+let recipientCounter = 0;
+let recipientLineCounter = 0;
+
+function addRecipient(){
+  const id = 'recip'+(++recipientCounter);
+  const wrap = document.getElementById('recipients');
+  const card = document.createElement('div');
+  card.className = 'card recipient-card';
+  card.id = id;
+  card.style.border = '1px solid #93c5fd';
+  card.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
+      '<div style="font-weight:700;font-size:13px">📦 届け先 <span class="r-idx"></span></div>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="btn-sm" onclick="toggleRecipientOverride(\''+id+'\')">✏️ この届け先だけ送り主・発送区分を変更</button>'+
+        '<button class="btn-sm" onclick="removeRecipient(\''+id+'\')">✕ この届け先を削除</button>'+
+      '</div>'+
+    '</div>'+
+    '<div data-role="overridePanel" style="display:none;background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+      '<div class="g2">'+
+        '<div class="fg"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
+        '<div class="fg"><label>発送区分（上書き）</label><select data-role="lead"><option value="">共通の設定を使う</option><option value="normal">通常（3日以内）</option><option value="urgent">🚨急ぎ（明日まで）</option><option value="defect">🔵不良在庫出荷</option><option value="caution">🟡特別注意</option></select></div>'+
+      '</div>'+
+      '<div class="fg" style="margin-bottom:0"><label>備考（上書き）</label><input type="text" data-role="note" placeholder="空欄なら共通の備考を使用"></div>'+
+    '</div>'+
+    '<div class="fg"><label>届け先の種類</label>'+
+      '<div style="display:flex;gap:16px;padding:4px 0">'+
+        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="individual" data-role="rtypeInd" checked onchange="onRecipientTypeChange(\''+id+'\')">個人</label>'+
+        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="company" data-role="rtypeCom" onchange="onRecipientTypeChange(\''+id+'\')">企業</label>'+
+      '</div>'+
+    '</div>'+
+    '<div data-role="companyFields" style="display:none">'+
+      '<div class="g3">'+
+        '<div class="fg"><label>会社名</label><input type="text" data-role="companyName" placeholder="株式会社〇〇"></div>'+
+        '<div class="fg"><label>部署名</label><input type="text" data-role="deptName" placeholder="営業部（任意）"></div>'+
+        '<div class="fg"><label>役職名</label><input type="text" data-role="positionName" placeholder="代表取締役（任意）"></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="g3">'+
+      '<div class="fg"><label data-role="nameLabel">お名前</label><input type="text" data-role="personName" placeholder="山田太郎"></div>'+
+      '<div class="fg"><label>郵便番号</label><input type="text" data-role="zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>'+
+      '<div class="fg"><label>電話番号</label><input type="text" data-role="tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>'+
+    '</div>'+
+    '<div class="fg"><label>住所</label><input type="text" data-role="addr" placeholder="東京都千代田区..."></div>'+
+    '<div class="fg"><label><input type="checkbox" data-role="recycle" style="width:auto;display:inline-block;margin-right:6px">リサイクル箱を使用する</label></div>'+
+    '<div style="margin:10px 0 4px">'+
+      '<div class="order-line-header">'+
+        '<div style="font-size:11px;font-weight:700;color:#888">商品</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#888">種別</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#888">本数</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#888">箱数</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#888">メモ</div>'+
+        '<div></div>'+
+      '</div>'+
+      '<div data-role="lines"></div>'+
+    '</div>'+
+    '<button class="btn-sm" onclick="addRecipientLine(\''+id+'\')" style="width:100%">＋ 商品を追加</button>'+
+    '<div style="background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px" data-role="giftSummary"><span style="color:#999">商品を追加すると内訳が表示されます</span></div>';
+  wrap.appendChild(card);
+  addRecipientLine(id);
+  renumberRecipients();
+}
+function toggleRecipientOverride(cardId){
+  const panel = document.getElementById(cardId).querySelector('[data-role=overridePanel]');
+  panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+}
+
+// ── 郵便番号・電話番号：ハイフン有無どちらで入力してもOKにし、入力欄を離れたら自動整形 ──
+function normalizeDigits(v){ return (v||'').replace(/[^\d]/g,''); }
+function formatZip(v){
+  const d = normalizeDigits(v);
+  if(d.length!==7) return v; // 7桁でなければ判断できないのでそのまま
+  return d.slice(0,3)+'-'+d.slice(3);
+}
+function formatTel(v){
+  const d = normalizeDigits(v);
+  if(d.length===11 && /^0[5789]0/.test(d)) return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7); // 携帯/050
+  if(d.length===10){
+    if(/^0(3|6)/.test(d)) return d.slice(0,2)+'-'+d.slice(2,6)+'-'+d.slice(6); // 東京03・大阪06
+    return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6); // その他の一般的な市外局番
+  }
+  return v; // 判断できないパターンはそのまま（手直しをお願いする）
+}
+function onZipBlur(el){ el.value = formatZip(el.value); }
+function onTelBlur(el){ el.value = formatTel(el.value); }
+
+function onRecipientTypeChange(cardId){
+  const card = document.getElementById(cardId);
+  const isCompany = card.querySelector('[data-role=rtypeCom]').checked;
+  card.querySelector('[data-role=companyFields]').style.display = isCompany ? 'block' : 'none';
+  card.querySelector('[data-role=nameLabel]').textContent = isCompany ? 'ご担当者名' : 'お名前';
+  card.querySelector('[data-role=personName]').placeholder = isCompany ? '荒木 知太朗' : '山田太郎';
+}
+function recipientDisplayName(card){
+  const isCompany = card.querySelector('[data-role=rtypeCom]').checked;
+  const person = card.querySelector('[data-role=personName]').value;
+  if(!isCompany) return person;
+  const company = card.querySelector('[data-role=companyName]').value;
+  const dept = card.querySelector('[data-role=deptName]').value;
+  const position = card.querySelector('[data-role=positionName]').value;
+  return [company, dept, position, person].filter(Boolean).join(' ');
+}
+function removeRecipient(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(document.querySelectorAll('.recipient-card').length<=1){ alert('届け先は最低1件必要です'); return; }
+  el.remove();
+  renumberRecipients();
+}
+function renumberRecipients(){
+  document.querySelectorAll('.recipient-card').forEach(function(card, i){
+    const idx = card.querySelector('.r-idx');
+    if(idx) idx.textContent = '#'+(i+1);
+  });
+}
+function addRecipientLine(cardId){
+  const id = 'rline'+(++recipientLineCounter);
+  const card = document.getElementById(cardId);
+  const wrap = card.querySelector('[data-role=lines]');
   const row = document.createElement('div');
   row.className = 'order-line';
   row.id = id;
   row.innerHTML =
-    '<select onchange="onLineProductChange(\''+id+'\')" data-role="product">'+productOptionsHtml()+'</select>'+
-    '<select data-role="gift">'+Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('')+'</select>'+
-    '<input type="number" min="0" value="0" data-role="bottles" oninput="updateGiftSummary()">'+
-    '<input type="number" min="0" value="0" data-role="boxes" oninput="updateGiftSummary()">'+
+    '<select onchange="onRecipientLineProductChange(\''+cardId+'\',\''+id+'\')" data-role="product">'+productOptionsHtml()+'</select>'+
+    '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('')+'</select>'+
+    '<input type="number" min="0" value="0" data-role="bottles" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
+    '<input type="number" min="0" value="0" data-role="boxes" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="text" placeholder="メモ" data-role="memo">'+
-    '<button class="btn-sm" onclick="removeLine(\''+id+'\')" title="削除">✕</button>';
+    '<button class="btn-sm" onclick="removeRecipientLine(\''+cardId+'\',\''+id+'\')" title="削除">✕</button>';
   wrap.appendChild(row);
-  updateGiftSummary();
+  updateCardGiftSummary(cardId);
 }
-function removeLine(id){ const el = document.getElementById(id); if(el) el.remove(); updateGiftSummary(); }
-function onLineProductChange(id){ updateGiftSummary(); }
-function getLineData(){
-  return Array.from(document.getElementById('order-lines').children).map(function(row){
+function onRecipientLineProductChange(cardId, lineId){
+  const row = document.getElementById(lineId);
+  const pid = row.querySelector('[data-role=product]').value;
+  const p = findProduct(pid);
+  const giftSel = row.querySelector('[data-role=gift]');
+  if(p && p.isSet){
+    // your story / oliveNOVA などのギフトセットは種別を「ギフト」に固定
+    giftSel.value = 'gift';
+    giftSel.disabled = true;
+  } else {
+    giftSel.disabled = false;
+  }
+  updateCardGiftSummary(cardId);
+  updateRecycleLock(cardId);
+}
+function onRecipientLineGiftChange(cardId){
+  updateRecycleLock(cardId);
+}
+function updateRecycleLock(cardId){
+  const card = document.getElementById(cardId);
+  if(!card) return;
+  const rows = Array.from(card.querySelector('[data-role=lines]').children);
+  const hasGift = rows.some(row => row.querySelector('[data-role=gift]').value === 'gift');
+  const recycleCb = card.querySelector('[data-role=recycle]');
+  const recycleLabel = recycleCb.closest('label');
+  if(hasGift){
+    recycleCb.checked = false;
+    recycleCb.disabled = true;
+    recycleLabel.style.color = '#bbb';
+    recycleLabel.title = 'ギフト商品を含む届け先は、新品の箱で発送するためリサイクル箱は使用できません';
+  } else {
+    recycleCb.disabled = false;
+    recycleLabel.style.color = '';
+    recycleLabel.title = '';
+  }
+}
+function removeRecipientLine(cardId, lineId){
+  const el = document.getElementById(lineId);
+  if(el) el.remove();
+  updateCardGiftSummary(cardId);
+  updateRecycleLock(cardId);
+}
+function getRecipientLines(cardId){
+  const card = document.getElementById(cardId);
+  return Array.from(card.querySelector('[data-role=lines]').children).map(function(row){
     const pid = row.querySelector('[data-role=product]').value;
     const p = findProduct(pid);
     return {
       productId: p?p.id:'', productName: p?p.name:'', boxQty: p?(p.boxQty||1):1,
-      giftType: row.querySelector('[data-role=gift]').value,
+      giftType: (p&&p.isSet) ? 'gift' : row.querySelector('[data-role=gift]').value,
       bottles: parseInt(row.querySelector('[data-role=bottles]').value)||0,
       boxes: parseInt(row.querySelector('[data-role=boxes]').value)||0,
       memo: row.querySelector('[data-role=memo]').value
     };
   }).filter(l=>l.productId && (l.bottles>0 || l.boxes>0));
 }
-function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
-
-function updateGiftSummary(){
-  const lines = getLineData();
-  const el = document.getElementById('gift-summary-preview');
-  const senderArea = document.getElementById('gift-sender-area');
-  if(!lines.length){
-    el.innerHTML = '<span style="color:#999">商品を追加すると内訳が表示されます</span>';
-    senderArea.style.display = 'none';
-    return;
-  }
-  const hasGift = lines.some(l=>l.giftType && l.giftType!=='normal');
-  senderArea.style.display = hasGift ? 'block' : 'none';
+function updateCardGiftSummary(cardId){
+  const lines = getRecipientLines(cardId);
+  const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
+  if(!lines.length){ el.innerHTML = '<span style="color:#999">商品を追加すると内訳が表示されます</span>'; return; }
   el.innerHTML = lines.map(l=>l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>');
+}
+function collectRecipients(){
+  return Array.from(document.querySelectorAll('.recipient-card')).map(function(card){
+    return {
+      name: recipientDisplayName(card),
+      isCompany: card.querySelector('[data-role=rtypeCom]').checked,
+      companyName: card.querySelector('[data-role=companyName]').value,
+      deptName: card.querySelector('[data-role=deptName]').value,
+      positionName: card.querySelector('[data-role=positionName]').value,
+      personName: card.querySelector('[data-role=personName]').value,
+      zip: card.querySelector('[data-role=zip]').value,
+      addr: card.querySelector('[data-role=addr]').value,
+      tel: card.querySelector('[data-role=tel]').value,
+      recycle: card.querySelector('[data-role=recycle]').checked,
+      senderNameOverride: card.querySelector('[data-role=senderName]').value,
+      leadOverride: card.querySelector('[data-role=lead]').value,
+      noteOverride: card.querySelector('[data-role=note]').value,
+      lines: getRecipientLines(card.id)
+    };
+  });
 }
 
 // ── 注文番号自動採番 ────────────────────────────────────────────
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
-function generateOrderNumber(){
+function nextOrderNum(offset){
   const ymd = todayYmd();
-  const todays = orders.filter(o=>(o.num||'').indexOf('OS-'+ymd)===0);
-  document.getElementById('o-num').value = 'OS-'+ymd+'-'+String(todays.length+1).padStart(3,'0');
+  const todays = orders.filter(o=>(o.num||'').indexOf('OS-'+ymd)===0).length;
+  return 'OS-'+ymd+'-'+String(todays+1+offset).padStart(3,'0');
 }
 function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
 
-// ── プレビュー・登録 ────────────────────────────────────────────
-function collectFormOrder(){
-  const lines = getLineData();
-  const ctype = document.getElementById('o-ctype').value;
-  const lead = document.getElementById('o-lead').value;
-  return {
-    id: generateOrderId(),
-    num: document.getElementById('o-num').value,
-    client: document.getElementById('o-client').value,
-    custId: document.getElementById('o-client').dataset.custId || '',
-    customerType: ctype,
-    zip: document.getElementById('o-zip').value,
-    addr: document.getElementById('o-addr').value,
-    tel: document.getElementById('o-tel').value,
-    useRecycle: document.getElementById('o-recycle').checked,
-    saveCustomer: document.getElementById('o-save-customer').checked,
-    leadType: lead,
-    leadDate: document.getElementById('o-lead-date').value,
-    delivTime: document.getElementById('o-time').value==='other' ? document.getElementById('o-time-other').value : document.getElementById('o-time').value,
-    note: document.getElementById('o-note').value,
-    senderName: document.getElementById('o-sender-name').value,
-    senderTel: document.getElementById('o-sender-tel').value,
-    senderZip: document.getElementById('o-sender-zip').value,
-    senderAddr: document.getElementById('o-sender-addr').value,
-    lines: lines,
-    isDefectSale: (ctype==='defectprice' || lead==='defect'),
-    status: 'pending',
-    source: 'manual',
-    registeredAt: new Date().toISOString()
-  };
-}
-
 const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
+// ── フォーム全体から複数の受注を組み立てる ────────────────────────────
+function buildOrdersFromForm(){
+  const client = document.getElementById('o-client').value;
+  const custId = document.getElementById('o-client').dataset.custId || '';
+  const ctype = document.getElementById('o-ctype').value;
+  const saveCustomer = document.getElementById('o-save-customer').checked;
+  const dSenderName = client;
+  const dSenderTel = document.getElementById('d-sender-tel').value;
+  const dSenderZip = document.getElementById('d-sender-zip').value;
+  const dSenderAddr = document.getElementById('d-sender-addr').value;
+  const dLead = document.getElementById('d-lead').value;
+  const dLeadDate = document.getElementById('d-lead-date').value;
+  const dTime = document.getElementById('d-time').value==='other' ? document.getElementById('d-time-other').value : document.getElementById('d-time').value;
+  const dNote = document.getElementById('d-note').value;
+
+  const recipients = collectRecipients();
+  const list = [];
+  recipients.forEach(function(r, i){
+    if(!r.name || !r.lines.length) return; // 氏名・商品が無い届け先はスキップ
+    const lead = r.leadOverride || dLead;
+    list.push({
+      id: generateOrderId(),
+      num: nextOrderNum(list.length),
+      client: client, custId: custId, customerType: ctype, saveCustomer: saveCustomer,
+      recipientName: r.name, isCompany: r.isCompany, companyName: r.companyName, deptName: r.deptName,
+      positionName: r.positionName, personName: r.personName,
+      zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
+      leadType: lead, leadDate: dLeadDate, delivTime: dTime,
+      note: r.noteOverride || dNote,
+      senderName: r.senderNameOverride || dSenderName, senderTel: dSenderTel, senderZip: dSenderZip, senderAddr: dSenderAddr,
+      lines: r.lines,
+      isDefectSale: (ctype==='defectprice' || lead==='defect'),
+      status: 'pending', source: 'manual', registeredAt: new Date().toISOString()
+    });
+  });
+  return list;
+}
+
 function previewOrder(){
-  const o = collectFormOrder();
-  if(!o.client){ alert('お客様名を入力してください'); return; }
-  if(!o.lines.length){ alert('商品を1件以上追加してください'); return; }
-  const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
+  const client = document.getElementById('o-client').value;
+  if(!client){ alert('お客様名（発注元）を入力してください'); return; }
+  const list = buildOrdersFromForm();
+  if(!list.length){ alert('届け先には「氏名」と「商品」を1件以上入力してください'); return; }
   let html = '<div style="font-size:13px;line-height:1.8">';
-  html += '<div><strong>お客様：</strong>'+o.client+'　（'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'）</div>';
-  html += '<div><strong>住所：</strong>〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
-  html += '<div><strong>注文番号：</strong>'+o.num+'</div>';
-  html += '<div><strong>発送区分：</strong>'+leadLabel+'</div>';
-  if(o.delivTime) html += '<div><strong>配送時間：</strong>'+o.delivTime+'</div>';
-  if(o.note) html += '<div><strong>備考：</strong>'+o.note+'</div>';
-  if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
-  html += '<div style="margin-top:8px"><strong>商品：</strong><br>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')).join('<br>')+'</div>';
+  html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+list.length+'件の届け先へ発送します</div>';
+  list.forEach(function(o, i){
+    const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
+    html += '<div style="border:1px solid #e8e7e3;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    html += '<div><strong>#'+(i+1)+'　'+o.recipientName+'</strong>　'+o.num+'</div>';
+    html += '<div style="color:#666">〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
+    html += '<div>発送区分：'+leadLabel+(o.delivTime?'　配送時間：'+o.delivTime:'')+'</div>';
+    if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
+    if(o.note) html += '<div>備考：'+o.note+'</div>';
+    html += '<div>送り主表記：'+o.senderName+'</div>';
+    html += '<div>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
+    html += '</div>';
+  });
   html += '</div>';
   document.getElementById('confirm-content').innerHTML = html;
   document.getElementById('confirm-area').style.display = 'block';
   document.getElementById('confirm-area').scrollIntoView({behavior:'smooth'});
-  window._pendingOrder = o;
+  window._pendingOrders = list;
 }
 
 function registerOrder(){
-  const o = window._pendingOrder;
-  if(!o) return;
-  orders.push(o);
-  if(o.saveCustomer && !o.custId){
-    customers.push({ id: 'c'+Date.now(), name:o.client, zip:o.zip, addr:o.addr, tel:o.tel, type:o.customerType, recycle:o.useRecycle, note:'' });
+  const list = window._pendingOrders;
+  if(!list || !list.length) return;
+  list.forEach(o=>orders.push(o));
+  const saveCustomer = list[0].saveCustomer;
+  if(saveCustomer && !list[0].custId){
+    customers.push({ id:'c'+Date.now(), name:list[0].client, zip:list[0].zip, addr:list[0].addr, tel:list[0].tel, type:list[0].customerType, recycle:false, note:'' });
     updCustomerSelects();
   }
   document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS();
-  showSyncStatus('✅ 受注を登録しました：'+o.num);
+  showSyncStatus('✅ '+list.length+'件の受注を登録しました');
 }
 
 function clearForm(){
@@ -756,26 +950,19 @@ function clearForm(){
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
-  document.getElementById('o-zip').value = '';
-  document.getElementById('o-addr').value = '';
-  document.getElementById('o-tel').value = '';
-  document.getElementById('o-recycle').checked = false;
   document.getElementById('o-save-customer').checked = false;
-  document.getElementById('o-lead').value = 'normal';
-  document.getElementById('o-lead-date').value = '';
-  document.getElementById('o-time').value = '';
-  document.getElementById('o-time-other').value = '';
-  document.getElementById('o-note').value = '';
-  document.getElementById('o-sender-name').value = '';
-  document.getElementById('o-sender-tel').value = '';
-  document.getElementById('o-sender-zip').value = '';
-  document.getElementById('o-sender-addr').value = '';
-  document.getElementById('order-lines').innerHTML = '';
+  document.getElementById('d-sender-tel').value = '';
+  document.getElementById('d-sender-zip').value = '';
+  document.getElementById('d-sender-addr').value = '';
+  document.getElementById('d-lead').value = 'normal';
+  document.getElementById('d-lead-date').value = '';
+  document.getElementById('d-time').value = '';
+  document.getElementById('d-time-other').value = '';
+  document.getElementById('d-note').value = '';
+  document.getElementById('recipients').innerHTML = '';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
   toggleLeadDate(); toggleTimeOther();
-  addLine();
-  generateOrderNumber();
-  updateGiftSummary();
+  addRecipient();
 }
 
 function showPanel(name, btn){
@@ -805,7 +992,7 @@ function renderList(){
   let list = orders.slice();
   if(filter!=='all') list = list.filter(o=>o.status===filter);
   if(ctypeFilter!=='all') list = list.filter(o=>o.customerType===ctypeFilter);
-  if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
+  if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.recipientName||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
   if(sort==='newest') list.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
   if(sort==='oldest') list.sort((a,b)=>(a.registeredAt||'').localeCompare(b.registeredAt||''));
   if(sort==='client') list.sort((a,b)=>(a.client||'').localeCompare(b.client||'','ja'));
@@ -818,9 +1005,11 @@ function renderList(){
     const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
+    const displayName = o.recipientName || o.client;
+    const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
-        '<div><span class="oc-name">'+o.client+'</span> '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -870,8 +1059,14 @@ function renderSlipSelect(){
   const current = sel.value;
   const pending = orders.filter(o=>o.status==='pending');
   sel.innerHTML = '<option value="">出荷指示書を作成する受注を選択...</option>' +
-    pending.map(o=>'<option value="'+o.id+'">'+o.num+'　'+o.client+'</option>').join('');
+    pending.map(o=>'<option value="'+o.id+'">'+o.num+'　'+(o.recipientName||o.client)+'</option>').join('');
   if(current) sel.value = current;
+}
+function recipientAddressBlock(o){
+  if(o.isCompany){
+    return [o.companyName, o.deptName, [o.positionName, o.personName].filter(Boolean).join(' ')].filter(Boolean).join('<br>');
+  }
+  return (o.recipientName||o.client||'');
 }
 function generateSlip(){
   const id = document.getElementById('slip-select').value;
@@ -884,14 +1079,14 @@ function generateSlip(){
   html += '<div class="slip-title">出荷指示書</div>';
   html += '<div class="slip-meta">';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+o.num+'</div></div>';
-  html += '<div class="slip-meta-item"><div class="slip-meta-label">お客様名</div><div class="slip-meta-val">'+o.client+'</div></div>';
+  html += '<div class="slip-meta-item"><div class="slip-meta-label">お届け先</div><div class="slip-meta-val">'+recipientAddressBlock(o)+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">発送区分</div><div class="slip-meta-val">'+leadLabel+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">配送時間</div><div class="slip-meta-val">'+(o.delivTime||'指定なし')+'</div></div>';
   html += '</div>';
   if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
   if(o.note) html += '<div class="alert-bar alert-danger">📝 '+o.note+'</div>';
   html += '<div class="slip-section-title">商品チェックリスト</div>';
-  html += '<table class="slip-table"><thead><tr><th style="width:40px">✓</th><th>商品名</th><th>ギフト種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
+  html += '<table class="slip-table"><thead><tr><th style="width:40px">✓</th><th>商品名</th><th>種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
   (o.lines||[]).forEach(function(l){
     html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
@@ -918,7 +1113,7 @@ function copyForLine(){
   if(!o) return;
   const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
   let text = '【出荷指示】'+o.num+'\n';
-  text += 'お客様：'+o.client+'\n';
+  text += 'お届け先：'+(o.isCompany ? [o.companyName,o.deptName,o.positionName,o.personName].filter(Boolean).join(' ') : (o.recipientName||o.client))+'\n';
   text += '区分：'+leadLabel+'\n';
   if(o.useRecycle) text += '♻ リサイクル箱使用\n';
   text += '商品：\n';
@@ -935,7 +1130,7 @@ function buildInvoice(o){
   let html = '<div class="invoice">';
   html += '<div class="invoice-title">納　品　書'+badge+'</div>';
   html += '<div class="invoice-meta">';
-  html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+o.client+' 様<br>〒'+o.zip+'<br>'+o.addr+'<br>'+o.tel+'</div>';
+  html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+recipientAddressBlock(o)+' 様<br>〒'+o.zip+'<br>'+o.addr+'<br>'+o.tel+'</div>';
   html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+o.num+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
   html += '</div>';
   if(o.senderName){
@@ -1057,6 +1252,214 @@ function importCSV(){
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
   if(imported) syncOrdersToGAS();
+}
+
+// ── 取込モード切替（STORES CSV / PDF）────────────────────────────
+function switchImportMode(mode){
+  document.getElementById('import-tab-csv').classList.toggle('active', mode==='csv');
+  document.getElementById('import-tab-pdf').classList.toggle('active', mode==='pdf');
+  document.getElementById('import-mode-csv').style.display = mode==='csv' ? 'block' : 'none';
+  document.getElementById('import-mode-pdf').style.display = mode==='pdf' ? 'block' : 'none';
+  if(mode==='pdf' && !document.getElementById('pdf-common-product').options.length){
+    document.getElementById('pdf-common-product').innerHTML = productOptionsHtml();
+    document.getElementById('pdf-common-gift').innerHTML = Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('');
+  }
+}
+
+// ── PDF取込：発送先リストPDFから届け先を抽出 ────────────────────────────
+let pdfParsedRows = null;
+
+function handlePdfDrop(e){
+  e.preventDefault();
+  e.currentTarget.style.borderColor = '#d1d5db';
+  const file = e.dataTransfer.files[0];
+  if(file) readPdfFile(file);
+}
+function handlePdfFileSelect(e){
+  const file = e.target.files[0];
+  if(file) readPdfFile(file);
+}
+
+function readPdfFile(file){
+  document.getElementById('pdf-loading').style.display = 'block';
+  document.getElementById('pdf-preview').style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    if(!window.pdfjsLib){ alert('PDF読み取り機能の準備ができていません。少し待ってから再度お試しください。'); document.getElementById('pdf-loading').style.display='none'; return; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.getDocument({ data: ev.target.result }).promise.then(function(pdf){
+      const pagePromises = [];
+      for(let i=1; i<=pdf.numPages; i++) pagePromises.push(extractPdfPageLines(pdf, i));
+      return Promise.all(pagePromises);
+    }).then(function(pagesLines){
+      const allLines = [].concat.apply([], pagesLines);
+      pdfParsedRows = parsePdfLinesToRows(allLines);
+      document.getElementById('pdf-loading').style.display = 'none';
+      renderPdfPreview();
+    }).catch(function(err){
+      document.getElementById('pdf-loading').style.display = 'none';
+      alert('PDFの読み取りに失敗しました：'+err.message);
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// PDFの1ページ分から、テキストを「行」単位（Y座標が近いものをまとめ、X座標順に並べる）に復元
+function extractPdfPageLines(pdf, pageNum){
+  return pdf.getPage(pageNum).then(function(page){
+    return page.getTextContent().then(function(content){
+      const items = content.items.map(function(it){
+        return { text: it.str, x: it.transform[4], y: it.transform[5] };
+      }).filter(it=>it.text && it.text.trim());
+      // Y座標でグループ化（近いものは同じ行とみなす）
+      const rows = [];
+      items.forEach(function(it){
+        let row = rows.find(r=>Math.abs(r.y - it.y) < 3);
+        if(!row){ row = { y: it.y, items: [] }; rows.push(row); }
+        row.items.push(it);
+      });
+      rows.sort((a,b)=>b.y-a.y); // PDF座標は下から上なので、上から順に並べ直す
+      return rows.map(function(r){
+        r.items.sort((a,b)=>a.x-b.x);
+        // X座標の間隔が大きく空いていたら区切り記号を入れて列を推定する
+        let line = '';
+        let prevEnd = null;
+        r.items.forEach(function(it){
+          if(prevEnd!==null && (it.x - prevEnd) > 8) line += ' | ';
+          else if(line) line += ' ';
+          line += it.text;
+          prevEnd = it.x + it.text.length*3.5; // おおよその文字幅
+        });
+        return line;
+      });
+    });
+  });
+}
+
+// 行のテキストから、郵便番号・電話番号・住所・会社名・氏名などを推定して抽出
+function parsePdfLinesToRows(lines){
+  const zipRe = /\d{3}-?\d{4}/;
+  const telRe = /0\d{1,4}-\d{1,4}-\d{3,4}/;
+  const prefRe = /(北海道|京都府|大阪府|.{2,3}県)/;
+  const companyRe = /(株式会社|㈱|有限会社|㈲|合同会社|一般社団法人|公益財団法人|事務所)/;
+  const rows = [];
+  lines.forEach(function(rawLine){
+    const line = rawLine.trim();
+    if(!line) return;
+    if(!zipRe.test(line) && !telRe.test(line)) return; // 住所・電話のどちらも無い行はヘッダー等とみなしスキップ
+    const zipMatch = line.match(zipRe);
+    const telMatch = line.match(telRe);
+    let rest = line;
+    if(zipMatch) rest = rest.replace(zipMatch[0], ' | ');
+    if(telMatch) rest = rest.replace(telMatch[0], ' | ');
+    const tokens = rest.split('|').map(t=>t.trim()).filter(Boolean);
+    let addr = '', companyName = '', personName = '', positionName = '';
+    const prefIdx = tokens.findIndex(t=>prefRe.test(t));
+    if(prefIdx>=0) addr = tokens[prefIdx];
+    const companyIdx = tokens.findIndex(t=>companyRe.test(t) || /^[㈱㈲]/.test(t));
+    if(companyIdx>=0) companyName = tokens[companyIdx];
+    // 会社名・住所以外の短いトークンから、役職名っぽいもの・氏名っぽいものを推定
+    const others = tokens.filter((t,i)=>i!==prefIdx && i!==companyIdx && t.length<=20 && !/^\d+$/.test(t) && t!=='◯' && t!=='○');
+    if(others.length){
+      const posWords = ['代表取締役','取締役','部長','課長','社長','会長','代表','支店長','店長','マネージャー','ご担当者'];
+      const posIdx = others.findIndex(t=>posWords.some(w=>t.includes(w)));
+      if(posIdx>=0){ positionName = others[posIdx]; others.splice(posIdx,1); }
+      personName = others.join(' ').trim();
+    }
+    if(!addr && !companyName && !personName) return; // 何も拾えなければスキップ
+    rows.push({
+      isCompany: !!companyName,
+      companyName: companyName, deptName: '', positionName: positionName, personName: personName,
+      zip: zipMatch ? zipMatch[0] : '', addr: addr, tel: telMatch ? telMatch[0] : '',
+      productId: '', bottles: 0, giftType: 'normal',
+      raw: line
+    });
+  });
+  return rows;
+}
+
+function renderPdfPreview(){
+  document.getElementById('pdf-preview').style.display = 'block';
+  document.getElementById('pdf-row-count').textContent = pdfParsedRows.length;
+  const el = document.getElementById('pdf-preview-content');
+  if(!pdfParsedRows.length){
+    el.innerHTML = '<div class="alert-bar alert-warn">⚠️ このPDFからは住所・電話番号を含む行を見つけられませんでした。レイアウトが特殊な可能性があります。お手数ですが手入力をお願いします。</div>';
+    return;
+  }
+  el.innerHTML = pdfParsedRows.map(function(r, i){
+    return '<div class="order-card" style="padding:0.8rem 1rem">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+        '<span style="font-size:11px;color:#888;font-weight:700">#'+(i+1)+'</span>'+
+        '<button class="btn-sm" onclick="removePdfRow('+i+')">✕ この行を除外</button>'+
+      '</div>'+
+      '<div class="g3">'+
+        '<input type="text" value="'+(r.companyName||'').replace(/"/g,'&quot;')+'" placeholder="会社名" oninput="pdfParsedRows['+i+'].companyName=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+        '<input type="text" value="'+(r.positionName||'').replace(/"/g,'&quot;')+'" placeholder="役職名" oninput="pdfParsedRows['+i+'].positionName=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+        '<input type="text" value="'+(r.personName||'').replace(/"/g,'&quot;')+'" placeholder="お名前" oninput="pdfParsedRows['+i+'].personName=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+      '</div>'+
+      '<div class="g3" style="margin-top:6px">'+
+        '<input type="text" value="'+(r.zip||'')+'" placeholder="郵便番号" oninput="pdfParsedRows['+i+'].zip=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+        '<input type="text" value="'+(r.addr||'').replace(/"/g,'&quot;')+'" placeholder="住所" oninput="pdfParsedRows['+i+'].addr=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;grid-column:span 2">'+
+      '</div>'+
+      '<div class="g3" style="margin-top:6px">'+
+        '<input type="text" value="'+(r.tel||'')+'" placeholder="電話番号" oninput="pdfParsedRows['+i+'].tel=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+        '<select onchange="pdfParsedRows['+i+'].productId=this.value" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+productOptionsHtml(r.productId)+'</select>'+
+        '<input type="number" min="0" value="'+(r.bottles||0)+'" placeholder="本数" oninput="pdfParsedRows['+i+'].bottles=parseInt(this.value)||0" style="padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px">'+
+      '</div>'+
+      '<div style="font-size:10px;color:#bbb;margin-top:6px">元データ：'+r.raw+'</div>'+
+    '</div>';
+  }).join('');
+}
+function removePdfRow(i){
+  pdfParsedRows.splice(i,1);
+  renderPdfPreview();
+}
+function applyCommonProductToPdfRows(){
+  const pid = document.getElementById('pdf-common-product').value;
+  const bottles = parseInt(document.getElementById('pdf-common-bottles').value)||0;
+  const gift = document.getElementById('pdf-common-gift').value;
+  if(!pid){ alert('商品を選択してください'); return; }
+  pdfParsedRows.forEach(function(r){ r.productId = pid; r.bottles = bottles; r.giftType = gift; });
+  renderPdfPreview();
+}
+function cancelPdfImport(){
+  pdfParsedRows = null;
+  document.getElementById('pdf-preview').style.display = 'none';
+  document.getElementById('pdf-file').value = '';
+}
+function applyPdfToOrderForm(){
+  if(!pdfParsedRows || !pdfParsedRows.length) return;
+  document.getElementById('recipients').innerHTML = '';
+  pdfParsedRows.forEach(function(r){
+    addRecipient();
+    const cards = document.querySelectorAll('.recipient-card');
+    const card = cards[cards.length-1];
+    if(r.isCompany){
+      card.querySelector('[data-role=rtypeCom]').checked = true;
+      onRecipientTypeChange(card.id);
+      card.querySelector('[data-role=companyName]').value = r.companyName;
+      card.querySelector('[data-role=positionName]').value = r.positionName;
+    }
+    card.querySelector('[data-role=personName]').value = r.personName;
+    card.querySelector('[data-role=zip]').value = r.zip;
+    card.querySelector('[data-role=addr]').value = r.addr;
+    card.querySelector('[data-role=tel]').value = r.tel;
+    if(r.productId){
+      const lineRow = card.querySelector('[data-role=lines]').children[0];
+      lineRow.querySelector('[data-role=product]').value = r.productId;
+      lineRow.querySelector('[data-role=bottles]').value = r.bottles||1;
+      onRecipientLineProductChange(card.id, lineRow.id);
+      if(!findProduct(r.productId).isSet){
+        lineRow.querySelector('[data-role=gift]').value = r.giftType||'normal';
+        onRecipientLineGiftChange(card.id);
+      }
+    }
+  });
+  renumberRecipients();
+  cancelPdfImport();
+  showPanel('order', document.querySelectorAll('.tab-row .tab')[0]);
+  showSyncStatus('📕 PDFから'+document.querySelectorAll('.recipient-card').length+'件の届け先を反映しました。内容を確認してください');
+  document.getElementById('panel-order').scrollIntoView({behavior:'smooth'});
 }
 
 // ── GAS 保存（必ず「今ある受注を全部」送る）────────────────────────────
