@@ -143,6 +143,8 @@ body{background:#fff}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -342,7 +344,7 @@ body{background:#fff}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <select id="list-filter" onchange="renderList()" style="padding:5px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px">
         <option value="pending" selected>出荷待ち</option>
-        <option value="all">すべてのステータス</option>
+        <option value="all">すべて（キャンセル済みを除く）</option>
         <option value="shipped">出荷済み</option>
         <option value="cancelled">キャンセル</option>
       </select>
@@ -379,6 +381,7 @@ body{background:#fff}
     <button class="btn btn-primary" onclick="generateSlip()">作成</button>
     <button class="btn-print no-print" onclick="printSlip()">🖨 出荷指示書を印刷</button>
     <button class="btn btn-primary no-print" onclick="printInvoice()" id="invoice-btn" style="display:none">📄 納品書を印刷（お客様用）</button>
+    <button class="btn btn-primary no-print" onclick="downloadInvoicePdf()" id="invoice-pdf-btn" style="display:none">⬇️ 納品書をPDF化</button>
   </div>
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
     <button class="btn-line" id="line-send-btn" onclick="copyForLine()" style="display:none">
@@ -1090,7 +1093,8 @@ function renderList(){
   const sort = document.getElementById('list-sort').value;
   const search = (document.getElementById('list-search').value||'').toLowerCase();
   let list = orders.slice();
-  if(filter!=='all') list = list.filter(o=>o.status===filter);
+  if(filter==='all') list = list.filter(o=>o.status!=='cancelled'); // 「すべて」からはキャンセル済みを除外（記録は残るが一覧には出さない）
+  else if(filter!=='all') list = list.filter(o=>o.status===filter);
   if(ctypeFilter!=='all') list = list.filter(o=>o.customerType===ctypeFilter);
   if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.recipientName||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
   if(sort==='newest') list.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
@@ -1183,6 +1187,7 @@ function generateBulkSlips(){
   });
   document.getElementById('line-send-btn').style.display = 'none'; // 複数件のためLINEコピーは1件用のみ対応
   document.getElementById('invoice-btn').style.display = 'none'; // 納品書は1件ずつ「出荷指示書へ」から作成してください
+  document.getElementById('invoice-pdf-btn').style.display = 'none';
   document.getElementById('invoice-area').innerHTML = '';
   showSyncStatus('🖨 '+list.length+'件の出荷指示書をまとめて作成しました');
   document.getElementById('panel-slip').scrollIntoView({behavior:'smooth'});
@@ -1242,6 +1247,7 @@ function generateSlip(){
   }
   document.getElementById('line-send-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-block';
+  document.getElementById('invoice-pdf-btn').style.display = 'inline-block';
   buildInvoice(o);
 }
 function printSlip(){
@@ -1300,6 +1306,34 @@ function printInvoice(){
   slipArea.style.display = 'none';
   window.print();
   slipArea.style.display = '';
+}
+
+function downloadInvoicePdf(){
+  const o = window._currentSlipOrder;
+  const invoiceEl = document.querySelector('#invoice-area .invoice');
+  if(!invoiceEl){ alert('先に出荷指示書を作成してください'); return; }
+  if(!window.html2canvas || !window.jspdf){ alert('PDF機能の準備ができていません。少し待ってから再度お試しください。'); return; }
+  showSyncStatus('📄 PDFを作成中...');
+  html2canvas(invoiceEl, { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas){
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = 210, pageHeight = 297;
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    if(imgHeight <= pageHeight){
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    } else {
+      // 1ページに収まらない場合は縮小してA4いっぱいに収める
+      const scale = pageHeight / imgHeight;
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, pageHeight);
+    }
+    const fileName = '納品書_'+(o?(o.recipientName||o.client):'')+'_'+(o?o.num:'')+'.pdf';
+    pdf.save(fileName);
+    showSyncStatus('✅ PDFをダウンロードしました');
+  }).catch(function(err){
+    showSyncStatus('⚠️ PDF作成に失敗しました：'+err.message, true);
+  });
 }
 
 // ── STORES CSV取込 ────────────────────────────────────────────
