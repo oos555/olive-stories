@@ -148,6 +148,7 @@ function buildInvoiceHtml(o){
   html += '<div class="invoice-title">納　品　書'+badge+'</div>';
   html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+recipientAddressBlock(o)+' 様<br>〒'+esc(o.zip)+'<br>'+esc(o.addr)+'<br>'+esc(o.tel)+'</div>';
   html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+esc(o.num)+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
+  html += '<div style="font-size:12.5px;color:#444;margin:-4px 0 10px">この度はご購入いただき、誠にありがとうございます。</div>';
   if(o.senderName){
     html += '<div class="invoice-box"><div class="invoice-box-label">送り主</div>'+esc(o.senderName)+'　'+esc(o.senderTel)+'<br>〒'+esc(o.senderZip)+' '+esc(o.senderAddr)+'</div>';
   }
@@ -159,10 +160,19 @@ function buildInvoiceHtml(o){
   html += '<div style="font-weight:700;margin-bottom:4px">■キャンセル・変更について</div>';
   html += '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございますので、あらかじめご了承ください。<br><br>';
   html += '<div style="font-weight:700;margin-bottom:4px">■破損していた場合</div>';
-  html += '直ちにご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br><br>';
+  html += 'ご迷惑をおかけし、大変申し訳ございません。お手数をおかけいたしますが、商品到着後は速やかに（到着後5日以内に）ご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br><br>';
+  html += 'なお、商品到着から1週間以上経過したもの、および商品を廃棄された後のご連絡につきましては、状態を確認できる証拠が残っていないため、配送会社・弊社のいずれも対応いたしかねる場合がございます。あらかじめご了承ください。<br><br>';
   html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
-  html += '<div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
-  html += COMPANY_WEBSITE+'<br>E-mail: '+COMPANY_EMAIL;
+  html += '<div style="background:#fef9f0;border:1px solid #f3d9a8;border-radius:6px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px">';
+  html += '<div><div style="font-weight:700;color:#78350f;margin-bottom:2px">🎁 ギフトのご用命はこちら</div>複数のお届け先へのギフト発送も承っております。</div>';
+  html += '<div id="gift-qr" style="margin-left:auto"></div>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  html += '<div><div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
+  html += '<div style="color:#888;font-size:10px;margin:2px 0">※土日祝日はお休みをいただいております</div>';
+  html += COMPANY_WEBSITE+'<br>E-mail: '+COMPANY_EMAIL+'</div>';
+  if(COMPANY_WEBSITE) html += '<div id="company-qr" style="margin-left:auto"></div>';
+  html += '</div>';
   html += '</div>';
   html += '</div>';
   return html;
@@ -175,6 +185,14 @@ function printInvoice(){
     return;
   }
   document.getElementById('invoice-print-area').innerHTML = buildInvoiceHtml(currentOrder);
+  const qrWrap = document.getElementById('company-qr');
+  if(window.QRCode && qrWrap && COMPANY_WEBSITE){
+    new QRCode(qrWrap, { text: COMPANY_WEBSITE, width:64, height:64 });
+  }
+  const giftQrWrap = document.getElementById('gift-qr');
+  if(window.QRCode && giftQrWrap && COMPANY_WEBSITE){
+    new QRCode(giftQrWrap, { text: COMPANY_WEBSITE, width:56, height:56 });
+  }
   document.getElementById('content').style.display = 'none';
   document.getElementById('inapp-banner').style.display = 'none';
   document.getElementById('invoice-print-area').style.display = 'block';
