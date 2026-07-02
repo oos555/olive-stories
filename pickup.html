@@ -117,7 +117,8 @@ async function loadOrderList(){
       document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>';
       return;
     }
-    allOrders = data.data.orders.filter(o=>o.status==='pending');
+    // 出荷待ち、かつ「発送元から出荷指示が送られたもの」だけを表示します
+    allOrders = data.data.orders.filter(o=>o.status==='pending' && o.notified===true);
     renderList();
   }catch(err){
     document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
@@ -136,7 +137,7 @@ function renderList(){
   const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   let html = '';
   html += '<div class="summary-card">';
-  html += '<div class="summary-num">📦 出荷待ち '+allOrders.length+'件</div>';
+  html += '<div class="summary-num">📦 出荷指示 '+allOrders.length+'件</div>';
   const parts = [];
   if(urgent) parts.push('🚨急ぎ '+urgent+'件');
   if(gift) parts.push('🎁ギフト '+gift+'件');
@@ -144,7 +145,7 @@ function renderList(){
   html += '</div>';
   html += '<button class="refresh-btn no-print" onclick="loadOrderList()">🔄 一覧を更新する</button>';
   if(!allOrders.length){
-    html += '<div class="card center" style="color:#999">現在、出荷待ちの注文はありません。</div>';
+    html += '<div class="card center" style="color:#999">現在、届いている出荷指示はありません。</div>';
   } else {
     allOrders.slice().sort(function(a,b){
       // 急ぎを先頭に、あとは登録が古い順
