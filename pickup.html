@@ -40,6 +40,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .btn-complete:disabled{background:#a7d8b8;color:#eee}
 .btn-print{background:#fff;color:#1a1a18;border:1px solid #ccc}
 .done-banner{background:#dcfce7;border:2px solid #16a34a;color:#14532d;border-radius:10px;padding:16px;text-align:center;font-weight:700;font-size:16px;margin-bottom:14px}
+.invoice{background:#fff;border:1px solid #e8e7e3;border-radius:8px;padding:1.5rem 1.2rem}
+.invoice-title{font-size:18px;font-weight:700;text-align:center;margin-bottom:1.2rem;letter-spacing:.08em}
+.invoice-box{border:1px solid #d1d5db;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:13px}
+.invoice-box-label{font-size:11px;color:#888;margin-bottom:6px;font-weight:600}
+.invoice-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
+.invoice-table th{background:#f9f8f5;padding:6px 8px;text-align:left;border:1px solid #e8e7e3;font-size:11px;color:#666}
+.invoice-table td{padding:7px 8px;border:1px solid #e8e7e3}
+.badge-ctype{display:inline-block;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;margin-left:6px}
+.badge-wholesale1{background:#dbeafe;color:#1e3a8a}
+.badge-wholesale2{background:#e0e7ff;color:#3730a3}
+.badge-rt{background:#f3e8ff;color:#6b21a8}
+.badge-defectprice{background:#fee2e2;color:#7f1d1d}
+.invoice-notice{margin-top:1.2rem;padding-top:1rem;border-top:1px solid #e8e7e3;font-size:10.5px;color:#555;line-height:1.7}
 .summary-card{background:#1a1a18;color:#fff;border-radius:12px;padding:16px;margin-bottom:14px;text-align:center}
 .summary-num{font-size:28px;font-weight:700}
 .summary-sub{font-size:13px;color:#ccc;margin-top:4px}
@@ -56,18 +69,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   body{background:#fff}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
   <div class="topbar no-print">📦 ピッキング確認</div>
+  <div id="inapp-banner" class="no-print" style="display:none;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">⚠️ アプリ内ブラウザで開いています。印刷したいときは、右上の「…」メニューから「Safari／Chromeで開く」を選んでください。</div>
   <div id="content"><div class="spinner">読み込み中...</div></div>
+  <div id="invoice-print-area" style="display:none"></div>
 </div>
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
+
+function computeDueDateISO(o){
+  if(o.leadType==='scheduled') return o.leadDate || '';
+  const days = o.leadType==='urgent' ? 1 : (o.leadType==='normal' ? 3 : null);
+  if(days===null) return '';
+  const base = o.registeredAt ? new Date(o.registeredAt) : new Date();
+  base.setDate(base.getDate()+days);
+  return base.toISOString().slice(0,10);
+}
+function formatDateJp(iso){
+  if(!iso) return '';
+  const d = new Date(iso+'T00:00:00');
+  return (d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+function leadLabelWithDate(o){
+  const due = computeDueDateISO(o);
+  const dueStr = due ? formatDateJp(due)+'までに出荷' : '';
+  if(o.leadType==='urgent') return '🚨急ぎ'+(dueStr?'（'+dueStr+'）':'（明日まで）');
+  if(o.leadType==='normal') return '通常'+(dueStr?'（'+dueStr+'）':'（3日以内）');
+  if(o.leadType==='defect') return '🔵不良在庫出荷';
+  if(o.leadType==='caution') return '🟡特別注意';
+  if(o.leadType==='scheduled') return '🗓 '+(due?formatDateJp(due)+'までに出荷':'日程未指定');
+  return o.leadType;
+}
+function isOverdue(o){
+  if(o.status!=='pending') return false;
+  const due = computeDueDateISO(o);
+  if(!due) return false;
+  const todayISO = new Date().toISOString().slice(0,10);
+  return due < todayISO;
+}
 const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect', caution:'b-caution', scheduled:'b-normal'};
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
+const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
+const COMPANY_WEBSITE = 'https://oliveoilstories.net/';
+const COMPANY_EMAIL = 'office@oliveoilstories.net';
 
 let currentOrder = null;
 let allOrders = [];
@@ -79,7 +129,64 @@ function getParam(name){
 
 function esc(s){ return (s==null?'':String(s)); }
 
+function isInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  return /Line\//i.test(ua) || (/FBAN|FBAV|Instagram/i.test(ua));
+}
+
+function recipientAddressBlock(o){
+  if(o.isCompany){
+    return [o.companyName, o.deptName, [o.positionName, o.personName].filter(Boolean).join(' ')].filter(Boolean).join('<br>');
+  }
+  return esc(o.recipientName || o.client || '');
+}
+function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
+
+function buildInvoiceHtml(o){
+  const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
+  let html = '<div class="invoice">';
+  html += '<div class="invoice-title">納　品　書'+badge+'</div>';
+  html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+recipientAddressBlock(o)+' 様<br>〒'+esc(o.zip)+'<br>'+esc(o.addr)+'<br>'+esc(o.tel)+'</div>';
+  html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+esc(o.num)+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
+  if(o.senderName){
+    html += '<div class="invoice-box"><div class="invoice-box-label">送り主</div>'+esc(o.senderName)+'　'+esc(o.senderTel)+'<br>〒'+esc(o.senderZip)+' '+esc(o.senderAddr)+'</div>';
+  }
+  html += '<table class="invoice-table"><thead><tr><th>商品名</th><th>数量</th></tr></thead><tbody>';
+  (o.lines||[]).forEach(function(l){ html += '<tr><td>'+esc(l.productName)+'</td><td>'+lineTotal(l)+'本'+(l.boxes?'（バラ'+esc(l.bottles)+'＋'+esc(l.boxes)+'箱）':'')+'</td></tr>'; });
+  html += '</tbody></table>';
+  if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
+  html += '<div class="invoice-notice">';
+  html += '<div style="font-weight:700;margin-bottom:4px">■キャンセル・変更について</div>';
+  html += '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございますので、あらかじめご了承ください。<br><br>';
+  html += '<div style="font-weight:700;margin-bottom:4px">■破損していた場合</div>';
+  html += '直ちにご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br><br>';
+  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
+  html += '<div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
+  html += COMPANY_WEBSITE+'<br>E-mail: '+COMPANY_EMAIL;
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+function printInvoice(){
+  if(!currentOrder) return;
+  if(isInAppBrowser()){
+    alert('このアプリ内のブラウザでは印刷ができません。\n\n右上の「…」または「メニュー」ボタンから「他のアプリで開く」「Safari／Chromeで開く」を選んでから、もう一度印刷をお試しください。');
+    return;
+  }
+  document.getElementById('invoice-print-area').innerHTML = buildInvoiceHtml(currentOrder);
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('inapp-banner').style.display = 'none';
+  document.getElementById('invoice-print-area').style.display = 'block';
+  window.print();
+  document.getElementById('content').style.display = '';
+  document.getElementById('invoice-print-area').style.display = 'none';
+}
+
 async function init(){
+  if(isInAppBrowser()){
+    document.getElementById('inapp-banner').style.display = 'block';
+  }
   const id = getParam('id');
   if(id){
     await loadSingleOrder(id);
@@ -135,7 +242,11 @@ function recipientLabel(o){
 function renderList(){
   const urgent = allOrders.filter(o=>o.leadType==='urgent').length;
   const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
+  const overdue = allOrders.filter(o=>isOverdue(o)).length;
   let html = '';
+  if(overdue){
+    html += '<div class="alert-danger no-print">⏰ 出荷期限を過ぎているものが'+overdue+'件あります。優先して確認してください。</div>';
+  }
   html += '<div class="summary-card">';
   html += '<div class="summary-num">📦 出荷指示 '+allOrders.length+'件</div>';
   const parts = [];
@@ -148,17 +259,20 @@ function renderList(){
     html += '<div class="card center" style="color:#999">現在、届いている出荷指示はありません。</div>';
   } else {
     allOrders.slice().sort(function(a,b){
-      // 急ぎを先頭に、あとは登録が古い順
+      // 期限超過・急ぎを先頭に、あとは登録が古い順
+      const ao = isOverdue(a)?0:1, bo = isOverdue(b)?0:1;
+      if(ao!==bo) return ao-bo;
       const au = a.leadType==='urgent'?0:1, bu = b.leadType==='urgent'?0:1;
       if(au!==bu) return au-bu;
       return (a.registeredAt||'').localeCompare(b.registeredAt||'');
     }).forEach(function(o){
       const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
       const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
-      html += '<div class="order-item" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
+      const overdueNow = isOverdue(o);
+      html += '<div class="order-item" style="'+(overdueNow?'border-color:#dc2626;border-width:2px':'')+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
       html += '<div class="oi-top"><span class="oi-name">'+esc(recipientLabel(o))+'</span>';
-      html += '<span>'+(o.leadType==='urgent'?'<span class="badge '+leadCls+'" style="margin:0 0 0 4px">🚨</span>':'')+(hasGift?'<span class="badge b-gift" style="margin:0 0 0 4px">🎁</span>':'')+'</span></div>';
-      html += '<div class="oi-num">'+esc(o.num)+'</div>';
+      html += '<span>'+(overdueNow?'<span class="badge b-urgent" style="margin:0 0 0 4px;background:#7f1d1d;color:#fff">⏰期限超過</span>':'')+(o.leadType==='urgent'?'<span class="badge '+leadCls+'" style="margin:0 0 0 4px">🚨</span>':'')+(hasGift?'<span class="badge b-gift" style="margin:0 0 0 4px">🎁</span>':'')+'</span></div>';
+      html += '<div class="oi-num">'+esc(o.num)+'　'+leadLabelWithDate(o)+'</div>';
       html += '<div class="oi-products">'+(o.lines||[]).map(l=>esc(l.productName)+' ×'+esc(l.bottles)).join('　')+'</div>';
       html += '</div>';
     });
@@ -179,7 +293,7 @@ function renderAlreadyShipped(){
 
 function renderOrder(){
   const o = currentOrder;
-  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : (LEAD_LABEL[o.leadType]||o.leadType);
+  const leadLabel = leadLabelWithDate(o);
   const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '';
@@ -200,12 +314,10 @@ function renderOrder(){
   if(o.note){
     html += '<div class="note-box">📝 '+esc(o.note)+'</div>';
   }
-  html += '<div class="sec-title no-print">商品チェックリスト（タップしてチェック）</div>';
-  html += '<div class="sec-title" style="display:none" id="print-sec-title">商品チェックリスト</div>';
+  html += '<div class="sec-title">商品明細</div>';
   html += '<div id="item-list">';
   (o.lines||[]).forEach(function(l, i){
-    html += '<div class="item" id="item-'+i+'" onclick="toggleItem('+i+')">'+
-      '<input type="checkbox" class="cb" id="cb-'+i+'" onclick="event.stopPropagation();toggleItem('+i+')">'+
+    html += '<div class="item" id="item-'+i+'">'+
       '<div class="info">'+
         '<div class="pname">'+esc(l.productName)+'</div>'+
         '<div class="psub">'+esc(l.bottles)+'本'+(l.boxes?'（'+esc(l.boxes)+'箱）':'')+'　['+esc(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+']</div>'+
@@ -216,25 +328,29 @@ function renderOrder(){
   html += '</div>';
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()">✅ 発送完了にする</button>';
-  html += '<button class="btn-big btn-print" onclick="window.print()">🖨 この内容を印刷する</button>';
+  html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
+  html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
+  html += '<div id="qr-area" style="display:none;text-align:center;padding:16px;background:#fff;border:1px solid #e8e7e3;border-radius:10px;margin-top:-4px"></div>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
 }
 
-function toggleItem(i){
-  const item = document.getElementById('item-'+i);
-  const cb = document.getElementById('cb-'+i);
-  cb.checked = !cb.checked;
-  item.classList.toggle('checked', cb.checked);
+function toggleQr(){
+  const area = document.getElementById('qr-area');
+  if(area.style.display === 'none'){
+    area.style.display = 'block';
+    if(!area.dataset.rendered && window.QRCode){
+      new QRCode(area, { text: location.href, width:180, height:180 });
+      area.dataset.rendered = '1';
+    }
+  } else {
+    area.style.display = 'none';
+  }
 }
 
 async function completeOrder(){
   if(!currentOrder) return;
-  const allItems = document.querySelectorAll('#item-list .item').length;
-  const checkedItems = document.querySelectorAll('#item-list .item.checked').length;
-  if(checkedItems < allItems){
-    if(!confirm('まだチェックしていない商品があります（'+checkedItems+'/'+allItems+'）。それでも発送完了にしますか？')) return;
-  }
+  if(!confirm('発送準備がすべて完了しましたか？\n「発送完了」にすると、この注文は出荷待ち一覧から消えます。')) return;
   const btn = document.getElementById('complete-btn');
   btn.disabled = true;
   btn.textContent = '処理中...';
@@ -248,7 +364,7 @@ async function completeOrder(){
     if(data.status === 'ok'){
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 発送完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
-        '<button class="btn-big btn-print no-print" onclick="window.print()">🖨 この内容を印刷する</button>'+
+        '<button class="btn-big btn-print no-print" onclick="printInvoice()">📄 納品書を印刷する</button>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</button>';
     } else {
       btn.disabled = false;
