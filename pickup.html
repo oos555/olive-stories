@@ -185,6 +185,9 @@ async function deductStockAndSave(o){
     const lots = (data.data.lots||[]).map(function(l){
       return { id:l.id, pid:parseInt(l.pid), productName:l.productName||'', lotCode:l.lotCode, expiry:l.expiry, stock:parseInt(l.stock)||0, defect:l.defect, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 };
     });
+    const defects = (data.data.defects||[]).map(function(d){
+      return { id:d.id, pid:parseInt(d.pid), productName:d.productName||'', lotId:d.lotId, qty:parseInt(d.qty)||0, cat:d.cat, note:d.note, status:d.status, shippedQty:parseInt(d.shippedQty)||0, processedAt:d.processedAt||'' };
+    });
     const needed = {};
     (o.lines||[]).forEach(function(l){
       const p = findProduct(l.productId);
@@ -196,21 +199,36 @@ async function deductStockAndSave(o){
         needed[p.sku] = (needed[p.sku]||0) + totalQty;
       }
     });
+    const isDefectOrder = o.customerType === 'defectprice';
     Object.keys(needed).forEach(function(sku){
       let remain = needed[sku];
       const prod = findProductBySku(sku);
       if(!prod || remain<=0) return;
-      const matching = lots.filter(l=>l.pid===prod.id && l.status==='new').sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
-      matching.forEach(function(l){
-        if(remain<=0) return;
-        const take = Math.min(l.stock||0, remain);
-        if(take<=0) return;
-        l.stock -= take; remain -= take;
-      });
+      if(isDefectOrder){
+        const matchingDefects = defects.filter(d=>d.pid===prod.id && d.status!=='resolved').sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
+        matchingDefects.forEach(function(d){
+          if(remain<=0) return;
+          const defectRemain = Math.max(0,(d.qty||0)-(d.shippedQty||0));
+          const take = Math.min(defectRemain, remain);
+          if(take<=0) return;
+          d.shippedQty = (d.shippedQty||0) + take;
+          d.processedAt = new Date().toISOString();
+          if(d.shippedQty >= d.qty) d.status = 'resolved';
+          remain -= take;
+        });
+      } else {
+        const matching = lots.filter(l=>l.pid===prod.id && l.status==='new').sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
+        matching.forEach(function(l){
+          if(remain<=0) return;
+          const take = Math.min(l.stock||0, remain);
+          if(take<=0) return;
+          l.stock -= take; remain -= take;
+        });
+      }
     });
     await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'saveAllData', payload:{ lots: lots } }),
+      body: JSON.stringify({ action:'saveAllData', payload:{ lots: lots, defects: defects } }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
   }catch(e){
@@ -474,7 +492,7 @@ function renderOrder(){
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
   html += '</div>';
   if(o.note){
-    html += '<div class="note-box">📝 '+esc(o.note)+'</div>';
+    html += '<div class="note-box" style="'+(/のし|熨斗/.test(o.note)?'border-width:2px;border-color:#dc2626':'')+'">'+(/のし|熨斗/.test(o.note)?'🎀のし指示あり：':'📝')+' '+esc(o.note)+'</div>';
   }
   html += '<div class="sec-title">商品明細</div>';
   html += '<div id="item-list">';

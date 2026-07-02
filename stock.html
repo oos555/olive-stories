@@ -49,6 +49,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
 .stat{background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e8e7e3}
 .stat-label{font-size:11px;color:#666;margin-bottom:3px}
+.help-ic{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;background:#d1d5db;color:#374151;font-size:10px;font-weight:700;cursor:pointer;font-style:normal}
+.help-ic:hover{background:#9ca3af;color:#fff}
 .stat-val{font-size:18px;font-weight:700}
 .stat-sub{font-size:10px;color:#aaa;margin-top:2px}
 .tbl-wrap{background:#fff;border:1px solid #e8e7e3;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
@@ -137,12 +139,23 @@ tr:last-child td{border-bottom:none}
   <div class="tbl-wrap">
     <table>
       <colgroup><col style="width:26%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:12%"><col style="width:18%"></colgroup>
-      <thead><tr><th>商品名（SKU）</th><th>実在庫</th><th>旧ロット</th><th>不良</th><th>取置</th><th>予約</th><th>入庫予定</th><th>販売可能数</th><th>操作</th></tr></thead>
+      <thead><tr>
+        <th>商品名（SKU）</th>
+        <th>実在庫 <span class="help-ic" onclick="showHelp('stock')">ⓘ</span></th>
+        <th>旧ロット <span class="help-ic" onclick="showHelp('old')">ⓘ</span></th>
+        <th>不良 <span class="help-ic" onclick="showHelp('defect')">ⓘ</span></th>
+        <th>取置 <span class="help-ic" onclick="showHelp('hold')">ⓘ</span></th>
+        <th>予約 <span class="help-ic" onclick="showHelp('preorder')">ⓘ</span></th>
+        <th>入庫予定 <span class="help-ic" onclick="showHelp('incoming')">ⓘ</span></th>
+        <th>販売可能数 <span class="help-ic" onclick="showHelp('avail')">ⓘ</span></th>
+        <th>操作</th>
+      </tr></thead>
       <tbody id="inv-tbl-body"></tbody>
     </table>
   </div>
   <div class="card">
-    <div class="sec">入庫 / 出庫を記録</div>
+    <div class="sec">入庫 / 出庫を記録 <span class="help-ic" onclick="showHelp('form')">ⓘ</span></div>
+    <div class="info-box">💡 商品ごとの「➕入庫」「➖出庫」ボタン（上の表）とは違い、こちらは<strong>特定のロット（賞味期限）を選んで</strong>正確に数を直したいときに使います。「（新規ロットとして扱う）」のままだと、新しいロットが作られます。</div>
     <div class="g4">
       <div class="fg"><label>商品</label><select id="f-product" onchange="onProdChange('f-product','f-lot')"></select></div>
       <div class="fg"><label>ロット・賞味期限</label><select id="f-lot"></select></div>
@@ -219,42 +232,16 @@ tr:last-child td{border-bottom:none}
 
 <!-- 取り置き -->
 <div id="panel-hold" class="panel">
-  <div class="info-box">卸先からの取り置きを登録します。取り置き分は<strong>販売可能数から自動的に差し引かれます</strong>。</div>
-  <div class="sec">現在の取り置き</div>
+  <div class="info-box">取り置きの<strong>登録・編集はアプリA（受注・出荷）</strong>で行ってください。ここでは在庫計算に使うため、内容の確認だけができます。</div>
+  <div class="sec">現在の取り置き（表示のみ）</div>
   <div id="hold-list"></div>
-  <div class="card">
-    <div class="sec">取り置きを新規登録</div>
-    <div class="g2">
-      <div class="fg"><label>商品</label><select id="h-product"></select></div>
-      <div class="fg"><label>数量</label><input type="number" id="h-qty" min="1" value="1"></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label>卸先・顧客名</label><input type="text" id="h-client" placeholder="〇〇食品株式会社"></div>
-      <div class="fg"><label>期限（任意）</label><input type="date" id="h-date"></div>
-    </div>
-    <button class="btn-primary btn" onclick="addHold()">登録する</button>
-  </div>
 </div>
 
 <!-- 予約販売 -->
 <div id="panel-pre" class="panel">
-  <div class="info-box">輸入予定分などの予約を受け付けます。予約数は<strong>実在庫とは別にカウント</strong>されます（販売可能数からは引かれません）。</div>
+  <div class="info-box">予約の<strong>登録・編集はアプリA（受注・出荷）</strong>で行ってください。ここでは在庫計算に使うため、内容の確認だけができます。</div>
   <div class="alert-info alert-bar"><span id="pre-total-bar">予約合計: 0本</span></div>
   <div id="pre-list"></div>
-  <div class="card">
-    <div class="sec">予約を受け付ける</div>
-    <div class="g2">
-      <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
-      <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>本数（バラ）</label><input type="number" id="p-bottles" min="0" value="0" oninput="updPreorderTotal()"></div>
-      <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
-      <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
-    </div>
-    <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
-    <button class="btn-primary btn" onclick="addPreorder()">予約登録</button>
-  </div>
 </div>
 
 <!-- ログ -->
@@ -296,6 +283,14 @@ tr:last-child td{border-bottom:none}
       <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
         操作すると2秒後に自動でスプレッドシートに保存されます。右上の「☁️ 今すぐ保存」でも即時保存できます。<br>
         通信エラー時は画面右下に赤色で表示されます。オフラインのまま操作を続けても手元のデータは消えませんが、他の端末とはずれるので早めに保存してください。
+      </div>
+    </details>
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">🛡️ バックアップについて</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        毎週月曜の朝3時に、すべてのデータ（受注・在庫・お客様情報など）が自動でGoogleドライブにコピー保存されます（過去30日分を保持）。<br>
+        バックアップの保存場所：Googleドライブの「バックアップ_オリーブオイルストーリーズ」というフォルダです。<br>
+        もし何かデータがおかしくなった場合は、そのフォルダの中から一番近い日付のバックアップを開いて、内容を確認・復元できます。不安な時は遠慮なくご相談ください。
       </div>
     </details>
   </div>
@@ -405,6 +400,21 @@ let defectCategories = ['オイル漏れ','ラベル汚れ','その他'];
 let idSeq = 1;
 function nextId(){ return Date.now()+'-'+(idSeq++); }
 
+// ── 用語説明ポップアップ（分かりにくい項目をタップすると説明が出ます） ──
+const HELP_TEXTS = {
+  stock: '【実在庫】\n倉庫に物理的にある本数です。旧ロットや不良品も含みます（まだ処分していないため）。\n\nここからは減りません。「販売可能数」の計算のときだけ、旧ロット・不良・取置分が差し引かれます。',
+  old: '【旧ロット】\n賞味期限が古い方のロットです。不良品ではありませんが、早めに売り切りたい在庫です。\n\n実在庫には含まれますが、販売可能数からは除外されます（通常の値段では売らない想定のため）。',
+  defect: '【不良】\n破損・オイル漏れ・ラベル汚れなどで、通常の値段では売れない本数です。\n\n実在庫には含まれますが、販売可能数からは除外されます。「不良在庫特価」で受注・出荷すると、ここから自動で減っていきます。',
+  hold: '【取置】\n卸先などのために確保している本数です（アプリAで登録します）。\n\n実在庫には含まれますが、販売可能数からは除外されます（すでに約束済みのため、他のお客様には売れません）。',
+  preorder: '【予約】\nまだ入荷していない商品を、先に予約で受け付けている本数です（アプリAで登録します）。\n\n実在庫にも販売可能数にも影響しません（今ある在庫の話ではないため）。入庫予定と合わせて、入荷後の見込みを確認するための数字です。',
+  incoming: '【入庫予定】\nまだ倉庫に届いていない、発注済みの本数です。\n\n「✅到着分を実在庫に」ボタンを押すと、実在庫に加算されます。',
+  avail: '【販売可能数】\n今すぐ通常の値段で売れる本数です。\n\n計算式：実在庫 − 旧ロット − 不良 − 取置\n（予約・入庫予定はこの数字には影響しません）',
+  form: '【入庫／出庫を記録】について\n\n上の表の「➕入庫」「➖出庫」ボタンは、ロット（賞味期限）を気にせず、ざっくり数を増減させます。\n\nこちらのフォームは、特定のロットを選んで正確に直したい時に使います。例：「A5ロットだけ2本減っていた」など。\n\n「区分」で入庫／出庫を選び、「ロット・賞味期限」で対象を選んでから「記録する」を押してください。'
+};
+function showHelp(key){
+  alert(HELP_TEXTS[key] || '説明がありません');
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   fillProductSelects();
   loadAllDataFromGAS();
@@ -435,7 +445,7 @@ function showPanel(name, btn){
 }
 
 function fillProductSelects(){
-  ['f-product','d-product','l-product','h-product','p-product'].forEach(function(id){
+  ['f-product','d-product','l-product'].forEach(function(id){
     document.getElementById(id).innerHTML = productOptionsHtml();
   });
   document.getElementById('f-product').addEventListener('change', function(){});
@@ -489,9 +499,8 @@ function saveAllDataToGAS(){
     lots: withProductName(lots),
     defects: withProductName(defects),
     defectHolds: withProductName(defectHolds),
-    holds: withProductName(holds),
-    preorders: withProductName(preorders),
     defectCategories: defectCategories
+    // holds・preorders はアプリAが管理するため、ここでは送らない（Aの最新データを上書きしないため）
   };
   fetch(GAS_URL, {
     method:'POST',
@@ -784,75 +793,42 @@ function renderDefectGroups(){
   const pending = defects.filter(d=>d.status!=='resolved' && ((d.qty||0)-(d.shippedQty||0))>0);
   const el = document.getElementById('defect-groups');
   if(!pending.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">処理待ちの不良品はありません。</div>'; return; }
-  el.innerHTML = pending.map(function(d){
-    const p = findProduct(d.pid);
-    const remain = (d.qty||0)-(d.shippedQty||0);
-    return '<div class="dcard"><div class="dcard-hd"><div><strong>'+(p?p.name:'')+'</strong>　残り '+remain+'本　<span class="pill pill-hold">'+d.cat+'</span></div><div style="font-size:11px;color:#888">'+(d.note||'')+'</div></div>'+
-      '<div class="drow">'+
-      '<input type="number" min="1" max="'+remain+'" value="1" id="ship-qty-'+d.id+'" style="width:70px;padding:4px 6px;border:1px solid #ccc;border-radius:6px">'+
-      '<button class="btn-amber-sm" onclick="discountShip(\''+d.id+'\')">値引き出荷</button>'+
-      '<input type="text" id="hold-client-'+d.id+'" placeholder="卸先名" style="width:120px;padding:4px 6px;border:1px solid #ccc;border-radius:6px">'+
-      '<button class="btn-resolve-ret" onclick="holdDefect(\''+d.id+'\')">取り置き</button>'+
-      '<button class="btn-resolve-ok" onclick="resolveDefect(\''+d.id+'\')">処理完了にする</button>'+
-      '</div></div>';
-  }).join('');
+  // 在庫一覧と同じ商品グループの並び順にする
+  const groups = productGroups();
+  let html = '';
+  Object.keys(groups).forEach(function(g){
+    const items = pending.filter(d=>{ const p=findProduct(d.pid); return p && p.group===g; });
+    if(!items.length) return;
+    html += '<div class="group-header" style="margin-bottom:6px;border-radius:6px">'+g+'</div>';
+    items.forEach(function(d){
+      const p = findProduct(d.pid);
+      const remain = (d.qty||0)-(d.shippedQty||0);
+      html += '<div class="dcard"><div class="dcard-hd"><div><strong>'+(p?p.name:'')+'</strong>　残り <span class="c-red" style="font-size:15px">'+remain+'本</span>　<span class="pill pill-hold">'+d.cat+'</span></div><div style="font-size:11px;color:#888">'+(d.note||'')+'</div></div></div>';
+    });
+  });
+  el.innerHTML = html;
 }
 function addDefect(){
   const pid = document.getElementById('d-product').value;
   const qty = parseInt(document.getElementById('d-qty').value)||0;
+  const cat = document.getElementById('d-cat').value;
   if(!pid || qty<=0){ alert('商品と数量を指定してください'); return; }
-  const d = { id: nextId(), pid: parseInt(pid), lotId: document.getElementById('d-lot').value||'',
-    qty: qty, cat: document.getElementById('d-cat').value, note: document.getElementById('d-note').value,
-    status:'pending', shippedQty:0, processedAt:'' };
-  defects.push(d);
+  // 同じ商品・同じ原因の処理待ち不良品があれば、行を増やさず数量を累計する
+  let d = defects.find(x=>x.pid==pid && x.cat===cat && x.status!=='resolved');
   const p = findProduct(pid);
-  addLog('不良登録', p.name+'　'+qty+'本　['+d.cat+']');
+  if(d){
+    d.qty = (d.qty||0) + qty;
+    addLog('不良追加', p.name+'　+'+qty+'本　['+cat+']　累計'+(d.qty-(d.shippedQty||0))+'本');
+  } else {
+    d = { id: nextId(), pid: parseInt(pid), lotId: document.getElementById('d-lot').value||'',
+      qty: qty, cat: cat, note: document.getElementById('d-note').value,
+      status:'pending', shippedQty:0, processedAt:'' };
+    defects.push(d);
+    addLog('不良登録', p.name+'　'+qty+'本　['+cat+']');
+  }
   document.getElementById('d-qty').value = 1;
   document.getElementById('d-note').value = '';
   renderCatSummary(); renderDefectGroups(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
-}
-function discountShip(defectId){
-  const d = defects.find(x=>x.id===defectId);
-  if(!d) return;
-  const qtyEl = document.getElementById('ship-qty-'+defectId);
-  const qty = parseInt(qtyEl.value)||0;
-  const remain = (d.qty||0)-(d.shippedQty||0);
-  if(qty<=0 || qty>remain){ alert('出荷数量が正しくありません'); return; }
-  d.shippedQty = (d.shippedQty||0)+qty;
-  d.processedAt = new Date().toISOString();
-  if(d.shippedQty>=d.qty) d.status='resolved';
-  const p = findProduct(d.pid);
-  addLog('値引き出荷', p.name+'　'+qty+'本　['+d.cat+']');
-  renderCatSummary(); renderDefectGroups(); renderDefectHistory(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
-}
-function holdDefect(defectId){
-  const d = defects.find(x=>x.id===defectId);
-  if(!d) return;
-  const clientEl = document.getElementById('hold-client-'+defectId);
-  const qtyEl = document.getElementById('ship-qty-'+defectId);
-  const client = clientEl.value.trim();
-  const qty = parseInt(qtyEl.value)||0;
-  const remain = (d.qty||0)-(d.shippedQty||0);
-  if(!client){ alert('卸先名を入力してください'); return; }
-  if(qty<=0 || qty>remain){ alert('数量が正しくありません'); return; }
-  defectHolds.push({ id: nextId(), pid: d.pid, client: client, qty: qty, until:'', note:'不良品('+d.cat+')取り置き' });
-  d.shippedQty = (d.shippedQty||0)+qty;
-  if(d.shippedQty>=d.qty) d.status='resolved';
-  const p = findProduct(d.pid);
-  addLog('不良品取り置き', p.name+'　'+qty+'本　→ '+client);
-  renderCatSummary(); renderDefectGroups(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
-}
-function resolveDefect(defectId){
-  const d = defects.find(x=>x.id===defectId);
-  if(!d) return;
-  if(!confirm('残り数量を破棄・処理完了として記録しますか？')) return;
-  d.shippedQty = d.qty; d.status='resolved'; d.processedAt = new Date().toISOString();
-  const p = findProduct(d.pid);
-  addLog('不良在庫処理完了', p.name);
-  renderCatSummary(); renderDefectGroups(); renderDefectHistory(); renderInvTable(); renderInvLogs();
   scheduleAutoSave();
 }
 function renderDefectHistory(){
@@ -871,38 +847,11 @@ function renderHoldList(){
   if(!holds.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の取り置きはありません。</div>'; return; }
   el.innerHTML = holds.map(function(h){
     const p = findProduct(h.pid);
-    return '<div class="hold-item"><span style="flex:1"><strong>'+(p?p.name:'')+'</strong>　'+h.qty+'本　→ '+h.client+(h.date?'　期限:'+h.date:'')+'</span><button class="btn-sm" onclick="removeHold(\''+h.id+'\')">解除</button></div>';
+    return '<div class="hold-item"><span style="flex:1"><strong>'+(p?p.name:'')+'</strong>　'+h.qty+'本　→ '+h.client+(h.date?'　期限:'+h.date:'')+'</span></div>';
   }).join('');
-}
-function addHold(){
-  const pid = document.getElementById('h-product').value;
-  const qty = parseInt(document.getElementById('h-qty').value)||0;
-  const client = document.getElementById('h-client').value.trim();
-  if(!pid || qty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
-  holds.push({ id: nextId(), pid: parseInt(pid), client: client, qty: qty, date: document.getElementById('h-date').value, orderId:'' });
-  const p = findProduct(pid);
-  addLog('取り置き登録', p.name+'　'+qty+'本　→ '+client);
-  document.getElementById('h-client').value = ''; document.getElementById('h-qty').value = 1; document.getElementById('h-date').value = '';
-  renderHoldList(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
-}
-function removeHold(id){
-  const h = holds.find(x=>x.id===id);
-  holds = holds.filter(x=>x.id!==id);
-  if(h){ const p = findProduct(h.pid); addLog('取り置き解除', (p?p.name:'')+'　'+h.qty+'本　'+h.client); }
-  renderHoldList(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
 }
 
 // ── 予約販売 ────────────────────────────────────────────
-function updPreorderTotal(){
-  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
-  const pid = document.getElementById('p-product').value;
-  const p = findProduct(pid);
-  const boxQty = 1; // 箱入数はロット管理側で扱わないため単純合算（本数として扱う）
-  document.getElementById('p-total-preview').value = (bottles + boxes*boxQty) + '本';
-}
 function renderPreList(){
   const el = document.getElementById('pre-list');
   let total = 0;
@@ -911,32 +860,11 @@ function renderPreList(){
     el.innerHTML = preorders.map(function(r){
       total += (r.qty||r.bottles||0);
       const p = findProduct(r.pid);
-      return '<div class="pre-item"><div style="display:flex;justify-content:space-between;align-items:center"><strong>'+(p?p.name:'')+'</strong><button class="btn-sm" onclick="removePreorder(\''+r.id+'\')">削除</button></div>'+
-        '<div style="font-size:13px;color:#555">'+r.client+'　'+(r.bottles||0)+'本 + '+(r.boxes||0)+'箱　'+(r.note||'')+'</div></div>';
+      return '<div class="pre-item"><div style="display:flex;justify-content:space-between;align-items:center"><strong>'+(p?p.name:'')+'</strong></div>'+
+        '<div style="font-size:13px;color:#555">'+r.client+'　'+(r.bottles||0)+'本 + '+(r.boxes||0)+'箱'+(r.expectedDate?'　お届け予定:'+r.expectedDate:'')+'　'+(r.note||'')+'</div></div>';
     }).join('');
   }
   document.getElementById('pre-total-bar').textContent = '予約合計: '+total+'本';
-}
-function addPreorder(){
-  const pid = document.getElementById('p-product').value;
-  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
-  const client = document.getElementById('p-client').value.trim();
-  if(!pid || !client || (bottles+boxes)<=0){ alert('商品・お客様名・数量を入力してください'); return; }
-  preorders.push({ id: nextId(), pid: parseInt(pid), client: client, qty: bottles+boxes, bottles: bottles, boxes: boxes, note: document.getElementById('p-note').value });
-  const p = findProduct(pid);
-  addLog('予約登録', p.name+'　'+client+'　'+(bottles+boxes)+'本相当');
-  document.getElementById('p-client').value=''; document.getElementById('p-bottles').value=0; document.getElementById('p-boxes').value=0; document.getElementById('p-note').value='';
-  updPreorderTotal();
-  renderPreList(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
-}
-function removePreorder(id){
-  const r = preorders.find(x=>x.id===id);
-  preorders = preorders.filter(x=>x.id!==id);
-  if(r){ const p = findProduct(r.pid); addLog('予約削除', (p?p.name:'')+'　'+r.client); }
-  renderPreList(); renderInvTable(); renderInvLogs();
-  scheduleAutoSave();
 }
 
 // ── ログ ────────────────────────────────────────────
