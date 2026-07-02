@@ -384,8 +384,14 @@ body{background:#fff}
     <button class="btn btn-primary no-print" onclick="downloadInvoicePdf()" id="invoice-pdf-btn" style="display:none">⬇️ 納品書をPDF化</button>
   </div>
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
+    <button class="btn-line" id="line-notify-btn" onclick="notifyLineShort()" style="display:none">
+      <span style="font-size:16px">📱</span> LINEに通知を送る（倉庫アプリで確認）
+    </button>
+    <button class="btn btn-green" id="slip-share-btn" onclick="shareSlipPdf()" style="display:none">📤 出荷指示書をPDFで共有する</button>
+  </div>
+  <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
     <button class="btn-line" id="line-send-btn" onclick="sendToLine()" style="display:none">
-      <span style="font-size:16px">📱</span> LINEで送る（送り先グループを選択）
+      <span style="font-size:16px">📱</span> LINEにテキストで送る（送り先グループを選択）
     </button>
     <button class="btn-sm no-print" onclick="copyForLine()">📋 テキストだけコピー</button>
   </div>
@@ -1204,6 +1210,8 @@ function generateBulkSlips(){
     }
   });
   document.getElementById('line-send-btn').style.display = 'flex';
+  document.getElementById('slip-share-btn').style.display = 'inline-block';
+  document.getElementById('line-notify-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'none'; // 納品書は1件ずつ「出荷指示書へ」から作成してください
   document.getElementById('invoice-pdf-btn').style.display = 'none';
   document.getElementById('invoice-area').innerHTML = '';
@@ -1265,6 +1273,8 @@ function generateSlip(){
     new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
   }
   document.getElementById('line-send-btn').style.display = 'flex';
+  document.getElementById('slip-share-btn').style.display = 'inline-block';
+  document.getElementById('line-notify-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-block';
   document.getElementById('invoice-pdf-btn').style.display = 'inline-block';
   buildInvoice(o);
@@ -1303,6 +1313,21 @@ function copyForLine(){
   else return;
   navigator.clipboard.writeText(text).then(function(){ showSyncStatus('📋 テキストをコピーしました'); }).catch(function(){ alert(text); });
 }
+function notifyLineShort(){
+  const list = window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
+  if(!list.length) return;
+  const urgent = list.filter(o=>o.leadType==='urgent').length;
+  const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
+  const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
+  let text = '📦 新しい出荷指示：'+list.length+'件';
+  const parts = [];
+  if(urgent) parts.push('🚨急ぎ'+urgent+'件');
+  if(gift) parts.push('🎁ギフト'+gift+'件');
+  if(parts.length) text += '（'+parts.join('・')+'）';
+  text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
+  navigator.clipboard.writeText(text).catch(function(){});
+  location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
+}
 function sendToLine(){
   const list = window._currentSlipOrders;
   const o = window._currentSlipOrder;
@@ -1310,12 +1335,13 @@ function sendToLine(){
   if(list && list.length){ text = buildLineTextMulti(list); }
   else if(o){ text = buildLineText(o); }
   else return;
-  if(text.length > 3500){
-    if(!confirm('件数が多く、メッセージがかなり長くなります（'+text.length+'文字）。LINE側で送れない場合があります。それでも送りますか？\n（「キャンセル」を押すと、件数を絞ってから再度お試しください）')) return;
+  navigator.clipboard.writeText(text).catch(function(){});
+  if(text.length > 1500){
+    alert('文章が長いため、LINEへ自動で貼り付ける機能は使わず、テキストのコピーだけ行いました。\nLINEアプリを開いて、貼り付けて送信してください。');
+    return;
   }
   // LINEアプリを開き、送り先（グループ）を選んで送信できる画面を表示します
-  window.open('https://line.me/R/msg/text/?'+encodeURIComponent(text), '_blank');
-  navigator.clipboard.writeText(text).catch(function(){});
+  location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
 }
 
 // ── 納品書 ────────────────────────────────────────────
@@ -1355,6 +1381,48 @@ function printInvoice(){
   slipArea.style.display = '';
 }
 
+async function buildSlipPdf(){
+  const slipEls = document.querySelectorAll('#slip-area .slip');
+  if(!slipEls.length){ alert('先に出荷指示書を作成してください'); return null; }
+  if(!window.html2canvas || !window.jspdf){ alert('PDF機能の準備ができていません。少し待ってから再度お試しください。'); return null; }
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit:'mm', format:'a4' });
+  const pageWidth = 210, pageHeight = 297;
+  for(let i=0; i<slipEls.length; i++){
+    const canvas = await html2canvas(slipEls[i], { scale:2, backgroundColor:'#ffffff' });
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    if(i>0) pdf.addPage();
+    if(imgHeight <= pageHeight){
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    } else {
+      const scale = pageHeight / imgHeight;
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, pageHeight);
+    }
+  }
+  return pdf;
+}
+async function shareSlipPdf(){
+  showSyncStatus('📄 PDFを作成中...');
+  const pdf = await buildSlipPdf();
+  if(!pdf) return;
+  const fname = '出荷指示書_'+new Date().toISOString().slice(0,10)+'_'+Date.now()+'.pdf';
+  try{
+    const blob = pdf.output('blob');
+    const file = new File([blob], fname, {type:'application/pdf'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({ files:[file], title:'出荷指示書', text:'出荷指示書です' });
+      showSyncStatus('✅ 共有しました');
+    } else {
+      pdf.save(fname);
+      showSyncStatus('✅ この端末は共有メニューに対応していないため、PDFをダウンロードしました');
+    }
+  }catch(err){
+    if(err.name === 'AbortError') return; // 共有をキャンセルしただけなので何もしない
+    showSyncStatus('⚠️ 共有に失敗しました：'+err.message, true);
+  }
+}
 function downloadInvoicePdf(){
   const o = window._currentSlipOrder;
   const invoiceEl = document.querySelector('#invoice-area .invoice');
