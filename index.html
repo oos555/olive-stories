@@ -378,21 +378,28 @@ body{background:#fff}
   <div id="hold-alert-area"></div>
   <div class="card">
     <div class="sec">取り置きを登録</div>
-    <div class="info-box">受注のタイミングで「この分は取り置きしてほしい」と言われた時に、ここで登録します。期限を過ぎても取り置き中のままだと、上に警告が出ます。</div>
+    <div class="info-box">受注のタイミングで「この分は取り置きしてほしい」と言われた時に、ここで登録します。あとで住所を聞き直さなくて済むよう、<strong>この時点で届け先情報まで登録しておいてください</strong>。期限を過ぎても取り置き中のままだと、上に警告が出ます。</div>
     <div class="g4">
       <div class="fg"><label>商品</label><select id="h-product"></select></div>
       <div class="fg"><label>数量</label><input type="number" id="h-qty" min="1" value="1"></div>
       <div class="fg"><label>卸先・顧客名</label><input type="text" id="h-client" placeholder="〇〇食品株式会社"></div>
       <div class="fg"><label>いつまでの取り置きか</label><input type="date" id="h-date"></div>
     </div>
+    <div class="g3">
+      <div class="fg"><label>郵便番号</label><input type="text" id="h-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+      <div class="fg"><label>住所</label><input type="text" id="h-addr" placeholder="東京都..."></div>
+      <div class="fg"><label>電話番号</label><input type="text" id="h-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
+    </div>
+    <div class="fg"><label>スタッフメモ（お客様には見えません）</label>
+      <input type="text" id="h-memo" placeholder="例：連絡先（メール）〇〇@example.com／LINEでやり取りした場合はそのトークのURLを貼っておくと、あとで経緯が分かります"></div>
     <button class="btn btn-primary" onclick="addHold()">取り置きを登録する</button>
   </div>
-  <div class="sec">現在の取り置き一覧</div>
-  <div id="hold-list"></div>
+  <button class="btn-sm" onclick="toggleHoldList()" id="hold-toggle-btn">▶ 現在の取り置き一覧（0件）</button>
+  <div id="hold-list" style="display:none;margin-top:8px"></div>
 
   <div class="card" style="margin-top:1.5rem">
     <div class="sec">予約を登録</div>
-    <div class="info-box">まだ入荷していない商品を、先に予約で受け付けた時に登録します。お届け予定時期を過ぎても予約のままだと、上に警告が出ます。</div>
+    <div class="info-box">まだ入荷していない商品を、先に予約で受け付けた時に登録します。あとで住所を聞き直さなくて済むよう、<strong>この時点で届け先情報まで登録しておいてください</strong>。お届け予定時期を過ぎても予約のままだと、上に警告が出ます。</div>
     <div class="g3">
       <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
       <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
@@ -403,11 +410,18 @@ body{background:#fff}
       <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
       <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
     </div>
-    <div class="fg"><label>メモ</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
+    <div class="g3">
+      <div class="fg"><label>郵便番号</label><input type="text" id="p-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
+      <div class="fg"><label>住所</label><input type="text" id="p-addr" placeholder="東京都..."></div>
+      <div class="fg"><label>電話番号</label><input type="text" id="p-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
+    </div>
+    <div class="fg"><label>メモ（お客様との受付内容）</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
+    <div class="fg"><label>スタッフメモ（お客様には見えません）</label>
+      <input type="text" id="p-memo" placeholder="例：連絡先（メール）〇〇@example.com／LINEでやり取りした場合はそのトークのURLを貼っておくと、あとで経緯が分かります"></div>
     <button class="btn btn-primary" onclick="addPreorder()">予約を登録する</button>
   </div>
-  <div class="sec">現在の予約一覧</div>
-  <div id="pre-list"></div>
+  <button class="btn-sm" onclick="togglePreList()" id="pre-toggle-btn">▶ 現在の予約一覧（0件）</button>
+  <div id="pre-list" style="display:none;margin-top:8px"></div>
 </div>
 
 <!-- 出荷指示書・納品書 -->
@@ -1196,8 +1210,21 @@ function saveHoldsPreordersToGAS(){
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).catch(function(){ showSyncStatus('⚠️ 取り置き・予約データの保存に失敗しました', true); });
 }
+let holdListOpen = false, preListOpen = false;
+function toggleHoldList(){
+  holdListOpen = !holdListOpen;
+  document.getElementById('hold-list').style.display = holdListOpen ? 'block' : 'none';
+  document.getElementById('hold-toggle-btn').textContent = (holdListOpen?'▼':'▶')+' 現在の取り置き一覧（'+holds.length+'件）';
+}
+function togglePreList(){
+  preListOpen = !preListOpen;
+  document.getElementById('pre-list').style.display = preListOpen ? 'block' : 'none';
+  document.getElementById('pre-toggle-btn').textContent = (preListOpen?'▼':'▶')+' 現在の予約一覧（'+preorders.length+'件）';
+}
 function renderHoldList(){
   renderHoldPreAlerts();
+  const btn = document.getElementById('hold-toggle-btn');
+  if(btn) btn.textContent = (holdListOpen?'▼':'▶')+' 現在の取り置き一覧（'+holds.length+'件）';
   const el = document.getElementById('hold-list');
   if(!holds.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の取り置きはありません。</div>'; return; }
   el.innerHTML = holds.map(function(h){
@@ -1206,8 +1233,9 @@ function renderHoldList(){
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':'')+'">'+
       '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+h.qty+'本　→ '+h.client+'</div>'+
       (overdue?'<span class="order-status" style="background:#fee2e2;color:#7f1d1d">⏰期限切れ</span>':'')+'</div>'+
-      '<div style="font-size:12px;color:#666">期限：'+(h.date||'指定なし')+'</div>'+
-      '<div class="oc-actions"><button class="btn-sm" onclick="editHold(\''+h.id+'\')">編集</button><button class="btn-sm" onclick="removeHold(\''+h.id+'\')">解除・削除</button></div>'+
+      '<div style="font-size:12px;color:#666">期限：'+(h.date||'指定なし')+'　〒'+(h.zip||'')+' '+(h.addr||'')+'　'+(h.tel||'')+'</div>'+
+      (h.memo?'<div style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:6px;margin-top:4px">🔒スタッフメモ：'+h.memo+'</div>':'')+
+      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="proceedToOrderFromHold(\''+h.id+'\')">📦 受注登録へ進む</button><button class="btn-sm" onclick="editHold(\''+h.id+'\')">編集</button><button class="btn-sm" onclick="removeHold(\''+h.id+'\')">解除・削除</button></div>'+
       '</div>';
   }).join('');
 }
@@ -1217,8 +1245,11 @@ function addHold(){
   const client = document.getElementById('h-client').value.trim();
   const date = document.getElementById('h-date').value;
   if(!pid || qty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
-  holds.push({ id:'hold_'+Date.now(), pid: parseInt(pid), client: client, qty: qty, date: date, orderId:'' });
+  holds.push({ id:'hold_'+Date.now(), pid: parseInt(pid), client: client, qty: qty, date: date, orderId:'',
+    zip: document.getElementById('h-zip').value, addr: document.getElementById('h-addr').value, tel: document.getElementById('h-tel').value,
+    memo: document.getElementById('h-memo').value });
   document.getElementById('h-client').value=''; document.getElementById('h-qty').value=1; document.getElementById('h-date').value='';
+  document.getElementById('h-zip').value=''; document.getElementById('h-addr').value=''; document.getElementById('h-tel').value=''; document.getElementById('h-memo').value='';
   renderHoldList(); renderStockStrip();
   saveHoldsPreordersToGAS();
   showSyncStatus('✅ 取り置きを登録しました');
@@ -1243,6 +1274,32 @@ function removeHold(id){
   saveHoldsPreordersToGAS();
   showSyncStatus(h ? '取り置きを解除しました：'+h.client : '解除しました');
 }
+function proceedToOrderFromHold(id){
+  const h = holds.find(x=>x.id===id);
+  if(!h) return;
+  const p = findProduct(h.pid);
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(pl=>pl.classList.remove('active'));
+  document.querySelectorAll('.tab-row .tab')[0].classList.add('active');
+  document.getElementById('panel-order').classList.add('active');
+  document.getElementById('o-client').value = h.client;
+  document.getElementById('o-zip').value = h.zip||'';
+  document.getElementById('o-addr').value = h.addr||'';
+  document.getElementById('o-tel').value = h.tel||'';
+  document.getElementById('o-memo').value = h.memo||'';
+  const card = document.querySelector('.recipient-card');
+  if(card){
+    setRecipientAddrMode(card.id, true);
+    const lineRow = card.querySelector('[data-role=lines]').children[0];
+    if(lineRow && p){
+      lineRow.querySelector('[data-role=product]').value = p.id;
+      lineRow.querySelector('[data-role=bottles]').value = h.qty;
+      onRecipientLineProductChange(card.id, lineRow.id);
+    }
+  }
+  showSyncStatus('📦 取り置きの内容を受注登録に反映しました。残りの項目を確認してください');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
 function updPreorderTotal(){
   const bottles = parseInt(document.getElementById('p-bottles').value)||0;
   const boxes = parseInt(document.getElementById('p-boxes').value)||0;
@@ -1250,6 +1307,8 @@ function updPreorderTotal(){
 }
 function renderPreList(){
   renderHoldPreAlerts();
+  const btn = document.getElementById('pre-toggle-btn');
+  if(btn) btn.textContent = (preListOpen?'▼':'▶')+' 現在の予約一覧（'+preorders.length+'件）';
   const el = document.getElementById('pre-list');
   if(!preorders.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の予約はありません。</div>'; return; }
   el.innerHTML = preorders.map(function(r){
@@ -1258,8 +1317,9 @@ function renderPreList(){
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':'')+'">'+
       '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+(r.bottles||0)+'本＋'+(r.boxes||0)+'箱　→ '+r.client+'</div>'+
       (overdue?'<span class="order-status" style="background:#fee2e2;color:#7f1d1d">⏰予定超過</span>':'')+'</div>'+
-      '<div style="font-size:12px;color:#666">お届け予定：'+(r.expectedDate||'指定なし')+(r.note?'　'+r.note:'')+'</div>'+
-      '<div class="oc-actions"><button class="btn-sm" onclick="editPreorder(\''+r.id+'\')">編集</button><button class="btn-sm" onclick="removePreorder(\''+r.id+'\')">出荷済み・削除</button></div>'+
+      '<div style="font-size:12px;color:#666">お届け予定：'+(r.expectedDate||'指定なし')+'　〒'+(r.zip||'')+' '+(r.addr||'')+'　'+(r.tel||'')+(r.note?'　'+r.note:'')+'</div>'+
+      (r.memo?'<div style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:6px;margin-top:4px">🔒スタッフメモ：'+r.memo+'</div>':'')+
+      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="proceedToOrderFromPreorder(\''+r.id+'\')">📦 受注登録へ進む</button><button class="btn-sm" onclick="editPreorder(\''+r.id+'\')">編集</button><button class="btn-sm" onclick="removePreorder(\''+r.id+'\')">出荷済み・削除</button></div>'+
       '</div>';
   }).join('');
 }
@@ -1270,8 +1330,11 @@ function addPreorder(){
   const client = document.getElementById('p-client').value.trim();
   const expectedDate = document.getElementById('p-expected').value;
   if(!pid || !client || (bottles+boxes)<=0){ alert('商品・お客様名・数量を入力してください'); return; }
-  preorders.push({ id:'pre_'+Date.now(), pid: parseInt(pid), client: client, qty: bottles+boxes, bottles: bottles, boxes: boxes, expectedDate: expectedDate, note: document.getElementById('p-note').value });
+  preorders.push({ id:'pre_'+Date.now(), pid: parseInt(pid), client: client, qty: bottles+boxes, bottles: bottles, boxes: boxes, expectedDate: expectedDate, note: document.getElementById('p-note').value,
+    zip: document.getElementById('p-zip').value, addr: document.getElementById('p-addr').value, tel: document.getElementById('p-tel').value,
+    memo: document.getElementById('p-memo').value });
   document.getElementById('p-client').value=''; document.getElementById('p-bottles').value=0; document.getElementById('p-boxes').value=0; document.getElementById('p-expected').value=''; document.getElementById('p-note').value='';
+  document.getElementById('p-zip').value=''; document.getElementById('p-addr').value=''; document.getElementById('p-tel').value=''; document.getElementById('p-memo').value='';
   updPreorderTotal();
   renderPreList(); renderStockStrip();
   saveHoldsPreordersToGAS();
@@ -1293,6 +1356,33 @@ function removePreorder(id){
   renderPreList(); renderStockStrip();
   saveHoldsPreordersToGAS();
   showSyncStatus(r ? '予約を完了・削除しました：'+r.client : '削除しました');
+}
+function proceedToOrderFromPreorder(id){
+  const r = preorders.find(x=>x.id===id);
+  if(!r) return;
+  const p = findProduct(r.pid);
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(pl=>pl.classList.remove('active'));
+  document.querySelectorAll('.tab-row .tab')[0].classList.add('active');
+  document.getElementById('panel-order').classList.add('active');
+  document.getElementById('o-client').value = r.client;
+  document.getElementById('o-zip').value = r.zip||'';
+  document.getElementById('o-addr').value = r.addr||'';
+  document.getElementById('o-tel').value = r.tel||'';
+  document.getElementById('o-memo').value = r.memo||'';
+  const card = document.querySelector('.recipient-card');
+  if(card){
+    setRecipientAddrMode(card.id, true);
+    const lineRow = card.querySelector('[data-role=lines]').children[0];
+    if(lineRow && p){
+      lineRow.querySelector('[data-role=product]').value = p.id;
+      lineRow.querySelector('[data-role=bottles]').value = r.bottles || r.qty;
+      lineRow.querySelector('[data-role=boxes]').value = r.boxes || 0;
+      onRecipientLineProductChange(card.id, lineRow.id);
+    }
+  }
+  showSyncStatus('📦 予約の内容を受注登録に反映しました。残りの項目を確認してください');
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 function updateSummary(){
