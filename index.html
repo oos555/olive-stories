@@ -985,6 +985,7 @@ function buildOrdersFromForm(){
       senderAddr: r.senderAddrOverride || dSenderAddr,
       lines: r.lines,
       isDefectSale: (ctype==='defectprice' || r.lead==='defect'),
+      notified: false,
       status: 'pending', source: 'manual', registeredAt: new Date().toISOString()
     });
   });
@@ -1318,6 +1319,9 @@ function notifyLineShort(){
   if(!list.length) return;
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
+  // この通知を送った受注に「倉庫通知済み」の印を付ける（倉庫アプリはこの印が付いたものだけ表示します）
+  list.forEach(function(o){ o.notified = true; });
+  syncOrdersToGAS();
   const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷指示：'+list.length+'件';
   const parts = [];
