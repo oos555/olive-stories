@@ -141,9 +141,6 @@ body{background:#fff}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -381,9 +378,6 @@ body{background:#fff}
       <option value="">出荷指示書を作成する受注を選択...</option>
     </select>
     <button class="btn btn-primary" onclick="generateSlip()">作成</button>
-    <button class="btn-print no-print" onclick="printSlip()">🖨 出荷指示書を印刷</button>
-    <button class="btn btn-primary no-print" onclick="printInvoice()" id="invoice-btn" style="display:none">📄 納品書を印刷（お客様用）</button>
-    <button class="btn btn-primary no-print" onclick="downloadInvoicePdf()" id="invoice-pdf-btn" style="display:none">⬇️ 納品書をPDF化</button>
   </div>
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
     <button class="btn-line" id="line-notify-btn" onclick="notifyLineShort()" style="display:none">
@@ -392,7 +386,6 @@ body{background:#fff}
   </div>
 
   <div id="slip-area"></div>
-  <div id="invoice-area"></div>
 </div>
 
 </div><!-- /.app -->
@@ -1267,14 +1260,6 @@ function generateSlip(){
   window._currentSlipOrders = null;
   document.getElementById('slip-area').innerHTML = buildSlipHtml(o);
   document.getElementById('line-notify-btn').style.display = 'flex';
-  document.getElementById('invoice-btn').style.display = 'inline-block';
-  document.getElementById('invoice-pdf-btn').style.display = 'inline-block';
-  buildInvoice(o);
-}
-function printSlip(){
-  document.getElementById('invoice-area').style.display = 'none';
-  window.print();
-  document.getElementById('invoice-area').style.display = '';
 }
 function notifyLineShort(listArg){
   const list = listArg || window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
@@ -1293,89 +1278,6 @@ function notifyLineShort(listArg){
   text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
   navigator.clipboard.writeText(text).catch(function(){});
   location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
-}
-
-// ── 納品書 ────────────────────────────────────────────
-const COMPANY_WEBSITE = 'https://oliveoilstories.net/';
-const COMPANY_EMAIL = 'office@oliveoilstories.net';
-function buildInvoice(o){
-  const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
-  let html = '<div class="invoice">';
-  html += '<div class="invoice-title">納　品　書'+badge+'</div>';
-  html += '<div class="invoice-meta">';
-  html += '<div class="invoice-box"><div class="invoice-box-label">お届け先</div>'+recipientAddressBlock(o)+' 様<br>〒'+o.zip+'<br>'+o.addr+'<br>'+o.tel+'</div>';
-  html += '<div class="invoice-box"><div class="invoice-box-label">発行情報</div>注文番号：'+o.num+'<br>発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
-  html += '</div>';
-  html += '<div style="font-size:12.5px;color:#444;margin:-4px 0 14px">この度はご購入いただき、誠にありがとうございます。</div>';
-  if(o.senderName){
-    html += '<div class="invoice-box" style="margin-bottom:1rem"><div class="invoice-box-label">送り主</div>'+o.senderName+'　'+o.senderTel+'<br>〒'+o.senderZip+' '+o.senderAddr+'</div>';
-  }
-  html += '<table class="invoice-table"><thead><tr><th>商品名</th><th>数量</th></tr></thead><tbody>';
-  (o.lines||[]).forEach(function(l){ html += '<tr><td>'+l.productName+'</td><td>'+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+'</td></tr>'; });
-  html += '</tbody></table>';
-  if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
-  html += '<div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e8e7e3;font-size:11px;color:#555;line-height:1.8">';
-  html += '<div style="font-weight:700;margin-bottom:4px">■キャンセル・変更について</div>';
-  html += '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございますので、あらかじめご了承ください。<br><br>';
-  html += '<div style="font-weight:700;margin-bottom:4px">■破損していた場合</div>';
-  html += 'ご迷惑をおかけし、大変申し訳ございません。お手数をおかけいたしますが、商品到着後は速やかに（到着後5日以内に）ご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br><br>';
-  html += 'なお、商品到着から1週間以上経過したもの、および商品を廃棄された後のご連絡につきましては、状態を確認できる証拠が残っていないため、配送会社・弊社のいずれも対応いたしかねる場合がございます。あらかじめご了承ください。<br><br>';
-  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
-  html += '<div style="background:#fef9f0;border:1px solid #f3d9a8;border-radius:6px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px">';
-  html += '<div><div style="font-weight:700;color:#78350f;margin-bottom:2px">🎁 ギフトのご用命はこちら</div>複数のお届け先へのギフト発送も承っております。</div>';
-  html += '<div id="gift-qr" style="margin-left:auto"></div>';
-  html += '</div>';
-  html += '<div style="display:flex;align-items:center;gap:10px">';
-  html += '<div><div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
-  html += '<div style="color:#888;font-size:10px;margin:2px 0">※土日祝日はお休みをいただいております</div>';
-  html += (COMPANY_WEBSITE ? COMPANY_WEBSITE+'<br>' : '') + 'E-mail: '+COMPANY_EMAIL+'</div>';
-  if(COMPANY_WEBSITE) html += '<div id="company-qr" style="margin-left:auto"></div>';
-  html += '</div>';
-  html += '</div>';
-  html += '</div>';
-  document.getElementById('invoice-area').innerHTML = html;
-  const qrWrap = document.getElementById('company-qr');
-  if(window.QRCode && qrWrap && COMPANY_WEBSITE){
-    new QRCode(qrWrap, { text: COMPANY_WEBSITE, width:64, height:64 });
-  }
-  const giftQrWrap = document.getElementById('gift-qr');
-  if(window.QRCode && giftQrWrap && COMPANY_WEBSITE){
-    new QRCode(giftQrWrap, { text: COMPANY_WEBSITE, width:56, height:56 });
-  }
-}
-function printInvoice(){
-  const slipArea = document.getElementById('slip-area');
-  slipArea.style.display = 'none';
-  window.print();
-  slipArea.style.display = '';
-}
-
-function downloadInvoicePdf(){
-  const o = window._currentSlipOrder;
-  const invoiceEl = document.querySelector('#invoice-area .invoice');
-  if(!invoiceEl){ alert('先に出荷指示書を作成してください'); return; }
-  if(!window.html2canvas || !window.jspdf){ alert('PDF機能の準備ができていません。少し待ってから再度お試しください。'); return; }
-  showSyncStatus('📄 PDFを作成中...');
-  html2canvas(invoiceEl, { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas){
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageWidth = 210, pageHeight = 297;
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-    if(imgHeight <= pageHeight){
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    } else {
-      // 1ページに収まらない場合は縮小してA4いっぱいに収める
-      const scale = pageHeight / imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, pageHeight);
-    }
-    const fileName = '納品書_'+(o?(o.recipientName||o.client):'')+'_'+(o?o.num:'')+'.pdf';
-    pdf.save(fileName);
-    showSyncStatus('✅ PDFをダウンロードしました');
-  }).catch(function(err){
-    showSyncStatus('⚠️ PDF作成に失敗しました：'+err.message, true);
-  });
 }
 
 // ── STORES CSV取込 ────────────────────────────────────────────
