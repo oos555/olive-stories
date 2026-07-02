@@ -60,6 +60,18 @@ tr:last-child td{border-bottom:none}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
 .help-ic{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;background:#d1d5db;color:#374151;font-size:10px;font-weight:700;cursor:pointer;font-style:normal}
 .help-ic:hover{background:#9ca3af;color:#fff}
+.invoice-doc{background:#fff;border:1px solid #e8e7e3;border-radius:8px;padding:2rem;margin-top:1rem}
+.invoice-doc-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.15em}
+.invoice-doc-top{display:flex;justify-content:space-between;margin-bottom:1.5rem;font-size:13px}
+.invoice-doc-summary{border:2px solid #1a1a18;border-radius:6px;margin-bottom:1rem}
+.invoice-doc-summary table{width:100%;border-collapse:collapse}
+.invoice-doc-summary th{background:#f9f8f5;padding:8px;font-size:12px;color:#666;border-right:1px solid #e8e7e3}
+.invoice-doc-summary td{padding:10px 8px;text-align:center}
+.invoice-doc-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:13px}
+.invoice-doc-table th{background:#f9f8f5;padding:7px 10px;border:1px solid #d1d5db;font-size:11px;color:#666}
+.invoice-doc-table td{padding:8px 10px;border:1px solid #d1d5db}
+.invoice-doc-note{font-size:11px;color:#555;line-height:1.8;border:1px solid #e8e7e3;border-radius:6px;padding:12px 14px;margin-top:1rem}
+@media print{ .no-print{display:none!important} body{background:#fff} .app{padding:0} }
 </style>
 </head>
 <body>
@@ -85,6 +97,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- 請求一覧（個別） -->
 <div id="panel-list" class="panel active">
+  <div id="invoice-builder-area"></div>
   <div class="info-box">受注（アプリA）に、価格マスタで設定した単価を掛けて金額を自動計算します。<strong>金額はここでは保存されず、毎回その場で計算</strong>されるので、価格マスタを直しても常に最新の金額が出ます。</div>
   <div class="stats">
     <div class="stat"><div class="stat-label">対象件数</div><div class="stat-val" id="s-count">0件</div></div>
@@ -183,42 +196,55 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 
 // ── 商品マスタ（他アプリと共通） ────────────────────────────────────────────
 const PRODUCTS = [
-{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック'},
-{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック'},
-{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック'},
-{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック'},
-{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック'},
-{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック'},
-{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック'},
-{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック'},
-{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック'},
-{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック'},
-{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック'},
-{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック'},
-{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド'},
-{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド'},
-{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド'},
-{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット'},
-{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット'},
-{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット'},
-{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット'},
-{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン'},
-{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン'},
-{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ'},
-{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ'},
-{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ'},
-{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル'},
-{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル'},
-{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル'},
-{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル'},
-{id:38, sku:'CUP001', name:'カップオイル 13g グリーンブーケ（オルガニック）', group:'カップオイル'},
-{id:39, sku:'CUP002', name:'カップオイル 13g グリーンバナナ（メメジック）',   group:'カップオイル'},
-{id:40, sku:'CUP003', name:'カップオイル 13g オレンジ＆レモン（アグルミ）',   group:'カップオイル'},
-{id:50, sku:'YS100',  name:'your story 100ml×3本セット', group:'セット商品', isSet:true},
-{id:51, sku:'YS250A', name:'your story 250ml×2本セット A', group:'セット商品', isSet:true},
-{id:52, sku:'YS250B', name:'your story 250ml×2本セット B', group:'セット商品', isSet:true},
-{id:53, sku:'YS250C', name:'your story 250ml×2本セット C', group:'セット商品', isSet:true},
-{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA', group:'セット商品', isSet:true},
+{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true, boxQty:24},
+{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック', boxQty:20},
+{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック', boxQty:12},
+{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック', boxQty:12},
+{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック', boxQty:6},
+{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック', boxQty:4},
+{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック', noWholesale:true, boxQty:24},
+{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック', boxQty:20},
+{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック', boxQty:12},
+{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック', boxQty:12},
+{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック', boxQty:6},
+{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック', boxQty:4},
+{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true, boxQty:24},
+{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド', boxQty:20},
+{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド', boxQty:6},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true, boxQty:24},
+{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット', boxQty:6},
+{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット', boxQty:6},
+{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット', boxQty:4},
+{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン', boxQty:6},
+{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン', boxQty:6},
+{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ', boxQty:6},
+{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ', boxQty:6},
+{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ', boxQty:5},
+{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル', boxQty:12},
+{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル', boxQty:6},
+{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル', boxQty:6},
+{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル', boxQty:4},
+{id:38, sku:'CUP001', jan:'7012', name:'カップオイル 13g グリーンブーケ（オルガニック）', group:'カップオイル', boxQty:120},
+{id:39, sku:'CUP002', jan:'7036', name:'カップオイル 13g グリーンバナナ（メメジック）',   group:'カップオイル', boxQty:120},
+{id:40, sku:'CUP003', jan:'7029', name:'カップオイル 13g オレンジ＆レモン（アグルミ）',   group:'カップオイル', boxQty:120},
+{id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
+{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+  components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
+{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用（空箱）', group:'ギフト箱・備品'},
+{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用（空箱）', group:'ギフト箱・備品'},
+{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）（空箱）', group:'ギフト箱・備品'},
+{id:32, sku:'BAG001', name:'紙袋 黒 小', group:'ギフト箱・備品'},
+{id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品'},
+{id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
+{id:35, sku:'MISC002', name:'トルコ500ml用 空瓶', group:'その他'},
+{id:36, sku:'MISC003', name:'750ml用 注ぎ口', group:'その他'},
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
@@ -229,6 +255,18 @@ function productGroups(){
 }
 
 const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価' };
+
+// ── 請求書に記載する会社情報 ────────────────────────────────────────────
+const COMPANY_INFO = {
+  name: '株式会社オリーブオイル・ストーリーズ',
+  zip: '107-0062', addr: '東京都港区南青山2-2-15',
+  invoiceRegNo: 'T9012801020687',
+  website: 'https://oliveoilstories.net/', email: 'office@oliveoilstories.net'
+};
+const BANK_ACCOUNTS = [
+  { label: '三井住友銀行 立川支店', bank:'三井住友銀行', branch:'立川支店', type:'普通', number:'4723882', holder:'カ）オリーブオイルストーリーズ' },
+  { label: '三菱UFJ銀行 新座志木支店', bank:'三菱UFJ銀行', branch:'新座志木支店（支店番号296）', type:'普通', number:'1300801', holder:'ナカムラヒロミ' }
+];
 
 // ── 状態 ────────────────────────────────────────────
 let orders = [];
@@ -329,7 +367,7 @@ function renderInvoiceList(){
       '<td>'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'</td><td>'+payBadge+'</td>'+
       '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
       '<td>'+paidBadge+'</td>'+
-      '<td><button class="btn-sm" onclick="togglePaid(\''+o.id+'\')">'+(o.paymentConfirmed?'未入金に戻す':'✅入金済みにする')+'</button></td></tr>';
+      '<td><button class="btn-sm" onclick="togglePaid(\''+o.id+'\')">'+(o.paymentConfirmed?'未入金に戻す':'✅入金済みにする')+'</button> <button class="btn-sm" style="background:#dbeafe;border-color:#185fa5;color:#1e3a8a" onclick="openInvoiceBuilder(\''+o.id+'\')">📄請求書作成</button></td></tr>';
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:#999;padding:20px">該当する受注がありません</td></tr>';
 
   document.getElementById('s-count').textContent = list.length+'件';
@@ -361,6 +399,103 @@ async function togglePaid(orderId){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
 }
+
+// ── 請求書発行 ────────────────────────────────────────────
+let invoiceCounter = 1;
+function openInvoiceBuilder(orderId){
+  const o = orders.find(x=>x.id===orderId);
+  if(!o) return;
+  const bankOptions = BANK_ACCOUNTS.map((b,i)=>'<option value="'+i+'">'+b.label+'</option>').join('');
+  let html = '<div class="card no-print" style="border:2px solid #185fa5">';
+  html += '<div class="sec">📄 請求書を作成：'+(o.recipientName||o.client)+'様（'+o.num+'）</div>';
+  html += '<div class="g3">';
+  html += '<div class="fg"><label>件名</label><input type="text" id="inv-subject" value="オリーブオイル"></div>';
+  html += '<div class="fg"><label>振込先</label><select id="inv-bank">'+bankOptions+'</select></div>';
+  html += '<div class="fg"><label>入金期日</label><input type="date" id="inv-due-date"></div>';
+  html += '</div>';
+  html += '<div class="g2">';
+  html += '<div class="fg"><label>相殺・調整の内容（任意）</label><input type="text" id="inv-adj-label" placeholder="例：2月13日プチオイル一式、輸入時の立替分など"></div>';
+  html += '<div class="fg"><label>調整金額（税込・マイナスの場合は先頭に -）</label><input type="number" id="inv-adj-amount" value="0"></div>';
+  html += '</div>';
+  html += '<button class="btn btn-primary" onclick="generateInvoiceDoc(\''+orderId+'\')">請求書を作成する</button>';
+  html += '<button class="btn-sm" onclick="document.getElementById(\'invoice-builder-area\').innerHTML=\'\'">閉じる</button>';
+  html += '</div>';
+  document.getElementById('invoice-builder-area').innerHTML = html;
+  document.getElementById('invoice-builder-area').scrollIntoView({behavior:'smooth'});
+}
+function generateInvoiceDoc(orderId){
+  const o = orders.find(x=>x.id===orderId);
+  if(!o) return;
+  const bank = BANK_ACCOUNTS[parseInt(document.getElementById('inv-bank').value)||0];
+  const subject = document.getElementById('inv-subject').value || 'オリーブオイル';
+  const dueDate = document.getElementById('inv-due-date').value;
+  const adjLabel = document.getElementById('inv-adj-label').value;
+  const adjAmount = parseInt(document.getElementById('inv-adj-amount').value) || 0;
+  const items = (o.lines||[]).map(function(l){
+    const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
+    const unitPrice = priceForSku(findProduct(l.productId)?findProduct(l.productId).sku:'', o.customerType);
+    return { name: l.productName, qty: totalQty, unitPrice: unitPrice, amount: unitPrice*totalQty };
+  });
+  const doc = buildInvoiceDocHtml({
+    clientName: o.client, clientZip: o.zip, clientAddr: o.addr,
+    subject: subject, items: items, adjLabel: adjLabel, adjAmount: adjAmount,
+    invoiceNumber: o.num, dueDate: dueDate, bank: bank
+  });
+  const area = document.getElementById('invoice-builder-area');
+  const existingDoc = document.getElementById('generated-invoice-wrap');
+  if(existingDoc) existingDoc.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'generated-invoice-wrap';
+  const inner = document.createElement('div');
+  inner.innerHTML = doc;
+  wrap.appendChild(inner.firstElementChild);
+  const printBtn = document.createElement('button');
+  printBtn.className = 'btn btn-primary no-print';
+  printBtn.style.marginTop = '10px';
+  printBtn.textContent = '🖨 この請求書を印刷する';
+  printBtn.onclick = function(){ window.print(); };
+  wrap.appendChild(printBtn);
+  area.appendChild(wrap);
+}
+function buildInvoiceDocHtml(opts){
+  let subtotal = 0;
+  opts.items.forEach(function(it){ subtotal += it.amount; });
+  subtotal += (opts.adjAmount||0);
+  const taxAmount = Math.round(subtotal * taxRate / (1+taxRate)); // 税込金額から内訳の税額を逆算
+  const taxableBase = subtotal - taxAmount;
+  let html = '<div class="invoice-doc">';
+  html += '<div class="invoice-doc-title">御　請　求　書</div>';
+  html += '<div class="invoice-doc-top">';
+  html += '<div><div style="font-size:15px;font-weight:700;border-bottom:2px solid #1a1a18;padding-bottom:4px;margin-bottom:6px">'+esc(opts.clientName)+' 御中</div>'+
+          '〒'+esc(opts.clientZip||'')+'<br>'+esc(opts.clientAddr||'')+'</div>';
+  html += '<div style="text-align:right"><table style="font-size:12px"><tr><td style="color:#888;padding-right:10px">請求日</td><td>'+new Date().toLocaleDateString('ja-JP')+'</td></tr>'+
+          '<tr><td style="color:#888;padding-right:10px">請求書番号</td><td>'+esc(opts.invoiceNumber)+'</td></tr>'+
+          '<tr><td style="color:#888;padding-right:10px">登録番号</td><td>'+COMPANY_INFO.invoiceRegNo+'</td></tr></table>'+
+          '<div style="margin-top:14px;font-weight:700">'+COMPANY_INFO.name+'</div>'+
+          '<div style="font-size:12px">〒'+COMPANY_INFO.zip+'<br>'+COMPANY_INFO.addr+'</div></div>';
+  html += '</div>';
+  html += '<div style="margin-bottom:1rem">下記の通りご請求申し上げます。宜しくお願い致します。</div>';
+  html += '<div style="font-weight:700;margin-bottom:10px">件名　'+esc(opts.subject)+'</div>';
+  html += '<div class="invoice-doc-summary"><table><tr><th>小計</th><th>消費税</th><th>請求金額</th></tr>'+
+          '<tr><td>'+taxableBase.toLocaleString()+'円</td><td>'+taxAmount.toLocaleString()+'円</td><td style="font-size:20px;font-weight:700">'+subtotal.toLocaleString()+'円</td></tr></table></div>';
+  html += '<table class="invoice-doc-table" style="margin-bottom:1rem"><tr><th style="width:50%">入金期日</th><th>振込先</th></tr>'+
+          '<tr><td>'+(opts.dueDate?esc(opts.dueDate):'')+'</td><td>'+esc(opts.bank.bank)+'　'+esc(opts.bank.branch)+'<br>種類：'+esc(opts.bank.type)+'<br>口座番号：'+esc(opts.bank.number)+'<br>口座名義：'+esc(opts.bank.holder)+'</td></tr></table>';
+  html += '<table class="invoice-doc-table"><thead><tr><th>摘要</th><th style="width:80px">数量</th><th style="width:100px">単価</th><th style="width:120px">明細金額</th></tr></thead><tbody>';
+  opts.items.forEach(function(it){
+    html += '<tr><td>'+esc(it.name)+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">'+it.unitPrice.toLocaleString()+'円</td><td style="text-align:right">'+it.amount.toLocaleString()+'円</td></tr>';
+  });
+  if(opts.adjLabel || opts.adjAmount){
+    html += '<tr><td>'+esc(opts.adjLabel||'調整')+'</td><td style="text-align:center">-</td><td style="text-align:right">-</td><td style="text-align:right">'+(opts.adjAmount>=0?'':'-')+Math.abs(opts.adjAmount).toLocaleString()+'円</td></tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div class="invoice-doc-note">';
+  html += 'いつもありがとうございます。<br>請求書到着日から3週間以内にご対応をお願いしております。振込手数料は貴殿にてご負担くださいますようお願い致します。<br>どうぞよろしくお願い致します。<br><br>';
+  html += '※冬場の輸送・冬場の保管について<br>オリーブオイルは7度を下回ると、オイルの一部が固まります。これは天然である証で、常温に置いておくと溶けます。品質に変わりはありません。';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+function esc(s){ return (s==null?'':String(s)); }
 
 // ── 価格マスタ ────────────────────────────────────────────
 function renderPriceTable(){

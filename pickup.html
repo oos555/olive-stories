@@ -285,7 +285,8 @@ function buildInvoiceHtml(o){
   html += '<div style="font-weight:700;margin:5px 0 3px">■破損していた場合</div>';
   html += 'ご迷惑をおかけし、大変申し訳ございません。お手数をおかけいたしますが、商品到着後は速やかに（到着後5日以内に）ご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br>';
   html += 'なお、商品到着から1週間以上経過したもの、および商品を廃棄された後のご連絡につきましては、状態を確認できる証拠が残っていないため、配送会社・弊社のいずれも対応いたしかねる場合がございます。あらかじめご了承ください。<br>';
-  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。';
+  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
+  html += '返品の際は、返品先倉庫住所を別途お知らせいたしますので、<strong>弊社宛には返品なさらないようご注意ください</strong>。';
   html += '</div>';
   html += '<div style="background:#fef9f0;border:1px solid #f3d9a8;border-radius:6px;padding:8px 10px;margin:8px 0;display:flex;align-items:center;gap:8px">';
   html += '<div style="font-size:11px"><div style="font-weight:700;color:#78350f;margin-bottom:1px">🎁 ギフトのご用命はこちら</div>複数のお届け先へのギフト発送も承っております。</div>';
@@ -474,6 +475,8 @@ function renderOrder(){
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '';
   html += '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  if(o.holdUntilDate) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;padding:4px 12px">🗄 取り置き商品（期限：'+esc(o.holdUntilDate)+'）</span></div>';
+  if(o.expectedDate) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;padding:4px 12px">🗓 予約商品（予定：'+esc(o.expectedDate)+'）</span></div>';
   const custNote = findCustomerNote(o.client);
   if(custNote){
     html += '<div class="alert-danger" style="background:#ede9fe;border-color:#7c3aed;color:#5b21b6">📝 <strong>'+esc(o.client)+'様の個別メモ：</strong><br>'+esc(custNote.note).replace(/\n/g,'<br>')+'</div>';
@@ -494,6 +497,9 @@ function renderOrder(){
   if(o.note){
     html += '<div class="note-box" style="'+(/のし|熨斗/.test(o.note)?'border-width:2px;border-color:#dc2626':'')+'">'+(/のし|熨斗/.test(o.note)?'🎀のし指示あり：':'📝')+' '+esc(o.note)+'</div>';
   }
+  html += '<div class="sec-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input" value="'+esc(o.shipNote||'')+'" placeholder="例：お詫びにサンプル1本同封" style="flex:1;padding:9px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px"><button class="btn-sm" onclick="saveShipNote()">保存</button></div>';
+  if(o.shipNote) html += '<div class="note-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>📦 出荷時の備考：</strong>'+esc(o.shipNote)+'</div>';
   html += '<div class="sec-title">商品明細</div>';
   html += '<div id="item-list">';
   (o.lines||[]).forEach(function(l, i){
@@ -662,6 +668,34 @@ async function submitDefect(){
     }
   }catch(err){
     btn.disabled = false; btn.textContent = 'この内容で報告する';
+    alert('通信エラーが発生しました：'+err.message);
+  }
+}
+
+async function saveShipNote(){
+  if(!currentOrder) return;
+  const val = document.getElementById('ship-note-input').value;
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAll');
+    const data = await res.json();
+    if(data.status!=='ok' || !data.data || !Array.isArray(data.data.orders)) return;
+    const allOrders = data.data.orders;
+    const target = allOrders.find(o=>o.id===currentOrder.id);
+    if(!target){ alert('受注が見つかりませんでした'); return; }
+    target.shipNote = val;
+    const saveRes = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveOrders', orders: allOrders }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const saveData = await saveRes.json();
+    if(saveData.status==='ok'){
+      currentOrder.shipNote = val;
+      renderOrder();
+    } else {
+      alert('保存に失敗しました');
+    }
+  }catch(err){
     alert('通信エラーが発生しました：'+err.message);
   }
 }

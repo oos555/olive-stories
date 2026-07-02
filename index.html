@@ -202,7 +202,7 @@ body{background:#fff}
     </div>
     <div id="ctype-mismatch-warn"></div>
     <div class="fg"><label>登録の種類</label>
-      <select id="o-record-type" onchange="onRecordTypeChange()">
+      <select id="o-record-type" onchange="onRecordTypeChange()" style="font-weight:700">
         <option value="pending">通常受注（すぐ出荷準備）</option>
         <option value="held">取り置き（まだ出荷しない）</option>
         <option value="reserved">予約（まだ入荷していない）</option>
@@ -615,7 +615,7 @@ function renderStockStrip(){
     el.innerHTML = '<tr><td style="color:#999;font-size:12px">在庫データがありません（アプリBで在庫を登録してください）</td></tr>';
     return;
   }
-  const mainProducts = PRODUCTS.filter(p=>!p.isSet && p.group!=='ギフト箱・備品' && p.group!=='その他');
+  const mainProducts = PRODUCTS.filter(p=>!p.isSet);
   const groups = {};
   mainProducts.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
   let html = '';
@@ -671,9 +671,13 @@ function onClientInput(){
   selectedCustomerRecord = null;
 }
 function onRecordTypeChange(){
-  const type = document.getElementById('o-record-type').value;
+  const sel = document.getElementById('o-record-type');
+  const type = sel.value;
   document.getElementById('hold-date-wrap').style.display = type==='held' ? 'block' : 'none';
   document.getElementById('reserved-date-wrap').style.display = type==='reserved' ? 'block' : 'none';
+  const colors = { pending: ['#fff','#1a1a18'], held: ['#fef3c7','#78350f'], reserved: ['#dbeafe','#1e3a8a'] };
+  sel.style.background = colors[type][0];
+  sel.style.color = colors[type][1];
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
@@ -1169,6 +1173,7 @@ function clearForm(){
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
   document.getElementById('o-record-type').value = 'pending';
+  onRecordTypeChange();
   document.getElementById('o-hold-date').value = '';
   document.getElementById('o-expected-date').value = '';
   document.getElementById('hold-date-wrap').style.display = 'none';
@@ -1473,8 +1478,11 @@ function recipientAddressBlock(o){
 function buildSlipHtml(o){
   const leadLabel = leadLabelWithDate(o);
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
+  const wasHeld = !!o.holdUntilDate, wasReserved = !!o.expectedDate;
   let html = '<div class="slip">';
   html += '<div class="slip-title">出荷指示書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#888;font-size:14px">（ギフトなし）</span>')+'</div>';
+  if(wasHeld) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗄 取り置き商品（期限：'+o.holdUntilDate+'）</span></div>';
+  if(wasReserved) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗓 予約商品（予定：'+o.expectedDate+'）</span></div>';
   html += '<div class="slip-meta">';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">注文番号</div><div class="slip-meta-val">'+o.num+'</div></div>';
   html += '<div class="slip-meta-item"><div class="slip-meta-label">お届け先氏名</div><div class="slip-meta-val">'+recipientAddressBlock(o)+'</div></div>';
@@ -1491,8 +1499,21 @@ function buildSlipHtml(o){
     html += '<tr><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
   html += '</tbody></table>';
+  html += '<div class="slip-section-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input-'+o.id+'" value="'+(o.shipNote||'').replace(/"/g,'&quot;')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px"><button class="btn-sm" onclick="saveShipNote(\''+o.id+'\')">保存</button></div>';
+  if(o.shipNote) html += '<div class="alert-bar alert-warn"><strong>📦 出荷時の備考：</strong>'+o.shipNote+'</div>';
   html += '</div>';
   return html;
+}
+function saveShipNote(orderId){
+  const o = orders.find(x=>x.id===orderId);
+  if(!o) return;
+  const input = document.getElementById('ship-note-input-'+orderId);
+  o.shipNote = input.value;
+  syncOrdersToGAS();
+  showSyncStatus('✅ 出荷時の備考を保存しました');
+  if(window._currentSlipOrder && window._currentSlipOrder.id===orderId){ document.getElementById('slip-area').innerHTML = buildSlipHtml(o); }
+  else if(window._currentSlipOrders){ document.getElementById('slip-area').innerHTML = window._currentSlipOrders.map(x=>buildSlipHtml(x)).join(''); }
 }
 function generateSlip(){
   const id = document.getElementById('slip-select').value;
