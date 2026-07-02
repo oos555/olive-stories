@@ -387,8 +387,12 @@ body{background:#fff}
     <div class="sec">取り置きを登録</div>
     <div class="info-box">受注のタイミングで「この分は取り置きしてほしい」と言われた時に、ここで登録します。あとで住所を聞き直さなくて済むよう、<strong>この時点で届け先情報まで登録しておいてください</strong>。期限を過ぎても取り置き中のままだと、上に警告が出ます。</div>
     <div class="g4">
-      <div class="fg"><label>商品</label><select id="h-product"></select></div>
-      <div class="fg"><label>数量</label><input type="number" id="h-qty" min="1" value="1"></div>
+      <div class="fg"><label>商品</label><select id="h-product" onchange="updHoldTotal()"></select></div>
+      <div class="fg"><label>本数（バラ）</label><input type="number" id="h-bottles" min="0" value="0" oninput="updHoldTotal()"></div>
+      <div class="fg"><label>箱数</label><input type="number" id="h-boxes" min="0" value="0" oninput="updHoldTotal()"></div>
+      <div class="fg"><label>合計（自動計算）</label><input type="text" id="h-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
+    </div>
+    <div class="g3">
       <div class="fg"><label>卸先・顧客名</label><input type="text" id="h-client" placeholder="〇〇食品株式会社"></div>
       <div class="fg"><label>いつまでの取り置きか</label><input type="date" id="h-date"></div>
     </div>
@@ -1241,8 +1245,9 @@ function renderHoldList(){
   el.innerHTML = holds.map(function(h){
     const p = findProduct(h.pid);
     const overdue = isHoldOverdue(h);
+    const detail = (h.boxes) ? h.qty+'本（バラ'+h.bottles+'＋'+h.boxes+'箱）' : h.qty+'本';
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':'')+'">'+
-      '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+h.qty+'本　→ '+h.client+'</div>'+
+      '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+detail+'　→ '+h.client+'</div>'+
       (overdue?'<span class="order-status" style="background:#fee2e2;color:#7f1d1d">⏰期限切れ</span>':'')+'</div>'+
       '<div style="font-size:12px;color:#666">期限：'+(h.date||'指定なし')+'　〒'+(h.zip||'')+' '+(h.addr||'')+'　'+(h.tel||'')+'</div>'+
       (h.memo?'<div style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:6px;margin-top:4px">🔒スタッフメモ：'+h.memo+'</div>':'')+
@@ -1250,17 +1255,31 @@ function renderHoldList(){
       '</div>';
   }).join('');
 }
+function updHoldTotal(){
+  const bottles = parseInt(document.getElementById('h-bottles').value)||0;
+  const boxes = parseInt(document.getElementById('h-boxes').value)||0;
+  const pid = document.getElementById('h-product').value;
+  const p = findProduct(pid);
+  const boxQty = p ? (p.boxQty||1) : 1;
+  const total = bottles + boxes*boxQty;
+  document.getElementById('h-total-preview').value = total+'本'+(boxes>0?'（1箱='+boxQty+'本で計算）':'');
+}
 function addHold(){
   const pid = document.getElementById('h-product').value;
-  const qty = parseInt(document.getElementById('h-qty').value)||0;
+  const bottles = parseInt(document.getElementById('h-bottles').value)||0;
+  const boxes = parseInt(document.getElementById('h-boxes').value)||0;
   const client = document.getElementById('h-client').value.trim();
   const date = document.getElementById('h-date').value;
-  if(!pid || qty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
-  holds.push({ id:'hold_'+Date.now(), pid: parseInt(pid), client: client, qty: qty, date: date, orderId:'',
+  const p = findProduct(pid);
+  const boxQty = p ? (p.boxQty||1) : 1;
+  const totalQty = bottles + boxes*boxQty;
+  if(!pid || totalQty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
+  holds.push({ id:'hold_'+Date.now(), pid: parseInt(pid), client: client, qty: totalQty, bottles: bottles, boxes: boxes, date: date, orderId:'',
     zip: document.getElementById('h-zip').value, addr: document.getElementById('h-addr').value, tel: document.getElementById('h-tel').value,
     memo: document.getElementById('h-memo').value });
-  document.getElementById('h-client').value=''; document.getElementById('h-qty').value=1; document.getElementById('h-date').value='';
+  document.getElementById('h-client').value=''; document.getElementById('h-bottles').value=0; document.getElementById('h-boxes').value=0; document.getElementById('h-date').value='';
   document.getElementById('h-zip').value=''; document.getElementById('h-addr').value=''; document.getElementById('h-tel').value=''; document.getElementById('h-memo').value='';
+  updHoldTotal();
   renderHoldList(); renderStockStrip();
   saveHoldsPreordersToGAS();
   showSyncStatus('✅ 取り置きを登録しました');
@@ -1314,7 +1333,11 @@ function proceedToOrderFromHold(id){
 function updPreorderTotal(){
   const bottles = parseInt(document.getElementById('p-bottles').value)||0;
   const boxes = parseInt(document.getElementById('p-boxes').value)||0;
-  document.getElementById('p-total-preview').value = (bottles+boxes)+'本';
+  const pid = document.getElementById('p-product').value;
+  const p = findProduct(pid);
+  const boxQty = p ? (p.boxQty||1) : 1;
+  const total = bottles + boxes*boxQty;
+  document.getElementById('p-total-preview').value = total+'本'+(boxes>0?'（1箱='+boxQty+'本で計算）':'');
 }
 function renderPreList(){
   renderHoldPreAlerts();
@@ -1340,8 +1363,11 @@ function addPreorder(){
   const boxes = parseInt(document.getElementById('p-boxes').value)||0;
   const client = document.getElementById('p-client').value.trim();
   const expectedDate = document.getElementById('p-expected').value;
-  if(!pid || !client || (bottles+boxes)<=0){ alert('商品・お客様名・数量を入力してください'); return; }
-  preorders.push({ id:'pre_'+Date.now(), pid: parseInt(pid), client: client, qty: bottles+boxes, bottles: bottles, boxes: boxes, expectedDate: expectedDate, note: document.getElementById('p-note').value,
+  const p = findProduct(pid);
+  const boxQty = p ? (p.boxQty||1) : 1;
+  const totalQty = bottles + boxes*boxQty;
+  if(!pid || !client || totalQty<=0){ alert('商品・お客様名・数量を入力してください'); return; }
+  preorders.push({ id:'pre_'+Date.now(), pid: parseInt(pid), client: client, qty: totalQty, bottles: bottles, boxes: boxes, expectedDate: expectedDate, note: document.getElementById('p-note').value,
     zip: document.getElementById('p-zip').value, addr: document.getElementById('p-addr').value, tel: document.getElementById('p-tel').value,
     memo: document.getElementById('p-memo').value });
   document.getElementById('p-client').value=''; document.getElementById('p-bottles').value=0; document.getElementById('p-boxes').value=0; document.getElementById('p-expected').value=''; document.getElementById('p-note').value='';
