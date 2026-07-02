@@ -40,6 +40,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .btn-complete:disabled{background:#a7d8b8;color:#eee}
 .btn-print{background:#fff;color:#1a1a18;border:1px solid #ccc}
 .done-banner{background:#dcfce7;border:2px solid #16a34a;color:#14532d;border-radius:10px;padding:16px;text-align:center;font-weight:700;font-size:16px;margin-bottom:14px}
+.summary-card{background:#1a1a18;color:#fff;border-radius:12px;padding:16px;margin-bottom:14px;text-align:center}
+.summary-num{font-size:28px;font-weight:700}
+.summary-sub{font-size:13px;color:#ccc;margin-top:4px}
+.order-item{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer}
+.order-item:active{background:#f5f4f0}
+.order-item .oi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.order-item .oi-name{font-weight:700;font-size:15px}
+.order-item .oi-num{font-size:11px;color:#999}
+.order-item .oi-products{font-size:12px;color:#666;margin-top:4px}
+.refresh-btn{width:100%;padding:12px;border-radius:10px;border:1px solid #ccc;background:#fff;color:#1a1a18;font-weight:600;font-size:14px;margin-bottom:14px}
+.back-link{display:inline-block;margin-bottom:10px;color:#185fa5;font-size:13px;font-weight:600;cursor:pointer}
 @media print{
   .no-print{display:none!important}
   body{background:#fff}
@@ -59,6 +70,7 @@ const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
 let currentOrder = null;
+let allOrders = [];
 
 function getParam(name){
   const params = new URLSearchParams(location.search);
@@ -69,10 +81,15 @@ function esc(s){ return (s==null?'':String(s)); }
 
 async function init(){
   const id = getParam('id');
-  if(!id){
-    document.getElementById('content').innerHTML = '<div class="alert-danger">注文IDが指定されていません。出荷指示書のQRコードから開いてください。</div>';
-    return;
+  if(id){
+    await loadSingleOrder(id);
+  } else {
+    await loadOrderList();
   }
+}
+
+async function loadSingleOrder(id){
+  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
     const res = await fetch(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id));
     const data = await res.json();
@@ -91,6 +108,63 @@ async function init(){
   }
 }
 
+async function loadOrderList(){
+  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAll');
+    const data = await res.json();
+    if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
+      document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>';
+      return;
+    }
+    allOrders = data.data.orders.filter(o=>o.status==='pending');
+    renderList();
+  }catch(err){
+    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
+  }
+}
+
+function recipientLabel(o){
+  if(o.isCompany){
+    return [o.companyName, o.positionName, o.personName].filter(Boolean).join(' ') || o.client;
+  }
+  return o.recipientName || o.client;
+}
+
+function renderList(){
+  const urgent = allOrders.filter(o=>o.leadType==='urgent').length;
+  const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
+  let html = '';
+  html += '<div class="summary-card">';
+  html += '<div class="summary-num">📦 出荷待ち '+allOrders.length+'件</div>';
+  const parts = [];
+  if(urgent) parts.push('🚨急ぎ '+urgent+'件');
+  if(gift) parts.push('🎁ギフト '+gift+'件');
+  html += '<div class="summary-sub">'+(parts.length?parts.join('　'):'急ぎ・ギフトはありません')+'</div>';
+  html += '</div>';
+  html += '<button class="refresh-btn no-print" onclick="loadOrderList()">🔄 一覧を更新する</button>';
+  if(!allOrders.length){
+    html += '<div class="card center" style="color:#999">現在、出荷待ちの注文はありません。</div>';
+  } else {
+    allOrders.slice().sort(function(a,b){
+      // 急ぎを先頭に、あとは登録が古い順
+      const au = a.leadType==='urgent'?0:1, bu = b.leadType==='urgent'?0:1;
+      if(au!==bu) return au-bu;
+      return (a.registeredAt||'').localeCompare(b.registeredAt||'');
+    }).forEach(function(o){
+      const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
+      const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
+      html += '<div class="order-item" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
+      html += '<div class="oi-top"><span class="oi-name">'+esc(recipientLabel(o))+'</span>';
+      html += '<span>'+(o.leadType==='urgent'?'<span class="badge '+leadCls+'" style="margin:0 0 0 4px">🚨</span>':'')+(hasGift?'<span class="badge b-gift" style="margin:0 0 0 4px">🎁</span>':'')+'</span></div>';
+      html += '<div class="oi-num">'+esc(o.num)+'</div>';
+      html += '<div class="oi-products">'+(o.lines||[]).map(l=>esc(l.productName)+' ×'+esc(l.bottles)).join('　')+'</div>';
+      html += '</div>';
+    });
+  }
+  document.getElementById('content').innerHTML = html;
+}
+
 function renderAlreadyShipped(){
   const o = currentOrder;
   document.getElementById('content').innerHTML =
@@ -98,6 +172,7 @@ function renderAlreadyShipped(){
       '⚠️ この注文（'+esc(o.num)+'）は<strong>すでに発送完了として処理されています。</strong><br><br>'+
       '二重にスキャンした可能性があります。内容を確認したい場合だけ、下のボタンを押してください。'+
       '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
+
     '</div>';
 }
 
@@ -107,6 +182,7 @@ function renderOrder(){
   const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '';
+  html += '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
   html += '<div class="card">';
   html += '<div class="center" style="font-size:12px;color:#888;margin-bottom:4px">注文番号</div>';
   html += '<div class="center" style="font-size:20px;font-weight:700;margin-bottom:10px">'+esc(o.num)+'</div>';
@@ -115,7 +191,7 @@ function renderOrder(){
   if(hasGift) html += '<span class="badge b-gift">🎁 ギフトあり</span>';
   if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
   html += '</div>';
-  html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(o.client)+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(recipientLabel(o))+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
@@ -171,7 +247,8 @@ async function completeOrder(){
     if(data.status === 'ok'){
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 発送完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
-        '<button class="btn-big btn-print no-print" onclick="window.print()">🖨 この内容を印刷する</button>';
+        '<button class="btn-big btn-print no-print" onclick="window.print()">🖨 この内容を印刷する</button>'+
+        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</button>';
     } else {
       btn.disabled = false;
       btn.textContent = '✅ 発送完了にする';
