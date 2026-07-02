@@ -472,7 +472,7 @@ const PRODUCTS = [
 {id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true, boxQty:24},
 {id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド', boxQty:20},
 {id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド', boxQty:6},
-{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true, boxQty:24},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', boxQty:24},
 {id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット', boxQty:6},
 {id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット', boxQty:6},
 {id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット', boxQty:4},
@@ -1100,6 +1100,22 @@ function previewOrder(){
     const list = buildOrdersFromForm();
     if(!list.length){
       document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ 届け先が登録されていません。各届け先カードで「お名前」と「商品（本数）」を入力してください。商品を選び忘れている行は取り込まれません。</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      return;
+    }
+    // トルコ産100mlオイルの単品（バラ）卸はRT限定（卸①・卸②のお客様が対象。サンプル出荷は例外的に許可）
+    const rtViolations = [];
+    list.forEach(function(o){
+      (o.lines||[]).forEach(function(l){
+        const p = findProduct(l.productId);
+        const isWholesaleCustomer = o.customerType==='wholesale1' || o.customerType==='wholesale2';
+        if(p && p.noWholesale && isWholesaleCustomer && l.giftType!=='sample_free' && l.giftType!=='sample_paid'){
+          rtViolations.push(o.recipientName+'様：'+p.name);
+        }
+      });
+    });
+    if(rtViolations.length){
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ '+rtViolations.join('、')+' は、トルコ産100mlオイルの単品（バラ）卸で、RT（ホテル・レストラン）限定の商品です。卸①・卸②のお客様には卸せません。サンプルとして出荷する場合は、種別を「サンプル(無償)」または「サンプル(有償)」に変更してください。</div>';
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
     }
