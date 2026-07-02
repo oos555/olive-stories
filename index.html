@@ -219,16 +219,17 @@ body{background:#fff}
 
     <div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px">送り主情報（送り状に送り主として記載されます）</div>
-      <div class="fg"><label>送り主の氏名・名義</label>
+      <div class="fg" style="margin-bottom:8px"><label>送り主の氏名・名義</label>
         <select id="d-sender-mode" onchange="onSenderModeChange()">
           <option value="client">お客様名（発注者名）をそのまま使う</option>
           <option value="self">オリーブオイル・ストーリーズ（自社）を送り主にする</option>
           <option value="custom">別の名前を入力する</option>
         </select>
       </div>
-      <div class="fg" id="d-sender-custom-wrap" style="display:none"><label>送り主名（自由入力）</label><input type="text" id="d-sender-custom" placeholder="例：〇〇株式会社"></div>
-      <div id="d-sender-self-box" style="display:none;background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px">株式会社オリーブオイル・ストーリーズ　〒107-0062 東京都港区南青山2-2-15</div>
-      <div id="d-sender-manual-fields">
+      <div id="d-sender-client-box" style="background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px">✓ お客様名・発注元の住所をそのまま使用します</div>
+      <div id="d-sender-self-box" style="display:none;background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px">株式会社オリーブオイル・ストーリーズ　〒107-0062 東京都港区南青山2-2-15</div>
+      <div id="d-sender-custom-fields" style="display:none">
+        <div class="fg"><label>送り主名（自由入力）</label><input type="text" id="d-sender-custom" placeholder="例：〇〇株式会社"></div>
         <div class="g2">
           <div class="fg"><label>送り主電話番号</label><input type="text" id="d-sender-tel" placeholder="0901234567（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
           <div class="fg"><label>送り主郵便番号</label><input type="text" id="d-sender-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
@@ -251,7 +252,7 @@ body{background:#fff}
       <div class="sec" style="color:#185fa5">受注内容の確認</div>
       <div id="confirm-content"></div>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-        <button class="btn btn-green" onclick="registerOrder()">登録する</button>
+        <button class="btn btn-green" onclick="registerOrder()">受注一覧に登録する</button>
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
     </div>
@@ -457,10 +458,9 @@ const PRODUCTS = [
 {id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル', boxQty:6},
 {id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル', boxQty:6},
 {id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル', boxQty:4},
-{id:29, sku:'LAT5L',  name:'レイトハーベスト 5L',   group:'その他オイル', boxQty:4},
-{id:38, sku:'CUP001', jan:'7012', name:'カップオイル グリーンブーケ（オルガニック）13g', group:'カップオイル', boxQty:120},
-{id:39, sku:'CUP002', jan:'7036', name:'カップオイル グリーンバナナ（メメジック）13g',   group:'カップオイル', boxQty:120},
-{id:40, sku:'CUP003', jan:'7029', name:'カップオイル オレンジ＆レモン（アグルミ）13g',   group:'カップオイル', boxQty:120},
+{id:38, sku:'CUP001', jan:'7012', name:'カップオイル 13g グリーンブーケ（オルガニック）', group:'カップオイル', boxQty:120},
+{id:39, sku:'CUP002', jan:'7036', name:'カップオイル 13g グリーンバナナ（メメジック）',   group:'カップオイル', boxQty:120},
+{id:40, sku:'CUP003', jan:'7029', name:'カップオイル 13g オレンジ＆レモン（アグルミ）',   group:'カップオイル', boxQty:120},
 {id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
   components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
 {id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
@@ -636,9 +636,9 @@ function onCtypeChange(){
 const SELF_SENDER = { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' };
 function onSenderModeChange(){
   const mode = document.getElementById('d-sender-mode').value;
-  document.getElementById('d-sender-custom-wrap').style.display = mode==='custom' ? 'block' : 'none';
+  document.getElementById('d-sender-client-box').style.display = mode==='client' ? 'block' : 'none';
   document.getElementById('d-sender-self-box').style.display = mode==='self' ? 'block' : 'none';
-  document.getElementById('d-sender-manual-fields').style.display = mode==='self' ? 'none' : 'block';
+  document.getElementById('d-sender-custom-fields').style.display = mode==='custom' ? 'block' : 'none';
 }
 
 // ── 商品セレクトHTML ────────────────────────────────────────────
@@ -817,6 +817,10 @@ function renumberRecipients(){
     if(idx) idx.textContent = '#'+(i+1);
   });
 }
+function giftOptionsHtml(isSet, selected){
+  const keys = isSet ? ['gift'] : Object.keys(GIFT_TYPE_LABEL).filter(k=>k!=='gift');
+  return keys.map(k=>'<option value="'+k+'" '+(k===selected?'selected':'')+'>'+GIFT_TYPE_LABEL[k]+'</option>').join('');
+}
 function addRecipientLine(cardId){
   const id = 'rline'+(++recipientLineCounter);
   const card = document.getElementById(cardId);
@@ -826,7 +830,7 @@ function addRecipientLine(cardId){
   row.id = id;
   row.innerHTML =
     '<select onchange="onRecipientLineProductChange(\''+cardId+'\',\''+id+'\')" data-role="product">'+productOptionsHtml()+'</select>'+
-    '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('')+'</select>'+
+    '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+giftOptionsHtml(false)+'</select>'+
     '<input type="number" min="0" value="0" data-role="bottles" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="number" min="0" value="0" data-role="boxes" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="text" placeholder="メモ" data-role="memo">'+
@@ -839,13 +843,9 @@ function onRecipientLineProductChange(cardId, lineId){
   const pid = row.querySelector('[data-role=product]').value;
   const p = findProduct(pid);
   const giftSel = row.querySelector('[data-role=gift]');
-  if(p && p.isSet){
-    // your story / oliveNOVA などのギフトセットは種別を「ギフト」に固定
-    giftSel.value = 'gift';
-    giftSel.disabled = true;
-  } else {
-    giftSel.disabled = false;
-  }
+  const isSet = !!(p && p.isSet);
+  giftSel.innerHTML = giftOptionsHtml(isSet);
+  giftSel.disabled = isSet; // your story / oliveNOVA などのギフトセットは種別を「ギフト」に固定
   updateCardGiftSummary(cardId);
   updateRecycleLock(cardId);
 }
@@ -983,9 +983,9 @@ function buildOrdersFromForm(){
   const saveCustomer = document.getElementById('o-save-customer').checked;
   const senderMode = document.getElementById('d-sender-mode').value;
   const dSenderName = senderMode==='self' ? SELF_SENDER.name : senderMode==='custom' ? (document.getElementById('d-sender-custom').value || client) : client;
-  const dSenderTel = senderMode==='self' ? '' : document.getElementById('d-sender-tel').value;
-  const dSenderZip = senderMode==='self' ? SELF_SENDER.zip : document.getElementById('d-sender-zip').value;
-  const dSenderAddr = senderMode==='self' ? SELF_SENDER.addr : document.getElementById('d-sender-addr').value;
+  const dSenderTel = senderMode==='self' ? '' : senderMode==='custom' ? document.getElementById('d-sender-tel').value : document.getElementById('o-tel').value;
+  const dSenderZip = senderMode==='self' ? SELF_SENDER.zip : senderMode==='custom' ? document.getElementById('d-sender-zip').value : document.getElementById('o-zip').value;
+  const dSenderAddr = senderMode==='self' ? SELF_SENDER.addr : senderMode==='custom' ? document.getElementById('d-sender-addr').value : document.getElementById('o-addr').value;
 
   const recipients = collectRecipients();
   const list = [];
@@ -1072,6 +1072,11 @@ function registerOrder(){
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS();
   showSyncStatus('✅ '+list.length+'件の受注を登録しました');
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-row .tab')[2].classList.add('active');
+  document.getElementById('panel-list').classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 function clearForm(){
@@ -1086,9 +1091,9 @@ function clearForm(){
   document.getElementById('o-save-customer').checked = false;
   document.getElementById('d-sender-mode').value = 'client';
   document.getElementById('d-sender-custom').value = '';
-  document.getElementById('d-sender-custom-wrap').style.display = 'none';
+  document.getElementById('d-sender-client-box').style.display = 'block';
   document.getElementById('d-sender-self-box').style.display = 'none';
-  document.getElementById('d-sender-manual-fields').style.display = 'block';
+  document.getElementById('d-sender-custom-fields').style.display = 'none';
   document.getElementById('d-sender-tel').value = '';
   document.getElementById('d-sender-zip').value = '';
   document.getElementById('d-sender-addr').value = '';
