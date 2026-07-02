@@ -332,6 +332,7 @@ body{background:#fff}
 
 <!-- 受注一覧 -->
 <div id="panel-list" class="panel">
+  <div id="overdue-alert-area"></div>
   <div style="margin-bottom:1rem">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <span style="font-size:14px;font-weight:700">受注一覧</span>
@@ -948,6 +949,38 @@ function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(
 
 const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
+// ── 発送区分の期限日表示・期限超過チェック ────────────────────────────
+function computeDueDateISO(o){
+  if(o.leadType==='scheduled') return o.leadDate || '';
+  const days = o.leadType==='urgent' ? 1 : (o.leadType==='normal' ? 3 : null);
+  if(days===null) return '';
+  const base = o.registeredAt ? new Date(o.registeredAt) : new Date();
+  base.setDate(base.getDate()+days);
+  return base.toISOString().slice(0,10);
+}
+function formatDateJp(iso){
+  if(!iso) return '';
+  const d = new Date(iso+'T00:00:00');
+  return (d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+function leadLabelWithDate(o){
+  const due = computeDueDateISO(o);
+  const dueStr = due ? formatDateJp(due)+'までに出荷' : '';
+  if(o.leadType==='urgent') return '🚨急ぎ'+(dueStr?'（'+dueStr+'）':'（明日まで）');
+  if(o.leadType==='normal') return '通常'+(dueStr?'（'+dueStr+'）':'（3日以内）');
+  if(o.leadType==='defect') return '🔵不良在庫出荷';
+  if(o.leadType==='caution') return '🟡特別注意';
+  if(o.leadType==='scheduled') return '🗓 '+(due?formatDateJp(due)+'までに出荷':'日程未指定');
+  return o.leadType;
+}
+function isOverdue(o){
+  if(o.status!=='pending') return false;
+  const due = computeDueDateISO(o);
+  if(!due) return false;
+  const todayISO = new Date().toISOString().slice(0,10);
+  return due < todayISO;
+}
+
 // ── フォーム全体から複数の受注を組み立てる ────────────────────────────
 function buildOrdersFromForm(){
   const client = document.getElementById('o-client').value;
@@ -1004,7 +1037,7 @@ function previewOrder(){
     let html = '<div style="font-size:13px;line-height:1.8">';
     html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+list.length+'件の届け先へ発送します</div>';
     list.forEach(function(o, i){
-      const leadLabel = o.leadType==='scheduled' ? '🗓 '+(o.leadDate||'日程未指定') : LEAD_LABEL[o.leadType];
+      const leadLabel = leadLabelWithDate(o);
       html += '<div style="border:1px solid #e8e7e3;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
       html += '<div><strong>#'+(i+1)+'　'+o.recipientName+'</strong>　'+o.num+'</div>';
       html += '<div style="color:#666">〒'+o.zip+' '+o.addr+'　'+o.tel+'</div>';
@@ -1104,6 +1137,13 @@ function renderList(){
   if(sort==='oldest') list.sort((a,b)=>(a.registeredAt||'').localeCompare(b.registeredAt||''));
   if(sort==='client') list.sort((a,b)=>(a.client||'').localeCompare(b.client||'','ja'));
   document.getElementById('list-count').textContent = list.length+'件';
+
+  // 期限超過アラート（フィルターに関わらず、出荷待ち全体をチェック）
+  const overdueOrders = orders.filter(o=>isOverdue(o));
+  document.getElementById('overdue-alert-area').innerHTML = overdueOrders.length
+    ? '<div class="alert-bar alert-danger">⏰ 出荷期限を過ぎている受注が'+overdueOrders.length+'件あります：'+overdueOrders.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>'
+    : '';
+
   const el = document.getElementById('order-list');
   if(!list.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:12px 0">該当する受注がありません。</div>'; return; }
   el.innerHTML = list.map(function(o){
@@ -1112,12 +1152,13 @@ function renderList(){
     const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
+    const overdueBadge = isOverdue(o) ? '<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限超過</span>' : '';
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -1193,7 +1234,7 @@ function recipientAddressBlock(o){
   return (o.recipientName||o.client||'');
 }
 function buildSlipHtml(o){
-  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
+  const leadLabel = leadLabelWithDate(o);
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '<div class="slip">';
   html += '<div class="slip-title">出荷指示書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#888;font-size:14px">（ギフトなし）</span>')+'</div>';
@@ -1208,9 +1249,9 @@ function buildSlipHtml(o){
   if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
   if(o.note) html += '<div class="alert-bar alert-danger">📝 '+o.note+'</div>';
   html += '<div class="slip-section-title">商品チェックリスト</div>';
-  html += '<table class="slip-table"><thead><tr><th style="width:40px">✓</th><th>商品名</th><th>種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
+  html += '<table class="slip-table"><thead><tr><th>商品名</th><th>種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
   (o.lines||[]).forEach(function(l){
-    html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    html += '<tr><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
   html += '</tbody></table>';
   html += '</div>';
