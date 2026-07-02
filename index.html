@@ -201,6 +201,13 @@ body{background:#fff}
       </div>
     </div>
     <div id="ctype-mismatch-warn"></div>
+    <div class="fg"><label>お支払い方法</label>
+      <select id="o-payment-mode" onchange="document.getElementById('prepay-warn').style.display=this.value==='prepay'?'block':'none'">
+        <option value="postpay">後払い（発送後に請求）</option>
+        <option value="prepay">先払い（入金確認後に発送）</option>
+      </select>
+      <div id="prepay-warn" style="display:none;font-size:11px;color:#b45309;margin-top:2px">⚠️ 先払いの場合、請求管理アプリCで入金確認するまで、この受注はLINE通知（倉庫への出荷指示）ができません。</div>
+    </div>
     <div class="g3">
       <div class="fg"><label>発注元郵便番号</label><input type="text" id="o-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
       <div class="fg"><label>発注元住所</label><input type="text" id="o-addr" placeholder="東京都..."></div>
@@ -1047,6 +1054,7 @@ function buildOrdersFromForm(){
   const client = document.getElementById('o-client').value;
   const custId = document.getElementById('o-client').dataset.custId || '';
   const ctype = document.getElementById('o-ctype').value;
+  const paymentMode = document.getElementById('o-payment-mode').value;
   const saveCustomer = document.getElementById('o-save-customer').checked;
   const senderMode = document.getElementById('d-sender-mode').value;
   const dSenderName = senderMode==='self' ? SELF_SENDER.name : senderMode==='custom' ? (document.getElementById('d-sender-custom').value || client) : client;
@@ -1062,6 +1070,7 @@ function buildOrdersFromForm(){
       id: generateOrderId(),
       num: nextOrderNum(list.length),
       client: client, custId: custId, customerType: ctype, saveCustomer: saveCustomer,
+      paymentMode: paymentMode, paymentConfirmed: false,
       recipientName: r.name, isCompany: r.isCompany, companyName: r.companyName, deptName: r.deptName,
       positionName: r.positionName, personName: r.personName,
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
@@ -1151,6 +1160,8 @@ function clearForm(){
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
+  document.getElementById('o-payment-mode').value = 'postpay';
+  document.getElementById('prepay-warn').style.display = 'none';
   document.getElementById('o-zip').value = '';
   document.getElementById('o-addr').value = '';
   document.getElementById('o-tel').value = '';
@@ -1425,12 +1436,13 @@ function renderList(){
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
     const overdueBadge = isOverdue(o) ? '<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限超過</span>' : '';
+    const unpaidBadge = (o.paymentMode==='prepay' && !o.paymentConfirmed) ? '<span class="pill pill-urgent" style="background:#b45309;color:#fff">💰未入金</span>' : '';
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#888">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -1614,6 +1626,11 @@ function generateSlip(){
 function notifyLineShort(listArg){
   const list = listArg || window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
   if(!list.length) return;
+  const unpaidPrepay = list.filter(o=>o.paymentMode==='prepay' && !o.paymentConfirmed);
+  if(unpaidPrepay.length){
+    alert('⚠️ 先払いで、まだ入金確認が済んでいない受注が'+unpaidPrepay.length+'件含まれているため、通知を送れません。\n\n対象：'+unpaidPrepay.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'\n\n請求管理アプリC（billing.html）で入金確認を済ませてから、もう一度お試しください。');
+    return;
+  }
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   // この通知を送った受注に「倉庫通知済み」の印を付ける（倉庫アプリはこの印が付いたものだけ表示します）

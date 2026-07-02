@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オリーブオイル・ストーリーズ 請求管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f4f0;color:#1a1a18;font-size:14px}
+.app{max-width:1080px;margin:0 auto;padding:1rem}
+.topnav{display:flex;align-items:center;justify-content:space-between;background:#1a1a18;color:#fff;padding:10px 20px;border-radius:12px;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.topnav-title{font-size:15px;font-weight:700;color:#fff}
+.topnav-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.topnav-tab{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:#aaa;background:transparent;border:none;cursor:pointer;text-decoration:none;display:inline-block}
+.topnav-tab.active{background:#fff;color:#1a1a18;font-weight:700}
+.topnav-tab:hover:not(.active){background:#333;color:#fff}
+.savebtn{background:#16a34a;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600}
+.tab-row{display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:1.25rem;background:#fff;flex-wrap:wrap}
+.tab{flex:1;padding:8px 4px;font-size:12px;color:#666;background:transparent;border:none;cursor:pointer;border-right:1px solid #ddd;text-align:center;min-width:90px}
+.tab:last-child{border-right:none}
+.tab.active{background:#fff;color:#1a1a18;font-weight:700;border-bottom:2px solid #1a1a18}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.sec{font-size:14px;font-weight:700;margin:0 0 12px}
+.info-box{background:#f9f8f5;border-radius:8px;padding:11px 14px;font-size:13px;color:#555;line-height:1.6;margin-bottom:1rem;border:1px solid #e8e7e3}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.fg label{font-size:12px;color:#666;font-weight:500}
+.fg input,.fg select{width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:#fff;color:#1a1a18}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+.btn-primary{background:#dbeafe;color:#1e3a8a;border:1px solid #185fa5}
+.btn-primary:hover{background:#bfdbfe}
+.btn-green{background:#dcfce7;color:#14532d;border:1px solid #16a34a}
+.btn-gray{background:#f5f4f0;color:#444;border:1px solid #ccc}
+.btn-sm{font-size:11px;padding:4px 10px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#333;cursor:pointer}
+.btn-sm:hover{background:#f5f5f3}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e8e7e3}
+.stat-label{font-size:11px;color:#666;margin-bottom:3px}
+.stat-val{font-size:18px;font-weight:700}
+.tbl-wrap{background:#fff;border:1px solid #e8e7e3;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+th{font-size:11px;font-weight:700;color:#555;padding:8px 10px;text-align:left;border-bottom:1px solid #e8e7e3;background:#f9f8f5;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #f0efe9;vertical-align:middle}
+tr:hover td{background:#fafaf8}
+tr:last-child td{border-bottom:none}
+.group-header{background:#eeece6;padding:6px 10px;font-size:11px;font-weight:700;color:#5a5a52;letter-spacing:.05em;border-bottom:1px solid #e8e7e3}
+.price-input{width:80px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;text-align:right}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;margin:1px}
+.badge-paid{background:#dcfce7;color:#14532d}
+.badge-unpaid{background:#fee2e2;color:#7f1d1d}
+.badge-prepay{background:#fef3c7;color:#78350f}
+.badge-postpay{background:#f1f5f9;color:#475569}
+.sku-tag{font-size:11px;color:#3a4a5c;font-family:monospace;font-weight:600;margin-left:6px;padding:1px 5px;background:#eef1f5;border-radius:4px}
+#sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
+.help-ic{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;background:#d1d5db;color:#374151;font-size:10px;font-weight:700;cursor:pointer;font-style:normal}
+.help-ic:hover{background:#9ca3af;color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topnav no-print">
+  <span class="topnav-title">🫒 請求管理 (アプリC)</span>
+  <button class="savebtn" onclick="saveAllBilling()">☁️ 今すぐ保存</button>
+  <div class="topnav-tabs">
+    <a class="topnav-tab" href="index.html">📋 受注・出荷 A</a>
+    <a class="topnav-tab" href="stock.html">📦 在庫管理 B</a>
+    <a class="topnav-tab active" href="billing.html">💰 請求管理 C</a>
+    <a class="topnav-tab" href="pickup.html">🚚 倉庫 D</a>
+  </div>
+</div>
+
+<div class="tab-row">
+  <button class="tab active" onclick="showPanel('list',this)">請求一覧</button>
+  <button class="tab" onclick="showPanel('monthly',this)">月次卸請求</button>
+  <button class="tab" onclick="showPanel('price',this)">価格マスタ</button>
+  <button class="tab" onclick="showPanel('export',this)">エクスポート・バックアップ</button>
+</div>
+
+<!-- 請求一覧（個別） -->
+<div id="panel-list" class="panel active">
+  <div class="info-box">受注（アプリA）に、価格マスタで設定した単価を掛けて金額を自動計算します。<strong>金額はここでは保存されず、毎回その場で計算</strong>されるので、価格マスタを直しても常に最新の金額が出ます。</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-label">対象件数</div><div class="stat-val" id="s-count">0件</div></div>
+    <div class="stat"><div class="stat-label">合計金額（税込）</div><div class="stat-val" id="s-total">¥0</div></div>
+    <div class="stat"><div class="stat-label">⚠️ 先払い未入金</div><div class="stat-val" style="color:#b45309" id="s-unpaid-prepay">0件</div></div>
+    <div class="stat"><div class="stat-label">入金未確認（全体）</div><div class="stat-val" style="color:#dc2626" id="s-unpaid-all">0件</div></div>
+  </div>
+  <div class="search-row" style="display:flex;gap:8px;margin-bottom:1rem">
+    <input type="text" id="list-search" placeholder="お客様名・注文番号で検索" oninput="renderInvoiceList()" style="flex:1;padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+    <select id="list-payment-filter" onchange="renderInvoiceList()" style="padding:7px 10px;border:1px solid #ccc;border-radius:8px;font-size:12px">
+      <option value="all">すべて</option>
+      <option value="unpaid">入金未確認のみ</option>
+      <option value="unpaid-prepay">先払い未入金のみ</option>
+      <option value="paid">入金済みのみ</option>
+    </select>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>注文番号</th><th>お客様</th><th>受注日</th><th>区分</th><th>支払方法</th><th>金額（税込）</th><th>入金</th><th>操作</th></tr></thead>
+      <tbody id="invoice-tbl-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 月次卸請求 -->
+<div id="panel-monthly" class="panel">
+  <div class="info-box">卸のお客様など、1ヶ月分をまとめて請求する場合に使います。対象月・お客様を選ぶと、その月に出荷済みの受注が自動で集計されます。</div>
+  <div class="card">
+    <div class="g3">
+      <div class="fg"><label>対象年月</label><input type="month" id="m-yearmonth"></div>
+      <div class="fg"><label>お客様名（発注元）</label><input type="text" id="m-client" placeholder="〇〇食品株式会社"></div>
+      <div class="fg" style="justify-content:flex-end"><button class="btn btn-primary" onclick="calcMonthlyInvoice()">集計する</button></div>
+    </div>
+    <div id="monthly-preview"></div>
+  </div>
+  <div class="sec">発行済みの月次請求</div>
+  <div id="monthly-list"></div>
+</div>
+
+<!-- 価格マスタ -->
+<div id="panel-price" class="panel">
+  <div class="info-box">商品ごとの単価を設定します。<strong>区分（定価・卸①・卸②・RTなど）によって金額が変わる場合はここで設定</strong>してください。不良在庫特価は、不良在庫として出荷する受注にだけ適用されます。</div>
+  <div class="fg" style="max-width:200px"><label>消費税率（共通）</label><input type="number" id="tax-rate" min="0" max="1" step="0.01" value="0.08"></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>商品名（SKU）</th>
+        <th>定価 <span class="help-ic" onclick="alert('通常のお客様（区分：定価）に適用される単価です。')">ⓘ</span></th>
+        <th>卸①</th><th>卸②</th><th>RT・ホテル</th><th>不良在庫特価</th>
+      </tr></thead>
+      <tbody id="price-tbl-body"></tbody>
+    </table>
+  </div>
+  <button class="btn btn-green" onclick="savePriceMaster()">価格マスタを保存する</button>
+</div>
+
+<!-- エクスポート・バックアップ -->
+<div id="panel-export" class="panel">
+  <div class="card">
+    <div class="sec">📦 発送リスト（誰に・いつ・何を・区分）をCSVで出力</div>
+    <div class="info-box">出荷済みの受注を一覧化したCSVをダウンロードします。Excel・スプレッドシートで開けます。何かあった時の記録用に、定期的に保存しておくことをおすすめします。</div>
+    <div class="g3">
+      <div class="fg"><label>期間（開始）</label><input type="date" id="exp-start"></div>
+      <div class="fg"><label>期間（終了）</label><input type="date" id="exp-end"></div>
+      <div class="fg" style="justify-content:flex-end"><button class="btn btn-primary" onclick="exportShippingListCSV()">📥 発送リストCSVをダウンロード</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec">🛡️ 請求データのバックアップ（CSV）</div>
+    <div class="info-box">受注・金額・入金状況をまとめてCSVに書き出します。何かあった時は、このファイルの内容を私（Claude）に渡していただければ、データの確認・復元をお手伝いできます。</div>
+    <button class="btn btn-primary" onclick="exportBillingBackupCSV()">📥 請求データCSVをダウンロード</button>
+  </div>
+  <div class="card">
+    <div class="sec">📖 請求フローについて（操作マニュアル）</div>
+    <details style="margin-bottom:10px" open>
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">先払い・後払いの流れ</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        アプリAで受注登録するときに「お支払い方法」を選びます。<br>
+        <strong>先払い</strong>を選んだ受注は、ここ（請求管理C）で「入金済みにする」を押すまで、アプリA・倉庫アプリDのどちらからも出荷のLINE通知が送れません。<br>
+        <strong>後払い</strong>を選んだ受注は、通常どおり出荷できます。入金の記録だけ、あとでこの画面のチェックで管理してください。
+      </div>
+    </details>
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-weight:600;padding:6px 0">月次卸請求の使い方</summary>
+      <div style="font-size:13px;color:#555;line-height:1.8;padding:8px 4px">
+        「月次卸請求」タブで対象月とお客様名を入力し「集計する」を押すと、その月に出荷済みになった該当お客様の受注が自動で集計されます。内容を確認して「請求を発行する」を押すと、記録として残ります。
+      </div>
+    </details>
+  </div>
+</div>
+
+</div><!-- /.app -->
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+// ── 商品マスタ（他アプリと共通） ────────────────────────────────────────────
+const PRODUCTS = [
+{id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック'},
+{id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック'},
+{id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック'},
+{id:4,  sku:'ORG750', name:'オルガニック 750ml', group:'オルガニック'},
+{id:5,  sku:'ORG2L',  name:'オルガニック 2L',   group:'オルガニック'},
+{id:6,  sku:'ORG5L',  name:'オルガニック 5L',   group:'オルガニック'},
+{id:7,  sku:'MEM100', name:'メメジック 100ml',  group:'メメジック'},
+{id:8,  sku:'MEM250', name:'メメジック 250ml',  group:'メメジック'},
+{id:9,  sku:'MEM500', name:'メメジック 500ml',  group:'メメジック'},
+{id:10, sku:'MEM750', name:'メメジック 750ml',  group:'メメジック'},
+{id:11, sku:'MEM2L',  name:'メメジック 2L',    group:'メメジック'},
+{id:12, sku:'MEM5L',  name:'メメジック 5L',    group:'メメジック'},
+{id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド'},
+{id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド'},
+{id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド'},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット'},
+{id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット'},
+{id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット'},
+{id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット'},
+{id:20, sku:'ZAI250', name:'ザイトゥーン 250ml',   group:'ザイトゥーン'},
+{id:21, sku:'ZAI500', name:'ザイトゥーン 500ml',   group:'ザイトゥーン'},
+{id:22, sku:'AGR100', name:'アグルミ 100ml',      group:'アグルミ'},
+{id:23, sku:'AGR250', name:'アグルミ 250ml',      group:'アグルミ'},
+{id:24, sku:'AGR3L',  name:'アグルミ 3L',        group:'アグルミ'},
+{id:25, sku:'TGR100', name:'唐辛子オイル 100ml',   group:'その他オイル'},
+{id:26, sku:'ARM500', name:'アルモニア 500ml',     group:'その他オイル'},
+{id:27, sku:'ARM3L',  name:'アルモニア 3L',       group:'その他オイル'},
+{id:28, sku:'CAS5L',  name:'カサアルバート 5L',    group:'その他オイル'},
+{id:38, sku:'CUP001', name:'カップオイル 13g グリーンブーケ（オルガニック）', group:'カップオイル'},
+{id:39, sku:'CUP002', name:'カップオイル 13g グリーンバナナ（メメジック）',   group:'カップオイル'},
+{id:40, sku:'CUP003', name:'カップオイル 13g オレンジ＆レモン（アグルミ）',   group:'カップオイル'},
+{id:50, sku:'YS100',  name:'your story 100ml×3本セット', group:'セット商品', isSet:true},
+{id:51, sku:'YS250A', name:'your story 250ml×2本セット A', group:'セット商品', isSet:true},
+{id:52, sku:'YS250B', name:'your story 250ml×2本セット B', group:'セット商品', isSet:true},
+{id:53, sku:'YS250C', name:'your story 250ml×2本セット C', group:'セット商品', isSet:true},
+{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA', group:'セット商品', isSet:true},
+];
+function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
+function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+function productGroups(){
+  const groups = {};
+  PRODUCTS.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
+  return groups;
+}
+
+const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価' };
+
+// ── 状態 ────────────────────────────────────────────
+let orders = [];
+let priceMaster = []; // [{sku, productName, priceGeneral, priceWholesale1, priceWholesale2, priceRT, priceDefect, taxRate}]
+let monthlyInvoices = [];
+let taxRate = 0.08;
+
+document.addEventListener('DOMContentLoaded', function(){
+  loadAllBilling();
+});
+
+function showSyncStatus(msg,isError){
+  let el = document.getElementById('sync-status');
+  if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.style.background = isError ? '#fee2e2' : '#dcfce7';
+  el.style.color = isError ? '#7f1d1d' : '#14532d';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+function showPanel(name, btn){
+  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='list') renderInvoiceList();
+  if(name==='price') renderPriceTable();
+  if(name==='monthly') renderMonthlyList();
+}
+
+function loadAllBilling(){
+  Promise.all([
+    fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
+    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
+  ]).then(function(results){
+    const dataRes = results[0], ordersRes = results[1];
+    if(dataRes && dataRes.status==='ok' && dataRes.data){
+      priceMaster = dataRes.data.priceMaster || [];
+      monthlyInvoices = dataRes.data.monthlyInvoices || [];
+      if(priceMaster.length && priceMaster[0].taxRate) taxRate = parseFloat(priceMaster[0].taxRate)||0.08;
+    }
+    if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
+      orders = ordersRes.data.orders;
+    }
+    document.getElementById('tax-rate').value = taxRate;
+    renderInvoiceList();
+    renderPriceTable();
+    renderMonthlyList();
+    showSyncStatus('✅ データを読み込みました');
+  }).catch(function(){
+    showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+  });
+}
+
+// ── 金額計算 ────────────────────────────────────────────
+function priceForSku(sku, customerType){
+  const p = priceMaster.find(x=>x.sku===sku);
+  if(!p) return 0;
+  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect' };
+  const key = map[customerType] || 'priceGeneral';
+  return parseFloat(p[key])||0;
+}
+function orderAmount(o){
+  let subtotal = 0;
+  (o.lines||[]).forEach(function(l){
+    const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
+    const unitPrice = priceForSku(l.sku || (findProduct(l.productId)?findProduct(l.productId).sku:''), o.customerType);
+    subtotal += unitPrice * totalQty;
+  });
+  return Math.round(subtotal * (1 + taxRate));
+}
+
+// ── 請求一覧 ────────────────────────────────────────────
+function renderInvoiceList(){
+  const search = (document.getElementById('list-search').value||'').toLowerCase();
+  const filter = document.getElementById('list-payment-filter').value;
+  let list = orders.filter(o=>o.status!=='cancelled');
+  if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
+  if(filter==='unpaid') list = list.filter(o=>!o.paymentConfirmed);
+  if(filter==='unpaid-prepay') list = list.filter(o=>o.paymentMode==='prepay' && !o.paymentConfirmed);
+  if(filter==='paid') list = list.filter(o=>o.paymentConfirmed);
+  list.sort((a,b)=>(b.registeredAt||'').localeCompare(a.registeredAt||''));
+
+  let total = 0, unpaidPrepayCount = 0, unpaidAllCount = 0;
+  orders.filter(o=>o.status!=='cancelled').forEach(function(o){
+    if(o.paymentMode==='prepay' && !o.paymentConfirmed) unpaidPrepayCount++;
+    if(!o.paymentConfirmed) unpaidAllCount++;
+  });
+
+  document.getElementById('invoice-tbl-body').innerHTML = list.map(function(o){
+    const amount = orderAmount(o);
+    total += amount;
+    const payBadge = o.paymentMode==='prepay' ? '<span class="badge badge-prepay">先払い</span>' : '<span class="badge badge-postpay">後払い</span>';
+    const paidBadge = o.paymentConfirmed ? '<span class="badge badge-paid">入金済み</span>' : '<span class="badge badge-unpaid">未入金</span>';
+    return '<tr><td>'+o.num+'</td><td>'+(o.recipientName||o.client)+'</td><td>'+(o.registeredAt||'').slice(0,10)+'</td>'+
+      '<td>'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'</td><td>'+payBadge+'</td>'+
+      '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
+      '<td>'+paidBadge+'</td>'+
+      '<td><button class="btn-sm" onclick="togglePaid(\''+o.id+'\')">'+(o.paymentConfirmed?'未入金に戻す':'✅入金済みにする')+'</button></td></tr>';
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#999;padding:20px">該当する受注がありません</td></tr>';
+
+  document.getElementById('s-count').textContent = list.length+'件';
+  document.getElementById('s-total').textContent = '¥'+total.toLocaleString();
+  document.getElementById('s-unpaid-prepay').textContent = unpaidPrepayCount+'件';
+  document.getElementById('s-unpaid-all').textContent = unpaidAllCount+'件';
+}
+
+async function togglePaid(orderId){
+  const o = orders.find(x=>x.id===orderId);
+  if(!o) return;
+  o.paymentConfirmed = !o.paymentConfirmed;
+  if(o.paymentConfirmed) o.paidAt = new Date().toISOString();
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveOrders', orders: orders }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      renderInvoiceList();
+      showSyncStatus('✅ '+(o.paymentConfirmed?'入金済みにしました':'未入金に戻しました'));
+    } else {
+      showSyncStatus('⚠️ 保存に失敗しました', true);
+    }
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
+}
+
+// ── 価格マスタ ────────────────────────────────────────────
+function renderPriceTable(){
+  const groups = productGroups();
+  let html = '';
+  Object.keys(groups).forEach(function(g){
+    const items = groups[g].filter(p=>!p.isSet);
+    if(!items.length) return;
+    html += '<tr><td colspan="6" class="group-header">'+g+'</td></tr>';
+    items.forEach(function(p){
+      const existing = priceMaster.find(x=>x.sku===p.sku) || {};
+      html += '<tr><td>'+p.name+' <span class="sku-tag">'+p.sku+'</span></td>'+
+        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceDefect'].map(function(key){
+          return '<td><input type="number" class="price-input" data-sku="'+p.sku+'" data-key="'+key+'" value="'+(existing[key]||0)+'"></td>';
+        }).join('')+
+        '</tr>';
+    });
+  });
+  document.getElementById('price-tbl-body').innerHTML = html;
+}
+function savePriceMaster(){
+  taxRate = parseFloat(document.getElementById('tax-rate').value)||0.08;
+  const rows = {};
+  document.querySelectorAll('.price-input').forEach(function(input){
+    const sku = input.dataset.sku, key = input.dataset.key;
+    if(!rows[sku]) rows[sku] = { sku: sku, productName: (findProductBySku(sku)?findProductBySku(sku).name:''), taxRate: taxRate };
+    rows[sku][key] = parseFloat(input.value)||0;
+  });
+  priceMaster = Object.values(rows);
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveAllData', payload:{ priceMaster: priceMaster } }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).then(r=>r.json()).then(function(d){
+    if(d.status==='ok'){ showSyncStatus('✅ 価格マスタを保存しました'); renderInvoiceList(); }
+    else showSyncStatus('⚠️ 保存に失敗しました', true);
+  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+}
+
+// ── 月次卸請求 ────────────────────────────────────────────
+function calcMonthlyInvoice(){
+  const ym = document.getElementById('m-yearmonth').value;
+  const client = document.getElementById('m-client').value.trim();
+  if(!ym || !client){ alert('対象年月とお客様名を入力してください'); return; }
+  const targetOrders = orders.filter(function(o){
+    return o.status==='shipped' && o.client===client && (o.shippedAt||'').slice(0,7)===ym;
+  });
+  if(!targetOrders.length){
+    document.getElementById('monthly-preview').innerHTML = '<div class="info-box" style="margin-top:10px">該当する出荷済み受注が見つかりませんでした。</div>';
+    return;
+  }
+  let total = 0;
+  let html = '<div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>注文番号</th><th>出荷日</th><th>商品</th><th>金額（税込）</th></tr></thead><tbody>';
+  targetOrders.forEach(function(o){
+    const amount = orderAmount(o);
+    total += amount;
+    html += '<tr><td>'+o.num+'</td><td>'+(o.shippedAt||'').slice(0,10)+'</td><td>'+(o.lines||[]).map(l=>l.productName).join('、')+'</td><td style="text-align:right">¥'+amount.toLocaleString()+'</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div style="text-align:right;font-size:16px;font-weight:700;margin-bottom:10px">合計：¥'+total.toLocaleString()+'</div>';
+  html += '<button class="btn btn-green" onclick="issueMonthlyInvoice(\''+ym+'\',\''+client.replace(/'/g,"\\'")+'\','+total+',\''+targetOrders.map(o=>o.id).join(',')+'\')">この内容で請求を発行する</button>';
+  document.getElementById('monthly-preview').innerHTML = html;
+}
+function issueMonthlyInvoice(ym, client, total, orderIdsStr){
+  monthlyInvoices.push({ id:'minv_'+Date.now(), client: client, yearMonth: ym, totalAmount: total, orderIds: orderIdsStr.split(','), issuedAt: new Date().toISOString(), paid:false, paidAt:'', note:'' });
+  saveMonthlyInvoices();
+  document.getElementById('monthly-preview').innerHTML = '<div class="info-box" style="margin-top:10px">✅ 請求を発行しました。</div>';
+  renderMonthlyList();
+}
+function saveMonthlyInvoices(){
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveAllData', payload:{ monthlyInvoices: monthlyInvoices } }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).then(r=>r.json()).then(function(d){
+    if(d.status==='ok') showSyncStatus('✅ 保存しました');
+    else showSyncStatus('⚠️ 保存に失敗しました', true);
+  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+}
+function renderMonthlyList(){
+  const el = document.getElementById('monthly-list');
+  if(!monthlyInvoices.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">まだ発行された月次請求はありません。</div>'; return; }
+  el.innerHTML = monthlyInvoices.slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||'')).map(function(m){
+    return '<div class="card" style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+      '<div><strong>'+m.client+'</strong>　'+m.yearMonth+'　¥'+(m.totalAmount||0).toLocaleString()+'　（対象'+(m.orderIds||[]).length+'件）</div>'+
+      '<span class="badge '+(m.paid?'badge-paid':'badge-unpaid')+'">'+(m.paid?'入金済み':'未入金')+'</span>'+
+      '</div>'+
+      '<div style="font-size:11px;color:#888;margin:4px 0">発行日：'+(m.issuedAt||'').slice(0,10)+'</div>'+
+      '<button class="btn-sm" onclick="toggleMonthlyPaid(\''+m.id+'\')">'+(m.paid?'未入金に戻す':'✅入金済みにする')+'</button>'+
+      '</div>';
+  }).join('');
+}
+function toggleMonthlyPaid(id){
+  const m = monthlyInvoices.find(x=>x.id===id);
+  if(!m) return;
+  m.paid = !m.paid;
+  if(m.paid) m.paidAt = new Date().toISOString();
+  saveMonthlyInvoices();
+  renderMonthlyList();
+}
+
+// ── エクスポート ────────────────────────────────────────────
+function downloadCSV(filename, rows){
+  const csv = rows.map(r=>r.map(function(v){
+    v = String(v==null?'':v);
+    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportShippingListCSV(){
+  const start = document.getElementById('exp-start').value;
+  const end = document.getElementById('exp-end').value;
+  let list = orders.filter(o=>o.status==='shipped');
+  if(start) list = list.filter(o=>(o.shippedAt||'').slice(0,10) >= start);
+  if(end) list = list.filter(o=>(o.shippedAt||'').slice(0,10) <= end);
+  const rows = [['出荷日','注文番号','お客様（発注元）','お届け先','商品','数量','区分','発送区分','ギフト有無']];
+  list.forEach(function(o){
+    const hasGift = (o.lines||[]).some(l=>l.giftType==='gift') ? 'ギフト' : '';
+    rows.push([
+      (o.shippedAt||'').slice(0,10), o.num, o.client, o.recipientName||o.client,
+      (o.lines||[]).map(l=>l.productName).join('／'),
+      (o.lines||[]).map(l=>(l.bottles||0)+(l.boxes||0)).reduce((a,b)=>a+b,0),
+      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType, o.leadType, hasGift
+    ]);
+  });
+  downloadCSV('発送リスト_'+(start||'全期間')+'_'+(end||'')+'.csv', rows);
+  showSyncStatus('✅ 発送リストをダウンロードしました');
+}
+function exportBillingBackupCSV(){
+  const rows = [['注文番号','お客様','受注日','出荷日','ステータス','区分','支払方法','入金状況','金額（税込）','商品明細']];
+  orders.forEach(function(o){
+    rows.push([
+      o.num, o.client, (o.registeredAt||'').slice(0,10), (o.shippedAt||'').slice(0,10), o.status,
+      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType, o.paymentMode==='prepay'?'先払い':'後払い',
+      o.paymentConfirmed?'入金済み':'未入金', orderAmount(o),
+      (o.lines||[]).map(l=>l.productName+'×'+((l.bottles||0)+(l.boxes||0))).join('／')
+    ]);
+  });
+  downloadCSV('請求データバックアップ_'+new Date().toISOString().slice(0,10)+'.csv', rows);
+  showSyncStatus('✅ 請求データをダウンロードしました');
+}
+
+function saveAllBilling(){
+  savePriceMaster();
+}
+</script>
+</body>
+</html>
