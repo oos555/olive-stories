@@ -115,6 +115,70 @@ function isOverdue(o){
 }
 const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect', caution:'b-caution', scheduled:'b-normal'};
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
+
+// 在庫連動用の商品マスタ（アプリA・Bと同じ内容。セット商品の構成を把握するために必要）
+const PRODUCTS = [
+{id:1,sku:'ORG100',boxQty:24},{id:2,sku:'ORG250',boxQty:20},{id:3,sku:'ORG500',boxQty:12},{id:4,sku:'ORG750',boxQty:12},{id:5,sku:'ORG2L',boxQty:6},{id:6,sku:'ORG5L',boxQty:4},
+{id:7,sku:'MEM100',boxQty:24},{id:8,sku:'MEM250',boxQty:20},{id:9,sku:'MEM500',boxQty:12},{id:10,sku:'MEM750',boxQty:12},{id:11,sku:'MEM2L',boxQty:6},{id:12,sku:'MEM5L',boxQty:4},
+{id:13,sku:'CHF100',boxQty:24},{id:14,sku:'CHF250',boxQty:20},{id:15,sku:'CHF2L',boxQty:6},
+{id:16,sku:'PRI100',boxQty:24},{id:17,sku:'PRI250',boxQty:6},{id:18,sku:'PRI500',boxQty:6},{id:19,sku:'PRI3L',boxQty:4},
+{id:20,sku:'ZAI250',boxQty:6},{id:21,sku:'ZAI500',boxQty:6},
+{id:22,sku:'AGR100',boxQty:6},{id:23,sku:'AGR250',boxQty:6},{id:24,sku:'AGR3L',boxQty:5},
+{id:25,sku:'TGR100',boxQty:12},{id:26,sku:'ARM500',boxQty:6},{id:27,sku:'ARM3L',boxQty:6},{id:28,sku:'CAS5L',boxQty:4},{id:29,sku:'LAT5L',boxQty:4},
+{id:38,sku:'CUP001',boxQty:120},{id:39,sku:'CUP002',boxQty:120},{id:40,sku:'CUP003',boxQty:120},
+{id:50,sku:'YS100',isSet:true,components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
+{id:51,sku:'YS250A',isSet:true,components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:52,sku:'YS250B',isSet:true,components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:53,sku:'YS250C',isSet:true,components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
+{id:54,sku:'GFT001',isSet:true,components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
+{id:60,sku:'BOX-YS3'},{id:61,sku:'BOX-YS2'},{id:62,sku:'BOX-CUP'},{id:32,sku:'BAG001'},{id:33,sku:'BAG002'},
+{id:34,sku:'MISC001'},{id:35,sku:'MISC002'},{id:36,sku:'MISC003'}
+];
+function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
+function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+
+// 発送完了時に、注文の商品分だけ在庫（アプリB）を自動で減らす
+async function deductStockAndSave(o){
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const data = await res.json();
+    if(data.status!=='ok' || !data.data) return;
+    const lots = (data.data.lots||[]).map(function(l){
+      return { id:l.id, pid:parseInt(l.pid), productName:l.productName||'', lotCode:l.lotCode, expiry:l.expiry, stock:parseInt(l.stock)||0, defect:l.defect, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 };
+    });
+    const needed = {};
+    (o.lines||[]).forEach(function(l){
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){ needed[c.sku] = (needed[c.sku]||0) + totalQty*(c.qty||1); });
+      } else {
+        needed[p.sku] = (needed[p.sku]||0) + totalQty;
+      }
+    });
+    Object.keys(needed).forEach(function(sku){
+      let remain = needed[sku];
+      const prod = findProductBySku(sku);
+      if(!prod || remain<=0) return;
+      const matching = lots.filter(l=>l.pid===prod.id && l.status==='new').sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
+      matching.forEach(function(l){
+        if(remain<=0) return;
+        const take = Math.min(l.stock||0, remain);
+        if(take<=0) return;
+        l.stock -= take; remain -= take;
+      });
+    });
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveAllData', payload:{ lots: lots } }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(e){
+    // 在庫更新に失敗しても発送完了自体は成功させる（あとでアプリBで確認してください）
+  }
+}
+
 const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
 const COMPANY_WEBSITE = 'https://oliveoilstories.net/';
 const COMPANY_EMAIL = 'office@oliveoilstories.net';
@@ -380,6 +444,9 @@ async function completeOrder(){
     });
     const data = await res.json();
     if(data.status === 'ok'){
+      if(!data.alreadyShipped){
+        deductStockAndSave(currentOrder); // 在庫（アプリB）にも反映（失敗しても発送完了は成立させる）
+      }
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 発送完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
         '<button class="btn-big btn-print no-print" onclick="printInvoice()">📄 納品書を印刷する</button>'+
