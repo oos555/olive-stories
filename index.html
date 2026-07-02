@@ -201,6 +201,15 @@ body{background:#fff}
       </div>
     </div>
     <div id="ctype-mismatch-warn"></div>
+    <div class="fg"><label>登録の種類</label>
+      <select id="o-record-type" onchange="onRecordTypeChange()">
+        <option value="pending">通常受注（すぐ出荷準備）</option>
+        <option value="held">取り置き（まだ出荷しない）</option>
+        <option value="reserved">予約（まだ入荷していない）</option>
+      </select>
+    </div>
+    <div class="fg" id="hold-date-wrap" style="display:none"><label>いつまでの取り置きか</label><input type="date" id="o-hold-date"></div>
+    <div class="fg" id="reserved-date-wrap" style="display:none"><label>お届け予定時期</label><input type="date" id="o-expected-date"></div>
     <div class="fg"><label>お支払い方法</label>
       <select id="o-payment-mode" onchange="document.getElementById('prepay-warn').style.display=this.value==='prepay'?'block':'none'">
         <option value="postpay">後払い（発送後に請求）</option>
@@ -382,57 +391,12 @@ body{background:#fff}
 
 <!-- 取り置き・予約 -->
 <div id="panel-hold" class="panel">
+  <div class="info-box">取り置き・予約は「受注登録」画面の「登録の種類」から登録してください。入力する内容は通常の受注登録と完全に同じです。ここでは、登録済みの取り置き・予約の一覧と、期限が近づいた時の警告だけを表示します。</div>
   <div id="hold-alert-area"></div>
-  <div class="card">
-    <div class="sec">取り置きを登録</div>
-    <div class="info-box">受注のタイミングで「この分は取り置きしてほしい」と言われた時に、ここで登録します。あとで住所を聞き直さなくて済むよう、<strong>この時点で届け先情報まで登録しておいてください</strong>。期限を過ぎても取り置き中のままだと、上に警告が出ます。</div>
-    <div class="g4">
-      <div class="fg"><label>商品</label><select id="h-product" onchange="updHoldTotal()"></select></div>
-      <div class="fg"><label>本数（バラ）</label><input type="number" id="h-bottles" min="0" value="0" oninput="updHoldTotal()"></div>
-      <div class="fg"><label>箱数</label><input type="number" id="h-boxes" min="0" value="0" oninput="updHoldTotal()"></div>
-      <div class="fg"><label>合計（自動計算）</label><input type="text" id="h-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>卸先・顧客名</label><input type="text" id="h-client" placeholder="〇〇食品株式会社"></div>
-      <div class="fg"><label>いつまでの取り置きか</label><input type="date" id="h-date"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>郵便番号</label><input type="text" id="h-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
-      <div class="fg"><label>住所</label><input type="text" id="h-addr" placeholder="東京都..."></div>
-      <div class="fg"><label>電話番号</label><input type="text" id="h-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
-    </div>
-    <div class="fg"><label>スタッフメモ（お客様には見えません）</label>
-      <input type="text" id="h-memo" placeholder="例：連絡先（メール）〇〇@example.com／LINEでやり取りした場合はそのトークのURLを貼っておくと、あとで経緯が分かります"></div>
-    <button class="btn btn-primary" onclick="addHold()">取り置きを登録する</button>
-  </div>
-  <button class="btn-sm" onclick="toggleHoldList()" id="hold-toggle-btn">▶ 現在の取り置き一覧（0件）</button>
-  <div id="hold-list" style="display:none;margin-top:8px"></div>
-
-  <div class="card" style="margin-top:1.5rem">
-    <div class="sec">予約を登録</div>
-    <div class="info-box">まだ入荷していない商品を、先に予約で受け付けた時に登録します。あとで住所を聞き直さなくて済むよう、<strong>この時点で届け先情報まで登録しておいてください</strong>。お届け予定時期を過ぎても予約のままだと、上に警告が出ます。</div>
-    <div class="g3">
-      <div class="fg"><label>商品</label><select id="p-product" onchange="updPreorderTotal()"></select></div>
-      <div class="fg"><label>お客様名</label><input type="text" id="p-client" placeholder="田中商店"></div>
-      <div class="fg"><label>お届け予定時期</label><input type="date" id="p-expected"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>本数（バラ）</label><input type="number" id="p-bottles" min="0" value="0" oninput="updPreorderTotal()"></div>
-      <div class="fg"><label>箱数</label><input type="number" id="p-boxes" min="0" value="0" oninput="updPreorderTotal()"></div>
-      <div class="fg"><label>合計（自動計算）</label><input type="text" id="p-total-preview" readonly style="background:#f5f4f0;color:#888"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>郵便番号</label><input type="text" id="p-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
-      <div class="fg"><label>住所</label><input type="text" id="p-addr" placeholder="東京都..."></div>
-      <div class="fg"><label>電話番号</label><input type="text" id="p-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
-    </div>
-    <div class="fg"><label>メモ（お客様との受付内容）</label><input type="text" id="p-note" placeholder="電話受付・STORES注文番号など"></div>
-    <div class="fg"><label>スタッフメモ（お客様には見えません）</label>
-      <input type="text" id="p-memo" placeholder="例：連絡先（メール）〇〇@example.com／LINEでやり取りした場合はそのトークのURLを貼っておくと、あとで経緯が分かります"></div>
-    <button class="btn btn-primary" onclick="addPreorder()">予約を登録する</button>
-  </div>
-  <button class="btn-sm" onclick="togglePreList()" id="pre-toggle-btn">▶ 現在の予約一覧（0件）</button>
-  <div id="pre-list" style="display:none;margin-top:8px"></div>
+  <div class="sec">🗄 取り置き中（<span id="held-count">0</span>件）</div>
+  <div id="held-order-list"></div>
+  <div class="sec" style="margin-top:1.5rem">🗓 予約中（<span id="reserved-count">0</span>件）</div>
+  <div id="reserved-order-list"></div>
 </div>
 
 <!-- 出荷指示書・納品書 -->
@@ -604,6 +568,23 @@ function loadInitialData(){
 }
 
 // ── 在庫サマリー（読み取り専用。実際の在庫はアプリBで管理）────────────────
+function computeHeldQtyBySku(sku){
+  let qty = 0;
+  orders.forEach(function(o){
+    if(o.status!=='held') return;
+    (o.lines||[]).forEach(function(l){
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){ if(c.sku===sku) qty += totalQty*(c.qty||1); });
+      } else if(p.sku===sku){
+        qty += totalQty;
+      }
+    });
+  });
+  return qty;
+}
 function computeAvailable(sku){
   const p = findProductBySku(sku);
   if(!p) return null;
@@ -612,14 +593,14 @@ function computeAvailable(sku){
     return Math.min.apply(null, p.components.map(c=>{ const v=computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
   }
   const pid = p.id;
-  let stock = 0, oldStock = 0, defectQty = 0, holdQty = 0;
+  let stock = 0, oldStock = 0, defectQty = 0;
   lots.forEach(function(l){
     if(l.pid != pid || l.status==='incoming') return;
     stock += (l.stock||0);
     if(l.status==='old') oldStock += (l.stock||0);
   });
   defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
-  holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
+  const holdQty = computeHeldQtyBySku(sku);
   return Math.max(0, stock - oldStock - defectQty - holdQty);
 }
 
@@ -630,7 +611,7 @@ function computeDefectQty(pid){
 }
 function renderStockStrip(){
   const el = document.getElementById('stock-strip');
-  if(!lots.length && !defects.length && !holds.length){
+  if(!lots.length && !defects.length){
     el.innerHTML = '<tr><td style="color:#999;font-size:12px">在庫データがありません（アプリBで在庫を登録してください）</td></tr>';
     return;
   }
@@ -688,6 +669,11 @@ function onClientInput(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
   selectedCustomerRecord = null;
+}
+function onRecordTypeChange(){
+  const type = document.getElementById('o-record-type').value;
+  document.getElementById('hold-date-wrap').style.display = type==='held' ? 'block' : 'none';
+  document.getElementById('reserved-date-wrap').style.display = type==='reserved' ? 'block' : 'none';
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
@@ -1058,6 +1044,9 @@ function buildOrdersFromForm(){
   const client = document.getElementById('o-client').value;
   const custId = document.getElementById('o-client').dataset.custId || '';
   const ctype = document.getElementById('o-ctype').value;
+  const recordType = document.getElementById('o-record-type').value;
+  const holdDate = document.getElementById('o-hold-date').value;
+  const expectedDate = document.getElementById('o-expected-date').value;
   const paymentMode = document.getElementById('o-payment-mode').value;
   const saveCustomer = document.getElementById('o-save-customer').checked;
   const senderMode = document.getElementById('d-sender-mode').value;
@@ -1087,7 +1076,9 @@ function buildOrdersFromForm(){
       lines: r.lines,
       isDefectSale: (ctype==='defectprice' || r.lead==='defect'),
       notified: false,
-      status: 'pending', source: 'manual', registeredAt: new Date().toISOString()
+      holdUntilDate: recordType==='held' ? holdDate : '',
+      expectedDate: recordType==='reserved' ? expectedDate : '',
+      status: recordType, source: 'manual', registeredAt: new Date().toISOString()
     });
   });
   return list;
@@ -1108,8 +1099,12 @@ function previewOrder(){
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
     }
+    const recordType = document.getElementById('o-record-type').value;
+    const recordTypeLabel = {pending:'通常受注', held:'🗄 取り置き', reserved:'🗓 予約'}[recordType];
     let html = '<div style="font-size:13px;line-height:1.8">';
-    html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+list.length+'件の届け先へ発送します</div>';
+    html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+recordTypeLabel+'　'+list.length+'件の届け先へ発送します</div>';
+    if(recordType==='held' && list[0].holdUntilDate) html += '<div style="color:#b45309;margin-bottom:10px">🗄 取り置き期限：'+list[0].holdUntilDate+'</div>';
+    if(recordType==='reserved' && list[0].expectedDate) html += '<div style="color:#185fa5;margin-bottom:10px">🗓 お届け予定時期：'+list[0].expectedDate+'</div>';
     list.forEach(function(o, i){
       const leadLabel = leadLabelWithDate(o);
       html += '<div style="border:1px solid #e8e7e3;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
@@ -1119,7 +1114,7 @@ function previewOrder(){
       if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
       if(o.note) html += '<div style="'+(hasNoshiKeyword(o.note)?'color:#dc2626;font-weight:700;background:#fef2f2;padding:4px 8px;border-radius:6px':'')+'">'+(hasNoshiKeyword(o.note)?'🎀 ':'')+'備考：'+o.note+'</div>';
       html += '<div>送り主表記：'+o.senderName+'</div>';
-      html += '<div>'+o.lines.map(l=>'・'+l.productName+' × '+lineTotal(l)+'本'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
+      html += '<div>'+o.lines.map(l=>'・'+l.productName+' × バラ'+l.bottles+'＋箱'+l.boxes+'　＝<strong>合計'+lineTotal(l)+'本</strong>'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
       html += '</div>';
     });
     html += '</div>';
@@ -1147,15 +1142,24 @@ function registerOrder(){
     });
     updCustomerSelects();
   }
+  const recordType = list[0].status;
   document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS();
-  showSyncStatus('✅ '+list.length+'件の受注を登録しました');
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-row .tab')[2].classList.add('active');
-  document.getElementById('panel-list').classList.add('active');
+  if(recordType==='pending'){
+    showSyncStatus('✅ '+list.length+'件の受注を登録しました');
+    document.querySelectorAll('.tab-row .tab')[2].classList.add('active');
+    document.getElementById('panel-list').classList.add('active');
+  } else {
+    const label = recordType==='held' ? '取り置き' : '予約';
+    showSyncStatus('✅ '+list.length+'件の'+label+'を登録しました');
+    document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
+    document.getElementById('panel-hold').classList.add('active');
+    renderHoldPreLists();
+  }
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
@@ -1164,6 +1168,11 @@ function clearForm(){
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
+  document.getElementById('o-record-type').value = 'pending';
+  document.getElementById('o-hold-date').value = '';
+  document.getElementById('o-expected-date').value = '';
+  document.getElementById('hold-date-wrap').style.display = 'none';
+  document.getElementById('reserved-date-wrap').style.display = 'none';
   document.getElementById('o-payment-mode').value = 'postpay';
   document.getElementById('prepay-warn').style.display = 'none';
   document.getElementById('o-zip').value = '';
@@ -1192,234 +1201,80 @@ function showPanel(name, btn){
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='list') renderList();
   if(name==='slip') renderSlipSelect();
-  if(name==='hold'){ fillHoldPreProductSelects(); renderHoldList(); renderPreList(); }
+  if(name==='hold') renderHoldPreLists();
 }
 
-// ── 取り置き・予約 ────────────────────────────────────────────
-function fillHoldPreProductSelects(){
-  ['h-product','p-product'].forEach(function(id){
-    const sel = document.getElementById(id);
-    if(sel && !sel.options.length) sel.innerHTML = productOptionsHtml();
-  });
-}
+// ── 取り置き・予約（受注の特別な状態として管理） ────────────────────────────
 function todayISO(){ return new Date().toISOString().slice(0,10); }
-function isHoldOverdue(h){ return h.date && h.date < todayISO(); }
-function isPreorderOverdue(r){ return r.expectedDate && r.expectedDate < todayISO(); }
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const due = new Date(dateStr+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((due-today)/86400000);
+}
+function isHeldOverdue(o){ const d = daysUntil(o.holdUntilDate); return d!==null && d<0; }
+function isHeldDueSoon(o){ const d = daysUntil(o.holdUntilDate); return d!==null && d>=0 && d<=3; }
+function isReservedOverdue(o){ const d = daysUntil(o.expectedDate); return d!==null && d<0; }
+function isReservedDueSoon(o){ const d = daysUntil(o.expectedDate); return d!==null && d>=0 && d<=3; }
+
 function renderHoldPreAlerts(){
-  const overdueHolds = holds.filter(isHoldOverdue);
-  const overduePre = preorders.filter(isPreorderOverdue);
+  const heldOrders = orders.filter(o=>o.status==='held');
+  const reservedOrders = orders.filter(o=>o.status==='reserved');
+  const overdueHeld = heldOrders.filter(isHeldOverdue);
+  const soonHeld = heldOrders.filter(isHeldDueSoon);
+  const overdueRes = reservedOrders.filter(isReservedOverdue);
+  const soonRes = reservedOrders.filter(isReservedDueSoon);
   let html = '';
-  if(overdueHolds.length) html += '<div class="alert-bar alert-danger">⏰ 期限切れの取り置きが'+overdueHolds.length+'件あります：'+overdueHolds.map(h=>h.client+'（'+(findProduct(h.pid)?findProduct(h.pid).name:'')+'）').join('、')+'</div>';
-  if(overduePre.length) html += '<div class="alert-bar alert-danger">⏰ お届け予定を過ぎた予約が'+overduePre.length+'件あります：'+overduePre.map(r=>r.client+'（'+(findProduct(r.pid)?findProduct(r.pid).name:'')+'）').join('、')+'</div>';
-  document.getElementById('hold-alert-area').innerHTML = html;
-  const badgeCount = overdueHolds.length + overduePre.length;
+  if(overdueHeld.length) html += '<div class="alert-bar alert-danger">⏰ 期限切れの取り置きが'+overdueHeld.length+'件あります：'+overdueHeld.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>';
+  if(soonHeld.length) html += '<div class="alert-bar alert-warn">📅 取り置き期限が3日以内の受注が'+soonHeld.length+'件あります：'+soonHeld.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>';
+  if(overdueRes.length) html += '<div class="alert-bar alert-danger">⏰ お届け予定を過ぎた予約が'+overdueRes.length+'件あります：'+overdueRes.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>';
+  if(soonRes.length) html += '<div class="alert-bar alert-warn">📅 お届け予定が3日以内の予約が'+soonRes.length+'件あります：'+soonRes.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>';
+  const alertArea = document.getElementById('hold-alert-area');
+  if(alertArea) alertArea.innerHTML = html;
+  const badgeCount = overdueHeld.length + soonHeld.length + overdueRes.length + soonRes.length;
   const badge = document.getElementById('hold-tab-badge');
   if(badge) badge.innerHTML = badgeCount ? ' <span style="background:#dc2626;color:#fff;border-radius:99px;padding:1px 6px;font-size:10px">'+badgeCount+'</span>' : '';
 }
-function saveHoldsPreordersToGAS(){
-  if(!gasSyncEnabled) return;
-  const withNames = function(arr){ return arr.map(function(x){ const p=findProduct(x.pid); return Object.assign({}, x, {productName: p?p.name:''}); }); };
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ holds: withNames(holds), preorders: withNames(preorders) } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).catch(function(){ showSyncStatus('⚠️ 取り置き・予約データの保存に失敗しました', true); });
-}
-let holdListOpen = false, preListOpen = false;
-function toggleHoldList(){
-  holdListOpen = !holdListOpen;
-  document.getElementById('hold-list').style.display = holdListOpen ? 'block' : 'none';
-  document.getElementById('hold-toggle-btn').textContent = (holdListOpen?'▼':'▶')+' 現在の取り置き一覧（'+holds.length+'件）';
-}
-function togglePreList(){
-  preListOpen = !preListOpen;
-  document.getElementById('pre-list').style.display = preListOpen ? 'block' : 'none';
-  document.getElementById('pre-toggle-btn').textContent = (preListOpen?'▼':'▶')+' 現在の予約一覧（'+preorders.length+'件）';
-}
-function renderHoldList(){
+
+function renderHoldPreLists(){
   renderHoldPreAlerts();
-  const btn = document.getElementById('hold-toggle-btn');
-  if(btn) btn.textContent = (holdListOpen?'▼':'▶')+' 現在の取り置き一覧（'+holds.length+'件）';
-  const el = document.getElementById('hold-list');
-  if(!holds.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の取り置きはありません。</div>'; return; }
-  el.innerHTML = holds.map(function(h){
-    const p = findProduct(h.pid);
-    const overdue = isHoldOverdue(h);
-    const detail = (h.boxes) ? h.qty+'本（バラ'+h.bottles+'＋'+h.boxes+'箱）' : h.qty+'本';
-    return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':'')+'">'+
-      '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+detail+'　→ '+h.client+'</div>'+
-      (overdue?'<span class="order-status" style="background:#fee2e2;color:#7f1d1d">⏰期限切れ</span>':'')+'</div>'+
-      '<div style="font-size:12px;color:#666">期限：'+(h.date||'指定なし')+'　〒'+(h.zip||'')+' '+(h.addr||'')+'　'+(h.tel||'')+'</div>'+
-      (h.memo?'<div style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:6px;margin-top:4px">🔒スタッフメモ：'+h.memo+'</div>':'')+
-      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="proceedToOrderFromHold(\''+h.id+'\')">📦 受注登録へ進む</button><button class="btn-sm" onclick="editHold(\''+h.id+'\')">編集</button><button class="btn-sm" onclick="removeHold(\''+h.id+'\')">解除・削除</button></div>'+
+  const heldOrders = orders.filter(o=>o.status==='held');
+  const reservedOrders = orders.filter(o=>o.status==='reserved');
+  document.getElementById('held-count').textContent = heldOrders.length;
+  document.getElementById('reserved-count').textContent = reservedOrders.length;
+
+  const heldEl = document.getElementById('held-order-list');
+  heldEl.innerHTML = heldOrders.length ? heldOrders.map(function(o){
+    const overdue = isHeldOverdue(o), soon = isHeldDueSoon(o);
+    return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
+      '<div class="oc-top"><div><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
+      (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限切れ</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅期限間近</span>':'')+
+      '<div class="oc-num">'+o.num+'　取り置き期限：'+(o.holdUntilDate||'指定なし')+'</div></div></div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
+      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="convertToShipping(\''+o.id+'\')">📦 出荷指示書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
-  }).join('');
-}
-function updHoldTotal(){
-  const bottles = parseInt(document.getElementById('h-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('h-boxes').value)||0;
-  const pid = document.getElementById('h-product').value;
-  const p = findProduct(pid);
-  const boxQty = p ? (p.boxQty||1) : 1;
-  const total = bottles + boxes*boxQty;
-  document.getElementById('h-total-preview').value = total+'本'+(boxes>0?'（1箱='+boxQty+'本で計算）':'');
-}
-function addHold(){
-  const pid = document.getElementById('h-product').value;
-  const bottles = parseInt(document.getElementById('h-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('h-boxes').value)||0;
-  const client = document.getElementById('h-client').value.trim();
-  const date = document.getElementById('h-date').value;
-  const p = findProduct(pid);
-  const boxQty = p ? (p.boxQty||1) : 1;
-  const totalQty = bottles + boxes*boxQty;
-  if(!pid || totalQty<=0 || !client){ alert('商品・数量・卸先名を入力してください'); return; }
-  holds.push({ id:'hold_'+Date.now(), pid: parseInt(pid), client: client, qty: totalQty, bottles: bottles, boxes: boxes, date: date, orderId:'',
-    zip: document.getElementById('h-zip').value, addr: document.getElementById('h-addr').value, tel: document.getElementById('h-tel').value,
-    memo: document.getElementById('h-memo').value });
-  document.getElementById('h-client').value=''; document.getElementById('h-bottles').value=0; document.getElementById('h-boxes').value=0; document.getElementById('h-date').value='';
-  document.getElementById('h-zip').value=''; document.getElementById('h-addr').value=''; document.getElementById('h-tel').value=''; document.getElementById('h-memo').value='';
-  updHoldTotal();
-  renderHoldList(); renderStockStrip();
-  saveHoldsPreordersToGAS();
-  showSyncStatus('✅ 取り置きを登録しました');
-}
-function editHold(id){
-  const h = holds.find(x=>x.id===id);
-  if(!h) return;
-  const qtyStr = prompt('数量を変更', String(h.qty));
-  if(qtyStr===null) return;
-  const dateStr = prompt('期限日を変更（YYYY-MM-DD、空欄で指定なし）', h.date||'');
-  if(dateStr===null) return;
-  h.qty = parseInt(qtyStr)||h.qty;
-  h.date = dateStr;
-  renderHoldList(); renderStockStrip();
-  saveHoldsPreordersToGAS();
-  showSyncStatus('✅ 取り置きを更新しました');
-}
-function removeHold(id){
-  const h = holds.find(x=>x.id===id);
-  holds = holds.filter(x=>x.id!==id);
-  renderHoldList(); renderStockStrip();
-  saveHoldsPreordersToGAS();
-  showSyncStatus(h ? '取り置きを解除しました：'+h.client : '解除しました');
-}
-function proceedToOrderFromHold(id){
-  const h = holds.find(x=>x.id===id);
-  if(!h) return;
-  const p = findProduct(h.pid);
-  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(pl=>pl.classList.remove('active'));
-  document.querySelectorAll('.tab-row .tab')[0].classList.add('active');
-  document.getElementById('panel-order').classList.add('active');
-  document.getElementById('o-client').value = h.client;
-  document.getElementById('o-zip').value = h.zip||'';
-  document.getElementById('o-addr').value = h.addr||'';
-  document.getElementById('o-tel').value = h.tel||'';
-  document.getElementById('o-memo').value = h.memo||'';
-  const card = document.querySelector('.recipient-card');
-  if(card){
-    setRecipientAddrMode(card.id, true);
-    const lineRow = card.querySelector('[data-role=lines]').children[0];
-    if(lineRow && p){
-      lineRow.querySelector('[data-role=product]').value = p.id;
-      lineRow.querySelector('[data-role=bottles]').value = h.qty;
-      onRecipientLineProductChange(card.id, lineRow.id);
-    }
-  }
-  showSyncStatus('📦 取り置きの内容を受注登録に反映しました。残りの項目を確認してください');
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-function updPreorderTotal(){
-  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
-  const pid = document.getElementById('p-product').value;
-  const p = findProduct(pid);
-  const boxQty = p ? (p.boxQty||1) : 1;
-  const total = bottles + boxes*boxQty;
-  document.getElementById('p-total-preview').value = total+'本'+(boxes>0?'（1箱='+boxQty+'本で計算）':'');
-}
-function renderPreList(){
-  renderHoldPreAlerts();
-  const btn = document.getElementById('pre-toggle-btn');
-  if(btn) btn.textContent = (preListOpen?'▼':'▶')+' 現在の予約一覧（'+preorders.length+'件）';
-  const el = document.getElementById('pre-list');
-  if(!preorders.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">現在の予約はありません。</div>'; return; }
-  el.innerHTML = preorders.map(function(r){
-    const p = findProduct(r.pid);
-    const overdue = isPreorderOverdue(r);
-    return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':'')+'">'+
-      '<div class="oc-top"><div><span class="oc-name">'+(p?p.name:'')+'</span>　'+(r.bottles||0)+'本＋'+(r.boxes||0)+'箱　→ '+r.client+'</div>'+
-      (overdue?'<span class="order-status" style="background:#fee2e2;color:#7f1d1d">⏰予定超過</span>':'')+'</div>'+
-      '<div style="font-size:12px;color:#666">お届け予定：'+(r.expectedDate||'指定なし')+'　〒'+(r.zip||'')+' '+(r.addr||'')+'　'+(r.tel||'')+(r.note?'　'+r.note:'')+'</div>'+
-      (r.memo?'<div style="font-size:11px;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:6px;margin-top:4px">🔒スタッフメモ：'+r.memo+'</div>':'')+
-      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="proceedToOrderFromPreorder(\''+r.id+'\')">📦 受注登録へ進む</button><button class="btn-sm" onclick="editPreorder(\''+r.id+'\')">編集</button><button class="btn-sm" onclick="removePreorder(\''+r.id+'\')">出荷済み・削除</button></div>'+
+  }).join('') : '<div style="color:#999;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>';
+
+  const resEl = document.getElementById('reserved-order-list');
+  resEl.innerHTML = reservedOrders.length ? reservedOrders.map(function(o){
+    const overdue = isReservedOverdue(o), soon = isReservedDueSoon(o);
+    return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
+      '<div class="oc-top"><div><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
+      (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰予定超過</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅予定間近</span>':'')+
+      '<div class="oc-num">'+o.num+'　お届け予定：'+(o.expectedDate||'指定なし')+'</div></div></div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
+      '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="convertToShipping(\''+o.id+'\')">📦 出荷指示書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
-  }).join('');
+  }).join('') : '<div style="color:#999;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>';
 }
-function addPreorder(){
-  const pid = document.getElementById('p-product').value;
-  const bottles = parseInt(document.getElementById('p-bottles').value)||0;
-  const boxes = parseInt(document.getElementById('p-boxes').value)||0;
-  const client = document.getElementById('p-client').value.trim();
-  const expectedDate = document.getElementById('p-expected').value;
-  const p = findProduct(pid);
-  const boxQty = p ? (p.boxQty||1) : 1;
-  const totalQty = bottles + boxes*boxQty;
-  if(!pid || !client || totalQty<=0){ alert('商品・お客様名・数量を入力してください'); return; }
-  preorders.push({ id:'pre_'+Date.now(), pid: parseInt(pid), client: client, qty: totalQty, bottles: bottles, boxes: boxes, expectedDate: expectedDate, note: document.getElementById('p-note').value,
-    zip: document.getElementById('p-zip').value, addr: document.getElementById('p-addr').value, tel: document.getElementById('p-tel').value,
-    memo: document.getElementById('p-memo').value });
-  document.getElementById('p-client').value=''; document.getElementById('p-bottles').value=0; document.getElementById('p-boxes').value=0; document.getElementById('p-expected').value=''; document.getElementById('p-note').value='';
-  document.getElementById('p-zip').value=''; document.getElementById('p-addr').value=''; document.getElementById('p-tel').value=''; document.getElementById('p-memo').value='';
-  updPreorderTotal();
-  renderPreList(); renderStockStrip();
-  saveHoldsPreordersToGAS();
-  showSyncStatus('✅ 予約を登録しました');
-}
-function editPreorder(id){
-  const r = preorders.find(x=>x.id===id);
-  if(!r) return;
-  const dateStr = prompt('お届け予定時期を変更（YYYY-MM-DD、空欄で指定なし）', r.expectedDate||'');
-  if(dateStr===null) return;
-  r.expectedDate = dateStr;
-  renderPreList();
-  saveHoldsPreordersToGAS();
-  showSyncStatus('✅ 予約を更新しました');
-}
-function removePreorder(id){
-  const r = preorders.find(x=>x.id===id);
-  preorders = preorders.filter(x=>x.id!==id);
-  renderPreList(); renderStockStrip();
-  saveHoldsPreordersToGAS();
-  showSyncStatus(r ? '予約を完了・削除しました：'+r.client : '削除しました');
-}
-function proceedToOrderFromPreorder(id){
-  const r = preorders.find(x=>x.id===id);
-  if(!r) return;
-  const p = findProduct(r.pid);
-  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(pl=>pl.classList.remove('active'));
-  document.querySelectorAll('.tab-row .tab')[0].classList.add('active');
-  document.getElementById('panel-order').classList.add('active');
-  document.getElementById('o-client').value = r.client;
-  document.getElementById('o-zip').value = r.zip||'';
-  document.getElementById('o-addr').value = r.addr||'';
-  document.getElementById('o-tel').value = r.tel||'';
-  document.getElementById('o-memo').value = r.memo||'';
-  const card = document.querySelector('.recipient-card');
-  if(card){
-    setRecipientAddrMode(card.id, true);
-    const lineRow = card.querySelector('[data-role=lines]').children[0];
-    if(lineRow && p){
-      lineRow.querySelector('[data-role=product]').value = p.id;
-      lineRow.querySelector('[data-role=bottles]').value = r.bottles || r.qty;
-      lineRow.querySelector('[data-role=boxes]').value = r.boxes || 0;
-      onRecipientLineProductChange(card.id, lineRow.id);
-    }
-  }
-  showSyncStatus('📦 予約の内容を受注登録に反映しました。残りの項目を確認してください');
-  window.scrollTo({top:0, behavior:'smooth'});
+
+function convertToShipping(id){
+  const o = orders.find(x=>x.id===id);
+  if(!o) return;
+  o.status = 'pending';
+  updateSummary(); renderList(); renderSlipSelect();
+  syncOrdersToGAS();
+  gotoSlip(id);
 }
 
 function updateSummary(){
@@ -1577,7 +1432,7 @@ function gotoSlip(id){
   const o = orders.find(x=>x.id===id);
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
+  document.querySelectorAll('.tab-row .tab')[4].classList.add('active');
   document.getElementById('panel-slip').classList.add('active');
   renderSlipSelect();
   if(o) document.getElementById('slip-select').value = o.id;
