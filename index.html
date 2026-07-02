@@ -111,7 +111,6 @@ tr:last-child td{border-bottom:none}
 .slip-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1rem}
 .slip-table th{background:#f9f8f5;padding:6px 10px;text-align:left;border:1px solid #e8e7e3;font-size:11px;color:#666}
 .slip-table td{padding:8px 10px;border:1px solid #e8e7e3;vertical-align:middle}
-.slip-qr{text-align:center;margin:1rem 0}
 .invoice{background:#fff;border:1px solid #e8e7e3;border-radius:8px;padding:2rem;margin-bottom:1rem}
 .invoice-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.1em}
 .invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;font-size:13px}
@@ -141,7 +140,6 @@ body{background:#fff}
 #panel-slip{display:block!important}
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -363,9 +361,11 @@ body{background:#fff}
       </select>
       <span id="list-count" style="font-size:12px;color:#888;align-self:center"></span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
       <button class="btn-sm" onclick="toggleSelectAllOrders()">全選択/解除</button>
-      <button class="btn btn-primary" onclick="generateBulkSlips()" style="font-size:12px;padding:6px 14px">🖨 選択した受注の出荷指示書をまとめて作成（最大5件）</button>
+      <button class="btn-line" onclick="notifySelectedOrders()" style="font-size:12px;padding:6px 14px">
+        <span style="font-size:14px">📱</span> 選択した受注をLINEに通知する
+      </button>
       <span id="list-selected-count" style="font-size:12px;color:#888"></span>
     </div>
   </div>
@@ -387,13 +387,6 @@ body{background:#fff}
     <button class="btn-line" id="line-notify-btn" onclick="notifyLineShort()" style="display:none">
       <span style="font-size:16px">📱</span> LINEに通知を送る（倉庫アプリで確認）
     </button>
-    <button class="btn btn-green" id="slip-share-btn" onclick="shareSlipPdf()" style="display:none">📤 出荷指示書をPDFで共有する</button>
-  </div>
-  <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
-    <button class="btn-line" id="line-send-btn" onclick="sendToLine()" style="display:none">
-      <span style="font-size:16px">📱</span> LINEにテキストで送る（送り先グループを選択）
-    </button>
-    <button class="btn-sm no-print" onclick="copyForLine()">📋 テキストだけコピー</button>
   </div>
 
   <div id="slip-area"></div>
@@ -694,14 +687,15 @@ function addRecipient(){
       '</div>'+
       '<div class="fg" style="margin-bottom:0"><label>送り主住所（上書き）</label><input type="text" data-role="senderAddrOv" placeholder="空欄なら共通の送り主情報を使用"></div>'+
     '</div>'+
-    '<div class="fg"><label>届け先</label>'+
-      '<div style="display:flex;gap:16px;padding:4px 0;flex-wrap:wrap">'+
-        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="raddr-'+id+'" value="same" data-role="addrModeSame" onchange="onRecipientAddrModeChange(\''+id+'\')">発注者と同じ住所にする</label>'+
-        '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="raddr-'+id+'" value="diff" data-role="addrModeDiff" checked onchange="onRecipientAddrModeChange(\''+id+'\')">発注者と異なる住所に送る</label>'+
+    '<div class="fg"><label>届け先住所</label>'+
+      '<input type="checkbox" data-role="addrModeSame" checked style="display:none">'+
+      '<div data-role="sameAddrBox" style="background:#e5e7eb;color:#666;border-radius:6px;padding:8px 10px;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+        '<span>✓ 発注者と同じ住所（登録時に自動で入ります）</span>'+
+        '<button type="button" class="btn-sm" onclick="setRecipientAddrMode(\''+id+'\',false)">別の住所に送る</button>'+
       '</div>'+
     '</div>'+
-    '<div data-role="sameAddrBox" style="display:none;background:#e5e7eb;color:#666;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px">✓ 発注者と同じ住所（住所・電話番号は登録時に自動で入ります）</div>'+
-    '<div data-role="addrFields">'+
+    '<div data-role="addrFields" style="display:none">'+
+    '<button type="button" class="btn-sm" onclick="setRecipientAddrMode(\''+id+'\',true)" style="margin-bottom:10px">↩ 発注者と同じ住所に戻す</button>'+
     '<div class="fg"><label>届け先の種類</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0">'+
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="individual" data-role="rtypeInd" checked onchange="onRecipientTypeChange(\''+id+'\')">個人</label>'+
@@ -797,11 +791,11 @@ function onRecipientTypeChange(cardId){
   card.querySelector('[data-role=nameLabel]').textContent = isCompany ? 'ご担当者名' : 'お名前';
   card.querySelector('[data-role=personName]').placeholder = isCompany ? '荒木 知太朗' : '山田太郎';
 }
-function onRecipientAddrModeChange(cardId){
+function setRecipientAddrMode(cardId, same){
   const card = document.getElementById(cardId);
-  const isSame = card.querySelector('[data-role=addrModeSame]').checked;
-  card.querySelector('[data-role=sameAddrBox]').style.display = isSame ? 'block' : 'none';
-  card.querySelector('[data-role=addrFields]').style.display = isSame ? 'none' : 'block';
+  card.querySelector('[data-role=addrModeSame]').checked = same;
+  card.querySelector('[data-role=sameAddrBox]').style.display = same ? 'flex' : 'none';
+  card.querySelector('[data-role=addrFields]').style.display = same ? 'none' : 'block';
 }
 function recipientDisplayName(card){
   if(card.querySelector('[data-role=addrModeSame]').checked){
@@ -1166,58 +1160,21 @@ function gotoSlip(id){
   if(o) document.getElementById('slip-select').value = o.id;
   generateSlip();
 }
-const MAX_BULK_SLIP = 5;
 function toggleSelectAllOrders(){
   const boxes = Array.from(document.querySelectorAll('.order-select-cb'));
   const allChecked = boxes.every(b=>b.checked);
-  if(allChecked){
-    boxes.forEach(b=>b.checked = false);
-  } else {
-    boxes.forEach((b,i)=>{ b.checked = i < MAX_BULK_SLIP; });
-    if(boxes.length > MAX_BULK_SLIP){
-      showSyncStatus('⚡ 一度に選べるのは'+MAX_BULK_SLIP+'件までのため、先頭'+MAX_BULK_SLIP+'件を選択しました');
-    }
-  }
+  boxes.forEach(b=>b.checked = !allChecked);
   updateSelectedCount();
 }
-function updateSelectedCount(cb){
-  const checked = document.querySelectorAll('.order-select-cb:checked');
-  if(checked.length > MAX_BULK_SLIP){
-    if(cb) cb.checked = false;
-    else checked[checked.length-1].checked = false;
-    alert('一度に選べるのは'+MAX_BULK_SLIP+'件までです。まず'+MAX_BULK_SLIP+'件を送り終えてから、続きを選んで送ってください。');
-  }
+function updateSelectedCount(){
   const n = document.querySelectorAll('.order-select-cb:checked').length;
-  document.getElementById('list-selected-count').textContent = n ? n+'件選択中（最大'+MAX_BULK_SLIP+'件）' : '';
+  document.getElementById('list-selected-count').textContent = n ? n+'件選択中' : '';
 }
-function generateBulkSlips(){
+function notifySelectedOrders(){
   const ids = Array.from(document.querySelectorAll('.order-select-cb:checked')).map(cb=>cb.value);
-  if(!ids.length){ alert('出荷指示書を作成する受注にチェックを入れてください'); return; }
-  if(ids.length > MAX_BULK_SLIP){ alert('一度に選べるのは'+MAX_BULK_SLIP+'件までです。'); return; }
+  if(!ids.length){ alert('LINEに通知する受注にチェックを入れてください'); return; }
   const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
-  document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-row .tab')[3].classList.add('active');
-  document.getElementById('panel-slip').classList.add('active');
-  renderSlipSelect();
-  window._currentSlipOrder = null;
-  window._currentSlipOrders = list;
-  const html = list.map((o,i)=>buildSlipHtml(o, 'slip-qr-'+i)).join('');
-  document.getElementById('slip-area').innerHTML = html;
-  list.forEach(function(o,i){
-    const qrWrap = document.getElementById('slip-qr-'+i);
-    if(window.QRCode && qrWrap){
-      new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
-    }
-  });
-  document.getElementById('line-send-btn').style.display = 'flex';
-  document.getElementById('slip-share-btn').style.display = 'inline-block';
-  document.getElementById('line-notify-btn').style.display = 'flex';
-  document.getElementById('invoice-btn').style.display = 'none'; // 納品書は1件ずつ「出荷指示書へ」から作成してください
-  document.getElementById('invoice-pdf-btn').style.display = 'none';
-  document.getElementById('invoice-area').innerHTML = '';
-  showSyncStatus('🖨 '+list.length+'件の出荷指示書をまとめて作成しました');
-  document.getElementById('panel-slip').scrollIntoView({behavior:'smooth'});
+  notifyLineShort(list);
 }
 
 // ── 出荷指示書 ────────────────────────────────────────────
@@ -1235,7 +1192,7 @@ function recipientAddressBlock(o){
   }
   return (o.recipientName||o.client||'');
 }
-function buildSlipHtml(o, qrId){
+function buildSlipHtml(o){
   const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   let html = '<div class="slip">';
@@ -1256,8 +1213,6 @@ function buildSlipHtml(o, qrId){
     html += '<tr><td><span style="display:inline-block;width:20px;height:20px;border:2px solid #ccc;border-radius:4px"></span></td><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
   });
   html += '</tbody></table>';
-  html += '<div class="slip-qr" id="'+qrId+'"></div>';
-  html += '<div style="text-align:center;font-size:11px;color:#888">スマホでQRを読み込むとピッキング画面が開きます</div>';
   html += '</div>';
   return html;
 }
@@ -1268,13 +1223,7 @@ function generateSlip(){
   if(!o) return;
   window._currentSlipOrder = o;
   window._currentSlipOrders = null;
-  document.getElementById('slip-area').innerHTML = buildSlipHtml(o, 'slip-qr');
-  const qrWrap = document.getElementById('slip-qr');
-  if(window.QRCode && qrWrap){
-    new QRCode(qrWrap, { text: location.href.replace(/index\.html.*$/,'') + 'pickup.html?id=' + encodeURIComponent(o.id), width:140, height:140 });
-  }
-  document.getElementById('line-send-btn').style.display = 'flex';
-  document.getElementById('slip-share-btn').style.display = 'inline-block';
+  document.getElementById('slip-area').innerHTML = buildSlipHtml(o);
   document.getElementById('line-notify-btn').style.display = 'flex';
   document.getElementById('invoice-btn').style.display = 'inline-block';
   document.getElementById('invoice-pdf-btn').style.display = 'inline-block';
@@ -1285,37 +1234,8 @@ function printSlip(){
   window.print();
   document.getElementById('invoice-area').style.display = '';
 }
-function buildLineText(o){
-  const leadLabel = o.leadType==='scheduled' ? '🗓 日程指定：'+(o.leadDate||'') : LEAD_LABEL[o.leadType];
-  const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
-  let text = '【出荷指示】'+o.num+(hasGift?'　🎁ギフトあり':'')+'\n';
-  text += 'お届け先：'+(o.isCompany ? [o.companyName,o.deptName,o.positionName,o.personName].filter(Boolean).join(' ') : (o.recipientName||o.client))+'\n';
-  text += '〒'+(o.zip||'')+' '+(o.addr||'')+'\n';
-  text += 'TEL：'+(o.tel||'-')+'\n';
-  text += '区分：'+leadLabel+'\n';
-  if(o.delivTime) text += '配達時間：'+o.delivTime+'\n';
-  if(o.useRecycle) text += '♻ リサイクル箱使用\n';
-  text += '商品：\n';
-  (o.lines||[]).forEach(function(l){
-    text += '・'+l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.memo?'　'+l.memo:'')+'\n';
-  });
-  if(o.note) text += '備考：'+o.note+'\n';
-  return text;
-}
-function buildLineTextMulti(list){
-  return list.map(function(o,i){ return '━━━ '+(i+1)+'/'+list.length+' ━━━\n'+buildLineText(o); }).join('\n');
-}
-function copyForLine(){
-  const list = window._currentSlipOrders;
-  const o = window._currentSlipOrder;
-  let text;
-  if(list && list.length){ text = buildLineTextMulti(list); }
-  else if(o){ text = buildLineText(o); }
-  else return;
-  navigator.clipboard.writeText(text).then(function(){ showSyncStatus('📋 テキストをコピーしました'); }).catch(function(){ alert(text); });
-}
-function notifyLineShort(){
-  const list = window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
+function notifyLineShort(listArg){
+  const list = listArg || window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
   if(!list.length) return;
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
@@ -1330,21 +1250,6 @@ function notifyLineShort(){
   if(parts.length) text += '（'+parts.join('・')+'）';
   text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
   navigator.clipboard.writeText(text).catch(function(){});
-  location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
-}
-function sendToLine(){
-  const list = window._currentSlipOrders;
-  const o = window._currentSlipOrder;
-  let text;
-  if(list && list.length){ text = buildLineTextMulti(list); }
-  else if(o){ text = buildLineText(o); }
-  else return;
-  navigator.clipboard.writeText(text).catch(function(){});
-  if(text.length > 1500){
-    alert('文章が長いため、LINEへ自動で貼り付ける機能は使わず、テキストのコピーだけ行いました。\nLINEアプリを開いて、貼り付けて送信してください。');
-    return;
-  }
-  // LINEアプリを開き、送り先（グループ）を選んで送信できる画面を表示します
   location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
 }
 
@@ -1385,48 +1290,6 @@ function printInvoice(){
   slipArea.style.display = '';
 }
 
-async function buildSlipPdf(){
-  const slipEls = document.querySelectorAll('#slip-area .slip');
-  if(!slipEls.length){ alert('先に出荷指示書を作成してください'); return null; }
-  if(!window.html2canvas || !window.jspdf){ alert('PDF機能の準備ができていません。少し待ってから再度お試しください。'); return null; }
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ unit:'mm', format:'a4' });
-  const pageWidth = 210, pageHeight = 297;
-  for(let i=0; i<slipEls.length; i++){
-    const canvas = await html2canvas(slipEls[i], { scale:2, backgroundColor:'#ffffff' });
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-    if(i>0) pdf.addPage();
-    if(imgHeight <= pageHeight){
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    } else {
-      const scale = pageHeight / imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, pageHeight);
-    }
-  }
-  return pdf;
-}
-async function shareSlipPdf(){
-  showSyncStatus('📄 PDFを作成中...');
-  const pdf = await buildSlipPdf();
-  if(!pdf) return;
-  const fname = '出荷指示書_'+new Date().toISOString().slice(0,10)+'_'+Date.now()+'.pdf';
-  try{
-    const blob = pdf.output('blob');
-    const file = new File([blob], fname, {type:'application/pdf'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({ files:[file], title:'出荷指示書', text:'出荷指示書です' });
-      showSyncStatus('✅ 共有しました');
-    } else {
-      pdf.save(fname);
-      showSyncStatus('✅ この端末は共有メニューに対応していないため、PDFをダウンロードしました');
-    }
-  }catch(err){
-    if(err.name === 'AbortError') return; // 共有をキャンセルしただけなので何もしない
-    showSyncStatus('⚠️ 共有に失敗しました：'+err.message, true);
-  }
-}
 function downloadInvoicePdf(){
   const o = window._currentSlipOrder;
   const invoiceEl = document.querySelector('#invoice-area .invoice');
