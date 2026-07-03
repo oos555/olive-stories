@@ -133,8 +133,9 @@ tr:last-child td{border-bottom:none}
       <div class="sec">③ 商品ごとの輸入内容</div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>商品</th><th>単価（€）</th><th>本数</th><th>箱数</th><th>合計ml</th><th>経費/本</th><th>原価（円）</th></tr></thead>
+          <thead><tr><th>商品</th><th style="background:#fef3c7">前回単価（€）</th><th style="background:#fef3c7">前回輸入数</th><th style="background:#f5f4f0">1箱入数</th><th>単価（€）</th><th>本数</th><th>箱数</th><th>合計ml</th><th>経費/本</th><th>原価（円）</th></tr></thead>
           <tbody id="item-tbl-body"></tbody>
+          <tfoot><tr><td colspan="4"></td><td colspan="6" style="font-size:10px;color:#888;padding:4px 6px">🟡＝前回の参考値（この農園・この商品の、一番最近の輸入記録より）</td></tr></tfoot>
         </table>
       </div>
       <div class="fg"><label>メモ（今回の記録・値引き交渉の経緯・ラベル破損など）</label><textarea id="f-notes" disabled style="min-height:70px"></textarea></div>
@@ -160,6 +161,18 @@ tr:last-child td{border-bottom:none}
     <div class="stats" id="year-summary-stats"></div>
 
     <div class="card">
+      <div class="sec">💰 農園ごとの現在の原価（参考）</div>
+      <div class="info-box">「🔒原価データ」（アプリC）に登録されている、今の原価をそのまま農園別に並べています。ここでは編集できません（変更はアプリCで行ってください）。</div>
+      <div id="farm-cost-ref" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">📦 現在の在庫（参考）</div>
+      <div class="info-box">アプリBの在庫データをそのまま表示しています（参考用・ここでは編集できません）。在庫が少ない商品は赤で強調しています。</div>
+      <div class="tbl-wrap" id="stock-ref-table"></div>
+    </div>
+
+    <div class="card">
       <div class="sec">📊 商品別の輸入量くらべ（増減が分かります）</div>
       <div class="info-box">商品ごとに、輸入するたびの本数を左から古い順に並べています。前回より増えた場合は🔺、減った場合は🔻で表示します。</div>
       <div class="tbl-wrap" id="compare-table-wrap"></div>
@@ -177,6 +190,15 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 
 const FARM_LABEL = { novavera:'ノバベラ', mozzicato:'モジカート', letrecolonne:'レ・トレ・コロンネ' };
 
+// 1箱あたりの本数（アプリA/B/Cの商品マスタと共通）
+const BOX_QTY_MAP = {
+  ORG100:24, ORG250:20, ORG500:12, ORG750:12, ORG2L:6, ORG5L:4,
+  MEM100:24, MEM250:20, MEM500:12, MEM750:12, MEM2L:6, MEM5L:4,
+  CHF100:24, CHF250:20, CHF2L:6,
+  PRI100:24, PRI250:6, PRI500:6, PRI3L:4,
+  ZAI250:6, ZAI500:6, AGR100:6, AGR250:6, AGR3L:5, TGR100:12,
+  ARM500:6, ARM3L:6
+};
 const FARM_PRODUCTS = {
   novavera: [
     {sku:'ORG100', label:'ORGANIK（オルガニック） 100ml', ml:100},
@@ -218,6 +240,17 @@ const FARM_PRODUCTS = {
 };
 
 let password = '';
+let currentLots = [];
+let currentCosts = [];
+// 商品SKU→商品ID（在庫データの照合用。アプリA/B/Cの商品マスタと共通）
+const SKU_TO_PID = {
+  ORG100:1, ORG250:2, ORG500:3, ORG750:4, ORG2L:5, ORG5L:6,
+  MEM100:7, MEM250:8, MEM500:9, MEM750:10, MEM2L:11, MEM5L:12,
+  CHF100:13, CHF250:14, CHF2L:15,
+  PRI100:16, PRI250:17, PRI500:18, PRI3L:19,
+  ZAI250:20, ZAI500:21, AGR100:22, AGR250:23, AGR3L:24, TGR100:25,
+  ARM500:26, ARM3L:27, MISC002:35
+};
 let importBatches = [];
 let dirty = false;
 
@@ -260,13 +293,32 @@ async function unlock(){
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
       renderHistory();
-      showPrevNotes(document.getElementById('f-farm').value);
+      onFarmChange();
       showSyncStatus('✅ データを読み込みました');
+      loadStockAndCostRef(pw);
     } else {
       errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
     }
   }catch(err){
     errEl.textContent = '通信エラーが発生しました';
+  }
+}
+async function loadStockAndCostRef(pw){
+  try{
+    const [stockRes, costRes] = await Promise.all([
+      fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
+      fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getCostData', password: pw }), headers: {'Content-Type':'text/plain;charset=utf-8'} }).then(r=>r.json()).catch(()=>null)
+    ]);
+    if(stockRes && stockRes.status==='ok'){
+      currentLots = stockRes.data.lots || [];
+    }
+    if(costRes && costRes.status==='ok'){
+      currentCosts = costRes.data.costs || [];
+    }
+    renderStockRef();
+    renderFarmCostRef();
+  }catch(err){
+    // 参考情報なので、失敗しても輸入業務の本体機能には影響させない
   }
 }
 
@@ -295,12 +347,26 @@ function markDirty(){
   document.getElementById('dirty-indicator').textContent = '● 保存されていない変更があります';
 }
 
+function findPrevItemInfo(farm, sku){
+  if(!sku) return null;
+  const pastBatches = importBatches.filter(b=>b.farm===farm).slice().sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''));
+  for(const b of pastBatches){
+    const item = (b.items||[]).find(it=>it.sku===sku && it.bottles>0);
+    if(item) return { priceEur: item.priceEur, bottles: item.bottles, yearMonth: b.yearMonth };
+  }
+  return null;
+}
 function onFarmChange(){
   const farm = document.getElementById('f-farm').value;
   const products = FARM_PRODUCTS[farm] || [];
   document.getElementById('item-tbl-body').innerHTML = products.map(function(p, i){
+    const prev = findPrevItemInfo(farm, p.sku);
+    const boxQty = BOX_QTY_MAP[p.sku];
     return '<tr data-idx="'+i+'" data-sku="'+p.sku+'" data-label="'+p.label+'" data-ml="'+p.ml+'">'+
       '<td>'+p.label+'</td>'+
+      '<td style="background:#fffbeb;text-align:right;color:#78350f">'+(prev?prev.priceEur+'€':'－')+'</td>'+
+      '<td style="background:#fffbeb;text-align:right;color:#78350f">'+(prev?prev.bottles+'本<div style="font-size:9px;color:#a16207">（'+prev.yearMonth+'）</div>':'－')+'</td>'+
+      '<td style="background:#f5f4f0;text-align:right;color:#555">'+(boxQty?boxQty+'本/箱':'－')+'</td>'+
       '<td><input type="number" class="it-price" step="0.01" value="0" style="width:80px" oninput="recalc()"></td>'+
       '<td><input type="number" class="it-bottles" value="0" style="width:70px" oninput="recalc()"></td>'+
       '<td><input type="number" class="it-boxes" value="0" style="width:70px" oninput="recalc()"></td>'+
@@ -493,6 +559,50 @@ function renderHistory(){
   }).join('');
 }
 
+const FARM_ACCENT = { novavera:'#fef3c7', mozzicato:'#dbeafe', letrecolonne:'#dcfce7' };
+const FARM_ACCENT_TEXT = { novavera:'#78350f', mozzicato:'#1e3a8a', letrecolonne:'#14532d' };
+function computeCurrentStock(pid){
+  let q = 0;
+  currentLots.forEach(function(l){ if(l.pid==pid && l.status==='new') q += (l.stock||0); });
+  return q;
+}
+function renderStockRef(){
+  const el = document.getElementById('stock-ref-table');
+  if(!el) return;
+  let html = '<thead><tr><th style="text-align:left;padding:6px">商品</th><th style="text-align:right;padding:6px">現在の在庫本数</th></tr></thead><tbody>';
+  const seen = {};
+  Object.keys(FARM_PRODUCTS).forEach(function(farm){
+    FARM_PRODUCTS[farm].forEach(function(p){
+      if(!p.sku || seen[p.sku]) return; seen[p.sku] = true;
+      const pid = SKU_TO_PID[p.sku];
+      if(!pid) return;
+      const stock = computeCurrentStock(pid);
+      const color = stock<=0 ? '#dc2626' : stock<20 ? '#b45309' : '#1a1a18';
+      html += '<tr><td style="padding:6px">'+p.label+'</td><td style="text-align:right;padding:6px;font-weight:700;color:'+color+'">'+stock.toLocaleString()+'本</td></tr>';
+    });
+  });
+  html += '</tbody>';
+  el.innerHTML = html;
+}
+function getCostForSkuRef(sku){
+  const c = currentCosts.find(x=>x.sku===sku);
+  return c ? parseFloat(c.costPerUnit)||0 : null;
+}
+function renderFarmCostRef(){
+  const el = document.getElementById('farm-cost-ref');
+  if(!el) return;
+  el.innerHTML = Object.keys(FARM_PRODUCTS).map(function(farm){
+    const seen = {};
+    const rows = FARM_PRODUCTS[farm].filter(function(p){
+      if(!p.sku || seen[p.sku]) return false; seen[p.sku]=true; return true;
+    }).map(function(p){
+      const cost = getCostForSkuRef(p.sku);
+      return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,0.06)"><span>'+p.label+'</span><span style="font-weight:700">'+(cost!=null?'¥'+cost.toLocaleString():'－')+'</span></div>';
+    }).join('');
+    return '<div style="flex:1;min-width:220px;background:'+FARM_ACCENT[farm]+';border-radius:10px;padding:12px">'+
+      '<div style="font-weight:700;color:'+FARM_ACCENT_TEXT[farm]+';margin-bottom:6px">'+FARM_LABEL[farm]+'</div>'+rows+'</div>';
+  }).join('');
+}
 function renderCompareTable(filter){
   const farms = filter ? [filter] : Object.keys(FARM_LABEL);
   let html = '';
