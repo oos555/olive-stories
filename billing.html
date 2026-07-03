@@ -409,7 +409,7 @@ const PRODUCTS = [
 {id:13, sku:'CHF100', name:'シェフズブレンド 100ml', group:'シェフズブレンド', noWholesale:true, boxQty:24},
 {id:14, sku:'CHF250', name:'シェフズブレンド 250ml', group:'シェフズブレンド', boxQty:20},
 {id:15, sku:'CHF2L',  name:'シェフズブレンド 2L',   group:'シェフズブレンド', boxQty:6},
-{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', noWholesale:true, boxQty:24},
+{id:16, sku:'PRI100', name:'プリモフルット 100ml',  group:'プリモフルット', boxQty:24},
 {id:17, sku:'PRI250', name:'プリモフルット 250ml',  group:'プリモフルット', boxQty:6},
 {id:18, sku:'PRI500', name:'プリモフルット 500ml',  group:'プリモフルット', boxQty:6},
 {id:19, sku:'PRI3L',  name:'プリモフルット 3L',    group:'プリモフルット', boxQty:4},
@@ -442,7 +442,7 @@ const PRODUCTS = [
 {id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品', noWholesale:true},
 {id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶', group:'その他', noWholesale:true},
-{id:36, sku:'MISC003', name:'750ml用 注ぎ口', group:'その他', noWholesale:true},
+{id:36, sku:'MISC003', name:'500ml用 注ぎ口', group:'その他', noWholesale:true},
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
@@ -516,6 +516,20 @@ const DEFAULT_PRICES = {
   CUP001: {priceGeneral:785,  priceWholesale1:471,  priceWholesale2:431,  priceRT:471,  priceDefect:0},
   CUP002: {priceGeneral:785,  priceWholesale1:471,  priceWholesale2:431,  priceRT:471,  priceDefect:0},
   CUP003: {priceGeneral:785,  priceWholesale1:471,  priceWholesale2:431,  priceRT:471,  priceDefect:0},
+};
+
+// いただいた原価表から読み取った初期値（1本あたり・オイル＋経費、円）
+// 「原価データ」タブを開くと、まだ保存されていない商品にはここから初期値が表示されます
+const DEFAULT_COSTS = {
+  ORG100:944, ORG250:1539, ORG500:2931, ORG750:3799, ORG2L:9748, ORG5L:22142,
+  MEM100:917, MEM250:1493, MEM500:2830, MEM750:3680, MEM2L:9390, MEM5L:21407,
+  CHF100:963, CHF250:1557,
+  MISC002:1185,
+  PRI250:2372, PRI500:4166, PRI3L:12504,
+  ZAI250:2425, ZAI500:4251,
+  AGR100:1317, AGR250:2333, AGR3L:21173,
+  ARM500:3385, ARM3L:13671,
+  TGR100:1009
 };
 
 // ── 請求書に記載する会社情報 ────────────────────────────────────────────
@@ -1566,10 +1580,12 @@ function renderCostProductTable(){
     const items = groups[g].filter(p=>!p.isSet);
     if(!items.length) return;
     items.forEach(function(p){
-      const existing = costData.costs.find(c=>c.sku===p.sku) || {};
-      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span></td>'+
-        '<td style="padding:6px"><input type="number" class="cost-input" data-sku="'+p.sku+'" data-productname="'+esc(p.name)+'" value="'+(existing.costPerUnit||0)+'" style="width:100px;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td>'+
-        '<td style="padding:6px"><input type="text" class="cost-note-input" data-sku="'+p.sku+'" value="'+esc(existing.note||'')+'" style="width:100%;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td></tr>';
+      const existing = costData.costs.find(c=>c.sku===p.sku);
+      const isDefault = !existing && DEFAULT_COSTS[p.sku]!=null;
+      const val = existing ? existing.costPerUnit : (DEFAULT_COSTS[p.sku]!=null ? DEFAULT_COSTS[p.sku] : 0);
+      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span>'+(isDefault?' <span style="font-size:9px;color:#0f766e;background:#ccfbf1;padding:1px 5px;border-radius:4px">初期値</span>':'')+'</td>'+
+        '<td style="padding:6px"><input type="number" class="cost-input" data-sku="'+p.sku+'" data-productname="'+esc(p.name)+'" value="'+val+'" style="width:100px;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td>'+
+        '<td style="padding:6px"><input type="text" class="cost-note-input" data-sku="'+p.sku+'" value="'+esc(existing?existing.note||'':'')+'" style="width:100%;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td></tr>';
     });
   });
   html += '</tbody></table>';
