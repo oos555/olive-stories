@@ -37,6 +37,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .actions{position:sticky;bottom:0;background:#f5f4f0;padding:10px 0;margin-top:10px}
 .btn-big{width:100%;padding:16px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
 .btn-complete{background:#16a34a;color:#fff}
+.btn-complete:disabled{background:#ccc;color:#eee}
+#pack-check-box{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.pack-check-item{display:flex;align-items:center;gap:5px;background:#fef3c7;border:1px solid #f3d9a8;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:600;color:#78350f;cursor:pointer;white-space:nowrap}
+.pack-check-item input{width:16px;height:16px}
+.pack-check-item:has(input:checked){background:#dcfce7;border-color:#86efac;color:#14532d}
 .btn-complete:disabled{background:#a7d8b8;color:#eee}
 .btn-print{background:#fff;color:#1a1a18;border:1px solid #ccc}
 .done-banner{background:#dcfce7;border:2px solid #16a34a;color:#14532d;border-radius:10px;padding:16px;text-align:center;font-weight:700;font-size:16px;margin-bottom:14px}
@@ -512,8 +517,13 @@ function renderOrder(){
     '</div>';
   });
   html += '</div>';
+  html += '<div class="no-print" id="pack-check-box">'+
+    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">商品確認</label>'+
+    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書／請求書 同梱</label>'+
+    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">その他同梱物確認</label>'+
+    '</div>';
   html += '<div class="actions no-print">';
-  html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()">✅ 発送完了にする</button>';
+  html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 発送完了にする</button>';
   html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
   html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
   html += '<div id="qr-area" style="display:none;text-align:center;padding:16px;background:#fff;border:1px solid #e8e7e3;border-radius:10px;margin-top:-4px"></div>';
@@ -698,6 +708,13 @@ async function saveShipNote(){
   }catch(err){
     alert('通信エラーが発生しました：'+err.message);
   }
+}
+
+function updateCompleteBtn(){
+  const boxes = document.querySelectorAll('.pack-check');
+  const allChecked = Array.from(boxes).every(b=>b.checked);
+  const btn = document.getElementById('complete-btn');
+  if(btn) btn.disabled = !allChecked;
 }
 
 async function completeOrder(){
