@@ -179,10 +179,21 @@ tr:last-child td{border-bottom:none}
   </div>
   <div id="cost-unlocked-view" style="display:none">
     <div class="info-box">🔒 ここは中村様専用のページです。原価・輸入コストの情報が含まれます。他の人に画面を見せないようご注意ください。</div>
+    <div class="card" style="background:#fef3c7;border-color:#f59e0b;margin-bottom:1rem">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
+        <input type="checkbox" id="cost-edit-lock" onchange="toggleCostEditLock()" style="width:18px;height:18px">
+        ✅ 原価データを変更する（チェックを入れないと編集できません）
+      </label>
+      <div style="font-size:12px;color:#78350f;line-height:1.8;margin-top:8px;padding-top:8px;border-top:1px solid #f3d9a8">
+        チェックを入れるまで金額欄は触れません。変更後「保存する」を押すと、必ず「本当に変更しますか？」と確認が入ります。<br>
+        保存しないままこの画面を離れようとすると、「保存していませんが大丈夫ですか？」と警告が出ます。
+      </div>
+    </div>
     <div class="card">
       <div class="sec">商品ごとの原価（1本あたり・円）</div>
       <div id="cost-product-table"></div>
       <button class="btn btn-green" onclick="saveCostDataToGAS()">原価データを保存する</button>
+      <span id="cost-dirty-indicator" style="font-size:12px;color:#dc2626;margin-left:10px"></span>
     </div>
     <div class="card">
       <div class="sec">ノヴェッロ価格計算（自由メモ欄）</div>
@@ -574,6 +585,11 @@ function showPanel(name, btn){
     if(!confirm('価格マスタの変更を保存していませんが、消しますか？\n（「キャンセル」を押すと、価格マスタの画面のままになります）')) return;
     priceMasterDirty = false;
     document.getElementById('price-dirty-indicator').textContent = '';
+  }
+  if(currentActive && currentActive.id==='panel-cost' && name!=='cost' && costDataDirty){
+    if(!confirm('原価データの変更を保存していませんが、大丈夫ですか？\n（「キャンセル」を押すと、原価データの画面のままになります）')) return;
+    costDataDirty = false;
+    document.getElementById('cost-dirty-indicator').textContent = '';
   }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -1572,6 +1588,15 @@ async function unlockCostData(){
     errEl.textContent = '通信エラーが発生しました';
   }
 }
+let costDataDirty = false;
+function toggleCostEditLock(){
+  const unlocked = document.getElementById('cost-edit-lock').checked;
+  document.querySelectorAll('.cost-input, .cost-note-input, .novello-label, .novello-value').forEach(function(input){ input.disabled = !unlocked; });
+}
+function markCostDirty(){
+  costDataDirty = true;
+  document.getElementById('cost-dirty-indicator').textContent = '● 保存されていない変更があります';
+}
 function renderCostProductTable(){
   const groups = productGroups();
   let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">商品</th><th style="padding:6px">原価（1本あたり・円）</th><th style="padding:6px">メモ</th></tr></thead><tbody>';
@@ -1583,33 +1608,39 @@ function renderCostProductTable(){
       const isDefault = !existing && DEFAULT_COSTS[p.sku]!=null;
       const val = existing ? existing.costPerUnit : (DEFAULT_COSTS[p.sku]!=null ? DEFAULT_COSTS[p.sku] : 0);
       html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span>'+(isDefault?' <span style="font-size:9px;color:#0f766e;background:#ccfbf1;padding:1px 5px;border-radius:4px">初期値</span>':'')+'</td>'+
-        '<td style="padding:6px"><input type="number" class="cost-input" data-sku="'+p.sku+'" data-productname="'+esc(p.name)+'" value="'+val+'" style="width:100px;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td>'+
-        '<td style="padding:6px"><input type="text" class="cost-note-input" data-sku="'+p.sku+'" value="'+esc(existing?existing.note||'':'')+'" style="width:100%;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td></tr>';
+        '<td style="padding:6px"><input type="number" class="cost-input" data-sku="'+p.sku+'" data-productname="'+esc(p.name)+'" value="'+val+'" disabled oninput="markCostDirty()" style="width:100px;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td>'+
+        '<td style="padding:6px"><input type="text" class="cost-note-input" data-sku="'+p.sku+'" value="'+esc(existing?existing.note||'':'')+'" disabled oninput="markCostDirty()" style="width:100%;padding:4px;border:1px solid #d1d5db;border-radius:4px"></td></tr>';
     });
   });
   html += '</tbody></table>';
   document.getElementById('cost-product-table').innerHTML = html;
+  costDataDirty = false;
+  document.getElementById('cost-dirty-indicator').textContent = '';
+  document.getElementById('cost-edit-lock').checked = false;
 }
 function renderNovelloNotes(){
   const el = document.getElementById('novello-note-area');
   const rows = costData.novello && costData.novello.length ? costData.novello : [{label:'',value:''}];
+  const unlocked = document.getElementById('cost-edit-lock').checked;
   el.innerHTML = rows.map(function(n,i){
     return '<div style="display:flex;gap:8px;margin-bottom:6px" data-row="'+i+'">'+
-      '<input type="text" class="novello-label" value="'+esc(n.label)+'" placeholder="項目名（例：1€あたりの円）" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
-      '<input type="text" class="novello-value" value="'+esc(n.value)+'" placeholder="値" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
-      '<button class="btn-sm" onclick="this.parentElement.remove()">✕</button></div>';
+      '<input type="text" class="novello-label" value="'+esc(n.label)+'" placeholder="項目名（例：1€あたりの円）" disabled oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
+      '<input type="text" class="novello-value" value="'+esc(n.value)+'" placeholder="値" disabled oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
+      '<button class="btn-sm" onclick="markCostDirty();this.parentElement.remove()">✕</button></div>';
   }).join('');
 }
 function addNovelloRow(){
   const el = document.getElementById('novello-note-area');
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:6px';
-  div.innerHTML = '<input type="text" class="novello-label" placeholder="項目名" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
-    '<input type="text" class="novello-value" placeholder="値" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
-    '<button class="btn-sm" onclick="this.parentElement.remove()">✕</button>';
+  div.innerHTML = '<input type="text" class="novello-label" placeholder="項目名" oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
+    '<input type="text" class="novello-value" placeholder="値" oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">'+
+    '<button class="btn-sm" onclick="markCostDirty();this.parentElement.remove()">✕</button>';
   el.appendChild(div);
+  markCostDirty();
 }
 function saveCostDataToGAS(){
+  if(!confirm('原価データの変更を保存しますか？\nこの数字は、イレギュラー特価を作る時の自動チェックにも使われます。')) return;
   const costs = Array.from(document.querySelectorAll('.cost-input')).map(function(input){
     const sku = input.dataset.sku;
     const noteInput = document.querySelector('.cost-note-input[data-sku="'+sku+'"]');
@@ -1623,7 +1654,13 @@ function saveCostDataToGAS(){
     body: JSON.stringify({ action:'saveCostData', password: costPassword, payload:{ costs: costs, novello: novello } }),
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 原価データを保存しました');
+    if(d.status==='ok'){
+      showSyncStatus('✅ 原価データを保存しました');
+      costDataDirty = false;
+      document.getElementById('cost-dirty-indicator').textContent = '';
+      document.getElementById('cost-edit-lock').checked = false;
+      document.querySelectorAll('.cost-input, .cost-note-input, .novello-label, .novello-value').forEach(function(input){ input.disabled = true; });
+    }
     else showSyncStatus('⚠️ 保存に失敗しました：'+(d.message||''), true);
   }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
 }
@@ -1712,7 +1749,7 @@ function savePriceMaster(){
   }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
 }
 window.addEventListener('beforeunload', function(e){
-  if(priceMasterDirty){ e.preventDefault(); e.returnValue = ''; }
+  if(priceMasterDirty || costDataDirty){ e.preventDefault(); e.returnValue = ''; }
 });
 
 // ── 月次卸請求 ────────────────────────────────────────────
