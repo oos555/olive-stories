@@ -444,17 +444,18 @@ function renderHistory(){
   // 農園ごとの年間サマリー
   const byFarm = {};
   importBatches.forEach(function(b){
-    if(!byFarm[b.farm]) byFarm[b.farm] = {count:0, totalOverhead:0, totalMl:0, rates:[]};
+    if(!byFarm[b.farm]) byFarm[b.farm] = {count:0, totalOverhead:0, totalMl:0, totalBottles:0, rates:[]};
     byFarm[b.farm].count++;
     byFarm[b.farm].totalOverhead += (b.totalOverhead||0);
     byFarm[b.farm].totalMl += (b.totalMl||0);
+    byFarm[b.farm].totalBottles += (b.items||[]).reduce(function(sum,it){ return sum + (it.bottles||0); }, 0);
     byFarm[b.farm].rates.push(b.exchangeRate);
   });
   const statsEl = document.getElementById('year-summary-stats');
   statsEl.innerHTML = Object.keys(byFarm).map(function(farm){
     const s = byFarm[farm];
     const avgRate = s.rates.length ? (s.rates.reduce((a,b)=>a+b,0)/s.rates.length).toFixed(1) : '-';
-    return '<div class="stat"><div class="stat-label">'+FARM_LABEL[farm]+'</div><div class="stat-val" style="font-size:14px">輸入'+s.count+'回／合計'+(s.totalMl/1000).toFixed(0)+'L</div><div style="font-size:11px;color:#888">平均レート 1€=約'+avgRate+'円</div></div>';
+    return '<div class="stat"><div class="stat-label">'+FARM_LABEL[farm]+'</div><div class="stat-val" style="font-size:14px">輸入'+s.count+'回／合計'+(s.totalMl/1000).toFixed(0)+'L／合計'+s.totalBottles.toLocaleString()+'本</div><div style="font-size:11px;color:#888">平均レート 1€=約'+avgRate+'円</div></div>';
   }).join('') || '<div style="color:#999;font-size:13px;padding:8px">まだ輸入記録がありません。</div>';
 
   renderCompareTable(filter);
