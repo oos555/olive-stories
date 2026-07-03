@@ -49,6 +49,8 @@ tr:last-child td{border-bottom:none}
 .stat-label{font-size:11px;color:#666;margin-bottom:3px}
 .stat-val{font-size:18px;font-weight:700}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -107,6 +109,7 @@ tr:last-child td{border-bottom:none}
         <div class="fg"><label>輸入年月</label><input type="month" id="f-yearmonth" disabled></div>
         <div class="fg"><label>為替レート（1€＝何円）</label><input type="number" id="f-exrate" disabled step="0.01" oninput="recalc()"></div>
       </div>
+      <div id="prev-notes-alert"></div>
     </div>
 
     <div class="card">
@@ -134,7 +137,8 @@ tr:last-child td{border-bottom:none}
           <tbody id="item-tbl-body"></tbody>
         </table>
       </div>
-      <div class="fg"><label>メモ（値引き交渉・ラベル破損・イレギュラーな出来事など）</label><textarea id="f-notes" disabled style="min-height:70px"></textarea></div>
+      <div class="fg"><label>メモ（今回の記録・値引き交渉の経緯・ラベル破損など）</label><textarea id="f-notes" disabled style="min-height:70px"></textarea></div>
+      <div class="fg"><label style="color:#b45309">📌 次回この農園から輸入する時への申し送りメモ（値引き交渉すべき点・注意点など）</label><textarea id="f-next-notes" disabled style="min-height:70px;background:#fffbeb;border-color:#f59e0b" placeholder="例：次回は価格交渉すること／ラベルの品質を確認すること"></textarea></div>
       <button class="btn btn-green" onclick="saveImportBatch()">この内容で輸入記録を保存する</button>
       <span id="dirty-indicator" style="font-size:12px;color:#dc2626;margin-left:10px"></span>
     </div>
@@ -154,6 +158,14 @@ tr:last-child td{border-bottom:none}
       </div>
     </div>
     <div class="stats" id="year-summary-stats"></div>
+
+    <div class="card">
+      <div class="sec">📊 商品別の輸入量くらべ（増減が分かります）</div>
+      <div class="info-box">商品ごとに、輸入するたびの本数を左から古い順に並べています。前回より増えた場合は🔺、減った場合は🔻で表示します。</div>
+      <div class="tbl-wrap" id="compare-table-wrap"></div>
+    </div>
+
+    <div class="sec">📋 輸入記録の一覧（書類・支払い状況つき）</div>
     <div id="history-list"></div>
   </div>
 </div>
@@ -248,6 +260,7 @@ async function unlock(){
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
       renderHistory();
+      showPrevNotes(document.getElementById('f-farm').value);
       showSyncStatus('✅ データを読み込みました');
     } else {
       errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
@@ -297,6 +310,17 @@ function onFarmChange(){
       '</tr>';
   }).join('');
   recalc();
+  showPrevNotes(farm);
+}
+function showPrevNotes(farm){
+  const alertEl = document.getElementById('prev-notes-alert');
+  if(!alertEl) return;
+  const past = importBatches.filter(b=>b.farm===farm && b.nextTimeNotes).sort((a,b)=>(b.yearMonth||'').localeCompare(a.yearMonth||''));
+  if(past.length && past[0].nextTimeNotes){
+    alertEl.innerHTML = '<div class="info-box" style="background:#fffbeb;border-color:#f59e0b;color:#78350f;margin-top:10px"><strong>📌 前回（'+past[0].yearMonth+'）からの申し送り：</strong><br>'+esc(past[0].nextTimeNotes).replace(/\n/g,'<br>')+'</div>';
+  } else {
+    alertEl.innerHTML = '';
+  }
 }
 
 function recalc(){
@@ -383,7 +407,9 @@ async function saveImportBatch(){
     id: 'imp_'+Date.now(), farm: farm, yearMonth: yearMonth, exchangeRate: exRate,
     shippingCost: shipping, customsTax: tax, airportFee: airport, sagawaShipping: sagawa, warehouseFee: warehouse,
     totalOverhead: totalOverhead, totalMl: totalMl, overheadPerMl: perMl,
-    items: items, notes: document.getElementById('f-notes').value, createdAt: new Date().toISOString()
+    items: items, notes: document.getElementById('f-notes').value,
+    nextTimeNotes: document.getElementById('f-next-notes').value,
+    createdAt: new Date().toISOString()
   };
 
   try{
@@ -431,20 +457,117 @@ function renderHistory(){
     return '<div class="stat"><div class="stat-label">'+FARM_LABEL[farm]+'</div><div class="stat-val" style="font-size:14px">輸入'+s.count+'回／合計'+(s.totalMl/1000).toFixed(0)+'L</div><div style="font-size:11px;color:#888">平均レート 1€=約'+avgRate+'円</div></div>';
   }).join('') || '<div style="color:#999;font-size:13px;padding:8px">まだ輸入記録がありません。</div>';
 
+  renderCompareTable(filter);
+
   const listEl = document.getElementById('history-list');
   if(!list.length){ listEl.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">該当する輸入記録はありません。</div>'; return; }
   listEl.innerHTML = list.map(function(b){
     const itemsSummary = (b.items||[]).filter(it=>it.bottles>0).map(it=>it.productName+'×'+it.bottles+'本').join('、');
-    return '<div class="card" style="margin-bottom:8px">'+
+    return '<div class="card" style="margin-bottom:8px" id="batch-card-'+b.id+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
       '<div><strong>'+FARM_LABEL[b.farm]+'</strong>　'+b.yearMonth+'　1€＝'+b.exchangeRate+'円</div>'+
+      '<div style="display:flex;gap:6px">'+
+      '<button class="btn-sm" onclick="downloadBatchPdf(\''+b.id+'\')">📥 PDF</button>'+
       '<button class="btn-sm" onclick="deleteBatch(\''+b.id+'\')">削除</button>'+
-      '</div>'+
+      '</div></div>'+
       '<div style="font-size:12px;color:#666;margin-top:6px">諸経費合計：¥'+(b.totalOverhead||0).toLocaleString()+'　総輸入量：'+((b.totalMl||0)/1000).toFixed(1)+'L　1mlあたり経費：¥'+(b.overheadPerMl||0).toFixed(2)+'</div>'+
       '<div style="font-size:12px;color:#666;margin-top:2px">'+esc(itemsSummary)+'</div>'+
       (b.notes ? '<div style="font-size:11px;color:#b45309;background:#fef3c7;padding:4px 8px;border-radius:6px;margin-top:6px">📝 '+esc(b.notes)+'</div>' : '')+
+      (b.nextTimeNotes ? '<div style="font-size:11px;color:#78350f;background:#fffbeb;border:1px solid #f59e0b;padding:4px 8px;border-radius:6px;margin-top:6px">📌 次回への申し送り：'+esc(b.nextTimeNotes)+'</div>' : '')+
+      '<div style="border-top:1px solid #f0efe9;margin-top:10px;padding-top:10px" class="g2">'+
+      '<div class="fg" style="margin-bottom:4px"><label>📄 パッキングリスト（Googleドライブ等のリンク）</label>'+
+      '<div style="display:flex;gap:6px"><input type="text" id="pl-url-'+b.id+'" value="'+esc(b.packingListUrl||'')+'" placeholder="URLを貼り付け" style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:11px">'+
+      (b.packingListUrl ? '<a href="'+esc(b.packingListUrl)+'" target="_blank" class="btn-sm">開く</a>' : '')+'</div></div>'+
+      '<div class="fg" style="margin-bottom:4px"><label>📄 インボイス（Googleドライブ等のリンク）</label>'+
+      '<div style="display:flex;gap:6px"><input type="text" id="inv-url-'+b.id+'" value="'+esc(b.invoiceUrl||'')+'" placeholder="URLを貼り付け" style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:11px">'+
+      (b.invoiceUrl ? '<a href="'+esc(b.invoiceUrl)+'" target="_blank" class="btn-sm">開く</a>' : '')+'</div></div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap">'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;'+(b.invoicePaid?'color:#14532d':'color:#b45309')+'"><input type="checkbox" id="paid-cb-'+b.id+'" '+(b.invoicePaid?'checked':'')+' style="width:16px;height:16px">'+(b.invoicePaid?'✅ 支払い済み':'⚠️ 未払い')+'</label>'+
+      '<div class="fg" style="margin-bottom:0"><label style="font-size:11px">支払い日</label><input type="date" id="paid-date-'+b.id+'" value="'+esc(b.paidDate||'')+'" style="padding:4px 6px;font-size:11px"></div>'+
+      '<button class="btn-sm" onclick="saveBatchExtra(\''+b.id+'\')">この内容を保存</button>'+
+      '</div>'+
       '</div>';
   }).join('');
+}
+
+function renderCompareTable(filter){
+  const farms = filter ? [filter] : Object.keys(FARM_LABEL);
+  let html = '';
+  farms.forEach(function(farm){
+    const batches = importBatches.filter(b=>b.farm===farm).slice().sort((a,b)=>(a.yearMonth||'').localeCompare(b.yearMonth||''));
+    if(!batches.length) return;
+    // 商品ごとに、各輸入回の本数を集める
+    const productMap = {}; // sku -> {name, values:[{ym, bottles}]}
+    batches.forEach(function(b){
+      (b.items||[]).forEach(function(it){
+        if(!it.sku) return;
+        if(!productMap[it.sku]) productMap[it.sku] = { name: it.productName, values: {} };
+        productMap[it.sku].values[b.yearMonth] = (productMap[it.sku].values[b.yearMonth]||0) + it.bottles;
+      });
+    });
+    const yearMonths = batches.map(b=>b.yearMonth);
+    html += '<table style="margin-bottom:10px"><thead><tr><th style="background:#f5f4f0;color:#7c2d12">'+FARM_LABEL[farm]+'</th>'+yearMonths.map(ym=>'<th style="text-align:right">'+ym+'</th>').join('')+'</tr></thead><tbody>';
+    Object.keys(productMap).forEach(function(sku){
+      const p = productMap[sku];
+      let prevVal = null;
+      html += '<tr><td>'+esc(p.name)+'</td>';
+      yearMonths.forEach(function(ym){
+        const val = p.values[ym]||0;
+        let trend = '';
+        if(prevVal!==null && val!==prevVal){
+          trend = val>prevVal ? ' <span style="color:#dc2626">🔺'+(val-prevVal)+'</span>' : ' <span style="color:#185fa5">🔻'+(prevVal-val)+'</span>';
+        }
+        html += '<td style="text-align:right">'+(val>0?val+'本':'－')+trend+'</td>';
+        prevVal = val>0 ? val : prevVal;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+  });
+  document.getElementById('compare-table-wrap').innerHTML = html || '<div style="color:#999;font-size:13px;padding:8px">比較できるデータがまだありません。</div>';
+}
+
+async function saveBatchExtra(id){
+  const b = importBatches.find(x=>x.id===id);
+  if(!b) return;
+  b.packingListUrl = document.getElementById('pl-url-'+id).value;
+  b.invoiceUrl = document.getElementById('inv-url-'+id).value;
+  b.invoicePaid = document.getElementById('paid-cb-'+id).checked;
+  b.paidDate = document.getElementById('paid-date-'+id).value;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveImportBatch', password: password, batch: b }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){ showSyncStatus('✅ 保存しました'); renderHistory(); }
+    else showSyncStatus('⚠️ 保存に失敗しました', true);
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
+}
+
+async function downloadBatchPdf(id){
+  const b = importBatches.find(x=>x.id===id);
+  if(!b || !window.html2canvas || !window.jspdf) return;
+  const card = document.getElementById('batch-card-'+id);
+  showSyncStatus('📄 PDFを作成中...');
+  try{
+    const canvas = await html2canvas(card, { scale: 2, backgroundColor: '#ffffff' });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'mm', format:'a4' });
+    const imgWidth = 190;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    pdf.text(FARM_LABEL[b.farm]+'　輸入記録　'+b.yearMonth, 10, 12);
+    pdf.addImage(imgData, 'PNG', 10, 18, imgWidth, Math.min(imgHeight, 270));
+    pdf.save('輸入記録_'+FARM_LABEL[b.farm]+'_'+b.yearMonth+'.pdf');
+    showSyncStatus('✅ PDFをダウンロードしました');
+  }catch(err){
+    showSyncStatus('⚠️ PDF作成に失敗しました：'+err.message, true);
+  }
 }
 
 async function deleteBatch(id){
