@@ -197,6 +197,22 @@ tr:last-child td{border-bottom:none}
       <span id="cost-dirty-indicator" style="font-size:12px;color:#dc2626;margin-left:10px"></span>
     </div>
     <div class="card">
+      <div class="sec">🎨 区分別 利益ひと目比較（色でパッと分かります）</div>
+      <div class="info-box">今の価格マスタの金額から、原価に対する利益率を色の濃さで表します。<strong style="color:#1e40af">濃い青＝しっかり利益が出ている</strong>、<strong style="color:#b91c1c">濃い赤＝利益が薄い・赤字</strong>です。数字を読まなくても、色の並びだけで傾向が分かります。</div>
+      <div class="tbl-wrap">
+        <table id="profit-heatmap-table" style="font-size:12px"></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">📐 掛け率シミュレーション</div>
+      <div class="info-box">「オープン価格 × 掛け率」で、その掛け率で売った時の価格・利益・利益率を全商品まとめて計算します。掛け率の数字は自由に書き換えられます。「使う」を押すと、そのままその商品の卸②価格として反映されます。</div>
+      <div id="rate-slots" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end"></div>
+      <button class="btn-sm" onclick="addRateSlot()">＋ 掛け率を追加</button>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table id="rate-sim-table" style="font-size:11px"></table>
+      </div>
+    </div>
+    <div class="card">
       <div class="sec">ノヴェッロ価格計算（自由メモ欄）</div>
       <div class="info-box">輸入原価・為替・利益率など、自由に書き留めておけるメモ欄です（行の追加・削除ができます）。</div>
       <div id="novello-note-area"></div>
@@ -1582,6 +1598,8 @@ async function unlockCostData(){
       document.getElementById('cost-unlocked-view').style.display = 'block';
       renderCostProductTable();
       renderNovelloNotes();
+      renderRateSimulation();
+      renderProfitHeatmap();
     } else {
       errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
     }
@@ -1618,6 +1636,133 @@ function renderCostProductTable(){
   costDataDirty = false;
   document.getElementById('cost-dirty-indicator').textContent = '';
   document.getElementById('cost-edit-lock').checked = false;
+}
+
+// ── 掛け率シミュレーション ────────────────────────────────────────────
+let rateSlots = [0.8, 0.75, 0.7, 0.6];
+function addRateSlot(){
+  rateSlots.push(0.5);
+  renderRateSimulation();
+}
+function removeRateSlot(idx){
+  rateSlots.splice(idx,1);
+  renderRateSimulation();
+}
+function onRateSlotChange(idx, val){
+  rateSlots[idx] = parseFloat(val)||0;
+  renderRateSimulation();
+}
+function getCostForSku(sku){
+  const existing = costData.costs.find(c=>c.sku===sku);
+  if(existing) return parseFloat(existing.costPerUnit)||0;
+  return DEFAULT_COSTS[sku]!=null ? DEFAULT_COSTS[sku] : 0;
+}
+function getOpenPriceForSku(sku){
+  const row = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
+  return row ? (parseFloat(row.priceGeneral)||0) : 0;
+}
+
+// ── 区分別 利益ひと目比較（ヒートマップ） ────────────────────────────────────────────
+// 利益率が高いほど濃い青、低い・赤字ほど濃い赤にする
+function profitColor(marginPct, hasPrice){
+  if(!hasPrice) return { bg:'#f5f4f0', fg:'#bbb' };
+  if(marginPct < 0)   return { bg:'#7f1d1d', fg:'#fff' };
+  if(marginPct < 15)  return { bg:'#dc2626', fg:'#fff' };
+  if(marginPct < 25)  return { bg:'#fca5a5', fg:'#7f1d1d' };
+  if(marginPct < 35)  return { bg:'#fed7aa', fg:'#7c2d12' };
+  if(marginPct < 45)  return { bg:'#dbeafe', fg:'#1e3a8a' };
+  if(marginPct < 55)  return { bg:'#93c5fd', fg:'#1e3a8a' };
+  if(marginPct < 65)  return { bg:'#3b82f6', fg:'#fff' };
+  return { bg:'#1e3a8a', fg:'#fff' };
+}
+function renderProfitHeatmap(){
+  const groups = productGroups();
+  const tiers = [ {key:'rt', label:'RT'}, {key:'wholesale1', label:'卸①'}, {key:'wholesale2', label:'卸②'} ];
+  let html = '<thead><tr><th style="text-align:left;padding:6px">商品</th><th>原価</th>';
+  tiers.forEach(function(t){ html += '<th style="text-align:center">'+t.label+'</th>'; });
+  html += '</tr></thead><tbody>';
+  Object.keys(groups).forEach(function(g){
+    const items = groups[g].filter(p=>!p.isSet);
+    if(!items.length) return;
+    html += '<tr><td colspan="'+(2+tiers.length)+'" class="group-header">'+g+'</td></tr>';
+    items.forEach(function(p){
+      const cost = getCostForSku(p.sku);
+      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span></td>'+
+        '<td style="text-align:right">¥'+cost.toLocaleString()+'</td>';
+      tiers.forEach(function(t){
+        const price = priceForSku(p.sku, t.key);
+        const hasPrice = price>0;
+        const margin = hasPrice ? ((price-cost)/price)*100 : 0;
+        const c = profitColor(margin, hasPrice);
+        html += '<td style="text-align:center;padding:8px 6px;background:'+c.bg+';color:'+c.fg+';font-weight:700;border-radius:4px">'+
+          (hasPrice ? margin.toFixed(0)+'%<div style="font-size:10px;font-weight:400">¥'+price.toLocaleString()+'（利益¥'+(price-cost).toLocaleString()+'）</div>' : '－')+
+          '</td>';
+      });
+      html += '</tr>';
+    });
+  });
+  html += '</tbody>';
+  document.getElementById('profit-heatmap-table').innerHTML = html;
+}
+function renderRateSimulation(){
+  const slotsEl = document.getElementById('rate-slots');
+  if(!slotsEl) return;
+  slotsEl.innerHTML = rateSlots.map(function(r,i){
+    return '<div class="fg" style="margin-bottom:0;width:110px"><label>掛け率'+(i+1)+'</label>'+
+      '<div style="display:flex;gap:4px"><input type="number" step="0.01" min="0" max="2" value="'+r+'" oninput="onRateSlotChange('+i+',this.value)" style="width:70px;padding:5px">'+
+      (rateSlots.length>1 ? '<button class="btn-sm" onclick="removeRateSlot('+i+')">✕</button>' : '')+
+      '</div></div>';
+  }).join('');
+
+  const groups = productGroups();
+  const colCount = 2 + rateSlots.length;
+  let html = '<thead><tr><th style="text-align:left;padding:6px">商品</th><th>原価</th>';
+  rateSlots.forEach(function(r){ html += '<th style="text-align:center">掛け率 '+r+'</th>'; });
+  html += '</tr></thead><tbody>';
+  Object.keys(groups).forEach(function(g){
+    const items = groups[g].filter(p=>!p.isSet);
+    if(!items.length) return;
+    html += '<tr><td colspan="'+colCount+'" class="group-header">'+g+'</td></tr>';
+    items.forEach(function(p){
+      const cost = getCostForSku(p.sku);
+      const openPrice = getOpenPriceForSku(p.sku);
+      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span></td>'+
+        '<td style="text-align:right">¥'+cost.toLocaleString()+'</td>';
+      rateSlots.forEach(function(rate){
+        const price = Math.round(openPrice*rate);
+        const profit = price-cost;
+        const hasPrice = price>0;
+        const profitPct = hasPrice ? (profit/price)*100 : 0;
+        const c = profitColor(profitPct, hasPrice);
+        html += '<td style="text-align:center;padding:8px 6px;background:'+c.bg+';color:'+c.fg+'">'+
+          (hasPrice ? '<div style="font-weight:700">'+profitPct.toFixed(0)+'%</div><div style="font-size:10px;font-weight:400">¥'+price.toLocaleString()+'（利益¥'+profit.toLocaleString()+'）</div>' : '－')+
+          (hasPrice ? '<button class="btn-sm" style="margin-top:4px" onclick="applyRateToWholesale2(\''+p.sku+'\','+price+')">卸②に使う</button>' : '')+
+          '</td>';
+      });
+      html += '</tr>';
+    });
+  });
+  html += '</tbody>';
+  document.getElementById('rate-sim-table').innerHTML = html;
+}
+async function applyRateToWholesale2(sku, price){
+  const prod = findProductBySku(sku);
+  if(!confirm((prod?prod.name:sku)+'の「卸②」価格を ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタにそのまま反映されます）')) return;
+  let row = priceMaster.find(x=>x.sku===sku);
+  if(!row){ row = { sku: sku, productName: prod?prod.name:'' }; priceMaster.push(row); }
+  row.priceWholesale2 = price;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveAllData', payload:{ priceMaster: priceMaster } }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const d = await res.json();
+    if(d.status==='ok'){ showSyncStatus('✅ 卸②価格に反映しました'); renderInvoiceList(); renderProfitHeatmap(); }
+    else showSyncStatus('⚠️ 反映に失敗しました', true);
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
 }
 function renderNovelloNotes(){
   const el = document.getElementById('novello-note-area');
