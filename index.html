@@ -188,7 +188,9 @@ body{background:#fff}
           <select id="o-customer-select" onchange="onCustomerSelect()" style="flex:1"><option value="">マスタから選択...</option></select>
           <button class="btn-sm" onclick="clearCustomerSelect()" title="クリア">✕</button>
         </div>
-        <input type="text" id="o-client" placeholder="または直接入力" style="margin-top:6px" oninput="onClientInput()">
+        <input type="text" id="o-client" placeholder="または直接入力" style="margin-top:6px" oninput="onClientInput()" list="rt-facility-datalist">
+        <datalist id="rt-facility-datalist"></datalist>
+        <div id="rt-facility-hint" style="display:none;font-size:11px;color:#0e7490;margin-top:2px">💡 RTのお客様は、候補一覧（登録済みのリゾートトラスト系施設）から選ぶと入力ミスを防げます。<span style="text-decoration:underline;cursor:pointer" onclick="toggleFacilityManager()">施設マスタを管理する</span></div>
       </div>
       <div class="fg"><label>お客様区分</label>
         <select id="o-ctype" onchange="onCtypeChange()">
@@ -199,6 +201,27 @@ body{background:#fff}
           <option value="defectprice">不良在庫特価</option>
         </select>
       </div>
+    </div>
+    <div id="rt-facility-manager" class="card" style="display:none;background:#f0f9ff;border-color:#93c5fd;margin-bottom:14px">
+      <div class="sec" style="margin-top:0">🏨 RT対象施設マスタ（会員制・一般・ゴルフ・レストランカフェ）</div>
+      <div class="info-box">リゾートトラストの施設一覧ページを見ながら、施設名を1行に1つずつ貼り付けてください。カテゴリごとにまとめて追加できます。</div>
+      <div class="g2">
+        <div class="fg"><label>カテゴリ</label>
+          <select id="rt-add-category">
+            <option value="会員制">会員制</option>
+            <option value="一般">一般</option>
+            <option value="ゴルフ">ゴルフ</option>
+            <option value="レストランカフェ">レストランカフェ</option>
+          </select>
+        </div>
+        <div class="fg"><label>施設名（1行に1つ）</label><textarea id="rt-add-names" placeholder="エクシブ有馬離宮&#10;エクシブ軽井沢&#10;（複数行まとめて貼り付け可）" style="width:100%;min-height:80px;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px"></textarea></div>
+      </div>
+      <button class="btn btn-primary" onclick="addFacilitiesBulk()">まとめて追加する</button>
+      <button class="btn btn-green" onclick="loadRtFacilitySeed()">📥 リゾートトラスト施設一覧を一括取込（56件）</button>
+      <button class="btn-sm" onclick="toggleFacilityManager()">閉じる</button>
+      <div class="sec" style="margin-top:14px">登録済み施設一覧（<span id="facility-count">0</span>件）</div>
+      <input type="text" id="facility-search" placeholder="施設名で検索" oninput="renderFacilityList()" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;margin-bottom:8px">
+      <div id="facility-list" style="max-height:240px;overflow:auto"></div>
     </div>
     <div id="ctype-mismatch-warn"></div>
     <div class="fg"><label>登録の種類</label>
@@ -549,12 +572,14 @@ function loadInitialData(){
     if(dataRes && dataRes.status==='ok' && dataRes.data){
       const d = dataRes.data;
       lots = d.lots||[]; defects = d.defects||[]; holds = d.holds||[]; preorders = d.preorders||[];
+      facilities = d.facilities||[];
       customers = d.customers||[];
     }
     if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
       orders = ordersRes.data.orders;
     }
     updCustomerSelects();
+    renderFacilityDatalist();
     renderStockStrip();
     updateSummary();
     renderList();
@@ -692,6 +717,140 @@ function onCtypeChange(){
     }
   }
   warnEl.innerHTML = '';
+  document.getElementById('rt-facility-hint').style.display = sel.value==='rt' ? 'block' : 'none';
+}
+
+// ── RT対象施設マスタ（会員制・一般・ゴルフ・レストランカフェ） ────────────────────────────
+let facilities = [];
+// リゾートトラスト施設一覧（いただいたExcelから取り込み・2026年7月時点）
+const RT_FACILITY_SEED = [
+{name:'東京ベイコート倶楽部', category:'会員制', note:'東京都江東区有明3-1-15'},
+{name:'横浜ベイコート倶楽部', category:'会員制', note:'横浜市西区みなとみらい1-1-4'},
+{name:'ラグーナベイコート倶楽部', category:'会員制', note:'愛知県蒲郡市海陽町2-9-1'},
+{name:'芦屋ベイコート倶楽部', category:'会員制', note:'兵庫県芦屋市海洋町14-1'},
+{name:'サンクチュアリコート日光', category:'会員制', note:'栃木県日光市高徳38番3'},
+{name:'サンクチュアリコート高山', category:'会員制', note:'岐阜県高山市上岡本町1丁目124番地1'},
+{name:'サンクチュアリコート琵琶湖', category:'会員制', note:'滋賀県高島市安曇川町下小川1113'},
+{name:'エクシブ那須白河', category:'会員制', note:'福島県西白河郡西郷村大字熊倉字雀子山3'},
+{name:'エクシブ山中湖', category:'会員制', note:'山梨県南都留郡山中湖村平野562-12'},
+{name:'エクシブ山中湖 サンクチュアリ・ヴィラ', category:'会員制', note:'山梨県南都留郡山中湖村平野562-15'},
+{name:'エクシブ軽井沢', category:'会員制', note:'長野県北佐久郡軽井沢町大字追分字東かじか沢23-1'},
+{name:'エクシブ軽井沢 パセオ', category:'会員制', note:'長野県北佐久郡軽井沢町大字追分字東かじか沢21-1'},
+{name:'エクシブ軽井沢 サンクチュアリ・ヴィラ', category:'会員制', note:'長野県北佐久郡軽井沢町大字追分字東かじか沢25'},
+{name:'エクシブ軽井沢 サンクチュアリ・ヴィラ ムセオ', category:'会員制', note:'長野県北佐久郡軽井沢町大字追分字反り向97-2'},
+{name:'エクシブ蓼科', category:'会員制', note:'長野県茅野市蓼科高原北山4035'},
+{name:'エクシブ湯河原離宮', category:'会員制', note:'神奈川県足柄下郡湯河原町宮上631-1'},
+{name:'エクシブ箱根離宮', category:'会員制', note:'神奈川県足柄下郡箱根町宮ノ下112-2'},
+{name:'エクシブ初島クラブ', category:'会員制', note:'静岡県熱海市初島800'},
+{name:'エクシブ伊豆', category:'会員制', note:'静岡県伊東市富戸1317-5243'},
+{name:'エクシブ浜名湖', category:'会員制', note:'静岡県浜松市中央区村櫛町4620'},
+{name:'エクシブ鳥羽', category:'会員制', note:'三重県鳥羽市安楽島町字ニエ212-1'},
+{name:'エクシブ鳥羽アネックス', category:'会員制', note:'三重県鳥羽市安楽島町字二地169-2'},
+{name:'エクシブ鳥羽別邸', category:'会員制', note:'三重県鳥羽市安楽島町字ニエ212-8'},
+{name:'エクシブ琵琶湖', category:'会員制', note:'滋賀県米原市磯1477-2'},
+{name:'エクシブ京都 八瀬離宮', category:'会員制', note:'京都市左京区八瀬野瀬町74-1'},
+{name:'エクシブ白浜', category:'会員制', note:'和歌山県西牟婁郡白浜町才野字西山1670-76'},
+{name:'エクシブ白浜アネックス', category:'会員制', note:'和歌山県西牟婁郡白浜町才野字西山1670-44'},
+{name:'エクシブ六甲 サンクチュアリ・ヴィラ', category:'会員制', note:'神戸市灘区六甲山町北六甲4512-28'},
+{name:'エクシブ有馬離宮', category:'会員制', note:'神戸市北区有馬町1661-11'},
+{name:'エクシブ淡路島', category:'会員制', note:'兵庫県洲本市小路谷字古茂江1275-3'},
+{name:'エクシブ鳴門', category:'会員制', note:'徳島県鳴門市北灘町折野字上三津167-3'},
+{name:'エクシブ鳴門 サンクチュアリ・ヴィラ', category:'会員制', note:'徳島県鳴門市北灘町折野字上三津110-2'},
+{name:'エクシブ鳴門 サンクチュアリ・ヴィラ ドゥーエ', category:'会員制', note:'徳島県鳴門市北灘町折野字上三津105-2'},
+{name:'リゾーピア熱海', category:'会員制', note:'静岡県熱海市東海岸町13-93'},
+{name:'リゾーピア久美浜', category:'会員制', note:'京都府京丹後市久美浜町湊宮1302-2'},
+{name:'リゾーピア別府', category:'会員制', note:'大分県別府市堀田町11番43号'},
+{name:'ロビーカフェ ファシーノ', category:'レストランカフェ', note:'大阪市中央区難波5-1-18'},
+{name:'グランディ那須白河ゴルフクラブ', category:'ゴルフ', note:'〒961-8091 福島県西白河郡西郷村大字熊倉宇雀子山3'},
+{name:'グランディ軽井沢ゴルフクラブ　森泉コース', category:'ゴルフ', note:'〒389-0204 長野県北佐久郡御代田町豊昇1454'},
+{name:'グランディ浜名湖ゴルフクラブ', category:'ゴルフ', note:'〒431-1207 静岡県浜松市中央区村櫛町4620'},
+{name:'グランディ鳴門ゴルフクラブ36', category:'ゴルフ', note:'〒771-0376 徳島県鳴門市北灘町折野大川筋182'},
+{name:'メイプルポイントゴルフクラブ', category:'ゴルフ', note:'〒409-0114 山梨県上野原市鶴島3600'},
+{name:'ゴルフ倶楽部 金沢リンクス', category:'ゴルフ', note:'〒920-0227 金沢市粟崎浜町1-2'},
+{name:'スプリングフィールドゴルフクラブ', category:'ゴルフ', note:'〒507-0002 岐阜県多治見市小名田町1'},
+{name:'パインズゴルフクラブ', category:'ゴルフ', note:'〒470-0571 愛知県豊田市松名町太田478'},
+{name:'セントクリークゴルフクラブ', category:'ゴルフ', note:'〒444-2527 愛知県豊田市月原町黒木1-1'},
+{name:'ザ・トラディションゴルフクラブ', category:'ゴルフ', note:'〒444-3165 愛知県岡崎市岩中町1'},
+{name:'グレイスヒルズカントリー倶楽部', category:'ゴルフ', note:'〒512-1211 三重県四日市市桜町池之谷2230'},
+{name:'ザ・カントリークラブ', category:'ゴルフ', note:'〒529-1803 滋賀県甲賀市信楽町牧1782-2'},
+{name:'関西ゴルフ倶楽部', category:'ゴルフ', note:'〒673-1114 兵庫県三木市吉川町吉安877-1'},
+{name:'オークモントゴルフクラブ', category:'ゴルフ', note:'〒630-2232 奈良県山辺郡山添村岩屋3316'},
+{name:'グランディ羽鳥湖スキーリゾート', category:'ゴルフ', note:'〒962-0623 福島県岩瀬郡天栄村羽鳥湖高原'},
+{name:'ザ・カハラ・ホテル＆リゾート', category:'一般', note:'5000 Kahala Ave. Honolulu, HI 96816 USA'},
+{name:'ザ・カハラ・ホテル＆リゾート 横浜', category:'一般', note:'〒220-0012 横浜市西区みなとみらい1-1-3'},
+{name:'ホテルトラスティ東京ベイサイド', category:'一般', note:'〒135-0063 東京都江東区有明3-1-15'},
+{name:'ホテルトラスティ大阪 阿倍野', category:'一般', note:'〒545-0052 大阪市阿倍野区阿倍野筋1-5-10-300'}
+];
+// 同じ敷地内に複数施設があり、選び間違えやすい系列名（軽井沢・鳥羽・鳴門）
+const RT_MULTI_SITE_KEYWORDS = ['軽井沢','鳥羽','鳴門'];
+function renderFacilityDatalist(){
+  document.getElementById('rt-facility-datalist').innerHTML = facilities.map(f=>'<option value="'+f.name+'">').join('');
+}
+function toggleFacilityManager(){
+  const el = document.getElementById('rt-facility-manager');
+  const open = el.style.display === 'none';
+  el.style.display = open ? 'block' : 'none';
+  if(open) renderFacilityList();
+}
+function loadRtFacilitySeed(){
+  if(!confirm('リゾートトラストの施設一覧（56件）を一括で取り込みますか？\n（すでに同じ名前の施設が登録されている場合はスキップされます）')) return;
+  let addedCount = 0;
+  RT_FACILITY_SEED.forEach(function(f){
+    if(facilities.some(x=>x.name===f.name)) return;
+    facilities.push({ id:'fac_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), name:f.name, category:f.category, note:f.note, createdAt:new Date().toISOString() });
+    addedCount++;
+  });
+  saveFacilitiesToGAS();
+  renderFacilityDatalist();
+  renderFacilityList();
+  showSyncStatus('✅ '+addedCount+'件の施設を取り込みました');
+}
+function addFacilitiesBulk(){
+  const category = document.getElementById('rt-add-category').value;
+  const names = document.getElementById('rt-add-names').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!names.length){ alert('施設名を入力してください'); return; }
+  let addedCount = 0;
+  names.forEach(function(name){
+    if(facilities.some(f=>f.name===name)) return; // 重複はスキップ
+    facilities.push({ id:'fac_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), name: name, category: category, note: '', createdAt: new Date().toISOString() });
+    addedCount++;
+  });
+  document.getElementById('rt-add-names').value = '';
+  saveFacilitiesToGAS();
+  renderFacilityDatalist();
+  renderFacilityList();
+  showSyncStatus('✅ '+addedCount+'件の施設を追加しました');
+}
+function removeFacility(id){
+  facilities = facilities.filter(f=>f.id!==id);
+  saveFacilitiesToGAS();
+  renderFacilityDatalist();
+  renderFacilityList();
+}
+function saveFacilitiesToGAS(){
+  if(!gasSyncEnabled) return;
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveAllData', payload:{ facilities: facilities } }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).catch(function(){ showSyncStatus('⚠️ 施設マスタの保存に失敗しました', true); });
+}
+function renderFacilityList(){
+  const search = (document.getElementById('facility-search').value||'').toLowerCase();
+  document.getElementById('facility-count').textContent = facilities.length;
+  const groups = {'会員制':[], '一般':[], 'ゴルフ':[], 'レストランカフェ':[]};
+  facilities.filter(f=>!search || f.name.toLowerCase().includes(search)).forEach(function(f){
+    (groups[f.category]=groups[f.category]||[]).push(f);
+  });
+  let html = '';
+  Object.keys(groups).forEach(function(cat){
+    if(!groups[cat].length) return;
+    html += '<div style="font-size:11px;font-weight:700;color:#888;margin:8px 0 4px">'+cat+'（'+groups[cat].length+'件）</div>';
+    groups[cat].forEach(function(f){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid #f0efe9;font-size:12px"><span>'+f.name+'</span><button class="btn-sm" onclick="removeFacility(\''+f.id+'\')">削除</button></div>';
+    });
+  });
+  document.getElementById('facility-list').innerHTML = html || '<div style="color:#999;font-size:12px;padding:8px 0">まだ施設が登録されていません。</div>';
 }
 
 const SELF_SENDER = { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' };
@@ -1103,21 +1262,27 @@ function previewOrder(){
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
     }
-    // トルコ産100mlオイルの単品（バラ）卸はRT限定（卸①・卸②のお客様が対象。サンプル出荷は例外的に許可）
+    // トルコ産100mlオイルの単品（バラ）卸はRT限定（定価・卸①・卸②すべてが対象。サンプル出荷は例外的に許可）
     const rtViolations = [];
     list.forEach(function(o){
       (o.lines||[]).forEach(function(l){
         const p = findProduct(l.productId);
-        const isWholesaleCustomer = o.customerType==='wholesale1' || o.customerType==='wholesale2';
-        if(p && p.noWholesale && isWholesaleCustomer && l.giftType!=='sample_free' && l.giftType!=='sample_paid'){
+        if(p && p.noWholesale && o.customerType!=='rt' && l.giftType!=='sample_free' && l.giftType!=='sample_paid'){
           rtViolations.push(o.recipientName+'様：'+p.name);
         }
       });
     });
     if(rtViolations.length){
-      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ '+rtViolations.join('、')+' は、トルコ産100mlオイルの単品（バラ）卸で、RT（ホテル・レストラン）限定の商品です。卸①・卸②のお客様には卸せません。サンプルとして出荷する場合は、種別を「サンプル(無償)」または「サンプル(有償)」に変更してください。</div>';
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ '+rtViolations.join('、')+' は、トルコ産100mlオイルの単品（バラ）販売で、RT（ホテル・レストラン）限定の商品です。定価・卸①・卸②のいずれのお客様にも単品では販売できません。サンプルとして出荷する場合は、種別を「サンプル(無償)」または「サンプル(有償)」に変更してください。</div>';
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
+    }
+    // 軽井沢・鳥羽・鳴門など、同じ敷地内に複数施設がある系列は、過去に取引のある施設名か確認する
+    if(RT_MULTI_SITE_KEYWORDS.some(k=>client.includes(k))){
+      const hasPastOrder = orders.some(o=>o.client===client);
+      if(!hasPastOrder){
+        if(!confirm('「'+client+'」は、この名前での過去の受注実績が確認できませんでした。\n同じ敷地内に似た名前の施設が複数あることがあります（例：エクシブ軽井沢／エクシブ軽井沢 パセオ／エクシブ軽井沢 サンクチュアリ・ヴィラ など）。\n\n施設名は本当にこれで合っていますか？')) return;
+      }
     }
     const recordType = document.getElementById('o-record-type').value;
     const recordTypeLabel = {pending:'通常受注', held:'🗄 取り置き', reserved:'🗓 予約'}[recordType];
