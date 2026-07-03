@@ -88,6 +88,7 @@ tr:last-child td{border-bottom:none}
     <a class="topnav-tab active" href="billing.html">💰 請求管理 C</a>
     <a class="topnav-tab" href="pickup.html">🚚 倉庫 D</a>
     <a class="topnav-tab" href="import.html">✈️ 輸入業務 E</a>
+    <a class="topnav-tab" href="sales.html">🤝 営業管理 F</a>
   </div>
 </div>
 
@@ -133,6 +134,14 @@ tr:last-child td{border-bottom:none}
 <div id="panel-special" class="panel">
   <div class="info-box">通常の価格マスタでは対応しきれない、その場限りの特別価格をここで作成します。<strong>理由メモの記入は必須</strong>です。作成時に、原価データと自動で照合します（原価そのものの数字は表示されません）。</div>
   <div class="card">
+    <div class="fg"><label>特価の種類</label>
+      <select id="sp-source-type" onchange="onSpSourceTypeChange()">
+        <option value="normal">通常品（在庫にかかわらず自由に設定）</option>
+        <option value="defect">不良在庫から（実際にある不良品の中から選ぶ）</option>
+        <option value="oldlot">賞味期限が近いもの（旧ロット）から</option>
+      </select>
+    </div>
+    <div id="sp-stock-hint" class="info-box" style="display:none"></div>
     <div class="g2">
       <div class="fg"><label>お客様を選択</label>
         <select id="sp-customer">
@@ -140,14 +149,14 @@ tr:last-child td{border-bottom:none}
         </select>
       </div>
       <div class="fg"><label>商品を選択</label>
-        <select id="sp-product">
+        <select id="sp-product" onchange="onSpProductChange()">
           <option value="">商品を選択...</option>
         </select>
       </div>
     </div>
     <div class="g2">
       <div class="fg"><label>特別価格（1本あたり・税抜）</label><input type="number" id="sp-price" min="0"></div>
-      <div class="fg"><label>数量（本）</label><input type="number" id="sp-qty" min="1" value="1"></div>
+      <div class="fg"><label>数量（本） <span id="sp-qty-max-hint" style="font-weight:400;color:#888"></span></label><input type="number" id="sp-qty" min="1" value="1"></div>
     </div>
     <div class="fg"><label>この価格にする理由（必須）</label><textarea id="sp-reason" placeholder="例：旧在庫の在庫処分のため／長年のお付き合いのある卸先で今回だけ特別対応、など" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>
     <div class="fg"><label>作成者名</label><input type="text" id="sp-creator" placeholder="あなたのお名前"></div>
@@ -576,6 +585,8 @@ let orders = [];
 let customers = [];
 let quoteHistory = [];
 let specialPrices = [];
+let defects = [];
+let lots = [];
 let costPassword = '';
 let priceMaster = []; // [{sku, productName, priceGeneral, priceWholesale1, priceWholesale2, priceRT, priceDefect, taxRate}]
 let monthlyInvoices = [];
@@ -631,6 +642,8 @@ function loadAllBilling(){
       customers = dataRes.data.customers || [];
       quoteHistory = dataRes.data.quoteHistory || [];
       specialPrices = dataRes.data.specialPrices || [];
+      defects = dataRes.data.defects || [];
+      lots = dataRes.data.lots || [];
       if(priceMaster.length && priceMaster[0].taxRate) taxRate = parseFloat(priceMaster[0].taxRate)||0.08;
     }
     if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
@@ -1425,18 +1438,70 @@ function renderQuoteHistory(){
 }
 
 // ── イレギュラー特価 ────────────────────────────────────────────
+function computeDefectStock(pid){
+  let q = 0;
+  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') q += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  return q;
+}
+function computeOldLotStock(pid){
+  let q = 0;
+  lots.forEach(function(l){ if(l.pid==pid && l.status==='old') q += (l.stock||0); });
+  return q;
+}
 function fillSpecialPriceSelects(){
   const custSel = document.getElementById('sp-customer');
   custSel.innerHTML = '<option value="">お客様を選択...</option>' + customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  onSpSourceTypeChange();
+}
+function onSpSourceTypeChange(){
+  const type = document.getElementById('sp-source-type').value;
+  const hintEl = document.getElementById('sp-stock-hint');
   const prodSel = document.getElementById('sp-product');
   const groups = productGroups();
   let opts = '<option value="">商品を選択...</option>';
-  Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet);
-    if(!items.length) return;
-    opts += '<optgroup label="'+esc(g)+'">'+items.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('')+'</optgroup>';
-  });
+
+  if(type==='normal'){
+    hintEl.style.display = 'none';
+    Object.keys(groups).forEach(function(g){
+      const items = groups[g].filter(p=>!p.isSet);
+      if(!items.length) return;
+      opts += '<optgroup label="'+esc(g)+'">'+items.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('')+'</optgroup>';
+    });
+  } else {
+    const stockFn = type==='defect' ? computeDefectStock : computeOldLotStock;
+    hintEl.style.display = 'block';
+    hintEl.textContent = type==='defect'
+      ? '💡 実際に不良在庫がある商品だけが選べます。数量は在庫アプリBの不良在庫データと連動しています。'
+      : '💡 賞味期限が近い旧ロットの在庫がある商品だけが選べます。数量は在庫アプリBの在庫データと連動しています。';
+    Object.keys(groups).forEach(function(g){
+      const items = groups[g].filter(p=>!p.isSet).map(function(p){
+        return { p: p, stock: stockFn(p.id) };
+      }).filter(function(x){ return x.stock>0; });
+      if(!items.length) return;
+      opts += '<optgroup label="'+esc(g)+'">'+items.map(function(x){
+        return '<option value="'+x.p.sku+'" data-stock="'+x.stock+'">'+esc(x.p.name)+'（在庫 '+x.stock+'本）</option>';
+      }).join('')+'</optgroup>';
+    });
+    if(opts==='<option value="">商品を選択...</option>'){
+      opts += '<option value="" disabled>（該当する在庫がある商品はありません）</option>';
+    }
+  }
   prodSel.innerHTML = opts;
+  onSpProductChange();
+}
+function onSpProductChange(){
+  const sel = document.getElementById('sp-product');
+  const opt = sel.selectedOptions[0];
+  const maxHint = document.getElementById('sp-qty-max-hint');
+  const qtyInput = document.getElementById('sp-qty');
+  const stock = opt ? parseInt(opt.dataset.stock) : null;
+  if(stock){
+    maxHint.textContent = '（在庫 '+stock+'本まで）';
+    qtyInput.max = stock;
+  } else {
+    maxHint.textContent = '';
+    qtyInput.removeAttribute('max');
+  }
 }
 async function checkAndCreateSpecialPrice(){
   const custId = document.getElementById('sp-customer').value;
@@ -1449,6 +1514,12 @@ async function checkAndCreateSpecialPrice(){
   if(!custId || !sku || !price || price<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ お客様・商品・価格を入力してください</div>'; return; }
   if(!reason){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ この価格にする理由は必須です。メモを残してください</div>'; return; }
   if(!creator){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ 作成者名を入力してください</div>'; return; }
+  const sourceType = document.getElementById('sp-source-type').value;
+  const prodOpt = document.getElementById('sp-product').selectedOptions[0];
+  const availStock = prodOpt ? parseInt(prodOpt.dataset.stock) : null;
+  if(sourceType!=='normal' && availStock!=null && qty>availStock){
+    resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ 在庫（'+availStock+'本）を超える数量が指定されています。数量を見直してください</div>'; return;
+  }
 
   const c = customers.find(x=>x.id===custId);
   const p = findProductBySku(sku);
@@ -1474,10 +1545,11 @@ async function checkAndCreateSpecialPrice(){
     'お客様：'+c.name+'\n商品：'+p.name+'\n価格：¥'+price.toLocaleString()+'（'+qty+'本）\n\n'+checkMsg;
   if(!confirm(confirmMsg)) return;
 
+  const sourceTypeLabel = { normal:'通常品', defect:'不良在庫', oldlot:'旧ロット（賞味期限近）' }[sourceType] || sourceType;
   const record = {
     id: 'sp_'+Date.now(), customerId: custId, customerName: c.name, sku: sku, productName: p.name,
     qty: qty, specialPrice: price, reason: reason, createdBy: creator, createdAt: new Date().toISOString(),
-    validationNote: checkMsg
+    validationNote: checkMsg, sourceType: sourceTypeLabel
   };
   specialPrices.push(record);
   try{
@@ -1570,7 +1642,7 @@ function renderSpecialPriceList(){
   if(!list.length){ el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px 0">該当するイレギュラー特価はありません。</div>'; return; }
   el.innerHTML = list.map(function(s){
     return '<div class="card" style="margin-bottom:8px">'+
-      '<div><strong>'+esc(s.customerName)+'</strong>　'+esc(s.productName)+'　¥'+(s.specialPrice||0).toLocaleString()+'　×'+s.qty+'本</div>'+
+      '<div><strong>'+esc(s.customerName)+'</strong>　'+esc(s.productName)+'　¥'+(s.specialPrice||0).toLocaleString()+'　×'+s.qty+'本'+(s.sourceType?'　<span style="font-size:10px;background:#f5f4f0;padding:1px 6px;border-radius:4px;color:#555">'+esc(s.sourceType)+'</span>':'')+'</div>'+
       '<div style="font-size:12px;color:#666;margin-top:4px">理由：'+esc(s.reason)+'</div>'+
       '<div style="font-size:11px;color:#888;margin-top:2px">作成者：'+esc(s.createdBy)+'　'+new Date(s.createdAt).toLocaleDateString('ja-JP')+'　'+esc(s.validationNote||'')+'</div>'+
       '<button class="btn-sm no-print" style="margin-top:6px" onclick=\'renderSpecialPriceDoc('+JSON.stringify(s).replace(/'/g,"&apos;")+')\'>この特価をPDF/印刷で呼び出す</button>'+
