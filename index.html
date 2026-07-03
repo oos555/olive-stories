@@ -1153,10 +1153,32 @@ function previewOrder(){
   }
 }
 
+function logGiftIfApplicable(o){
+  const buyerName = (o.client||'').trim();
+  const destName = (o.recipientName||'').trim();
+  const reasons = [];
+  if(buyerName && destName && buyerName!==destName) reasons.push('発注者と届け先が別人');
+  const hasGiftType = (o.lines||[]).some(l=>l.giftType==='gift' || l.giftType==='simple');
+  if(hasGiftType) reasons.push('種別がギフト');
+  if(!reasons.length) return; // ギフトらしくない受注は記録しない
+  const itemSummary = (o.lines||[]).map(l=>l.productName+'×'+lineTotal(l)+'本').join('、');
+  const totalBottles = (o.lines||[]).reduce((s,l)=>s+lineTotal(l),0);
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveGiftRecord', record:{
+      buyer: buyerName, buyerEmail:'', buyerTel: o.tel||'', dest: destName || buyerName,
+      item: itemSummary, qty: totalBottles, total: 0,
+      orderDate: (o.registeredAt || new Date().toISOString()),
+      reason: reasons.join('／'), source: 'アプリA', orderNo: o.num||''
+    }}),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).catch(function(){ /* ギフト記録の追加に失敗しても、受注登録自体は成功させる */ });
+}
 function registerOrder(){
   const list = window._pendingOrders;
   if(!list || !list.length) return;
   list.forEach(o=>orders.push(o));
+  list.forEach(logGiftIfApplicable);
   const saveCustomer = list[0].saveCustomer;
   if(saveCustomer && !list[0].custId){
     customers.push({
