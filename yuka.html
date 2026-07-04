@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゆかメモ (アプリJ)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#eef4fa;color:#1a1a18;font-size:14px}
+.app{max-width:900px;margin:0 auto;padding:1rem}
+.oos-header{background:#2f6690;color:#fff;padding:14px 16px;font-size:16px;font-weight:bold;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.oos-nav{background:#fff;border:1px solid #ddd;border-top:none;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;border-radius:0 0 12px 12px;margin-bottom:1.25rem}
+.oos-nav a{color:#55622e;text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fafaf5}
+.oos-nav a.current{background:#2f6690;color:#fff;border-color:#2f6690;font-weight:700}
+.oos-nav a:hover:not(.current){background:#eef0e5}
+.card{background:#fff;border:1px solid #d3e3f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.sec{font-size:15px;font-weight:700;margin-bottom:10px}
+.info-box{background:#f0f7fd;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#2c5578;line-height:1.6;margin-bottom:1rem;border:1px solid #d3e3f0}
+textarea{width:100%;min-height:70px;padding:10px;border:1px solid #cfe0f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical}
+input[type=date]{padding:7px 10px;border:1px solid #cfe0f0;border-radius:8px;font-size:13px}
+.btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none}
+.btn-primary{background:#2f6690;color:#fff}
+.btn-primary:hover{background:#25506f}
+.btn-sm{font-size:11px;padding:4px 10px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#333;cursor:pointer}
+.memo-card{background:#f7fbff;border:1px solid #d3e3f0;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.memo-alert{background:#e5f0fa;border:2px solid #2f6690}
+.memo-text{white-space:pre-wrap;font-size:14px;line-height:1.6}
+.memo-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;color:#999}
+.tag{display:inline-block;background:#fde68a;color:#78350f;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;margin-right:6px}
+#sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="oos-header no-print">
+  <span>🗒️ ゆかメモ (アプリJ)</span>
+</header>
+<nav class="oos-nav no-print">
+  <a href="index.html">📋 受注・出荷 A</a>
+  <a href="stock.html">📦 在庫 B</a>
+  <a href="billing.html">💰 請求 C</a>
+  <a href="pickup.html">🚚 倉庫 D</a>
+  <a href="import.html">✈️ 輸入業務 E</a>
+  <a href="sales.html">🤝 営業 F</a>
+  <a href="documents.html">📄 書類 G</a>
+  <a href="marketing.html">📰 マケ H</a>
+  <a href="nakamura.html">📌 中村 I</a>
+  <a class="current" href="yuka.html">🗒️ ゆか J</a>
+</nav>
+
+<div id="unlocked-view">
+
+  <div class="card">
+    <div class="sec" style="margin-top:0">📝 新しいメモ</div>
+    <div class="info-box">付箋の代わりです。思いついたことを、そのまま書いてください。あとで思い出したい日にちがあれば、右下の日付を入れておくと、その日にここでアラートが出ます。</div>
+    <textarea id="new-memo-text" placeholder="例：プリモ印刷に朝一で電話する"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
+      <label style="font-size:12px;color:#666;display:flex;align-items:center;gap:5px"><input type="checkbox" id="new-memo-tell" style="width:16px;height:16px">誰かに伝える必要がある</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:11px;color:#999">思い出したい日</label>
+        <input type="date" id="new-memo-date">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="addMemo()">このメモを追加する</button>
+  </div>
+
+  <div class="card" id="alert-card" style="display:none">
+    <div class="sec" style="margin-top:0">🔔 今日、思い出したいメモ</div>
+    <div id="alert-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec" style="margin-top:0">📋 メモ一覧</div>
+    <div id="memo-list"></div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+const SHEET_NAME = '付箋メモJ';
+let password = '';
+let memos = [];
+
+const OOS_PWKEY = 'oos_unlock_date';
+function oosToday(){ return new Date().toISOString().slice(0,10); }
+function oosIsUnlockedToday(){
+  try{ return localStorage.getItem(OOS_PWKEY) === oosToday(); }catch(e){ return false; }
+}
+function oosMarkUnlocked(){
+  try{ localStorage.setItem(OOS_PWKEY, oosToday()); }catch(e){}
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  loadMemos();
+});
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+function showSyncStatus(msg,isError){
+  let el = document.getElementById('sync-status');
+  if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.style.background = isError ? '#fee2e2' : '#dcfce7';
+  el.style.color = isError ? '#7f1d1d' : '#14532d';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+async function loadMemos(){
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: null }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      memos = data.data.memos || [];
+      render();
+      showSyncStatus('✅ 読み込みました');
+    } else {
+      showSyncStatus('⚠️ 読み込みに失敗しました：'+(data.message||''), true);
+    }
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
+}
+
+function render(){
+  const today = oosToday();
+  const activeMemo = memos.filter(m=>!m.done);
+  const alerts = activeMemo.filter(m=>m.reminderDate && m.reminderDate<=today);
+  const alertCard = document.getElementById('alert-card');
+  if(alerts.length){
+    alertCard.style.display = 'block';
+    document.getElementById('alert-list').innerHTML = alerts.map(memoCardHtml).join('');
+  } else {
+    alertCard.style.display = 'none';
+  }
+
+  const rest = activeMemo.filter(m=>!(m.reminderDate && m.reminderDate<=today));
+  rest.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  document.getElementById('memo-list').innerHTML = rest.length ? rest.map(memoCardHtml).join('') : '<div style="color:#999;font-size:13px;padding:8px 0">メモはまだありません。</div>';
+}
+function memoCardHtml(m){
+  const isAlert = m.reminderDate && m.reminderDate<=oosToday();
+  return '<div class="memo-card'+(isAlert?' memo-alert':'')+'">'+
+    (m.tellSomeone ? '<span class="tag">誰かに伝える</span>' : '')+
+    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '')+
+    '<div class="memo-text">'+esc(m.text)+'</div>'+
+    '<div class="memo-meta"><span>'+(m.createdAt?new Date(m.createdAt).toLocaleDateString('ja-JP'):'')+'</span>'+
+    '<span><button class="btn-sm" onclick="doneMemo(\''+m.id+'\')">✅ 完了</button> <button class="btn-sm" onclick="removeMemo(\''+m.id+'\')">削除</button></span></div>'+
+    '</div>';
+}
+async function addMemo(){
+  const text = document.getElementById('new-memo-text').value.trim();
+  if(!text){ alert('メモの内容を入力してください'); return; }
+  const memo = {
+    id: 'memo_'+Date.now(),
+    text: text,
+    reminderDate: document.getElementById('new-memo-date').value,
+    tellSomeone: document.getElementById('new-memo-tell').checked,
+    done: false,
+    createdAt: new Date().toISOString()
+  };
+  memos.push(memo);
+  render();
+  document.getElementById('new-memo-text').value = '';
+  document.getElementById('new-memo-date').value = '';
+  document.getElementById('new-memo-tell').checked = false;
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_NAME, password: null, memo: memo }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    showSyncStatus('✅ 追加しました');
+  }catch(err){
+    showSyncStatus('⚠️ 保存に失敗しました', true);
+  }
+}
+async function doneMemo(id){
+  const m = memos.find(x=>x.id===id);
+  if(!m) return;
+  m.done = true;
+  render();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_NAME, password: null, memo: m }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+async function removeMemo(id){
+  if(!confirm('このメモを削除しますか？')) return;
+  memos = memos.filter(x=>x.id!==id);
+  render();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_NAME, password: null, id: id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+</script>
+</body>
+</html>
