@@ -73,6 +73,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .form-group label{display:block;font-size:12px;color:#666;font-weight:600;margin-bottom:5px}
 .form-group select,.form-group input,.form-group textarea{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;background:#fff;color:#1a1a18}
 .form-group textarea{resize:vertical;min-height:60px;font-family:inherit}
+.material-card{display:flex;gap:12px;background:#f9f8f5;border-radius:10px;padding:12px;margin-bottom:10px;align-items:flex-start}
+.material-photo{width:72px;height:72px;border-radius:8px;object-fit:cover;background:#eee;flex-shrink:0}
+.material-photo-empty{width:72px;height:72px;border-radius:8px;background:#eee;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#bbb}
+.material-info{flex:1;min-width:0}
+.material-name{font-weight:700;font-size:15px}
+.material-size{font-size:12px;color:#666;margin-top:2px}
+.material-qty-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.material-qty-btn{width:32px;height:32px;border-radius:8px;border:1px solid #ccc;background:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.material-qty-num{font-size:18px;font-weight:700;min-width:36px;text-align:center}
 .back-link{display:inline-block;margin-bottom:10px;color:#185fa5;font-size:13px;font-weight:600;cursor:pointer}
 @media print{
   .no-print{display:none!important}
@@ -338,6 +347,8 @@ async function init(){
     renderDefectForm();
   } else if(mode==='notes'){
     await loadNotesScreen();
+  } else if(mode==='materials'){
+    await loadMaterialsScreen();
   } else {
     await loadOrderList();
   }
@@ -435,6 +446,7 @@ function renderList(){
   html += '<button class="refresh-btn no-print" onclick="loadOrderList()">🔄 一覧を更新する</button>';
   html += '<button class="defect-btn no-print" onclick="location.href=\'pickup.html?mode=defect\'">🔴 不良品を見つけたので報告する</button>';
   html += '<button class="refresh-btn no-print" style="border-color:#7c3aed;color:#5b21b6" onclick="location.href=\'pickup.html?mode=notes\'">📝 メモを見る・書く</button>';
+  html += '<button class="refresh-btn no-print" style="border-color:#92400e;color:#92400e" onclick="location.href=\'pickup.html?mode=materials\'">📦 資材カタログ（写真・数）</button>';
   if(!allOrders.length){
     html += '<div class="card center" style="color:#999">現在、届いている出荷指示はありません。</div>';
   } else {
@@ -628,6 +640,118 @@ function showToastSimple(msg){
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(()=>{ el.style.display='none'; }, 2500);
+}
+
+// ── 資材カタログ（写真付き・倉庫スタッフ自身が管理） ────────────────────────────
+let warehouseMaterials = [];
+async function loadMaterialsScreen(){
+  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const data = await res.json();
+    if(data.status==='ok' && data.data && Array.isArray(data.data.warehouseMaterials)){
+      warehouseMaterials = data.data.warehouseMaterials;
+    }
+  }catch(e){ /* 読み込めなくても空の状態から始められるようにする */ }
+  renderMaterialsScreen();
+}
+async function saveMaterials(){
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveAllData', payload:{ warehouseMaterials: warehouseMaterials } }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(e){
+    showToastSimple('⚠️ 保存できませんでした。電波の良い場所でもう一度お試しください');
+  }
+}
+function renderMaterialsScreen(){
+  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  html += '<div class="card">';
+  html += '<div class="sec-title" style="margin-top:0">📦 資材カタログ</div>';
+  html += '<div style="font-size:13px;color:#666;line-height:1.7">オイル以外の資材（箱・袋・テープなど）を、写真と大きさのメモつきで管理する倉庫専用のメモです。梱包の際の資材探しの時短になればとご用意しました。自由にお使いください。<br>数は<strong>ご都合の良い時に</strong>直していただければ大丈夫です。オイルの本数はここでは扱いません。</div>';
+  html += '</div>';
+  html += '<div id="material-list">' + warehouseMaterials.map(materialCardHtml).join('') + '</div>';
+  if(!warehouseMaterials.length) html += '<div class="card center" style="color:#999">まだ何も登録されていません。下から追加してください。</div>';
+  html += '<button class="btn-big btn-complete no-print" onclick="showAddMaterialForm()">＋ 新しい資材を登録する</button>';
+  html += '<div id="add-material-form"></div>';
+  document.getElementById('content').innerHTML = html;
+}
+function materialCardHtml(m){
+  const photo = m.photo ? '<img class="material-photo" src="'+m.photo+'">' : '<div class="material-photo-empty">📦</div>';
+  return '<div class="material-card" id="mat-'+m.id+'">'+photo+
+    '<div class="material-info">'+
+      '<div class="material-name">'+esc(m.name)+'</div>'+
+      (m.sizeNote ? '<div class="material-size">'+esc(m.sizeNote)+'</div>' : '')+
+      '<div class="material-qty-row no-print">'+
+        '<button class="material-qty-btn" onclick="adjustMaterialQty(\''+m.id+'\',-1)">－</button>'+
+        '<span class="material-qty-num">'+(m.qty||0)+'</span>'+
+        '<button class="material-qty-btn" onclick="adjustMaterialQty(\''+m.id+'\',1)">＋</button>'+
+        '<button class="btn-sm" onclick="deleteMaterial(\''+m.id+'\')" style="margin-left:auto">削除</button>'+
+      '</div>'+
+    '</div></div>';
+}
+async function adjustMaterialQty(id, delta){
+  const m = warehouseMaterials.find(x=>x.id===id);
+  if(!m) return;
+  m.qty = Math.max(0, (m.qty||0)+delta);
+  m.updatedAt = new Date().toISOString();
+  document.querySelector('#mat-'+id+' .material-qty-num').textContent = m.qty;
+  await saveMaterials();
+}
+async function deleteMaterial(id){
+  const m = warehouseMaterials.find(x=>x.id===id);
+  if(!confirm((m?m.name:'この資材')+'を削除しますか？')) return;
+  warehouseMaterials = warehouseMaterials.filter(x=>x.id!==id);
+  renderMaterialsScreen();
+  await saveMaterials();
+}
+function showAddMaterialForm(){
+  const el = document.getElementById('add-material-form');
+  el.innerHTML = '<div class="card">'+
+    '<div class="sec-title" style="margin-top:0">＋ 新しい資材</div>'+
+    '<div class="form-group"><label>名前</label><input type="text" id="mat-new-name" placeholder="例：ガムテープ、紙袋 黒 大"></div>'+
+    '<div class="form-group"><label>大きさなどのメモ（任意）</label><input type="text" id="mat-new-size" placeholder="例：幅50mm、A4サイズが入る大きさ"></div>'+
+    '<div class="form-group"><label>写真（任意・スマホならその場で撮影できます）</label><input type="file" id="mat-new-photo" accept="image/*" capture="environment"></div>'+
+    '<div class="form-group"><label>今の数</label><input type="number" id="mat-new-qty" min="0" value="0"></div>'+
+    '<button class="btn-big btn-complete" onclick="addMaterial()">この内容で登録する</button>'+
+    '</div>';
+  el.scrollIntoView({behavior:'smooth'});
+}
+function resizeImageFile(file, maxSize){
+  return new Promise(function(resolve){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = new Image();
+      img.onload = function(){
+        let w = img.width, h = img.height;
+        if(w>h){ if(w>maxSize){ h = Math.round(h*maxSize/w); w = maxSize; } }
+        else { if(h>maxSize){ w = Math.round(w*maxSize/h); h = maxSize; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function addMaterial(){
+  const name = document.getElementById('mat-new-name').value.trim();
+  if(!name){ alert('名前を入力してください'); return; }
+  const sizeNote = document.getElementById('mat-new-size').value.trim();
+  const qty = parseInt(document.getElementById('mat-new-qty').value)||0;
+  const fileInput = document.getElementById('mat-new-photo');
+  let photo = '';
+  if(fileInput.files && fileInput.files[0]){
+    photo = await resizeImageFile(fileInput.files[0], 300);
+  }
+  warehouseMaterials.push({ id:'mat_'+Date.now(), name:name, sizeNote:sizeNote, photo:photo, qty:qty, updatedAt:new Date().toISOString() });
+  renderMaterialsScreen();
+  await saveMaterials();
+  showToastSimple('✅ 登録しました');
 }
 
 function renderDefectForm(){
