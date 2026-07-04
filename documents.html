@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オリーブオイル・ストーリーズ 書類ダッシュボード</title>
+<style>
+  :root{
+    --olive:#6b7a3a; --olive-dark:#55622e; --bg:#f6f5ef; --card:#fff;
+    --line:#ddd; --text:#333; --sub:#777; --warn:#b3261e; --accent:#a3743a;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:var(--bg);color:var(--text);font-size:15px;}
+  header{background:var(--olive);color:#fff;padding:14px 16px;font-size:18px;font-weight:bold;}
+  nav{background:#fff;border-bottom:1px solid var(--line);padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;}
+  nav a{color:var(--olive-dark);text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fafaf5;}
+  nav a.current{background:var(--olive);color:#fff;border-color:var(--olive);}
+  main{max-width:1000px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;}
+  .card h2{margin:0 0 4px;font-size:16px;color:var(--olive-dark);}
+  .card p.note{margin:4px 0 12px;font-size:13px;color:var(--sub);}
+  /* 検索 */
+  #searchBox{width:100%;padding:12px;font-size:16px;border:2px solid var(--olive);border-radius:8px;}
+  /* naccs 最重要ボタン */
+  .naccs-btn{display:block;width:100%;text-align:center;background:#b3261e;color:#fff;font-size:17px;font-weight:bold;
+    padding:14px;border-radius:10px;text-decoration:none;margin-bottom:16px;}
+  .naccs-btn:hover{background:#8f1d17;}
+  /* 農園ボックス */
+  .farm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+  .farm-box{border:2px solid var(--olive);border-radius:10px;background:#fbfbf5;overflow:hidden;}
+  .farm-box.inactive{border-color:#ccc;}
+  .farm-box h3{margin:0;padding:10px 12px;background:var(--olive);color:#fff;font-size:15px;}
+  .farm-box.inactive h3{background:#999;}
+  .farm-box h3 small{font-weight:normal;font-size:11px;opacity:.85;display:block;}
+  .farm-box .links{padding:8px;display:flex;flex-direction:column;gap:5px;}
+  .flink{display:block;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;
+    color:var(--text);text-decoration:none;font-size:13px;}
+  .flink:hover{background:#eef1e2;border-color:var(--olive);}
+  .flink.head{font-weight:bold;color:var(--olive-dark);}
+  /* カテゴリボックス */
+  .cat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+  .cat{display:block;padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff;
+    text-decoration:none;color:var(--text);}
+  .cat:hover{border-color:var(--olive);background:#fbfbf5;}
+  .cat b{display:block;font-size:14px;color:var(--olive-dark);margin-bottom:2px;}
+  .cat span{font-size:12px;color:var(--sub);}
+  /* 台帳 */
+  label{display:block;font-size:13px;color:var(--sub);margin:8px 0 3px;}
+  input[type=text],input[type=date],select,textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;font-size:15px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .row>div{flex:1;min-width:150px;}
+  .btn{display:inline-block;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;text-decoration:none;}
+  .btn-main{background:var(--olive);color:#fff;}
+  .btn-main:hover{background:var(--olive-dark);}
+  .btn-sub{background:#fff;border:1px solid var(--line);color:var(--text);}
+  .btn-warn{background:#fff;border:1px solid var(--warn);color:var(--warn);}
+  .btn-small{padding:5px 10px;font-size:12px;border-radius:6px;}
+  .doc-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fbfbf7;}
+  .doc-item .title{font-weight:bold;font-size:14px;}
+  .doc-item .meta{font-size:12px;color:var(--sub);margin:3px 0 7px;}
+  .doc-item .actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .tag{display:inline-block;background:#eef1e2;color:var(--olive-dark);border-radius:5px;padding:1px 7px;font-size:11px;margin-right:5px;}
+  .empty{color:var(--sub);font-size:13px;}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;
+    padding:10px 20px;border-radius:8px;font-size:14px;display:none;z-index:99;}
+  details.addform{margin-top:10px;}
+  details.addform summary{cursor:pointer;color:var(--olive-dark);font-size:14px;font-weight:bold;}
+  /* パスワードロック */
+  #lockScreen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;}
+  #lockCard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:30px;max-width:340px;width:90%;text-align:center;}
+  #lockCard .lock-icon{font-size:34px;}
+  #lockCard h2{margin:8px 0 4px;font-size:17px;color:var(--olive-dark);}
+  #lockCard p{font-size:13px;color:var(--sub);margin:0 0 14px;}
+  #pwInput{width:100%;padding:11px;font-size:17px;text-align:center;border:2px solid var(--olive);border-radius:8px;letter-spacing:4px;}
+  #pwBtn{margin-top:12px;width:100%;background:var(--olive);color:#fff;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:bold;cursor:pointer;}
+  #pwBtn:hover{background:var(--olive-dark);}
+  #pwErr{color:var(--warn);font-size:13px;margin-top:8px;display:none;}
+</style>
+</head>
+<body>
+
+<div id="lockScreen">
+  <div id="lockCard">
+    <div class="lock-icon">🔒</div>
+    <h2>書類ダッシュボード(中村様専用)</h2>
+    <p>原価データと同じパスワードで開きます。</p>
+    <input type="password" id="pwInput" inputmode="numeric" placeholder="パスワード" onkeydown="if(event.key==='Enter')checkPw()">
+    <button id="pwBtn" onclick="checkPw()">開く</button>
+    <div id="pwErr">パスワードが違います</div>
+  </div>
+</div>
+
+<header>🫒 書類ダッシュボード (アプリG)</header>
+<nav>
+  <a href="https://oos555.github.io/olive-stories/index.html">📋 受注・出荷 A</a>
+  <a href="https://oos555.github.io/olive-stories/stock.html">📦 在庫管理 B</a>
+  <a href="https://oos555.github.io/olive-stories/billing.html">💰 請求管理 C</a>
+  <a href="https://oos555.github.io/olive-stories/pickup.html">🚚 倉庫 D</a>
+  <a href="https://oos555.github.io/olive-stories/import.html">✈️ 輸入業務 E</a>
+  <a href="https://oos555.github.io/olive-stories/sales.html">🤝 営業管理 F</a>
+  <a href="#" class="current">📄 書類 G</a>
+</nav>
+
+<main>
+
+  <!-- 検索 -->
+  <div class="card">
+    <h2>🔍 書類をさがす</h2>
+    <p class="note">台帳に登録した書類と、下のフォルダ名から検索します。ボタンひとつでDropboxのそのファイル・フォルダが開きます(ブラウザでDropboxにログインしていればOK)。</p>
+    <input type="text" id="searchBox" placeholder="例:証明書、novavera、インボイス、れいこさん…" oninput="doSearch()">
+    <div id="searchResults" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- naccs -->
+  <a class="naccs-btn" href="#" onclick="openDbx('/OOS書類/01_輸入/00_naccs【輸入時最重要】');return false;">🚨 naccs【輸入時最重要】を開く</a>
+
+  <!-- 農園ボックス -->
+  <div class="card">
+    <h2>🌳 農園ボックス(01_輸入)</h2>
+    <p class="note">農園名をクリックでその農園のボックス全体、下の項目をクリックで各フォルダが直接開きます。</p>
+    <div class="farm-grid" id="farmGrid"></div>
+  </div>
+
+  <!-- カテゴリ -->
+  <div class="card">
+    <h2>🗂 カテゴリで開く</h2>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
+
+  <!-- 書類台帳 -->
+  <div class="card">
+    <h2>📒 よく使う書類の台帳</h2>
+    <p class="note">よく呼び出す書類・よく送る書類をここに登録しておくと、検索一発で「開く」「リンクをコピー」ができます。リンク欄には、Dropboxでそのファイルの「共有」→「リンクをコピー」した URL を貼ってください。</p>
+
+    <details class="addform" id="addForm">
+      <summary>＋ 書類を登録する</summary>
+      <div class="row">
+        <div><label>書類の名前 *</label><input type="text" id="dName" placeholder="例:メメジック ロット証明書(署名入り)"></div>
+        <div><label>カテゴリ</label><select id="dCat">
+          <option>01_輸入/novavera_トルコ</option><option>01_輸入/mozzicato</option>
+          <option>01_輸入/le_tre_colonne</option><option>01_輸入/00_共通</option>
+          <option>01_輸入/その他</option><option>02_販売・取引先</option>
+          <option>03_請求・経理</option><option>04_販促・コンテンツ</option>
+          <option>05_会社・法務</option><option>06_海外渡航・審査員</option><option>その他</option>
+        </select></div>
+      </div>
+      <div class="row">
+        <div><label>相手・取引先(任意)</label><input type="text" id="dWho" placeholder="例:れいこさん、Mustafaさん"></div>
+        <div><label>日付(任意)</label><input type="date" id="dDate"></div>
+      </div>
+      <label>Dropboxのリンク(共有リンク) *</label>
+      <input type="text" id="dLink" placeholder="https://www.dropbox.com/scl/fi/…">
+      <label>メモ(任意)</label>
+      <input type="text" id="dMemo" placeholder="例:サプリ企業提出用。ロット番号=登録番号+充填日">
+      <div style="margin-top:10px;">
+        <button class="btn btn-main" onclick="addDoc()">💾 台帳に登録</button>
+      </div>
+    </details>
+
+    <div id="docList" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- ルールメモ -->
+  <div class="card">
+    <h2>📌 保管ルール(チーム共通)</h2>
+    <p class="note" style="margin-bottom:0;">
+      ① 書類の正式な住所は Dropbox「OOS書類」。ファイル名は「日付_種類_相手」(例:20260705_証明書_novavera.pdf)<br>
+      ② 数字(原価・在庫・請求・輸入記録)はアプリA〜Fにだけ書く。Excelを新しく作らない<br>
+      ③ 使わなくなったものは各カテゴリの「zz_旧」へ。完全に終わった事業は「99_アーカイブ」へ<br>
+      ④ ロット番号 = 缶の登録番号 + 充填日(例:TR10-K-028853-260520)。充填日は必ず実際の日付
+    </p>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KEY="oos_docs_registry_v1";
+
+/* ---------- パスワードロック(PW:10) ---------- */
+const PW="10", PWKEY="oos_docs_unlocked";
+function checkPw(){
+  if($("pwInput").value===PW){
+    try{sessionStorage.setItem(PWKEY,"1");}catch(e){}
+    $("lockScreen").style.display="none";
+  }else{
+    $("pwErr").style.display="block";
+    $("pwInput").value=""; $("pwInput").focus();
+  }
+}
+(function(){
+  try{ if(sessionStorage.getItem(PWKEY)==="1"){ $("lockScreen").style.display="none"; return; } }catch(e){}
+  setTimeout(()=>$("pwInput").focus(),100);
+})();
+
+
+/* ---------- Dropbox パス→URL ---------- */
+function dbxUrl(path){
+  return "https://www.dropbox.com/home"+path.split("/").map(encodeURIComponent).join("/");
+}
+function openDbx(path){ window.open(dbxUrl(path),"_blank"); }
+
+/* ---------- フォルダ構成(実際のOOS書類と一致) ---------- */
+const BASE="/OOS書類";
+const FARM_SUB=["01_契約・発注","02_インボイス・輸送","03_通関・検疫","04_品質・証明書"];
+const FARMS=[
+  {name:"novavera",label:"novavera(トルコ)",path:BASE+"/01_輸入/novavera_トルコ",active:true},
+  {name:"mozzicato",label:"mozzicato(イタリア)",path:BASE+"/01_輸入/mozzicato",active:true},
+  {name:"le tre colonne",label:"le tre colonne(イタリア)",path:BASE+"/01_輸入/le_tre_colonne",active:true},
+  {name:"その他",label:"その他(検討中・過去)",path:BASE+"/01_輸入/その他",active:false},
+];
+const CATS=[
+  {icon:"📥",name:"01_輸入/00_共通",desc:"食品届・税関・年度別記録・農園やり取り",path:BASE+"/01_輸入/00_共通"},
+  {icon:"🤝",name:"02_販売・取引先",desc:"れいこさん・RT社・卸先など",path:BASE+"/02_販売・取引先"},
+  {icon:"💰",name:"03_請求・経理",desc:"経費・オイル価格表・精算",path:BASE+"/03_請求・経理"},
+  {icon:"📣",name:"04_販促・コンテンツ",desc:"写真・動画・セミナー・パンフ",path:BASE+"/04_販促・コンテンツ"},
+  {icon:"🏢",name:"05_会社・法務",desc:"会社関連・テンプレート原紙",path:BASE+"/05_会社・法務"},
+  {icon:"✈️",name:"06_海外渡航・審査員",desc:"コンテスト審査・持っていく系",path:BASE+"/06_海外渡航・審査員"},
+  {icon:"📦",name:"99_アーカイブ",desc:"完了した事業の保管庫",path:BASE+"/99_アーカイブ"},
+  {icon:"🫒",name:"OOS書類 全体",desc:"保管庫のトップを開く",path:BASE},
+];
+
+function renderFarms(){
+  $("farmGrid").innerHTML=FARMS.map(f=>`
+    <div class="farm-box ${f.active?"":"inactive"}">
+      <h3>${f.label}<small>${f.active?"現役":"クリックで中身を確認"}</small></h3>
+      <div class="links">
+        <a class="flink head" href="#" onclick="openDbx('${f.path}');return false;">📂 ボックスを開く</a>
+        ${f.active?FARM_SUB.map(s=>`<a class="flink" href="#" onclick="openDbx('${f.path}/${s}');return false;">${s.replace(/^\d+_/,"・")}</a>`).join(""):""}
+      </div>
+    </div>`).join("");
+}
+function renderCats(){
+  $("catGrid").innerHTML=CATS.map(c=>`
+    <a class="cat" href="#" onclick="openDbx('${c.path}');return false;">
+      <b>${c.icon} ${c.name}</b><span>${c.desc}</span>
+    </a>`).join("");
+}
+
+/* ---------- 台帳 ---------- */
+function loadDocs(){ try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch(e){return[];} }
+function saveDocs(d){ try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){} }
+
+function addDoc(){
+  const name=$("dName").value.trim(), link=$("dLink").value.trim();
+  if(!name){alert("書類の名前を入れてください。");return;}
+  if(!link || !link.startsWith("http")){alert("Dropboxの共有リンク(httpsから始まるURL)を貼ってください。");return;}
+  const docs=loadDocs();
+  docs.unshift({name,cat:$("dCat").value,who:$("dWho").value.trim(),date:$("dDate").value,link,memo:$("dMemo").value.trim(),added:new Date().toISOString().slice(0,10)});
+  saveDocs(docs);
+  ["dName","dWho","dLink","dMemo"].forEach(k=>$(k).value="");
+  $("dDate").value="";
+  $("addForm").open=false;
+  renderDocs(); toast("台帳に登録しました");
+}
+function delDoc(i){
+  if(!confirm("この登録を台帳から削除しますか?(Dropboxのファイル自体は消えません)"))return;
+  const docs=loadDocs(); docs.splice(i,1); saveDocs(docs); renderDocs();
+}
+function copyLink(url){
+  navigator.clipboard.writeText(url).then(()=>toast("リンクをコピーしました。メールやLINEに貼れます"),
+    ()=>prompt("このリンクをコピーしてください:",url));
+}
+function docHtml(d,i){
+  return `<div class="doc-item">
+    <div class="title">${esc(d.name)}</div>
+    <div class="meta"><span class="tag">${esc(d.cat)}</span>${d.who?`<span class="tag">👤 ${esc(d.who)}</span>`:""}${d.date?`<span class="tag">📅 ${d.date}</span>`:""}${d.memo?` ${esc(d.memo)}`:""}</div>
+    <div class="actions">
+      <a class="btn btn-main btn-small" href="${d.link}" target="_blank">📂 開く</a>
+      <button class="btn btn-sub btn-small" onclick="copyLink('${d.link.replace(/'/g,"\\'")}')">🔗 リンクをコピー</button>
+      <button class="btn btn-warn btn-small" onclick="delDoc(${i})">削除</button>
+    </div></div>`;
+}
+function renderDocs(){
+  const docs=loadDocs();
+  $("docList").innerHTML=docs.length?docs.map((d,i)=>docHtml(d,i)).join("")
+    :'<div class="empty">まだ登録がありません。「＋ 書類を登録する」から、よく使う書類を追加してください。<br>最初のおすすめ:メメジックのロット証明書、規格書、価格表(オイルりすと)。</div>';
+}
+
+/* ---------- 検索 ---------- */
+function doSearch(){
+  const q=$("searchBox").value.trim().toLowerCase();
+  const box=$("searchResults");
+  if(!q){box.innerHTML="";return;}
+  const docs=loadDocs();
+  const docHits=docs.map((d,i)=>({d,i})).filter(({d})=>
+    (d.name+" "+d.cat+" "+(d.who||"")+" "+(d.memo||"")).toLowerCase().includes(q));
+  const folderHits=[];
+  FARMS.forEach(f=>{
+    if(f.label.toLowerCase().includes(q)||f.name.toLowerCase().includes(q)) folderHits.push({label:"🌳 "+f.label,path:f.path});
+    FARM_SUB.forEach(s=>{ if(s.toLowerCase().includes(q)) folderHits.push({label:"🌳 "+f.name+" / "+s,path:f.path+"/"+s}); });
+  });
+  CATS.forEach(c=>{ if((c.name+" "+c.desc).toLowerCase().includes(q)) folderHits.push({label:c.icon+" "+c.name,path:c.path}); });
+  if("naccs".includes(q)||q.includes("なっくす")||q.includes("通関")) folderHits.push({label:"🚨 naccs【輸入時最重要】",path:BASE+"/01_輸入/00_naccs【輸入時最重要】"});
+
+  let html="";
+  if(docHits.length) html+="<div style='font-size:13px;color:var(--sub);margin:6px 0;'>📒 台帳から</div>"+docHits.map(({d,i})=>docHtml(d,i)).join("");
+  if(folderHits.length) html+="<div style='font-size:13px;color:var(--sub);margin:6px 0;'>📂 フォルダから</div>"+
+    folderHits.slice(0,8).map(f=>`<a class="flink" style="margin-bottom:5px;" href="#" onclick="openDbx('${f.path}');return false;">${f.label} を開く</a>`).join("");
+  box.innerHTML=html||'<div class="empty">見つかりませんでした。台帳に未登録の書類は、カテゴリのボタンからDropboxを開いて探すか、台帳に登録しておくと次から一発です。</div>';
+}
+
+function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function toast(msg){const t=$("toast");t.textContent=msg;t.style.display="block";setTimeout(()=>t.style.display="none",2200);}
+
+renderFarms(); renderCats(); renderDocs();
+</script>
+</body>
+</html>
