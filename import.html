@@ -8,12 +8,12 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f4f0;color:#1a1a18;font-size:14px}
 .app{max-width:1100px;margin:0 auto;padding:1rem}
-.topnav{display:flex;align-items:center;justify-content:space-between;background:#1a1a18;color:#fff;padding:10px 20px;border-radius:12px;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.topnav{display:flex;align-items:center;justify-content:space-between;background:#6b7a3a;color:#fff;padding:10px 20px;border-radius:12px;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
 .topnav-title{font-size:15px;font-weight:700;color:#fff}
 .topnav-tabs{display:flex;gap:4px;flex-wrap:wrap}
-.topnav-tab{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:#aaa;background:transparent;border:none;cursor:pointer;text-decoration:none;display:inline-block}
+.topnav-tab{padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:#e5e9d8;background:transparent;border:none;cursor:pointer;text-decoration:none;display:inline-block}
 .topnav-tab.active{background:#fff;color:#1a1a18;font-weight:700}
-.topnav-tab:hover:not(.active){background:#333;color:#fff}
+.topnav-tab:hover:not(.active){background:#55622e;color:#fff}
 .tab-row{display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:1.25rem;background:#fff;flex-wrap:wrap}
 .tab{flex:1;padding:8px 4px;font-size:12px;color:#666;background:transparent;border:none;cursor:pointer;border-right:1px solid #ddd;text-align:center;min-width:90px}
 .tab:last-child{border-right:none}
@@ -64,6 +64,7 @@ tr:last-child td{border-bottom:none}
     <a class="topnav-tab" href="pickup.html">🚚 倉庫 D</a>
     <a class="topnav-tab active" href="import.html">✈️ 輸入業務 E</a>
     <a class="topnav-tab" href="sales.html">🤝 営業管理 F</a>
+    <a class="topnav-tab" href="documents.html">📄 書類 G</a>
   </div>
 </div>
 
@@ -264,6 +265,11 @@ document.addEventListener('DOMContentLoaded', function(){
   panel.addEventListener('change', function(e){
     if(e.target.id!=='edit-lock') markDirty();
   });
+  // 今日すでにG・C・Eのどれかで解錠済みなら、自動でパスワードを入れて開く
+  if(oosIsUnlockedToday()){
+    document.getElementById('password-input').value = '10';
+    unlock();
+  }
 });
 
 function showSyncStatus(msg,isError){
@@ -275,6 +281,16 @@ function showSyncStatus(msg,isError){
   el.style.opacity = '1';
   clearTimeout(el._t);
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+/* ---------- 1日1回・共通合鍵ロック（G・E・Cで共通） ---------- */
+const OOS_PWKEY = 'oos_unlock_date';
+function oosToday(){ return new Date().toISOString().slice(0,10); }
+function oosIsUnlockedToday(){
+  try{ return localStorage.getItem(OOS_PWKEY) === oosToday(); }catch(e){ return false; }
+}
+function oosMarkUnlocked(){
+  try{ localStorage.setItem(OOS_PWKEY, oosToday()); }catch(e){}
 }
 
 async function unlock(){
@@ -290,6 +306,7 @@ async function unlock(){
     const data = await res.json();
     if(data.status==='ok'){
       password = pw;
+      oosMarkUnlocked(); // 今日はG・Cもこの合鍵で開けるようにする
       importBatches = data.data.batches || [];
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';

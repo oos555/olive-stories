@@ -179,11 +179,13 @@
 const $=id=>document.getElementById(id);
 const KEY="oos_docs_registry_v1";
 
-/* ---------- パスワードロック(PW:10) ---------- */
-const PW="10", PWKEY="oos_docs_unlocked";
+/* ---------- パスワードロック(PW:10・1日1回方式) ---------- */
+/* 同じ合鍵 oos_unlock_date を使うアプリ同士は、どれか1つを開けば その日じゅう全部開きます */
+const PW="10", PWKEY="oos_unlock_date";
+function today(){ return new Date().toISOString().slice(0,10); }
 function checkPw(){
   if($("pwInput").value===PW){
-    try{sessionStorage.setItem(PWKEY,"1");}catch(e){}
+    try{localStorage.setItem(PWKEY,today());}catch(e){}
     $("lockScreen").style.display="none";
   }else{
     $("pwErr").style.display="block";
@@ -191,7 +193,7 @@ function checkPw(){
   }
 }
 (function(){
-  try{ if(sessionStorage.getItem(PWKEY)==="1"){ $("lockScreen").style.display="none"; return; } }catch(e){}
+  try{ if(localStorage.getItem(PWKEY)===today()){ $("lockScreen").style.display="none"; return; } }catch(e){}
   setTimeout(()=>$("pwInput").focus(),100);
 })();
 
