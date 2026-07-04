@@ -100,8 +100,8 @@
   <div id="lockCard">
     <div class="lock-icon">🔒</div>
     <h2>書類ダッシュボード(中村様専用)</h2>
-    <p>原価データと同じパスワードで開きます。</p>
-    <input type="password" id="pwInput" inputmode="numeric" placeholder="パスワード" onkeydown="if(event.key==='Enter')checkPw()">
+    <p>輸入・マケ・中村メモと同じパスワードで開きます。</p>
+    <input type="password" id="pwInput" placeholder="パスワード" onkeydown="if(event.key==='Enter')checkPw()">
     <button id="pwBtn" onclick="checkPw()">開く</button>
     <div id="pwErr">パスワードが違います</div>
   </div>
@@ -118,7 +118,7 @@
   <a href="#" class="current nav-lock">📄 書類 G</a>
   <a class="nav-orange nav-lock" href="https://oos555.github.io/olive-stories/marketing.html">📰 マケ H</a>
   <a class="nav-orange nav-lock" href="https://oos555.github.io/olive-stories/nakamura.html">📌 中村 I</a>
-  <a class="nav-blue" href="https://oos555.github.io/olive-stories/yuka.html">🗒️ ゆか J</a>
+  <a class="nav-blue nav-lock" href="https://oos555.github.io/olive-stories/yuka.html">🗒️ ゆか J</a>
 </nav>
 
 <main>
@@ -205,21 +205,56 @@
 const $=id=>document.getElementById(id);
 const KEY="oos_docs_registry_v1";
 
-/* ---------- パスワードロック(PW:10・1日1回方式) ---------- */
-/* 同じ合鍵 oos_unlock_date を使うアプリ同士は、どれか1つを開けば その日じゅう全部開きます */
-const PW="10", PWKEY="oos_unlock_date";
-function today(){ return new Date().toISOString().slice(0,10); }
-function checkPw(){
-  if($("pwInput").value===PW){
-    try{localStorage.setItem(PWKEY,today());}catch(e){}
-    $("lockScreen").style.display="none";
-  }else{
+/* ---------- パスワードロック（E・H・Iと共通の合鍵・1日1回・サーバー照合方式） ---------- */
+const OOS_GAS_URL = "https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec";
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function oosSavedPw(group){
+  try{
+    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+    if(v && v.d===oosToday() && v.p) return v.p;
+  }catch(e){}
+  return null;
+}
+function oosMarkUnlocked(group, pw){
+  try{
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
+  }catch(e){}
+}
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+async function checkPw(isAuto){
+  const pw = $("pwInput").value;
+  if(!pw) return;
+  $("pwErr").style.display="none";
+  $("pwBtn").disabled=true; $("pwBtn").textContent="確認中…";
+  try{
+    const res = await fetch(OOS_GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      oosMarkUnlocked('secret', pw);
+      $("lockScreen").style.display="none";
+    }else{
+      oosClearUnlock('secret');
+      $("pwInput").value="";
+      if(!isAuto){
+        $("pwErr").textContent="パスワードが違います";
+        $("pwErr").style.display="block";
+        $("pwInput").focus();
+      }
+    }
+  }catch(e){
+    $("pwErr").textContent="通信エラーが発生しました";
     $("pwErr").style.display="block";
-    $("pwInput").value=""; $("pwInput").focus();
   }
+  $("pwBtn").disabled=false; $("pwBtn").textContent="開く";
 }
 (function(){
-  try{ if(localStorage.getItem(PWKEY)===today()){ $("lockScreen").style.display="none"; return; } }catch(e){}
+  const saved = oosSavedPw('secret');
+  if(saved){ $("pwInput").value=saved; checkPw(true); return; }
   setTimeout(()=>$("pwInput").focus(),100);
 })();
 

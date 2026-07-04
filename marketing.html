@@ -98,7 +98,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sa
   <a class="nav-orange nav-lock" href="documents.html">📄 書類 G</a>
   <a class="cur nav-lock">📰 マケ H</a>
   <a class="nav-orange nav-lock" href="nakamura.html">📌 中村 I</a>
-  <a class="nav-blue" href="yuka.html">🗒️ ゆか J</a>
+  <a class="nav-blue nav-lock" href="yuka.html">🗒️ ゆか J</a>
 </div>
 
 <div class="topbar">
@@ -211,22 +211,60 @@ const CAT_NAME = {1:"①話題",2:"②歴史",3:"③最新",4:"④成分・効�
 let items = [];      // {id,date,cat,text,url,note,insta,fb}
 let curFilter = 0;
 
-// ================= パスワード(C・E・Gと共通キー:1日1回) =================
-const PW = "10";
-function todayStr(){const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
-function initLock(){
-  if(localStorage.getItem("oos_unlock_date")===todayStr()) return; // 今日すでに解除済み
-  document.getElementById("lock").style.display="flex";
-  setTimeout(()=>document.getElementById("pw-input").focus(),100);
+// ================= パスワード（E・G・Iと共通の合鍵・1日1回・サーバー照合方式） =================
+// 照合はメインGAS（マケ専用GASとは別）に問い合わせます
+const MAIN_GAS_URL = "https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec";
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function oosSavedPw(group){
+  try{
+    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+    if(v && v.d===oosToday() && v.p) return v.p;
+  }catch(e){}
+  return null;
 }
-function checkPw(){
-  if(document.getElementById("pw-input").value===PW){
-    localStorage.setItem("oos_unlock_date", todayStr());
-    document.getElementById("lock").style.display="none";
-  } else {
+function oosMarkUnlocked(group, pw){
+  try{
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
+  }catch(e){}
+}
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+async function checkPw(isAuto){
+  const pw = document.getElementById("pw-input").value;
+  if(!pw) return;
+  document.getElementById("pw-err").style.display="none";
+  try{
+    const res = await fetch(MAIN_GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      oosMarkUnlocked('secret', pw);
+      document.getElementById("lock").style.display="none";
+    } else {
+      oosClearUnlock('secret');
+      document.getElementById("pw-input").value="";
+      if(!isAuto){
+        document.getElementById("pw-err").textContent="パスワードが違います";
+        document.getElementById("pw-err").style.display="block";
+      }
+    }
+  }catch(e){
+    document.getElementById("pw-err").textContent="通信エラーが発生しました";
     document.getElementById("pw-err").style.display="block";
-    document.getElementById("pw-input").value="";
   }
+}
+function initLock(){
+  document.getElementById("lock").style.display="flex";
+  const saved = oosSavedPw('secret');
+  if(saved){
+    document.getElementById("pw-input").value = saved;
+    checkPw(true);
+    return;
+  }
+  setTimeout(()=>document.getElementById("pw-input").focus(),100);
 }
 initLock();
 

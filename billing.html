@@ -85,6 +85,18 @@ tr:last-child td{border-bottom:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
+
+<div id="app-lock" style="position:fixed;inset:0;background:#f7f6f2;z-index:2000;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border:1px solid #ddd;border-radius:14px;padding:2rem;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center;width:300px">
+    <div style="font-size:32px;margin-bottom:8px">🔒</div>
+    <div style="font-weight:700;margin-bottom:4px">請求 (アプリC)</div>
+    <div style="font-size:12.5px;color:#777;margin-bottom:12px">受注・在庫・営業と共通のパスワードで開きます。</div>
+    <input type="password" id="app-pw-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;text-align:center;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlockApp()">
+    <button class="btn btn-primary" id="app-pw-btn" onclick="unlockApp()" style="width:100%">開く</button>
+    <div id="app-unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
+  </div>
+</div>
+
 <div class="app">
 
 <header class="oos-header no-print">
@@ -101,7 +113,7 @@ tr:last-child td{border-bottom:none}
   <a class="nav-orange nav-lock" href="documents.html">📄 書類 G</a>
   <a class="nav-orange nav-lock" href="marketing.html">📰 マケ H</a>
   <a class="nav-orange nav-lock" href="nakamura.html">📌 中村 I</a>
-  <a class="nav-blue" href="yuka.html">🗒️ ゆか J</a>
+  <a class="nav-blue nav-lock" href="yuka.html">🗒️ ゆか J</a>
 </nav>
 </div>
 
@@ -194,8 +206,8 @@ tr:last-child td{border-bottom:none}
     <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
       <div style="font-size:32px;margin-bottom:10px">🔒</div>
       <div class="sec">原価データ（中村様専用）</div>
-      <div class="info-box">この先の情報は、パスワードを知っている方だけが見られます。</div>
-      <input type="password" id="cost-password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px">
+      <div class="info-box">ここだけは別のパスワードです（輸入・書類・マケ・中村メモと共通）。</div>
+      <input type="password" id="cost-password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlockCostData()">
       <button class="btn btn-primary" onclick="unlockCostData()">開く</button>
       <div id="cost-unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
     </div>
@@ -607,7 +619,41 @@ let taxRate = 0.08;
 
 document.addEventListener('DOMContentLoaded', function(){
   loadAllBilling();
+  // 今日すでにA・B・C・Fのどれかで解錠済みなら、自動で開く
+  const saved = oosSavedPw('biz');
+  if(saved){
+    document.getElementById('app-pw-input').value = saved;
+    unlockApp(true);
+  }
 });
+
+async function unlockApp(isAuto){
+  const pw = document.getElementById('app-pw-input').value;
+  const errEl = document.getElementById('app-unlock-error');
+  const btn = document.getElementById('app-pw-btn');
+  errEl.textContent = '';
+  if(!pw) return;
+  btn.disabled = true; btn.textContent = '確認中…';
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'biz', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      oosMarkUnlocked('biz', pw); // 今日はA・B・Fもこの合鍵で開けるようにする
+      document.getElementById('app-lock').style.display = 'none';
+    } else {
+      oosClearUnlock('biz');
+      document.getElementById('app-pw-input').value = '';
+      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+    }
+  }catch(err){
+    errEl.textContent = '通信エラーが発生しました';
+  }
+  btn.disabled = false; btn.textContent = '開く';
+}
 
 function showSyncStatus(msg,isError){
   let el = document.getElementById('sync-status');
@@ -641,9 +687,12 @@ function showPanel(name, btn){
   if(name==='monthly') renderMonthlyList();
   if(name==='quote'){ resetRtGate(); renderQuoteCustomerSelect(); renderQuoteHistory(); }
   if(name==='special'){ fillSpecialPriceSelects(); renderSpecialPriceList(); }
-  if(name==='cost' && oosIsUnlockedToday() && document.getElementById('cost-unlocked-view').style.display==='none'){
-    document.getElementById('cost-password-input').value = '10';
-    unlockCostData();
+  if(name==='cost' && document.getElementById('cost-unlocked-view').style.display==='none'){
+    const savedCostPw = oosSavedPw('secret');
+    if(savedCostPw){
+      document.getElementById('cost-password-input').value = savedCostPw;
+      unlockCostData(true);
+    }
   }
 }
 
@@ -1669,17 +1718,26 @@ function renderSpecialPriceList(){
 
 // ── 原価データ（中村様専用・鍵付き） ────────────────────────────────────────────
 let costData = { costs: [], novello: [] };
-/* ---------- 1日1回・共通合鍵ロック（G・E・Cで共通） ---------- */
-const OOS_PWKEY = 'oos_unlock_date';
-function oosToday(){ return new Date().toISOString().slice(0,10); }
-function oosIsUnlockedToday(){
-  try{ return localStorage.getItem(OOS_PWKEY) === oosToday(); }catch(e){ return false; }
+/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
+/* グループ: biz=A・B・C・F ／ secret=E・G・H・I＋Cの原価タブ ／ d=倉庫D ／ j=ゆかJ */
+/* 同じグループのアプリ同士は、どれか1つを開けば その日じゅう（この端末では）全部開きます */
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function oosSavedPw(group){
+  try{
+    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+    if(v && v.d===oosToday() && v.p) return v.p;
+  }catch(e){}
+  return null;
 }
-function oosMarkUnlocked(){
-  try{ localStorage.setItem(OOS_PWKEY, oosToday()); }catch(e){}
+function oosMarkUnlocked(group, pw){
+  try{
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
+  }catch(e){}
 }
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 
-async function unlockCostData(){
+async function unlockCostData(isAuto){
   const pw = document.getElementById('cost-password-input').value;
   const errEl = document.getElementById('cost-unlock-error');
   errEl.textContent = '';
@@ -1692,7 +1750,7 @@ async function unlockCostData(){
     const data = await res.json();
     if(data.status==='ok'){
       costPassword = pw;
-      oosMarkUnlocked(); // 今日はG・Eもこの合鍵で開けるようにする
+      oosMarkUnlocked('secret', pw); // 今日はE・G・H・Iもこの合鍵で開けるようにする
       costData = data.data;
       document.getElementById('cost-locked-view').style.display = 'none';
       document.getElementById('cost-unlocked-view').style.display = 'block';
@@ -1701,7 +1759,9 @@ async function unlockCostData(){
       renderRateSimulation();
       renderProfitHeatmap();
     } else {
-      errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      oosClearUnlock('secret');
+      document.getElementById('cost-password-input').value = '';
+      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
     }
   }catch(err){
     errEl.textContent = '通信エラーが発生しました';

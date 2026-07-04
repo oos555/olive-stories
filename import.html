@@ -76,7 +76,7 @@ tr:last-child td{border-bottom:none}
   <a class="nav-orange nav-lock" href="documents.html">📄 書類 G</a>
   <a class="nav-orange nav-lock" href="marketing.html">📰 マケ H</a>
   <a class="nav-orange nav-lock" href="nakamura.html">📌 中村 I</a>
-  <a class="nav-blue" href="yuka.html">🗒️ ゆか J</a>
+  <a class="nav-blue nav-lock" href="yuka.html">🗒️ ゆか J</a>
 </nav>
 </div>
 
@@ -84,8 +84,8 @@ tr:last-child td{border-bottom:none}
   <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
     <div style="font-size:32px;margin-bottom:10px">🔒</div>
     <div class="sec">輸入（中村様専用）</div>
-    <div class="info-box">原価データと同じパスワードで開きます。</div>
-    <input type="password" id="password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px">
+    <div class="info-box">書類・マケ・中村メモと同じパスワードで開きます。</div>
+    <input type="password" id="password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlock()">
     <button class="btn btn-primary" onclick="unlock()">開く</button>
     <div id="unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
   </div>
@@ -277,10 +277,11 @@ document.addEventListener('DOMContentLoaded', function(){
   panel.addEventListener('change', function(e){
     if(e.target.id!=='edit-lock') markDirty();
   });
-  // 今日すでにG・C・Eのどれかで解錠済みなら、自動でパスワードを入れて開く
-  if(oosIsUnlockedToday()){
-    document.getElementById('password-input').value = '10';
-    unlock();
+  // 今日すでにE・G・H・Iのどれかで解錠済みなら、自動で開く
+  const saved = oosSavedPw('secret');
+  if(saved){
+    document.getElementById('password-input').value = saved;
+    unlock(true);
   }
 });
 
@@ -295,17 +296,26 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
-/* ---------- 1日1回・共通合鍵ロック（G・E・Cで共通） ---------- */
-const OOS_PWKEY = 'oos_unlock_date';
-function oosToday(){ return new Date().toISOString().slice(0,10); }
-function oosIsUnlockedToday(){
-  try{ return localStorage.getItem(OOS_PWKEY) === oosToday(); }catch(e){ return false; }
+/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
+/* グループ: biz=A・B・C・F ／ secret=E・G・H・I＋Cの原価タブ ／ d=倉庫D ／ j=ゆかJ */
+/* 同じグループのアプリ同士は、どれか1つを開けば その日じゅう（この端末では）全部開きます */
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function oosSavedPw(group){
+  try{
+    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+    if(v && v.d===oosToday() && v.p) return v.p;
+  }catch(e){}
+  return null;
 }
-function oosMarkUnlocked(){
-  try{ localStorage.setItem(OOS_PWKEY, oosToday()); }catch(e){}
+function oosMarkUnlocked(group, pw){
+  try{
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
+  }catch(e){}
 }
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 
-async function unlock(){
+async function unlock(isAuto){
   const pw = document.getElementById('password-input').value;
   const errEl = document.getElementById('unlock-error');
   errEl.textContent = '';
@@ -318,7 +328,7 @@ async function unlock(){
     const data = await res.json();
     if(data.status==='ok'){
       password = pw;
-      oosMarkUnlocked(); // 今日はG・Cもこの合鍵で開けるようにする
+      oosMarkUnlocked('secret', pw); // 今日はG・H・Iもこの合鍵で開けるようにする
       importBatches = data.data.batches || [];
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
@@ -327,7 +337,9 @@ async function unlock(){
       showSyncStatus('✅ データを読み込みました');
       loadStockAndCostRef(pw);
     } else {
-      errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      oosClearUnlock('secret');
+      document.getElementById('password-input').value = '';
+      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
     }
   }catch(err){
     errEl.textContent = '通信エラーが発生しました';
