@@ -72,12 +72,36 @@ input[type=date]{padding:7px 10px;border:1px solid #cfe0f0;border-radius:8px;fon
 
 <div id="unlocked-view" style="display:none">
 
+  <div class="card" style="border-color:#2f6690">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="sec" style="margin:0">⭐ 大切なメモ</div>
+      <button class="btn-sm" id="important-toggle" onclick="toggleImportant()">表示</button>
+    </div>
+    <div id="important-hint" style="display:none;font-size:12px;color:#25506f;font-weight:700;margin-top:8px">🔔 期日のお知らせがあります（「表示」を押して確認）</div>
+    <div id="important-body" style="display:none;margin-top:10px">
+      <div class="info-box">🔒 <b>パスワード類（銀行・カード・暗証番号など）は、絶対にここへ書かないでください。</b>万一の漏洩に備えるためのルールです。<br>このらんは、ページを開くたびに自動で非表示に戻ります。日付を入れると、通常のメモと同じように前日・当日にお知らせが出ます（中身はこの中にだけ表示されます）。</div>
+      <textarea id="important-text" placeholder="例：〇〇の契約更新は9月末"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="important-red" style="width:16px;height:16px"><span style="color:#dc2626;font-weight:700">赤字にする</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:11px;color:#999">思い出したい日</label>
+          <input type="date" id="important-date">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="addImportantMemo()">この大切なメモを追加する</button>
+      <div id="important-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="sec" style="margin-top:0">📝 新しいメモ</div>
-    <div class="info-box">付箋の代わりです。思いついたことを、そのまま書いてください。「思い出したい日」を入れると、<b>前日に「⏰明日だよ〜」、当日に「📣今日だよ、終わった？」</b>のアラートがこの下に出ます。✅完了を押すと消えます。</div>
+    <div class="info-box">付箋の代わりです。思いついたことを、そのまま書いてください。「思い出したい日」を入れると、<b>前日「⏰明日が期日です」・当日「📣本日が期日です」</b>のお知らせがこの下に出ます。✅完了を押すと消えます。</div>
     <textarea id="new-memo-text" placeholder="例：プリモ印刷に朝一で電話する"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
-      <label style="font-size:12px;color:#666;display:flex;align-items:center;gap:5px"><input type="checkbox" id="new-memo-tell" style="width:16px;height:16px">誰かに伝える必要がある</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <label style="font-size:12px;color:#666;display:flex;align-items:center;gap:5px"><input type="checkbox" id="new-memo-tell" style="width:16px;height:16px">誰かに伝える必要がある</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="new-memo-red" style="width:16px;height:16px"><span style="color:#dc2626;font-weight:700">赤字にする</span></label>
+      </div>
       <div style="display:flex;gap:8px;align-items:center">
         <label style="font-size:11px;color:#999">思い出したい日</label>
         <input type="date" id="new-memo-date">
@@ -105,6 +129,9 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 const SHEET_NAME = '付箋メモJ';
 let password = '';
 let memos = [];
+const SHEET_IMPORTANT = '付箋メモJ大切';
+let importantMemos = [];
+let importantVisible = false;
 
 /* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
 /* グループ: biz=A・B・C・F ／ secret=E・G・H・I＋Cの原価タブ ／ d=倉庫D ／ j=ゆかJ */
@@ -165,6 +192,7 @@ async function unlock(isAuto){
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
       render();
+      loadImportantMemos();
       showSyncStatus('✅ 読み込みました');
     } else {
       oosClearUnlock('j');
@@ -200,13 +228,13 @@ function render(){
 }
 function memoCardHtml(m, alertType){
   let banner = '';
-  if(alertType==='today') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">📣 今日だよ、終わった？</div>';
-  else if(alertType==='pre') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">⏰ 明日だよ〜</div>';
+  if(alertType==='today') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">📣 本日が期日です。対応はお済みですか？</div>';
+  else if(alertType==='pre') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">⏰ 明日が期日です</div>';
   return '<div class="memo-card'+(alertType==='today'?' memo-alert':(alertType==='pre'?' memo-pre':''))+'">'+
     banner+
     (m.tellSomeone ? '<span class="tag">誰かに伝える</span>' : '')+
     (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '')+
-    '<div class="memo-text">'+esc(m.text)+'</div>'+
+    '<div class="memo-text"'+(m.color==='red'?' style="color:#dc2626;font-weight:700"':'')+'>'+esc(m.text)+'</div>'+
     '<div class="memo-meta"><span>'+(m.createdAt?new Date(m.createdAt).toLocaleDateString('ja-JP'):'')+'</span>'+
     '<span><button class="btn-sm" onclick="doneMemo(\''+m.id+'\')">✅ 完了</button> <button class="btn-sm" onclick="removeMemo(\''+m.id+'\')">削除</button></span></div>'+
     '</div>';
@@ -219,6 +247,7 @@ async function addMemo(){
     text: text,
     reminderDate: document.getElementById('new-memo-date').value,
     tellSomeone: document.getElementById('new-memo-tell').checked,
+    color: document.getElementById('new-memo-red').checked ? 'red' : '',
     done: false,
     createdAt: new Date().toISOString()
   };
@@ -227,6 +256,7 @@ async function addMemo(){
   document.getElementById('new-memo-text').value = '';
   document.getElementById('new-memo-date').value = '';
   document.getElementById('new-memo-tell').checked = false;
+  document.getElementById('new-memo-red').checked = false;
   try{
     await fetch(GAS_URL, {
       method:'POST',
@@ -259,6 +289,116 @@ async function removeMemo(id){
     await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_NAME, password: password, id: id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+
+/* ---------- 大切なメモ（表示/非表示つき・全消しボタンなし） ---------- */
+function toggleImportant(){
+  importantVisible = !importantVisible;
+  document.getElementById('important-body').style.display = importantVisible ? 'block' : 'none';
+  document.getElementById('important-toggle').textContent = importantVisible ? '非表示' : '表示';
+  renderImportant();
+}
+async function loadImportantMemos(){
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName: SHEET_IMPORTANT, password: password }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      importantMemos = data.data.memos || [];
+      renderImportant();
+    }
+  }catch(err){}
+}
+function importantAlertType(m){
+  if(m.reminderDate && m.reminderDate<=oosToday()) return 'today';
+  if(m.reminderDate===oosTomorrow()) return 'pre';
+  return '';
+}
+function renderImportant(){
+  const hasAlert = importantMemos.some(function(m){ return importantAlertType(m); });
+  document.getElementById('important-hint').style.display = (!importantVisible && hasAlert) ? 'block' : 'none';
+  if(!importantVisible) return;
+  const sorted = importantMemos.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+  document.getElementById('important-list').innerHTML = sorted.length
+    ? sorted.map(importantCardHtml).join('')
+    : '<div style="color:#999;font-size:13px;padding:8px 0">大切なメモはまだありません。</div>';
+}
+function importantCardHtml(m){
+  const t = importantAlertType(m);
+  let banner = '';
+  if(t==='today') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">📣 本日が期日です。対応はお済みですか？</div>';
+  else if(t==='pre') banner = '<div style="font-weight:700;color:#25506f;margin-bottom:4px">⏰ 明日が期日です</div>';
+  return '<div class="memo-card'+(t==='today'?' memo-alert':(t==='pre'?' memo-pre':''))+'">'+
+    banner+
+    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '')+
+    '<div class="memo-text"'+(m.color==='red'?' style="color:#dc2626;font-weight:700"':'')+'>'+esc(m.text)+'</div>'+
+    '<div class="memo-meta"><span>'+(m.createdAt?new Date(m.createdAt).toLocaleDateString('ja-JP'):'')+'</span>'+
+    '<span>'+(t?'<button class="btn-sm" onclick="clearImportantReminder(\''+m.id+'\')">🔕 お知らせを消す</button> ':'')+
+    '<button class="btn-sm" onclick="removeImportantMemo(\''+m.id+'\')">削除</button></span></div>'+
+    '</div>';
+}
+async function addImportantMemo(){
+  const text = document.getElementById('important-text').value.trim();
+  if(!text){ alert('メモの内容を入力してください'); return; }
+  const lower = text.toLowerCase();
+  if(lower.indexOf('パスワード')>=0 || lower.indexOf('password')>=0 || lower.indexOf('暗証')>=0 || lower.indexOf('pw')>=0){
+    if(!confirm('パスワードや暗証番号らしき言葉が含まれています。\nパスワード類はここに書かないルールです。本当に追加しますか？')) return;
+  }
+  const memo = {
+    id: 'imp_'+Date.now(),
+    text: text,
+    reminderDate: document.getElementById('important-date').value,
+    tellSomeone: false,
+    color: document.getElementById('important-red').checked ? 'red' : '',
+    done: false,
+    createdAt: new Date().toISOString()
+  };
+  importantMemos.push(memo);
+  renderImportant();
+  document.getElementById('important-text').value = '';
+  document.getElementById('important-date').value = '';
+  document.getElementById('important-red').checked = false;
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: memo }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    showSyncStatus('✅ 追加しました');
+  }catch(err){
+    showSyncStatus('⚠️ 保存に失敗しました', true);
+  }
+}
+async function clearImportantReminder(id){
+  const m = importantMemos.find(function(x){ return x.id===id; });
+  if(!m) return;
+  m.reminderDate = '';
+  renderImportant();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: m }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+async function removeImportantMemo(id){
+  const m = importantMemos.find(function(x){ return x.id===id; });
+  if(!m) return;
+  const preview = (m.text||'').length>40 ? m.text.slice(0,40)+'…' : (m.text||'');
+  if(!confirm('この大切なメモを本当に消しますか？\n\n「'+preview+'」')) return;
+  importantMemos = importantMemos.filter(function(x){ return x.id!==id; });
+  renderImportant();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_IMPORTANT, password: password, id: id }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
   }catch(err){}
