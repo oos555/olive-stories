@@ -151,6 +151,16 @@ body{background:#fff}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
+<div id="app-lock" style="position:fixed;inset:0;background:#f5f4f0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border:1px solid #ddd;border-radius:14px;padding:2rem 1.6rem;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center;width:100%;max-width:320px">
+    <div style="font-size:34px;margin-bottom:8px">🔒</div>
+    <div style="font-weight:700;font-size:15px;margin-bottom:4px">🫒 受注・出荷 (アプリA)</div>
+    <div style="font-size:12.5px;color:#777;line-height:1.6;margin-bottom:14px">受注・在庫・請求・営業と共通のパスワードで開きます。<br>入力は1日1回だけです。</div>
+    <input type="password" id="app-pw-input" placeholder="パスワード" autocomplete="off" style="width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;text-align:center;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlockApp()">
+    <button id="app-pw-btn" onclick="unlockApp()" style="width:100%;padding:11px;border-radius:8px;border:1px solid #6b7a3a;background:#6b7a3a;color:#fff;font-size:14px;font-weight:700;cursor:pointer">開く</button>
+    <div id="app-unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px;min-height:16px"></div>
+  </div>
+</div>
 <div class="app">
 
 <header class="oos-header no-print">
@@ -167,7 +177,7 @@ body{background:#fff}
   <a class="nav-orange nav-lock" href="documents.html">📄 書類 G</a>
   <a class="nav-orange nav-lock" href="marketing.html">📰 マケ H</a>
   <a class="nav-orange nav-lock" href="nakamura.html">📌 中村 I</a>
-  <a class="nav-blue" href="yuka.html">🗒️ ゆか J</a>
+  <a class="nav-blue nav-lock" href="yuka.html">🗒️ ゆか J</a>
 </nav>
 
 <div class="tab-row no-print">
@@ -1929,6 +1939,69 @@ function syncOrdersToGAS(){
     else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
   }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
 }
+
+/* ════════════════════════════════════════════════════════════════
+   入口ロック（A・B・C・F 共通の合鍵・1日1回・サーバー照合方式）
+   パスワードはこのファイルには書かれておらず、GAS側で照合します。
+   一度解錠すると、同じ端末では当日中、A・B・C・Fすべて自動で開きます。
+   ════════════════════════════════════════════════════════════════ */
+function oosToday(){
+  var d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function oosSavedPw(group){
+  try{
+    var raw = localStorage.getItem('oos_unlock_'+group);
+    if(!raw) return null;
+    var obj = JSON.parse(raw);
+    if(obj && obj.d===oosToday() && obj.p) return obj.p;
+  }catch(e){}
+  return null;
+}
+function oosMarkUnlocked(group, pw){
+  try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw})); }catch(e){}
+}
+function oosClearUnlock(group){
+  try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){}
+}
+async function unlockApp(isAuto){
+  var input = document.getElementById('app-pw-input');
+  var errEl = document.getElementById('app-unlock-error');
+  var btn = document.getElementById('app-pw-btn');
+  var pw = input.value;
+  errEl.textContent = '';
+  if(!pw) return;
+  btn.disabled = true; btn.textContent = '確認中…';
+  try{
+    var res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'biz', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    var data = await res.json();
+    if(data.status==='ok'){
+      oosMarkUnlocked('biz', pw);
+      document.getElementById('app-lock').style.display = 'none';
+      btn.disabled = false; btn.textContent = '開く';
+      return;
+    }
+    oosClearUnlock('biz');
+    input.value = '';
+    if(!isAuto) errEl.textContent = 'パスワードが違います';
+  }catch(e){
+    errEl.textContent = '通信エラーが発生しました。電波を確認してもう一度お試しください';
+  }
+  btn.disabled = false; btn.textContent = '開く';
+}
+(function(){
+  var saved = oosSavedPw('biz');
+  if(saved){
+    document.getElementById('app-pw-input').value = saved;
+    unlockApp(true);
+  } else {
+    setTimeout(function(){ var el=document.getElementById('app-pw-input'); if(el) el.focus(); }, 150);
+  }
+})();
 </script>
 </body>
 </html>
