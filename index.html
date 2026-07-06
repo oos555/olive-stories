@@ -826,7 +826,29 @@ function addRecipient(){
       '</div>'+
       '<div class="fg" data-role="timeOtherWrap" style="display:none"><label>時間帯を記入</label><input type="text" data-role="timeOther" placeholder="例：14〜16時"></div>'+
     '</div>'+
-    '<div class="fg"><label>備考</label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：のしあり（名前：田中）、のしの指定やその他同梱物など"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。忘れずに対応してください。</div></div>'+
+    '<div class="fg"><label>備考</label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：その他同梱物の指定など（のしは下の「熨斗をつける」で設定できます）"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。下の「熨斗をつける」でも設定できます。</div></div>'+
+    '<div style="background:#fdf6ee;border:1px solid #e8d9c4;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;font-size:13px;color:#8a5a1c"><input type="checkbox" data-role="noshiOn" onchange="toggleNoshi(\''+id+'\')" style="width:auto">🎀 熨斗（のし）をつける</label>'+
+      '<div data-role="noshiFields" style="display:none;margin-top:10px">'+
+        '<div class="fg"><label>表書き（上に入る言葉）</label>'+
+          '<select data-role="noshiTitle" onchange="toggleNoshiTitleOther(\''+id+'\')">'+
+            '<option value="御中元">御中元</option>'+
+            '<option value="御歳暮">御歳暮</option>'+
+            '<option value="御礼">御礼</option>'+
+            '<option value="御祝">御祝</option>'+
+            '<option value="快気祝">快気祝</option>'+
+            '<option value="other">その他（自由入力）</option>'+
+          '</select>'+
+        '</div>'+
+        '<div class="fg" data-role="noshiTitleOtherWrap" style="display:none"><label>表書きを自由入力</label><input type="text" data-role="noshiTitleOther" placeholder="例：内祝"></div>'+
+        '<div class="fg"><label>お名前（送り主・花の下に大きく入ります）</label><input type="text" data-role="noshiName" placeholder="例：荒木 知太朗"></div>'+
+        '<div class="g2">'+
+          '<div class="fg"><label>社名（入れる場合のみ）</label><input type="text" data-role="noshiCompany" placeholder="例：株式会社アラキ企画"></div>'+
+          '<div class="fg"><label>役職名（入れる場合のみ）</label><input type="text" data-role="noshiPosition" placeholder="例：代表取締役"></div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:#8a7f6a;line-height:1.6">※ 社名・役職は名前の右に小さく入ります。空欄なら出ません。倉庫が印刷して貼ります。</div>'+
+      '</div>'+
+    '</div>'+
     '<div style="margin:10px 0 4px">'+
       '<div class="order-line-header">'+
         '<div style="font-size:11px;font-weight:700;color:#57534e">商品</div>'+
@@ -881,6 +903,16 @@ function hasNoshiKeyword(text){
 function onNoteInputCheck(el){
   const warn = el.parentElement.querySelector('[data-role=noshiWarn]');
   if(warn) warn.style.display = hasNoshiKeyword(el.value) ? 'block' : 'none';
+}
+function toggleNoshi(cardId){
+  const card = document.getElementById(cardId);
+  const on = card.querySelector('[data-role=noshiOn]').checked;
+  card.querySelector('[data-role=noshiFields]').style.display = on ? 'block' : 'none';
+}
+function toggleNoshiTitleOther(cardId){
+  const card = document.getElementById(cardId);
+  const v = card.querySelector('[data-role=noshiTitle]').value;
+  card.querySelector('[data-role=noshiTitleOtherWrap]').style.display = v==='other' ? 'block' : 'none';
 }
 function setRecipientAddrMode(cardId, same){
   const card = document.getElementById(cardId);
@@ -1016,6 +1048,17 @@ function collectRecipients(){
       leadDate: card.querySelector('[data-role=leadDate]').value,
       delivTime: timeSel==='other' ? card.querySelector('[data-role=timeOther]').value : timeSel,
       note: card.querySelector('[data-role=note]').value,
+      noshi: (function(){
+        if(!card.querySelector('[data-role=noshiOn]').checked) return null;
+        const titleSel = card.querySelector('[data-role=noshiTitle]').value;
+        const title = titleSel==='other' ? (card.querySelector('[data-role=noshiTitleOther]').value||'') : titleSel;
+        return {
+          title: title,
+          name: card.querySelector('[data-role=noshiName]').value,
+          company: card.querySelector('[data-role=noshiCompany]').value,
+          position: card.querySelector('[data-role=noshiPosition]').value
+        };
+      })(),
       lines: getRecipientLines(card.id)
     };
   });
@@ -1101,6 +1144,7 @@ function buildOrdersFromForm(){
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
       leadType: r.lead, leadDate: r.leadDate, delivTime: r.delivTime,
       note: r.note,
+      noshi: r.noshi || null,
       senderName: r.senderNameOverride || dSenderName,
       senderTel: r.senderTelOverride || dSenderTel,
       senderZip: r.senderZipOverride || dSenderZip,
@@ -1160,6 +1204,11 @@ function previewOrder(){
       html += '<div>発送区分：'+leadLabel+(o.delivTime?'　配送時間：'+o.delivTime:'')+'</div>';
       if(o.useRecycle) html += '<div><span class="recycle-badge">♻ リサイクル箱</span></div>';
       if(o.note) html += '<div style="'+(hasNoshiKeyword(o.note)?'color:#dc2626;font-weight:700;background:#fef2f2;padding:4px 8px;border-radius:6px':'')+'">'+(hasNoshiKeyword(o.note)?'🎀 ':'')+'備考：'+o.note+'</div>';
+      if(o.noshi){
+        const n = o.noshi;
+        const sub = [n.position, n.company].filter(Boolean).join('　');
+        html += '<div style="color:#8a5a1c;font-weight:700;background:#fdf6ee;padding:4px 8px;border-radius:6px">🎀 熨斗：'+(n.title||'（表書き未設定）')+'／'+(n.name||'（名前未設定）')+(sub?'　'+sub:'')+'</div>';
+      }
       html += '<div>送り主表記：'+o.senderName+'</div>';
       html += '<div>'+o.lines.map(l=>'・'+l.productName+' × バラ'+l.bottles+'＋箱'+l.boxes+'　＝<strong>合計'+lineTotal(l)+'本</strong>'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
       html += '</div>';
@@ -1558,6 +1607,11 @@ function buildSlipHtml(o){
   html += '</div>';
   if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
   if(o.note) html += '<div class="alert-bar alert-danger" style="'+(hasNoshiKeyword(o.note)?'font-weight:700;border-width:2px':'')+'">'+(hasNoshiKeyword(o.note)?'🎀のし指示あり：':'📝')+' '+o.note+'</div>';
+  if(o.noshi){
+    const n = o.noshi;
+    const sub = [n.position, n.company].filter(Boolean).join('　');
+    html += '<div class="alert-bar" style="background:#fdf6ee;border:2px solid #d9a441;color:#8a5a1c;font-weight:700">🎀 熨斗（のし）あり：表書き「'+(n.title||'-')+'」／お名前「'+(n.name||'-')+'」'+(sub?'／'+sub:'')+'　→ 倉庫アプリで熨斗を印刷して同梱してください</div>';
+  }
   html += '<div class="slip-section-title">商品チェックリスト</div>';
   html += '<table class="slip-table"><thead><tr><th>商品名</th><th>種別</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
   (o.lines||[]).forEach(function(l){
