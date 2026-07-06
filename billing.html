@@ -111,6 +111,7 @@ tr:last-child td{border-bottom:none}
   <a href="stock.html">📦 在庫 B</a>
   <a class="current" href="billing.html">💰 請求 C</a>
   <a href="sales.html">💌 お便り作戦室 F</a>
+  <a href="labels.html">🏷️ ラベル図鑑</a>
   <a class="nav-blue nav-lock" href="yuka.html">🗒️ ゆか J</a>
   <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
 </nav>
@@ -933,1064 +934,1085 @@ function generateInvoiceDoc(orderId){
   wrap.appendChild(printBtn);
   area.appendChild(wrap);
 }
-function buildInvoiceDocHtml(opts){
-  let subtotalExcl = 0, taxTotal = 0;
-  const taxBreakdown = {}; // '8%' / '10%' -> {base, tax}
-  opts.items.forEach(function(it){
-    const rate = (it.taxRate!=null) ? it.taxRate : 0.08;
-    const base = it.amount; // 税抜金額
-    const tax = Math.round(base * rate);
-    subtotalExcl += base; taxTotal += tax;
-    const key = Math.round(rate*100)+'%';
-    if(!taxBreakdown[key]) taxBreakdown[key] = {base:0, tax:0};
-    taxBreakdown[key].base += base; taxBreakdown[key].tax += tax;
+function buildInvoiceDocHtml(inv){
+  const today = new Date();
+  const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
+  inv.items.forEach(function(it){
+    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
-  if(opts.adjAmount){ subtotalExcl += opts.adjAmount; } // 調整額は税抜相当として合算（簡易対応）
-  const grandTotal = subtotalExcl + taxTotal;
+  const subtotal = subtotalTax8 + subtotalTax10;
+  const totalTax = taxAmount8 + taxAmount10;
+  const total = subtotal + totalTax + (inv.adjAmount||0);
   let html = '<div class="invoice-doc">';
-  html += '<div class="invoice-doc-title">御　請　求　書</div>';
+  html += '<div class="invoice-doc-title">請 求 書</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700;border-bottom:2px solid #1a1a18;padding-bottom:4px;margin-bottom:6px">'+esc(opts.clientName)+' 御中</div>'+
-          '〒'+esc(opts.clientZip||'')+'<br>'+esc(opts.clientAddr||'')+'</div>';
-  html += '<div style="text-align:right"><table style="font-size:12px"><tr><td style="color:#57534e;padding-right:10px">請求日</td><td>'+new Date().toLocaleDateString('ja-JP')+'</td></tr>'+
-          '<tr><td style="color:#57534e;padding-right:10px">請求書番号</td><td>'+esc(opts.invoiceNumber)+'</td></tr>'+
-          '<tr><td style="color:#57534e;padding-right:10px">登録番号</td><td>'+COMPANY_INFO.invoiceRegNo+'</td></tr></table>'+
-          '<div style="margin-top:14px;font-weight:700">'+COMPANY_INFO.name+'</div>'+
-          '<div style="font-size:12px">〒'+COMPANY_INFO.zip+'<br>'+COMPANY_INFO.addr+'</div></div>';
-  html += '</div>';
-  html += '<div style="margin-bottom:1rem">下記の通りご請求申し上げます。宜しくお願い致します。</div>';
-  html += '<div style="font-weight:700;margin-bottom:10px">件名　'+esc(opts.subject)+'</div>';
-  html += '<div class="invoice-doc-summary"><table><tr><th>小計（税抜）</th><th>消費税</th><th>請求金額（税込）</th></tr>'+
-          '<tr><td>'+subtotalExcl.toLocaleString()+'円</td><td>'+taxTotal.toLocaleString()+'円</td><td style="font-size:20px;font-weight:700">'+grandTotal.toLocaleString()+'円</td></tr></table></div>';
-  if(Object.keys(taxBreakdown).length>1){
-    html += '<div style="font-size:11px;color:#2b2a26;margin-bottom:1rem">内訳　'+Object.keys(taxBreakdown).map(function(k){
-      const b = taxBreakdown[k];
-      return k+'対象（税抜）'+b.base.toLocaleString()+'円／消費税'+b.tax.toLocaleString()+'円';
-    }).join('　').replace(/^/, function(){ return '<span style="font-weight:700">※8%はオリーブオイル（軽減税率）、10%はギフト箱・備品等（標準税率）</span><br>'; })+'</div>';
-  }
-  html += '<table class="invoice-doc-table" style="margin-bottom:1rem"><tr><th style="width:50%">入金期日</th><th>振込先</th></tr>'+
-          '<tr><td>'+(opts.dueDate?esc(opts.dueDate):'')+'</td><td>'+esc(opts.bank.bank)+'　'+esc(opts.bank.branch)+'<br>種類：'+esc(opts.bank.type)+'<br>口座番号：'+esc(opts.bank.number)+'<br>口座名義：'+esc(opts.bank.holder)+'</td></tr></table>';
-  html += '<table class="invoice-doc-table"><thead><tr><th>摘要</th><th style="width:60px">税率</th><th style="width:70px">数量</th><th style="width:100px">単価（税抜）</th><th style="width:120px">明細金額（税抜）</th></tr></thead><tbody>';
-  opts.items.forEach(function(it){
-    const rate = (it.taxRate!=null) ? it.taxRate : 0.08;
-    html += '<tr><td>'+esc(it.name)+'</td><td style="text-align:center">'+Math.round(rate*100)+'%'+(rate<=0.08?'※':'')+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">'+it.unitPrice.toLocaleString()+'円</td><td style="text-align:right">'+it.amount.toLocaleString()+'円</td></tr>';
-  });
-  if(opts.adjLabel || opts.adjAmount){
-    html += '<tr><td>'+esc(opts.adjLabel||'調整')+'</td><td>-</td><td style="text-align:center">-</td><td style="text-align:right">-</td><td style="text-align:right">'+(opts.adjAmount>=0?'':'-')+Math.abs(opts.adjAmount).toLocaleString()+'円</td></tr>';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(inv.clientName)+' 御中</div>';
+  if(inv.clientZip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(inv.clientZip)+'</div>';
+  if(inv.clientAddr) html += '<div style="font-size:12px">'+esc(inv.clientAddr)+'</div>';
+  html += '<div style="margin-top:10px;font-size:13px">下記の通りご請求申し上げます。</div></div>';
+  html += '<div style="text-align:right">';
+  html += '<div>請求日：'+dateStr+'</div>';
+  html += '<div>請求番号：'+esc(inv.invoiceNumber)+'</div>';
+  html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
+  html += '<div style="font-size:11px">〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+  html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+  html += '</div></div>';
+  html += '<div class="invoice-doc-summary"><table><tr>';
+  html += '<th>ご請求金額</th>';
+  html += '</tr><tr>';
+  html += '<td style="font-size:20px;font-weight:700">¥'+total.toLocaleString()+'</td>';
+  html += '</tr></table></div>';
+  html += '<table class="invoice-doc-table"><thead><tr><th style="width:5%">No.</th><th>件名</th><th style="width:10%">数量</th><th style="width:15%">単価</th><th style="width:8%">税率</th><th style="width:15%">金額</th></tr></thead><tbody>';
+  html += '<tr><td>1</td><td>'+esc(inv.subject)+'</td><td style="text-align:right">1</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td><td style="text-align:center">-</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
+  let rowNum = 2;
+  if(inv.adjAmount){
+    html += '<tr><td>'+rowNum+'</td><td>'+esc(inv.adjLabel||'調整')+'</td><td style="text-align:right">1</td><td style="text-align:right">¥'+inv.adjAmount.toLocaleString()+'</td><td style="text-align:center">-</td><td style="text-align:right">¥'+inv.adjAmount.toLocaleString()+'</td></tr>';
+    rowNum++;
   }
   html += '</tbody></table>';
-  html += '<div style="font-size:10px;color:#57534e;margin-bottom:1rem">※印は軽減税率8%対象です。</div>';
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
+  if(subtotalTax8){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計（8%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（8%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount8.toLocaleString()+'</td></tr>';
+  }
+  if(subtotalTax10){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計（10%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax10.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount10.toLocaleString()+'</td></tr>';
+  }
+  if(inv.adjAmount){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">'+esc(inv.adjLabel||'調整')+'</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+inv.adjAmount.toLocaleString()+'</td></tr>';
+  }
+  html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '</table></div>';
   html += '<div class="invoice-doc-note">';
-  html += 'いつもありがとうございます。<br>請求書到着日から3週間以内にご対応をお願いしております。振込手数料は貴殿にてご負担くださいますようお願い致します。<br>どうぞよろしくお願い致します。<br><br>';
-  html += '※冬場の輸送・冬場の保管について<br>オリーブオイルは7度を下回ると、オイルの一部が固まります。これは天然である証で、常温に置いておくと溶けます。品質に変わりはありません。';
+  html += '<strong>お振込先：</strong><br>';
+  html += esc(inv.bank.bank)+'　'+esc(inv.bank.branch)+'<br>';
+  html += esc(inv.bank.type)+'　'+esc(inv.bank.number)+'<br>';
+  html += '名義：'+esc(inv.bank.holder)+'<br>';
+  if(inv.dueDate) html += '<br><strong>お振込期日：</strong>'+esc(inv.dueDate)+'<br>';
+  html += '<br>※お振込手数料は貴社にてご負担くださいますようお願い申し上げます。<br>';
+  html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
   html += '</div>';
   html += '</div>';
   return html;
 }
-function esc(s){ return (s==null?'':String(s)); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-// ── 見積書 ────────────────────────────────────────────
-let quoteItemCounter = 0;
+// ── 見積書：新規お客様追加 ────────────────────────────────────────────
 function toggleNewCustomerForm(){
   const form = document.getElementById('new-cust-form');
-  const open = form.style.display === 'none';
-  form.style.display = open ? 'block' : 'none';
-  document.getElementById('new-cust-toggle-btn').textContent = open ? '－ 閉じる' : '＋ まだ登録されていないお客様を追加する';
-  if(open){
-    const typeSel = document.getElementById('nc-type');
-    if(rtGateAnswer){
-      typeSel.innerHTML = '<option value="rt">RT</option>';
-    } else {
-      typeSel.innerHTML = '<option value="general">定価</option><option value="wholesale1">卸①</option><option value="wholesale2">卸②</option>';
-    }
-  }
+  const btn = document.getElementById('new-cust-toggle-btn');
+  if(form.style.display==='none'){ form.style.display=''; btn.textContent='－ 追加フォームを閉じる'; }
+  else { form.style.display='none'; btn.textContent='＋ まだ登録されていないお客様を追加する'; }
 }
-function registerNewCustomer(){
+async function registerNewCustomer(){
   const name = document.getElementById('nc-name').value.trim();
-  const type = document.getElementById('nc-type').value;
   if(!name){ alert('お客様名を入力してください'); return; }
+  const type = document.getElementById('nc-type').value;
+  const rtSelected = document.getElementById('q-rt-gate-card').dataset.rtSelected;
+  if(rtSelected==='true' && type!=='rt'){ alert('最初に「RTのお客様です」を選んでいます。区分を「RT」にするか、上のRT確認からやり直してください。'); return; }
+  if(rtSelected==='false' && type==='rt'){ alert('最初に「RT以外」を選んでいます。区分を「RT」以外にするか、上のRT確認からやり直してください。'); return; }
   const newCust = {
     id: 'c'+Date.now(), name: name, type: type,
-    zip: document.getElementById('nc-zip').value, addr: document.getElementById('nc-addr').value,
-    tel: document.getElementById('nc-tel').value, recycle: false, note: document.getElementById('nc-note').value,
-    visibleSkus: []
+    zip: document.getElementById('nc-zip').value.trim(),
+    addr: document.getElementById('nc-addr').value.trim(),
+    tel: document.getElementById('nc-tel').value.trim(),
+    note: document.getElementById('nc-note').value.trim(),
+    createdAt: new Date().toISOString(),
+    whitelist: null
   };
   customers.push(newCust);
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ customers: customers } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok'){
-      showSyncStatus('✅ 新しいお客様を登録しました：'+name);
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      showSyncStatus('✅ お客様を登録しました');
+      toggleNewCustomerForm();
       renderQuoteCustomerSelect();
       document.getElementById('q-customer').value = newCust.id;
       onQuoteCustomerChange();
-      toggleNewCustomerForm();
-      document.getElementById('nc-name').value=''; document.getElementById('nc-zip').value='';
-      document.getElementById('nc-addr').value=''; document.getElementById('nc-tel').value=''; document.getElementById('nc-note').value='';
-    } else {
-      showSyncStatus('⚠️ 保存に失敗しました', true);
-    }
-  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+    } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
+
 // ── RTゲート ────────────────────────────────────────────
-let rtGateAnswer = null; // true=RT, false=RT以外, null=未回答
 function resetRtGate(){
-  rtGateAnswer = null;
-  document.getElementById('q-rt-gate-card').style.display = 'block';
+  const card = document.getElementById('q-rt-gate-card');
+  card.dataset.rtSelected = '';
+  card.style.display = '';
   document.getElementById('q-after-gate').style.display = 'none';
   document.getElementById('q-rt-gate-confirm').innerHTML = '';
-  document.getElementById('q-doc-choice-card').style.display = 'none';
-  document.getElementById('q-pricelist-form-card').style.display = 'none';
-  document.getElementById('q-items-card').style.display = 'none';
-  document.getElementById('q-generate-card').style.display = 'none';
+  document.getElementById('q-rt-gate-banner').innerHTML = '';
 }
-function selectRtGate(isRT){
-  const label = isRT ? 'RT（ホテル・レストラン）' : 'RT以外（定価・卸①・卸②）';
-  const color = isRT ? '#dc2626' : '#185fa5';
-  document.getElementById('q-rt-gate-confirm').innerHTML =
-    '<div style="border:2px solid '+color+';border-radius:8px;padding:14px;background:#fffbeb;margin-top:6px">'+
-    '<div style="font-weight:700;font-size:15px;margin-bottom:10px">「'+label+'」として作成します。間違いないですか？</div>'+
-    '<div style="display:flex;gap:10px">'+
-    '<button class="btn btn-primary" style="flex:1" onclick="confirmRtGate('+isRT+')">はい、間違いありません</button>'+
-    '<button class="btn-sm" onclick="document.getElementById(\'q-rt-gate-confirm\').innerHTML=\'\'">やり直す</button>'+
-    '</div></div>';
+function selectRtGate(isRt){
+  const card = document.getElementById('q-rt-gate-card');
+  card.dataset.rtSelected = isRt ? 'true' : 'false';
+  const confirmEl = document.getElementById('q-rt-gate-confirm');
+  confirmEl.innerHTML = '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f;font-weight:700">'
+    + (isRt ? '🏨 「RTのお客様」を選択しました。' : '🏢 「RT以外のお客様」を選択しました。')
+    + '<br>本当にこれで進めてよろしいですか？（間違えると違う価格をお渡ししてしまいます）<br>'
+    + '<button class="btn btn-primary" style="margin-top:8px" onclick="confirmRtGate('+isRt+')">はい、間違いありません</button>'
+    + '<button class="btn-sm" style="margin-left:8px" onclick="resetRtGate()">やり直す</button>'
+    + '</div>';
 }
-function confirmRtGate(isRT){
-  rtGateAnswer = isRT;
-  document.getElementById('q-rt-gate-card').style.display = 'none';
-  document.getElementById('q-after-gate').style.display = 'block';
+function confirmRtGate(isRt){
+  const card = document.getElementById('q-rt-gate-card');
+  card.style.display = 'none';
   const banner = document.getElementById('q-rt-gate-banner');
-  banner.innerHTML = '<div class="info-box" style="'+(isRT?'background:#fef2f2;border-color:#dc2626;color:#7f1d1d':'background:#f0f9ff;border-color:#185fa5;color:#1e3a8a')+';font-weight:700">'+
-    (isRT?'🏨 RT（ホテル・レストラン）として作成中':'🏢 RT以外のお客様として作成中')+
-    '　<span style="font-weight:400;cursor:pointer;text-decoration:underline" onclick="resetRtGate()">変更する</span></div>';
+  banner.innerHTML = isRt
+    ? '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d;font-weight:700">🏨 このお客様は【RT（ホテル・レストラン）】として見積書を作成します。<button class="btn-sm" style="margin-left:10px" onclick="resetRtGate()">RT確認をやり直す</button></div>'
+    : '<div class="info-box" style="background:#dbeafe;border-color:#185fa5;color:#1e3a8a;font-weight:700">🏢 このお客様は【RT以外】として見積書を作成します。<button class="btn-sm" style="margin-left:10px" onclick="resetRtGate()">RT確認をやり直す</button></div>';
+  document.getElementById('q-after-gate').style.display = '';
   renderQuoteCustomerSelect();
 }
-function warehouseFeeForGate(){ return rtGateAnswer ? 700 : 250; }
+function warehouseFeeForGate(){
+  const rtSelected = document.getElementById('q-rt-gate-card').dataset.rtSelected;
+  return rtSelected==='true' ? 700 : 250;
+}
 
+// ── 見積書：お客様選択と価格表示 ────────────────────────────────────────────
 function renderQuoteCustomerSelect(){
-  const sel = document.getElementById('q-customer');
-  const current = sel.value;
-  // RTゲートの回答に応じて、候補となるお客様を絞り込む（区分の食い違いを事前に防ぐ）
-  const filtered = customers.filter(c=>{
-    if(!c.type) return true;
-    return rtGateAnswer ? c.type==='rt' : c.type!=='rt';
+  const rtSelected = document.getElementById('q-rt-gate-card').dataset.rtSelected;
+  const filtered = customers.filter(function(c){
+    if(rtSelected==='true') return c.type==='rt';
+    if(rtSelected==='false') return c.type!=='rt';
+    return true;
   });
-  sel.innerHTML = '<option value="">お客様を選択...</option>' +
-    filtered.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'　（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type||'区分未設定')+'）</option>').join('');
-  sel.value = current;
-  onQuoteCustomerChange();
+  const opts = ['<option value="">お客様を選択...</option>']
+    .concat(filtered.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
+  const q = document.getElementById('q-customer');
+  const prev = q.value; q.innerHTML = opts.join(''); q.value = prev;
+  const sp = document.getElementById('sp-customer');
+  if(sp){
+    const spOpts = ['<option value="">お客様を選択...</option>']
+      .concat(customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
+    const spPrev = sp.value; sp.innerHTML = spOpts.join(''); sp.value = spPrev;
+  }
 }
 function onQuoteCustomerChange(){
-  const custId = document.getElementById('q-customer').value;
-  const infoEl = document.getElementById('q-customer-info');
-  const whitelistCard = document.getElementById('q-whitelist-card');
-  const docChoiceCard = document.getElementById('q-doc-choice-card');
-  if(!custId){
-    infoEl.innerHTML = '';
-    whitelistCard.style.display = 'none';
-    docChoiceCard.style.display = 'none';
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid);
+  const info = document.getElementById('q-customer-info');
+  if(!c){
+    info.innerHTML = '';
+    document.getElementById('q-whitelist-card').style.display = 'none';
+    document.getElementById('q-doc-choice-card').style.display = 'none';
     document.getElementById('q-pricelist-form-card').style.display = 'none';
     document.getElementById('q-items-card').style.display = 'none';
     document.getElementById('q-generate-card').style.display = 'none';
     return;
   }
-  const c = customers.find(x=>x.id===custId);
-  document.getElementById('q-contact-person').value = '';
-  document.getElementById('pl-contact-person').value = '';
-  let mismatchWarn = '';
-  if(c.type && ((rtGateAnswer && c.type!=='rt') || (!rtGateAnswer && c.type==='rt'))){
-    mismatchWarn = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d;font-weight:700;margin-top:6px">⚠️ 最初に選んだ「'+(rtGateAnswer?'RT':'RT以外')+'」と、このお客様のマスタ登録区分（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）が食い違っています。ご確認ください。</div>';
-  }
-  infoEl.innerHTML = '<div class="info-box" style="margin-top:10px">適用される区分：<strong>'+(CUSTOMER_TYPE_LABEL[c.type]||'区分未設定（お客様マスタで設定してください）')+'</strong>　〒'+esc(c.zip)+' '+esc(c.addr)+'（この区分は自動で決まり、ここでは変更できません）</div>'+mismatchWarn;
-
-  renderWhitelistTable(c);
-  whitelistCard.style.display = 'block';
-  docChoiceCard.style.display = 'block';
+  info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+'</div>';
+  document.getElementById('q-whitelist-card').style.display = '';
+  document.getElementById('q-doc-choice-card').style.display = '';
   document.getElementById('q-pricelist-form-card').style.display = 'none';
   document.getElementById('q-items-card').style.display = 'none';
   document.getElementById('q-generate-card').style.display = 'none';
-
-  const expiry = new Date(); expiry.setMonth(expiry.getMonth()+2);
-  document.getElementById('q-expiry').value = expiry.toLocaleDateString('ja-JP')+'　まで有効（発行日から2ヶ月）';
+  renderWhitelistTable(c);
 }
 function renderWhitelistTable(c){
-  const groups = productGroups();
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;color:#1a1a18"><tbody>';
+  const wl = c.whitelist;
+  const allowed = quoteAllowedProducts(c);
+  const groups = {};
+  allowed.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
+  let html = '';
   Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet && !(p.noWholesale && c.type!=='rt'));
-    if(!items.length) return;
-    html += '<tr><td colspan="2" class="group-header">'+g+'</td></tr>';
-    items.forEach(function(p){
-      // 表示商品リストが未設定（新規お客様）の場合は、初期状態は全部チェック済みにする
-      const checked = !c.visibleSkus || !c.visibleSkus.length || c.visibleSkus.includes(p.sku);
-      html += '<tr style="border-bottom:1px solid #f0efe9"><td style="width:36px;padding:6px"><input type="checkbox" class="q-wl-cb" value="'+p.sku+'" '+(checked?'checked':'')+' style="width:18px;height:18px"></td>'+
-        '<td style="padding:6px">'+esc(p.name)+'</td></tr>';
+    html += '<div style="font-weight:700;margin:8px 0 4px">'+esc(g)+'</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">';
+    groups[g].forEach(function(p){
+      const on = !wl || wl.indexOf(p.sku) >= 0;
+      html += '<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1px solid '+(on?'#16a34a':'#d5cfc3')+';background:'+(on?'#dcfce7':'#f5f5f3')+';border-radius:4px">';
+      html += '<input type="checkbox" data-wl-sku="'+p.sku+'" '+(on?'checked':'')+'>'+esc(p.name);
+      html += '</label>';
     });
+    html += '</div>';
   });
-  html += '</tbody></table>';
   document.getElementById('q-whitelist-area').innerHTML = html;
 }
 function showPriceListForm(){
-  document.getElementById('q-pricelist-form-card').style.display = 'block';
+  document.getElementById('q-pricelist-form-card').style.display = '';
   document.getElementById('q-items-card').style.display = 'none';
   document.getElementById('q-generate-card').style.display = 'none';
   checkPriceListReady();
-  document.getElementById('q-pricelist-form-card').scrollIntoView({behavior:'smooth'});
 }
 function showIndividualQuoteForm(){
-  document.getElementById('q-items-card').style.display = 'block';
-  document.getElementById('q-generate-card').style.display = 'block';
   document.getElementById('q-pricelist-form-card').style.display = 'none';
-  document.getElementById('q-items-area').innerHTML = '';
-  quoteItemCounter = 0;
-  addQuoteItemRow();
+  document.getElementById('q-items-card').style.display = '';
+  document.getElementById('q-generate-card').style.display = '';
+  if(!document.getElementById('q-items-area').children.length){ addQuoteItemRow(); }
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+1);
+  document.getElementById('q-expiry').value = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日まで';
   checkQuoteReady();
-  document.getElementById('q-items-card').scrollIntoView({behavior:'smooth'});
 }
 function checkQuoteReady(){
-  const custId = document.getElementById('q-customer').value;
-  const contact = document.getElementById('q-contact-person').value.trim();
-  document.getElementById('q-generate-btn').disabled = !(custId && contact);
+  const btn = document.getElementById('q-generate-btn');
+  const warn = document.getElementById('q-generate-warn');
+  const person = document.getElementById('q-contact-person').value.trim();
+  if(!person){ btn.disabled = true; warn.textContent = '※担当者名を入力すると作成できるようになります'; return; }
+  btn.disabled = false; warn.textContent = '';
 }
 function checkPriceListReady(){
-  const custId = document.getElementById('q-customer').value;
-  const contact = document.getElementById('pl-contact-person').value.trim();
-  document.getElementById('pl-generate-btn').disabled = !(custId && contact);
+  const btn = document.getElementById('pl-generate-btn');
+  const warn = document.getElementById('pl-generate-warn');
+  const person = document.getElementById('pl-contact-person').value.trim();
+  if(!person){ btn.disabled = true; warn.textContent = '※担当者名を入力すると作成できるようになります'; return; }
+  btn.disabled = false; warn.textContent = '';
 }
-function saveCustomerWhitelist(){
-  const custId = document.getElementById('q-customer').value;
-  const c = customers.find(x=>x.id===custId);
-  if(!c) return;
-  const checked = Array.from(document.querySelectorAll('.q-wl-cb:checked')).map(cb=>cb.value);
-  c.visibleSkus = checked;
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ customers: customers } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 表示商品の設定を保存しました');
+async function saveCustomerWhitelist(){
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid); if(!c) return;
+  const checks = document.querySelectorAll('[data-wl-sku]');
+  const on = []; checks.forEach(cb=>{ if(cb.checked) on.push(cb.getAttribute('data-wl-sku')); });
+  c.whitelist = on;
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){ showSyncStatus('✅ 保存しました'); renderWhitelistTable(c); }
     else showSyncStatus('⚠️ 保存に失敗しました', true);
-  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
-function quoteAllowedProducts(){
-  const custId = document.getElementById('q-customer').value;
-  const c = customers.find(x=>x.id===custId);
-  let base = PRODUCTS.filter(p=>!p.isSet && !(p.noWholesale && (!c || c.type!=='rt')));
-  if(!c || !c.visibleSkus || !c.visibleSkus.length) return base;
-  return base.filter(p=>c.visibleSkus.includes(p.sku));
+function quoteAllowedProducts(c){
+  return PRODUCTS.filter(function(p){
+    if(c.type!=='rt'){
+      if(p.noWholesale) return false;
+      if(p.sku==='ORG100' || p.sku==='MEM100' || p.sku==='CHF100') return false;
+    }
+    return true;
+  });
 }
 function addQuoteItemRow(){
-  const id = 'qi'+(++quoteItemCounter);
-  const allowed = quoteAllowedProducts();
-  const opts = '<option value="">商品を選択...</option>' + allowed.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid); if(!c){ alert('お客様を選択してください'); return; }
+  const area = document.getElementById('q-items-area');
+  const rowId = 'qr'+Date.now()+Math.random().toString(36).slice(2,6);
+  const allowedList = quoteAllowedProducts(c);
+  const wl = c.whitelist;
+  const finalList = wl ? allowedList.filter(p=>wl.indexOf(p.sku)>=0) : allowedList;
+  const opts = finalList.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
   const row = document.createElement('div');
-  row.id = id;
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
-  row.innerHTML = '<select style="flex:2;padding:6px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px" data-role="qi-product">'+opts+'</select>'+
-    '<input type="number" min="1" value="1" title="本数で入力してください" style="width:80px;padding:6px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px" data-role="qi-qty">'+
-    '<span style="font-size:11px;color:#57534e">本</span>'+
-    '<button class="btn-sm" onclick="document.getElementById(\''+id+'\').remove()">✕</button>';
-  document.getElementById('q-items-area').appendChild(row);
+  row.className = 'g4';
+  row.id = rowId;
+  row.style.marginBottom = '8px';
+  row.innerHTML = '<div class="fg"><label>商品</label><select data-q-sku>'+opts+'</select></div>'+
+    '<div class="fg"><label>本数</label><input type="number" data-q-bottles min="0" value="0"></div>'+
+    '<div class="fg"><label>箱数</label><input type="number" data-q-boxes min="0" value="0"></div>'+
+    '<div class="fg" style="justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\''+rowId+'\').remove()">削除</button></div>';
+  area.appendChild(row);
 }
-function formatContactName(name){
-  name = (name||'').trim();
-  if(!name) return '';
-  return /[様殿]$/.test(name) ? name : name+' 様';
+function formatContactName(raw){
+  const s = (raw||'').trim();
+  if(!s) return '';
+  if(/様$/.test(s)) return s;
+  return s+' 様';
 }
 function generateQuoteDoc(){
-  const custId = document.getElementById('q-customer').value;
-  const contactPerson = formatContactName(document.getElementById('q-contact-person').value);
-  const remarks = document.getElementById('q-remarks').value.trim();
-  if(!custId){ document.getElementById('q-generate-warn').textContent = '⚠️ 提出先（お客様）を選んでください'; return; }
-  if(!contactPerson){ document.getElementById('q-generate-warn').textContent = '⚠️ 提出先ご担当者名を入力してください（誰にいつ何を出したか記録するため必須です）'; return; }
-  const c = customers.find(x=>x.id===custId);
-  const rows = Array.from(document.querySelectorAll('#q-items-area > div'));
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid); if(!c) return;
+  const contactPerson = document.getElementById('q-contact-person').value.trim();
+  if(!contactPerson){ alert('提出先ご担当者名を入力してください'); return; }
+  const rows = document.getElementById('q-items-area').children;
+  if(!rows.length){ alert('見積もる商品を1件以上追加してください'); return; }
   const items = [];
-  rows.forEach(function(row){
-    const sku = row.querySelector('[data-role=qi-product]').value;
-    const bottleQty = parseInt(row.querySelector('[data-role=qi-qty]').value)||0;
-    if(!sku || bottleQty<=0) return;
-    const p = findProductBySku(sku);
-    const boxQty = p ? (p.boxQty||1) : 1;
-    const boxesEquivalent = Math.floor(bottleQty / boxQty); // 割引判定用（本数を箱数に換算）
-    const effType = effectiveCustomerType(c.type, boxesEquivalent);
+  let totalBoxes = 0;
+  Array.from(rows).forEach(function(r){
+    const sku = r.querySelector('[data-q-sku]').value;
+    const bottles = parseInt(r.querySelector('[data-q-bottles]').value)||0;
+    const boxes = parseInt(r.querySelector('[data-q-boxes]').value)||0;
+    if(bottles===0 && boxes===0) return;
+    const p = findProductBySku(sku); if(!p) return;
+    const boxQty = p.boxQty||1;
+    const totalQty = bottles + boxes*boxQty;
+    const effType = effectiveCustomerType(c.type, boxes);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
     const upgraded = effType!==c.type;
-    items.push({ name: (p?p.name:sku)+(upgraded?'（数量割引適用）':''), qty: bottleQty, unitPrice: unitPrice, amount: unitPrice*bottleQty, taxRate: tax });
+    items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
+    if(boxes>0) totalBoxes += boxes;
   });
-  if(!items.length){ document.getElementById('q-generate-warn').textContent = '⚠️ 商品を1件以上選んでください'; return; }
-  document.getElementById('q-generate-warn').textContent = '';
-
+  if(!items.length){ alert('数量を入力してください'); return; }
   const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
-  const now = new Date();
-  const expiry = new Date(); expiry.setMonth(expiry.getMonth()+2);
-  const doc = buildQuoteDocHtml({
-    clientName: c.name, clientZip: c.zip, clientAddr: c.addr, contactPerson: contactPerson,
-    subject: subject, remarks: remarks,
-    items: items, expiryDate: expiry.toLocaleDateString('ja-JP')
-  });
+  const remarks = document.getElementById('q-remarks').value;
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+1);
+  const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  const bulkWarehouseFee = totalBoxes >= 10 ? 0 : warehouseFeeForGate();
+  const record = {
+    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    contactPerson: contactPerson, subject: subject,
+    items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
+    warehouseFee: bulkWarehouseFee,
+    remarks: remarks, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'quote'
+  };
+  quoteHistory.push(record);
+  saveQuoteHistoryToGAS();
+  const doc = buildQuoteDocHtml(record, c);
+  showQuoteDoc(doc, record);
+}
+function saveQuoteHistoryToGAS(){
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveQuoteHistory', quoteHistory: quoteHistory }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).then(r=>r.json()).then(function(data){
+    if(data.status==='ok') showSyncStatus('✅ 見積履歴を保存しました');
+    else showSyncStatus('⚠️ 履歴の保存に失敗しました', true);
+  }).catch(()=>showSyncStatus('⚠️ 通信エラー', true));
+}
+function showQuoteDoc(doc, record){
   const area = document.getElementById('quote-doc-area');
-  const existing = document.getElementById('generated-quote-wrap');
-  if(existing) existing.remove();
+  area.innerHTML = '';
   const wrap = document.createElement('div');
-  wrap.id = 'generated-quote-wrap';
   const inner = document.createElement('div');
   inner.innerHTML = doc;
   wrap.appendChild(inner.firstElementChild);
-  const btnRow = document.createElement('div');
-  btnRow.className = 'no-print';
-  btnRow.style.cssText = 'display:flex;gap:8px;margin-top:10px';
   const printBtn = document.createElement('button');
-  printBtn.className = 'btn btn-primary';
-  printBtn.textContent = '🖨 印刷する';
+  printBtn.className = 'btn btn-primary no-print';
+  printBtn.style.marginTop = '10px';
+  printBtn.textContent = '🖨 この見積書を印刷する';
   printBtn.onclick = function(){ window.print(); };
   const pdfBtn = document.createElement('button');
-  pdfBtn.className = 'btn btn-green';
-  pdfBtn.textContent = '📥 A4 PDFでダウンロード';
-  pdfBtn.onclick = function(){ downloadQuotePdf(c.name); };
-  btnRow.appendChild(printBtn);
-  btnRow.appendChild(pdfBtn);
-  wrap.appendChild(btnRow);
+  pdfBtn.className = 'btn btn-green no-print';
+  pdfBtn.style.marginTop = '10px';
+  pdfBtn.style.marginLeft = '8px';
+  pdfBtn.textContent = '📥 PDFでダウンロード';
+  pdfBtn.onclick = function(){ downloadQuotePdf(record); };
+  wrap.appendChild(printBtn);
+  wrap.appendChild(pdfBtn);
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
-
-  // 提出履歴に記録
-  quoteHistory.push({
-    id: 'q_'+Date.now(), customerId: custId, customerName: c.name, contactPerson: contactPerson,
-    subject: subject, totalAmount: items.reduce((s,it)=>s+it.amount,0), issuedAt: now.toISOString(), expiryDate: expiry.toISOString()
-  });
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ quoteHistory: quoteHistory } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') renderQuoteHistory();
-  }).catch(function(){});
 }
-function buildQuoteDocHtml(opts){
-  let subtotal = 0, taxAmount = 0;
-  const taxBreakdown = {};
-  opts.items.forEach(function(it){
-    const rate = (it.taxRate!=null) ? it.taxRate : 0.08;
-    const tax = Math.round(it.amount * rate);
-    subtotal += it.amount; taxAmount += tax;
-    const key = Math.round(rate*100)+'%';
-    if(!taxBreakdown[key]) taxBreakdown[key] = {base:0, tax:0};
-    taxBreakdown[key].base += it.amount; taxBreakdown[key].tax += tax;
+function buildQuoteDocHtml(record, c){
+  const today = new Date();
+  const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
+  record.items.forEach(function(it){
+    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
-  const total = subtotal + taxAmount;
+  const subtotal = subtotalTax8 + subtotalTax10;
+  const totalTax = taxAmount8 + taxAmount10;
+  const warehouseFee = record.warehouseFee || 0;
+  const total = subtotal + totalTax + warehouseFee;
   let html = '<div class="invoice-doc">';
-  html += '<div class="invoice-doc-title">御　見　積　書</div>';
+  html += '<div class="invoice-doc-title">御 見 積 書</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700;border-bottom:2px solid #1a1a18;padding-bottom:4px;margin-bottom:6px">'+esc(opts.clientName)+' 御中</div>'+
-          (opts.contactPerson?'ご担当：'+esc(opts.contactPerson)+'<br>':'')+
-          '〒'+esc(opts.clientZip||'')+'<br>'+esc(opts.clientAddr||'')+'</div>';
-  html += '<div style="text-align:right"><table style="font-size:12px"><tr><td style="color:#57534e;padding-right:10px">発行日</td><td>'+new Date().toLocaleDateString('ja-JP')+'</td></tr>'+
-          '<tr><td style="color:#57534e;padding-right:10px">有効期限</td><td style="color:#dc2626;font-weight:700">'+esc(opts.expiryDate)+'</td></tr>'+
-          '<tr><td style="color:#57534e;padding-right:10px">登録番号</td><td>'+COMPANY_INFO.invoiceRegNo+'</td></tr></table>'+
-          '<div style="margin-top:14px;font-weight:700">'+COMPANY_INFO.name+'</div>'+
-          '<div style="font-size:12px">〒'+COMPANY_INFO.zip+'<br>'+COMPANY_INFO.addr+'</div></div>';
-  html += '</div>';
-  html += '<div style="margin-bottom:1rem">下記の通りお見積り申し上げます。宜しくご検討くださいますようお願い致します。</div>';
-  html += '<div style="font-weight:700;margin-bottom:10px">件名　'+esc(opts.subject)+'</div>';
-  html += '<div class="invoice-doc-summary"><table><tr><th>小計（税抜）</th><th>消費税</th><th>お見積り金額（税込）</th></tr>'+
-          '<tr><td>'+subtotal.toLocaleString()+'円</td><td>'+taxAmount.toLocaleString()+'円</td><td style="font-size:20px;font-weight:700">'+total.toLocaleString()+'円</td></tr></table></div>';
-  if(Object.keys(taxBreakdown).length>1){
-    html += '<div style="font-size:11px;color:#2b2a26;margin-bottom:1rem"><span style="font-weight:700">※8%はオリーブオイル（軽減税率）、10%はギフト箱・備品等（標準税率）</span><br>内訳　'+Object.keys(taxBreakdown).map(function(k){
-      const b = taxBreakdown[k];
-      return k+'対象（税抜）'+b.base.toLocaleString()+'円／消費税'+b.tax.toLocaleString()+'円';
-    }).join('　')+'</div>';
-  }
-  html += '<table class="invoice-doc-table"><thead><tr><th>摘要</th><th style="width:60px">税率</th><th style="width:70px">数量</th><th style="width:100px">単価（税抜）</th><th style="width:120px">明細金額（税抜）</th></tr></thead><tbody>';
-  opts.items.forEach(function(it){
-    const rate = (it.taxRate!=null) ? it.taxRate : 0.08;
-    html += '<tr><td>'+esc(it.name)+'</td><td style="text-align:center">'+Math.round(rate*100)+'%</td><td style="text-align:center">'+it.qty+'本</td><td style="text-align:right">'+it.unitPrice.toLocaleString()+'円</td><td style="text-align:right">'+it.amount.toLocaleString()+'円</td></tr>';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
+  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
+  if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
+  html += '<div style="margin-top:10px;font-size:13px">下記の通り御見積り申し上げます。</div></div>';
+  html += '<div style="text-align:right">';
+  html += '<div>発行日：'+dateStr+'</div>';
+  html += '<div>有効期限：'+esc(record.expiryStr)+'</div>';
+  html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
+  html += '<div style="font-size:11px">〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+  html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+  html += '</div></div>';
+  html += '<div class="invoice-doc-summary"><table><tr><th>件名</th><th style="width:30%">御見積金額</th></tr>';
+  html += '<tr><td>'+esc(record.subject)+'</td><td style="font-size:20px;font-weight:700">¥'+total.toLocaleString()+'</td></tr></table></div>';
+  html += '<table class="invoice-doc-table"><thead><tr><th style="width:5%">No.</th><th>商品</th><th style="width:15%">数量</th><th style="width:15%">単価</th><th style="width:8%">税率</th><th style="width:15%">金額</th></tr></thead><tbody>';
+  record.items.forEach(function(it, i){
+    let qtyStr = '';
+    if(it.boxes && it.bottles) qtyStr = it.boxes+'箱＋'+it.bottles+'本';
+    else if(it.boxes) qtyStr = it.boxes+'箱';
+    else qtyStr = it.bottles+'本';
+    qtyStr += '<br><span style="font-size:10px;color:#57534e">計'+it.qty+'本</span>';
+    const taxStr = (it.taxRate===0.10?'10%':'8%');
+    html += '<tr><td>'+(i+1)+'</td><td>'+esc(it.name)+'</td><td style="text-align:center">'+qtyStr+'</td><td style="text-align:right">¥'+it.unitPrice.toLocaleString()+'</td><td style="text-align:center">'+taxStr+'</td><td style="text-align:right">¥'+it.amount.toLocaleString()+'</td></tr>';
   });
   html += '</tbody></table>';
-  if(opts.remarks) html += '<div class="invoice-doc-note" style="background:#f0f9ff;border-color:#93c5fd">📝 '+esc(opts.remarks).replace(/\n/g,'<br>')+'</div>';
-  html += '<div class="invoice-doc-note">この見積書の有効期限は発行日より2ヶ月間です。価格は市場状況により変更となる場合がございます。倉庫でのバラ出荷手数料は1発送あたり'+warehouseFeeForGate()+'円を頂戴いたします。ご不明な点がございましたらお気軽にお問い合わせください。<br>どうぞよろしくお願い致します。</div>';
-  html += '</div>';
-  return html;
-}
-
-// ── 標準価格表（おすすめの渡し方） ────────────────────────────────────────────
-function generatePriceListDoc(){
-  const custId = document.getElementById('q-customer').value;
-  const contactPerson = formatContactName(document.getElementById('pl-contact-person').value);
-  const remarks = document.getElementById('pl-remarks').value.trim();
-  const warnEl = document.getElementById('pl-generate-warn');
-  if(!custId){ warnEl.textContent = '⚠️ 提出先（お客様）を選んでください'; return; }
-  if(!contactPerson){ warnEl.textContent = '⚠️ 提出先ご担当者名を入力してください'; return; }
-  const c = customers.find(x=>x.id===custId);
-  const checkedSkus = Array.from(document.querySelectorAll('.q-wl-cb:checked')).map(cb=>cb.value);
-  if(!checkedSkus.length){ warnEl.textContent = '⚠️ 表示する商品が1つもチェックされていません'; return; }
-  warnEl.textContent = '';
-
-  const doc = buildPriceListDocHtml({ customer: c, skus: checkedSkus, contactPerson: contactPerson, remarks: remarks, isRT: rtGateAnswer });
-  const area = document.getElementById('quote-doc-area');
-  const existing = document.getElementById('generated-quote-wrap');
-  if(existing) existing.remove();
-  const wrap = document.createElement('div');
-  wrap.id = 'generated-quote-wrap';
-  const inner = document.createElement('div');
-  inner.innerHTML = doc;
-  wrap.appendChild(inner.firstElementChild);
-  const btnRow = document.createElement('div');
-  btnRow.className = 'no-print';
-  btnRow.style.cssText = 'display:flex;gap:8px;margin-top:10px';
-  const printBtn = document.createElement('button');
-  printBtn.className = 'btn btn-primary';
-  printBtn.textContent = '🖨 印刷する';
-  printBtn.onclick = function(){ window.print(); };
-  const pdfBtn = document.createElement('button');
-  pdfBtn.className = 'btn btn-green';
-  pdfBtn.textContent = '📥 A4 PDFでダウンロード';
-  pdfBtn.onclick = function(){ downloadQuotePdf(c.name); };
-  btnRow.appendChild(printBtn);
-  btnRow.appendChild(pdfBtn);
-  wrap.appendChild(btnRow);
-  area.appendChild(wrap);
-  area.scrollIntoView({behavior:'smooth'});
-
-  const now = new Date();
-  const expiry = new Date(); expiry.setMonth(expiry.getMonth()+2);
-  quoteHistory.push({
-    id: 'q_'+Date.now(), customerId: custId, customerName: c.name, contactPerson: contactPerson,
-    subject: '標準価格表', totalAmount: 0, issuedAt: now.toISOString(), expiryDate: expiry.toISOString()
-  });
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ quoteHistory: quoteHistory } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') renderQuoteHistory();
-  }).catch(function(){});
-}
-const CAPACITY_OVERRIDE = { CUP001:'13g', CUP002:'13g', CUP003:'13g' };
-const NAME_OVERRIDE = { CUP001:'カップオイル（グリーンブーケ／オルガニック）', CUP002:'カップオイル（グリーンバナナ／メメジック）', CUP003:'カップオイル（オレンジ＆レモン／アグルミ）' };
-function buildPriceListDocHtml(opts){
-  const c = opts.customer;
-  const priceKeyMap = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect' };
-  const priceKey = priceKeyMap[c.type] || 'priceGeneral';
-  const showTwoTier = !opts.isRT; // RT以外は「通常卸価格」と「6箱以上の割引価格」の2本立てで見せる
-  const expiry = new Date(); expiry.setMonth(expiry.getMonth()+2);
-  const groups = productGroups();
-  const feeYen = warehouseFeeForGate();
-
-  let rowsHtml = '';
-  Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet && opts.skus.includes(p.sku) && !(p.noWholesale && !opts.isRT));
-    if(!items.length) return;
-    const origin = GROUP_ORIGIN[g] || '';
-    const cert = GROUP_CERT[g] || {organic:'',contamination:'',analysis:''};
-    items.forEach(function(p, idx){
-      const priceRow = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
-      const openPrice = priceRow.priceGeneral||0;
-      const yourPrice = priceRow[priceKey]||0;
-      const bulkPrice = priceRow.priceWholesale2||0;
-      const notAvailable = yourPrice<=0;
-      const capacity = CAPACITY_OVERRIDE[p.sku] || (function(){ const m = p.name.match(/(\d+(?:\.\d+)?(?:ml|g|L))/i); return m ? m[1] : ''; })();
-      const baseName = NAME_OVERRIDE[p.sku] || p.name.replace(/\s*\d+(?:\.\d+)?(?:ml|g|L)\s*/i,' ').replace(/\s+/g,' ').trim();
-      rowsHtml += '<tr>'+
-        (idx===0 ? '<td rowspan="'+items.length+'" style="background:#f9f8f5;width:36px">'+esc(origin)+'</td>' : '')+
-        '<td style="max-width:150px">'+esc(baseName||p.name)+'</td>'+
-        '<td style="text-align:right;width:40px">'+esc(capacity)+'</td>'+
-        '<td style="text-align:right;width:44px">'+(p.boxQty||'-')+'本</td>'+
-        '<td style="text-align:right">'+(notAvailable?'－':openPrice.toLocaleString())+'</td>'+
-        '<td style="text-align:right;font-weight:700;color:'+(notAvailable?'#999':'#0f766e')+'">'+(notAvailable?'－':yourPrice.toLocaleString())+'</td>'+
-        (showTwoTier ? '<td style="text-align:right;font-weight:700;color:'+(notAvailable?'#999':'#b45309')+'">'+(notAvailable?'－':bulkPrice.toLocaleString())+'</td>' : '')+
-        '<td style="text-align:center;font-size:11px">'+containerForSku(p.sku)+'</td>'+
-        (idx===0 ? '<td rowspan="'+items.length+'" style="text-align:center">'+cert.organic+'</td><td rowspan="'+items.length+'" style="text-align:center">'+cert.contamination+'</td><td rowspan="'+items.length+'" style="text-align:center">'+cert.analysis+'</td>' : '')+
-        '</tr>';
-    });
-  });
-
-  let html = '<div class="invoice-doc" style="font-size:12px">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
-  html += '<div><div style="font-weight:700;font-size:14px">'+esc(c.name)+' 御中</div>'+(opts.contactPerson?'<div style="font-size:12px">ご担当：'+esc(opts.contactPerson)+'</div>':'')+
-          '<div style="font-size:11px;color:#2b2a26;margin-top:4px">お見積り有効期間　〜'+expiry.toLocaleDateString('ja-JP')+'</div></div>';
-  html += '<div style="text-align:right;font-size:11px;color:#2b2a26">低温空輸・低温管理商品<br>'+(opts.isRT?'<span style="color:#dc2626;font-weight:700">RT（ホテル・レストラン）価格表</span>':'<span style="color:#185fa5;font-weight:700">'+(CUSTOMER_TYPE_LABEL[c.type]||'')+'価格表</span>')+'</div>';
-  html += '</div>';
-  html += '<div style="text-align:center;font-weight:700;font-size:18px;margin-bottom:10px">オリーブオイル標準価格表</div>';
-
-  html += '<table class="invoice-doc-table" style="font-size:11px"><thead><tr>'+
-    '<th style="width:36px">生産地</th><th>商品名</th><th style="width:40px">容量</th><th style="width:44px">1箱数</th><th>オープン価格</th>'+
-    (showTwoTier ? '<th>卸価格<br><span style="font-weight:400;font-size:9px">（5箱以下）</span></th><th>卸価格<br><span style="font-weight:400;font-size:9px">（6箱以上）</span></th>' : '<th>卸価格</th>')+
-    '<th>容器</th>'+
-    '<th colspan="3">公的証明書（EU）の有無<br><span style="font-weight:400;font-size:9px">オーガニック／コンタミネーション／分析書</span></th>'+
-    '</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
-
-  html += '<div style="font-size:10px;color:#2b2a26;line-height:1.8;margin-top:10px">'+
-    'オープン価格※：こちらの価格を販売最低価格とさせていただきます。<br>'+
-    (showTwoTier ? '<strong>一度のご購入で、同じ商品を6箱以上お買い上げの場合、その商品に限り「卸価格（6箱以上）」を適用いたします。</strong>同サイズの他の商品との組み合わせ（ミックス）では対象になりません。あくまで同一商品のみが対象です。<br>' : '')+
-    '卸は原則箱単位ですが、バラでの卸も承ります。ただし、1発送あたり倉庫での作業手数料<strong style="color:#dc2626">'+feeYen.toLocaleString()+'円</strong>をお預かりいたします（'+(opts.isRT?'RT':'卸①・卸②')+'のお客様）。弊社都合でバラになる場合はご請求は致しません。<br>'+
-    '必要最低リードタイム：週末・祝日を除き6日　送料別途</div>';
-
-  if(opts.remarks) html += '<div class="invoice-doc-note" style="background:#f0f9ff;border-color:#93c5fd;margin-top:10px">📝 '+esc(opts.remarks).replace(/\n/g,'<br>')+'</div>';
-
-  html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#2b2a26;margin-top:14px;border-top:1px solid #e8e2d8;padding-top:10px">'+
-    '<div>'+COMPANY_INFO.website+'</div>'+
-    '<div style="text-align:right">'+COMPANY_INFO.name+'<br>出荷元倉庫所在地：福岡県<br>'+COMPANY_INFO.email+'</div>'+
-    '</div>';
-  html += '</div>';
-  return html;
-}
-
-async function downloadQuotePdf(clientName){
-  const el = document.querySelector('#generated-quote-wrap .invoice-doc');
-  if(!el){ alert('先に見積書を作成してください'); return; }
-  if(!window.html2canvas || !window.jspdf){ alert('PDF機能の準備ができていません。少し待ってから再度お試しください。'); return; }
-  showSyncStatus('📄 PDFを作成中...');
-  try{
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageWidth = 210, pageHeight = 297;
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-    if(imgHeight <= pageHeight){
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    } else {
-      const scale = pageHeight / imgHeight;
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, pageHeight);
-    }
-    pdf.save('見積書_'+clientName+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-    showSyncStatus('✅ PDFをダウンロードしました');
-  }catch(err){
-    showSyncStatus('⚠️ PDF作成に失敗しました：'+err.message, true);
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
+  if(subtotalTax8){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計（8%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（8%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount8.toLocaleString()+'</td></tr>';
   }
+  if(subtotalTax10){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計（10%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax10.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount10.toLocaleString()+'</td></tr>';
+  }
+  if(warehouseFee){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">倉庫手数料（バラ出荷）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+warehouseFee.toLocaleString()+'</td></tr>';
+  }
+  html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '</table></div>';
+  if(record.remarks){
+    html += '<div class="invoice-doc-note"><strong>備考：</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
+  }
+  html += '<div class="invoice-doc-note" style="margin-top:8px">';
+  html += '※本見積書の有効期限は発行日より1ヶ月とさせていただきます。<br>';
+  html += '※10箱以上のご注文で倉庫手数料は無料になります。<br>';
+  html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
+  html += '</div>';
+  html += '</div>';
+  return html;
 }
 
-// ── 見積り提出履歴・未フォローアラート ────────────────────────────────────────────
-function hasOrderSince(customerName, sinceISO){
-  return orders.some(function(o){
-    return o.client===customerName && o.status!=='cancelled' && (o.registeredAt||'') > sinceISO;
+// ── 標準価格表 ────────────────────────────────────────────
+const CAPACITY_OVERRIDE = {
+  'CUP001':'カップオイル 13g', 'CUP002':'カップオイル 13g', 'CUP003':'カップオイル 13g',
+  'BOX-YS3':'ギフト箱', 'BOX-YS2':'ギフト箱', 'BOX-CUP':'ギフト箱',
+  'BAG001':'紙袋 小', 'BAG002':'紙袋 大'
+};
+const NAME_OVERRIDE = {
+  'CUP001':'グリーンブーケ（オルガニック）',
+  'CUP002':'グリーンバナナ（メメジック）',
+  'CUP003':'オレンジ＆レモン（アグルミ）'
+};
+function generatePriceListDoc(){
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid); if(!c) return;
+  const contactPerson = document.getElementById('pl-contact-person').value.trim();
+  if(!contactPerson){ alert('提出先ご担当者名を入力してください'); return; }
+  const remarks = document.getElementById('pl-remarks').value;
+  const allowed = quoteAllowedProducts(c);
+  const wl = c.whitelist;
+  const list = wl ? allowed.filter(p=>wl.indexOf(p.sku)>=0) : allowed;
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+1);
+  const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  const record = {
+    id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    contactPerson: contactPerson,
+    products: list.map(p=>({sku:p.sku, name:p.name, group:p.group, boxQty:p.boxQty})),
+    remarks: remarks, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'pricelist'
+  };
+  quoteHistory.push(record);
+  saveQuoteHistoryToGAS();
+  const doc = buildPriceListDocHtml(record, c);
+  showQuoteDoc(doc, record);
+}
+function buildPriceListDocHtml(record, c){
+  const today = new Date();
+  const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let html = '<div class="invoice-doc">';
+  html += '<div class="invoice-doc-title">標 準 価 格 表</div>';
+  html += '<div class="invoice-doc-top">';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
+  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
+  if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
+  html += '<div style="margin-top:10px;font-size:13px">下記の通り、お取り扱い商品の標準価格をご案内申し上げます。</div></div>';
+  html += '<div style="text-align:right">';
+  html += '<div>発行日：'+dateStr+'</div>';
+  html += '<div>有効期限：'+esc(record.expiryStr)+'</div>';
+  html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
+  html += '<div style="font-size:11px">〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+  html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+  html += '</div></div>';
+
+  const groups = {};
+  record.products.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
+  Object.keys(groups).forEach(function(g){
+    const origin = GROUP_ORIGIN[g] || '';
+    const cert = GROUP_CERT[g];
+    html += '<div style="margin-top:16px;font-weight:700;background:#f9f8f5;padding:6px 10px;border-left:4px solid #55622e">'+esc(g)+(origin?'　（'+origin+'産）':'')+'</div>';
+    if(cert){
+      html += '<div style="font-size:11px;color:#57534e;padding:4px 10px">オーガニック認証：'+cert.organic+'　残留農薬：'+cert.contamination+'　成分分析：'+cert.analysis+'</div>';
+    }
+    html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr>';
+    html += '<th>商品名</th><th style="width:14%">容量</th><th style="width:14%">容器</th><th style="width:10%">入数</th><th style="width:18%">単価（税抜）</th><th style="width:8%">税率</th>';
+    html += '</tr></thead><tbody>';
+    groups[g].forEach(function(p){
+      const displayName = NAME_OVERRIDE[p.sku] || p.name.replace(/\s*\d+ml.*$/, '').replace(/\s*\d+L.*$/, '').replace(/^(オルガニック|メメジック|シェフズブレンド|プリモフルット|ザイトゥーン|アグルミ)\s*/, '');
+      let capacity = CAPACITY_OVERRIDE[p.sku] || (p.name.match(/\d+ml|\d+L/)||[''])[0];
+      const container = containerForSku(p.sku);
+      const boxQty = p.boxQty ? (p.boxQty+'本／箱') : '-';
+      const unitPrice = priceForSku(p.sku, record.customerType);
+      const tax = taxRateForSku(p.sku);
+      html += '<tr><td>'+esc(displayName||p.name)+'</td><td style="text-align:center">'+esc(capacity)+'</td><td style="text-align:center">'+esc(container)+'</td><td style="text-align:center">'+boxQty+'</td><td style="text-align:right">¥'+unitPrice.toLocaleString()+'</td><td style="text-align:center">'+(tax===0.10?'10%':'8%')+'</td></tr>';
+    });
+    html += '</tbody></table>';
   });
+
+  if(record.remarks){
+    html += '<div class="invoice-doc-note" style="margin-top:16px"><strong>備考：</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
+  }
+  html += '<div class="invoice-doc-note" style="margin-top:8px">';
+  html += '※本価格表の有効期限は発行日より1ヶ月とさせていただきます。<br>';
+  html += '※季節・入荷状況により、在庫が変動する場合がございます。<br>';
+  html += '※10箱以上のご注文で倉庫手数料は無料になります。<br>';
+  html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+function downloadQuotePdf(record){
+  const el = document.querySelector('#quote-doc-area .invoice-doc');
+  if(!el){ alert('見積書が表示されていません'); return; }
+  showSyncStatus('PDFを作成しています...');
+  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
+    const img = canvas.toDataURL('image/png');
+    const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const imgW = pdfW - 20;
+    const imgH = canvas.height * imgW / canvas.width;
+    let heightLeft = imgH;
+    let position = 10;
+    pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
+    heightLeft -= (pdfH - 20);
+    while(heightLeft > 0){
+      position = heightLeft - imgH + 10;
+      pdf.addPage();
+      pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
+      heightLeft -= (pdfH - 20);
+    }
+    const dateStr = new Date().toISOString().slice(0,10);
+    const kindStr = record.kind==='pricelist' ? '標準価格表' : '見積書';
+    pdf.save(kindStr+'_'+record.customerName+'_'+dateStr+'.pdf');
+    showSyncStatus('✅ PDFを作成しました');
+  }).catch(function(err){
+    showSyncStatus('⚠️ PDF作成に失敗しました', true);
+    console.error(err);
+  });
+}
+
+// ── 見積り提出履歴 ────────────────────────────────────────────
+function hasOrderSince(customerId, sinceISO){
+  const since = new Date(sinceISO);
+  return orders.some(function(o){
+    if(o.status==='cancelled') return false;
+    if((o.customerId||'') !== customerId && (o.client||'').indexOf(customerName(customerId))<0) return false;
+    if(!o.registeredAt) return false;
+    return new Date(o.registeredAt) >= since;
+  });
+}
+function customerName(customerId){
+  const c = customers.find(x=>x.id===customerId);
+  return c ? c.name : '';
 }
 function renderQuoteHistory(){
-  const now = new Date();
-  const needsFollowUp = quoteHistory.filter(function(q){
-    const issued = new Date(q.issuedAt);
-    const daysSince = (now - issued) / 86400000;
-    return daysSince >= 7 && !hasOrderSince(q.customerName, q.issuedAt);
-  });
   const alertEl = document.getElementById('quote-followup-alert');
-  if(alertEl){
-    alertEl.innerHTML = needsFollowUp.length
-      ? '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>📞 フォローが必要かもしれません：</strong>提出から1週間以上経っても発注のないお客様が'+needsFollowUp.length+'件あります。<br>'+needsFollowUp.map(q=>esc(q.customerName)+'（'+esc(q.contactPerson)+'様／'+q.issuedAt.slice(0,10)+'提出）').join('、')+'</div>'
-      : '';
-  }
   const listEl = document.getElementById('quote-history-list');
   if(!listEl) return;
-  if(!quoteHistory.length){ listEl.innerHTML = '<div style="color:#57534e;font-size:13px;padding:8px 0">まだ見積り提出の記録はありません。</div>'; return; }
-  listEl.innerHTML = quoteHistory.slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||'')).map(function(q){
-    const issued = new Date(q.issuedAt);
-    const daysSince = (now - issued) / 86400000;
-    const ordered = hasOrderSince(q.customerName, q.issuedAt);
-    const overdue = daysSince>=7 && !ordered;
-    return '<div class="card" style="margin-bottom:8px;'+(overdue?'border-color:#f59e0b;border-width:2px':'')+'">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-      '<div><strong>'+esc(q.customerName)+'</strong>　ご担当：'+esc(q.contactPerson)+'　¥'+(q.totalAmount||0).toLocaleString()+'</div>'+
-      (ordered?'<span class="badge badge-paid">発注あり</span>':overdue?'<span class="badge" style="background:#fef3c7;color:#78350f">📞未フォロー</span>':'<span class="badge badge-postpay">様子見中</span>')+
-      '</div>'+
-      '<div style="font-size:11px;color:#57534e;margin-top:4px">件名：'+esc(q.subject)+'　提出日：'+q.issuedAt.slice(0,10)+'　有効期限：'+(q.expiryDate?q.expiryDate.slice(0,10):'')+'</div>'+
-      '</div>';
+  const sorted = quoteHistory.slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
+  const now = new Date();
+  const followupNeeded = [];
+  sorted.forEach(function(r){
+    if(!r.issuedAt) return;
+    const issued = new Date(r.issuedAt);
+    const daysSince = Math.floor((now - issued) / (1000*60*60*24));
+    if(daysSince >= 14 && !hasOrderSince(r.customerId, r.issuedAt)){
+      followupNeeded.push({record:r, daysSince:daysSince});
+    }
+  });
+  if(followupNeeded.length){
+    alertEl.innerHTML = '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f;font-weight:700">📣 見積書・価格表を出してから2週間以上経っても受注がないお客様が'+followupNeeded.length+'件：'+followupNeeded.map(x=>esc(x.record.customerName)+'（'+x.daysSince+'日前）').join('、')+'<br>状況確認・フォローの声かけをおすすめします。</div>';
+  } else { alertEl.innerHTML = ''; }
+  if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
+  listEl.innerHTML = sorted.map(function(r){
+    const dateStr = (r.issuedAt||'').slice(0,10);
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : '📝 見積書';
+    const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
+    const orderBadge = hasOrder ? '<span class="badge badge-paid">受注あり</span>' : '<span class="badge badge-unpaid">未受注</span>';
+    return '<div class="card" style="padding:10px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      + '<div><strong>'+esc(r.customerName)+'</strong> '+orderBadge+' <span style="font-size:11px;color:#57534e">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
+      + '<div><button class="btn-sm" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</button></div>'
+      + '</div></div>';
   }).join('');
+}
+function viewQuoteHistoryItem(rid){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
+  const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
+  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : buildQuoteDocHtml(r, c);
+  showQuoteDoc(doc, r);
 }
 
 // ── イレギュラー特価 ────────────────────────────────────────────
-function computeDefectStock(pid){
-  let q = 0;
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') q += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
-  return q;
+function computeDefectStock(){
+  const map = {};
+  (defects||[]).forEach(function(d){
+    const sku = d.sku; if(!sku) return;
+    map[sku] = (map[sku]||0) + (parseInt(d.qty)||0);
+  });
+  return map;
 }
-function computeOldLotStock(pid){
-  let q = 0;
-  lots.forEach(function(l){ if(l.pid==pid && l.status==='old') q += (l.stock||0); });
-  return q;
+function computeOldLotStock(){
+  const map = {};
+  const today = new Date();
+  const threshold = new Date(today); threshold.setMonth(threshold.getMonth()+6);
+  (lots||[]).forEach(function(l){
+    if(!l.expiryDate) return;
+    if(new Date(l.expiryDate) <= threshold){
+      map[l.sku] = (map[l.sku]||0) + (parseInt(l.qty)||0);
+    }
+  });
+  return map;
 }
 function fillSpecialPriceSelects(){
-  const custSel = document.getElementById('sp-customer');
-  custSel.innerHTML = '<option value="">お客様を選択...</option>' + customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  const custSelect = document.getElementById('sp-customer');
+  if(custSelect){
+    const opts = ['<option value="">お客様を選択...</option>']
+      .concat(customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
+    const prev = custSelect.value; custSelect.innerHTML = opts.join(''); custSelect.value = prev;
+  }
   onSpSourceTypeChange();
 }
 function onSpSourceTypeChange(){
   const type = document.getElementById('sp-source-type').value;
-  const hintEl = document.getElementById('sp-stock-hint');
-  const prodSel = document.getElementById('sp-product');
-  const groups = productGroups();
-  let opts = '<option value="">商品を選択...</option>';
-
-  if(type==='normal'){
-    hintEl.style.display = 'none';
-    Object.keys(groups).forEach(function(g){
-      const items = groups[g].filter(p=>!p.isSet);
-      if(!items.length) return;
-      opts += '<optgroup label="'+esc(g)+'">'+items.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('')+'</optgroup>';
-    });
-  } else {
-    const stockFn = type==='defect' ? computeDefectStock : computeOldLotStock;
-    hintEl.style.display = 'block';
-    hintEl.textContent = type==='defect'
-      ? '💡 実際に不良在庫がある商品だけが選べます。数量は在庫アプリBの不良在庫データと連動しています。'
-      : '💡 賞味期限が近い旧ロットの在庫がある商品だけが選べます。数量は在庫アプリBの在庫データと連動しています。';
-    Object.keys(groups).forEach(function(g){
-      const items = groups[g].filter(p=>!p.isSet).map(function(p){
-        return { p: p, stock: stockFn(p.id) };
-      }).filter(function(x){ return x.stock>0; });
-      if(!items.length) return;
-      opts += '<optgroup label="'+esc(g)+'">'+items.map(function(x){
-        return '<option value="'+x.p.sku+'" data-stock="'+x.stock+'">'+esc(x.p.name)+'（在庫 '+x.stock+'本）</option>';
-      }).join('')+'</optgroup>';
-    });
-    if(opts==='<option value="">商品を選択...</option>'){
-      opts += '<option value="" disabled>（該当する在庫がある商品はありません）</option>';
+  const hint = document.getElementById('sp-stock-hint');
+  const prodSelect = document.getElementById('sp-product');
+  let opts = ['<option value="">商品を選択...</option>'];
+  if(type==='defect'){
+    const stock = computeDefectStock();
+    const skus = Object.keys(stock).filter(s=>stock[s]>0);
+    if(!skus.length){
+      hint.style.display=''; hint.textContent='現在、不良在庫として登録されている商品はありません。「通常品」を選ぶか、まず在庫アプリBで不良品を登録してください。';
+    } else {
+      hint.style.display=''; hint.innerHTML='現在の不良在庫：'+skus.map(s=>{const p=findProductBySku(s); return esc(p?p.name:s)+' '+stock[s]+'本';}).join('、');
+      skus.forEach(function(s){ const p = findProductBySku(s); if(p) opts.push('<option value="'+s+'">'+esc(p.name)+'（在庫'+stock[s]+'本）</option>'); });
     }
+  } else if(type==='oldlot'){
+    const stock = computeOldLotStock();
+    const skus = Object.keys(stock).filter(s=>stock[s]>0);
+    if(!skus.length){
+      hint.style.display=''; hint.textContent='現在、賞味期限が6ヶ月以内のロットは登録されていません。「通常品」を選ぶか、まず在庫アプリBでロット情報を確認してください。';
+    } else {
+      hint.style.display=''; hint.innerHTML='賞味期限が6ヶ月以内の在庫：'+skus.map(s=>{const p=findProductBySku(s); return esc(p?p.name:s)+' '+stock[s]+'本';}).join('、');
+      skus.forEach(function(s){ const p = findProductBySku(s); if(p) opts.push('<option value="'+s+'">'+esc(p.name)+'（在庫'+stock[s]+'本）</option>'); });
+    }
+  } else {
+    hint.style.display='none';
+    PRODUCTS.forEach(function(p){ opts.push('<option value="'+p.sku+'">'+esc(p.name)+'</option>'); });
   }
-  prodSel.innerHTML = opts;
+  prodSelect.innerHTML = opts.join('');
   onSpProductChange();
 }
 function onSpProductChange(){
-  const sel = document.getElementById('sp-product');
-  const opt = sel.selectedOptions[0];
-  const maxHint = document.getElementById('sp-qty-max-hint');
-  const qtyInput = document.getElementById('sp-qty');
-  const stock = opt ? parseInt(opt.dataset.stock) : null;
-  if(stock){
-    maxHint.textContent = '（在庫 '+stock+'本まで）';
-    qtyInput.max = stock;
-  } else {
-    maxHint.textContent = '';
-    qtyInput.removeAttribute('max');
+  const type = document.getElementById('sp-source-type').value;
+  const sku = document.getElementById('sp-product').value;
+  const hint = document.getElementById('sp-qty-max-hint');
+  hint.textContent = '';
+  if(!sku) return;
+  if(type==='defect'){
+    const stock = computeDefectStock();
+    if(stock[sku]) hint.textContent = '（最大 '+stock[sku]+' 本まで）';
+  } else if(type==='oldlot'){
+    const stock = computeOldLotStock();
+    if(stock[sku]) hint.textContent = '（最大 '+stock[sku]+' 本まで）';
   }
 }
-async function checkAndCreateSpecialPrice(){
+function checkAndCreateSpecialPrice(){
+  const type = document.getElementById('sp-source-type').value;
   const custId = document.getElementById('sp-customer').value;
   const sku = document.getElementById('sp-product').value;
-  const price = parseFloat(document.getElementById('sp-price').value);
-  const qty = parseInt(document.getElementById('sp-qty').value)||1;
+  const price = parseInt(document.getElementById('sp-price').value)||0;
+  const qty = parseInt(document.getElementById('sp-qty').value)||0;
   const reason = document.getElementById('sp-reason').value.trim();
   const creator = document.getElementById('sp-creator').value.trim();
   const resultEl = document.getElementById('sp-check-result');
-  if(!custId || !sku || !price || price<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ お客様・商品・価格を入力してください</div>'; return; }
-  if(!reason){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ この価格にする理由は必須です。メモを残してください</div>'; return; }
-  if(!creator){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ 作成者名を入力してください</div>'; return; }
-  const sourceType = document.getElementById('sp-source-type').value;
-  const prodOpt = document.getElementById('sp-product').selectedOptions[0];
-  const availStock = prodOpt ? parseInt(prodOpt.dataset.stock) : null;
-  if(sourceType!=='normal' && availStock!=null && qty>availStock){
-    resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">⚠️ 在庫（'+availStock+'本）を超える数量が指定されています。数量を見直してください</div>'; return;
+  if(!custId){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">お客様を選択してください</div>'; return; }
+  if(!sku){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">商品を選択してください</div>'; return; }
+  if(!price || price<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">特別価格を入力してください</div>'; return; }
+  if(!qty || qty<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">数量を入力してください</div>'; return; }
+  if(!reason){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">理由メモは必須です</div>'; return; }
+  if(!creator){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">作成者名を入力してください</div>'; return; }
+
+  const cost = getCostForSku(sku);
+  let warning = '';
+  if(cost > 0 && price < cost){
+    warning = '⚠️ この特別価格は原価を下回っています。本当に作成しますか？';
+    if(!confirm(warning + '\n\n（管理上、原価を下回る場合は必ずご確認ください）')) return;
   }
-
-  const c = customers.find(x=>x.id===custId);
-  const p = findProductBySku(sku);
-  resultEl.innerHTML = '<div class="info-box">照合中...</div>';
-
-  let checkData;
-  try{
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'checkSpecialPrice', sku: sku, specialPrice: price }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    checkData = await res.json();
-  }catch(err){
-    checkData = { status:'error', message:'通信エラー' };
-  }
-
-  const checkMsg = checkData.status==='ok' ? checkData.message : '（原価との自動照合ができませんでした）';
-  const isWarning = checkData.status==='ok' && checkData.belowCost;
-  resultEl.innerHTML = '<div class="info-box" style="'+(isWarning?'background:#fee2e2;border-color:#dc2626;color:#7f1d1d':'background:#f0f9ff;border-color:#93c5fd')+'">'+checkMsg+'</div>';
-
-  const confirmMsg = '本当にこの価格でこの方に販売しますか？\n\n'+
-    'お客様：'+c.name+'\n商品：'+p.name+'\n価格：¥'+price.toLocaleString()+'（'+qty+'本）\n\n'+checkMsg;
-  if(!confirm(confirmMsg)) return;
-
-  const sourceTypeLabel = { normal:'通常品', defect:'不良在庫', oldlot:'旧ロット（賞味期限近）' }[sourceType] || sourceType;
+  const cust = customers.find(x=>x.id===custId);
+  const prod = findProductBySku(sku);
   const record = {
-    id: 'sp_'+Date.now(), customerId: custId, customerName: c.name, sku: sku, productName: p.name,
-    qty: qty, specialPrice: price, reason: reason, createdBy: creator, createdAt: new Date().toISOString(),
-    validationNote: checkMsg, sourceType: sourceTypeLabel
+    id: 'sp'+Date.now(),
+    customerId: custId, customerName: cust?cust.name:'',
+    sku: sku, productName: prod?prod.name:sku,
+    unitPrice: price, qty: qty, sourceType: type,
+    reason: reason, creator: creator, issuedAt: new Date().toISOString()
   };
   specialPrices.push(record);
-  try{
-    const saveRes = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveAllData', payload:{ specialPrices: specialPrices } }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    const saveData = await saveRes.json();
-    if(saveData.status==='ok'){
-      showSyncStatus('✅ イレギュラー特価を作成しました');
-      renderSpecialPriceList();
+  fetch(GAS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'saveSpecialPrices', specialPrices: specialPrices }),
+    headers: {'Content-Type':'text/plain;charset=utf-8'}
+  }).then(r=>r.json()).then(function(data){
+    if(data.status==='ok'){
+      showSyncStatus('✅ 特価を作成しました');
       renderSpecialPriceDoc(record);
-      document.getElementById('sp-price').value=''; document.getElementById('sp-reason').value=''; document.getElementById('sp-qty').value=1;
-    } else {
-      showSyncStatus('⚠️ 保存に失敗しました', true);
-    }
-  }catch(err){
-    showSyncStatus('⚠️ 通信エラーが発生しました', true);
-  }
+      renderSpecialPriceList();
+      document.getElementById('sp-price').value = '';
+      document.getElementById('sp-qty').value = 1;
+      document.getElementById('sp-reason').value = '';
+    } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
+  }).catch(()=>showSyncStatus('⚠️ 通信エラー', true));
 }
 function renderSpecialPriceDoc(record){
+  const cust = customers.find(x=>x.id===record.customerId) || {name:record.customerName};
+  const subtotal = record.unitPrice * record.qty;
+  const tax = taxRateForSku(record.sku);
+  const taxAmount = Math.round(subtotal * tax);
+  const total = subtotal + taxAmount;
+  const today = new Date();
+  const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let html = '<div class="invoice-doc">';
+  html += '<div class="invoice-doc-title">特 別 見 積 書</div>';
+  html += '<div class="invoice-doc-top">';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(cust.name)+' 御中</div>';
+  if(cust.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(cust.zip)+'</div>';
+  if(cust.addr) html += '<div style="font-size:12px">'+esc(cust.addr)+'</div>';
+  html += '<div style="margin-top:10px;font-size:13px">下記の通り、特別価格にて御見積り申し上げます。</div></div>';
+  html += '<div style="text-align:right">';
+  html += '<div>発行日：'+dateStr+'</div>';
+  html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
+  html += '<div style="font-size:11px">〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+  html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+  html += '</div></div>';
+  html += '<table class="invoice-doc-table"><thead><tr><th>商品</th><th style="width:12%">数量</th><th style="width:18%">特別単価</th><th style="width:18%">金額（税抜）</th></tr></thead><tbody>';
+  html += '<tr><td>'+esc(record.productName)+'</td><td style="text-align:center">'+record.qty+'本</td><td style="text-align:right">¥'+record.unitPrice.toLocaleString()+'</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
+  html += '</tbody></table>';
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
+  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
+  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（'+(tax===0.10?'10%':'8%')+'）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount.toLocaleString()+'</td></tr>';
+  html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '</table></div>';
+  html += '<div class="invoice-doc-note"><strong>備考：</strong><br>'+esc(record.reason).replace(/\n/g,'<br>')+'<br><br>作成者：'+esc(record.creator)+'</div>';
+  html += '</div>';
   const area = document.getElementById('special-doc-area');
-  const html = '<div class="invoice-doc">'+
-    '<div class="invoice-doc-title">特別価格　確認書</div>'+
-    '<div class="invoice-doc-note" style="background:#fef2f2;border-color:#fca5a5">この書類は社内記録用です。</div>'+
-    '<table class="invoice-doc-table" style="margin-top:1rem">'+
-    '<tr><th style="width:30%">お客様</th><td>'+esc(record.customerName)+'</td></tr>'+
-    '<tr><th>商品</th><td>'+esc(record.productName)+'</td></tr>'+
-    '<tr><th>数量</th><td>'+record.qty+'本</td></tr>'+
-    '<tr><th>特別価格</th><td style="font-weight:700;font-size:16px">¥'+record.specialPrice.toLocaleString()+'（税抜・1本あたり）</td></tr>'+
-    '<tr><th>理由</th><td>'+esc(record.reason)+'</td></tr>'+
-    '<tr><th>作成者</th><td>'+esc(record.createdBy)+'</td></tr>'+
-    '<tr><th>作成日</th><td>'+new Date(record.createdAt).toLocaleDateString('ja-JP')+'</td></tr>'+
-    '<tr><th>原価との照合結果</th><td>'+esc(record.validationNote)+'</td></tr>'+
-    '</table></div>';
-  const existing = document.getElementById('generated-special-wrap');
-  if(existing) existing.remove();
+  area.innerHTML = '';
   const wrap = document.createElement('div');
-  wrap.id = 'generated-special-wrap';
-  const inner = document.createElement('div');
-  inner.innerHTML = html;
+  const inner = document.createElement('div'); inner.innerHTML = html;
   wrap.appendChild(inner.firstElementChild);
-  const btnRow = document.createElement('div');
-  btnRow.className = 'no-print';
-  btnRow.style.cssText = 'display:flex;gap:8px;margin-top:10px';
   const printBtn = document.createElement('button');
-  printBtn.className = 'btn btn-primary';
-  printBtn.textContent = '🖨 印刷する';
+  printBtn.className = 'btn btn-primary no-print';
+  printBtn.style.marginTop = '10px';
+  printBtn.textContent = '🖨 この特価見積書を印刷';
   printBtn.onclick = function(){ window.print(); };
   const pdfBtn = document.createElement('button');
-  pdfBtn.className = 'btn btn-green';
-  pdfBtn.textContent = '📥 A4 PDFでダウンロード';
-  pdfBtn.onclick = function(){ downloadSpecialPricePdf(record.customerName); };
-  btnRow.appendChild(printBtn);
-  btnRow.appendChild(pdfBtn);
-  wrap.appendChild(btnRow);
+  pdfBtn.className = 'btn btn-green no-print';
+  pdfBtn.style.marginTop = '10px';
+  pdfBtn.style.marginLeft = '8px';
+  pdfBtn.textContent = '📥 PDFでダウンロード';
+  pdfBtn.onclick = function(){ downloadSpecialPricePdf(record); };
+  wrap.appendChild(printBtn);
+  wrap.appendChild(pdfBtn);
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
 }
-async function downloadSpecialPricePdf(clientName){
-  const el = document.querySelector('#generated-special-wrap .invoice-doc');
-  if(!el || !window.html2canvas || !window.jspdf) return;
-  showSyncStatus('📄 PDFを作成中...');
-  try{
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-    const imgWidth = 210;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-    if(imgHeight <= 297) pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    else { const scale = 297/imgHeight; pdf.addImage(imgData, 'PNG', 0, 0, imgWidth*scale, 297); }
-    pdf.save('特価確認書_'+clientName+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-    showSyncStatus('✅ PDFをダウンロードしました');
-  }catch(err){
-    showSyncStatus('⚠️ PDF作成に失敗しました：'+err.message, true);
-  }
+function downloadSpecialPricePdf(record){
+  const el = document.querySelector('#special-doc-area .invoice-doc');
+  if(!el){ alert('特価見積書が表示されていません'); return; }
+  showSyncStatus('PDFを作成しています...');
+  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
+    const img = canvas.toDataURL('image/png');
+    const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const imgW = pdf.internal.pageSize.getWidth() - 20;
+    const imgH = canvas.height * imgW / canvas.width;
+    pdf.addImage(img, 'PNG', 10, 10, imgW, imgH);
+    const dateStr = new Date().toISOString().slice(0,10);
+    pdf.save('特別見積書_'+record.customerName+'_'+dateStr+'.pdf');
+    showSyncStatus('✅ PDFを作成しました');
+  }).catch(function(err){
+    showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
+  });
 }
 function renderSpecialPriceList(){
-  const qProduct = (document.getElementById('sp-search-product').value||'').toLowerCase();
-  const qCustomer = (document.getElementById('sp-search-customer').value||'').toLowerCase();
-  const qCreator = (document.getElementById('sp-search-creator').value||'').toLowerCase();
+  const listEl = document.getElementById('special-price-list');
+  if(!listEl) return;
+  const sp = (document.getElementById('sp-search-product').value||'').toLowerCase();
+  const sc = (document.getElementById('sp-search-customer').value||'').toLowerCase();
+  const scr = (document.getElementById('sp-search-creator').value||'').toLowerCase();
   let list = specialPrices.slice();
-  if(qProduct) list = list.filter(s=>(s.productName||'').toLowerCase().includes(qProduct));
-  if(qCustomer) list = list.filter(s=>(s.customerName||'').toLowerCase().includes(qCustomer));
-  if(qCreator) list = list.filter(s=>(s.createdBy||'').toLowerCase().includes(qCreator));
-  list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  const el = document.getElementById('special-price-list');
-  if(!list.length){ el.innerHTML = '<div style="color:#57534e;font-size:13px;padding:8px 0">該当するイレギュラー特価はありません。</div>'; return; }
-  el.innerHTML = list.map(function(s){
-    return '<div class="card" style="margin-bottom:8px">'+
-      '<div><strong>'+esc(s.customerName)+'</strong>　'+esc(s.productName)+'　¥'+(s.specialPrice||0).toLocaleString()+'　×'+s.qty+'本'+(s.sourceType?'　<span style="font-size:10px;background:#f0ece3;padding:1px 6px;border-radius:4px;color:#2b2a26">'+esc(s.sourceType)+'</span>':'')+'</div>'+
-      '<div style="font-size:12px;color:#2b2a26;margin-top:4px">理由：'+esc(s.reason)+'</div>'+
-      '<div style="font-size:11px;color:#57534e;margin-top:2px">作成者：'+esc(s.createdBy)+'　'+new Date(s.createdAt).toLocaleDateString('ja-JP')+'　'+esc(s.validationNote||'')+'</div>'+
-      '<button class="btn-sm no-print" style="margin-top:6px" onclick=\'renderSpecialPriceDoc('+JSON.stringify(s).replace(/'/g,"&apos;")+')\'>この特価をPDF/印刷で呼び出す</button>'+
-      '</div>';
+  if(sp) list = list.filter(r=>(r.productName||'').toLowerCase().includes(sp));
+  if(sc) list = list.filter(r=>(r.customerName||'').toLowerCase().includes(sc));
+  if(scr) list = list.filter(r=>(r.creator||'').toLowerCase().includes(scr));
+  list.sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
+  if(!list.length){ listEl.innerHTML = '<div class="info-box">該当するイレギュラー特価はありません。</div>'; return; }
+  listEl.innerHTML = list.map(function(r){
+    const dateStr = (r.issuedAt||'').slice(0,10);
+    return '<div class="card" style="padding:10px 14px;margin-bottom:8px">'
+      + '<div><strong>'+esc(r.customerName)+'</strong>：'+esc(r.productName)+'　¥'+r.unitPrice.toLocaleString()+' × '+r.qty+'本</div>'
+      + '<div style="font-size:11px;color:#57534e;margin-top:4px">発行日：'+dateStr+'／作成者：'+esc(r.creator||'')+'</div>'
+      + '<div style="font-size:12px;color:#2b2a26;margin-top:4px">理由：'+esc(r.reason||'')+'</div>'
+      + '</div>';
   }).join('');
 }
 
-// ── 原価データ（中村様専用・鍵付き） ────────────────────────────────────────────
-let costData = { costs: [], novello: [] };
-/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
-/* グループ: biz=A・B・C・F ／ secret=E・G・H・I＋Cの原価タブ ／ d=倉庫D ／ j=ゆかJ */
-/* 同じグループのアプリ同士は、どれか1つを開けば その日じゅう（この端末では）全部開きます */
-function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// ── 原価データ（鍵付き） ────────────────────────────────────────────
+let costData = {}; // { sku: {cost:数字, memo:''} }
+let novelloNotes = [];
+
+// パスワードの日次記憶（今日一日は再入力不要）
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
 function oosSavedPw(group){
   try{
-    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
-    if(v && v.d===oosToday() && v.p) return v.p;
-  }catch(e){}
-  return null;
+    const raw = localStorage.getItem('oos-unlock-'+group);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(obj.date === oosToday()) return obj.pw;
+    return null;
+  }catch(e){ return null; }
 }
 function oosMarkUnlocked(group, pw){
-  try{
-    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
-    localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
-  }catch(e){}
+  try{ localStorage.setItem('oos-unlock-'+group, JSON.stringify({date:oosToday(), pw:pw})); }catch(e){}
 }
-function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+function oosClearUnlock(group){
+  try{ localStorage.removeItem('oos-unlock-'+group); }catch(e){}
+}
 
 async function unlockCostData(isAuto){
   const pw = document.getElementById('cost-password-input').value;
   const errEl = document.getElementById('cost-unlock-error');
   errEl.textContent = '';
+  if(!pw) return;
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'getCostData', password: pw }),
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
     const data = await res.json();
     if(data.status==='ok'){
+      oosMarkUnlocked('secret', pw);
       costPassword = pw;
-      oosMarkUnlocked('secret', pw); // 今日はE・G・H・Iもこの合鍵で開けるようにする
-      costData = data.data;
-      document.getElementById('cost-locked-view').style.display = 'none';
-      document.getElementById('cost-unlocked-view').style.display = 'block';
+      document.getElementById('cost-locked-view').style.display='none';
+      document.getElementById('cost-unlocked-view').style.display='';
+      const costRes = await fetch(GAS_URL + '?action=loadCostData&password=' + encodeURIComponent(pw));
+      const costPayload = await costRes.json();
+      if(costPayload.status==='ok'){
+        costData = costPayload.data.costData || {};
+        novelloNotes = costPayload.data.novelloNotes || [];
+      }
       renderCostProductTable();
-      renderNovelloNotes();
-      renderRateSimulation();
       renderProfitHeatmap();
+      renderRateSimulation();
+      renderNovelloNotes();
     } else {
       oosClearUnlock('secret');
-      document.getElementById('cost-password-input').value = '';
-      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      document.getElementById('cost-password-input').value='';
+      if(!isAuto) errEl.textContent = 'パスワードが違います';
     }
   }catch(err){
     errEl.textContent = '通信エラーが発生しました';
   }
 }
+
 let costDataDirty = false;
 function toggleCostEditLock(){
-  const unlocked = document.getElementById('cost-edit-lock').checked;
-  document.querySelectorAll('.cost-input, .cost-note-input, .novello-label, .novello-value').forEach(function(input){ input.disabled = !unlocked; });
+  const on = document.getElementById('cost-edit-lock').checked;
+  document.querySelectorAll('#cost-product-table input, #novello-note-area input').forEach(i=>i.disabled = !on);
 }
 function markCostDirty(){
   costDataDirty = true;
-  document.getElementById('cost-dirty-indicator').textContent = '● 保存されていない変更があります';
+  document.getElementById('cost-dirty-indicator').textContent = '⚠️ 保存されていない変更があります';
 }
 function renderCostProductTable(){
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;text-align:left;background:#f9f8f5">商品名（SKU）</th>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;text-align:right;background:#f9f8f5;width:120px">原価（円）</th>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;background:#f9f8f5">メモ</th>';
+  html += '</tr></thead><tbody>';
   const groups = productGroups();
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">商品</th><th style="padding:6px">原価（1本あたり・円）</th><th style="padding:6px">メモ</th></tr></thead><tbody>';
   Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet);
-    if(!items.length) return;
-    items.forEach(function(p){
-      const existing = costData.costs.find(c=>c.sku===p.sku);
-      const isDefault = !existing && DEFAULT_COSTS[p.sku]!=null;
-      const val = existing ? existing.costPerUnit : (DEFAULT_COSTS[p.sku]!=null ? DEFAULT_COSTS[p.sku] : 0);
-      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span>'+(isDefault?' <span style="font-size:9px;color:#0f766e;background:#ccfbf1;padding:1px 5px;border-radius:4px">初期値</span>':'')+'</td>'+
-        '<td style="padding:6px"><input type="number" class="cost-input" data-sku="'+p.sku+'" data-productname="'+esc(p.name)+'" value="'+val+'" disabled oninput="markCostDirty()" style="width:100px;padding:4px;border:1px solid #d5cfc3;border-radius:4px"></td>'+
-        '<td style="padding:6px"><input type="text" class="cost-note-input" data-sku="'+p.sku+'" value="'+esc(existing?existing.note||'':'')+'" disabled oninput="markCostDirty()" style="width:100%;padding:4px;border:1px solid #d5cfc3;border-radius:4px"></td></tr>';
+    html += '<tr><td colspan="3" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){
+      const rec = costData[p.sku] || {};
+      const cost = rec.cost !== undefined && rec.cost !== '' ? rec.cost : (DEFAULT_COSTS[p.sku]||'');
+      const memo = rec.memo || '';
+      html += '<tr><td style="padding:6px 10px">'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span></td>';
+      html += '<td style="padding:6px 10px;text-align:right"><input type="number" data-cost-sku="'+p.sku+'" value="'+cost+'" class="price-input" disabled onchange="markCostDirty()"></td>';
+      html += '<td style="padding:6px 10px"><input type="text" data-cost-memo="'+p.sku+'" value="'+esc(memo)+'" style="width:100%;padding:4px 6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td></tr>';
     });
   });
   html += '</tbody></table>';
   document.getElementById('cost-product-table').innerHTML = html;
-  costDataDirty = false;
-  document.getElementById('cost-dirty-indicator').textContent = '';
-  document.getElementById('cost-edit-lock').checked = false;
 }
 
 // ── 掛け率シミュレーション ────────────────────────────────────────────
-let rateSlots = [0.8, 0.75, 0.7, 0.6];
-function addRateSlot(){
-  rateSlots.push(0.5);
-  renderRateSimulation();
-}
-function removeRateSlot(idx){
-  rateSlots.splice(idx,1);
-  renderRateSimulation();
-}
+let rateSlots = [1.2, 1.4, 1.6];
+function addRateSlot(){ rateSlots.push(1.5); renderRateSimulation(); }
+function removeRateSlot(idx){ rateSlots.splice(idx, 1); renderRateSimulation(); }
 function onRateSlotChange(idx, val){
   rateSlots[idx] = parseFloat(val)||0;
   renderRateSimulation();
 }
 function getCostForSku(sku){
-  const existing = costData.costs.find(c=>c.sku===sku);
-  if(existing) return parseFloat(existing.costPerUnit)||0;
-  return DEFAULT_COSTS[sku]!=null ? DEFAULT_COSTS[sku] : 0;
+  const rec = costData[sku];
+  if(rec && rec.cost !== undefined && rec.cost !== '') return parseFloat(rec.cost)||0;
+  return DEFAULT_COSTS[sku] || 0;
 }
 function getOpenPriceForSku(sku){
-  const row = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
-  return row ? (parseFloat(row.priceGeneral)||0) : 0;
+  const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
+  if(!p) return 0;
+  return parseFloat(p.priceGeneral)||0;
 }
-
-// ── 区分別 利益ひと目比較（ヒートマップ） ────────────────────────────────────────────
-// 利益率が高いほど濃い青、低い・赤字ほど濃い赤にする
-function profitColor(marginPct, hasPrice){
-  if(!hasPrice) return { bg:'#f5f4f0', fg:'#bbb' };
-  if(marginPct < 0)   return { bg:'#7f1d1d', fg:'#fff' };
-  if(marginPct < 15)  return { bg:'#dc2626', fg:'#fff' };
-  if(marginPct < 25)  return { bg:'#fca5a5', fg:'#7f1d1d' };
-  if(marginPct < 35)  return { bg:'#fed7aa', fg:'#7c2d12' };
-  if(marginPct < 45)  return { bg:'#dbeafe', fg:'#1e3a8a' };
-  if(marginPct < 55)  return { bg:'#93c5fd', fg:'#1e3a8a' };
-  if(marginPct < 65)  return { bg:'#3b82f6', fg:'#fff' };
-  return { bg:'#1e3a8a', fg:'#fff' };
+function profitColor(rate){
+  if(rate <= 0) return {bg:'#7f1d1d', fg:'#fff'};
+  if(rate < 0.10) return {bg:'#dc2626', fg:'#fff'};
+  if(rate < 0.20) return {bg:'#fca5a5', fg:'#7f1d1d'};
+  if(rate < 0.30) return {bg:'#fed7aa', fg:'#7c2d12'};
+  if(rate < 0.40) return {bg:'#fef3c7', fg:'#78350f'};
+  if(rate < 0.50) return {bg:'#dbeafe', fg:'#1e3a8a'};
+  return {bg:'#93c5fd', fg:'#1e3a8a'};
 }
 function renderProfitHeatmap(){
+  const tbl = document.getElementById('profit-heatmap-table');
+  if(!tbl) return;
+  let html = '<thead><tr><th style="padding:6px 8px;text-align:left">商品</th><th style="padding:6px 8px;text-align:right">原価</th><th style="padding:6px 8px;text-align:right">定価</th><th style="padding:6px 8px;text-align:right">卸①</th><th style="padding:6px 8px;text-align:right">卸②</th><th style="padding:6px 8px;text-align:right">RT</th></tr></thead><tbody>';
   const groups = productGroups();
-  const tiers = [ {key:'rt', label:'RT'}, {key:'wholesale1', label:'卸①'}, {key:'wholesale2', label:'卸②'} ];
-  let html = '<thead><tr><th style="text-align:left;padding:6px">商品</th><th>原価</th>';
-  tiers.forEach(function(t){ html += '<th style="text-align:center">'+t.label+'</th>'; });
-  html += '</tr></thead><tbody>';
   Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet);
-    if(!items.length) return;
-    html += '<tr><td colspan="'+(2+tiers.length)+'" class="group-header">'+g+'</td></tr>';
-    items.forEach(function(p){
+    html += '<tr><td colspan="6" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){
       const cost = getCostForSku(p.sku);
-      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span></td>'+
-        '<td style="text-align:right">¥'+cost.toLocaleString()+'</td>';
-      tiers.forEach(function(t){
-        const price = priceForSku(p.sku, t.key);
-        const hasPrice = price>0;
-        const margin = hasPrice ? ((price-cost)/price)*100 : 0;
-        const c = profitColor(margin, hasPrice);
-        html += '<td style="text-align:center;padding:8px 6px;background:'+c.bg+';color:'+c.fg+';font-weight:700;border-radius:4px">'+
-          (hasPrice ? margin.toFixed(0)+'%<div style="font-size:10px;font-weight:400">¥'+price.toLocaleString()+'（利益¥'+(price-cost).toLocaleString()+'）</div>' : '－')+
-          '</td>';
+      if(!cost) return;
+      const priceRec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
+      html += '<tr><td style="padding:5px 8px">'+esc(p.name)+'</td>';
+      html += '<td style="padding:5px 8px;text-align:right">¥'+cost.toLocaleString()+'</td>';
+      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT'].forEach(function(key){
+        const price = parseFloat(priceRec[key])||0;
+        if(!price){ html += '<td style="padding:5px 8px;text-align:right;color:#9ca3af">-</td>'; return; }
+        const profit = price - cost;
+        const rate = price > 0 ? profit / price : 0;
+        const col = profitColor(rate);
+        html += '<td style="padding:5px 8px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600">¥'+price.toLocaleString()+'<br><span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
       });
       html += '</tr>';
     });
   });
   html += '</tbody>';
-  document.getElementById('profit-heatmap-table').innerHTML = html;
+  tbl.innerHTML = html;
 }
 function renderRateSimulation(){
   const slotsEl = document.getElementById('rate-slots');
-  if(!slotsEl) return;
-  slotsEl.innerHTML = rateSlots.map(function(r,i){
-    return '<div class="fg" style="margin-bottom:0;width:110px"><label>掛け率'+(i+1)+'</label>'+
-      '<div style="display:flex;gap:4px"><input type="number" step="0.01" min="0" max="2" value="'+r+'" oninput="onRateSlotChange('+i+',this.value)" style="width:70px;padding:5px">'+
-      (rateSlots.length>1 ? '<button class="btn-sm" onclick="removeRateSlot('+i+')">✕</button>' : '')+
-      '</div></div>';
-  }).join('');
-
-  const groups = productGroups();
-  const colCount = 2 + rateSlots.length;
-  let html = '<thead><tr><th style="text-align:left;padding:6px">商品</th><th>原価</th>';
-  rateSlots.forEach(function(r){ html += '<th style="text-align:center">掛け率 '+r+'</th>'; });
+  if(slotsEl){
+    slotsEl.innerHTML = rateSlots.map(function(r, i){
+      return '<div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid #d5cfc3;border-radius:6px;background:#fff"><label style="font-size:11px">掛け率</label><input type="number" step="0.05" value="'+r+'" style="width:60px;padding:3px 5px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px" onchange="onRateSlotChange('+i+',this.value)"><button class="btn-sm" style="padding:2px 6px" onclick="removeRateSlot('+i+')">×</button></div>';
+    }).join('');
+  }
+  const tbl = document.getElementById('rate-sim-table');
+  if(!tbl) return;
+  let html = '<thead><tr><th style="padding:5px 6px;text-align:left">商品</th><th style="padding:5px 6px;text-align:right">オープン価格</th><th style="padding:5px 6px;text-align:right">原価</th>';
+  rateSlots.forEach(function(r, i){
+    html += '<th style="padding:5px 6px;text-align:right;background:#eef0e5">×'+r+'<br>価格</th><th style="padding:5px 6px;text-align:right;background:#eef0e5">利益率</th><th style="padding:5px 6px;background:#eef0e5">操作</th>';
+  });
   html += '</tr></thead><tbody>';
-  Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet);
-    if(!items.length) return;
-    html += '<tr><td colspan="'+colCount+'" class="group-header">'+g+'</td></tr>';
-    items.forEach(function(p){
-      const cost = getCostForSku(p.sku);
-      const openPrice = getOpenPriceForSku(p.sku);
-      html += '<tr><td style="padding:6px">'+esc(p.name)+' <span class="sku-tag">'+p.sku+'</span></td>'+
-        '<td style="text-align:right">¥'+cost.toLocaleString()+'</td>';
-      rateSlots.forEach(function(rate){
-        const price = Math.round(openPrice*rate);
-        const profit = price-cost;
-        const hasPrice = price>0;
-        const profitPct = hasPrice ? (profit/price)*100 : 0;
-        const c = profitColor(profitPct, hasPrice);
-        html += '<td style="text-align:center;padding:8px 6px;background:'+c.bg+';color:'+c.fg+'">'+
-          (hasPrice ? '<div style="font-weight:700">'+profitPct.toFixed(0)+'%</div><div style="font-size:10px;font-weight:400">¥'+price.toLocaleString()+'（利益¥'+profit.toLocaleString()+'）</div>' : '－')+
-          (hasPrice ? '<button class="btn-sm" style="margin-top:4px" onclick="applyRateToWholesale2(\''+p.sku+'\','+price+')">卸②に使う</button>' : '')+
-          '</td>';
-      });
-      html += '</tr>';
+  PRODUCTS.forEach(function(p){
+    const cost = getCostForSku(p.sku);
+    const open = getOpenPriceForSku(p.sku);
+    if(!cost || !open) return;
+    html += '<tr><td style="padding:4px 6px">'+esc(p.name)+'</td>';
+    html += '<td style="padding:4px 6px;text-align:right">¥'+open.toLocaleString()+'</td>';
+    html += '<td style="padding:4px 6px;text-align:right">¥'+cost.toLocaleString()+'</td>';
+    rateSlots.forEach(function(r, i){
+      const simPrice = Math.round(cost * r);
+      const profit = simPrice - cost;
+      const rate = simPrice > 0 ? profit / simPrice : 0;
+      const col = profitColor(rate);
+      html += '<td style="padding:4px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+'">¥'+simPrice.toLocaleString()+'</td>';
+      html += '<td style="padding:4px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+'">'+(rate*100).toFixed(0)+'%</td>';
+      html += '<td style="padding:4px 6px"><button class="btn-sm" onclick="applyRateToWholesale2(\''+p.sku+'\','+simPrice+')">卸②に使う</button></td>';
     });
+    html += '</tr>';
   });
   html += '</tbody>';
-  document.getElementById('rate-sim-table').innerHTML = html;
+  tbl.innerHTML = html;
 }
-async function applyRateToWholesale2(sku, price){
-  const prod = findProductBySku(sku);
-  if(!confirm((prod?prod.name:sku)+'の「卸②」価格を ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタにそのまま反映されます）')) return;
-  let row = priceMaster.find(x=>x.sku===sku);
-  if(!row){ row = { sku: sku, productName: prod?prod.name:'' }; priceMaster.push(row); }
-  row.priceWholesale2 = price;
+function applyRateToWholesale2(sku, price){
+  if(!confirm('この商品の「卸②」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新されます。保存を押すまで確定されません。）')) return;
+  let rec = priceMaster.find(x=>x.sku===sku);
+  if(!rec){
+    const p = findProductBySku(sku);
+    rec = {sku:sku, productName:p?p.name:sku, priceGeneral:DEFAULT_PRICES[sku]?DEFAULT_PRICES[sku].priceGeneral:0, priceWholesale1:0, priceWholesale2:0, priceRT:0, priceDefect:0};
+    priceMaster.push(rec);
+  }
+  rec.priceWholesale2 = price;
+  priceMasterDirty = true;
+  showSyncStatus('✅ 卸②価格に反映しました（保存を忘れずに）');
+  renderPriceTable();
+  renderProfitHeatmap();
+}
+function renderNovelloNotes(){
+  const area = document.getElementById('novello-note-area');
+  if(!area) return;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+  html += '<th style="padding:5px 8px;text-align:left;background:#f9f8f5">項目</th>';
+  html += '<th style="padding:5px 8px;text-align:right;background:#f9f8f5;width:120px">金額・数値</th>';
+  html += '<th style="padding:5px 8px;background:#f9f8f5">メモ</th>';
+  html += '<th style="padding:5px 8px;background:#f9f8f5;width:60px"></th>';
+  html += '</tr></thead><tbody>';
+  novelloNotes.forEach(function(n, i){
+    html += '<tr>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.label||'')+'" data-nv="label" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.value||'')+'" data-nv="value" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px;text-align:right" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.memo||'')+'" data-nv="memo" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><button class="btn-sm" onclick="novelloNotes.splice('+i+',1);renderNovelloNotes();markCostDirty()">×</button></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  area.innerHTML = html;
+  const on = document.getElementById('cost-edit-lock') && document.getElementById('cost-edit-lock').checked;
+  document.querySelectorAll('#novello-note-area input').forEach(i=>i.disabled = !on);
+}
+function addNovelloRow(){
+  novelloNotes.push({label:'', value:'', memo:''});
+  renderNovelloNotes();
+  markCostDirty();
+}
+async function saveCostDataToGAS(){
+  if(!confirm('本当に原価データを変更しますか？\n（キャンセルを押せば、変更は保存されず元のままになります）')) return;
+  document.querySelectorAll('[data-cost-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-cost-sku');
+    const memoInp = document.querySelector('[data-cost-memo="'+sku+'"]');
+    costData[sku] = { cost: parseFloat(inp.value)||0, memo: memoInp?memoInp.value:'' };
+  });
+  document.querySelectorAll('[data-nv-idx]').forEach(function(inp){
+    const idx = parseInt(inp.getAttribute('data-nv-idx'));
+    const key = inp.getAttribute('data-nv');
+    if(novelloNotes[idx]) novelloNotes[idx][key] = inp.value;
+  });
+  showSyncStatus('保存しています...');
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'saveAllData', payload:{ priceMaster: priceMaster } }),
+      body: JSON.stringify({ action:'saveCostData', password: costPassword, costData: costData, novelloNotes: novelloNotes }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
-    const d = await res.json();
-    if(d.status==='ok'){ showSyncStatus('✅ 卸②価格に反映しました'); renderInvoiceList(); renderProfitHeatmap(); }
-    else showSyncStatus('⚠️ 反映に失敗しました', true);
-  }catch(err){
-    showSyncStatus('⚠️ 通信エラーが発生しました', true);
-  }
-}
-function renderNovelloNotes(){
-  const el = document.getElementById('novello-note-area');
-  const rows = costData.novello && costData.novello.length ? costData.novello : [{label:'',value:''}];
-  const unlocked = document.getElementById('cost-edit-lock').checked;
-  el.innerHTML = rows.map(function(n,i){
-    return '<div style="display:flex;gap:8px;margin-bottom:6px" data-row="'+i+'">'+
-      '<input type="text" class="novello-label" value="'+esc(n.label)+'" placeholder="項目名（例：1€あたりの円）" disabled oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px">'+
-      '<input type="text" class="novello-value" value="'+esc(n.value)+'" placeholder="値" disabled oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px">'+
-      '<button class="btn-sm" onclick="markCostDirty();this.parentElement.remove()">✕</button></div>';
-  }).join('');
-}
-function addNovelloRow(){
-  const el = document.getElementById('novello-note-area');
-  const div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:8px;margin-bottom:6px';
-  div.innerHTML = '<input type="text" class="novello-label" placeholder="項目名" oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px">'+
-    '<input type="text" class="novello-value" placeholder="値" oninput="markCostDirty()" style="flex:1;padding:6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px">'+
-    '<button class="btn-sm" onclick="markCostDirty();this.parentElement.remove()">✕</button>';
-  el.appendChild(div);
-  markCostDirty();
-}
-function saveCostDataToGAS(){
-  if(!confirm('原価データの変更を保存しますか？\nこの数字は、イレギュラー特価を作る時の自動チェックにも使われます。')) return;
-  const costs = Array.from(document.querySelectorAll('.cost-input')).map(function(input){
-    const sku = input.dataset.sku;
-    const noteInput = document.querySelector('.cost-note-input[data-sku="'+sku+'"]');
-    return { sku: sku, productName: input.dataset.productname, costPerUnit: parseFloat(input.value)||0, note: noteInput?noteInput.value:'' };
-  });
-  const novello = Array.from(document.querySelectorAll('#novello-note-area > div')).map(function(row){
-    return { label: row.querySelector('.novello-label').value, value: row.querySelector('.novello-value').value };
-  }).filter(n=>n.label||n.value);
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveCostData', password: costPassword, payload:{ costs: costs, novello: novello } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok'){
-      showSyncStatus('✅ 原価データを保存しました');
+    const data = await res.json();
+    if(data.status==='ok'){
       costDataDirty = false;
       document.getElementById('cost-dirty-indicator').textContent = '';
-      document.getElementById('cost-edit-lock').checked = false;
-      document.querySelectorAll('.cost-input, .cost-note-input, .novello-label, .novello-value').forEach(function(input){ input.disabled = true; });
-    }
-    else showSyncStatus('⚠️ 保存に失敗しました：'+(d.message||''), true);
-  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+      showSyncStatus('✅ 原価データを保存しました');
+      renderProfitHeatmap();
+      renderRateSimulation();
+    } else { showSyncStatus('⚠️ 保存に失敗しました：'+(data.message||''), true); }
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
 
 // ── 価格マスタ ────────────────────────────────────────────
 let priceMasterDirty = false;
 function togglePriceEditLock(){
-  const unlocked = document.getElementById('price-edit-lock').checked;
-  document.querySelectorAll('.price-input, .tax-rate-input').forEach(function(input){ input.disabled = !unlocked; });
+  const on = document.getElementById('price-edit-lock').checked;
+  document.querySelectorAll('#price-tbl-body input, #price-tbl-body select').forEach(i=>i.disabled = !on);
 }
 function markPriceDirty(){
   priceMasterDirty = true;
-  document.getElementById('price-dirty-indicator').textContent = '● 保存されていない変更があります';
+  document.getElementById('price-dirty-indicator').textContent = '⚠️ 保存されていない変更があります';
 }
 function updatePriceRowPreview(sku){
-  const taxInput = document.querySelector('.tax-rate-input[data-sku="'+sku+'"]');
-  const rate = parseFloat(taxInput.value)/100 || 0.08;
-  const prod = findProductBySku(sku);
-  const boxQty = prod ? (prod.boxQty||1) : 1;
-  ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceDefect'].forEach(function(key){
-    const input = document.querySelector('.price-input[data-sku="'+sku+'"][data-key="'+key+'"]');
-    const preview = document.querySelector('.price-preview[data-sku="'+sku+'"][data-key="'+key+'"]');
-    if(input && preview){
-      const val = parseFloat(input.value)||0;
-      preview.innerHTML = '税込 ¥'+Math.round(val*(1+rate)).toLocaleString()+'<br>1箱 ¥'+(val*boxQty).toLocaleString()+'（税抜）';
+  const p = findProductBySku(sku);
+  const boxQty = p ? (p.boxQty||1) : 1;
+  ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
+    const inp = document.querySelector('[data-price-sku="'+sku+'"][data-price-kind="'+kind+'"]');
+    if(!inp) return;
+    const val = parseFloat(inp.value)||0;
+    const previewEl = document.querySelector('[data-price-preview="'+sku+'_'+kind+'"]');
+    if(previewEl){
+      previewEl.textContent = boxQty>1 ? ('1箱：¥'+(val*boxQty).toLocaleString()) : '';
     }
   });
 }
@@ -1998,176 +2020,238 @@ function renderPriceTable(){
   const groups = productGroups();
   let html = '';
   Object.keys(groups).forEach(function(g){
-    const items = groups[g].filter(p=>!p.isSet);
-    if(!items.length) return;
-    html += '<tr><td colspan="8" class="group-header">'+g+'</td></tr>';
-    items.forEach(function(p){
-      const existing = priceMaster.find(x=>x.sku===p.sku);
-      const fallback = DEFAULT_PRICES[p.sku] || {};
-      const src = existing || fallback;
-      const isDefault = !existing && DEFAULT_PRICES[p.sku];
-      const rate = (existing && existing.taxRate!=null) ? parseFloat(existing.taxRate) : defaultTaxRateForGroup(p.group);
-      const boxQty = p.boxQty||1;
-      html += '<tr><td>'+p.name+' <span class="sku-tag">'+p.sku+'</span>'+(isDefault?' <span style="font-size:9px;color:#0f766e;background:#ccfbf1;padding:1px 5px;border-radius:4px">初期値</span>':'')+'</td>'+
-        '<td style="text-align:center;color:#2b2a26">'+boxQty+'本</td>'+
-        '<td><input type="number" class="tax-rate-input" data-sku="'+p.sku+'" value="'+Math.round(rate*100)+'" min="0" max="20" disabled oninput="markPriceDirty();updatePriceRowPreview(\''+p.sku+'\')" style="width:55px">%</td>'+
-        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceDefect'].map(function(key){
-          const val = src[key]||0;
-          return '<td><input type="number" class="price-input" data-sku="'+p.sku+'" data-key="'+key+'" value="'+val+'" disabled oninput="markPriceDirty();updatePriceRowPreview(\''+p.sku+'\')" style="width:80px">'+
-            '<div class="price-preview" data-sku="'+p.sku+'" data-key="'+key+'" style="font-size:10px;color:#57534e">税込 ¥'+Math.round(val*(1+rate)).toLocaleString()+'<br>1箱 ¥'+(val*boxQty).toLocaleString()+'（税抜）</div></td>';
-        }).join('')+
-        '</tr>';
+    html += '<tr><td colspan="8" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){
+      const rec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
+      const defaultTax = defaultTaxRateForGroup(p.group);
+      const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
+      html += '<tr><td>'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span></td>';
+      html += '<td>'+(p.boxQty||'-')+'</td>';
+      html += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:80px" disabled onchange="markPriceDirty()">'
+        + '<option value="0.08"'+(taxR===0.08?' selected':'')+'>8%</option>'
+        + '<option value="0.10"'+(taxR===0.10?' selected':'')+'>10%</option>'
+        + '</select></td>';
+      ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
+        const key = 'price'+kind;
+        const val = rec[key] || 0;
+        html += '<td><input type="number" data-price-sku="'+p.sku+'" data-price-kind="'+kind+'" value="'+val+'" class="price-input" disabled onchange="markPriceDirty();updatePriceRowPreview(\''+p.sku+'\')">';
+        if(p.boxQty && p.boxQty>1){
+          html += '<div style="font-size:10px;color:#57534e;margin-top:2px" data-price-preview="'+p.sku+'_'+kind+'">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
+        }
+        html += '</td>';
+      });
+      html += '</tr>';
     });
   });
   document.getElementById('price-tbl-body').innerHTML = html;
-  priceMasterDirty = false;
-  document.getElementById('price-dirty-indicator').textContent = '';
-  document.getElementById('price-edit-lock').checked = false;
 }
-function savePriceMaster(){
-  if(!confirm('価格マスタの変更を保存しますか？\nこの内容は、これから作る見積書・請求書すべてに反映されます。')) return;
+async function savePriceMaster(){
+  if(!confirm('価格マスタを保存しますか？\n（キャンセルを押せば、変更は保存されず元のままになります）')) return;
   const rows = {};
-  document.querySelectorAll('.price-input').forEach(function(input){
-    const sku = input.dataset.sku, key = input.dataset.key;
-    if(!rows[sku]) rows[sku] = { sku: sku, productName: (findProductBySku(sku)?findProductBySku(sku).name:'') };
-    rows[sku][key] = parseFloat(input.value)||0;
+  document.querySelectorAll('[data-price-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-price-sku');
+    const kind = inp.getAttribute('data-price-kind');
+    if(!rows[sku]){
+      const p = findProductBySku(sku);
+      rows[sku] = { sku: sku, productName: p?p.name:sku };
+    }
+    if(kind==='TaxRate') rows[sku].taxRate = parseFloat(inp.value)||0.08;
+    else rows[sku]['price'+kind] = parseFloat(inp.value)||0;
   });
-  document.querySelectorAll('.tax-rate-input').forEach(function(input){
-    const sku = input.dataset.sku;
-    if(rows[sku]) rows[sku].taxRate = (parseFloat(input.value)||8)/100;
-  });
-  priceMaster = Object.values(rows);
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ priceMaster: priceMaster } }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok'){
-      showSyncStatus('✅ 価格マスタを保存しました');
-      renderInvoiceList();
+  const newMaster = Object.values(rows);
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'savePriceMaster', priceMaster: newMaster }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      priceMaster = newMaster;
       priceMasterDirty = false;
       document.getElementById('price-dirty-indicator').textContent = '';
-      document.getElementById('price-edit-lock').checked = false;
-      document.querySelectorAll('.price-input, .tax-rate-input').forEach(function(input){ input.disabled = true; });
-    }
-    else showSyncStatus('⚠️ 保存に失敗しました', true);
-  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+      showSyncStatus('✅ 価格マスタを保存しました');
+      renderInvoiceList();
+    } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
+
 window.addEventListener('beforeunload', function(e){
-  if(priceMasterDirty || costDataDirty){ e.preventDefault(); e.returnValue = ''; }
+  if(priceMasterDirty || costDataDirty){
+    e.preventDefault();
+    e.returnValue = '保存していない変更があります。本当にページを離れますか？';
+    return e.returnValue;
+  }
 });
 
 // ── 月次卸請求 ────────────────────────────────────────────
 function calcMonthlyInvoice(){
   const ym = document.getElementById('m-yearmonth').value;
   const client = document.getElementById('m-client').value.trim();
-  if(!ym || !client){ alert('対象年月とお客様名を入力してください'); return; }
+  if(!ym){ alert('対象年月を選択してください'); return; }
+  if(!client){ alert('お客様名を入力してください'); return; }
   const targetOrders = orders.filter(function(o){
-    return o.status==='shipped' && o.client===client && (o.shippedAt||'').slice(0,7)===ym;
+    if(o.status==='cancelled') return false;
+    if((o.client||'').indexOf(client) < 0) return false;
+    if(!o.shippedAt) return false;
+    return (o.shippedAt||'').startsWith(ym);
   });
-  if(!targetOrders.length){
-    document.getElementById('monthly-preview').innerHTML = '<div class="info-box" style="margin-top:10px">該当する出荷済み受注が見つかりませんでした。</div>';
-    return;
-  }
-  let total = 0;
-  let html = '<div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>注文番号</th><th>出荷日</th><th>商品</th><th>金額（税込）</th></tr></thead><tbody>';
+  let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
+  const rows = [];
   targetOrders.forEach(function(o){
-    const amount = orderAmount(o);
-    total += amount;
-    html += '<tr><td>'+o.num+'</td><td>'+(o.shippedAt||'').slice(0,10)+'</td><td>'+(o.lines||[]).map(l=>l.productName).join('、')+'</td><td style="text-align:right">¥'+amount.toLocaleString()+'</td></tr>';
+    (o.lines||[]).forEach(function(l){
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
+      const sku = l.sku || (findProduct(l.productId)?findProduct(l.productId).sku:'');
+      const effType = effectiveCustomerType(o.customerType, l.boxes);
+      const unitPrice = priceForSku(sku, effType);
+      const tax = taxRateForSku(sku);
+      const amount = unitPrice * totalQty;
+      const taxAmt = Math.round(amount * tax);
+      if(tax===0.10){ subtotalTax10 += amount; taxAmount10 += taxAmt; }
+      else { subtotalTax8 += amount; taxAmount8 += taxAmt; }
+      rows.push({ orderNum:o.num, shippedAt:(o.shippedAt||'').slice(0,10), productName:l.productName, qty:totalQty, unitPrice:unitPrice, amount:amount, taxRate:tax });
+    });
   });
-  html += '</tbody></table></div>';
-  html += '<div style="text-align:right;font-size:16px;font-weight:700;margin-bottom:10px">合計：¥'+total.toLocaleString()+'</div>';
-  html += '<button class="btn btn-green" onclick="issueMonthlyInvoice(\''+ym+'\',\''+client.replace(/'/g,"\\'")+'\','+total+',\''+targetOrders.map(o=>o.id).join(',')+'\')">この内容で請求を発行する</button>';
+  const subtotal = subtotalTax8 + subtotalTax10;
+  const totalTax = taxAmount8 + taxAmount10;
+  const total = subtotal + totalTax;
+  let html = '<div class="card" style="border:2px solid #185fa5;margin-top:10px">';
+  html += '<div class="sec">'+esc(client)+' 様　'+ym+' 月分</div>';
+  html += '<div style="margin-bottom:10px">対象受注：'+targetOrders.length+'件、合計 <strong>¥'+total.toLocaleString()+'</strong>（税込）</div>';
+  if(!rows.length){
+    html += '<div class="info-box">該当する受注が見つかりませんでした。お客様名の指定・年月・出荷ステータスをご確認ください。</div>';
+  } else {
+    html += '<div class="tbl-wrap"><table><thead><tr><th>注文番号</th><th>出荷日</th><th>商品</th><th>数量</th><th>単価</th><th>金額</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr><td>'+esc(r.orderNum)+'</td><td>'+esc(r.shippedAt)+'</td><td>'+esc(r.productName)+'</td><td style="text-align:right">'+r.qty+'</td><td style="text-align:right">¥'+r.unitPrice.toLocaleString()+'</td><td style="text-align:right">¥'+r.amount.toLocaleString()+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<button class="btn btn-green" onclick="issueMonthlyInvoice(\''+ym+'\',\''+esc(client).replace(/'/g,"\\'")+'\','+subtotalTax8+','+subtotalTax10+','+taxAmount8+','+taxAmount10+','+total+',\''+JSON.stringify(rows).replace(/'/g,"\\'")+'\')">この内容で請求を発行する</button>';
+  }
+  html += '</div>';
   document.getElementById('monthly-preview').innerHTML = html;
 }
-function issueMonthlyInvoice(ym, client, total, orderIdsStr){
-  monthlyInvoices.push({ id:'minv_'+Date.now(), client: client, yearMonth: ym, totalAmount: total, orderIds: orderIdsStr.split(','), issuedAt: new Date().toISOString(), paid:false, paidAt:'', note:'' });
+function issueMonthlyInvoice(ym, client, sub8, sub10, tax8, tax10, total, rowsJson){
+  if(!confirm(client+' 様の '+ym+' 月分の請求を発行しますか？\n（記録として残ります。あとから削除する場合はスプレッドシートから直接消す必要があります）')) return;
+  let rows = []; try{ rows = JSON.parse(rowsJson); }catch(e){}
+  const record = {
+    id: 'mi'+Date.now(), yearMonth: ym, client: client,
+    subtotalTax8: sub8, subtotalTax10: sub10, taxAmount8: tax8, taxAmount10: tax10,
+    total: total, rows: rows, issuedAt: new Date().toISOString(), paid: false
+  };
+  monthlyInvoices.push(record);
   saveMonthlyInvoices();
-  document.getElementById('monthly-preview').innerHTML = '<div class="info-box" style="margin-top:10px">✅ 請求を発行しました。</div>';
   renderMonthlyList();
+  document.getElementById('monthly-preview').innerHTML = '<div class="info-box" style="background:#dcfce7;border-color:#16a34a;color:#14532d">✅ 請求を発行しました。下の一覧に追加されました。</div>';
 }
 function saveMonthlyInvoices(){
   fetch(GAS_URL, {
     method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload:{ monthlyInvoices: monthlyInvoices } }),
+    body: JSON.stringify({ action:'saveMonthlyInvoices', monthlyInvoices: monthlyInvoices }),
     headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 保存しました');
+  }).then(r=>r.json()).then(function(data){
+    if(data.status==='ok') showSyncStatus('✅ 月次請求を保存しました');
     else showSyncStatus('⚠️ 保存に失敗しました', true);
-  }).catch(function(){ showSyncStatus('⚠️ 通信エラーが発生しました', true); });
+  }).catch(()=>showSyncStatus('⚠️ 通信エラー', true));
 }
 function renderMonthlyList(){
-  const el = document.getElementById('monthly-list');
-  if(!monthlyInvoices.length){ el.innerHTML = '<div style="color:#57534e;font-size:13px;padding:8px 0">まだ発行された月次請求はありません。</div>'; return; }
-  el.innerHTML = monthlyInvoices.slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||'')).map(function(m){
-    return '<div class="card" style="margin-bottom:8px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-      '<div><strong>'+m.client+'</strong>　'+m.yearMonth+'　¥'+(m.totalAmount||0).toLocaleString()+'　（対象'+(m.orderIds||[]).length+'件）</div>'+
-      '<span class="badge '+(m.paid?'badge-paid':'badge-unpaid')+'">'+(m.paid?'入金済み':'未入金')+'</span>'+
-      '</div>'+
-      '<div style="font-size:11px;color:#57534e;margin:4px 0">発行日：'+(m.issuedAt||'').slice(0,10)+'</div>'+
-      '<button class="btn-sm" onclick="toggleMonthlyPaid(\''+m.id+'\')">'+(m.paid?'未入金に戻す':'✅入金済みにする')+'</button>'+
-      '</div>';
+  const listEl = document.getElementById('monthly-list');
+  if(!listEl) return;
+  if(!monthlyInvoices.length){ listEl.innerHTML = '<div class="info-box">まだ月次請求は発行されていません。</div>'; return; }
+  const sorted = monthlyInvoices.slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
+  listEl.innerHTML = sorted.map(function(r){
+    const paidBadge = r.paid ? '<span class="badge badge-paid">入金済み</span>' : '<span class="badge badge-unpaid">未入金</span>';
+    return '<div class="card" style="padding:10px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      + '<div><strong>'+esc(r.client)+'</strong>　'+esc(r.yearMonth)+' 月分　¥'+r.total.toLocaleString()+' '+paidBadge+'</div>'
+      + '<div><button class="btn-sm" onclick="toggleMonthlyPaid(\''+r.id+'\')">'+(r.paid?'未入金に戻す':'入金済みにする')+'</button></div>'
+      + '</div></div>';
   }).join('');
 }
 function toggleMonthlyPaid(id){
-  const m = monthlyInvoices.find(x=>x.id===id);
-  if(!m) return;
-  m.paid = !m.paid;
-  if(m.paid) m.paidAt = new Date().toISOString();
+  const r = monthlyInvoices.find(x=>x.id===id); if(!r) return;
+  r.paid = !r.paid;
   saveMonthlyInvoices();
   renderMonthlyList();
 }
 
 // ── エクスポート ────────────────────────────────────────────
 function downloadCSV(filename, rows){
-  const csv = rows.map(r=>r.map(function(v){
-    v = String(v==null?'':v);
-    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
-  }).join(',')).join('\r\n');
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const csv = rows.map(row=>row.map(cell=>{
+    const s = String(cell==null?'':cell);
+    if(s.indexOf(',')>=0 || s.indexOf('"')>=0 || s.indexOf('\n')>=0) return '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }).join(',')).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 function exportShippingListCSV(){
   const start = document.getElementById('exp-start').value;
   const end = document.getElementById('exp-end').value;
-  let list = orders.filter(o=>o.status==='shipped');
+  let list = orders.filter(o=>o.status!=='cancelled' && o.shippedAt);
   if(start) list = list.filter(o=>(o.shippedAt||'').slice(0,10) >= start);
   if(end) list = list.filter(o=>(o.shippedAt||'').slice(0,10) <= end);
-  const rows = [['出荷日','注文番号','お客様（発注元）','お届け先','商品','数量','区分','発送区分','ギフト有無']];
+  const rows = [['注文番号','出荷日','お客様(発注元)','お届け先','区分','支払方法','商品明細','金額(税込)','入金']];
   list.forEach(function(o){
-    const hasGift = (o.lines||[]).some(l=>l.giftType==='gift') ? 'ギフト' : '';
+    const lines = (o.lines||[]).map(l=>{
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
+      return l.productName+' × '+totalQty+'本';
+    }).join(' / ');
     rows.push([
-      (o.shippedAt||'').slice(0,10), o.num, o.client, o.recipientName||o.client,
-      (o.lines||[]).map(l=>l.productName).join('／'),
-      (o.lines||[]).map(l=>(l.bottles||0)+(l.boxes||0)).reduce((a,b)=>a+b,0),
-      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType, o.leadType, hasGift
+      o.num, (o.shippedAt||'').slice(0,10),
+      o.client||'', o.recipientName||'',
+      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType,
+      o.paymentMode==='prepay'?'先払い':o.paymentMode==='paid'?'現金':'後払い',
+      lines, orderAmount(o), o.paymentConfirmed?'済':'未'
     ]);
   });
-  downloadCSV('発送リスト_'+(start||'全期間')+'_'+(end||'')+'.csv', rows);
-  showSyncStatus('✅ 発送リストをダウンロードしました');
+  downloadCSV('発送リスト_'+(new Date().toISOString().slice(0,10))+'.csv', rows);
+  showSyncStatus('✅ 発送リストCSVをダウンロードしました');
 }
 function exportBillingBackupCSV(){
-  const rows = [['注文番号','お客様','受注日','出荷日','ステータス','区分','支払方法','入金状況','金額（税込）','商品明細']];
-  orders.forEach(function(o){
+  const rows = [['注文番号','受注日','出荷日','お客様(発注元)','お届け先','区分','支払方法','商品明細','金額(税込)','入金','連絡方法','対応状況メモ']];
+  orders.filter(o=>o.status!=='cancelled').forEach(function(o){
+    const lines = (o.lines||[]).map(l=>{
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
+      return l.productName+' × '+totalQty+'本';
+    }).join(' / ');
     rows.push([
-      o.num, o.client, (o.registeredAt||'').slice(0,10), (o.shippedAt||'').slice(0,10), o.status,
-      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType, o.paymentMode==='prepay'?'先払い':'後払い',
-      o.paymentConfirmed?'入金済み':'未入金', orderAmount(o),
-      (o.lines||[]).map(l=>l.productName+'×'+((l.bottles||0)+(l.boxes||0))).join('／')
+      o.num, (o.registeredAt||'').slice(0,10), (o.shippedAt||'').slice(0,10),
+      o.client||'', o.recipientName||'',
+      CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType,
+      o.paymentMode==='prepay'?'先払い':o.paymentMode==='paid'?'現金':'後払い',
+      lines, orderAmount(o), o.paymentConfirmed?'済':'未',
+      o.contactMethod||'', o.billingNote||''
     ]);
   });
-  downloadCSV('請求データバックアップ_'+new Date().toISOString().slice(0,10)+'.csv', rows);
-  showSyncStatus('✅ 請求データをダウンロードしました');
+  downloadCSV('請求データ_'+(new Date().toISOString().slice(0,10))+'.csv', rows);
+  showSyncStatus('✅ 請求データCSVをダウンロードしました');
 }
 
-function saveAllBilling(){
-  savePriceMaster();
+async function saveAllBilling(){
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({
+        action:'saveAllData',
+        data: {
+          priceMaster: priceMaster,
+          monthlyInvoices: monthlyInvoices,
+          quoteHistory: quoteHistory,
+          specialPrices: specialPrices
+        }
+      }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){ showSyncStatus('✅ すべて保存しました'); }
+    else { showSyncStatus('⚠️ 保存に失敗しました', true); }
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
 </script>
 </body>
