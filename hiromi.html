@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ひろみ (アプリI)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px}
+.app{max-width:900px;margin:0 auto;padding:1rem}
+.oos-header{background:#c9a9a6;color:#4a3532;padding:14px 16px;font-size:16px;font-weight:bold;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",'Hiragino Sans',sans-serif;letter-spacing:.04em}
+.oos-nav{background:#fff;border:1px solid #e8e2d8;border-top:none;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;border-radius:0 0 12px 12px;margin-bottom:1.25rem}
+.oos-nav a{color:#6d5049;text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid #e6d8d5;border-radius:6px;background:#fdfaf9}
+.oos-nav a.current{background:#b3928e;color:#fff;border-color:#b3928e;font-weight:700}
+.oos-nav a:hover:not(.current){background:#f3e8e6}
+.oos-nav a.nav-home{background:#f0f3e8;border-color:#cdd6bc;color:#4c5a2a}
+.oos-nav a.nav-home:hover:not(.current){background:#e4ebd4}
+.oos-nav a.nav-lock{position:relative;padding-right:22px}
+.oos-nav a.nav-lock::after{content:'🔒';position:absolute;top:2px;right:5px;font-size:9px;line-height:1}
+
+.card{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.sec{font-size:15px;font-weight:700;margin-bottom:10px}
+.info-box{background:#f7f3ed;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#2b2a26;line-height:1.6;margin-bottom:1rem;border:1px solid #e8e2d8}
+textarea{width:100%;min-height:70px;padding:10px;border:1px solid #d8cfc4;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;color:#2b2a26}
+input[type=date]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;font-size:13px;color:#2b2a26}
+input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;font-size:13px;color:#2b2a26}
+.btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none}
+.btn-primary{background:#6b7a3a;color:#fff}
+.btn-primary:hover{background:#55622e}
+.btn-sm{font-size:11px;padding:4px 10px;border:1px solid #d8cfc4;border-radius:6px;background:#fff;color:#2b2a26;cursor:pointer}
+.memo-card{background:#fbfaf6;border:1px solid #e8e2d8;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.memo-alert{background:#fef2e0;border:2px solid #c98a5e}
+.memo-pre{background:#fffdf5;border:2px dashed #c98a5e}
+.memo-text{white-space:pre-wrap;font-size:14px;line-height:1.6}
+.memo-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;color:#57534e}
+.tag{display:inline-block;background:#f0e3d8;color:#7a4f2e;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;margin-right:6px}
+#sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
+
+/* ===== やることリスト（コンパクト箇条書き） ===== */
+.todo-wrap{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:640px){.todo-wrap{grid-template-columns:1fr}}
+.todo-col{background:#fbfaf6;border:1px solid #e8e2d8;border-radius:10px;padding:10px 12px}
+.todo-col h3{font-size:13px;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #d9c9be;display:flex;align-items:center;gap:5px}
+.todo-today h3{color:#8a5a1c}
+.todo-tomorrow h3{color:#55622e}
+.todo-week h3{color:#4a6d8a}
+.todo-add{display:flex;gap:4px;margin-bottom:8px}
+.todo-add input{flex:1;padding:5px 8px;border:1px solid #d8cfc4;border-radius:6px;font-size:12px;color:#2b2a26}
+.todo-add button{padding:5px 10px;border:none;border-radius:6px;background:#6b7a3a;color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.todo-list{list-style:none;display:flex;flex-direction:column;gap:3px}
+.todo-item{display:flex;align-items:flex-start;gap:6px;font-size:13px;line-height:1.5;padding:3px 4px;border-radius:5px}
+.todo-item:hover{background:#f3ede4}
+.todo-item .cb{margin-top:2px;cursor:pointer;flex-shrink:0}
+.todo-item .txt{flex:1;cursor:pointer;word-break:break-word}
+.todo-item.done .txt{text-decoration:line-through;color:#9a9188}
+.todo-item .del{color:#b5a59a;cursor:pointer;font-size:11px;flex-shrink:0;opacity:0;transition:opacity .1s}
+.todo-item:hover .del{opacity:1}
+.todo-empty{font-size:11px;color:#9a9188;padding:4px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="oos-header no-print">
+  <span>🗒️ ひろみ I</span>
+</header>
+<nav class="oos-nav no-print">
+  <a class="nav-home" href="home.html">🏠 玄関</a>
+  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
+  <a class="nav-lock" href="documents.html">📂 書類 G</a>
+  <a class="nav-lock" href="marketing.html">📣 マーケ H</a>
+  <a class="current nav-lock" href="hiromi.html">🗒️ ひろみ I</a>
+</nav>
+
+<div id="locked-view">
+  <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
+    <div style="font-size:32px;margin-bottom:10px">🔒</div>
+    <div class="sec">ひろみ（中村様専用）</div>
+    <input type="password" id="password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d8cfc4;border-radius:8px;font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlock()">
+    <button class="btn btn-primary" onclick="unlock()">開く</button>
+    <div id="unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
+  </div>
+</div>
+
+<div id="unlocked-view" style="display:none">
+
+  <!-- ===== やることリスト ===== -->
+  <div class="card">
+    <div class="sec" style="margin-top:0">✅ やることリスト</div>
+    <div class="info-box" style="margin-bottom:12px">箇条書きでサッと。チェックすると消し込み、✕で削除。「今日／明日／今週」でゆるく分けています。</div>
+    <div class="todo-wrap">
+      <div class="todo-col todo-today">
+        <h3>☀️ 今日</h3>
+        <div class="todo-add">
+          <input type="text" id="todo-input-today" placeholder="今日やること" onkeydown="if(event.key==='Enter')addTodo('today')">
+          <button onclick="addTodo('today')">＋</button>
+        </div>
+        <ul class="todo-list" id="todo-list-today"></ul>
+      </div>
+      <div class="todo-col todo-tomorrow">
+        <h3>🌙 明日</h3>
+        <div class="todo-add">
+          <input type="text" id="todo-input-tomorrow" placeholder="明日やること" onkeydown="if(event.key==='Enter')addTodo('tomorrow')">
+          <button onclick="addTodo('tomorrow')">＋</button>
+        </div>
+        <ul class="todo-list" id="todo-list-tomorrow"></ul>
+      </div>
+      <div class="todo-col todo-week">
+        <h3>🗓️ 今週</h3>
+        <div class="todo-add">
+          <input type="text" id="todo-input-week" placeholder="今週やること" onkeydown="if(event.key==='Enter')addTodo('week')">
+          <button onclick="addTodo('week')">＋</button>
+        </div>
+        <ul class="todo-list" id="todo-list-week"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#c9a9a6">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="sec" style="margin:0">⭐ 大切なメモ</div>
+      <button class="btn-sm" id="important-toggle" onclick="toggleImportant()">表示</button>
+    </div>
+    <div id="important-hint" style="display:none;font-size:12px;color:#a4611a;font-weight:700;margin-top:8px">🔔 期日のお知らせがあります（「表示」を押して確認）</div>
+    <div id="important-body" style="display:none;margin-top:10px">
+      <div class="info-box">🔒 <b>パスワード類（銀行・カード・暗証番号など）は、絶対にここへ書かないでください。</b>万一の漏洩に備えるためのルールです。<br>このらんは、ページを開くたびに自動で非表示に戻ります。日付を入れると、通常のメモと同じように前日・当日にお知らせが出ます（中身はこの中にだけ表示されます）。</div>
+      <textarea id="important-text" placeholder="例：〇〇の契約更新は9月末"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="important-red" style="width:16px;height:16px"><span style="color:#dc2626;font-weight:700">赤字にする</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:11px;color:#57534e">思い出したい日</label>
+          <input type="date" id="important-date">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="addImportantMemo()">この大切なメモを追加する</button>
+      <div id="important-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec" style="margin-top:0">📝 新しいメモ</div>
+    <div class="info-box">付箋の代わりです。思いついたことを、そのまま書いてください。「思い出したい日」を入れると、<b>前日「⏰明日が期日です」・当日「📣本日が期日です」</b>のお知らせがこの下に出ます。✅完了を押すと消えます。</div>
+    <textarea id="new-memo-text" placeholder="例：プリモ印刷に朝一で電話する"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <label style="font-size:12px;color:#2b2a26;display:flex;align-items:center;gap:5px"><input type="checkbox" id="new-memo-tell" style="width:16px;height:16px">誰かに伝える必要がある</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="new-memo-red" style="width:16px;height:16px"><span style="color:#dc2626;font-weight:700">赤字にする</span></label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:11px;color:#57534e">思い出したい日</label>
+        <input type="date" id="new-memo-date">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="addMemo()">このメモを追加する</button>
+  </div>
+
+  <div class="card" id="alert-card" style="display:none">
+    <div class="sec" style="margin-top:0">🔔 リマインダー</div>
+    <div id="alert-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec" style="margin-top:0">📋 メモ一覧</div>
+    <div id="memo-list"></div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+const SHEET_NAME = '付箋メモI';
+let password = '';
+let memos = [];
+const SHEET_IMPORTANT = '付箋メモI大切';
+let importantMemos = [];
+let importantVisible = false;
+const SHEET_TODO = '付箋メモIやること';
+let todos = [];
+
+/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
+function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function oosSavedPw(group){
+  try{
+    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+    if(v && v.d===oosToday() && v.p) return v.p;
+  }catch(e){}
+  return null;
+}
+function oosMarkUnlocked(group, pw){
+  try{
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.removeItem('oos_unlock_date');
+  }catch(e){}
+}
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+
+document.addEventListener('DOMContentLoaded', function(){
+  const saved = oosSavedPw('secret');
+  if(saved){
+    document.getElementById('password-input').value = saved;
+    unlock(true);
+  }
+});
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+function showSyncStatus(msg,isError){
+  let el = document.getElementById('sync-status');
+  if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.style.background = isError ? '#fee2e2' : '#dcfce7';
+  el.style.color = isError ? '#7f1d1d' : '#14532d';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+async function unlock(isAuto){
+  const pw = document.getElementById('password-input').value;
+  const errEl = document.getElementById('unlock-error');
+  errEl.textContent = '';
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      password = pw;
+      oosMarkUnlocked('secret', pw);
+      memos = data.data.memos || [];
+      document.getElementById('locked-view').style.display = 'none';
+      document.getElementById('unlocked-view').style.display = 'block';
+      render();
+      loadImportantMemos();
+      loadTodos();
+      showSyncStatus('✅ 読み込みました');
+    } else {
+      oosClearUnlock('secret');
+      document.getElementById('password-input').value = '';
+      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+    }
+  }catch(err){
+    errEl.textContent = '通信エラーが発生しました';
+  }
+}
+
+function oosTomorrow(){ const d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function render(){
+  const today = oosToday();
+  const tomorrow = oosTomorrow();
+  const activeMemo = memos.filter(m=>!m.done);
+  const todayAlerts = activeMemo.filter(m=>m.reminderDate && m.reminderDate<=today);
+  const preAlerts = activeMemo.filter(m=>m.reminderDate===tomorrow);
+  const alertCard = document.getElementById('alert-card');
+  if(todayAlerts.length || preAlerts.length){
+    alertCard.style.display = 'block';
+    document.getElementById('alert-list').innerHTML =
+      todayAlerts.map(function(m){ return memoCardHtml(m,'today'); }).join('') +
+      preAlerts.map(function(m){ return memoCardHtml(m,'pre'); }).join('');
+  } else {
+    alertCard.style.display = 'none';
+  }
+
+  const rest = activeMemo.filter(m=>!(m.reminderDate && (m.reminderDate<=today || m.reminderDate===tomorrow)));
+  rest.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  document.getElementById('memo-list').innerHTML = rest.length ? rest.map(function(m){ return memoCardHtml(m); }).join('') : '<div style="color:#57534e;font-size:13px;padding:8px 0">メモはまだありません。</div>';
+}
+function memoCardHtml(m, alertType){
+  let banner = '';
+  if(alertType==='today') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">📣 本日が期日です。対応はお済みですか？</div>';
+  else if(alertType==='pre') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">⏰ 明日が期日です</div>';
+  return '<div class="memo-card'+(alertType==='today'?' memo-alert':(alertType==='pre'?' memo-pre':''))+'">'+
+    banner+
+    (m.tellSomeone ? '<span class="tag">誰かに伝える</span>' : '')+
+    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '')+
+    '<div class="memo-text"'+(m.color==='red'?' style="color:#dc2626;font-weight:700"':'')+'>'+esc(m.text)+'</div>'+
+    '<div class="memo-meta"><span>'+(m.createdAt?new Date(m.createdAt).toLocaleDateString('ja-JP'):'')+'</span>'+
+    '<span><button class="btn-sm" onclick="doneMemo(\''+m.id+'\')">✅ 完了</button> <button class="btn-sm" onclick="removeMemo(\''+m.id+'\')">削除</button></span></div>'+
+    '</div>';
+}
+async function addMemo(){
+  const text = document.getElementById('new-memo-text').value.trim();
+  if(!text){ alert('メモの内容を入力してください'); return; }
+  const memo = {
+    id: 'memo_'+Date.now(),
+    text: text,
+    reminderDate: document.getElementById('new-memo-date').value,
+    tellSomeone: document.getElementById('new-memo-tell').checked,
+    color: document.getElementById('new-memo-red').checked ? 'red' : '',
+    done: false,
+    createdAt: new Date().toISOString()
+  };
+  memos.push(memo);
+  render();
+  document.getElementById('new-memo-text').value = '';
+  document.getElementById('new-memo-date').value = '';
+  document.getElementById('new-memo-tell').checked = false;
+  document.getElementById('new-memo-red').checked = false;
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_NAME, password: password, memo: memo }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    showSyncStatus('✅ 追加しました');
+  }catch(err){
+    showSyncStatus('⚠️ 保存に失敗しました', true);
+  }
+}
+async function doneMemo(id){
+  const m = memos.find(x=>x.id===id);
+  if(!m) return;
+  m.done = true;
+  render();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_NAME, password: password, memo: m }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+async function removeMemo(id){
+  if(!confirm('このメモを削除しますか？')) return;
+  memos = memos.filter(x=>x.id!==id);
+  render();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_NAME, password: password, id: id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+
+/* ---------- やることリスト（今日・明日・今週／コンパクト箇条書き） ---------- */
+/* 保存先は付箋メモと同じ仕組み。bucketを tellSomeone欄に間借りせず、text先頭に印字せず、
+   reminderDate を使わず、color欄に today/tomorrow/week を格納して区別する */
+async function loadTodos(){
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName: SHEET_TODO, password: password }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      todos = data.data.memos || [];
+      renderTodos();
+    }
+  }catch(err){}
+}
+function renderTodos(){
+  ['today','tomorrow','week'].forEach(function(bucket){
+    const list = todos.filter(function(t){ return (t.color||'today')===bucket; })
+      .sort(function(a,b){
+        if(a.done!==b.done) return a.done?1:-1;
+        return (a.createdAt||'').localeCompare(b.createdAt||'');
+      });
+    const el = document.getElementById('todo-list-'+bucket);
+    if(!list.length){ el.innerHTML = '<li class="todo-empty">まだありません</li>'; return; }
+    el.innerHTML = list.map(function(t){
+      return '<li class="todo-item'+(t.done?' done':'')+'">'+
+        '<input type="checkbox" class="cb" '+(t.done?'checked':'')+' onchange="toggleTodo(\''+t.id+'\')">'+
+        '<span class="txt" onclick="toggleTodo(\''+t.id+'\')">'+esc(t.text)+'</span>'+
+        '<span class="del" onclick="removeTodo(\''+t.id+'\')">✕</span>'+
+        '</li>';
+    }).join('');
+  });
+}
+async function addTodo(bucket){
+  const input = document.getElementById('todo-input-'+bucket);
+  const text = input.value.trim();
+  if(!text) return;
+  const todo = {
+    id: 'todo_'+Date.now(),
+    text: text,
+    reminderDate: '',
+    tellSomeone: false,
+    color: bucket,   // today / tomorrow / week
+    done: false,
+    createdAt: new Date().toISOString()
+  };
+  todos.push(todo);
+  input.value = '';
+  renderTodos();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: todo }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
+}
+async function toggleTodo(id){
+  const t = todos.find(x=>x.id===id);
+  if(!t) return;
+  t.done = !t.done;
+  renderTodos();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: t }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+async function removeTodo(id){
+  todos = todos.filter(x=>x.id!==id);
+  renderTodos();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_TODO, password: password, id: id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+
+/* ---------- 大切なメモ（表示/非表示つき・全消しボタンなし） ---------- */
+function toggleImportant(){
+  importantVisible = !importantVisible;
+  document.getElementById('important-body').style.display = importantVisible ? 'block' : 'none';
+  document.getElementById('important-toggle').textContent = importantVisible ? '非表示' : '表示';
+  renderImportant();
+}
+async function loadImportantMemos(){
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName: SHEET_IMPORTANT, password: password }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      importantMemos = data.data.memos || [];
+      renderImportant();
+    }
+  }catch(err){}
+}
+function importantAlertType(m){
+  if(m.reminderDate && m.reminderDate<=oosToday()) return 'today';
+  if(m.reminderDate===oosTomorrow()) return 'pre';
+  return '';
+}
+function renderImportant(){
+  const hasAlert = importantMemos.some(function(m){ return importantAlertType(m); });
+  document.getElementById('important-hint').style.display = (!importantVisible && hasAlert) ? 'block' : 'none';
+  if(!importantVisible) return;
+  const sorted = importantMemos.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+  document.getElementById('important-list').innerHTML = sorted.length
+    ? sorted.map(importantCardHtml).join('')
+    : '<div style="color:#57534e;font-size:13px;padding:8px 0">大切なメモはまだありません。</div>';
+}
+function importantCardHtml(m){
+  const t = importantAlertType(m);
+  let banner = '';
+  if(t==='today') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">📣 本日が期日です。対応はお済みですか？</div>';
+  else if(t==='pre') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">⏰ 明日が期日です</div>';
+  return '<div class="memo-card'+(t==='today'?' memo-alert':(t==='pre'?' memo-pre':''))+'">'+
+    banner+
+    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '')+
+    '<div class="memo-text"'+(m.color==='red'?' style="color:#dc2626;font-weight:700"':'')+'>'+esc(m.text)+'</div>'+
+    '<div class="memo-meta"><span>'+(m.createdAt?new Date(m.createdAt).toLocaleDateString('ja-JP'):'')+'</span>'+
+    '<span>'+(t?'<button class="btn-sm" onclick="clearImportantReminder(\''+m.id+'\')">🔕 お知らせを消す</button> ':'')+
+    '<button class="btn-sm" onclick="removeImportantMemo(\''+m.id+'\')">削除</button></span></div>'+
+    '</div>';
+}
+async function addImportantMemo(){
+  const text = document.getElementById('important-text').value.trim();
+  if(!text){ alert('メモの内容を入力してください'); return; }
+  const lower = text.toLowerCase();
+  if(lower.indexOf('パスワード')>=0 || lower.indexOf('password')>=0 || lower.indexOf('暗証')>=0 || lower.indexOf('pw')>=0){
+    if(!confirm('パスワードや暗証番号らしき言葉が含まれています。\nパスワード類はここに書かないルールです。本当に追加しますか？')) return;
+  }
+  const memo = {
+    id: 'imp_'+Date.now(),
+    text: text,
+    reminderDate: document.getElementById('important-date').value,
+    tellSomeone: false,
+    color: document.getElementById('important-red').checked ? 'red' : '',
+    done: false,
+    createdAt: new Date().toISOString()
+  };
+  importantMemos.push(memo);
+  renderImportant();
+  document.getElementById('important-text').value = '';
+  document.getElementById('important-date').value = '';
+  document.getElementById('important-red').checked = false;
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: memo }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    showSyncStatus('✅ 追加しました');
+  }catch(err){
+    showSyncStatus('⚠️ 保存に失敗しました', true);
+  }
+}
+async function clearImportantReminder(id){
+  const m = importantMemos.find(function(x){ return x.id===id; });
+  if(!m) return;
+  m.reminderDate = '';
+  renderImportant();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: m }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+async function removeImportantMemo(id){
+  const m = importantMemos.find(function(x){ return x.id===id; });
+  if(!m) return;
+  const preview = (m.text||'').length>40 ? m.text.slice(0,40)+'…' : (m.text||'');
+  if(!confirm('この大切なメモを本当に消しますか？\n\n「'+preview+'」')) return;
+  importantMemos = importantMemos.filter(function(x){ return x.id!==id; });
+  renderImportant();
+  try{
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteStickyMemo', sheetName: SHEET_IMPORTANT, password: password, id: id }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+  }catch(err){}
+}
+</script>
+</body>
+</html>
