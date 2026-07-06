@@ -82,6 +82,22 @@ tr:last-child td{border-bottom:none}
 .invoice-doc-table td{padding:8px 10px;border:1px solid #d5cfc3}
 .invoice-doc-note{font-size:11px;color:#2b2a26;line-height:1.8;border:1px solid #e8e2d8;border-radius:6px;padding:12px 14px;margin-top:1rem}
 @media print{ .no-print{display:none!important} body{background:#fff} .app{padding:0} }
+/* 商品マスタ：メモ・追加情報のフキダシ */
+.memo-btn{position:relative;display:inline-block;font-size:13px;padding:1px 5px;border-radius:4px;cursor:help;margin-left:6px;user-select:none;vertical-align:middle}
+.memo-btn.empty{color:#9ca3af;background:transparent;border:1px dashed #d5cfc3}
+.memo-btn.filled{color:#065f46;background:#d1fae5;border:1px solid #86efac}
+.memo-btn:hover .memo-pop,.memo-btn:focus .memo-pop{visibility:visible;opacity:1}
+.memo-btn{tabindex:0}
+.memo-pop{visibility:hidden;opacity:0;position:absolute;bottom:130%;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;min-width:180px;max-width:280px;z-index:1500;box-shadow:0 4px 12px rgba(0,0,0,.3);white-space:pre-wrap;text-align:left;line-height:1.7;transition:opacity .15s;pointer-events:none;font-weight:normal}
+.memo-pop::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#1f2937}
+.memo-pop-key{color:#a3b18a;font-weight:700;margin-right:4px;display:inline-block;min-width:70px}
+.memo-pop-empty{color:#9ca3af;font-style:italic}
+/* 商品マスタ：追加モーダル */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2500;display:none;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
+.modal-backdrop.open{display:flex}
+.modal-box{background:#fff;border-radius:14px;padding:1.5rem;max-width:560px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-title{font-family:'Zen Maru Gothic','Hiragino Sans',sans-serif;font-size:18px;font-weight:700;margin-bottom:10px}
+.modal-note{font-size:11.5px;color:#57534e;background:#f9f8f5;border:1px solid #e8e2d8;border-radius:6px;padding:8px 10px;margin-bottom:12px;line-height:1.6}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -319,6 +335,12 @@ tr:last-child td{border-bottom:none}
       <div id="q-customer-info"></div>
     </div>
 
+    <div class="card" id="q-past-quote-card" style="display:none;background:#fffbeb;border-color:#f59e0b">
+      <div class="sec" style="margin-top:0;color:#78350f">💡 このお客様の過去の見積・価格表</div>
+      <div class="info-box" style="background:#fef3c7;border-color:#fbbf24;color:#78350f">前回と同じ内容で始めると、お客様が「あれ？前回と違う」となるのを防げます。「この内容で始める」を押すと、担当者名・備考・商品と数量が復元されます（単価は今の価格マスタで計算し直されます）。</div>
+      <div id="q-past-quote-list"></div>
+    </div>
+
     <div class="card" id="q-whitelist-card" style="display:none">
       <div class="sec" style="margin-top:0">このお客様に表示する商品</div>
       <div class="info-box">チェックが入っている商品だけが価格表・見積書に載ります。<strong>最初は全部チェック済み</strong>なので、見せたくない商品だけチェックを外してください。</div>
@@ -385,6 +407,11 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
   <div class="info-box">💡 税率は商品ごとに設定します（オリーブオイル本体＝8%、ギフト箱・備品・その他＝10%が初期値）。下の表の「税率」欄で商品ごとに直せます。</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn btn-green" onclick="openAddProductModal()">＋ 商品を追加</button>
+    <button class="btn-sm" onclick="forceReloadProducts()">🔄 商品マスタを最新版に取り直す</button>
+    <span style="font-size:11px;color:#57534e;align-self:center">※商品を追加した時、商品情報を直接シートで直した時に押してください</span>
+  </div>
   <div class="tbl-wrap">
     <table>
       <thead><tr>
@@ -449,13 +476,64 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- ＋商品を追加：モーダル -->
+<div id="add-product-modal" class="modal-backdrop no-print">
+  <div class="modal-box">
+    <div class="modal-title">＋ 商品を追加</div>
+    <div class="modal-note">
+      新しい商品を「商品マスタ」に登録します。保存すると、その日のうちに他のアプリでも見えるようになります（各アプリを開き直せば反映されます）。<br>
+      ※セット商品（構成品つき）は仕組みが複雑なので、シートで直接編集をお願いしています。
+    </div>
+    <div class="g2">
+      <div class="fg"><label>SKU（英数字・重複不可） <span style="color:#dc2626">*</span></label><input type="text" id="ap-sku" placeholder="例：NEW100" oninput="onAddProductInput()"></div>
+      <div class="fg"><label>商品名 <span style="color:#dc2626">*</span></label><input type="text" id="ap-name" placeholder="例：新商品 100ml" oninput="onAddProductInput()"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>グループ（カテゴリー） <span style="color:#dc2626">*</span></label>
+        <select id="ap-group" onchange="onAddProductGroupChange()">
+          <option value="">選んでください...</option>
+        </select>
+      </div>
+      <div class="fg" id="ap-new-group-wrap" style="display:none"><label>新しいグループ名</label><input type="text" id="ap-new-group" placeholder="例：夏限定オイル"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>入数（1箱の本数）</label><input type="number" id="ap-boxqty" min="1" placeholder="例：24"></div>
+      <div class="fg"><label>税率</label>
+        <select id="ap-taxrate">
+          <option value="0.08">8%（オイル本体）</option>
+          <option value="0.10">10%（備品・その他）</option>
+        </select>
+      </div>
+      <div class="fg" style="justify-content:flex-end;padding-top:22px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="ap-nowholesale" style="width:16px;height:16px">
+          RT限定（卸には販売しない）
+        </label>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>原産地（任意）</label><input type="text" id="ap-origin" placeholder="例：トルコ／イタリア"></div>
+      <div class="fg"><label>容器（任意）</label><input type="text" id="ap-container" placeholder="例：遮光瓶／デザイン缶"></div>
+    </div>
+    <div class="fg"><label>メモ（任意・📝アイコンのフキダシに出ます）</label><textarea id="ap-memo" placeholder="例：夏限定商品／賞味期限半年" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>
+    <div id="ap-extras-area"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn-sm" onclick="closeAddProductModal()">キャンセル</button>
+      <button class="btn btn-primary" id="ap-save-btn" onclick="saveNewProduct()" disabled>この内容で追加する</button>
+    </div>
+    <div id="ap-save-warn" style="font-size:11px;color:#b45309;margin-top:6px;text-align:right"></div>
+  </div>
+</div>
+
 </div><!-- /.app -->
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 
-// ── 商品マスタ（他アプリと共通） ────────────────────────────────────────────
-const PRODUCTS = [
+// ── 商品マスタ（他アプリと共通・ハードコード版はフォールバック用） ────────────────────────────────────────────
+// Phase 2以降、起動時にGASの商品マスタシートから読み込んで上書きします。
+// この配列はGAS通信が失敗した時のバックアップとして残しています。
+let PRODUCTS = [
 {id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true, boxQty:24},
 {id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック', boxQty:20},
 {id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック', boxQty:12},
@@ -511,6 +589,62 @@ function productGroups(){
   const groups = {};
   PRODUCTS.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
   return groups;
+}
+
+// ── 商品マスタ：GAS読み込み＋キャッシュ ────────────────────────────────────────────
+// 起動時：キャッシュがあれば先に表示 → 裏でGASの最新版を取得 → 差分があれば更新
+// これで朝一以外はGAS待ちなしで画面が使えます
+let EXTRA_FIELDS = []; // 追加情報の列名（サイズ・重さなど、中村様がシートに足したもの）
+const PRODUCTS_CACHE_KEY = 'oos_products_cache_v1';
+
+function loadProductsFromCache(){
+  try{
+    const raw = localStorage.getItem(PRODUCTS_CACHE_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(!obj || !Array.isArray(obj.products)) return null;
+    return obj;
+  }catch(e){ return null; }
+}
+function saveProductsToCache(products, extraFields){
+  try{
+    localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({
+      products: products, extraFields: extraFields||[], cachedAt: new Date().toISOString()
+    }));
+  }catch(e){}
+}
+function applyLoadedProducts(products, extraFields){
+  if(!products || !products.length) return;
+  PRODUCTS = products;
+  EXTRA_FIELDS = extraFields || [];
+  // 現在開いているタブの表示を更新
+  if(document.getElementById('panel-price') && document.getElementById('panel-price').classList.contains('active')) renderPriceTable();
+  if(document.getElementById('panel-list') && document.getElementById('panel-list').classList.contains('active')) renderInvoiceList();
+  if(document.getElementById('panel-special') && document.getElementById('panel-special').classList.contains('active')){ fillSpecialPriceSelects(); }
+}
+async function initializeProducts(){
+  // 1. キャッシュがあれば先に反映（体感を速く）
+  const cache = loadProductsFromCache();
+  if(cache && cache.products && cache.products.length){
+    applyLoadedProducts(cache.products, cache.extraFields);
+  }
+  // 2. 裏でGASから最新を取得
+  try{
+    const res = await fetch(GAS_URL + '?action=loadProducts');
+    const data = await res.json();
+    if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
+      saveProductsToCache(data.products, data.extraFields);
+      applyLoadedProducts(data.products, data.extraFields);
+    }
+  }catch(e){
+    // GASが応答なしでも、ハードコード版orキャッシュ版で動き続ける（アプリが止まらない）
+    console.warn('商品マスタの取得に失敗、フォールバックで継続', e);
+  }
+}
+function forceReloadProducts(){
+  try{ localStorage.removeItem(PRODUCTS_CACHE_KEY); }catch(e){}
+  showSyncStatus('商品マスタを取り直しています...');
+  initializeProducts().then(function(){ showSyncStatus('✅ 商品マスタを再取得しました'); });
 }
 
 // ── 標準価格表に表示する参考情報（生産地・容器・証明書） ──
@@ -618,6 +752,7 @@ let monthlyInvoices = [];
 let taxRate = 0.08;
 
 document.addEventListener('DOMContentLoaded', function(){
+  initializeProducts();  // 商品マスタをGASから取得（キャッシュがあれば即座に反映、裏で最新版を確認）
   loadAllBilling();
   // 今日すでにA・B・C・Fのどれかで解錠済みなら、自動で開く
   const saved = oosSavedPw('biz');
@@ -1102,6 +1237,7 @@ function onQuoteCustomerChange(){
   const info = document.getElementById('q-customer-info');
   if(!c){
     info.innerHTML = '';
+    document.getElementById('q-past-quote-card').style.display = 'none';
     document.getElementById('q-whitelist-card').style.display = 'none';
     document.getElementById('q-doc-choice-card').style.display = 'none';
     document.getElementById('q-pricelist-form-card').style.display = 'none';
@@ -1116,6 +1252,89 @@ function onQuoteCustomerChange(){
   document.getElementById('q-items-card').style.display = 'none';
   document.getElementById('q-generate-card').style.display = 'none';
   renderWhitelistTable(c);
+  renderPastQuoteSuggestion(c);
+}
+function renderPastQuoteSuggestion(c){
+  const cardEl = document.getElementById('q-past-quote-card');
+  const listEl = document.getElementById('q-past-quote-list');
+  const past = quoteHistory.filter(function(q){ return q.customerId===c.id; })
+                           .slice().sort(function(a,b){ return (b.issuedAt||'').localeCompare(a.issuedAt||''); })
+                           .slice(0,3);
+  if(!past.length){ cardEl.style.display='none'; listEl.innerHTML=''; return; }
+  cardEl.style.display = '';
+  listEl.innerHTML = past.map(function(r){
+    const dateStr = (r.issuedAt||'').slice(0,10);
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : '📝 見積書';
+    let detail = '';
+    if(r.kind==='pricelist'){
+      detail = '担当：'+esc(r.contactPerson||'-')+'／'+((r.products||[]).length)+'品目';
+    } else {
+      const total = (r.items||[]).reduce(function(s,it){ return s+(it.amount||0); }, 0);
+      detail = '担当：'+esc(r.contactPerson||'-')+'／'+((r.items||[]).length)+'品目／小計 ¥'+total.toLocaleString();
+    }
+    return '<div style="background:#fff;border:1px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:6px">'
+      + '<div style="margin-bottom:6px"><strong>'+kindStr+'</strong>　<span style="font-size:11px;color:#57534e">'+dateStr+'発行</span></div>'
+      + '<div style="font-size:12px;color:#2b2a26;margin-bottom:8px">'+detail+'</div>'
+      + '<button class="btn btn-primary" onclick="prefillFromPastQuote(\''+r.id+'\')">この内容で始める</button>'
+      + '</div>';
+  }).join('');
+}
+function prefillFromPastQuote(quoteId){
+  const past = quoteHistory.find(function(x){ return x.id===quoteId; });
+  if(!past){ alert('その見積は見つかりませんでした'); return; }
+  const c = customers.find(function(x){ return x.id===past.customerId; });
+  if(!c){ alert('お客様情報が見つかりませんでした'); return; }
+  // お客様の区分が変わっていないか確認
+  if(past.customerType && past.customerType !== c.type){
+    if(!confirm('前回この見積を作った時から、このお客様の区分が「'+(CUSTOMER_TYPE_LABEL[past.customerType]||past.customerType)+'」から「'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'」に変わっています。\n単価は現在の区分で計算し直されます。それでよろしいですか？')) return;
+  }
+  if(past.kind === 'pricelist'){
+    // 標準価格表として復元
+    showPriceListForm();
+    document.getElementById('pl-contact-person').value = past.contactPerson||'';
+    document.getElementById('pl-remarks').value = past.remarks||'';
+    checkPriceListReady();
+    setTimeout(function(){ document.getElementById('q-pricelist-form-card').scrollIntoView({behavior:'smooth'}); }, 100);
+    showSyncStatus('✅ 前回の内容を復元しました（単価は最新版で計算されます）');
+  } else {
+    // 見積書として復元
+    showIndividualQuoteForm();
+    document.getElementById('q-subject').value = past.subject||'オリーブオイル 御見積り';
+    document.getElementById('q-contact-person').value = past.contactPerson||'';
+    document.getElementById('q-remarks').value = past.remarks||'';
+    // 品目を復元
+    document.getElementById('q-items-area').innerHTML = '';
+    let missingSkus = [];
+    (past.items||[]).forEach(function(it){
+      addQuoteItemRow();
+      const rows = document.getElementById('q-items-area').children;
+      const row = rows[rows.length-1];
+      if(!row) return;
+      const skuSel = row.querySelector('[data-q-sku]');
+      const bottlesInp = row.querySelector('[data-q-bottles]');
+      const boxesInp = row.querySelector('[data-q-boxes]');
+      if(skuSel && it.sku){
+        // 現在のプルダウンにこのSKUがあるかチェック
+        const hasSku = Array.from(skuSel.options).some(function(o){ return o.value===it.sku; });
+        if(hasSku){
+          skuSel.value = it.sku;
+        } else {
+          missingSkus.push(it.sku);
+          // 復元できない行は削除
+          row.remove();
+          return;
+        }
+      }
+      if(bottlesInp) bottlesInp.value = it.bottles||0;
+      if(boxesInp) boxesInp.value = it.boxes||0;
+    });
+    checkQuoteReady();
+    if(missingSkus.length){
+      alert('前回の一部の商品（'+missingSkus.join('・')+'）は今このお客様には表示できない設定になっているため、復元できませんでした。必要であれば商品リストの設定を見直してください。');
+    }
+    setTimeout(function(){ document.getElementById('q-items-card').scrollIntoView({behavior:'smooth'}); }, 100);
+    showSyncStatus('✅ 前回の内容を復元しました（単価は最新版で計算されます）');
+  }
 }
 function renderWhitelistTable(c){
   const wl = c.whitelist;
@@ -2016,6 +2235,31 @@ function updatePriceRowPreview(sku){
     }
   });
 }
+// ── 商品マスタ：📝アイコン（メモ・追加情報のフキダシ） ────────────────────────────
+function buildMemoBtn(p){
+  const items = [];
+  if(p.origin) items.push({key:'原産地', val:p.origin});
+  if(p.container) items.push({key:'容器', val:p.container});
+  if(p.memo) items.push({key:'メモ', val:p.memo});
+  if(p.extras){
+    Object.keys(p.extras).forEach(function(k){
+      if(p.extras[k]) items.push({key:k, val:p.extras[k]});
+    });
+  }
+  const filled = items.length > 0;
+  const cls = filled ? 'filled' : 'empty';
+  const icon = filled ? '📝' : '📝';
+  let popHtml;
+  if(filled){
+    popHtml = items.map(function(x){
+      return '<span class="memo-pop-key">'+esc(x.key)+':</span>'+esc(x.val);
+    }).join('<br>');
+  } else {
+    popHtml = '<span class="memo-pop-empty">まだメモや追加情報はありません。<br>商品マスタシートで直接書き込めます。</span>';
+  }
+  return '<span class="memo-btn '+cls+'" tabindex="0" title="'+esc(p.name)+'の情報">'+icon
+       + '<span class="memo-pop">'+popHtml+'</span></span>';
+}
 function renderPriceTable(){
   const groups = productGroups();
   let html = '';
@@ -2025,7 +2269,7 @@ function renderPriceTable(){
       const rec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
       const defaultTax = defaultTaxRateForGroup(p.group);
       const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
-      html += '<tr><td>'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span></td>';
+      html += '<tr><td>'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
       html += '<td>'+(p.boxQty||'-')+'</td>';
       html += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:80px" disabled onchange="markPriceDirty()">'
         + '<option value="0.08"'+(taxR===0.08?' selected':'')+'>8%</option>'
@@ -2075,6 +2319,143 @@ async function savePriceMaster(){
       renderInvoiceList();
     } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
   }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
+}
+
+// ── 商品を追加：モーダル ────────────────────────────────────────────
+function openAddProductModal(){
+  // グループのプルダウンを現在のPRODUCTSから作る
+  const existingGroups = {};
+  PRODUCTS.forEach(p=>{ if(p.group) existingGroups[p.group] = true; });
+  const groupSelect = document.getElementById('ap-group');
+  const opts = ['<option value="">選んでください...</option>']
+    .concat(Object.keys(existingGroups).map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>'))
+    .concat(['<option value="__new__">＋ 新しいグループを作る</option>']);
+  groupSelect.innerHTML = opts.join('');
+  // 追加情報の入力欄（EXTRA_FIELDSがあれば）
+  const extrasArea = document.getElementById('ap-extras-area');
+  if(EXTRA_FIELDS && EXTRA_FIELDS.length){
+    extrasArea.innerHTML = '<div class="modal-note" style="margin-top:10px;background:#eef0e5;border-color:#a3b18a">🌱 商品マスタシートに追加した項目：</div>'
+      + EXTRA_FIELDS.map(function(field){
+          return '<div class="fg"><label>'+esc(field)+'（任意）</label><input type="text" data-ap-extra="'+esc(field)+'"></div>';
+        }).join('');
+  } else {
+    extrasArea.innerHTML = '';
+  }
+  // フォーム初期化
+  ['ap-sku','ap-name','ap-new-group','ap-boxqty','ap-origin','ap-container','ap-memo'].forEach(function(id){
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  document.getElementById('ap-taxrate').value = '0.08';
+  document.getElementById('ap-nowholesale').checked = false;
+  document.getElementById('ap-new-group-wrap').style.display = 'none';
+  document.getElementById('ap-save-btn').disabled = true;
+  document.getElementById('ap-save-warn').textContent = '※SKUと商品名とグループを入力すると保存できます';
+  document.getElementById('add-product-modal').classList.add('open');
+}
+function closeAddProductModal(){
+  document.getElementById('add-product-modal').classList.remove('open');
+}
+function onAddProductGroupChange(){
+  const val = document.getElementById('ap-group').value;
+  document.getElementById('ap-new-group-wrap').style.display = (val==='__new__') ? '' : 'none';
+  onAddProductInput();
+}
+function onAddProductInput(){
+  const sku = document.getElementById('ap-sku').value.trim().toUpperCase();
+  const name = document.getElementById('ap-name').value.trim();
+  const groupSel = document.getElementById('ap-group').value;
+  const newGroup = document.getElementById('ap-new-group').value.trim();
+  const btn = document.getElementById('ap-save-btn');
+  const warn = document.getElementById('ap-save-warn');
+  const groupOk = groupSel && (groupSel !== '__new__' || newGroup);
+  if(!sku || !name || !groupOk){
+    btn.disabled = true;
+    warn.textContent = '※SKU・商品名・グループを入力すると保存できます';
+    warn.style.color = '#b45309';
+    return;
+  }
+  if(!/^[A-Z0-9_-]+$/.test(sku)){
+    btn.disabled = true;
+    warn.textContent = '⚠️ SKUは半角英数字とハイフン・アンダースコアのみ使えます';
+    warn.style.color = '#dc2626';
+    return;
+  }
+  if(PRODUCTS.some(p=>p.sku===sku)){
+    btn.disabled = true;
+    warn.textContent = '⚠️ そのSKUはすでに使われています。別のSKUにしてください';
+    warn.style.color = '#dc2626';
+    return;
+  }
+  btn.disabled = false;
+  warn.textContent = '';
+}
+async function saveNewProduct(){
+  const sku = document.getElementById('ap-sku').value.trim().toUpperCase();
+  const name = document.getElementById('ap-name').value.trim();
+  const groupSel = document.getElementById('ap-group').value;
+  const newGroup = document.getElementById('ap-new-group').value.trim();
+  const group = groupSel === '__new__' ? newGroup : groupSel;
+  const boxQty = parseInt(document.getElementById('ap-boxqty').value) || null;
+  const taxRate = parseFloat(document.getElementById('ap-taxrate').value) || 0.08;
+  const noWholesale = document.getElementById('ap-nowholesale').checked;
+  const origin = document.getElementById('ap-origin').value.trim();
+  const container = document.getElementById('ap-container').value.trim();
+  const memo = document.getElementById('ap-memo').value.trim();
+  // 追加情報を集める
+  const extras = {};
+  document.querySelectorAll('[data-ap-extra]').forEach(function(inp){
+    const val = inp.value.trim();
+    if(val) extras[inp.getAttribute('data-ap-extra')] = val;
+  });
+  // 新しいidを決める（既存の最大＋10）
+  const maxId = PRODUCTS.reduce(function(m,p){ return Math.max(m, parseInt(p.id)||0); }, 0);
+  const newId = maxId + 10;
+  // 新しい表示順を決める（既存の最大＋10）
+  const maxSort = PRODUCTS.reduce(function(m,p){ return Math.max(m, parseInt(p.sortOrder)||0); }, 0);
+  const newSort = maxSort + 10;
+  const newProduct = {
+    id: newId, sku: sku, name: name, group: group,
+    boxQty: boxQty, noWholesale: noWholesale, isSet: false, components: [],
+    jan: '', origin: origin, container: container,
+    sortOrder: newSort, memo: memo, extras: extras
+  };
+  if(!confirm('この内容で商品を追加しますか？\n\nSKU: '+sku+'\n商品名: '+name+'\nグループ: '+group+'\n\n（追加後は「価格マスタを保存する」で単価を設定してください）')) return;
+
+  showSyncStatus('保存しています...');
+  try{
+    // 保存直前に最新の商品リストを取り直す（他の端末で追加されたものを上書きしないため）
+    const freshRes = await fetch(GAS_URL + '?action=loadProducts');
+    const freshData = await freshRes.json();
+    if(freshData.status !== 'ok'){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
+    const freshProducts = freshData.products || [];
+    // 重複チェック（他の端末で先に追加されていた場合）
+    if(freshProducts.some(p=>p.sku===sku)){
+      showSyncStatus('⚠️ このSKUは他の端末でもう追加されていました。取り直します。', true);
+      applyLoadedProducts(freshProducts, freshData.extraFields);
+      saveProductsToCache(freshProducts, freshData.extraFields);
+      closeAddProductModal();
+      return;
+    }
+    // 新商品を末尾に追加
+    freshProducts.push(newProduct);
+    const saveRes = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveProducts', products: freshProducts }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const saveData = await saveRes.json();
+    if(saveData.status === 'ok'){
+      applyLoadedProducts(freshProducts, freshData.extraFields);
+      saveProductsToCache(freshProducts, freshData.extraFields);
+      showSyncStatus('✅ 商品を追加しました（'+sku+'）');
+      closeAddProductModal();
+      renderPriceTable();
+    } else {
+      showSyncStatus('⚠️ 保存に失敗しました：'+(saveData.message||''), true);
+    }
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
 }
 
 window.addEventListener('beforeunload', function(e){
