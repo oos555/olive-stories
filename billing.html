@@ -107,6 +107,12 @@ tr:last-child td{border-bottom:none}
 .modal-box{background:#fff;border-radius:14px;padding:1.5rem;max-width:560px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)}
 .modal-title{font-family:'Zen Maru Gothic','Hiragino Sans',sans-serif;font-size:18px;font-weight:700;margin-bottom:10px}
 .modal-note{font-size:11.5px;color:#57534e;background:#f9f8f5;border:1px solid #e8e2d8;border-radius:6px;padding:8px 10px;margin-bottom:12px;line-height:1.6}
+/* オイル卸モード */
+.ow-row-disabled{opacity:0.45;background:#f5f5f3}
+.ow-price-rt{color:#1e40af;font-weight:700}
+.ow-price-wh{color:#b91c1c;font-weight:700}
+.ow-price-upgrade{background:#fef3c7;border-radius:4px;padding:2px 4px}
+.ow-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -160,6 +166,7 @@ tr:last-child td{border-bottom:none}
   <button class="tab active" onclick="showPanel('list',this)">請求一覧</button>
   <button class="tab" onclick="showPanel('monthly',this)">月次卸請求</button>
   <button class="tab" onclick="showPanel('quote',this)">見積書</button>
+  <button class="tab" onclick="showPanel('oilwholesale',this)">オイル卸モード</button>
   <button class="tab" onclick="showPanel('special',this)">イレギュラー特価</button>
   <button class="tab" onclick="showPanel('price',this)">価格マスタ</button>
   <button class="tab" onclick="showPanel('cost',this)" style="color:#b91c1c">🔒原価データ</button>
@@ -352,6 +359,7 @@ tr:last-child td{border-bottom:none}
           <div class="fg"><label>住所</label><input type="text" id="nc-addr" placeholder="東京都..."></div>
           <div class="fg"><label>電話番号</label><input type="text" id="nc-tel" placeholder="0312345678"></div>
         </div>
+        <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="nc-email" placeholder="example@example.com"></div>
         <div class="fg"><label>メモ（任意）</label><input type="text" id="nc-note" placeholder="紹介経緯など"></div>
         <button class="btn btn-green" onclick="registerNewCustomer()">このお客様を登録して選択する</button>
       </div>
@@ -416,6 +424,54 @@ tr:last-child td{border-bottom:none}
   <div class="sec" style="margin-top:1.5rem">📋 見積り提出履歴</div>
   <div id="quote-followup-alert"></div>
   <div id="quote-history-list"></div>
+</div>
+
+<!-- オイル卸モード（表形式・フェーズ1） -->
+<div id="panel-oilwholesale" class="panel">
+  <div class="info-box">Excelの価格表のように、全商品を一覧して選ぶ形式です。チェックを入れた商品だけが価格表に載ります。<br>💡 卸①で同じ商品を<strong>6箱以上</strong>選ぶと、その商品だけ自動的に卸②価格になります。</div>
+
+  <div class="card">
+    <div class="g3">
+      <div class="fg"><label>お客様タイプ</label>
+        <select id="ow-customer-type" onchange="onOwCustomerTypeChange()">
+          <option value="wholesale">卸①・卸②</option>
+          <option value="rt">RT（ホテル・レストラン）</option>
+        </select>
+      </div>
+      <div class="fg"><label>お客様を選択（任意・登録済みから選ぶ）</label>
+        <select id="ow-customer" onchange="onOwCustomerSelectChange()">
+          <option value="">選択しない（自由入力）</option>
+        </select>
+      </div>
+      <div class="fg"><label>有効期間</label><input type="text" id="ow-expiry" readonly style="background:#f0ece3;color:#57534e"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>会社名</label><input type="text" id="ow-company" placeholder="〇〇株式会社"></div>
+      <div class="fg"><label>担当者名</label><input type="text" id="ow-contact" placeholder="例：山口 玲子"></div>
+      <div class="fg"><label>連絡先（メール）</label><input type="email" id="ow-email" placeholder="example@example.com"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>内部メモ（お客様には見えません）</label><textarea id="ow-internal-memo" placeholder="社内用の覚え書き" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
+      <div class="fg"><label>見積書メモ（お客様に見える形で印字）</label><textarea id="ow-quote-memo" placeholder="例：リードタイムは約2週間、送料は別途頂戴いたします" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ow-toolbar no-print">
+      <button class="btn-sm" onclick="owToggleAll(true)">☑️ 全選択</button>
+      <button class="btn-sm" onclick="owToggleAll(false)">⬜ 全解除</button>
+      <span style="font-size:11px;color:#57534e;align-self:center">※グレーの行はRT限定商品です。「例外」にチェックを入れると選べるようになり、このお客様には次回から記憶されます。</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead id="ow-table-head"></thead>
+        <tbody id="ow-table-body"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-primary" onclick="generateOilWholesaleDoc()">この内容で価格表を作成する</button>
+  </div>
+
+  <div id="ow-doc-area"></div>
 </div>
 
 <!-- 価格マスタ -->
@@ -672,6 +728,7 @@ function applyLoadedProducts(products, extraFields){
   if(document.getElementById('panel-price') && document.getElementById('panel-price').classList.contains('active')) renderPriceTable();
   if(document.getElementById('panel-list') && document.getElementById('panel-list').classList.contains('active')) renderInvoiceList();
   if(document.getElementById('panel-special') && document.getElementById('panel-special').classList.contains('active')){ fillSpecialPriceSelects(); }
+  if(document.getElementById('panel-oilwholesale') && document.getElementById('panel-oilwholesale').classList.contains('active')){ renderOwTable(); }
 }
 async function initializeProducts(){
   // 1. キャッシュがあれば先に反映（体感を速く）
@@ -873,6 +930,7 @@ function showPanel(name, btn){
   if(name==='monthly') renderMonthlyList();
   if(name==='quote'){ resetRtGate(); renderQuoteCustomerSelect(); renderQuoteHistory(); }
   if(name==='special'){ fillSpecialPriceSelects(); renderSpecialPriceList(); }
+  if(name==='oilwholesale'){ renderOwCustomerSelect(); renderOwTable(); updateOwExpiry(); }
   if(name==='cost' && document.getElementById('cost-unlocked-view').style.display==='none'){
     const savedCostPw = oosSavedPw('secret');
     if(savedCostPw){
@@ -1205,9 +1263,11 @@ async function registerNewCustomer(){
     zip: document.getElementById('nc-zip').value.trim(),
     addr: document.getElementById('nc-addr').value.trim(),
     tel: document.getElementById('nc-tel').value.trim(),
+    email: document.getElementById('nc-email') ? document.getElementById('nc-email').value.trim() : '',
     note: document.getElementById('nc-note').value.trim(),
     createdAt: new Date().toISOString(),
-    whitelist: null
+    whitelist: null,
+    rtExceptions: []
   };
   customers.push(newCust);
   showSyncStatus('保存しています...');
@@ -1296,7 +1356,7 @@ function onQuoteCustomerChange(){
     document.getElementById('q-generate-card').style.display = 'none';
     return;
   }
-  info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+'</div>';
+  info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+'</div>';
   document.getElementById('q-whitelist-card').style.display = '';
   document.getElementById('q-doc-choice-card').style.display = '';
   document.getElementById('q-pricelist-form-card').style.display = 'none';
@@ -1879,7 +1939,7 @@ function renderQuoteHistory(){
   if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
   listEl.innerHTML = sorted.map(function(r){
     const dateStr = (r.issuedAt||'').slice(0,10);
-    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : '📝 見積書';
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル卸モード価格表' : '📝 見積書');
     const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
     const orderBadge = hasOrder ? '<span class="badge badge-paid">受注あり</span>' : '<span class="badge badge-unpaid">未受注</span>';
     return '<div class="card" style="padding:10px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
@@ -1891,8 +1951,25 @@ function renderQuoteHistory(){
 function viewQuoteHistoryItem(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
   const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
-  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : buildQuoteDocHtml(r, c);
-  showQuoteDoc(doc, r);
+  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : buildQuoteDocHtml(r, c));
+  showQuoteDocGeneric(doc, r);
+}
+function showQuoteDocGeneric(doc, record){
+  // 履歴表示用（印刷ボタンのみ、保存はしない）
+  const area = document.getElementById('quote-doc-area') || document.getElementById('ow-doc-area');
+  area.innerHTML = '';
+  const wrap = document.createElement('div');
+  const inner = document.createElement('div');
+  inner.innerHTML = doc;
+  wrap.appendChild(inner.firstElementChild);
+  const printBtn = document.createElement('button');
+  printBtn.className = 'btn btn-primary no-print';
+  printBtn.style.marginTop = '10px';
+  printBtn.textContent = '🖨 印刷する';
+  printBtn.onclick = function(){ window.print(); };
+  wrap.appendChild(printBtn);
+  area.appendChild(wrap);
+  area.scrollIntoView({behavior:'smooth'});
 }
 
 // ── イレギュラー特価 ────────────────────────────────────────────
@@ -2680,6 +2757,279 @@ async function saveEditProductInfo(){
   }catch(err){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
+}
+
+// ── オイル卸モード（表形式・フェーズ1） ────────────────────────────────────────────
+// このお客様タイプ／お客様選択に対して、行ごとの箱数入力とチェック状態を保持する
+let owRowState = {}; // { sku: { checked:bool, boxes:number, rtOverride:bool } }
+
+function updateOwExpiry(){
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
+  document.getElementById('ow-expiry').value = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日まで（発行日+2ヶ月）';
+}
+function renderOwCustomerSelect(){
+  const sel = document.getElementById('ow-customer');
+  const opts = ['<option value="">選択しない（自由入力）</option>']
+    .concat(customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
+  const prev = sel.value; sel.innerHTML = opts.join(''); sel.value = prev;
+}
+function onOwCustomerSelectChange(){
+  const cid = document.getElementById('ow-customer').value;
+  const c = customers.find(x=>x.id===cid);
+  owRowState = {}; // お客様が変わったらチェック状態はリセット
+  if(c){
+    document.getElementById('ow-company').value = c.name || '';
+    document.getElementById('ow-email').value = c.email || '';
+    // タイプの自動セット（RTならRT表示、それ以外は卸表示のまま）
+    document.getElementById('ow-customer-type').value = (c.type==='rt') ? 'rt' : 'wholesale';
+    // 例外解除の記憶を反映
+    (c.rtExceptions||[]).forEach(function(sku){
+      owRowState[sku] = owRowState[sku] || {};
+      owRowState[sku].rtOverride = true;
+    });
+  }
+  renderOwTable();
+}
+function onOwCustomerTypeChange(){
+  renderOwTable();
+}
+function owToggleAll(checked){
+  document.querySelectorAll('#ow-table-body [data-ow-check]').forEach(function(cb){
+    if(!cb.disabled) cb.checked = checked;
+  });
+}
+function owIsRtMode(){
+  return document.getElementById('ow-customer-type').value === 'rt';
+}
+async function owToggleException(sku, cb){
+  owRowState[sku] = owRowState[sku] || {};
+  owRowState[sku].rtOverride = cb.checked;
+  const cid = document.getElementById('ow-customer').value;
+  const c = customers.find(x=>x.id===cid);
+  if(c){
+    c.rtExceptions = c.rtExceptions || [];
+    const idx = c.rtExceptions.indexOf(sku);
+    if(cb.checked && idx<0) c.rtExceptions.push(sku);
+    if(!cb.checked && idx>=0) c.rtExceptions.splice(idx,1);
+    try{
+      await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'saveCustomers', customers: customers }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      showSyncStatus('✅ このお客様の例外設定を記憶しました');
+    }catch(e){ showSyncStatus('⚠️ 例外設定の保存に失敗しました', true); }
+  }
+  renderOwTable();
+}
+function onOwBoxesChange(sku, val){
+  owRowState[sku] = owRowState[sku] || {};
+  owRowState[sku].boxes = parseInt(val)||0;
+  renderOwTable();
+}
+function onOwCheckChange(sku, checked){
+  owRowState[sku] = owRowState[sku] || {};
+  owRowState[sku].checked = checked;
+}
+function renderOwTable(){
+  const rtMode = owIsRtMode();
+  const head = document.getElementById('ow-table-head');
+  const body = document.getElementById('ow-table-body');
+  if(!head || !body) return;
+  if(rtMode){
+    head.innerHTML = '<tr><th style="width:26px" class="no-print"></th><th>商品名</th><th style="width:90px">定価</th><th style="width:90px">RT価格</th></tr>';
+  } else {
+    head.innerHTML = '<tr><th style="width:26px" class="no-print"></th><th>商品名</th><th style="width:90px">箱数</th><th style="width:90px">上代</th><th style="width:90px">卸①</th><th style="width:90px">卸②</th></tr>';
+  }
+  const groups = productGroups();
+  let html = '';
+  Object.keys(groups).forEach(function(g){
+    html += '<tr><td colspan="'+(rtMode?4:6)+'" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){
+      const state = owRowState[p.sku] || {};
+      const isRtLimited = !!p.noWholesale;
+      const rtBlocked = isRtLimited && !rtMode && !state.rtOverride;
+      const rowCls = rtBlocked ? ' class="ow-row-disabled"' : '';
+      const checkedAttr = state.checked ? 'checked' : '';
+      const disabledAttr = rtBlocked ? 'disabled' : '';
+      html += '<tr'+rowCls+'>';
+      html += '<td class="no-print"><input type="checkbox" data-ow-check onchange="onOwCheckChange(\''+p.sku+'\',this.checked)" '+checkedAttr+' '+disabledAttr+'></td>';
+      let nameCell = esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span>';
+      if(isRtLimited){
+        nameCell += '<br><label class="no-print" style="font-size:10px;color:#b45309;font-weight:600;cursor:pointer"><input type="checkbox" '+(state.rtOverride?'checked':'')+' onchange="owToggleException(\''+p.sku+'\',this)" '+(rtMode?'style="display:none"':'')+'> '+(rtMode?'':'例外解除（このお客様に記憶）')+'</label>';
+      }
+      html += '<td>'+nameCell+'</td>';
+      if(rtMode){
+        const general = priceForSku(p.sku, 'general');
+        const rtPrice = priceForSku(p.sku, 'rt');
+        html += '<td>¥'+general.toLocaleString()+'</td>';
+        html += '<td class="ow-price-rt">¥'+rtPrice.toLocaleString()+'</td>';
+      } else {
+        const boxes = state.boxes || 0;
+        const effType = effectiveCustomerType('wholesale1', boxes);
+        const upgraded = effType==='wholesale2';
+        const general = priceForSku(p.sku, 'general');
+        const w1 = priceForSku(p.sku, 'wholesale1');
+        const w2 = priceForSku(p.sku, 'wholesale2');
+        html += '<td class="no-print"><input type="number" min="0" value="'+boxes+'" style="width:60px;padding:3px 5px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px" '+disabledAttr+' onchange="onOwBoxesChange(\''+p.sku+'\',this.value)"></td>';
+        html += '<td>¥'+general.toLocaleString()+'</td>';
+        html += '<td class="ow-price-wh'+(upgraded?'':'')+'">¥'+w1.toLocaleString()+'</td>';
+        html += '<td class="ow-price-wh'+(upgraded?' ow-price-upgrade':'')+'">¥'+w2.toLocaleString()+(upgraded?'　←6箱以上で自動適用':'')+'</td>';
+      }
+      html += '</tr>';
+    });
+  });
+  body.innerHTML = html;
+}
+function generateOilWholesaleDoc(){
+  const rtMode = owIsRtMode();
+  const company = document.getElementById('ow-company').value.trim();
+  const contact = document.getElementById('ow-contact').value.trim();
+  const email = document.getElementById('ow-email').value.trim();
+  if(!company){ alert('会社名を入力してください'); return; }
+  const rows = [];
+  document.querySelectorAll('#ow-table-body [data-ow-check]').forEach(function(cb){
+    if(!cb.checked || cb.disabled) return;
+    const tr = cb.closest('tr');
+    const nameCell = tr.children[1];
+    const skuMatch = nameCell.innerHTML.match(/sku-tag">([^<]+)</);
+    const sku = skuMatch ? skuMatch[1] : '';
+    const p = findProductBySku(sku); if(!p) return;
+    if(rtMode){
+      rows.push({ sku:sku, name:p.name, group:p.group, general:priceForSku(sku,'general'), rt:priceForSku(sku,'rt') });
+    } else {
+      const state = owRowState[sku] || {};
+      const boxes = state.boxes || 0;
+      const effType = effectiveCustomerType('wholesale1', boxes);
+      rows.push({ sku:sku, name:p.name, group:p.group, boxes:boxes, general:priceForSku(sku,'general'), w1:priceForSku(sku,'wholesale1'), w2:priceForSku(sku,'wholesale2'), upgraded: effType==='wholesale2' });
+    }
+  });
+  if(!rows.length){ alert('商品を1つ以上選択してください'); return; }
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
+  const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  const cid = document.getElementById('ow-customer').value;
+  const record = {
+    id: 'ow'+Date.now(), customerId: cid||'', customerName: company, customerType: rtMode?'rt':'wholesale1',
+    contactPerson: contact, email: email,
+    rtMode: rtMode, rows: rows,
+    internalMemo: document.getElementById('ow-internal-memo').value,
+    quoteMemo: document.getElementById('ow-quote-memo').value,
+    issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'oilwholesale'
+  };
+  // メールアドレスをお客様マスタに保存（お客様選択済みの場合）
+  const c = customers.find(x=>x.id===cid);
+  if(c && email && c.email !== email){
+    c.email = email;
+    fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    }).catch(function(){});
+  }
+  quoteHistory.push(record);
+  saveQuoteHistoryToGAS();
+  const doc = buildOilWholesaleDocHtml(record);
+  showOwDoc(doc, record);
+}
+function buildOilWholesaleDocHtml(record){
+  const today = new Date();
+  const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let html = '<div class="invoice-doc">';
+  html += '<div class="invoice-doc-title">価 格 表（オイル卸）</div>';
+  html += '<div class="invoice-doc-top">';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
+  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  if(record.email) html += '<div style="font-size:12px">'+esc(record.email)+'</div>';
+  html += '<div style="margin-top:10px;font-size:13px">下記の通り、お取り扱い商品の価格をご案内申し上げます。</div></div>';
+  html += '<div style="text-align:right">';
+  html += '<div>発行日：'+dateStr+'</div>';
+  html += '<div>有効期限：'+esc(record.expiryStr)+'</div>';
+  html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
+  html += '<div style="font-size:11px">〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+  html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+  html += '</div></div>';
+  const groups = {};
+  record.rows.forEach(function(r){ (groups[r.group]=groups[r.group]||[]).push(r); });
+  Object.keys(groups).forEach(function(g){
+    html += '<div style="margin-top:16px;font-weight:700;background:#f9f8f5;padding:6px 10px;border-left:4px solid #55622e">'+esc(g)+'</div>';
+    if(record.rtMode){
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:20%">定価</th><th style="width:20%">RT価格</th></tr></thead><tbody>';
+      groups[g].forEach(function(r){
+        html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td><td style="text-align:right;color:#1e40af;font-weight:700">¥'+r.rt.toLocaleString()+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:12%">箱数</th><th style="width:18%">上代</th><th style="width:18%">卸①</th><th style="width:18%">卸②</th></tr></thead><tbody>';
+      groups[g].forEach(function(r){
+        html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:center">'+(r.boxes||'-')+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td>'
+          + '<td style="text-align:right;color:#b91c1c;font-weight:'+(r.upgraded?'400':'700')+'">¥'+r.w1.toLocaleString()+'</td>'
+          + '<td style="text-align:right;color:#b91c1c;font-weight:'+(r.upgraded?'700':'400')+(r.upgraded?';background:#fef3c7':'')+'">¥'+r.w2.toLocaleString()+(r.upgraded?'（適用中）':'')+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+  });
+  if(record.quoteMemo){
+    html += '<div class="invoice-doc-note" style="margin-top:16px"><strong>備考：</strong><br>'+esc(record.quoteMemo).replace(/\n/g,'<br>')+'</div>';
+  }
+  html += '<div class="invoice-doc-note" style="margin-top:8px">';
+  html += '※本価格表の有効期限は発行日より2ヶ月とさせていただきます。<br>';
+  html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+function showOwDoc(doc, record){
+  const area = document.getElementById('ow-doc-area');
+  area.innerHTML = '';
+  const wrap = document.createElement('div');
+  const inner = document.createElement('div');
+  inner.innerHTML = doc;
+  wrap.appendChild(inner.firstElementChild);
+  const printBtn = document.createElement('button');
+  printBtn.className = 'btn btn-primary no-print';
+  printBtn.style.marginTop = '10px';
+  printBtn.textContent = '🖨 この価格表を印刷する';
+  printBtn.onclick = function(){ window.print(); };
+  const pdfBtn = document.createElement('button');
+  pdfBtn.className = 'btn btn-green no-print';
+  pdfBtn.style.marginTop = '10px';
+  pdfBtn.style.marginLeft = '8px';
+  pdfBtn.textContent = '📥 PDFでダウンロード';
+  pdfBtn.onclick = function(){ downloadOwPdf(record); };
+  wrap.appendChild(printBtn);
+  wrap.appendChild(pdfBtn);
+  area.appendChild(wrap);
+  area.scrollIntoView({behavior:'smooth'});
+}
+function downloadOwPdf(record){
+  const el = document.querySelector('#ow-doc-area .invoice-doc');
+  if(!el){ alert('価格表が表示されていません'); return; }
+  showSyncStatus('PDFを作成しています...');
+  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
+    const img = canvas.toDataURL('image/png');
+    const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const imgW = pdfW - 20;
+    const imgH = canvas.height * imgW / canvas.width;
+    let heightLeft = imgH;
+    let position = 10;
+    pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
+    heightLeft -= (pdfH - 20);
+    while(heightLeft > 0){
+      position = heightLeft - imgH + 10;
+      pdf.addPage();
+      pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
+      heightLeft -= (pdfH - 20);
+    }
+    const dateStr = new Date().toISOString().slice(0,10);
+    pdf.save('オイル卸価格表_'+record.customerName+'_'+dateStr+'.pdf');
+    showSyncStatus('✅ PDFを作成しました');
+  }).catch(function(err){
+    showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
+  });
 }
 
 window.addEventListener('beforeunload', function(e){
