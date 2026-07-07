@@ -58,6 +58,8 @@ th{font-size:11px;font-weight:700;color:#2b2a26;padding:8px 10px;text-align:left
 td{padding:8px 10px;border-bottom:1px solid #f0ebe2;vertical-align:middle}
 tr:hover td{background:#fbf8f3}
 tr:last-child td{border-bottom:none}
+.group-header{background:#f5f0e8;padding:6px 10px;font-size:11px;font-weight:700;color:#5a5a52;letter-spacing:.05em;border-bottom:1px solid #e8e2d8}
+.price-input{width:90px;padding:4px 6px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px;text-align:right}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem}
 @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
@@ -115,11 +117,12 @@ tr:last-child td{border-bottom:none}
   <div class="tab-row">
     <button class="tab active" onclick="showPanel('new',this)">輸入を記録する</button>
     <button class="tab" onclick="showPanel('history',this)">輸入履歴・年次比較</button>
+    <button class="tab" onclick="showPanel('cost',this)" style="color:#b91c1c">🔒原価データ</button>
   </div>
 
   <!-- 新規輸入記録 -->
   <div id="panel-new" class="panel active">
-    <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、そのまま請求Cの「原価データ」にも反映されます</strong>。</div>
+    <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、「🔒原価データ」タブにも自動反映されます</strong>。</div>
     <div class="card" style="background:#fef3c7;border-color:#f59e0b">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
         <input type="checkbox" id="edit-lock" onchange="toggleEditLock()" style="width:18px;height:18px">
@@ -195,9 +198,8 @@ tr:last-child td{border-bottom:none}
     <div class="stats" id="year-summary-stats"></div>
 
     <div class="card">
-      <div class="sec">💰 農園ごとの現在の原価（参考）</div>
-      <div class="info-box">「🔒原価データ」（請求C）に登録されている、今の原価をそのまま農園別に並べています。ここでは編集できません（変更は請求Cで行ってください）。</div>
-      <div id="farm-cost-ref" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+      <div class="sec">💰 原価について</div>
+      <div class="info-box">原価の確認・変更は「🔒原価データ」タブで行えます。</div>
     </div>
 
     <div class="card">
@@ -214,6 +216,50 @@ tr:last-child td{border-bottom:none}
 
     <div class="sec">📋 輸入記録の一覧（書類・支払い状況つき）</div>
     <div id="history-list"></div>
+  </div>
+
+  <!-- 原価データ（E内・中村様専用） -->
+  <div id="panel-cost" class="panel">
+    <div class="info-box">🔒 ここは中村様専用のページです。原価・輸入コストの情報が含まれます。他の人に画面を見せないようご注意ください。<br>請求Cや見積書からは、この原価データを参照できません。</div>
+    <div class="card" style="background:#fef3c7;border-color:#f59e0b;margin-bottom:1rem">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
+        <input type="checkbox" id="cost-edit-lock" onchange="toggleCostEditLock()" style="width:18px;height:18px">
+        ✅ 原価データを変更する（チェックを入れないと編集できません）
+      </label>
+      <div style="font-size:12px;color:#78350f;line-height:1.8;margin-top:8px;padding-top:8px;border-top:1px solid #f3d9a8">
+        チェックを入れるまで金額欄は触れません。変更後「保存する」を押すと、必ず「本当に変更しますか？」と確認が入ります。<br>
+        保存しないままこの画面を離れようとすると、「保存していませんが大丈夫ですか？」と警告が出ます。
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">商品ごとの原価（1本あたり・円）</div>
+      <div id="cost-product-table"></div>
+      <button class="btn btn-green" onclick="saveCostDataToGAS()">原価データを保存する</button>
+      <span id="cost-dirty-indicator" style="font-size:12px;color:#dc2626;margin-left:10px"></span>
+    </div>
+    <div class="card">
+      <div class="sec">🎨 区分別 利益ひと目比較（色でパッと分かります）</div>
+      <div class="info-box">今の価格マスタの金額から、原価に対する利益率を色の濃さで表します。<strong style="color:#1e40af">濃い青＝しっかり利益が出ている</strong>、<strong style="color:#b91c1c">濃い赤＝利益が薄い・赤字</strong>です。数字を読まなくても、色の並びだけで傾向が分かります。</div>
+      <div class="tbl-wrap">
+        <table id="profit-heatmap-table" style="font-size:12px"></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">📐 掛け率シミュレーション</div>
+      <div class="info-box">「オープン価格 × 掛け率」で、その掛け率で売った時の価格・利益・利益率を全商品まとめて計算します。掛け率の数字は自由に書き換えられます。「使う」を押すと、その商品の卸②価格として価格マスタに反映されます（即座に保存されます）。</div>
+      <div id="rate-slots" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end"></div>
+      <button class="btn-sm" onclick="addRateSlot()">＋ 掛け率を追加</button>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table id="rate-sim-table" style="font-size:11px"></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">ノヴェッロ価格計算（自由メモ欄）</div>
+      <div class="info-box">輸入原価・為替・利益率など、自由に書き留めておける、メモ欄です（行の追加・削除ができます）。</div>
+      <div id="novello-note-area"></div>
+      <button class="btn-sm" onclick="addNovelloRow()">＋ 行を追加</button>
+      <button class="btn btn-green" style="margin-left:8px" onclick="saveCostDataToGAS()">保存する</button>
+    </div>
   </div>
 </div>
 
@@ -275,7 +321,7 @@ const FARM_PRODUCTS = {
 
 let password = '';
 let currentLots = [];
-let currentCosts = [];
+let priceMaster = []; // 見積・請求と共通の価格マスタ（利益ヒートマップ・掛け率シミュレーション用に読み込む）
 // 商品SKU→商品ID（在庫データの照合用。商品マスタA/B/Cと共通）
 const SKU_TO_PID = {
   ORG100:1, ORG250:2, ORG500:3, ORG750:4, ORG2L:5, ORG5L:6,
@@ -287,6 +333,48 @@ const SKU_TO_PID = {
 };
 let importBatches = [];
 let dirty = false;
+
+// ── 価格マスタの初期値（見積・請求と共通・GAS未応答時のフォールバック） ──
+// 利益ヒートマップ・掛け率シミュレーションで、価格マスタ未設定の商品の初期値として使う
+const DEFAULT_PRICES = {
+  ORG100: {priceGeneral:2550, priceWholesale1:0,    priceWholesale2:0,    priceRT:1920, priceDefect:0},
+  ORG250: {priceGeneral:4750, priceWholesale1:3800, priceWholesale2:2850, priceRT:3800, priceDefect:0},
+  ORG500: {priceGeneral:9121, priceWholesale1:6884, priceWholesale2:5473, priceRT:6884, priceDefect:5473},
+  ORG750: {priceGeneral:9485, priceWholesale1:7588, priceWholesale2:5691, priceRT:7588, priceDefect:0},
+  ORG2L:  {priceGeneral:24300,priceWholesale1:18225,priceWholesale2:14580,priceRT:18225,priceDefect:0},
+  ORG5L:  {priceGeneral:55000,priceWholesale1:44000,priceWholesale2:33000,priceRT:44000,priceDefect:0},
+  CHF100: {priceGeneral:2550, priceWholesale1:0,    priceWholesale2:0,    priceRT:1920, priceDefect:0},
+  CHF250: {priceGeneral:4750, priceWholesale1:3800, priceWholesale2:2850, priceRT:3800, priceDefect:0},
+  MEM100: {priceGeneral:2550, priceWholesale1:0,    priceWholesale2:0,    priceRT:1920, priceDefect:0},
+  MEM250: {priceGeneral:4750, priceWholesale1:3800, priceWholesale2:2850, priceRT:3800, priceDefect:0},
+  MEM500: {priceGeneral:9121, priceWholesale1:6884, priceWholesale2:5473, priceRT:6884, priceDefect:5473},
+  MEM750: {priceGeneral:9485, priceWholesale1:7588, priceWholesale2:5691, priceRT:7588, priceDefect:0},
+  MEM2L:  {priceGeneral:24300,priceWholesale1:18225,priceWholesale2:14580,priceRT:18225,priceDefect:14580},
+  MEM5L:  {priceGeneral:55000,priceWholesale1:44000,priceWholesale2:33000,priceRT:44000,priceDefect:0},
+  PRI250: {priceGeneral:4750, priceWholesale1:4350, priceWholesale2:4350, priceRT:4350, priceDefect:0},
+  PRI500: {priceGeneral:9121, priceWholesale1:6884, priceWholesale2:6884, priceRT:6884, priceDefect:0},
+  ZAI250: {priceGeneral:4750, priceWholesale1:4350, priceWholesale2:4350, priceRT:4350, priceDefect:0},
+  ZAI500: {priceGeneral:9121, priceWholesale1:6884, priceWholesale2:6884, priceRT:6884, priceDefect:0},
+  AGR100: {priceGeneral:2700, priceWholesale1:2025, priceWholesale2:2025, priceRT:2025, priceDefect:0},
+  AGR250: {priceGeneral:6200, priceWholesale1:4960, priceWholesale2:4960, priceRT:4960, priceDefect:0},
+  AGR3L:  {priceGeneral:29000,priceWholesale1:23200,priceWholesale2:23200,priceRT:23200,priceDefect:0},
+  ARM500: {priceGeneral:11202,priceWholesale1:8400, priceWholesale2:8400, priceRT:8400, priceDefect:0},
+  TGR100: {priceGeneral:2700, priceWholesale1:2025, priceWholesale2:2025, priceRT:2025, priceDefect:0}
+};
+
+// ── 原価の初期値（1本あたり・オイル＋経費、円） ──
+// 「🔒原価データ」タブを開くと、まだ保存されていない商品にはここから初期値が表示されます
+const DEFAULT_COSTS = {
+  ORG100:944, ORG250:1539, ORG500:2931, ORG750:3799, ORG2L:9748, ORG5L:22142,
+  MEM100:917, MEM250:1493, MEM500:2830, MEM750:3680, MEM2L:9390, MEM5L:21407,
+  CHF100:963, CHF250:1557,
+  MISC002:1185,
+  PRI250:2372, PRI500:4166, PRI3L:12504,
+  ZAI250:2425, ZAI500:4251,
+  AGR100:1317, AGR250:2333, AGR3L:21173,
+  ARM500:3385, ARM3L:13671,
+  TGR100:1009
+};
 
 document.addEventListener('DOMContentLoaded', function(){
   onFarmChange();
@@ -352,7 +440,8 @@ async function unlock(isAuto){
       renderHistory();
       onFarmChange();
       showSyncStatus('✅ データを読み込みました');
-      loadStockAndCostRef(pw);
+      loadStockAndPriceRef();
+      loadCostDataFromGAS();
     } else {
       oosClearUnlock('secret');
       document.getElementById('password-input').value = '';
@@ -362,20 +451,16 @@ async function unlock(isAuto){
     errEl.textContent = '通信エラーが発生しました';
   }
 }
-async function loadStockAndCostRef(pw){
+async function loadStockAndPriceRef(){
   try{
-    const [stockRes, costRes] = await Promise.all([
-      fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
-      fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getCostData', password: pw }), headers: {'Content-Type':'text/plain;charset=utf-8'} }).then(r=>r.json()).catch(()=>null)
-    ]);
+    const stockRes = await fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null);
     if(stockRes && stockRes.status==='ok'){
       currentLots = stockRes.data.lots || [];
-    }
-    if(costRes && costRes.status==='ok'){
-      currentCosts = costRes.data.costs || [];
+      priceMaster = stockRes.data.priceMaster || [];
     }
     renderStockRef();
-    renderFarmCostRef();
+    renderProfitHeatmap();
+    renderRateSimulation();
   }catch(err){}
 }
 
@@ -386,11 +471,17 @@ function showPanel(name, btn){
     dirty = false;
     document.getElementById('dirty-indicator').textContent = '';
   }
+  if(currentActive && currentActive.id==='panel-cost' && name!=='cost' && costDataDirty){
+    if(!confirm('原価データの変更を保存していませんが、大丈夫ですか？\n（「キャンセル」を押すと、原価データの画面のままになります）')) return;
+    costDataDirty = false;
+    document.getElementById('cost-dirty-indicator').textContent = '';
+  }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='history') renderHistory();
+  if(name==='cost'){ renderCostProductTable(); renderProfitHeatmap(); renderRateSimulation(); renderNovelloNotes(); }
 }
 
 function toggleEditLock(){
@@ -619,8 +710,6 @@ function renderHistory(){
   }).join('');
 }
 
-const FARM_ACCENT = { novavera:'#fef3c7', mozzicato:'#dbeafe', letrecolonne:'#dcfce7' };
-const FARM_ACCENT_TEXT = { novavera:'#78350f', mozzicato:'#1e3a8a', letrecolonne:'#14532d' };
 function computeCurrentStock(pid){
   let q = 0;
   currentLots.forEach(function(l){ if(l.pid==pid && l.status==='new') q += (l.stock||0); });
@@ -643,25 +732,6 @@ function renderStockRef(){
   });
   html += '</tbody>';
   el.innerHTML = html;
-}
-function getCostForSkuRef(sku){
-  const c = currentCosts.find(x=>x.sku===sku);
-  return c ? parseFloat(c.costPerUnit)||0 : null;
-}
-function renderFarmCostRef(){
-  const el = document.getElementById('farm-cost-ref');
-  if(!el) return;
-  el.innerHTML = Object.keys(FARM_PRODUCTS).map(function(farm){
-    const seen = {};
-    const rows = FARM_PRODUCTS[farm].filter(function(p){
-      if(!p.sku || seen[p.sku]) return false; seen[p.sku]=true; return true;
-    }).map(function(p){
-      const cost = getCostForSkuRef(p.sku);
-      return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,0.06)"><span>'+p.label+'</span><span style="font-weight:700">'+(cost!=null?'¥'+cost.toLocaleString():'－')+'</span></div>';
-    }).join('');
-    return '<div style="flex:1;min-width:220px;background:'+FARM_ACCENT[farm]+';border-radius:10px;padding:12px">'+
-      '<div style="font-weight:700;color:'+FARM_ACCENT_TEXT[farm]+';margin-bottom:6px">'+FARM_LABEL[farm]+'</div>'+rows+'</div>';
-  }).join('');
 }
 function renderCompareTable(filter){
   const farms = filter ? [filter] : Object.keys(FARM_LABEL);
@@ -759,10 +829,260 @@ async function deleteBatch(id){
   }
 }
 
+// ── 原価データ（E内） ────────────────────────────────────────────
+let costData = {}; // { sku: {cost:数字, memo:''} }
+let novelloNotes = [];
+let costDataDirty = false;
+
+// 農園ごとにユニークなSKU一覧（原価データテーブル・利益ヒートマップ・掛け率シミュレーションで共通利用）
+function allCostSkus(){
+  const seen = {};
+  const list = [];
+  Object.keys(FARM_PRODUCTS).forEach(function(farm){
+    FARM_PRODUCTS[farm].forEach(function(p){
+      if(!p.sku || seen[p.sku]) return;
+      seen[p.sku] = true;
+      list.push({ sku:p.sku, name:p.label, farm:farm });
+    });
+  });
+  return list;
+}
+
+async function loadCostDataFromGAS(){
+  try{
+    const res = await fetch(GAS_URL + '?action=loadCostData&password=' + encodeURIComponent(password));
+    const data = await res.json();
+    if(data.status==='ok'){
+      costData = data.data.costData || {};
+      novelloNotes = data.data.novelloNotes || [];
+      renderCostProductTable();
+      renderProfitHeatmap();
+      renderRateSimulation();
+      renderNovelloNotes();
+    }
+  }catch(err){}
+}
+
+function toggleCostEditLock(){
+  const on = document.getElementById('cost-edit-lock').checked;
+  document.querySelectorAll('#cost-product-table input, #novello-note-area input').forEach(i=>i.disabled = !on);
+}
+function markCostDirty(){
+  costDataDirty = true;
+  document.getElementById('cost-dirty-indicator').textContent = '⚠️ 保存されていない変更があります';
+}
+function renderCostProductTable(){
+  const el = document.getElementById('cost-product-table');
+  if(!el) return;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;text-align:left;background:#f5f0e8">商品名（SKU）</th>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;text-align:right;background:#f5f0e8;width:120px">原価（円）</th>';
+  html += '<th style="padding:6px 10px;border-bottom:1px solid #e8e2d8;background:#f5f0e8">メモ</th>';
+  html += '</tr></thead><tbody>';
+  Object.keys(FARM_LABEL).forEach(function(farm){
+    const items = allCostSkus().filter(x=>x.farm===farm);
+    if(!items.length) return;
+    html += '<tr><td colspan="3" class="group-header">'+esc(FARM_LABEL[farm])+'</td></tr>';
+    items.forEach(function(p){
+      const rec = costData[p.sku] || {};
+      const cost = rec.cost !== undefined && rec.cost !== '' ? rec.cost : (DEFAULT_COSTS[p.sku]||'');
+      const memo = rec.memo || '';
+      html += '<tr><td style="padding:6px 10px">'+esc(p.name)+' <span style="font-size:11px;color:#3a4a5c;font-family:monospace;font-weight:600;margin-left:6px;padding:1px 5px;background:#eef1f5;border-radius:4px">'+esc(p.sku)+'</span></td>';
+      html += '<td style="padding:6px 10px;text-align:right"><input type="number" data-cost-sku="'+p.sku+'" value="'+cost+'" class="price-input" disabled onchange="markCostDirty()"></td>';
+      html += '<td style="padding:6px 10px"><input type="text" data-cost-memo="'+p.sku+'" value="'+esc(memo)+'" style="width:100%;padding:4px 6px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td></tr>';
+    });
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── 掛け率シミュレーション ────────────────────────────────────────────
+let rateSlots = [1.2, 1.4, 1.6];
+function addRateSlot(){ rateSlots.push(1.5); renderRateSimulation(); }
+function removeRateSlot(idx){ rateSlots.splice(idx, 1); renderRateSimulation(); }
+function onRateSlotChange(idx, val){
+  rateSlots[idx] = parseFloat(val)||0;
+  renderRateSimulation();
+}
+function getCostForSku(sku){
+  const rec = costData[sku];
+  if(rec && rec.cost !== undefined && rec.cost !== '') return parseFloat(rec.cost)||0;
+  return DEFAULT_COSTS[sku] || 0;
+}
+function getOpenPriceForSku(sku){
+  const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
+  if(!p) return 0;
+  return parseFloat(p.priceGeneral)||0;
+}
+function priceRecForSku(sku){
+  return priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku] || {};
+}
+function profitColor(rate){
+  if(rate <= 0) return {bg:'#7f1d1d', fg:'#fff'};
+  if(rate < 0.10) return {bg:'#dc2626', fg:'#fff'};
+  if(rate < 0.20) return {bg:'#fca5a5', fg:'#7f1d1d'};
+  if(rate < 0.30) return {bg:'#fed7aa', fg:'#7c2d12'};
+  if(rate < 0.40) return {bg:'#fef3c7', fg:'#78350f'};
+  if(rate < 0.50) return {bg:'#dbeafe', fg:'#1e3a8a'};
+  return {bg:'#93c5fd', fg:'#1e3a8a'};
+}
+function renderProfitHeatmap(){
+  const tbl = document.getElementById('profit-heatmap-table');
+  if(!tbl) return;
+  let html = '<thead><tr><th style="padding:6px 8px;text-align:left">商品</th><th style="padding:6px 8px;text-align:right">原価</th><th style="padding:6px 8px;text-align:right">定価</th><th style="padding:6px 8px;text-align:right">卸①</th><th style="padding:6px 8px;text-align:right">卸②</th><th style="padding:6px 8px;text-align:right">RT</th></tr></thead><tbody>';
+  Object.keys(FARM_LABEL).forEach(function(farm){
+    const items = allCostSkus().filter(x=>x.farm===farm);
+    if(!items.length) return;
+    html += '<tr><td colspan="6" class="group-header">'+esc(FARM_LABEL[farm])+'</td></tr>';
+    items.forEach(function(p){
+      const cost = getCostForSku(p.sku);
+      if(!cost) return;
+      const priceRec = priceRecForSku(p.sku);
+      html += '<tr><td style="padding:5px 8px">'+esc(p.name)+'</td>';
+      html += '<td style="padding:5px 8px;text-align:right">¥'+cost.toLocaleString()+'</td>';
+      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT'].forEach(function(key){
+        const price = parseFloat(priceRec[key])||0;
+        if(!price){ html += '<td style="padding:5px 8px;text-align:right;color:#9ca3af">-</td>'; return; }
+        const profit = price - cost;
+        const rate = price > 0 ? profit / price : 0;
+        const col = profitColor(rate);
+        html += '<td style="padding:5px 8px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600">¥'+price.toLocaleString()+'<br><span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
+      });
+      html += '</tr>';
+    });
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+function renderRateSimulation(){
+  const slotsEl = document.getElementById('rate-slots');
+  if(slotsEl){
+    slotsEl.innerHTML = rateSlots.map(function(r, i){
+      return '<div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid #d8cfc4;border-radius:6px;background:#fff"><label style="font-size:11px">掛け率</label><input type="number" step="0.05" value="'+r+'" style="width:60px;padding:3px 5px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px" onchange="onRateSlotChange('+i+',this.value)"><button class="btn-sm" style="padding:2px 6px" onclick="removeRateSlot('+i+')">×</button></div>';
+    }).join('');
+  }
+  const tbl = document.getElementById('rate-sim-table');
+  if(!tbl) return;
+  let html = '<thead><tr><th style="padding:5px 6px;text-align:left">商品</th><th style="padding:5px 6px;text-align:right">オープン価格</th><th style="padding:5px 6px;text-align:right">原価</th>';
+  rateSlots.forEach(function(r, i){
+    html += '<th style="padding:5px 6px;text-align:right;background:#eef0e5">×'+r+'<br>価格</th><th style="padding:5px 6px;text-align:right;background:#eef0e5">利益率</th><th style="padding:5px 6px;background:#eef0e5">操作</th>';
+  });
+  html += '</tr></thead><tbody>';
+  allCostSkus().forEach(function(p){
+    const cost = getCostForSku(p.sku);
+    const open = getOpenPriceForSku(p.sku);
+    if(!cost || !open) return;
+    html += '<tr><td style="padding:4px 6px">'+esc(p.name)+'</td>';
+    html += '<td style="padding:4px 6px;text-align:right">¥'+open.toLocaleString()+'</td>';
+    html += '<td style="padding:4px 6px;text-align:right">¥'+cost.toLocaleString()+'</td>';
+    rateSlots.forEach(function(r, i){
+      const simPrice = Math.round(cost * r);
+      const profit = simPrice - cost;
+      const rate = simPrice > 0 ? profit / simPrice : 0;
+      const col = profitColor(rate);
+      html += '<td style="padding:4px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+'">¥'+simPrice.toLocaleString()+'</td>';
+      html += '<td style="padding:4px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+'">'+(rate*100).toFixed(0)+'%</td>';
+      html += '<td style="padding:4px 6px"><button class="btn-sm" onclick="applyRateToWholesale2(\''+p.sku+'\','+simPrice+')">卸②に使う</button></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+async function applyRateToWholesale2(sku, price){
+  if(!confirm('この商品の「卸②」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）')) return;
+  showSyncStatus('保存しています...');
+  try{
+    // 保存直前に最新の価格マスタを取り直す（請求Cなど他アプリでの更新を上書きしないため）
+    const freshRes = await fetch(GAS_URL + '?action=loadAllData');
+    const freshData = await freshRes.json();
+    if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
+    const freshMaster = freshData.data.priceMaster || [];
+    let rec = freshMaster.find(x=>x.sku===sku);
+    if(!rec){
+      rec = {sku:sku, productName:sku, priceGeneral:DEFAULT_PRICES[sku]?DEFAULT_PRICES[sku].priceGeneral:0, priceWholesale1:0, priceWholesale2:0, priceRT:0, priceDefect:0};
+      freshMaster.push(rec);
+    }
+    rec.priceWholesale2 = price;
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      priceMaster = freshMaster;
+      showSyncStatus('✅ 卸②価格に反映しました');
+      renderProfitHeatmap();
+      renderRateSimulation();
+    } else {
+      showSyncStatus('⚠️ 保存に失敗しました', true);
+    }
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
+}
+function renderNovelloNotes(){
+  const area = document.getElementById('novello-note-area');
+  if(!area) return;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+  html += '<th style="padding:5px 8px;text-align:left;background:#f5f0e8">項目</th>';
+  html += '<th style="padding:5px 8px;text-align:right;background:#f5f0e8;width:120px">金額・数値</th>';
+  html += '<th style="padding:5px 8px;background:#f5f0e8">メモ</th>';
+  html += '<th style="padding:5px 8px;background:#f5f0e8;width:60px"></th>';
+  html += '</tr></thead><tbody>';
+  novelloNotes.forEach(function(n, i){
+    html += '<tr>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.label||'')+'" data-nv="label" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.value||'')+'" data-nv="value" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px;text-align:right" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><input type="text" value="'+esc(n.memo||'')+'" data-nv="memo" data-nv-idx="'+i+'" style="width:100%;padding:3px 5px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td>';
+    html += '<td style="padding:4px 6px"><button class="btn-sm" onclick="novelloNotes.splice('+i+',1);renderNovelloNotes();markCostDirty()">×</button></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  area.innerHTML = html;
+  const on = document.getElementById('cost-edit-lock') && document.getElementById('cost-edit-lock').checked;
+  document.querySelectorAll('#novello-note-area input').forEach(i=>i.disabled = !on);
+}
+function addNovelloRow(){
+  novelloNotes.push({label:'', value:'', memo:''});
+  renderNovelloNotes();
+  markCostDirty();
+}
+async function saveCostDataToGAS(){
+  if(!confirm('本当に原価データを変更しますか？\n（キャンセルを押せば、変更は保存されず元のままになります）')) return;
+  document.querySelectorAll('[data-cost-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-cost-sku');
+    const memoInp = document.querySelector('[data-cost-memo="'+sku+'"]');
+    costData[sku] = { cost: parseFloat(inp.value)||0, memo: memoInp?memoInp.value:'' };
+  });
+  document.querySelectorAll('[data-nv-idx]').forEach(function(inp){
+    const idx = parseInt(inp.getAttribute('data-nv-idx'));
+    const key = inp.getAttribute('data-nv');
+    if(novelloNotes[idx]) novelloNotes[idx][key] = inp.value;
+  });
+  showSyncStatus('保存しています...');
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: novelloNotes }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      costDataDirty = false;
+      document.getElementById('cost-dirty-indicator').textContent = '';
+      showSyncStatus('✅ 原価データを保存しました');
+      renderProfitHeatmap();
+      renderRateSimulation();
+    } else { showSyncStatus('⚠️ 保存に失敗しました：'+(data.message||''), true); }
+  }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
+}
+
 function esc(s){ return (s==null?'':String(s)); }
 
 window.addEventListener('beforeunload', function(e){
-  if(dirty){ e.preventDefault(); e.returnValue = ''; }
+  if(dirty || costDataDirty){ e.preventDefault(); e.returnValue = ''; }
 });
 </script>
 </body>
