@@ -84,26 +84,16 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
 </header>
 <nav class="oos-nav no-print">
   <a class="nav-home" href="home.html">🏠 玄関</a>
-  <a class="nav-lock" href="index.html">📋 受注 A</a>
-  <a class="nav-lock" href="stock.html">📦 在庫 B</a>
-  <a class="nav-lock" href="billing.html">💰 請求 C</a>
-  <a class="nav-warehouse" href="pickup.html">🚚 倉庫 D</a>
-  <a class="nav-lock" href="sales.html">📞 お便り F</a>
-  <a class="nav-lock" href="labels.html">🏷️ ラベル図鑑</a>
-  <a class="current nav-lock" href="yuka.html">🗒️ ゆか J</a>
+  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
+  <a class="nav-lock" href="documents.html">📂 書類 G</a>
+  <a class="nav-lock" href="marketing.html">📣 マーケ H</a>
+  <a class="nav-lock" href="hiromi.html">🗒️ ひろみ I</a>
+  <a href="eigyo.html">💼 営業 K</a>
+  <a href="sales.html">💌 お便り F</a>
+  <a class="current" href="yuka.html">🗒️ ゆか J</a>
 </nav>
 
-<div id="locked-view">
-  <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
-    <div style="font-size:32px;margin-bottom:10px">🔒</div>
-    <div class="sec">ゆか（ゆかさん専用）</div>
-    <input type="password" id="password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #cfd8e0;border-radius:8px;font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlock()">
-    <button class="btn btn-primary" onclick="unlock()">開く</button>
-    <div id="unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
-  </div>
-</div>
-
-<div id="unlocked-view" style="display:none">
+<div id="unlocked-view">
 
   <!-- やることリスト -->
   <div class="card">
@@ -205,8 +195,8 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 const SHEET_NAME = '付箋メモJ';
 const SHEET_IMPORTANT = '付箋メモJ大切';
 const SHEET_TODO = '付箋メモJやること';
-const APP_PASSWORD = 'W168W';   // Jゆかメモ専用パスワード（GAS側 GROUP_PASSWORDS.j と同じ値）
-let password = null;             // unlock()成功時に実際のパスワードを入れ、以降のGAS通信に使う
+const APP_PASSWORD = 'W168W';   // Jゆかメモ専用パスワード（画面には出さず、裏側で自動的に使う）
+let password = APP_PASSWORD;     // GAS通信に使う（自動ログイン化）
 let memos = [];
 let importantMemos = [];
 let todos = [];
@@ -217,18 +207,8 @@ function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.get
 function oosTomorrow(){ const d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function daysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
-function oosSavedPw(group){
-  try{ const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null'); if(v && v.d===oosToday() && v.p) return v.p; }catch(e){}
-  return null;
-}
-function oosMarkUnlocked(group, pw){
-  try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw})); localStorage.removeItem('oos_unlock_date'); }catch(e){}
-}
-function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
-
 document.addEventListener('DOMContentLoaded', function(){
-  const saved = oosSavedPw('j');
-  if(saved){ document.getElementById('password-input').value = saved; unlock(true); }
+  autoLoad();
 });
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -249,39 +229,21 @@ async function post(body){
   return await res.json();
 }
 
-async function unlock(isAuto){
-  const pw = document.getElementById('password-input').value;
-  const errEl = document.getElementById('unlock-error');
-  errEl.textContent = '';
-  // アプリ側でパスワードをチェック（W168Wのみ受け入れる）
-  if(pw !== APP_PASSWORD){
-    oosClearUnlock('j');
-    document.getElementById('password-input').value = '';
-    if(!isAuto) errEl.textContent = 'パスワードが違います';
-    return;
-  }
+async function autoLoad(){
   try{
-    // GAS側にも同じパスワードを渡して照合する（付箋メモJはjグループの鍵が必要）
-    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw });
+    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: password });
     if(data.status==='ok'){
-      password = pw;
-      oosMarkUnlocked('j', pw);
       memos = data.data.memos || [];
-      document.getElementById('locked-view').style.display = 'none';
-      document.getElementById('unlocked-view').style.display = 'block';
-      document.getElementById('list-title').textContent = '📋 ふつうのメモ一覧';
       renderMemoList();
       renderAlerts();
       loadImportantMemos();
       loadTodos();
       showSyncStatus('✅ 読み込みました');
     } else {
-      oosClearUnlock('j');
-      document.getElementById('password-input').value = '';
-      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : '通信できませんでした';
+      showSyncStatus('⚠️ 読み込みに失敗しました', true);
     }
   }catch(err){
-    errEl.textContent = '通信エラーが発生しました';
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
 }
 
