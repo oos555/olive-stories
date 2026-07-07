@@ -205,8 +205,8 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 const SHEET_NAME = '付箋メモJ';
 const SHEET_IMPORTANT = '付箋メモJ大切';
 const SHEET_TODO = '付箋メモJやること';
-const APP_PASSWORD = 'M2424';   // 業務系（biz）共通パスワード
-let password = null;             // GASにはnullを渡してGAS側チェックをスキップ（アプリ側で M2424 を検証）
+const APP_PASSWORD = 'W168W';   // Jゆかメモ専用パスワード（GAS側 GROUP_PASSWORDS.j と同じ値）
+let password = null;             // unlock()成功時に実際のパスワードを入れ、以降のGAS通信に使う
 let memos = [];
 let importantMemos = [];
 let todos = [];
@@ -227,7 +227,7 @@ function oosMarkUnlocked(group, pw){
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 
 document.addEventListener('DOMContentLoaded', function(){
-  const saved = oosSavedPw('biz');
+  const saved = oosSavedPw('j');
   if(saved){ document.getElementById('password-input').value = saved; unlock(true); }
 });
 
@@ -253,19 +253,19 @@ async function unlock(isAuto){
   const pw = document.getElementById('password-input').value;
   const errEl = document.getElementById('unlock-error');
   errEl.textContent = '';
-  // アプリ側でパスワードをチェック（M2424のみ受け入れる）
+  // アプリ側でパスワードをチェック（W168Wのみ受け入れる）
   if(pw !== APP_PASSWORD){
-    oosClearUnlock('biz');
+    oosClearUnlock('j');
     document.getElementById('password-input').value = '';
     if(!isAuto) errEl.textContent = 'パスワードが違います';
     return;
   }
   try{
-    // GASにはnullを渡してGAS側チェックをスキップ
-    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: null });
+    // GAS側にも同じパスワードを渡して照合する（付箋メモJはjグループの鍵が必要）
+    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw });
     if(data.status==='ok'){
-      password = null;
-      oosMarkUnlocked('biz', pw);
+      password = pw;
+      oosMarkUnlocked('j', pw);
       memos = data.data.memos || [];
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
@@ -276,7 +276,7 @@ async function unlock(isAuto){
       loadTodos();
       showSyncStatus('✅ 読み込みました');
     } else {
-      oosClearUnlock('biz');
+      oosClearUnlock('j');
       document.getElementById('password-input').value = '';
       if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : '通信できませんでした';
     }
