@@ -168,7 +168,9 @@ const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
 // 在庫連動用の商品マスタ（アプリA・Bと同じ内容。セット商品の構成を把握するために必要）
-const PRODUCTS = [
+// ※ GAS（商品マスタシート）からの読み込みで上書きされます。通信失敗時の
+//    フォールバックとして、この配列自体は残しています。
+let PRODUCTS = [
 {id:1,  sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック', noWholesale:true, boxQty:24},
 {id:2,  sku:'ORG250', name:'オルガニック 250ml', group:'オルガニック', boxQty:20},
 {id:3,  sku:'ORG500', name:'オルガニック 500ml', group:'オルガニック', boxQty:12},
@@ -220,6 +222,51 @@ const PRODUCTS = [
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+
+// ── 商品マスタ：GASからの読み込み（キャッシュ先手・GAS裏取り・フォールバック）────
+let EXTRA_FIELDS = [];
+const PRODUCTS_CACHE_KEY = 'oos_products_cache_v1';
+
+function loadProductsFromCache(){
+  try{
+    const raw = localStorage.getItem(PRODUCTS_CACHE_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(obj && Array.isArray(obj.products) && obj.products.length) return obj;
+  }catch(e){}
+  return null;
+}
+function saveProductsToCache(products, extraFields){
+  try{
+    localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({ products: products, extraFields: extraFields||[] }));
+  }catch(e){}
+}
+function applyLoadedProducts(products, extraFields){
+  if(!products || !products.length) return;
+  PRODUCTS = products;
+  EXTRA_FIELDS = extraFields || [];
+  // 「不良品を報告する」画面が開いている場合は、商品プルダウンを選択値を保ったまま作り直す
+  const dfSelect = document.getElementById('df-product');
+  if(dfSelect){
+    const prev = dfSelect.value;
+    dfSelect.innerHTML = productOptionsHtml();
+    if(prev) dfSelect.value = prev;
+  }
+}
+async function initializeProducts(){
+  const cached = loadProductsFromCache();
+  if(cached) applyLoadedProducts(cached.products, cached.extraFields);
+  try{
+    const res = await fetch(GAS_URL + '?action=loadProducts');
+    const data = await res.json();
+    if(data && data.status==='ok' && Array.isArray(data.products) && data.products.length){
+      saveProductsToCache(data.products, data.extraFields);
+      applyLoadedProducts(data.products, data.extraFields);
+    }
+  }catch(e){
+    // 通信失敗時はキャッシュ、またはハードコードの初期値のまま動作を続ける
+  }
+}
 
 // 発送完了時に、注文の商品分だけ在庫（アプリB）を自動で減らす
 async function deductStockAndSave(o){
@@ -990,6 +1037,7 @@ async function completeOrder(){
   }
 }
 
+initializeProducts();
 init();
 
 /* ════════════════════════════════════════════════════════════════
