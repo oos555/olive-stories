@@ -145,6 +145,46 @@
     .box.atelier{animation-delay:.12s;}
     @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
   }
+
+  /* ── 社長専用グループ・鍵の窓（モーダル） ── */
+  .pres-overlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(43,42,38,.45);
+    z-index:9998;
+    align-items:center; justify-content:center;
+    padding:16px;
+  }
+  .pres-overlay.show{display:flex;}
+  .pres-modal{
+    background:#fff;
+    border-radius:16px;
+    padding:26px 24px;
+    max-width:340px; width:100%;
+    text-align:center;
+    box-shadow:0 12px 30px rgba(0,0,0,.18);
+  }
+  .pres-modal .icon{font-size:30px; margin-bottom:6px;}
+  .pres-modal .title{
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;
+    font-weight:700; font-size:16px; margin-bottom:4px; color:var(--clay-ink);
+  }
+  .pres-modal .lead{font-size:12.5px; color:var(--ink); opacity:.75; margin-bottom:16px; line-height:1.6;}
+  .pres-modal input[type=password]{
+    width:100%; padding:10px 12px; border:1px solid #d8cfc4; border-radius:8px;
+    font-size:14px; margin-bottom:10px; color:var(--ink);
+  }
+  .pres-modal .btn-row{display:flex; gap:8px;}
+  .pres-modal button{
+    flex:1; padding:10px; border-radius:8px; font-size:13.5px; font-weight:700;
+    border:none; cursor:pointer;
+  }
+  .pres-modal .btn-ok{background:#6b7a3a; color:#fff;}
+  .pres-modal .btn-ok:hover{background:#55622e;}
+  .pres-modal .btn-ok[disabled]{opacity:.6; cursor:default;}
+  .pres-modal .btn-cancel{background:#efefeb; color:var(--ink);}
+  .pres-modal .btn-cancel:hover{background:#e3e3dd;}
+  .pres-modal .err{color:#dc2626; font-size:12px; margin-top:10px; min-height:14px;}
 </style>
 </head>
 <body>
@@ -189,9 +229,9 @@
       </div>
       <div class="box-body">
         <div class="apps">
-          <a class="app" href="import.html"><span class="emoji">✈️</span>輸入<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">E</span></span></a>
-          <a class="app" href="documents.html"><span class="emoji">📂</span>書類<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">G</span></span></a>
-          <a class="app" href="marketing.html"><span class="emoji">📣</span>マーケ<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">H</span></span></a>
+          <a class="app pres-locked" href="import.html"><span class="emoji">✈️</span>輸入<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">E</span></span></a>
+          <a class="app pres-locked" href="documents.html"><span class="emoji">📂</span>書類<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">G</span></span></a>
+          <a class="app pres-locked" href="marketing.html"><span class="emoji">📣</span>マーケ<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">H</span></span></a>
         </div>
       </div>
     </section>
@@ -204,9 +244,9 @@
       </div>
       <div class="box-body">
         <div class="apps">
-          <a class="app" href="hiromi.html"><span class="emoji">🗒️</span>ひろみメモ<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">I</span></span></a>
+          <a class="app pres-locked" href="hiromi.html"><span class="emoji">🗒️</span>ひろみメモ<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">I</span></span></a>
           <a class="app blue" href="yuka.html"><span class="emoji">📮</span>ゆかメモ<span class="right-group"><span class="tag">J</span></span></a>
-          <a class="app" href="eigyo.html"><span class="emoji">💼</span>営業<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">K</span></span></a>
+          <a class="app pres-locked" href="eigyo.html"><span class="emoji">💼</span>営業<span class="right-group"><span class="pres-badge">👑社長専用</span><span class="tag">K</span></span></a>
         </div>
       </div>
     </section>
@@ -220,6 +260,21 @@
   <footer>OLIVE OIL STORIES ｜ 社内ページ</footer>
 </div>
 
+<!-- ── 社長専用グループ・鍵の窓 ── -->
+<div class="pres-overlay" id="pres-overlay">
+  <div class="pres-modal">
+    <div class="icon">🔒</div>
+    <div class="title">社長専用のお部屋です</div>
+    <div class="lead">パスワードを入れると、輸入・書類・マーケ・ひろみメモ・営業のどこへでも、今日のうちは自由に行き来できます。</div>
+    <input type="password" id="pres-pw-input" placeholder="パスワード" onkeydown="if(event.key==='Enter')presUnlock()">
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="presCloseModal()">やめる</button>
+      <button class="btn-ok" id="pres-ok-btn" onclick="presUnlock()">開く</button>
+    </div>
+    <div class="err" id="pres-err"></div>
+  </div>
+</div>
+
 <script>
   // 時間帯であいさつを変える、小さなおもてなし
   (function(){
@@ -231,6 +286,88 @@
     else                        g = '夜遅くまでおつかれさまです。ほどほどにね🌙';
     document.getElementById('greeting').textContent = g;
   })();
+
+  /* ============================================================
+     社長専用グループ（E・G・H・I・K）の共通鍵ロック
+     ・E/G/H/I/Kは、それぞれのアプリ内ですでに
+       localStorage の oos_unlock_secret を見て自動解錠する仕組みを
+       持っている（既存・変更不要）。
+     ・玄関では、社長専用リンクを押した時だけパスワード窓を出し、
+       確認できたら同じ oos_unlock_secret フラグを立ててから移動する。
+     ・パスワードの正誤確認は、GAS側を変更せずに済むよう、
+       ひろみメモ(I)の loadStickyMemos アクションを間借りして行う。
+     ============================================================ */
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+  function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function oosSavedPw(group){
+    try{
+      const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
+      if(v && v.d===oosToday() && v.p) return v.p;
+    }catch(e){}
+    return null;
+  }
+  function oosMarkUnlocked(group, pw){
+    try{
+      localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+      localStorage.removeItem('oos_unlock_date');
+    }catch(e){}
+  }
+
+  let presTargetHref = null;
+
+  document.querySelectorAll('.pres-locked').forEach(function(a){
+    a.addEventListener('click', function(e){
+      if(oosSavedPw('secret')) return; // 今日すでに解錠済み → そのまま素通り
+      e.preventDefault();
+      presTargetHref = a.getAttribute('href');
+      presOpenModal();
+    });
+  });
+
+  function presOpenModal(){
+    document.getElementById('pres-err').textContent = '';
+    document.getElementById('pres-pw-input').value = '';
+    document.getElementById('pres-overlay').classList.add('show');
+    setTimeout(()=>document.getElementById('pres-pw-input').focus(), 50);
+  }
+  function presCloseModal(){
+    document.getElementById('pres-overlay').classList.remove('show');
+    presTargetHref = null;
+  }
+
+  async function presUnlock(){
+    const pw = document.getElementById('pres-pw-input').value;
+    const errEl = document.getElementById('pres-err');
+    const okBtn = document.getElementById('pres-ok-btn');
+    errEl.textContent = '';
+    if(!pw){ errEl.textContent = 'パスワードを入れてください'; return; }
+    okBtn.disabled = true;
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const data = await res.json();
+      if(data.status==='ok'){
+        oosMarkUnlocked('secret', pw);
+        const dest = presTargetHref;
+        presCloseModal();
+        if(dest) window.location.href = dest;
+      } else {
+        errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      }
+    }catch(err){
+      errEl.textContent = '通信エラーが発生しました';
+    }finally{
+      okBtn.disabled = false;
+    }
+  }
+
+  document.getElementById('pres-overlay').addEventListener('click', function(e){
+    if(e.target === this) presCloseModal();
+  });
 </script>
 </body>
 </html>
