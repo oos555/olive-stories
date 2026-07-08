@@ -73,8 +73,9 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .todo-item .cb{margin-top:2px;cursor:pointer;flex-shrink:0}
 .todo-item .txt{flex:1;cursor:pointer;word-break:break-word}
 .todo-item.done .txt{text-decoration:line-through;color:#9a9188}
-.todo-item.carry .txt{color:#dc2626;font-weight:700}
-.todo-item .carry-tag{font-size:9px;background:#fde4e4;color:#b91c1c;border-radius:4px;padding:1px 5px;font-weight:700;flex-shrink:0;margin-top:2px}
+.todo-item .date-stamp{font-size:9px;color:#b5a59a;flex-shrink:0;margin-top:3px}
+.todo-item .archive-btn{color:#6b7a3a;cursor:pointer;font-size:13px;flex-shrink:0;opacity:.55;font-weight:700}
+.todo-item .archive-btn:hover{opacity:1}
 .todo-item .del{color:#b5a59a;cursor:pointer;font-size:11px;flex-shrink:0;opacity:.5}
 .todo-item:hover .del{opacity:1}
 .todo-empty{font-size:11px;color:#9a9188;padding:4px}
@@ -120,7 +121,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
   <!-- やることリスト -->
   <div class="card">
     <div class="sec" style="margin-top:0">✅ やることリスト</div>
-    <div class="info-box" style="margin-bottom:12px">箇条書きでサッと。チェックで消し込み。夜中0時をすぎると自動で整理されます（明日→今日へ移動／今日の終わっていない分は赤で持ち越し／終わった分は下の「終了した業務」へ）。</div>
+    <div class="info-box" style="margin-bottom:12px">箇条書きでサッと書いて、自由に消し込んでいきます。入力すると日付が自動で付きます。✔チェックすると取り消し線になるだけでその場に残ります。→を押すと「終了した業務」ログへ移動します（ログは3か月分保存、普段は閉じています）。</div>
     <div class="todo-top">
       <div class="todo-col todo-today">
         <h3>☀️ 今日</h3>
@@ -158,7 +159,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
       </div>
     </div>
     <details class="done-archive">
-      <summary>✔️ 終了した業務（過去1か月・普段は閉じています）</summary>
+      <summary>✔️ 終了した業務（過去3か月・普段は閉じています）</summary>
       <div id="done-list" style="margin-top:8px"></div>
     </details>
   </div>
@@ -411,129 +412,60 @@ async function loadImportantMemos(){
 /* ============================================================
    やることリスト（今日・明日・今週・来週以降）
    ────────────────────────────────────────────────────────
-   ★2026-07-07 修正：
-     「持ち越し」は保存された印（tellSomeoneフラグ）で決めるのをやめ、
-     開いた瞬間に "今日の日付" と "基準日(reminderDate)" を見て
-     その場で判定する方式に変更。
-     → 同じ日のうちは、他のアプリを見て戻っても絶対に持ち越しにならない。
-       日付をまたいだ翌日だけ、昨日の「今日」ぶんが自動で赤い持ち越しになる。
+   ★2026-07-08 仕様変更：
+     0時をまたいだ自動移動（明日→今日、持ち越し判定など）は完全に廃止。
+     今日／明日／今週／来週以降 は、どれも「自由に書いて自由に消し込む」
+     ただの4つの記入欄になった（自動では一切動かない）。
 
    データ構造：
      color欄        … bucket（today / tomorrow / week / later / doneArc）
-     reminderDate欄 … その項目の「基準日」。addした日や、明日→今日へ移った日など。
-                       "この日に今日リストへ入った" という日付。
-     done欄         … 完了フラグ
-   ★持ち越し判定：bucket==='today' かつ 未完了 かつ reminderDate < 今日
-     （＝日付をまたいでも今日リストに残っている項目）を "持ち越し" として赤く出す。
-       この判定は表示のたびに計算するだけで、データには一切書き込まない。
+                       ★doneArc = 「終了した業務」ログへ移動済み
+     reminderDate欄 … 入力した日（自動スタンプ）。doneArcに移った項目は
+                       「ログへ移動した日」として上書きされ、3か月保持の基準になる。
+     done欄         … チェック（✔）を押したかどうか。押しても bucket は動かない。
+                       その場に取り消し線つきで残るだけ。
+
+   フロー：
+     入力 → 自動で今日の日付がスタンプされる
+     ✔チェック → その場で取り消し線がつくだけ（bucketは変わらない）
+     →ボタン → 押した時だけ「終了した業務」ログ（doneArc）へ移動
+     ✕ → 完全に削除（ログにも残らない）
    ============================================================ */
 async function loadTodos(){
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_TODO, password: password });
     if(data.status==='ok'){
       todos = data.data.memos || [];
-      await rolloverTodos();   // 日付をまたいでいたら整理（明日→今日／完了ぶんをアーカイブ）
       renderTodos();
     }
   }catch(err){}
 }
 
-// 日付をまたいだ「明日→今日」への移動と、完了ぶんのアーカイブだけを行う。
-// ★持ち越しフラグ(tellSomeone)の書き込みはしない。持ち越しは表示時にその場で判定する。
-async function rolloverTodos(){
-  const today = oosToday();
-  const toSave = [];
-
-  todos.forEach(function(t){
-    const bucket = t.color || 'today';
-    const stamp = t.reminderDate || '';   // 基準日
-
-    // 基準日が無い項目は、今日を基準日として入れておく（初回）
-    if(!stamp){
-      t.reminderDate = today;
-      toSave.push(t);
-      return;
-    }
-
-    if(bucket==='doneArc'){
-      return; // アーカイブ済みは触らない
-    }
-
-    // 完了済みで、完了した日が今日より前 → 「終了した業務」へ移す
-    if(t.done && stamp < today){
-      t.color = 'doneArc';
-      // reminderDate（＝完了日）はそのままアーカイブ入り日として残す
-      toSave.push(t);
-      return;
-    }
-
-    // 明日リストの項目で、基準日が今日より前 → 今日リストへ繰り上げ
-    if(!t.done && bucket==='tomorrow' && stamp < today){
-      t.color = 'today';
-      t.reminderDate = today;   // 今日リストへ入った日を今日に
-      toSave.push(t);
-      return;
-    }
-
-    // today / week / later の未完了項目は、日付をまたいでも
-    // ★何も書き換えない（基準日も動かさない）。
-    //   → today で基準日が過去のものは、表示時に「持ち越し」として赤く出る。
-  });
-
-  // 変更があった分だけ保存（順番に・失敗してもデータは消えない）
-  for(const t of toSave){
-    try{ await post({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: t }); }catch(e){}
-  }
-}
-
-// ★持ち越し判定：today バケツ・未完了・基準日が今日より前
-function isCarry(t){
-  const today = oosToday();
-  return (t.color||'today')==='today' && !t.done && (t.reminderDate||'') && (t.reminderDate||'') < today;
-}
-
 function renderTodos(){
   ['today','tomorrow','week','later'].forEach(function(bucket){
-    const list = todos.filter(t=>(t.color||'today')===bucket && !t.done)
-      .sort((a,b)=>{
-        // 持ち越しを上に
-        const ac = isCarry(a), bc = isCarry(b);
-        if(ac!==bc) return ac?-1:1;
-        return (a.createdAt||'').localeCompare(b.createdAt||'');
-      });
-    // 今日欄には「今日完了ぶん（まだアーカイブ前）」も薄く残す
-    const doneToday = bucket==='today'
-      ? todos.filter(t=>(t.color||'today')==='today' && t.done)
-      : [];
+    const list = todos.filter(t=>(t.color||'today')===bucket)
+      .sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
     const el = document.getElementById('todo-list-'+bucket);
-    let html = list.map(function(t){
-      const carry = isCarry(t);
-      return '<li class="todo-item'+(carry?' carry':'')+'">'+
-        '<input type="checkbox" class="cb" onchange="toggleTodo(\''+t.id+'\')">'+
-        (carry?'<span class="carry-tag">持越</span>':'')+
+    el.innerHTML = list.length ? list.map(function(t){
+      return '<li class="todo-item'+(t.done?' done':'')+'">'+
+        '<input type="checkbox" class="cb"'+(t.done?' checked':'')+' onchange="toggleTodo(\''+t.id+'\')">'+
         '<span class="txt" onclick="toggleTodo(\''+t.id+'\')">'+esc(t.text)+'</span>'+
+        '<span class="date-stamp">'+esc(t.reminderDate||'')+'</span>'+
+        '<span class="archive-btn" title="終了した業務ログへ移動" onclick="archiveTodo(\''+t.id+'\')">→</span>'+
         '<span class="del" onclick="removeTodo(\''+t.id+'\')">✕</span>'+
         '</li>';
-    }).join('');
-    html += doneToday.map(function(t){
-      return '<li class="todo-item done">'+
-        '<input type="checkbox" class="cb" checked onchange="toggleTodo(\''+t.id+'\')">'+
-        '<span class="txt" onclick="toggleTodo(\''+t.id+'\')">'+esc(t.text)+'</span>'+
-        '<span class="del" onclick="removeTodo(\''+t.id+'\')">✕</span>'+
-        '</li>';
-    }).join('');
-    el.innerHTML = html || '<li class="todo-empty">まだありません</li>';
+    }).join('') : '<li class="todo-empty">まだありません</li>';
   });
   renderDoneArchive();
 }
 
 function renderDoneArchive(){
-  const monthAgo = daysAgo(31);
-  const arc = todos.filter(t=>t.color==='doneArc' && (t.reminderDate||'') >= monthAgo)
+  const cutoff = daysAgo(90); // 3か月保持
+  const arc = todos.filter(t=>t.color==='doneArc' && (t.reminderDate||'') >= cutoff)
     .sort((a,b)=>(b.reminderDate||'').localeCompare(a.reminderDate||''));
   document.getElementById('done-list').innerHTML = arc.length
     ? arc.map(t=>'<div class="done-line"><span class="d">'+esc(t.reminderDate||'')+'</span>'+esc(t.text)+'</div>').join('')
-    : '<div class="done-line">まだありません（完了した項目が翌日ここへ移ります）</div>';
+    : '<div class="done-line">まだありません（✔チェック後、→ボタンを押すとここに移ります）</div>';
 }
 
 async function addTodo(bucket){
@@ -543,7 +475,7 @@ async function addTodo(bucket){
   const todo = {
     id: 'todo_'+Date.now(),
     text: text,
-    reminderDate: oosToday(),   // 基準日（今日リストへ入った日）
+    reminderDate: oosToday(),   // 入力した日を自動スタンプ
     tellSomeone: false,         // （未使用・互換のため残す）
     color: bucket,              // today/tomorrow/week/later
     done: false,
@@ -558,8 +490,16 @@ async function addTodo(bucket){
 async function toggleTodo(id){
   const t = todos.find(x=>x.id===id);
   if(!t) return;
-  t.done = !t.done;
-  if(t.done){ t.reminderDate = oosToday(); }  // 完了日を記録（翌日アーカイブ判定に使う）
+  t.done = !t.done;   // チェックは取り消し線がつくだけ。bucketもreminderDateも変えない。
+  renderTodos();
+  try{ await post({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: t }); }catch(err){}
+}
+async function archiveTodo(id){
+  const t = todos.find(x=>x.id===id);
+  if(!t) return;
+  t.done = true;
+  t.color = 'doneArc';
+  t.reminderDate = oosToday();  // ログへ移動した日を記録（3か月保持の基準日）
   renderTodos();
   try{ await post({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: t }); }catch(err){}
 }
