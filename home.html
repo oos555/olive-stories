@@ -282,7 +282,7 @@
   <div class="pres-modal">
     <div class="icon">🔒</div>
     <div class="title">社長専用のお部屋です</div>
-    <div class="lead">パスワードを入れると、輸入・書類・マーケ・ひろみメモ・営業のどこへでも、今日のうちは自由に行き来できます。</div>
+    <div class="lead">パスワードを入れると、次回からはこの端末で輸入・書類・マーケ・ひろみメモ・営業へ自由に行き来できます。（毎回は聞きません）</div>
     <input type="password" id="pres-pw-input" placeholder="パスワード" onkeydown="if(event.key==='Enter')presUnlock()">
     <div class="btn-row">
       <button class="btn-cancel" onclick="presCloseModal()">やめる</button>
@@ -306,17 +306,17 @@
 
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 
-  function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  // 社長専用グループの鍵：一度合えば、この端末ではずっと信用する（日付では区切らない）
   function oosSavedPw(group){
     try{
       const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
-      if(v && v.d===oosToday() && v.p) return v.p;
+      if(v && v.p) return v.p;
     }catch(e){}
     return null;
   }
   function oosMarkUnlocked(group, pw){
     try{
-      localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+      localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw}));
       localStorage.removeItem('oos_unlock_date');
     }catch(e){}
   }
@@ -327,9 +327,9 @@
        日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
      ・パスワードは社長専用（secret）グループと同じものを使う
        （GAS側の変更は不要。loadStickyMemosで照合を間借り）
-     ・解錠に成功したら、ついでに今日の分の oos_unlock_secret も
+     ・解錠に成功したら、ついでに oos_unlock_secret も
        立てておく（→輸入・書類・マーケ等に移動する時、二重で
-       パスワードを聞かれずに済む）
+       パスワードを聞かれずに済む。こちらもこの端末ではずっと有効）
      ============================================================ */
   function gateCheck(){
     let ok = false;
