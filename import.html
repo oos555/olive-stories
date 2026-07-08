@@ -98,11 +98,9 @@ tr:last-child td{border-bottom:none}
 <div id="locked-view">
   <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
     <div style="font-size:32px;margin-bottom:10px">🔒</div>
-    <div class="sec">輸入（中村様専用）</div>
-    <div class="info-box">書類・マーケ・中村メモと同じパスワードで開きます。</div>
-    <input type="password" id="password-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d8cfc4;border-radius:8px;font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlock()">
-    <button class="btn btn-primary" onclick="unlock()">開く</button>
-    <div id="unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
+    <div class="sec">輸入（社長専用）</div>
+    <div class="info-box">このページは玄関からお入りください。</div>
+    <a href="home.html" class="btn btn-primary" style="display:inline-block;text-decoration:none">🏠 玄関へ</a>
   </div>
 </div>
 
@@ -379,10 +377,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(e.target.id!=='edit-lock') markDirty();
   });
   const saved = oosSavedPw('secret');
-  if(saved){
-    document.getElementById('password-input').value = saved;
-    unlock(true);
-  }
+  if(saved){ autoUnlock(saved); }
 });
 
 function showSyncStatus(msg,isError){
@@ -396,27 +391,17 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
-/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
-function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* ---------- 社長専用グループの合鍵（この端末ではずっと有効・サーバー照合方式） ---------- */
 function oosSavedPw(group){
   try{
     const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
-    if(v && v.d===oosToday() && v.p) return v.p;
+    if(v && v.p) return v.p;
   }catch(e){}
   return null;
 }
-function oosMarkUnlocked(group, pw){
-  try{
-    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
-    localStorage.removeItem('oos_unlock_date');
-  }catch(e){}
-}
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 
-async function unlock(isAuto){
-  const pw = document.getElementById('password-input').value;
-  const errEl = document.getElementById('unlock-error');
-  errEl.textContent = '';
+async function autoUnlock(pw){
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
@@ -426,7 +411,6 @@ async function unlock(isAuto){
     const data = await res.json();
     if(data.status==='ok'){
       password = pw;
-      oosMarkUnlocked('secret', pw);
       importBatches = data.data.batches || [];
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
@@ -436,24 +420,8 @@ async function unlock(isAuto){
       loadStockAndPriceRef();
       loadCostDataFromGAS();
     } else {
-      oosClearUnlock('secret');
-      document.getElementById('password-input').value = '';
-      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      oosClearUnlock('secret'); // 保存されていたパスワードが無効だったので消しておく（次回は玄関で入り直してもらう）
     }
-  }catch(err){
-    errEl.textContent = '通信エラーが発生しました';
-  }
-}
-async function loadStockAndPriceRef(){
-  try{
-    const stockRes = await fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null);
-    if(stockRes && stockRes.status==='ok'){
-      currentLots = stockRes.data.lots || [];
-      priceMaster = stockRes.data.priceMaster || [];
-    }
-    renderStockRef();
-    renderProfitHeatmap();
-    renderRateSimulation();
   }catch(err){}
 }
 
