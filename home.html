@@ -282,7 +282,7 @@
   <div class="pres-modal">
     <div class="icon">🔒</div>
     <div class="title">社長専用のお部屋です</div>
-    <div class="lead">パスワードを入れると、次回からはこの端末で輸入・書類・マーケ・ひろみメモ・営業へ自由に行き来できます。（毎回は聞きません）</div>
+    <div class="lead">パスワード（輸入・書類・マーケ・ひろみメモ・営業と共通）を入れると、次回からはこの端末で自由に行き来できます。（毎回は聞きません）</div>
     <input type="password" id="pres-pw-input" placeholder="パスワード" onkeydown="if(event.key==='Enter')presUnlock()">
     <div class="btn-row">
       <button class="btn-cancel" onclick="presCloseModal()">やめる</button>
@@ -325,11 +325,11 @@
      鍵①：玄関(home.html)自体のロック
      ・localStorage の oos_gate_ok に '1' が入っていれば、
        日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
-     ・パスワードは社長専用（secret）グループと同じものを使う
-       （GAS側の変更は不要。loadStickyMemosで照合を間借り）
-     ・解錠に成功したら、ついでに oos_unlock_secret も
-       立てておく（→輸入・書類・マーケ等に移動する時、二重で
-       パスワードを聞かれずに済む。こちらもこの端末ではずっと有効）
+     ・パスワードはM2424（COST_DATA_PASSWORDと同じ値）
+     ・注意：これは「社長専用（secret）グループ」のA358Zとは
+       別のパスワードなので、ここでは oos_unlock_secret は
+       立てない（誤って別のパスワードを社長専用の鍵として
+       保存してしまうと、E/G/H/I/Kの自動解錠が失敗する）
      ============================================================ */
   function gateCheck(){
     let ok = false;
@@ -359,7 +359,6 @@
       const data = await res.json();
       if(data.status==='ok'){
         try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
-        oosMarkUnlocked('secret', pw);
         document.getElementById('gate-overlay').classList.remove('show');
         document.getElementById('main-wrap').classList.add('gate-open');
       } else {
@@ -404,7 +403,7 @@
     try{
       const res = await fetch(GAS_URL, {
         method:'POST',
-        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+        body: JSON.stringify({ action:'getImportData', password: pw }),
         headers: {'Content-Type':'text/plain;charset=utf-8'}
       });
       const data = await res.json();
