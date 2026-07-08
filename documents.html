@@ -111,11 +111,9 @@
 <div id="lockScreen">
   <div id="lockCard">
     <div class="lock-icon">🔒</div>
-    <h2>書類ダッシュボード(中村様専用)</h2>
-    <p>輸入・マケ・ひろみメモ・営業と同じパスワードで開きます。</p>
-    <input type="password" id="pwInput" placeholder="パスワード" onkeydown="if(event.key==='Enter')checkPw()">
-    <button id="pwBtn" onclick="checkPw()">開く</button>
-    <div id="pwErr">パスワードが違います</div>
+    <h2>書類ダッシュボード(社長専用)</h2>
+    <p>このページは玄関からお入りください。</p>
+    <a href="home.html" id="pwBtn" style="display:block;text-decoration:none;text-align:center">🏠 玄関へ</a>
   </div>
 </div>
 
@@ -220,28 +218,23 @@
 const $=id=>document.getElementById(id);
 const KEY="oos_docs_registry_v1";
 
-/* ---------- パスワードロック（E・H・I・Kと共通の合鍵・1日1回・サーバー照合方式） ---------- */
+/* ---------- パスワードロック（この端末ではずっと有効・サーバー照合方式） ---------- */
 const OOS_GAS_URL = "https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec";
-function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function oosSavedPw(group){
   try{
     const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
-    if(v && v.d===oosToday() && v.p) return v.p;
+    if(v && v.p) return v.p;
   }catch(e){}
   return null;
 }
 function oosMarkUnlocked(group, pw){
   try{
-    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
+    localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw}));
     localStorage.removeItem('oos_unlock_date'); // 旧方式（PW:10時代）の掃除
   }catch(e){}
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
-async function checkPw(isAuto){
-  const pw = $("pwInput").value;
-  if(!pw) return;
-  $("pwErr").style.display="none";
-  $("pwBtn").disabled=true; $("pwBtn").textContent="確認中…";
+async function autoUnlock(pw){
   try{
     const res = await fetch(OOS_GAS_URL, {
       method:'POST',
@@ -253,24 +246,13 @@ async function checkPw(isAuto){
       oosMarkUnlocked('secret', pw);
       $("lockScreen").style.display="none";
     }else{
-      oosClearUnlock('secret');
-      $("pwInput").value="";
-      if(!isAuto){
-        $("pwErr").textContent="パスワードが違います";
-        $("pwErr").style.display="block";
-        $("pwInput").focus();
-      }
+      oosClearUnlock('secret'); // 保存されていたパスワードが無効だったので消しておく（次回は玄関で入り直してもらう）
     }
-  }catch(e){
-    $("pwErr").textContent="通信エラーが発生しました";
-    $("pwErr").style.display="block";
-  }
-  $("pwBtn").disabled=false; $("pwBtn").textContent="開く";
+  }catch(e){}
 }
 (function(){
   const saved = oosSavedPw('secret');
-  if(saved){ $("pwInput").value=saved; checkPw(true); return; }
-  setTimeout(()=>$("pwInput").focus(),100);
+  if(saved){ autoUnlock(saved); }
 })();
 
 
