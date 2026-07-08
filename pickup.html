@@ -107,11 +107,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   #noshi-print-area .noshi-namewrap{gap:8mm}
   #noshi-print-area .noshi-side{gap:3mm}
 }
+#main-wrap{display:none}
+#main-wrap.gate-open{display:block}
+.pres-overlay{display:none;position:fixed;inset:0;background:rgba(43,42,38,.45);z-index:9998;align-items:center;justify-content:center;padding:16px}
+.pres-overlay.show{display:flex}
+.pres-modal{background:#fff;border-radius:16px;padding:26px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+.pres-modal .icon{font-size:30px;margin-bottom:6px}
+.pres-modal .title{font-family:'Zen Maru Gothic','Hiragino Sans','Yu Gothic',sans-serif;font-weight:700;font-size:16px;margin-bottom:4px;color:#5c4a2a}
+.pres-modal .lead{font-size:12.5px;color:#2b2a26;opacity:.75;margin-bottom:16px;line-height:1.6}
+.pres-modal input[type=password]{width:100%;padding:10px 12px;border:1px solid #d8cfc4;border-radius:8px;font-size:14px;margin-bottom:10px;color:#2b2a26}
+.pres-modal .btn-row{display:flex;gap:8px}
+.pres-modal button{flex:1;padding:10px;border-radius:8px;font-size:13.5px;font-weight:700;border:none;cursor:pointer}
+.pres-modal .btn-ok{background:#6b7a3a;color:#fff}
+.pres-modal .btn-ok:hover{background:#55622e}
+.pres-modal .btn-ok[disabled]{opacity:.6;cursor:default}
+.pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-<div class="app">
+<div class="pres-overlay" id="gate-overlay">
+  <div class="pres-modal">
+    <div class="icon">🔑</div>
+    <div class="title">玄関の鍵</div>
+    <div class="lead">パスワードを入れてください。一度合えば、次回からこの端末では聞きません。</div>
+    <input type="password" id="gate-pw-input" placeholder="パスワード" onkeydown="if(event.key==='Enter')gateUnlock()">
+    <div class="btn-row">
+      <button class="btn-ok" id="gate-ok-btn" onclick="gateUnlock()" style="flex:1;">開く</button>
+    </div>
+    <div class="err" id="gate-err"></div>
+  </div>
+</div>
+<div class="app" id="main-wrap">
   <div class="topbar no-print">📦 ピッキング確認</div>
   <div id="inapp-banner" class="no-print" style="display:none;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">⚠️ アプリ内ブラウザで開いています。印刷したいときは、右上の「…」メニューから「Safari／Chromeで開く」を選んでください。</div>
   <div id="content"><div class="spinner">読み込み中...</div></div>
@@ -121,6 +148,51 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+/* ════════════════════════════════════════════════════════════════
+   玄関の鍵（home.htmlと共通）
+   ・localStorage の oos_gate_ok に '1' が入っていれば、
+     この端末ではもう聞かない（日付での区切りなし）
+   ・パスワード照合は home.html と同じ loadStickyMemos 経由
+   ════════════════════════════════════════════════════════════════ */
+function gateCheck(){
+  let ok = false;
+  try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
+  if(ok){
+    document.getElementById('main-wrap').classList.add('gate-open');
+  } else {
+    document.getElementById('gate-overlay').classList.add('show');
+    setTimeout(()=>document.getElementById('gate-pw-input').focus(), 50);
+  }
+}
+async function gateUnlock(){
+  const pw = document.getElementById('gate-pw-input').value;
+  const errEl = document.getElementById('gate-err');
+  const okBtn = document.getElementById('gate-ok-btn');
+  errEl.textContent = '';
+  if(!pw){ errEl.textContent = 'パスワードを入れてください'; return; }
+  okBtn.disabled = true;
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
+      document.getElementById('gate-overlay').classList.remove('show');
+      document.getElementById('main-wrap').classList.add('gate-open');
+    } else {
+      errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+    }
+  }catch(err){
+    errEl.textContent = '通信エラーが発生しました';
+  }finally{
+    okBtn.disabled = false;
+  }
+}
+gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
 const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
