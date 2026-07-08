@@ -110,18 +110,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","H
 
 <div class="topnav">
   <a href="home.html">🏠 玄関</a>
-  <a href="index.html">🫒 受注・出荷 A</a>
-  <a href="stock.html">📦 在庫 B</a>
-  <a href="billing.html">🧾 請求 C</a>
-  <a href="sales.html">💌 お便り作戦室 F</a>
-  <a href="labels.html">🏷️ ラベル図鑑 L</a>
-  <a class="nav-blue" href="yuka.html">📮 ゆか J</a>
-  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
-  <a class="nav-lock" href="documents.html">📂 書類 G</a>
+  <a href="import.html">✈️ 輸入 E</a>
+  <a href="documents.html">📂 書類 G</a>
   <a class="cur">📣 マーケ H</a>
-  <a class="nav-lock" href="hiromi.html">🗒️ ひろみ I</a>
-  <a class="nav-lock" href="eigyo.html">💼 営業 K</a>
-  <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
+  <a href="hiromi.html">🗒️ ひろみ I</a>
+  <a href="eigyo.html">💼 営業 K</a>
 </div>
 
 <div class="purpose">
@@ -251,6 +244,7 @@ function oosMarkUnlocked(group, pw){
   }catch(e){}
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
 async function checkPw(isAuto){
   const pw = document.getElementById("pw-input").value;
   if(!pw) return;
@@ -264,6 +258,7 @@ async function checkPw(isAuto){
     const data = await res.json();
     if(data.status==='ok'){
       oosMarkUnlocked('secret', pw);
+      try{ localStorage.setItem('oos_atelier_ok','1'); }catch(e){}
       document.getElementById("lock").style.display="none";
     } else {
       oosClearUnlock('secret');
@@ -278,14 +273,18 @@ async function checkPw(isAuto){
     document.getElementById("pw-err").style.display="block";
   }
 }
+/* ★2026-07-08 仕様変更：
+   ページを開くたびにサーバーへ「パスワードは合っているか」を問い合わせる
+   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
+   (oos_atelier_ok)だけを見る」方式に統一。通信の一瞬の不調でロック画面へ
+   押し戻される「ループ」が仕組みとして起こらなくなる。 */
 function initLock(){
-  document.getElementById("lock").style.display="flex";
   const saved = oosSavedPw('secret');
-  if(saved){
-    document.getElementById("pw-input").value = saved;
-    checkPw(true);
+  if(saved && oosAtelierOk()){
+    document.getElementById("lock").style.display="none";
     return;
   }
+  document.getElementById("lock").style.display="flex";
   setTimeout(()=>document.getElementById("pw-input").focus(),100);
 }
 initLock();

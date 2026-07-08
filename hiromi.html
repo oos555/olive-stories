@@ -93,18 +93,11 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 </header>
 <nav class="oos-nav no-print">
   <a href="home.html">🏠 玄関</a>
-  <a href="index.html">🫒 受注・出荷 A</a>
-  <a href="stock.html">📦 在庫 B</a>
-  <a href="billing.html">🧾 請求 C</a>
-  <a href="sales.html">💌 お便り作戦室 F</a>
-  <a href="labels.html">🏷️ ラベル図鑑 L</a>
-  <a class="nav-blue" href="yuka.html">📮 ゆか J</a>
-  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
-  <a class="nav-lock" href="documents.html">📂 書類 G</a>
-  <a class="nav-lock" href="marketing.html">📣 マーケ H</a>
+  <a href="import.html">✈️ 輸入 E</a>
+  <a href="documents.html">📂 書類 G</a>
+  <a href="marketing.html">📣 マーケ H</a>
   <a class="current" href="hiromi.html">🗒️ ひろみ I</a>
-  <a class="nav-lock" href="eigyo.html">💼 営業 K</a>
-  <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
+  <a href="eigyo.html">💼 営業 K</a>
 </nav>
 
 <div id="locked-view">
@@ -238,10 +231,11 @@ function oosMarkUnlocked(group, pw){
   try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw})); }catch(e){}
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
 
 document.addEventListener('DOMContentLoaded', function(){
   const saved = oosSavedPw('secret');
-  if(saved){ autoUnlock(saved); }
+  if(saved && oosAtelierOk()){ autoUnlock(saved); }
 });
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -263,13 +257,13 @@ async function post(body){
 }
 
 async function autoUnlock(pw){
+  password = pw;
+  document.getElementById('locked-view').style.display = 'none';
+  document.getElementById('unlocked-view').style.display = 'block';
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw });
     if(data.status==='ok'){
-      password = pw;
       memos = data.data.memos || [];
-      document.getElementById('locked-view').style.display = 'none';
-      document.getElementById('unlocked-view').style.display = 'block';
       document.getElementById('list-title').textContent = '📋 ふつうのメモ一覧';
       renderMemoList();
       renderAlerts();
@@ -277,9 +271,11 @@ async function autoUnlock(pw){
       loadTodos();
       showSyncStatus('✅ 読み込みました');
     } else {
-      oosClearUnlock('secret'); // 保存されていたパスワードが無効だったので消しておく（次回は玄関で入り直してもらう）
+      showSyncStatus('⚠️ データの読み込みに失敗しました：'+(data.message||''), true);
     }
-  }catch(err){}
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
 }
 
 /* ============================================================

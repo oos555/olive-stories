@@ -50,18 +50,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </header>
 <nav class="oos-nav no-print">
   <a href="home.html">🏠 玄関</a>
-  <a href="index.html">🫒 受注・出荷 A</a>
-  <a href="stock.html">📦 在庫 B</a>
-  <a href="billing.html">🧾 請求 C</a>
-  <a href="sales.html">💌 お便り作戦室 F</a>
-  <a href="labels.html">🏷️ ラベル図鑑 L</a>
-  <a class="nav-blue" href="yuka.html">📮 ゆか J</a>
-  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
-  <a class="nav-lock" href="documents.html">📂 書類 G</a>
-  <a class="nav-lock" href="marketing.html">📣 マーケ H</a>
-  <a class="nav-lock" href="hiromi.html">🗒️ ひろみ I</a>
+  <a href="import.html">✈️ 輸入 E</a>
+  <a href="documents.html">📂 書類 G</a>
+  <a href="marketing.html">📣 マーケ H</a>
+  <a href="hiromi.html">🗒️ ひろみ I</a>
   <a class="current" href="eigyo.html">💼 営業 K</a>
-  <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
 </nav>
 </div>
 
@@ -99,10 +92,11 @@ function oosMarkUnlocked(group, pw){
   try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw})); }catch(e){}
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
 
 document.addEventListener('DOMContentLoaded', function(){
   const saved = oosSavedPw('secret');
-  if(saved){ autoUnlock(saved); }
+  if(saved && oosAtelierOk()){ autoUnlock(saved); }
 });
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -118,24 +112,16 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
+/* ★2026-07-08 仕様変更：
+   毎回サーバーへパスワードの正誤を問い合わせて画面を開くかどうかを決める
+   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
+   (oos_atelier_ok)だけを見る」方式に統一。画面は必ず開き、取引先データの
+   読み込みはその後の別ステップとして行う（失敗してもロック画面には戻さない）。 */
 async function autoUnlock(pw){
-  try{
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    const data = await res.json();
-    if(data.status==='ok'){
-      oosMarkUnlocked('secret', pw);
-      document.getElementById('locked-view').style.display = 'none';
-      document.getElementById('unlocked-view').style.display = 'block';
-      showSyncStatus('✅ 読み込みました');
-      loadPartners();
-    } else {
-      oosClearUnlock('secret'); // 保存されていたパスワードが無効だったので消しておく（次回は玄関で入り直してもらう）
-    }
-  }catch(err){}
+  document.getElementById('locked-view').style.display = 'none';
+  document.getElementById('unlocked-view').style.display = 'block';
+  showSyncStatus('✅ 読み込みました');
+  loadPartners();
 }
 
 // ── 取引先メモ（RT・卸のお客様） ────────────────────────────────────────────

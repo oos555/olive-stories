@@ -120,18 +120,11 @@
 <header>🫒 書類ダッシュボード (アプリG)</header>
 <nav>
   <a href="home.html">🏠 玄関</a>
-  <a href="index.html">🫒 受注・出荷 A</a>
-  <a href="stock.html">📦 在庫 B</a>
-  <a href="billing.html">🧾 請求 C</a>
-  <a href="sales.html">💌 お便り作戦室 F</a>
-  <a href="labels.html">🏷️ ラベル図鑑 L</a>
-  <a class="nav-blue" href="yuka.html">📮 ゆか J</a>
-  <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
+  <a href="import.html">✈️ 輸入 E</a>
   <a class="current" href="documents.html">📂 書類 G</a>
-  <a class="nav-lock" href="marketing.html">📣 マーケ H</a>
-  <a class="nav-lock" href="hiromi.html">🗒️ ひろみ I</a>
-  <a class="nav-lock" href="eigyo.html">💼 営業 K</a>
-  <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
+  <a href="marketing.html">📣 マーケ H</a>
+  <a href="hiromi.html">🗒️ ひろみ I</a>
+  <a href="eigyo.html">💼 営業 K</a>
 </nav>
 
 <main>
@@ -234,25 +227,18 @@ function oosMarkUnlocked(group, pw){
   }catch(e){}
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
-async function autoUnlock(pw){
-  try{
-    const res = await fetch(OOS_GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    const data = await res.json();
-    if(data.status==='ok'){
-      oosMarkUnlocked('secret', pw);
-      $("lockScreen").style.display="none";
-    }else{
-      oosClearUnlock('secret'); // 保存されていたパスワードが無効だったので消しておく（次回は玄関で入り直してもらう）
-    }
-  }catch(e){}
-}
+function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
+
+/* ★2026-07-08 仕様変更：
+   毎回サーバーへパスワードの正誤を問い合わせて画面を開くかどうかを決める
+   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
+   (oos_atelier_ok)だけを見る」方式に統一。通信の一瞬の不調でロック画面へ
+   押し戻される「ループ」が仕組みとして起こらなくなる。 */
 (function(){
   const saved = oosSavedPw('secret');
-  if(saved){ autoUnlock(saved); }
+  if(saved && oosAtelierOk()){
+    $("lockScreen").style.display="none";
+  }
 })();
 
 
