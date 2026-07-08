@@ -116,6 +116,21 @@ tr:last-child td{border-bottom:none}
 .ow-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .ow-special-select{width:90px;padding:3px 4px;border:1px solid #d5cfc3;border-radius:4px;font-size:11px}
 .ow-special-input{width:80px;padding:3px 5px;border:1px solid #16a34a;border-radius:4px;font-size:12px;text-align:right;background:#f0fdf4}
+.card-step-label{font-size:11px;font-weight:700;color:#55622e;margin-bottom:8px;letter-spacing:.03em}
+.field-preview{font-size:10.5px;color:#57534e;background:#f9f8f5;border-radius:4px;padding:4px 8px;margin-top:4px;line-height:1.6}
+.field-override-toggle{font-size:10.5px;color:#185fa5;margin-top:4px;cursor:pointer;text-decoration:underline}
+.field-override-box{margin-top:6px;display:none}
+.field-override-box.open{display:block}
+.field-override-box textarea{width:100%;padding:6px 8px;border:1px solid #16a34a;border-radius:5px;font-size:12px;background:#f0fdf4;min-height:50px}
+.qhist-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;border:1px solid #e8e2d8;border-radius:8px;padding:8px 12px;margin-bottom:6px;background:#fff}
+.qhist-actions{display:flex;gap:4px;flex-wrap:wrap}
+.qhist-mini-btn{font-size:10.5px;padding:3px 8px;border-radius:5px;border:1px solid #d5cfc3;background:#fff;cursor:pointer;white-space:nowrap}
+.qhist-mini-btn.green{background:#dcfce7;border-color:#16a34a;color:#14532d}
+.qhist-mini-btn.blue{background:#dbeafe;border-color:#185fa5;color:#1e3a8a}
+.qhist-mini-btn.gray{background:#f0ece3;border-color:#d5cfc3;color:#57534e}
+.qhist-mini-btn.dark{background:#e5e5e0;border-color:#a8a29e;color:#44403c}
+.qhist-snooze-box{display:none;width:100%;margin-top:8px;padding:8px 10px;background:#eff6ff;border:1px solid #185fa5;border-radius:8px;font-size:11px}
+.qhist-snooze-box.open{display:block}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -353,6 +368,23 @@ tr:last-child td{border-bottom:none}
   <div class="info-box">Excelの価格表のように、全商品を一覧して選ぶ形式です。チェックを入れた商品だけが価格表に載ります。<br>💡 卸①で同じ商品を<strong>6箱以上</strong>選ぶと、その商品だけ自動的に卸②価格になります。</div>
 
   <div class="card">
+    <div class="card-step-label">① お客様</div>
+    <div class="g3">
+      <div class="fg"><label>お客様を選択（任意・登録済みから選ぶ）</label>
+        <select id="ow-customer" onchange="onOwCustomerSelectChange()">
+          <option value="">選択しない（自由入力）</option>
+        </select>
+      </div>
+      <div class="fg"><label>会社名</label><input type="text" id="ow-company" placeholder="〇〇株式会社"></div>
+      <div class="fg"><label>担当者名</label><input type="text" id="ow-contact" placeholder="例：山口 玲子"></div>
+    </div>
+    <div class="g3">
+      <div class="fg"><label>連絡先（メール）</label><input type="email" id="ow-email" placeholder="example@example.com"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-step-label">② 区分（価格帯）</div>
     <div class="g3">
       <div class="fg"><label>表示モード</label>
         <select id="ow-customer-type" onchange="onOwCustomerTypeChange()">
@@ -362,21 +394,7 @@ tr:last-child td{border-bottom:none}
           <option value="special">特価</option>
         </select>
       </div>
-      <div class="fg"><label>お客様を選択（任意・登録済みから選ぶ）</label>
-        <select id="ow-customer" onchange="onOwCustomerSelectChange()">
-          <option value="">選択しない（自由入力）</option>
-        </select>
-      </div>
       <div class="fg"><label>有効期間</label><input type="text" id="ow-expiry" readonly style="background:#f0ece3;color:#57534e"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>会社名</label><input type="text" id="ow-company" placeholder="〇〇株式会社"></div>
-      <div class="fg"><label>担当者名</label><input type="text" id="ow-contact" placeholder="例：山口 玲子"></div>
-      <div class="fg"><label>連絡先（メール）</label><input type="email" id="ow-email" placeholder="example@example.com"></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label>内部メモ（お客様には見えません）</label><textarea id="ow-internal-memo" placeholder="社内用の覚え書き" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
-      <div class="fg"><label>見積書メモ（お客様に見える形で印字）</label><textarea id="ow-quote-memo" placeholder="例：リードタイムは約2週間、送料は別途頂戴いたします" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
     </div>
     <div class="fg" id="ow-special-reason-wrap" style="display:none">
       <label>特価にする理由（必須・お客様にも表示されます）</label>
@@ -385,6 +403,15 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="card">
+    <div class="card-step-label">メモ（任意）</div>
+    <div class="g2">
+      <div class="fg"><label>内部メモ（お客様には見えません）</label><textarea id="ow-internal-memo" placeholder="社内用の覚え書き" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
+      <div class="fg"><label>見積書メモ（お客様に見える形で印字）</label><textarea id="ow-quote-memo" placeholder="例：リードタイムは約2週間、送料は別途頂戴いたします" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-step-label">③ 商品を選ぶ</div>
     <div class="ow-toolbar no-print">
       <button class="btn-sm" onclick="owToggleAll(true)">☑️ 全選択</button>
       <button class="btn-sm" onclick="owToggleAll(false)">⬜ 全解除</button>
@@ -1389,33 +1416,80 @@ function showIndividualQuoteForm(){
   checkQuoteReady();
 }
 // ── 見積・価格表に載せる項目チェックボックス ────────────────────────────────
+// お客様に対して現在選べる商品一覧（ホワイトリスト適用後）を返す共通ヘルパー
+function relevantProductsForCustomer(c){
+  if(!c) return [];
+  const allowed = quoteAllowedProducts(c);
+  const wl = c.whitelist;
+  return wl ? allowed.filter(p=>wl.indexOf(p.sku)>=0) : allowed;
+}
+// 商品ごとの実際の内容をプレビュー表示するためのテキストを作る
+function fieldPreviewText(products, key){
+  const items = [];
+  products.forEach(function(p){
+    let val = '';
+    if(key==='origin') val = p.origin||'';
+    else if(key==='container') val = p.container||'';
+    else if(key==='memo') val = p.memo||'';
+    else if(key.indexOf('extra:')===0){ const k=key.slice(6); val=(p.extras&&p.extras[k])||''; }
+    if(val) items.push(p.name+'→「'+val+'」');
+  });
+  if(!items.length) return 'まだ登録されている内容がありません（商品マスタで設定できます）';
+  const shown = items.slice(0,3).join('　');
+  return shown + (items.length>3 ? '　ほか'+(items.length-3)+'件' : '');
+}
+function certificatesPreviewText(products){
+  const seen = {}; const items = [];
+  products.forEach(function(p){
+    const cert = GROUP_CERT[p.group];
+    if(cert && !seen[p.group]){
+      seen[p.group] = true;
+      items.push(p.group+'→「オーガニック認証：'+cert.organic+'／残留農薬：'+cert.contamination+'／成分分析：'+cert.analysis+'」');
+    }
+  });
+  if(!items.length) return '該当するグループの証明書類情報がありません';
+  return items.slice(0,3).join('　') + (items.length>3 ? '　ほか' : '');
+}
 function renderQuoteFieldsCheckboxes(containerId, c, docType){
-  // 標準価格表：デフォルトで容器・原産地は既に載っているので、追加できるのはメモ・追加情報
-  // 見積書：デフォルトでは付随情報なしなので、原産地・容器・メモ・追加情報を追加できる
+  // 標準価格表：デフォルトで容器・原産地は既に載っているので、追加できるのはメモ・証明書類（証明書類はデフォルトON）
+  // 見積書：デフォルトでは付随情報なしなので、原産地・容器・メモを追加できる
   const baseOptions = docType==='pricelist'
-    ? [{key:'memo', label:'メモ'}]
-    : [{key:'origin', label:'原産地'}, {key:'container', label:'容器'}, {key:'memo', label:'メモ'}];
-  const extraOptions = (EXTRA_FIELDS||[]).map(function(f){ return {key:'extra:'+f, label:f}; });
+    ? [{key:'memo', label:'メモ（商品ごとの備考）', defaultOn:false},
+       {key:'certificates', label:'証明書類（オーガニック認証・残留農薬・成分分析）', defaultOn:true}]
+    : [{key:'origin', label:'原産地', defaultOn:false}, {key:'container', label:'容器', defaultOn:false}, {key:'memo', label:'メモ（商品ごとの備考）', defaultOn:false}];
+  const extraOptions = (EXTRA_FIELDS||[]).map(function(f){ return {key:'extra:'+f, label:f, defaultOn:false}; });
   const allOptions = baseOptions.concat(extraOptions);
-  const enabled = (c && Array.isArray(c.quoteFields)) ? new Set(c.quoteFields) : new Set();
+  const enabledArr = (c && Array.isArray(c.quoteFields)) ? c.quoteFields : null;
+  const enabledSet = enabledArr ? new Set(enabledArr) : null;
+  const products = relevantProductsForCustomer(c);
   if(!allOptions.length){
     document.getElementById(containerId).innerHTML = '<span style="font-size:12px;color:#57534e;padding:4px 6px">選べる追加情報がありません（商品マスタシートに「サイズ」「重さ」などの列を足すと、ここに並びます）</span>';
     return;
   }
   const html = allOptions.map(function(opt){
-    const on = enabled.has(opt.key);
-    return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 10px;border:1px solid '+(on?'#16a34a':'#d5cfc3')+';border-radius:4px;background:'+(on?'#dcfce7':'#fff')+';cursor:pointer">'
-      + '<input type="checkbox" data-quote-field="'+esc(opt.key)+'" '+(on?'checked':'')+' onchange="updateFieldCheckboxLabel(this)">'
-      + esc(opt.label)
-      + '</label>';
+    const on = enabledSet ? enabledSet.has(opt.key) : !!opt.defaultOn;
+    const previewText = opt.key==='certificates' ? certificatesPreviewText(products) : fieldPreviewText(products, opt.key);
+    const safeId = containerId+'_'+opt.key.replace(/[^a-zA-Z0-9]/g,'_');
+    return '<div class="chk-row" style="border:1px solid '+(on?'#16a34a':'#d5cfc3')+';border-radius:6px;padding:6px 10px;margin-bottom:6px;background:'+(on?'#f0fdf4':'#fff')+'">'
+      + '<label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer">'
+      + '<input type="checkbox" data-quote-field="'+esc(opt.key)+'" '+(on?'checked':'')+' onchange="updateFieldCheckboxLabel(this)" style="margin-top:2px">'
+      + '<span style="flex:1"><strong style="font-size:12px">'+esc(opt.label)+'</strong>'
+      + '<div class="field-preview">'+esc(previewText)+'</div>'
+      + '<span class="field-override-toggle" onclick="event.preventDefault();toggleFieldOverride(\''+safeId+'\')">✏️ 今回だけ内容を書き換える</span>'
+      + '<div class="field-override-box" id="ovbox_'+safeId+'"><textarea data-field-override="'+esc(opt.key)+'" placeholder="今回だけ使う内容を入力してください（保存されている定型文自体は変わりません）"></textarea></div>'
+      + '</span></label></div>';
   }).join('');
   document.getElementById(containerId).innerHTML = html;
 }
+function toggleFieldOverride(safeId){
+  const box = document.getElementById('ovbox_'+safeId);
+  if(box) box.classList.toggle('open');
+}
 function updateFieldCheckboxLabel(cb){
-  const lbl = cb.parentElement;
-  if(!lbl) return;
-  lbl.style.background = cb.checked?'#dcfce7':'#fff';
-  lbl.style.borderColor = cb.checked?'#16a34a':'#d5cfc3';
+  const row = cb.closest('.chk-row');
+  if(!row) return;
+  row.style.background = cb.checked?'#f0fdf4':'#fff';
+  row.style.borderColor = cb.checked?'#16a34a':'#d5cfc3';
 }
 function getSelectedFields(containerId){
   const selected = [];
@@ -1423,6 +1497,15 @@ function getSelectedFields(containerId){
     if(i.checked) selected.push(i.getAttribute('data-quote-field'));
   });
   return selected;
+}
+function getQuoteFieldsConfig(containerId){
+  const selectedFields = getSelectedFields(containerId);
+  const overrides = {};
+  document.querySelectorAll('#'+containerId+' [data-field-override]').forEach(function(ta){
+    const val = ta.value.trim();
+    if(val) overrides[ta.getAttribute('data-field-override')] = val;
+  });
+  return { selectedFields: selectedFields, overrides: overrides };
 }
 function saveQuoteFieldsPreference(customerId, fields){
   const c = customers.find(x=>x.id===customerId);
@@ -1434,17 +1517,20 @@ function saveQuoteFieldsPreference(customerId, fields){
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).catch(function(){});
 }
-function renderExtraFieldsForProduct(sku, selectedFields){
-  // 商品ごとに、選択された追加情報を「原産地：トルコ／メモ：...」形式で返す
+function renderExtraFieldsForProduct(sku, selectedFields, overrides){
+  // 商品ごとに、選択された追加情報を「原産地：トルコ／メモ：...」形式で返す（「今回だけ書き換え」があればそちらを優先）
   const p = findProductBySku(sku); if(!p) return '';
+  overrides = overrides || {};
   const parts = [];
   selectedFields.forEach(function(f){
-    if(f==='origin' && p.origin) parts.push('原産地：'+p.origin);
-    else if(f==='container' && p.container) parts.push('容器：'+p.container);
-    else if(f==='memo' && p.memo) parts.push('メモ：'+p.memo);
+    if(f==='origin'){ const val = overrides.origin || p.origin; if(val) parts.push('原産地：'+val); }
+    else if(f==='container'){ const val = overrides.container || p.container; if(val) parts.push('容器：'+val); }
+    else if(f==='memo'){ const val = overrides.memo || p.memo; if(val) parts.push('メモ：'+val); }
+    else if(f==='certificates'){ /* 証明書類はグループ単位でbuildPriceListDocHtml側に表示するのでここでは扱わない */ }
     else if(f.indexOf('extra:')===0){
       const key = f.slice(6);
-      if(p.extras && p.extras[key]) parts.push(key+'：'+p.extras[key]);
+      const val = overrides['extra:'+key] || (p.extras && p.extras[key]);
+      if(val) parts.push(key+'：'+val);
     }
   });
   return parts.length ? '<div style="font-size:10px;color:#57534e;margin-top:2px;line-height:1.5">'+parts.map(esc).join(' ／ ')+'</div>' : '';
@@ -1543,8 +1629,8 @@ function generateQuoteDoc(){
   if(!items.length){ alert('数量を入力してください'); return; }
   const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
   const remarks = document.getElementById('q-remarks').value;
-  const selectedFields = getSelectedFields('q-fields-checkboxes');
-  saveQuoteFieldsPreference(c.id, selectedFields);
+  const fieldsConfig = getQuoteFieldsConfig('q-fields-checkboxes');
+  saveQuoteFieldsPreference(c.id, fieldsConfig.selectedFields);
   const today = new Date();
   const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+1);
   const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
@@ -1554,7 +1640,8 @@ function generateQuoteDoc(){
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
     warehouseFee: bulkWarehouseFee,
-    selectedFields: selectedFields,
+    selectedFields: fieldsConfig.selectedFields,
+    fieldOverrides: fieldsConfig.overrides,
     remarks: remarks, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'quote'
   };
   quoteHistory.push(record);
@@ -1633,7 +1720,7 @@ function buildQuoteDocHtml(record, c){
     else qtyStr = it.bottles+'本';
     qtyStr += '<br><span style="font-size:10px;color:#57534e">計'+it.qty+'本</span>';
     const taxStr = (it.taxRate===0.10?'10%':'8%');
-    const extraInfo = renderExtraFieldsForProduct(it.sku, selFields);
+    const extraInfo = renderExtraFieldsForProduct(it.sku, selFields, record.fieldOverrides);
     html += '<tr><td>'+(i+1)+'</td><td>'+esc(it.name)+extraInfo+'</td><td style="text-align:center">'+qtyStr+'</td><td style="text-align:right">¥'+it.unitPrice.toLocaleString()+'</td><td style="text-align:center">'+taxStr+'</td><td style="text-align:right">¥'+it.amount.toLocaleString()+'</td></tr>';
   });
   html += '</tbody></table>';
@@ -1680,8 +1767,8 @@ function generatePriceListDoc(){
   const contactPerson = document.getElementById('pl-contact-person').value.trim();
   if(!contactPerson){ alert('提出先ご担当者名を入力してください'); return; }
   const remarks = document.getElementById('pl-remarks').value;
-  const selectedFields = getSelectedFields('pl-fields-checkboxes');
-  saveQuoteFieldsPreference(c.id, selectedFields);
+  const fieldsConfig = getQuoteFieldsConfig('pl-fields-checkboxes');
+  saveQuoteFieldsPreference(c.id, fieldsConfig.selectedFields);
   const allowed = quoteAllowedProducts(c);
   const wl = c.whitelist;
   const list = wl ? allowed.filter(p=>wl.indexOf(p.sku)>=0) : allowed;
@@ -1692,7 +1779,8 @@ function generatePriceListDoc(){
     id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
     contactPerson: contactPerson,
     products: list.map(p=>({sku:p.sku, name:p.name, group:p.group, boxQty:p.boxQty})),
-    selectedFields: selectedFields,
+    selectedFields: fieldsConfig.selectedFields,
+    fieldOverrides: fieldsConfig.overrides,
     remarks: remarks, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'pricelist'
   };
   quoteHistory.push(record);
@@ -1719,13 +1807,20 @@ function buildPriceListDocHtml(record, c){
   html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
   html += '</div></div>';
 
+  const selFieldsTop = record.selectedFields || [];
+  const overridesTop = record.fieldOverrides || {};
+  const certificatesOn = selFieldsTop.indexOf('certificates')>=0;
+  if(certificatesOn && overridesTop.certificates){
+    html += '<div class="invoice-doc-note" style="margin-top:12px;background:#f0fdf4;border-color:#16a34a"><strong>証明書類について：</strong><br>'+esc(overridesTop.certificates).replace(/\n/g,'<br>')+'</div>';
+  }
+
   const groups = {};
   record.products.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
   Object.keys(groups).forEach(function(g){
     const origin = GROUP_ORIGIN[g] || '';
     const cert = GROUP_CERT[g];
     html += '<div style="margin-top:16px;font-weight:700;background:#f9f8f5;padding:6px 10px;border-left:4px solid #55622e">'+esc(g)+(origin?'　（'+origin+'産）':'')+'</div>';
-    if(cert){
+    if(cert && certificatesOn && !overridesTop.certificates){
       html += '<div style="font-size:11px;color:#57534e;padding:4px 10px">オーガニック認証：'+cert.organic+'　残留農薬：'+cert.contamination+'　成分分析：'+cert.analysis+'</div>';
     }
     html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr>';
@@ -1739,7 +1834,7 @@ function buildPriceListDocHtml(record, c){
       const boxQty = p.boxQty ? (p.boxQty+'本／箱') : '-';
       const unitPrice = priceForSku(p.sku, record.customerType);
       const tax = taxRateForSku(p.sku);
-      const extraInfo = renderExtraFieldsForProduct(p.sku, selFields);
+      const extraInfo = renderExtraFieldsForProduct(p.sku, selFields, record.fieldOverrides);
       html += '<tr><td>'+esc(displayName||p.name)+extraInfo+'</td><td style="text-align:center">'+esc(capacity)+'</td><td style="text-align:center">'+esc(container)+'</td><td style="text-align:center">'+boxQty+'</td><td style="text-align:right">¥'+unitPrice.toLocaleString()+'</td><td style="text-align:center">'+(tax===0.10?'10%':'8%')+'</td></tr>';
     });
     html += '</tbody></table>';
@@ -1789,6 +1884,7 @@ function downloadQuotePdf(record){
 }
 
 // ── 見積り提出履歴 ────────────────────────────────────────────
+const FOLLOWUP_THRESHOLD_DAYS = 10; // 見積書・価格表を出してからこの日数経っても受注がなければフォローアップ対象にする
 function hasOrderSince(customerId, sinceISO){
   const since = new Date(sinceISO);
   return orders.some(function(o){
@@ -1802,6 +1898,36 @@ function customerName(customerId){
   const c = customers.find(x=>x.id===customerId);
   return c ? c.name : '';
 }
+// 現在の対応状況を判定：done/muted/notInterestedは常にそのまま、snoozedは期日を過ぎたらpendingに戻る
+function effectiveFollowUpState(r, now){
+  if(r.followUpStatus==='done' || r.followUpStatus==='muted' || r.followUpStatus==='notInterested') return r.followUpStatus;
+  if(r.followUpStatus==='snoozed' && r.followUpSnoozeUntil){
+    if(now < new Date(r.followUpSnoozeUntil+'T00:00:00')) return 'snoozed';
+  }
+  return 'pending';
+}
+function markFollowUpStatus(rid, status){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
+  r.followUpStatus = status;
+  if(status !== 'snoozed') r.followUpSnoozeUntil = null;
+  saveQuoteHistoryToGAS();
+  renderQuoteHistory();
+  showSyncStatus('✅ 対応状況を更新しました');
+}
+function toggleSnoozeBox(rid){
+  const el = document.getElementById('snoozebox_'+rid);
+  if(el) el.classList.toggle('open');
+}
+function confirmSnooze(rid){
+  const input = document.getElementById('snoozedate_'+rid);
+  if(!input || !input.value){ alert('日付を選択してください'); return; }
+  const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
+  r.followUpStatus = 'snoozed';
+  r.followUpSnoozeUntil = input.value;
+  saveQuoteHistoryToGAS();
+  renderQuoteHistory();
+  showSyncStatus('✅ 次に確認する日を設定しました');
+}
 function renderQuoteHistory(){
   const alertEl = document.getElementById('quote-followup-alert');
   const listEl = document.getElementById('quote-history-list');
@@ -1811,25 +1937,58 @@ function renderQuoteHistory(){
   const followupNeeded = [];
   sorted.forEach(function(r){
     if(!r.issuedAt) return;
+    if(hasOrderSince(r.customerId, r.issuedAt)) return;
+    const state = effectiveFollowUpState(r, now);
+    if(state!=='pending') return;
     const issued = new Date(r.issuedAt);
     const daysSince = Math.floor((now - issued) / (1000*60*60*24));
-    if(daysSince >= 14 && !hasOrderSince(r.customerId, r.issuedAt)){
+    if(daysSince >= FOLLOWUP_THRESHOLD_DAYS){
       followupNeeded.push({record:r, daysSince:daysSince});
     }
   });
   if(followupNeeded.length){
-    alertEl.innerHTML = '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f;font-weight:700">📣 見積書・価格表を出してから2週間以上経っても受注がないお客様が'+followupNeeded.length+'件：'+followupNeeded.map(x=>esc(x.record.customerName)+'（'+x.daysSince+'日前）').join('、')+'<br>状況確認・フォローの声かけをおすすめします。</div>';
+    alertEl.innerHTML = '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f;font-weight:700">📣 見積書・価格表を出してから'+FOLLOWUP_THRESHOLD_DAYS+'日以上経っても受注がないお客様が'+followupNeeded.length+'件：'+followupNeeded.map(x=>esc(x.record.customerName)+'（'+x.daysSince+'日前）').join('、')+'<br>状況確認・フォローの声かけをおすすめします。</div>';
   } else { alertEl.innerHTML = ''; }
   if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
   listEl.innerHTML = sorted.map(function(r){
     const dateStr = (r.issuedAt||'').slice(0,10);
     const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : '📝 見積書');
     const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
-    const orderBadge = hasOrder ? '<span class="badge badge-paid">受注あり</span>' : '<span class="badge badge-unpaid">未受注</span>';
-    return '<div class="card" style="padding:10px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-      + '<div><strong>'+esc(r.customerName)+'</strong> '+orderBadge+' <span style="font-size:11px;color:#57534e">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
-      + '<div><button class="btn-sm" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</button></div>'
-      + '</div></div>';
+    const state = effectiveFollowUpState(r, now);
+    const issued = new Date(r.issuedAt);
+    const daysSince = Math.floor((now - issued) / (1000*60*60*24));
+    let badge;
+    if(hasOrder) badge = '<span class="badge badge-paid">受注あり</span>';
+    else if(state==='done') badge = '<span class="badge badge-paid">✅対応済み</span>';
+    else if(state==='muted') badge = '<span class="badge badge-postpay">🔕様子見</span>';
+    else if(state==='notInterested') badge = '<span class="badge" style="background:#e5e5e0;color:#44403c">❌興味なし</span>';
+    else if(state==='snoozed') badge = '<span class="badge badge-prepay">⏰'+esc(r.followUpSnoozeUntil||'')+'まで様子見</span>';
+    else if(daysSince >= FOLLOWUP_THRESHOLD_DAYS) badge = '<span class="badge badge-unpaid">未受注・'+daysSince+'日経過</span>';
+    else badge = '<span class="badge badge-unpaid">未受注</span>';
+
+    let actionsHtml;
+    if(hasOrder){
+      actionsHtml = '<button class="btn-sm" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</button>';
+    } else {
+      const todayStr = now.toISOString().slice(0,10);
+      const defaultSnooze = new Date(now); defaultSnooze.setDate(defaultSnooze.getDate()+FOLLOWUP_THRESHOLD_DAYS);
+      const defaultSnoozeStr = defaultSnooze.toISOString().slice(0,10);
+      actionsHtml = '<div class="qhist-actions">'
+        + '<span class="qhist-mini-btn green" onclick="markFollowUpStatus(\''+r.id+'\',\'done\')">✅ 対応済み</span>'
+        + '<span class="qhist-mini-btn blue" onclick="toggleSnoozeBox(\''+r.id+'\')">⏰ 期日を延ばす</span>'
+        + '<span class="qhist-mini-btn gray" onclick="markFollowUpStatus(\''+r.id+'\',\'muted\')">🔕 今回は様子見</span>'
+        + '<span class="qhist-mini-btn dark" onclick="markFollowUpStatus(\''+r.id+'\',\'notInterested\')">❌ 興味なし</span>'
+        + '<span class="qhist-mini-btn gray" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</span>'
+        + '</div>'
+        + '<div class="qhist-snooze-box" id="snoozebox_'+r.id+'">'
+        + '次にアラートを出す日：<input type="date" id="snoozedate_'+r.id+'" value="'+defaultSnoozeStr+'" min="'+todayStr+'" style="padding:3px 6px;border:1px solid #185fa5;border-radius:4px;font-size:11px">'
+        + ' <span class="qhist-mini-btn blue" onclick="confirmSnooze(\''+r.id+'\')">この日で確定</span>'
+        + '</div>';
+    }
+    return '<div class="qhist-row">'
+      + '<div class="hist-info"><strong>'+esc(r.customerName)+'</strong> '+badge+'<br><span style="font-size:11px;color:#57534e">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
+      + actionsHtml
+      + '</div>';
   }).join('');
 }
 function viewQuoteHistoryItem(rid){
