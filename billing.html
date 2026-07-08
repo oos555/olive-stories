@@ -119,17 +119,6 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 
-<div id="app-lock" style="position:fixed;inset:0;background:#faf7f2;z-index:2000;display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border:1px solid #e8e2d8;border-radius:14px;padding:2rem;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center;width:300px">
-    <div style="font-size:32px;margin-bottom:8px">🔒</div>
-    <div style="font-weight:700;margin-bottom:4px">請求 C</div>
-    <div style="font-size:12.5px;color:#57534e;margin-bottom:12px">受注・在庫・請求・お便り作戦室と共通のパスワードで開きます。</div>
-    <input type="password" id="app-pw-input" placeholder="パスワード" style="width:100%;padding:10px;border:1px solid #d5cfc3;border-radius:8px;font-size:15px;text-align:center;margin-bottom:10px" onkeydown="if(event.key==='Enter')unlockApp()">
-    <button class="btn btn-primary" id="app-pw-btn" onclick="unlockApp()" style="width:100%">開く</button>
-    <div id="app-unlock-error" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
-  </div>
-</div>
-
 <div class="app">
 
 <header class="oos-header no-print">
@@ -791,58 +780,7 @@ let taxRate = 0.08;
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();  // 商品マスタをGASから取得（キャッシュがあれば即座に反映、裏で最新版を確認）
   loadAllBilling();
-  // 今日すでにA・B・C・Fのどれかで解錠済みなら、自動で開く
-  const saved = oosSavedPw('biz');
-  if(saved){
-    document.getElementById('app-pw-input').value = saved;
-    unlockApp(true);
-  }
 });
-
-/* ---------- 1日1回・グループ別合鍵ロック（サーバー照合方式） ---------- */
-function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function oosSavedPw(group){
-  try{
-    const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null');
-    if(v && v.d===oosToday() && v.p) return v.p;
-  }catch(e){}
-  return null;
-}
-function oosMarkUnlocked(group, pw){
-  try{
-    localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
-    localStorage.removeItem('oos_unlock_date');
-  }catch(e){}
-}
-function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
-
-async function unlockApp(isAuto){
-  const pw = document.getElementById('app-pw-input').value;
-  const errEl = document.getElementById('app-unlock-error');
-  const btn = document.getElementById('app-pw-btn');
-  errEl.textContent = '';
-  if(!pw) return;
-  btn.disabled = true; btn.textContent = '確認中…';
-  try{
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'verifyPassword', group:'biz', password: pw }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    const data = await res.json();
-    if(data.status==='ok'){
-      oosMarkUnlocked('biz', pw); // 今日はA・B・Fもこの合鍵で開けるようにする
-      document.getElementById('app-lock').style.display = 'none';
-    } else {
-      oosClearUnlock('biz');
-      document.getElementById('app-pw-input').value = '';
-      if(!isAuto) errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
-    }
-  }catch(err){
-    errEl.textContent = '通信エラーが発生しました';
-  }
-  btn.disabled = false; btn.textContent = '開く';
-}
 
 function showSyncStatus(msg,isError){
   let el = document.getElementById('sync-status');
