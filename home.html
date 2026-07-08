@@ -34,6 +34,8 @@
     padding:28px 16px 60px;
   }
   .wrap{max-width:1080px; margin:0 auto;}
+  #main-wrap{display:none;}
+  #main-wrap.gate-open{display:block;}
 
   /* ── ブランドの看板 ── */
   .brand{text-align:center; margin-bottom:6px;}
@@ -146,7 +148,7 @@
     @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
   }
 
-  /* ── 社長専用グループ・鍵の窓（モーダル） ── */
+  /* ── 鍵の窓（モーダル）共通スタイル：玄関の鍵①・社長専用の鍵②で共用 ── */
   .pres-overlay{
     display:none;
     position:fixed; inset:0;
@@ -188,7 +190,22 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ── 鍵①：玄関自体の鍵（一度開けたら、この端末ではもう聞かない） ── -->
+<div class="pres-overlay" id="gate-overlay">
+  <div class="pres-modal">
+    <div class="icon">🔑</div>
+    <div class="title">玄関の鍵</div>
+    <div class="lead">パスワードを入れてください。一度合えば、次回からこの端末では聞きません。</div>
+    <input type="password" id="gate-pw-input" placeholder="パスワード" onkeydown="if(event.key==='Enter')gateUnlock()">
+    <div class="btn-row">
+      <button class="btn-ok" id="gate-ok-btn" onclick="gateUnlock()" style="flex:1;">開く</button>
+    </div>
+    <div class="err" id="gate-err"></div>
+  </div>
+</div>
+
+<div class="wrap" id="main-wrap">
 
   <div class="brand">
     <h1>Olive Oil Stories</h1>
@@ -260,7 +277,7 @@
   <footer>OLIVE OIL STORIES ｜ 社内ページ</footer>
 </div>
 
-<!-- ── 社長専用グループ・鍵の窓 ── -->
+<!-- ── 社長専用グループ・鍵②の窓 ── -->
 <div class="pres-overlay" id="pres-overlay">
   <div class="pres-modal">
     <div class="icon">🔒</div>
@@ -287,16 +304,6 @@
     document.getElementById('greeting').textContent = g;
   })();
 
-  /* ============================================================
-     社長専用グループ（E・G・H・I・K）の共通鍵ロック
-     ・E/G/H/I/Kは、それぞれのアプリ内ですでに
-       localStorage の oos_unlock_secret を見て自動解錠する仕組みを
-       持っている（既存・変更不要）。
-     ・玄関では、社長専用リンクを押した時だけパスワード窓を出し、
-       確認できたら同じ oos_unlock_secret フラグを立ててから移動する。
-     ・パスワードの正誤確認は、GAS側を変更せずに済むよう、
-       ひろみメモ(I)の loadStickyMemos アクションを間借りして行う。
-     ============================================================ */
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 
   function oosToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -312,6 +319,57 @@
       localStorage.setItem('oos_unlock_'+group, JSON.stringify({d:oosToday(), p:pw}));
       localStorage.removeItem('oos_unlock_date');
     }catch(e){}
+  }
+
+  /* ============================================================
+     鍵①：玄関(home.html)自体のロック
+     ・localStorage の oos_gate_ok に '1' が入っていれば、
+       日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
+     ・パスワードは社長専用（secret）グループと同じものを使う
+       （GAS側の変更は不要。loadStickyMemosで照合を間借り）
+     ・解錠に成功したら、ついでに今日の分の oos_unlock_secret も
+       立てておく（→輸入・書類・マーケ等に移動する時、二重で
+       パスワードを聞かれずに済む）
+     ============================================================ */
+  function gateCheck(){
+    let ok = false;
+    try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
+    if(ok){
+      document.getElementById('main-wrap').classList.add('gate-open');
+    } else {
+      document.getElementById('gate-overlay').classList.add('show');
+      setTimeout(()=>document.getElementById('gate-pw-input').focus(), 50);
+    }
+  }
+  gateCheck();
+
+  async function gateUnlock(){
+    const pw = document.getElementById('gate-pw-input').value;
+    const errEl = document.getElementById('gate-err');
+    const okBtn = document.getElementById('gate-ok-btn');
+    errEl.textContent = '';
+    if(!pw){ errEl.textContent = 'パスワードを入れてください'; return; }
+    okBtn.disabled = true;
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const data = await res.json();
+      if(data.status==='ok'){
+        try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
+        oosMarkUnlocked('secret', pw);
+        document.getElementById('gate-overlay').classList.remove('show');
+        document.getElementById('main-wrap').classList.add('gate-open');
+      } else {
+        errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
+      }
+    }catch(err){
+      errEl.textContent = '通信エラーが発生しました';
+    }finally{
+      okBtn.disabled = false;
+    }
   }
 
   let presTargetHref = null;
