@@ -116,6 +116,22 @@ tr:last-child td{border-bottom:none}
 .ow-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .ow-special-select{width:90px;padding:3px 4px;border:1px solid #d5cfc3;border-radius:4px;font-size:11px}
 .ow-special-input{width:80px;padding:3px 5px;border:1px solid #16a34a;border-radius:4px;font-size:12px;text-align:right;background:#f0fdf4}
+th.center,td.center{text-align:center}
+/* イレギュラー特価：商品タイル選択 */
+.sp-stock-cell{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:7px 10px;min-width:70px}
+.sp-stock-cell.green{background:#dcfce7}
+.sp-stock-cell.yellow{background:#fef3c7}
+.sp-stock-cell.red{background:#fee2e2}
+.sp-stock-cell.zero{opacity:0.4}
+.sp-stock-chk{width:20px;height:20px;cursor:pointer;flex:none}
+.sp-stock-chk:disabled{cursor:not-allowed}
+.sp-stock-num{font-size:20px;font-weight:800;line-height:1}
+.sp-expand-row td{background:#f7f7f2;border-bottom:2px solid #6b7a3a;padding:12px 14px}
+.sp-expand-inner{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.sp-expand-badge{background:#6b7a3a;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;display:inline-block;margin-bottom:8px}
+.sp-mini-fg label{display:block;font-size:11px;color:#57534e;margin-bottom:4px;font-weight:600}
+.sp-mini-fg input{font-size:15px;font-weight:700;padding:6px 10px;border:1px solid #16a34a;border-radius:6px;background:#f0fdf4;width:120px}
+.sp-remove-btn{font-size:11px;color:#b91c1c;background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:600}
 .card-step-label{font-size:11px;font-weight:700;color:#55622e;margin-bottom:8px;letter-spacing:.03em}
 .field-preview{font-size:10.5px;color:#57534e;background:#f9f8f5;border-radius:4px;padding:4px 8px;margin-top:4px;line-height:1.6}
 .field-override-toggle{font-size:10.5px;color:#185fa5;margin-top:4px;cursor:pointer;text-decoration:underline}
@@ -211,36 +227,35 @@ tr:last-child td{border-bottom:none}
 
 <!-- イレギュラー特価 -->
 <div id="panel-special" class="panel">
-  <div class="info-box">通常の価格マスタでは対応しきれない、その場限りの特別価格をここで作成します。<strong>理由メモの記入は必須</strong>です。</div>
+  <div class="info-box">通常の価格マスタでは対応しきれない、その場限りの特別価格を作成します。<strong>商品を複数まとめて選べます。</strong>数字の左のチェックを入れると、その行の下に特価・数量の入力欄が開きます。緑＝販売可能数／黄＝旧ロット／赤＝不良在庫。<strong>在庫が0の項目はチェックできません。</strong></div>
   <div class="info-box" style="background:#fffbeb;border-color:#f59e0b;color:#78350f">💡 <strong>特別価格を決める前に、原価データ（輸入アプリE）でこの商品の今の原価をご確認ください。</strong>ここには原価の数字は表示されません（原価は輸入Eのみで管理しています）。</div>
+
   <div class="card">
-    <div class="fg"><label>特価の種類</label>
-      <select id="sp-source-type" onchange="onSpSourceTypeChange()">
-        <option value="normal">通常品（在庫にかかわらず自由に設定）</option>
-        <option value="defect">不良在庫から（実際にある不良品の中から選ぶ）</option>
-        <option value="oldlot">賞味期限が近いもの（旧ロット）から</option>
+    <div class="fg"><label>お客様を選択</label>
+      <select id="sp-customer">
+        <option value="">お客様を選択...</option>
       </select>
     </div>
-    <div id="sp-stock-hint" class="info-box" style="display:none"></div>
-    <div class="g2">
-      <div class="fg"><label>お客様を選択</label>
-        <select id="sp-customer">
-          <option value="">お客様を選択...</option>
-        </select>
-      </div>
-      <div class="fg"><label>商品を選択</label>
-        <select id="sp-product" onchange="onSpProductChange()">
-          <option value="">商品を選択...</option>
-        </select>
-      </div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label>特別価格（1本あたり・税抜）</label><input type="number" id="sp-price" min="0"></div>
-      <div class="fg"><label>数量（本） <span id="sp-qty-max-hint" style="font-weight:400;color:#57534e"></span></label><input type="number" id="sp-qty" min="1" value="1"></div>
-    </div>
-    <div class="fg"><label>この価格にする理由（必須）</label><textarea id="sp-reason" placeholder="例：旧在庫の在庫処分のため／長年のお付き合いのある卸先で今回だけ特別対応、など" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>商品名</th><th class="center" style="width:100px">定価</th><th class="center" style="width:140px">販売可能数</th><th class="center" style="width:140px">旧ロット</th><th class="center" style="width:140px">不良在庫</th></tr></thead>
+      <tbody id="sp-table-body"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="sp-summary-card" style="border:2px solid #6b7a3a">
+    <div class="sec" style="margin-top:0">📋 選択中の商品（下にまとめて表示）</div>
+    <div id="sp-summary-area"><div class="info-box">まだ商品が選択されていません。上の表で数字の左のチェックを入れてください。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="fg"><label>この価格にする理由（必須・社内用・お客様には見えません）</label><textarea id="sp-reason" placeholder="例：旧在庫の在庫処分のため／長年のお付き合いのある卸先で今回だけ特別対応、など" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>
+    <div class="fg"><label>🔒 社内メモ（任意・お客様には見えません・履歴を呼び出すと一緒に表示されます）</label><textarea id="sp-internal-memo" placeholder="例：〇〇様のご友人に販売されるとのこと／今後の価格交渉の経緯など、社内だけで残しておきたいこと" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:50px;background:#f9f8f5"></textarea></div>
+    <div class="fg"><label>💬 コメント（任意・この見積書に印字されお客様にも見えます）</label><textarea id="sp-comment" placeholder="例：他のお客様にもご案内しているため、お早めのご検討をおすすめいたします／まとめてのご注文もご相談ください／ギフト包装には対応しておりません、など" style="width:100%;padding:8px;border:1px solid #f0c96a;border-radius:6px;font-size:13px;min-height:50px;background:#fffbeb"></textarea></div>
     <div class="fg"><label>作成者名</label><input type="text" id="sp-creator" placeholder="あなたのお名前"></div>
-    <button class="btn btn-primary" onclick="checkAndCreateSpecialPrice()">この内容で特価を作成する</button>
+    <button class="btn btn-primary" onclick="checkAndCreateSpecialPriceBatch()">この内容でまとめて特別見積書を作成する</button>
     <div id="sp-check-result" style="margin-top:10px"></div>
   </div>
 
@@ -716,7 +731,7 @@ function applyLoadedProducts(products, extraFields){
   // 現在開いているタブの表示を更新
   if(document.getElementById('panel-price') && document.getElementById('panel-price').classList.contains('active')) renderPriceTable();
   if(document.getElementById('panel-list') && document.getElementById('panel-list').classList.contains('active')) renderInvoiceList();
-  if(document.getElementById('panel-special') && document.getElementById('panel-special').classList.contains('active')){ fillSpecialPriceSelects(); }
+  if(document.getElementById('panel-special') && document.getElementById('panel-special').classList.contains('active')){ fillSpecialPriceSelects(); renderSpecialTable(); }
   if(document.getElementById('panel-oilwholesale') && document.getElementById('panel-oilwholesale').classList.contains('active')){ renderOwTable(); }
 }
 async function initializeProducts(){
@@ -872,7 +887,7 @@ function showPanel(name, btn){
   if(name==='price') renderPriceTable();
   if(name==='monthly') renderMonthlyList();
   if(name==='quote'){ resetRtGate(); renderQuoteCustomerSelect(); renderQuoteHistory(); }
-  if(name==='special'){ fillSpecialPriceSelects(); renderSpecialPriceList(); }
+  if(name==='special'){ fillSpecialPriceSelects(); renderSpecialTable(); renderSpecialSummary(); renderSpecialPriceList(); }
   if(name==='oilwholesale'){ renderOwCustomerSelect(); renderOwTable(); updateOwExpiry(); }
 }
 
@@ -2162,101 +2177,199 @@ function fillSpecialPriceSelects(){
       .concat(customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
     const prev = custSelect.value; custSelect.innerHTML = opts.join(''); custSelect.value = prev;
   }
-  onSpSourceTypeChange();
 }
-function onSpSourceTypeChange(){
-  const type = document.getElementById('sp-source-type').value;
-  const hint = document.getElementById('sp-stock-hint');
-  const prodSelect = document.getElementById('sp-product');
-  let opts = ['<option value="">商品を選択...</option>'];
-  if(type==='defect'){
-    const stock = computeDefectStock();
-    const skus = Object.keys(stock).filter(s=>stock[s]>0);
-    if(!skus.length){
-      hint.style.display=''; hint.textContent='現在、不良在庫として登録されている商品はありません。「通常品」を選ぶか、まず在庫アプリBで不良品を登録してください。';
-    } else {
-      hint.style.display=''; hint.innerHTML='現在の不良在庫：'+skus.map(s=>{const p=findProductBySku(s); return esc(p?p.name:s)+' '+stock[s]+'本';}).join('、');
-      skus.forEach(function(s){ const p = findProductBySku(s); if(p) opts.push('<option value="'+s+'">'+esc(p.name)+'（在庫'+stock[s]+'本）</option>'); });
-    }
-  } else if(type==='oldlot'){
-    const stock = computeOldLotStock();
-    const skus = Object.keys(stock).filter(s=>stock[s]>0);
-    if(!skus.length){
-      hint.style.display=''; hint.textContent='現在、賞味期限が6ヶ月以内のロットは登録されていません。「通常品」を選ぶか、まず在庫アプリBでロット情報を確認してください。';
-    } else {
-      hint.style.display=''; hint.innerHTML='賞味期限が6ヶ月以内の在庫：'+skus.map(s=>{const p=findProductBySku(s); return esc(p?p.name:s)+' '+stock[s]+'本';}).join('、');
-      skus.forEach(function(s){ const p = findProductBySku(s); if(p) opts.push('<option value="'+s+'">'+esc(p.name)+'（在庫'+stock[s]+'本）</option>'); });
-    }
+// 販売可能数（緑）＝全在庫のうち、旧ロット・不良在庫を除いた分
+function computeSellableStock(){
+  const total = computeTotalStockBySku();
+  const oldLot = computeOldLotStock();
+  const defect = computeDefectStock();
+  const map = {};
+  Object.keys(total).forEach(function(sku){
+    const v = (total[sku]||0) - (oldLot[sku]||0) - (defect[sku]||0);
+    map[sku] = v>0 ? v : 0;
+  });
+  return map;
+}
+
+// 選択中の商品：key = sku+'|'+source（source: 'normal'=販売可能数／'oldlot'=旧ロット／'defect'=不良在庫）
+let spSelection = {};
+const SP_SOURCE_LABEL = { normal:'正規品（販売可能数）', oldlot:'旧ロット', defect:'不良在庫' };
+
+function spStockCell(p, source, stockVal){
+  const key = p.sku+'|'+source;
+  const cls = source==='normal' ? 'green' : (source==='oldlot' ? 'yellow' : 'red');
+  const zero = !stockVal || stockVal<=0;
+  const checked = !!spSelection[key];
+  return '<div class="sp-stock-cell '+cls+(zero?' zero':'')+'">'
+    + '<input type="checkbox" class="sp-stock-chk" '+(checked?'checked':'')+' '+(zero?'disabled':'')
+    + ' onchange="onSpCheckToggle(\''+p.sku+'\',\''+source+'\',this.checked,'+(stockVal||0)+')">'
+    + '<span class="sp-stock-num">'+(stockVal||0)+'</span>'
+    + '</div>';
+}
+
+function renderSpecialTable(){
+  const body = document.getElementById('sp-table-body');
+  if(!body) return;
+  const sellable = computeSellableStock();
+  const oldlot = computeOldLotStock();
+  const defect = computeDefectStock();
+  const groups = productGroups(activeProducts());
+  let html = '';
+  Object.keys(groups).forEach(function(g){
+    html += '<tr><td colspan="5" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){
+      const general = priceForSku(p.sku, 'general');
+      html += '<tr>';
+      html += '<td>'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span></td>';
+      html += '<td class="center">¥'+general.toLocaleString()+'</td>';
+      html += '<td class="center">'+spStockCell(p,'normal', sellable[p.sku]||0)+'</td>';
+      html += '<td class="center">'+spStockCell(p,'oldlot', oldlot[p.sku]||0)+'</td>';
+      html += '<td class="center">'+spStockCell(p,'defect', defect[p.sku]||0)+'</td>';
+      html += '</tr>';
+      ['normal','oldlot','defect'].forEach(function(source){
+        const key = p.sku+'|'+source;
+        const sel = spSelection[key];
+        if(!sel) return;
+        const maxStock = source==='normal' ? (sellable[p.sku]||0) : (source==='oldlot' ? (oldlot[p.sku]||0) : (defect[p.sku]||0));
+        html += '<tr class="sp-expand-row"><td colspan="5">'
+          + '<span class="sp-expand-badge">選択中：'+esc(p.name)+'（'+SP_SOURCE_LABEL[source]+'）</span>'
+          + ' <button type="button" class="sp-remove-btn" style="margin-left:10px" onclick="onSpCheckToggle(\''+p.sku+'\',\''+source+'\',false,'+maxStock+')">選択解除</button>'
+          + '<div class="sp-expand-inner" style="margin-top:8px">'
+          + '<div class="sp-mini-fg"><label>特価（1本あたり・税抜）</label><input type="number" min="0" value="'+(sel.price!=null?sel.price:'')+'" onchange="onSpLineChange(\''+p.sku+'\',\''+source+'\',\'price\',this.value)"></div>'
+          + '<div class="sp-mini-fg"><label>数量（本）　<span style="font-weight:400;color:#57534e">在庫'+maxStock+'本まで</span></label><input type="number" min="1" value="'+(sel.qty!=null?sel.qty:1)+'" onchange="onSpLineChange(\''+p.sku+'\',\''+source+'\',\'qty\',this.value)"></div>'
+          + '</div></td></tr>';
+      });
+    });
+  });
+  body.innerHTML = html;
+}
+
+function onSpCheckToggle(sku, source, checked, maxStock){
+  const key = sku+'|'+source;
+  if(checked){
+    spSelection[key] = { price: spSelection[key]?spSelection[key].price:null, qty: spSelection[key]?spSelection[key].qty:1 };
   } else {
-    hint.style.display='none';
-    PRODUCTS.forEach(function(p){ opts.push('<option value="'+p.sku+'">'+esc(p.name)+'</option>'); });
+    delete spSelection[key];
   }
-  prodSelect.innerHTML = opts.join('');
-  onSpProductChange();
+  renderSpecialTable();
+  renderSpecialSummary();
 }
-function onSpProductChange(){
-  const type = document.getElementById('sp-source-type').value;
-  const sku = document.getElementById('sp-product').value;
-  const hint = document.getElementById('sp-qty-max-hint');
-  hint.textContent = '';
-  if(!sku) return;
-  if(type==='defect'){
-    const stock = computeDefectStock();
-    if(stock[sku]) hint.textContent = '（最大 '+stock[sku]+' 本まで）';
-  } else if(type==='oldlot'){
-    const stock = computeOldLotStock();
-    if(stock[sku]) hint.textContent = '（最大 '+stock[sku]+' 本まで）';
+function onSpLineChange(sku, source, field, value){
+  const key = sku+'|'+source;
+  if(!spSelection[key]) return;
+  if(field==='price') spSelection[key].price = parseInt(value)||0;
+  if(field==='qty') spSelection[key].qty = parseInt(value)||0;
+  renderSpecialSummary();
+}
+
+function spSelectionLines(){
+  return Object.keys(spSelection).map(function(key){
+    const idx = key.lastIndexOf('|');
+    const sku = key.slice(0, idx);
+    const source = key.slice(idx+1);
+    const p = findProductBySku(sku);
+    const sel = spSelection[key];
+    const price = sel.price||0;
+    const qty = sel.qty||0;
+    return { sku:sku, source:source, productName: p?p.name:sku, general: priceForSku(sku,'general'), price:price, qty:qty, subtotal: price*qty };
+  });
+}
+
+function renderSpecialSummary(){
+  const area = document.getElementById('sp-summary-area');
+  if(!area) return;
+  const lines = spSelectionLines();
+  if(!lines.length){
+    area.innerHTML = '<div class="info-box">まだ商品が選択されていません。上の表で数字の左のチェックを入れてください。</div>';
+    return;
   }
+  let total = 0;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:12.5px">';
+  html += '<tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">商品</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">在庫元</th><th style="text-align:right;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">定価</th><th style="text-align:right;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">特価</th><th style="text-align:right;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">数量</th><th style="text-align:right;padding:6px 8px;border-bottom:1px solid #d5cfc3;font-size:11px;color:#57534e">小計</th></tr>';
+  lines.forEach(function(l){
+    total += l.subtotal;
+    html += '<tr>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee">'+esc(l.productName)+'</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee">'+SP_SOURCE_LABEL[l.source]+'</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">¥'+l.general.toLocaleString()+'</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">¥'+l.price.toLocaleString()+'</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">'+l.qty+'</td>'
+      + '<td style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right">¥'+l.subtotal.toLocaleString()+'</td>'
+      + '</tr>';
+  });
+  html += '<tr><td colspan="5" style="padding:8px;font-weight:800;border-top:2px solid #6b7a3a">合計（税抜）</td><td style="padding:8px;font-weight:800;border-top:2px solid #6b7a3a;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '</table>';
+  area.innerHTML = html;
 }
-function checkAndCreateSpecialPrice(){
-  const type = document.getElementById('sp-source-type').value;
+
+function checkAndCreateSpecialPriceBatch(){
   const custId = document.getElementById('sp-customer').value;
-  const sku = document.getElementById('sp-product').value;
-  const price = parseInt(document.getElementById('sp-price').value)||0;
-  const qty = parseInt(document.getElementById('sp-qty').value)||0;
   const reason = document.getElementById('sp-reason').value.trim();
+  const internalMemo = document.getElementById('sp-internal-memo').value.trim();
+  const comment = document.getElementById('sp-comment').value.trim();
   const creator = document.getElementById('sp-creator').value.trim();
   const resultEl = document.getElementById('sp-check-result');
+  const lines = spSelectionLines();
   if(!custId){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">お客様を選択してください</div>'; return; }
-  if(!sku){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">商品を選択してください</div>'; return; }
-  if(!price || price<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">特別価格を入力してください</div>'; return; }
-  if(!qty || qty<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">数量を入力してください</div>'; return; }
+  if(!lines.length){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">商品を1つ以上選択してください</div>'; return; }
+  for(let i=0;i<lines.length;i++){
+    const l = lines[i];
+    if(!l.price || l.price<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">'+esc(l.productName)+'の特価が未入力です</div>'; return; }
+    if(!l.qty || l.qty<=0){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">'+esc(l.productName)+'の数量が未入力です</div>'; return; }
+  }
   if(!reason){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">理由メモは必須です</div>'; return; }
   if(!creator){ resultEl.innerHTML = '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d">作成者名を入力してください</div>'; return; }
 
   const cust = customers.find(x=>x.id===custId);
-  const prod = findProductBySku(sku);
-  const record = {
-    id: 'sp'+Date.now(),
-    customerId: custId, customerName: cust?cust.name:'',
-    sku: sku, productName: prod?prod.name:sku,
-    unitPrice: price, qty: qty, sourceType: type,
-    reason: reason, creator: creator, issuedAt: new Date().toISOString()
-  };
-  specialPrices.push(record);
+  const batchId = 'batch'+Date.now();
+  const issuedAt = new Date().toISOString();
+  const records = lines.map(function(l, i){
+    return {
+      id: 'sp'+Date.now()+'_'+i,
+      batchId: batchId,
+      customerId: custId, customerName: cust?cust.name:'',
+      sku: l.sku, productName: l.productName,
+      unitPrice: l.price, qty: l.qty, sourceType: l.source,
+      reason: reason, internalMemo: internalMemo, comment: comment,
+      creator: creator, issuedAt: issuedAt
+    };
+  });
+  records.forEach(function(r){ specialPrices.push(r); });
   fetch(GAS_URL, {
     method:'POST',
     body: JSON.stringify({ action:'saveSpecialPrices', specialPrices: specialPrices }),
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).then(r=>r.json()).then(function(data){
     if(data.status==='ok'){
-      showSyncStatus('✅ 特価を作成しました');
-      renderSpecialPriceDoc(record);
+      showSyncStatus('✅ 特別見積書を作成しました');
+      renderSpecialPriceDocBatch(records, cust);
       renderSpecialPriceList();
-      document.getElementById('sp-price').value = '';
-      document.getElementById('sp-qty').value = 1;
+      resultEl.innerHTML = '';
+      spSelection = {};
+      renderSpecialTable();
+      renderSpecialSummary();
       document.getElementById('sp-reason').value = '';
+      document.getElementById('sp-internal-memo').value = '';
+      document.getElementById('sp-comment').value = '';
     } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
   }).catch(()=>showSyncStatus('⚠️ 通信エラー', true));
 }
-function renderSpecialPriceDoc(record){
-  const cust = customers.find(x=>x.id===record.customerId) || {name:record.customerName};
-  const subtotal = record.unitPrice * record.qty;
-  const tax = taxRateForSku(record.sku);
-  const taxAmount = Math.round(subtotal * tax);
-  const total = subtotal + taxAmount;
+
+function renderSpecialPriceDocBatch(records, cust){
+  cust = cust || {name: records[0]?records[0].customerName:''};
+  let subtotalAll = 0, taxAll = 0;
   const today = new Date();
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
+  let rowsHtml = '';
+  records.forEach(function(r){
+    const subtotal = r.unitPrice * r.qty;
+    const tax = taxRateForSku(r.sku);
+    const taxAmount = Math.round(subtotal * tax);
+    subtotalAll += subtotal; taxAll += taxAmount;
+    rowsHtml += '<tr><td>'+esc(r.productName)+'</td><td style="text-align:center">'+r.qty+'本</td><td style="text-align:right">¥'+r.unitPrice.toLocaleString()+'</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
+  });
+  const total = subtotalAll + taxAll;
+  const comment = records[0] ? (records[0].comment||'') : '';
   let html = '<div class="invoice-doc">';
   html += '<div class="invoice-doc-title">特 別 見 積 書</div>';
   html += '<div class="invoice-doc-top">';
@@ -2271,14 +2384,16 @@ function renderSpecialPriceDoc(record){
   html += '<div style="font-size:11px">登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
   html += '</div></div>';
   html += '<table class="invoice-doc-table"><thead><tr><th>商品</th><th style="width:12%">数量</th><th style="width:18%">特別単価</th><th style="width:18%">金額（税抜）</th></tr></thead><tbody>';
-  html += '<tr><td>'+esc(record.productName)+'</td><td style="text-align:center">'+record.qty+'本</td><td style="text-align:right">¥'+record.unitPrice.toLocaleString()+'</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
+  html += rowsHtml;
   html += '</tbody></table>';
   html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
-  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
-  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（'+(tax===0.10?'10%':'8%')+'）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount.toLocaleString()+'</td></tr>';
+  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalAll.toLocaleString()+'</td></tr>';
+  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAll.toLocaleString()+'</td></tr>';
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
-  html += '<div class="invoice-doc-note"><strong>備考：</strong><br>'+esc(record.reason).replace(/\n/g,'<br>')+'<br><br>作成者：'+esc(record.creator)+'</div>';
+  if(comment){
+    html += '<div class="invoice-doc-note">'+esc(comment).replace(/\n/g,'<br>')+'</div>';
+  }
   html += '</div>';
   const area = document.getElementById('special-doc-area');
   area.innerHTML = '';
@@ -2295,13 +2410,13 @@ function renderSpecialPriceDoc(record){
   pdfBtn.style.marginTop = '10px';
   pdfBtn.style.marginLeft = '8px';
   pdfBtn.textContent = '📥 PDFでダウンロード';
-  pdfBtn.onclick = function(){ downloadSpecialPricePdf(record); };
+  pdfBtn.onclick = function(){ downloadSpecialBatchPdf(cust.name); };
   wrap.appendChild(printBtn);
   wrap.appendChild(pdfBtn);
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
 }
-function downloadSpecialPricePdf(record){
+function downloadSpecialBatchPdf(customerName){
   const el = document.querySelector('#special-doc-area .invoice-doc');
   if(!el){ alert('特価見積書が表示されていません'); return; }
   showSyncStatus('PDFを作成しています...');
@@ -2312,7 +2427,7 @@ function downloadSpecialPricePdf(record){
     const imgH = canvas.height * imgW / canvas.width;
     pdf.addImage(img, 'PNG', 10, 10, imgW, imgH);
     const dateStr = new Date().toISOString().slice(0,10);
-    pdf.save('特別見積書_'+record.customerName+'_'+dateStr+'.pdf');
+    pdf.save('特別見積書_'+(customerName||'')+'_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
     showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
@@ -2328,15 +2443,43 @@ function renderSpecialPriceList(){
   if(sp) list = list.filter(r=>(r.productName||'').toLowerCase().includes(sp));
   if(sc) list = list.filter(r=>(r.customerName||'').toLowerCase().includes(sc));
   if(scr) list = list.filter(r=>(r.creator||'').toLowerCase().includes(scr));
-  list.sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
-  if(!list.length){ listEl.innerHTML = '<div class="info-box">該当するイレギュラー特価はありません。</div>'; return; }
-  listEl.innerHTML = list.map(function(r){
-    const dateStr = (r.issuedAt||'').slice(0,10);
-    return '<div class="card" style="padding:10px 14px;margin-bottom:8px">'
-      + '<div><strong>'+esc(r.customerName)+'</strong>：'+esc(r.productName)+'　¥'+r.unitPrice.toLocaleString()+' × '+r.qty+'本</div>'
-      + '<div style="font-size:11px;color:#57534e;margin-top:4px">発行日：'+dateStr+'／作成者：'+esc(r.creator||'')+'</div>'
-      + '<div style="font-size:12px;color:#2b2a26;margin-top:4px">理由：'+esc(r.reason||'')+'</div>'
-      + '</div>';
+  // batchIdがあるものはグルーピング、ないものは1件ずつ（後方互換）
+  const batches = {};
+  const singles = [];
+  list.forEach(function(r){
+    if(r.batchId){
+      (batches[r.batchId] = batches[r.batchId] || []).push(r);
+    } else {
+      singles.push(r);
+    }
+  });
+  const groupedList = Object.keys(batches).map(function(bid){
+    const items = batches[bid];
+    const first = items[0];
+    return { batchId:bid, issuedAt:first.issuedAt, customerName:first.customerName, creator:first.creator, reason:first.reason, internalMemo:first.internalMemo, comment:first.comment, items:items };
+  });
+  const allCards = groupedList.concat(singles.map(function(r){
+    return { batchId:null, issuedAt:r.issuedAt, customerName:r.customerName, creator:r.creator, reason:r.reason, internalMemo:r.internalMemo, comment:r.comment, items:[r] };
+  }));
+  allCards.sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
+  if(!allCards.length){ listEl.innerHTML = '<div class="info-box">該当するイレギュラー特価はありません。</div>'; return; }
+  listEl.innerHTML = allCards.map(function(card){
+    const dateStr = (card.issuedAt||'').slice(0,10);
+    const total = card.items.reduce(function(s,r){ return s+(r.unitPrice*r.qty); },0);
+    const itemsHtml = card.items.map(function(r){ return esc(r.productName)+'　¥'+r.unitPrice.toLocaleString()+' × '+r.qty+'本'; }).join('<br>');
+    let html = '<div class="card" style="padding:10px 14px;margin-bottom:8px">';
+    html += '<div><strong>'+esc(card.customerName)+'</strong>　合計 ¥'+total.toLocaleString()+'（税抜）</div>';
+    html += '<div style="font-size:12px;color:#2b2a26;margin-top:6px">'+itemsHtml+'</div>';
+    html += '<div style="font-size:11px;color:#57534e;margin-top:6px">発行日：'+dateStr+'／作成者：'+esc(card.creator||'')+'</div>';
+    html += '<div style="font-size:12px;color:#2b2a26;margin-top:4px">理由：'+esc(card.reason||'')+'</div>';
+    if(card.internalMemo){
+      html += '<div style="font-size:12px;color:#2b2a26;margin-top:4px;background:#f9f8f5;border-radius:6px;padding:6px 10px">🔒 社内メモ：'+esc(card.internalMemo).replace(/\n/g,'<br>')+'</div>';
+    }
+    if(card.comment){
+      html += '<div style="font-size:12px;color:#78350f;margin-top:4px;background:#fffbeb;border-radius:6px;padding:6px 10px">💬 コメント：'+esc(card.comment).replace(/\n/g,'<br>')+'</div>';
+    }
+    html += '</div>';
+    return html;
   }).join('');
 }
 
