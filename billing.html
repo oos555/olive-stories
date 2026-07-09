@@ -178,9 +178,6 @@ tr:last-child td{border-bottom:none}
 <div class="tab-row">
   <button class="tab active" onclick="showPanel('list',this)">請求一覧</button>
   <button class="tab" onclick="showPanel('monthly',this)">月次卸請求</button>
-  <button class="tab" onclick="showPanel('quote',this)">見積書</button>
-  <button class="tab" onclick="showPanel('oilwholesale',this)">オイル価格表</button>
-  <button class="tab" onclick="showPanel('special',this)">イレギュラー特価</button>
   <button class="tab" onclick="showPanel('price',this)">価格マスタ</button>
   <button class="tab" onclick="showPanel('export',this)">エクスポート・バックアップ</button>
 </div>
@@ -213,52 +210,6 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
-<!-- イレギュラー特価 -->
-<div id="panel-special" class="panel">
-  <div class="info-box">通常の価格マスタでは対応しきれない、その場限りの特別価格をここで作成します。<strong>理由メモの記入は必須</strong>です。</div>
-  <div class="info-box" style="background:#fffbeb;border-color:#f59e0b;color:#78350f">💡 <strong>特別価格を決める前に、原価データ（輸入アプリE）でこの商品の今の原価をご確認ください。</strong>ここには原価の数字は表示されません（原価は輸入Eのみで管理しています）。</div>
-  <div class="card">
-    <div class="fg"><label>特価の種類</label>
-      <select id="sp-source-type" onchange="onSpSourceTypeChange()">
-        <option value="normal">通常品（在庫にかかわらず自由に設定）</option>
-        <option value="defect">不良在庫から（実際にある不良品の中から選ぶ）</option>
-        <option value="oldlot">賞味期限が近いもの（旧ロット）から</option>
-      </select>
-    </div>
-    <div id="sp-stock-hint" class="info-box" style="display:none"></div>
-    <div class="g2">
-      <div class="fg"><label>お客様を選択</label>
-        <select id="sp-customer">
-          <option value="">お客様を選択...</option>
-        </select>
-      </div>
-      <div class="fg"><label>商品を選択</label>
-        <select id="sp-product" onchange="onSpProductChange()">
-          <option value="">商品を選択...</option>
-        </select>
-      </div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label>特別価格（1本あたり・税抜）</label><input type="number" id="sp-price" min="0"></div>
-      <div class="fg"><label>数量（本） <span id="sp-qty-max-hint" style="font-weight:400;color:#57534e"></span></label><input type="number" id="sp-qty" min="1" value="1"></div>
-    </div>
-    <div class="fg"><label>この価格にする理由（必須）</label><textarea id="sp-reason" placeholder="例：旧在庫の在庫処分のため／長年のお付き合いのある卸先で今回だけ特別対応、など" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>
-    <div class="fg"><label>作成者名</label><input type="text" id="sp-creator" placeholder="あなたのお名前"></div>
-    <button class="btn btn-primary" onclick="checkAndCreateSpecialPrice()">この内容で特価を作成する</button>
-    <div id="sp-check-result" style="margin-top:10px"></div>
-  </div>
-
-  <div id="special-doc-area"></div>
-
-  <div class="sec">📋 これまでのイレギュラー特価</div>
-  <div class="g3" style="margin-bottom:10px">
-    <input type="text" id="sp-search-product" placeholder="商品名で検索（部分一致）" oninput="renderSpecialPriceList()" style="padding:7px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:12px">
-    <input type="text" id="sp-search-customer" placeholder="お客様名で検索（部分一致）" oninput="renderSpecialPriceList()" style="padding:7px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:12px">
-    <input type="text" id="sp-search-creator" placeholder="作成者名で検索（部分一致）" oninput="renderSpecialPriceList()" style="padding:7px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:12px">
-  </div>
-  <div id="special-price-list"></div>
-</div>
-
 <!-- 月次卸請求 -->
 <div id="panel-monthly" class="panel">
   <div class="info-box">卸のお客様など、1ヶ月分をまとめて請求する場合に使います。対象月・お客様を選ぶと、その月に出荷済みの受注が自動で集計されます。</div>
@@ -272,189 +223,6 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="sec">発行済みの月次請求</div>
   <div id="monthly-list"></div>
-</div>
-
-<!-- 見積書 -->
-<div id="panel-quote" class="panel">
-  <div class="info-box">価格を直接入力することはありません。<strong>お客様を選ぶと、区分（価格帯）と表示できる商品が自動で決まります</strong>。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
-
-  <!-- RTゲート：最初に必ず確認 -->
-  <div class="card" id="q-rt-gate-card" style="border:3px solid #dc2626">
-    <div class="sec" style="color:#dc2626;margin-top:0">🚨 まず確認：このお客様はRT（ホテル・レストラン）ですか？</div>
-    <div class="info-box" style="background:#fef2f2;border-color:#fca5a5;color:#7f1d1d">ここを間違えると、違う価格をお渡ししてしまいます。<strong>必ず最初に確認してください。</strong></div>
-    <div style="display:flex;gap:12px;margin-bottom:10px">
-      <button style="flex:1;padding:22px 10px;font-size:16px;font-weight:700;background:#fee2e2;border:2px solid #dc2626;color:#7f1d1d;border-radius:10px;cursor:pointer" onclick="selectRtGate(true)">🏨 はい、RTのお客様です</button>
-      <button style="flex:1;padding:22px 10px;font-size:16px;font-weight:700;background:#f0f9ff;border:2px solid #185fa5;color:#1e3a8a;border-radius:10px;cursor:pointer" onclick="selectRtGate(false)">🏢 いいえ、RT以外です</button>
-    </div>
-    <div id="q-rt-gate-confirm"></div>
-  </div>
-
-  <div id="q-after-gate" style="display:none">
-    <div id="q-rt-gate-banner"></div>
-
-    <div class="card">
-      <div class="card-step-label">① お客様</div>
-      <div class="fg"><label>提出先（お客様）を選択</label>
-        <select id="q-customer" onchange="onQuoteCustomerChange()">
-          <option value="">お客様を選択...</option>
-        </select>
-      </div>
-      <button class="btn-sm" onclick="toggleNewCustomerForm()" id="new-cust-toggle-btn">＋ まだ登録されていないお客様を追加する</button>
-      <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
-        <div class="g2">
-          <div class="fg"><label>お客様名（会社名）</label><input type="text" id="nc-name" placeholder="〇〇株式会社"></div>
-          <div class="fg"><label>区分（価格帯）</label>
-            <select id="nc-type">
-              <option value="general">定価</option>
-              <option value="wholesale1">卸①</option>
-              <option value="wholesale2">卸②</option>
-              <option value="rt">RT</option>
-            </select>
-          </div>
-        </div>
-        <div class="g3">
-          <div class="fg"><label>郵便番号</label><input type="text" id="nc-zip" placeholder="1000001"></div>
-          <div class="fg"><label>住所</label><input type="text" id="nc-addr" placeholder="東京都..."></div>
-          <div class="fg"><label>電話番号</label><input type="text" id="nc-tel" placeholder="0312345678"></div>
-        </div>
-        <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="nc-email" placeholder="example@example.com"></div>
-        <div class="fg"><label>メモ（任意）</label><input type="text" id="nc-note" placeholder="紹介経緯など"></div>
-        <button class="btn btn-green" onclick="registerNewCustomer()">このお客様を登録して選択する</button>
-      </div>
-      <div class="fg" style="margin-top:12px"><label>提出先ご担当者名（必須・自動で「様」が付きます）</label><input type="text" id="q-contact-person-shared" placeholder="例：山口 玲子" oninput="checkContactPersonReady()"></div>
-      <div id="q-customer-info"></div>
-    </div>
-
-    <div class="card" id="q-type-card" style="display:none">
-      <div class="card-step-label">② 区分（価格帯）</div>
-      <div id="q-type-display"></div>
-    </div>
-
-    <div class="card" id="q-past-quote-card" style="display:none;background:#fffbeb;border-color:#f59e0b">
-      <div class="sec" style="margin-top:0;color:#78350f">💡 このお客様の過去の見積・価格表</div>
-      <div class="info-box" style="background:#fef3c7;border-color:#fbbf24;color:#78350f">前回と同じ内容で始めると、お客様が「あれ？前回と違う」となるのを防げます。「この内容で始める」を押すと、担当者名・備考・商品と数量が復元されます（単価は今の価格マスタで計算し直されます）。</div>
-      <div id="q-past-quote-list"></div>
-    </div>
-
-    <div class="card" id="q-whitelist-card" style="display:none">
-      <div class="card-step-label">③ 商品を選ぶ</div>
-      <div class="sec" style="margin-top:0">このお客様に表示する商品</div>
-      <div class="info-box">チェックが入っている商品だけが価格表・見積書に載ります。<strong>備品（紙袋・空瓶など）以外は最初は全部チェック済み</strong>です。見せたくない商品だけチェックを外し、必要な備品だけチェックを入れてください。</div>
-      <div id="q-whitelist-area"></div>
-      <button class="btn-sm" style="margin-top:8px" onclick="saveCustomerWhitelist()">この設定を保存</button>
-    </div>
-
-    <div class="card" id="q-doc-choice-card" style="display:none">
-      <div class="sec" style="margin-top:0">何を渡しますか？</div>
-      <button class="btn btn-primary" style="width:100%;padding:14px;font-size:14px;margin-bottom:8px" onclick="showPriceListForm()">📋 標準価格表を渡す（おすすめ・表示商品をまとめて）</button>
-      <button class="btn-sm" onclick="showIndividualQuoteForm()">📝 特定の商品・数量だけの見積書を作る（イレギュラー）</button>
-    </div>
-
-    <!-- 標準価格表フォーム -->
-    <div class="card" id="q-pricelist-form-card" style="display:none">
-      <div class="sec" style="margin-top:0">📋 標準価格表を作成</div>
-      <div class="fg"><label>備考（お客様に見える・任意）</label><textarea id="pl-remarks" placeholder="例：季節限定品は在庫状況により変動する場合がございます" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
-      <div class="fg"><label>内部メモ（社内用・お客様には見せません）</label><textarea id="pl-internal-memo" placeholder="例：値引き交渉の経緯など、社内だけで共有したいこと" style="width:100%;min-height:50px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;background:#fffbeb"></textarea></div>
-      <div class="fg"><label>この価格表に載せる追加情報（お客様ごとに覚えます）</label>
-        <div id="pl-fields-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;background:#f9f8f5;min-height:36px"></div>
-      </div>
-      <button class="btn btn-primary" id="pl-generate-btn" onclick="generatePriceListDoc()" disabled>価格表を作成する</button>
-      <div id="pl-generate-warn" style="font-size:11px;color:#b45309;margin-top:4px"></div>
-    </div>
-
-    <!-- 個別見積書フォーム（イレギュラー） -->
-    <div class="card" id="q-items-card" style="display:none">
-      <div class="sec" style="margin-top:0">📝 見積もる商品と数量（イレギュラー）</div>
-      <div id="q-items-area"></div>
-      <button class="btn-sm" onclick="addQuoteItemRow()">＋ 商品を追加</button>
-    </div>
-
-    <div class="card" id="q-generate-card" style="display:none">
-      <div class="g2">
-        <div class="fg"><label>件名</label><input type="text" id="q-subject" value="オリーブオイル 御見積り"></div>
-        <div class="fg"><label>有効期限（発行日から自動計算）</label><input type="text" id="q-expiry" readonly style="background:#f0ece3;color:#57534e"></div>
-      </div>
-      <div class="fg"><label>備考（お客様に見える・任意）</label><textarea id="q-remarks" placeholder="例：この度はご検討いただきありがとうございます" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
-      <div class="fg"><label>内部メモ（社内用・お客様には見せません）</label><textarea id="q-internal-memo" placeholder="例：値引き交渉の経緯など、社内だけで共有したいこと" style="width:100%;min-height:50px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;background:#fffbeb"></textarea></div>
-      <div class="fg"><label>この見積書に載せる追加情報（お客様ごとに覚えます）</label>
-        <div id="q-fields-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;background:#f9f8f5;min-height:36px"></div>
-      </div>
-      <button class="btn btn-primary" id="q-generate-btn" onclick="generateQuoteDoc()" disabled>見積書を作成する</button>
-      <div id="q-generate-warn" style="font-size:11px;color:#b45309;margin-top:4px"></div>
-    </div>
-  </div>
-
-  <div id="quote-doc-area"></div>
-
-  <div class="sec" style="margin-top:1.5rem">📋 見積り提出履歴</div>
-  <div id="quote-followup-alert"></div>
-  <div id="quote-history-list"></div>
-</div>
-
-<!-- オイル価格表（表形式・フェーズ1） -->
-<div id="panel-oilwholesale" class="panel">
-  <div class="info-box">Excelの価格表のように、全商品を一覧して選ぶ形式です。チェックを入れた商品だけが価格表に載ります。<br>💡 卸①で同じ商品を<strong>6箱以上</strong>選ぶと、その商品だけ自動的に卸②価格になります。</div>
-
-  <div class="card">
-    <div class="card-step-label">① お客様</div>
-    <div class="g3">
-      <div class="fg"><label>お客様を選択（任意・登録済みから選ぶ）</label>
-        <select id="ow-customer" onchange="onOwCustomerSelectChange()">
-          <option value="">選択しない（自由入力）</option>
-        </select>
-      </div>
-      <div class="fg"><label>会社名</label><input type="text" id="ow-company" placeholder="〇〇株式会社"></div>
-      <div class="fg"><label>担当者名</label><input type="text" id="ow-contact" placeholder="例：山口 玲子"></div>
-    </div>
-    <div class="g3">
-      <div class="fg"><label>連絡先（メール）</label><input type="email" id="ow-email" placeholder="example@example.com"></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-step-label">② 区分（価格帯）</div>
-    <div class="g3">
-      <div class="fg"><label>表示モード</label>
-        <select id="ow-customer-type" onchange="onOwCustomerTypeChange()">
-          <option value="general">定価のみ</option>
-          <option value="rt">RT（ホテル・レストラン）</option>
-          <option value="wholesale">卸①・卸②</option>
-          <option value="special">特価</option>
-        </select>
-      </div>
-      <div class="fg"><label>有効期間</label><input type="text" id="ow-expiry" readonly style="background:#f0ece3;color:#57534e"></div>
-    </div>
-    <div class="fg" id="ow-special-reason-wrap" style="display:none">
-      <label>特価にする理由（必須・お客様にも表示されます）</label>
-      <textarea id="ow-special-reason" placeholder="例：この度は特別価格にてご案内いたします" style="width:100%;min-height:50px;padding:8px;border:1px solid #16a34a;border-radius:6px;font-size:13px;background:#f0fdf4"></textarea>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-step-label">メモ（任意）</div>
-    <div class="g2">
-      <div class="fg"><label>内部メモ（お客様には見えません）</label><textarea id="ow-internal-memo" placeholder="社内用の覚え書き" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
-      <div class="fg"><label>見積書メモ（お客様に見える形で印字）</label><textarea id="ow-quote-memo" placeholder="例：リードタイムは約2週間、送料は別途頂戴いたします" style="width:100%;min-height:60px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"></textarea></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-step-label">③ 商品を選ぶ</div>
-    <div class="ow-toolbar no-print">
-      <button class="btn-sm" onclick="owToggleAll(true)">☑️ 全選択</button>
-      <button class="btn-sm" onclick="owToggleAll(false)">⬜ 全解除</button>
-      <span style="font-size:11px;color:#57534e;align-self:center">※グレーの行はRT限定商品です。「例外」にチェックを入れると選べるようになり、このお客様には次回から記憶されます。</span>
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead id="ow-table-head"></thead>
-        <tbody id="ow-table-body"></tbody>
-      </table>
-    </div>
-    <button class="btn btn-primary" onclick="generateOilWholesaleDoc()">この内容で価格表を作成する</button>
-  </div>
-
-  <div id="ow-doc-area"></div>
 </div>
 
 <!-- 価格マスタ -->
@@ -875,9 +643,6 @@ function showPanel(name, btn){
   if(name==='list') renderInvoiceList();
   if(name==='price') renderPriceTable();
   if(name==='monthly') renderMonthlyList();
-  if(name==='quote'){ resetRtGate(); renderQuoteCustomerSelect(); renderQuoteHistory(); }
-  if(name==='special'){ fillSpecialPriceSelects(); renderSpecialPriceList(); }
-  if(name==='oilwholesale'){ renderOwCustomerSelect(); renderOwTable(); updateOwExpiry(); }
 }
 
 function loadAllBilling(){
@@ -902,8 +667,6 @@ function loadAllBilling(){
     renderInvoiceList();
     renderPriceTable();
     renderMonthlyList();
-    renderQuoteCustomerSelect();
-    renderQuoteHistory();
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
     showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
