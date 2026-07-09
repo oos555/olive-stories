@@ -49,6 +49,17 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
 .tag{display:inline-block;background:#dbeafe;color:#1e3a8a;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;margin-right:6px}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
 
+/* ===== 要対応アラート（2026/07/10追加。受注Aへ飛ぶだけの入口） ===== */
+.pa-alert-card{background:#fff;border:2px solid #dc2626;border-radius:12px;padding:14px 16px;margin-bottom:1rem;display:none}
+.pa-alert-card.pa-none{border-color:#bcd0c2;background:#f4f9f5}
+.pa-alert-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.pa-alert-title{font-size:16px;font-weight:700;color:#2b2a26}
+.pa-alert-count{font-size:22px;font-weight:800;color:#dc2626;line-height:1}
+.pa-alert-names{font-size:15px;line-height:1.7;color:#2b2a26;font-weight:700}
+.pa-alert-names .pa-refund-name{color:#dc2626}
+.pa-alert-btn{display:inline-block;margin-top:10px;background:#2f6690;color:#fff;text-decoration:none;padding:11px 18px;border-radius:9px;font-size:14px;font-weight:700}
+.pa-alert-btn:hover{background:#255074}
+
 /* ===== メモ切替（大切／ふつう を1枠に） ===== */
 .seg{display:inline-flex;border:1px solid #cfd8e0;border-radius:8px;overflow:hidden}
 .seg button{border:none;background:#fff;color:#2b2a26;font-size:13px;font-weight:700;padding:7px 16px;cursor:pointer}
@@ -101,6 +112,17 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
   <a class="current" href="yuka.html">📮 ゆか J</a>
   <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
 </nav>
+
+<!-- 要対応アラート（2026/07/10追加。ここには詳細を持たず、受注Aへ飛ぶ入口だけ） -->
+<div class="pa-alert-card" id="pa-alert-card">
+  <div class="pa-alert-head">
+    <span class="pa-alert-title">🔔 要対応</span>
+    <span class="pa-alert-count" id="pa-alert-count">0</span>
+    <span style="font-size:14px;color:#57534e;font-weight:700">件</span>
+  </div>
+  <div class="pa-alert-names" id="pa-alert-names"></div>
+  <a class="pa-alert-btn" href="index.html#pending">受注Aで詳しく見る →</a>
+</div>
 
 <div id="unlocked-view">
 
@@ -254,6 +276,57 @@ async function autoLoad(){
   }catch(err){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
+  loadPendingForYuka(); // ★2026/07/10追加：要対応の件数＋お名前アラート（メモとは独立して読む）
+}
+
+/* ============================================================
+   ★ 要対応アラート（2026/07/10追加）
+   受注A（index.html）の「要対応リスト」から、対応が必要な件数と
+   お名前だけを軽く表示する。詳細・操作は持たず、ボタンで受注Aへ飛ぶ。
+   （二重管理を避けるため。実務の本体は受注A側）
+   メモ・やることリストの仕組みには一切関与しない、独立した機能。
+   ============================================================ */
+async function loadPendingForYuka(){
+  try{
+    const res = await fetch(GAS_URL + '?action=loadPendingActions');
+    const data = await res.json();
+    if(data && data.status==='ok' && data.data && Array.isArray(data.data.items)){
+      renderPendingAlert(data.data.items);
+    }
+  }catch(err){ /* 取得できなくてもメモ機能には影響させない */ }
+}
+function renderPendingAlert(items){
+  const open = (items||[]).filter(p=>p.status!=='done');
+  const card = document.getElementById('pa-alert-card');
+  if(!card) return;
+  const countEl = document.getElementById('pa-alert-count');
+  const namesEl = document.getElementById('pa-alert-names');
+  if(!open.length){
+    // 0件のときは、緑の「対応待ちなし」を控えめに出す（安心材料）
+    card.style.display = 'block';
+    card.classList.add('pa-none');
+    card.style.borderColor = '#bcd0c2';
+    countEl.style.color = '#4a7a58';
+    countEl.textContent = '0';
+    namesEl.innerHTML = '<span style="color:#4a7a58;font-weight:700">いま対応が必要なものはありません 🍃</span>';
+    return;
+  }
+  card.style.display = 'block';
+  card.classList.remove('pa-none');
+  card.style.borderColor = open.some(p=>p.hasRefund) ? '#dc2626' : '#e0a63a';
+  countEl.style.color = open.some(p=>p.hasRefund) ? '#dc2626' : '#b45309';
+  countEl.textContent = open.length;
+  // 返金ありを先頭に、その中で新しい順
+  const sorted = open.slice().sort(function(a,b){
+    if(!!a.hasRefund !== !!b.hasRefund) return a.hasRefund ? -1 : 1;
+    return (b.createdAt||'').localeCompare(a.createdAt||'');
+  });
+  const typeLabel = { payment:'入金連絡', change:'変更', cancel:'キャンセル', add:'追加' };
+  namesEl.innerHTML = sorted.map(function(p){
+    const label = p.hasRefund ? '返金・'+(typeLabel[p.type]||p.type||'') : (typeLabel[p.type]||p.type||'');
+    const cls = p.hasRefund ? 'pa-refund-name' : '';
+    return '<span class="'+cls+'">'+(p.hasRefund?'⚠️ ':'')+esc(p.customerName||'（お名前なし）')+'様（'+esc(label)+'）</span>';
+  }).join('　');
 }
 
 /* ============================================================
