@@ -166,6 +166,28 @@ th.center,td.center{text-align:center}
 @media print{
   .pricelist-doc{padding:10mm 14mm}
 }
+/* ── 見積フロー刷新（2026年7月）：区分ゲート6択・案A引き算マトリクス ── */
+.gate-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:6px}
+@media(max-width:640px){.gate-grid{grid-template-columns:1fr 1fr}}
+.gate-btn{padding:20px 8px;font-size:16px;font-weight:800;border-radius:12px;cursor:pointer;line-height:1.35;text-align:center}
+.gate-btn span{display:block;font-size:11px;font-weight:600;margin-top:3px}
+.gate-section-label{font-size:11.5px;font-weight:700;color:#8a6d3f;letter-spacing:.03em;margin:10px 2px 4px}
+.subtract-count{display:inline-block;background:#dcfce7;border:2px solid #16a34a;color:#14532d;font-weight:800;border-radius:10px;padding:6px 16px;font-size:22px;line-height:1}
+.subtract-count small{font-size:12px;font-weight:600;color:#15803d}
+.smx-table{width:100%;border-collapse:collapse;font-size:13px}
+.smx-table th{background:#f3f1ea;font-size:12px;font-weight:700;padding:6px 8px;border:1px solid #d5cfc3}
+.smx-table td{border:1px solid #e8e2d8;padding:8px;vertical-align:middle}
+.smx-line-cell{text-align:left;font-weight:700;font-size:15px;white-space:nowrap}
+.smx-line-cell label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.smx-master-chk{width:24px;height:24px;cursor:pointer;flex:none}
+.smx-size-chk{width:24px;height:24px;cursor:pointer}
+.smx-size-chk:disabled{cursor:not-allowed;opacity:.35}
+.smx-row-off td{background:#f5f5f3;opacity:.55}
+.smx-size-label{display:block;font-size:12px;color:#57534e;margin-top:3px;font-weight:600}
+.smx-other-item{display:inline-flex;align-items:center;gap:8px;font-size:13px;padding:7px 12px;border:1px solid #d5cfc3;border-radius:8px;margin:3px;background:#fff;cursor:pointer}
+.smx-other-item input{width:22px;height:22px;cursor:pointer}
+.smx-other-off{opacity:.55;background:#f5f5f3}
+.smx-other-off span{text-decoration:line-through;color:#57534e}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -289,15 +311,23 @@ th.center,td.center{text-align:center}
 <div id="panel-quote" class="panel active">
   <div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
 
-  <!-- 4択ゲート：最初に必ず確認 -->
-  <div class="card" id="q-rt-gate-card" style="border:3px solid #dc2626">
-    <div class="sec" style="color:#dc2626;margin-top:0;font-size:16px">🚨 まず確認：どの入口から見積もりを作りますか？</div>
-    <div class="info-box" style="background:#fef2f2;border-color:#fca5a5;color:#7f1d1d">ここを間違えると、違う価格をお渡ししてしまいます。<strong>必ず最初に確認してください。</strong></div>
-    <div class="g2" style="margin-bottom:10px">
-      <button style="padding:24px 10px;font-size:17px;font-weight:800;background:#fee2e2;border:3px solid #dc2626;color:#7f1d1d;border-radius:12px;cursor:pointer" onclick="selectRtGate('rt')">🏨 RT<br><span style="font-size:12px;font-weight:600">ホテル・レストラン</span></button>
-      <button style="padding:24px 10px;font-size:17px;font-weight:800;background:#f0f9ff;border:3px solid #185fa5;color:#1e3a8a;border-radius:12px;cursor:pointer" onclick="selectRtGate('wholesale')">🏢 卸し<br><span style="font-size:12px;font-weight:600">卸①・卸②</span></button>
-      <button style="padding:24px 10px;font-size:17px;font-weight:800;background:#f0fdf4;border:3px solid #16a34a;color:#14532d;border-radius:12px;cursor:pointer" onclick="selectRtGate('general')">🛍️ 一般<br><span style="font-size:12px;font-weight:600">定価のみ</span></button>
-      <button style="padding:24px 10px;font-size:17px;font-weight:800;background:#fffbeb;border:3px solid #f59e0b;color:#78350f;border-radius:12px;cursor:pointer" onclick="goToSpecialFromGate()">💛 特価<br><span style="font-size:12px;font-weight:600">イレギュラー特価</span></button>
+  <!-- 区分ゲート（6択）：最初に必ず確認 -->
+  <div class="card" id="q-rt-gate-card" style="border:2px solid #d5cfc3">
+    <div class="sec" style="margin-top:0;font-size:16px">まず確認：どの入口から見積もりを作りますか？</div>
+    <div class="gate-section-label">■ 決まった価格帯を「まるごと」出す</div>
+    <div class="gate-grid">
+      <button class="gate-btn" style="background:#fee2e2;border:3px solid #dc2626;color:#7f1d1d" onclick="selectRtGate('rt')">🏨 RT<span>ホテル・レストラン</span></button>
+      <button class="gate-btn" style="background:#dbeafe;border:3px solid #185fa5;color:#1e3a8a" onclick="selectRtGate('wholesale')">🏢 卸し<span>卸①・卸② まるごと</span></button>
+      <button class="gate-btn" style="background:#dcfce7;border:3px solid #16a34a;color:#14532d" onclick="selectRtGate('general')">🛍️ 一般<span>定価のみ</span></button>
+    </div>
+    <div class="gate-section-label">■ まるごと出してから「見せたくないものを引く」</div>
+    <div class="gate-grid" style="grid-template-columns:1fr 1fr">
+      <button class="gate-btn" style="background:#eff6ff;border:3px solid #185fa5;color:#1e3a8a" onclick="selectRtGate('partialWholesale')">🏢 一部卸し<span>卸①②から引き算</span></button>
+      <button class="gate-btn" style="background:#f0fdf4;border:3px solid #16a34a;color:#14532d" onclick="selectRtGate('partialGeneral')">🛍️ 一部一般<span>定価から引き算</span></button>
+    </div>
+    <div class="gate-section-label">■ その場限りの特別価格</div>
+    <div class="gate-grid" style="grid-template-columns:1fr">
+      <button class="gate-btn" style="background:#fffbeb;border:3px solid #f59e0b;color:#78350f" onclick="goToSpecialFromGate()">💛 特価<span>イレギュラー特価</span></button>
     </div>
     <div id="q-rt-gate-confirm"></div>
   </div>
@@ -313,9 +343,12 @@ th.center,td.center{text-align:center}
           <option value="">お客様を選択...</option>
         </select>
       </div>
-      <div id="q-general-skip-wrap" style="display:none;margin-top:8px">
-        <button class="btn-sm" onclick="skipCustomerForGeneral()">お客様登録なしで、この場で簡易価格表だけ作る</button>
-        <div style="font-size:11px;color:#57534e;margin-top:4px">※一般のお客様は登録が任意です。配布用の価格表だけ欲しい場合はこちらをどうぞ。</div>
+      <div id="q-general-skip-wrap" style="display:none;margin-top:4px;margin-bottom:10px">
+        <div class="info-box" style="background:#f0fdf4;border-color:#16a34a;color:#14532d;margin-bottom:8px">🛍️ 一般のお客様は、次のどちらでも作れます。</div>
+        <div class="g2">
+          <button class="btn btn-green" style="padding:14px;font-size:14px;font-weight:700" onclick="skipCustomerForGeneral()">お客様登録なしで<br>固定価格表を作る</button>
+          <button class="btn btn-primary" style="padding:14px;font-size:14px;font-weight:700" onclick="focusCustomerForGeneral()">お客様を登録して<br>見積もりを作る</button>
+        </div>
       </div>
       <button class="btn-sm" onclick="toggleNewCustomerForm()" id="new-cust-toggle-btn">＋ まだ登録されていないお客様を追加する</button>
       <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
@@ -345,11 +378,6 @@ th.center,td.center{text-align:center}
       <div id="q-customer-info"></div>
     </div>
 
-    <div class="card" id="q-type-card" style="display:none">
-      <div class="card-step-label">② 区分（価格帯）　<span class="no-print" style="font-size:10px;font-weight:400;color:#9ca3af">※この色分けは社内確認用で、お客様の見積書には表示されません</span></div>
-      <div id="q-type-display"></div>
-    </div>
-
     <div class="card" id="q-past-quote-card" style="display:none;background:#fffbeb;border-color:#f59e0b">
       <div class="sec" style="margin-top:0;color:#78350f">💡 このお客様の過去の見積・価格表</div>
       <div class="info-box" style="background:#fef3c7;border-color:#fbbf24;color:#78350f">前回と同じ内容で始めると、お客様が「あれ？前回と違う」となるのを防げます。「この内容で始める」を押すと、担当者名・備考・商品と数量が復元されます（単価は今の価格マスタで計算し直されます）。</div>
@@ -357,22 +385,17 @@ th.center,td.center{text-align:center}
     </div>
 
     <div class="card" id="q-whitelist-card" style="display:none">
-      <div class="card-step-label">③ 商品を選ぶ</div>
-      <div class="sec" style="margin-top:0">このお客様に表示する商品</div>
-      <div class="info-box">「非表示」にチェックを入れた商品は、行がグレーになり、価格表・見積書には載りません。<strong>備品（紙袋・空瓶など）以外は最初は全部表示</strong>されています。見せたくない商品だけ「非表示」にチェックし、必要な備品はチェックを外してください。</div>
+      <div class="card-step-label">③ 見せたくない商品を外す（まるごと出す → 引き算）</div>
+      <div class="sec" style="margin-top:0">この見積もりに載せる商品</div>
+      <div class="info-box">最初は<strong>ぜんぶ「載せる」状態</strong>です。見せたくない商品だけチェックを外してください。<br>・<strong>商品名の左のチェック</strong>を外す＝その商品を<strong>全サイズまとめて</strong>消す（例：トルコ産を見せたくない → トルコ産のチェックを全部外す）<br>・<strong>サイズごとのチェック</strong>を外す＝そのサイズだけ消す（例：750mlだけ隠したい）</div>
       <div id="q-whitelist-area"></div>
-      <button class="btn-sm" style="margin-top:8px" onclick="saveCustomerWhitelist()">この設定を保存</button>
-    </div>
-
-    <div class="card" id="q-doc-choice-card" style="display:none">
-      <div class="sec" style="margin-top:0">何を渡しますか？</div>
-      <button class="btn btn-primary" style="width:100%;padding:14px;font-size:14px;margin-bottom:8px" onclick="showPriceListForm()">📋 標準価格表を渡す（おすすめ・表示商品をまとめて）</button>
-      <button class="btn-sm" onclick="showIndividualQuoteForm()">📝 特定の商品・数量だけの見積書を作る（イレギュラー）</button>
+      <div style="margin-top:14px">この見積もりに載る商品：<span class="subtract-count" id="q-subtract-count">0<small> 件</small></span></div>
     </div>
 
     <!-- 標準価格表フォーム -->
     <div class="card" id="q-pricelist-form-card" style="display:none">
       <div class="sec" style="margin-top:0">📋 標準価格表を作成</div>
+      <div class="fg" id="pl-expiry-wrap"><label>有効期限 <span id="pl-expiry-req" style="color:#dc2626;display:none">（RTは必ずご記入ください）</span></label><input type="text" id="pl-expiry" placeholder="例：2026年9月9日 ／ 2026年8月末まで"></div>
       <div class="fg"><label>備考（お客様に見える）</label>
         <select id="pl-remarks-preset" onchange="onRemarksPresetChange('pl')">
           <option value="rt">RT定型文</option>
@@ -387,6 +410,7 @@ th.center,td.center{text-align:center}
       </div>
       <button class="btn btn-primary" id="pl-generate-btn" onclick="generatePriceListDoc()">価格表を作成する</button>
       <div id="pl-generate-warn" style="font-size:11px;color:#b45309;margin-top:4px"></div>
+      <div style="margin-top:10px"><a href="#" onclick="event.preventDefault();showIndividualQuoteForm()" style="font-size:12px;color:#185fa5;text-decoration:underline">特定の商品・数量だけの見積書（イレギュラー）を作る →</a></div>
     </div>
 
     <!-- 個別見積書フォーム（イレギュラー） -->
@@ -1225,13 +1249,20 @@ function resetRtGate(){
   document.getElementById('q-after-gate').style.display = 'none';
   document.getElementById('q-rt-gate-confirm').innerHTML = '';
   document.getElementById('q-rt-gate-banner').innerHTML = '';
+  window.quoteShownSkus = null;
+  window.generalNoCustomerMode = false;
   const searchEl = document.getElementById('q-customer-search'); if(searchEl) searchEl.value = '';
 }
 const GATE_LABELS = {
   rt: {label:'🏨 RT（ホテル・レストラン）', bg:'#fee2e2', border:'#dc2626', color:'#7f1d1d'},
   wholesale: {label:'🏢 卸し', bg:'#dbeafe', border:'#185fa5', color:'#1e3a8a'},
-  general: {label:'🛍️ 一般', bg:'#dcfce7', border:'#16a34a', color:'#14532d'}
+  partialWholesale: {label:'🏢 一部卸し', bg:'#eff6ff', border:'#185fa5', color:'#1e3a8a'},
+  general: {label:'🛍️ 一般', bg:'#dcfce7', border:'#16a34a', color:'#14532d'},
+  partialGeneral: {label:'🛍️ 一部一般', bg:'#f0fdf4', border:'#16a34a', color:'#14532d'}
 };
+// 入口タイプの分類：「まるごと出す」＝RT/卸し/一般、「まるごと出して引き算」＝一部卸し/一部一般
+function isWholeGate(g){ return g==='rt' || g==='wholesale' || g==='general'; }
+function isPartialGate(g){ return g==='partialWholesale' || g==='partialGeneral'; }
 function goToSpecialFromGate(){
   const specialBtn = Array.from(document.querySelectorAll('.tab-row .tab')).find(function(b){ return b.textContent.indexOf('イレギュラー特価')>=0; });
   if(specialBtn) showPanel('special', specialBtn);
@@ -1239,17 +1270,16 @@ function goToSpecialFromGate(){
 function skipCustomerForGeneral(){
   document.getElementById('q-customer').value = '';
   window.generalNoCustomerMode = true;
+  window.quoteShownSkus = null;
   const info = document.getElementById('q-customer-info');
-  info.innerHTML = '<div class="info-box" style="background:#f0fdf4;border-color:#16a34a;color:#14532d">🛍️ お客様登録なしで、この場で簡易価格表（定価のみ）を作成します。</div>';
-  document.getElementById('q-type-card').style.display = '';
-  document.getElementById('q-type-display').innerHTML = '<div class="info-box" style="margin-bottom:0">お客様登録なしの「定価のみ」表示です。</div>';
-  document.getElementById('q-whitelist-card').style.display = '';
-  document.getElementById('q-doc-choice-card').style.display = '';
-  document.getElementById('q-pricelist-form-card').style.display = 'none';
-  document.getElementById('q-items-card').style.display = 'none';
-  document.getElementById('q-generate-card').style.display = 'none';
-  renderWhitelistTable({type:'general', whitelist:null});
+  info.innerHTML = '<div class="info-box" style="background:#f0fdf4;border-color:#16a34a;color:#14532d">🛍️ お客様登録なしで、この場で固定価格表（定価のみ）を作成します。</div>';
+  document.getElementById('q-whitelist-card').style.display = 'none';
+  showPriceListForm();
   checkContactPersonReady();
+}
+function focusCustomerForGeneral(){
+  const sel = document.getElementById('q-customer');
+  if(sel){ try{ sel.focus(); }catch(e){} sel.scrollIntoView({behavior:'smooth', block:'center'}); }
 }
 function selectRtGate(gateType){
   const card = document.getElementById('q-rt-gate-card');
@@ -1272,6 +1302,7 @@ function confirmRtGate(gateType){
     + info.label+' として見積もりを作成します。（社内確認用の色分けです。お客様の見積書には表示されません）'
     + '<button class="btn-sm" style="margin-left:10px" onclick="resetRtGate()">最初からやり直す</button></div>';
   window.generalNoCustomerMode = false;
+  window.quoteShownSkus = null;
   document.getElementById('q-after-gate').style.display = '';
   document.getElementById('q-general-skip-wrap').style.display = (gateType==='general') ? '' : 'none';
   document.getElementById('nc-rt-hint').style.display = (gateType==='rt') ? '' : 'none';
@@ -1288,8 +1319,8 @@ function renderQuoteCustomerSelect(){
   const search = (document.getElementById('q-customer-search') ? document.getElementById('q-customer-search').value : '').toLowerCase();
   let filtered = customers.filter(function(c){
     if(gateType==='rt') return c.type==='rt';
-    if(gateType==='wholesale') return c.type==='wholesale1' || c.type==='wholesale2';
-    if(gateType==='general') return c.type==='general';
+    if(gateType==='wholesale' || gateType==='partialWholesale') return c.type==='wholesale1' || c.type==='wholesale2';
+    if(gateType==='general' || gateType==='partialGeneral') return c.type==='general';
     return true;
   });
   if(search){
@@ -1325,13 +1356,12 @@ function onQuoteCustomerChange(){
   const cid = document.getElementById('q-customer').value;
   const c = customers.find(x=>x.id===cid);
   window.generalNoCustomerMode = false;
+  window.quoteShownSkus = null;
   const info = document.getElementById('q-customer-info');
   if(!c){
     info.innerHTML = '';
-    document.getElementById('q-type-card').style.display = 'none';
     document.getElementById('q-past-quote-card').style.display = 'none';
     document.getElementById('q-whitelist-card').style.display = 'none';
-    document.getElementById('q-doc-choice-card').style.display = 'none';
     document.getElementById('q-pricelist-form-card').style.display = 'none';
     document.getElementById('q-items-card').style.display = 'none';
     document.getElementById('q-generate-card').style.display = 'none';
@@ -1340,14 +1370,20 @@ function onQuoteCustomerChange(){
   const badgeInfo = GATE_LABELS[c.type==='rt'?'rt':(c.type==='wholesale1'||c.type==='wholesale2'?'wholesale':'general')];
   const badge = '<span class="no-print" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px;background:'+badgeInfo.bg+';color:'+badgeInfo.color+';border:1px solid '+badgeInfo.border+'">'+badgeInfo.label+'（社内用）</span>';
   info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'+badge+'<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+'</div>';
-  document.getElementById('q-type-card').style.display = '';
-  document.getElementById('q-type-display').innerHTML = '<div class="info-box" style="margin-bottom:0"><strong>'+esc(c.name)+'</strong> は「<strong>'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'</strong>」区分です。この区分に応じた単価が自動で使われます。</div>';
-  document.getElementById('q-whitelist-card').style.display = '';
-  document.getElementById('q-doc-choice-card').style.display = '';
-  document.getElementById('q-pricelist-form-card').style.display = 'none';
-  document.getElementById('q-items-card').style.display = 'none';
-  document.getElementById('q-generate-card').style.display = 'none';
-  renderWhitelistTable(c);
+  // 既存のお客様は担当者名を自動表示（未入力のときだけ・そのまま編集も可）
+  const cpEl = document.getElementById('q-contact-person-shared');
+  if(cpEl && !cpEl.value && c.contactPerson){ cpEl.value = c.contactPerson; }
+  const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
+  if(isPartialGate(gateType)){
+    // 一部卸し・一部一般：案A（まるごと出す→引き算）マトリクスを表示
+    document.getElementById('q-whitelist-card').style.display = '';
+    renderSubtractMatrix(c);
+    showPriceListForm();
+  } else {
+    // RT・卸し・一般：まるごと出す。商品選択はスキップして直接 標準価格表フォームへ
+    document.getElementById('q-whitelist-card').style.display = 'none';
+    showPriceListForm();
+  }
   renderPastQuoteSuggestion(c);
   checkContactPersonReady();
 }
@@ -1511,6 +1547,15 @@ function showPriceListForm(){
   const preset = currentGateForPreset();
   document.getElementById('pl-remarks-preset').value = preset;
   onRemarksPresetChange('pl');
+  // 有効期限：初期値（発行日＋2ヶ月）を入れておく。RTは必須の目印を表示。
+  const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
+  const expEl = document.getElementById('pl-expiry');
+  if(expEl && !expEl.value){
+    const t = new Date(); const e = new Date(t); e.setMonth(e.getMonth()+2);
+    expEl.value = e.getFullYear()+'年'+(e.getMonth()+1)+'月'+e.getDate()+'日';
+  }
+  const reqEl = document.getElementById('pl-expiry-req');
+  if(reqEl) reqEl.style.display = (gateType==='rt') ? '' : 'none';
   checkContactPersonReady();
 }
 function showIndividualQuoteForm(){
@@ -1527,6 +1572,86 @@ function showIndividualQuoteForm(){
   document.getElementById('q-remarks-preset').value = preset;
   onRemarksPresetChange('q');
   checkContactPersonReady();
+}
+// ── 案A：まるごと出す→引き算（一部卸し・一部一般の商品マトリクス） ────────────
+// window.quoteShownSkus に「この見積もりに載せるSKU」の配列を保持。
+// generatePriceListDoc がこれを参照して、載せる商品を絞り込む（お客様マスタには保存しない）。
+function subtractLineKey(p){
+  return NAME_OVERRIDE[p.sku] || (p.name.replace(/\s*\d+\s*(ml|L)\b.*$/i, '').trim()) || p.name;
+}
+function subtractSizeLabel(p){
+  const m = p.name.match(/\d+\s*(ml|L)/i);
+  if(m) return m[0].replace(/\s+/g,'');
+  return CAPACITY_OVERRIDE[p.sku] || p.name;
+}
+function renderSubtractMatrix(c){
+  const allowed = quoteAllowedProducts(c);
+  // 初期状態：既定（備品グループを除いた全部）を「載せる」にする
+  if(!Array.isArray(window.quoteShownSkus)){
+    window.quoteShownSkus = effectiveWhitelistSkus(c, allowed).slice();
+  }
+  // オイル系グループはサイズ横並びのマトリクス、それ以外は1商品1行の別枠
+  const oilRows = {}; const oilOrder = [];
+  const others = [];
+  allowed.forEach(function(p){
+    if(Object.prototype.hasOwnProperty.call(GROUP_ORIGIN, p.group)){
+      const key = p.group + '｜' + subtractLineKey(p);
+      if(!oilRows[key]){ oilRows[key] = {group:p.group, line:subtractLineKey(p), items:[]}; oilOrder.push(key); }
+      oilRows[key].items.push(p);
+    } else {
+      others.push(p);
+    }
+  });
+  const shown = new Set(window.quoteShownSkus);
+  let html = '';
+  html += '<table class="smx-table"><thead><tr><th style="text-align:left">商品（左のチェックを外すと全サイズ消えます）</th><th>サイズごとに載せる／外す</th></tr></thead><tbody>';
+  oilOrder.forEach(function(key){
+    const row = oilRows[key];
+    const anyShown = row.items.some(function(p){ return shown.has(p.sku); });
+    html += '<tr'+(anyShown?'':' class="smx-row-off"')+'>';
+    html += '<td class="smx-line-cell"><label><input type="checkbox" class="smx-master-chk" '+(anyShown?'checked':'')+' onchange="onSubtractMaster(this)" data-line-skus="'+row.items.map(function(p){return p.sku;}).join(',')+'">'+esc(row.line)+' <span style="font-size:10px;color:#8a6d3f;font-weight:600">'+esc(row.group)+'</span></label></td>';
+    html += '<td><div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:flex-start">';
+    row.items.forEach(function(p){
+      const on = shown.has(p.sku);
+      html += '<label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer">'
+        + '<input type="checkbox" class="smx-size-chk" '+(on?'checked':'')+' '+(anyShown?'':'disabled')+' onchange="onSubtractSize(this)" data-sku="'+p.sku+'">'
+        + '<span class="smx-size-label">'+esc(subtractSizeLabel(p))+'</span></label>';
+    });
+    html += '</div></td></tr>';
+  });
+  html += '</tbody></table>';
+  if(others.length){
+    html += '<div style="margin-top:14px;font-weight:700;font-size:13px">その他（サイズ展開のない商品：カップオイル・ギフト・備品など）</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;margin-top:5px">';
+    others.forEach(function(p){
+      const on = shown.has(p.sku);
+      html += '<label class="smx-other-item'+(on?'':' smx-other-off')+'"><input type="checkbox" '+(on?'checked':'')+' onchange="onSubtractSize(this)" data-sku="'+p.sku+'"><span>'+esc(p.name)+'</span></label>';
+    });
+    html += '</div>';
+  }
+  document.getElementById('q-whitelist-area').innerHTML = html;
+  updateSubtractCount();
+}
+function onSubtractMaster(cb){
+  const skus = (cb.getAttribute('data-line-skus')||'').split(',').filter(Boolean);
+  const shown = new Set(window.quoteShownSkus||[]);
+  if(cb.checked){ skus.forEach(function(s){ shown.add(s); }); }
+  else { skus.forEach(function(s){ shown.delete(s); }); }
+  window.quoteShownSkus = Array.from(shown);
+  const c = customers.find(function(x){ return x.id===document.getElementById('q-customer').value; });
+  if(c) renderSubtractMatrix(c);
+}
+function onSubtractSize(cb){
+  const sku = cb.getAttribute('data-sku');
+  const shown = new Set(window.quoteShownSkus||[]);
+  if(cb.checked) shown.add(sku); else shown.delete(sku);
+  window.quoteShownSkus = Array.from(shown);
+  const c = customers.find(function(x){ return x.id===document.getElementById('q-customer').value; });
+  if(c) renderSubtractMatrix(c);
+}
+function updateSubtractCount(){
+  const el = document.getElementById('q-subtract-count');
+  if(el) el.innerHTML = (window.quoteShownSkus||[]).length + '<small> 件</small>';
 }
 // ── 見積・価格表に載せる項目チェックボックス ────────────────────────────────
 // お客様に対して現在選べる商品一覧（ホワイトリスト適用後）を返す共通ヘルパー
@@ -1915,11 +2040,24 @@ function generatePriceListDoc(){
   const fieldsConfig = getQuoteFieldsConfig('pl-fields-checkboxes');
   saveQuoteFieldsPreference(c.id, fieldsConfig.selectedFields);
   const allowed = quoteAllowedProducts(c);
-  const effOn = effectiveWhitelistSkus(c, allowed);
-  const list = allowed.filter(p=>effOn.indexOf(p.sku)>=0);
+  let list;
+  if(Array.isArray(window.quoteShownSkus)){
+    const shownSet = new Set(window.quoteShownSkus);
+    list = allowed.filter(function(p){ return shownSet.has(p.sku); });
+  } else {
+    const effOn = effectiveWhitelistSkus(c, allowed);
+    list = allowed.filter(function(p){ return effOn.indexOf(p.sku)>=0; });
+  }
+  if(!list.length){ alert('この見積もりに載る商品が1つもありません。商品のチェックをご確認ください。'); return; }
   const today = new Date();
-  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
-  const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  // 有効期限：フォームの入力を優先（RTは必須）。空なら発行日＋2ヶ月。
+  const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
+  let expiryStr = (document.getElementById('pl-expiry') && document.getElementById('pl-expiry').value.trim()) || '';
+  if(!expiryStr){
+    if(gateType==='rt'){ alert('RTの見積もりは、有効期限を必ずご記入ください。'); return; }
+    const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
+    expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  }
   const record = {
     id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
     contactPerson: contactPerson,
