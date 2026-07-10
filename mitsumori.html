@@ -177,6 +177,29 @@ th.center,td.center{text-align:center}
 .smx-table{width:100%;border-collapse:collapse;font-size:13px}
 .smx-table th{background:#f3f1ea;font-size:12px;font-weight:700;padding:6px 8px;border:1px solid #d5cfc3}
 .smx-table td{border:1px solid #e8e2d8;padding:8px;vertical-align:middle}
+.hcal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.hcal-nav-btn{background:#f3f1ea;border:1px solid #e0d9cc;border-radius:8px;font-size:20px;font-weight:700;color:#55622e;width:40px;height:40px;cursor:pointer;line-height:1}
+.hcal-month{font-size:18px;font-weight:700;color:#2b2a26}
+.hcal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px;font-weight:700;color:#57534e;margin-bottom:4px}
+.hcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.hcal-cell{min-height:46px;border-radius:7px;padding:5px 0 4px;background:#fff;border:1px solid #efeae0}
+.hcal-num{font-size:16px;font-weight:700;color:#2b2a26}
+.hcal-tag{font-size:9.5px;line-height:1.15;margin-top:1px}
+.hcal-closed{background:#f1efe8}
+.hcal-closed .hcal-num{color:#9a958a}
+.hcal-hol{background:#fcebeb}
+.hcal-hol .hcal-num,.hcal-hol .hcal-tag{color:#a32d2d}
+.hcal-sp{background:#faeeda}
+.hcal-sp .hcal-num,.hcal-sp .hcal-tag{color:#7a5b1a}
+.hcal-today{outline:2px solid #6b7a3a;outline-offset:-2px}
+.hcal-legend{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;margin-top:12px}
+.hcal-legend span{padding:3px 8px;border-radius:6px}
+.hsp-row{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;border-radius:8px;margin-bottom:8px;background:#faeeda}
+.hsp-name{font-size:15px;font-weight:700;color:#2b2a26}
+.hsp-range{font-size:14px;color:#7a5b1a;margin-left:10px}
+.hsp-actions{display:flex;gap:4px}
+.hsp-iconbtn{background:transparent;border:none;font-size:19px;cursor:pointer;color:#8a6d2e;padding:2px 6px}
+.hf-num{width:72px;padding:7px;border:1px solid #d5cfc3;border-radius:6px;font-size:15px;text-align:center}
 .smx-line-cell{text-align:left;font-weight:700;font-size:15px;white-space:nowrap}
 .smx-line-cell label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .smx-master-chk{width:24px;height:24px;cursor:pointer;flex:none}
@@ -216,6 +239,7 @@ th.center,td.center{text-align:center}
 <div class="tab-row">
   <button class="tab active" onclick="showPanel('quote',this)">見積もり作成</button>
   <button class="tab" onclick="showPanel('special',this)">イレギュラー特価</button>
+  <button class="tab" onclick="showPanel('holiday',this)">🗓️ お休みカレンダー</button>
 </div>
 
 <!-- 請求一覧（個別） -->
@@ -535,6 +559,54 @@ th.center,td.center{text-align:center}
         <span style="color:#b45309">※上記②③（バラ出荷手数料・ギフト手数料）は、まだアプリの計算には反映されていません。次回実装予定です。</span>
       </div>
     </details>
+  </div>
+</div>
+
+<!-- お休みカレンダー -->
+<div id="panel-holiday" class="panel">
+  <div class="info-box">
+    ここが<strong>全アプリのお休みの大もと</strong>です。定休日（水・土・日）と祝日はアプリが自動で判定します。夏休みなどの<strong>特別なお休みだけ、下で足したり直したり</strong>してください。ここを直せば、倉庫やお客様ページに出る「発送の目安日」も自動でそろいます。
+  </div>
+
+  <div class="card">
+    <div class="sec">📅 発送の目安（今日を起点に自動で計算）</div>
+    <div class="stats" id="hcal-preview"></div>
+    <div style="font-size:12px;color:#8a8578;margin-top:8px">※「営業日」は<strong>翌営業日から</strong>数えます（例：金曜に受注 → 土日・定休をとばして月曜が1営業日目）。定休・祝日・特別なお休みは、すべて数に入れません。</div>
+  </div>
+
+  <div class="card">
+    <div class="sec">🗓️ お休みカレンダー</div>
+    <div class="hcal-head">
+      <button class="hcal-nav-btn" onclick="hcalPrevMonth()" aria-label="前の月">‹</button>
+      <div class="hcal-month" id="hcal-month-label"></div>
+      <button class="hcal-nav-btn" onclick="hcalNextMonth()" aria-label="次の月">›</button>
+    </div>
+    <div class="hcal-dow"><div style="color:#c0392b">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color:#2c7a4b">土</div></div>
+    <div class="hcal-grid" id="hcal-grid"></div>
+    <div class="hcal-legend">
+      <span style="background:#f1efe8;color:#6b665c">定休（水・土・日）</span>
+      <span style="background:#fcebeb;color:#a32d2d">祝日</span>
+      <span style="background:#faeeda;color:#7a5b1a">特別休業</span>
+      <span style="border:2px solid #6b7a3a;color:#4a5a24">今日</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec">✏️ 特別なお休み（毎年くり返します）</div>
+    <div id="hcal-splist"></div>
+    <div id="hcal-form" style="display:none;background:#f9f8f5;border:1px solid #e8e2d8;border-radius:8px;padding:12px;margin:10px 0">
+      <div class="fg"><label>お休みの名前</label><input type="text" id="hf-name" placeholder="例：夏休み" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:14px"></div>
+      <div class="g2" style="margin-top:8px">
+        <div class="fg"><label>開始日</label><div style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="number" id="hf-smm" min="1" max="12" class="hf-num">月<input type="number" id="hf-sdd" min="1" max="31" class="hf-num">日</div></div>
+        <div class="fg"><label>終了日</label><div style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="number" id="hf-emm" min="1" max="12" class="hf-num">月<input type="number" id="hf-edd" min="1" max="31" class="hf-num">日</div></div>
+      </div>
+      <div style="font-size:11.5px;color:#8a8578;margin-top:6px">※ 年末年始のように年をまたぐ時は、開始「12 月 28 日」・終了「1 月 4 日」のように入れてください。</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn-sm" onclick="closeHolidayForm()">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveHolidayForm()">この内容で保存する</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="hcal-add-btn" onclick="openHolidayForm(null)" style="margin-top:6px">＋ お休みを追加</button>
   </div>
 </div>
 
@@ -868,6 +940,7 @@ function showPanel(name, btn){
   if(name==='monthly') renderMonthlyList();
   if(name==='quote'){ resetRtGate(); renderQuoteCustomerSelect(); renderQuoteHistory(); }
   if(name==='special'){ fillSpecialPriceSelects(); renderSpecialTable(); renderSpecialSummary(); renderSpecialPriceList(); }
+  if(name==='holiday'){ renderHolidayPanel(); }
 }
 
 function loadAllBilling(){
@@ -3315,6 +3388,236 @@ async function saveAllBilling(){
     else { showSyncStatus('⚠️ 保存に失敗しました', true); }
   }catch(err){ showSyncStatus('⚠️ 通信エラーが発生しました', true); }
 }
+/* ===================== お休みカレンダー / 営業日エンジン ===================== */
+/* このカレンダーが全アプリの「お休み」の唯一のもと。倉庫Dなどは、ここで計算した結果だけを表示する（日付をハードコードしない）。 */
+
+var specialHolidays = [];      // {id, name, sMM, sDD, eMM, eDD} 毎年くり返す特別休業
+var holidaysLoaded = false;
+var hcalYear = null, hcalMonth = null;
+var editingHolidayId = null;
+var _holCache = {};
+
+function hpad2(n){ return (n<10?'0':'')+n; }
+function hdkey(d){ return d.getFullYear()+'-'+hpad2(d.getMonth()+1)+'-'+hpad2(d.getDate()); }
+function hNthMon(y,m,n){ var d=new Date(y,m-1,1); var off=(8-d.getDay())%7; return 1+off+(n-1)*7; }
+function hParseKey(k){ var p=k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+
+function defaultSpecialHolidays(){
+  return [
+    { id:'sh_natsu',    name:'夏休み',   sMM:8,  sDD:11, eMM:8, eDD:17 },
+    { id:'sh_nenmatsu', name:'年末年始', sMM:12, sDD:28, eMM:1, eDD:4  }
+  ];
+}
+function normalizeHoliday(s){
+  return {
+    id: s.id || ('sh_'+Math.random().toString(36).slice(2)),
+    name: s.name || 'お休み',
+    sMM: parseInt(s.sMM,10)||1, sDD: parseInt(s.sDD,10)||1,
+    eMM: parseInt(s.eMM,10)||1, eDD: parseInt(s.eDD,10)||1
+  };
+}
+
+/* 日本の祝日（固定・ハッピーマンデー・春分秋分・振替休日・国民の休日）を自動で判定 */
+function jpHolidaySet(year){
+  if(_holCache[year]) return _holCache[year];
+  var s = {};
+  function put(m,d,name){ if(d>=1) s[year+'-'+hpad2(m)+'-'+hpad2(d)] = name; }
+  put(1,1,'元日'); put(2,11,'建国記念日'); put(2,23,'天皇誕生日');
+  put(4,29,'昭和の日'); put(5,3,'憲法記念日'); put(5,4,'みどりの日'); put(5,5,'こどもの日');
+  put(8,11,'山の日'); put(11,3,'文化の日'); put(11,23,'勤労感謝');
+  put(1, hNthMon(year,1,2),'成人の日');
+  put(7, hNthMon(year,7,3),'海の日');
+  put(9, hNthMon(year,9,3),'敬老の日');
+  put(10, hNthMon(year,10,2),'スポーツ');
+  put(3, Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4)),'春分の日');
+  put(9, Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4)),'秋分の日');
+  // 振替休日：祝日が日曜のとき、次の平日を休みにする
+  var subs = {};
+  for(var k in s){
+    var dt = hParseKey(k);
+    if(dt.getDay()===0){
+      var nx = new Date(dt);
+      do { nx.setDate(nx.getDate()+1); } while(s[hdkey(nx)] || subs[hdkey(nx)]);
+      subs[hdkey(nx)] = '振替休日';
+    }
+  }
+  for(var ks in subs){ s[ks] = subs[ks]; }
+  // 国民の休日：前後を祝日にはさまれた平日
+  var nat = {};
+  for(var mo=0; mo<12; mo++){
+    var dim = new Date(year, mo+1, 0).getDate();
+    for(var dd=1; dd<=dim; dd++){
+      var cur = new Date(year, mo, dd);
+      if(s[hdkey(cur)] || cur.getDay()===0) continue;
+      var pv = new Date(cur); pv.setDate(pv.getDate()-1);
+      var nt = new Date(cur); nt.setDate(nt.getDate()+1);
+      if(s[hdkey(pv)] && s[hdkey(nt)]) nat[hdkey(cur)] = '国民の休日';
+    }
+  }
+  for(var kn in nat){ s[kn] = nat[kn]; }
+  _holCache[year] = s;
+  return s;
+}
+function jpHolidayName(d){ return jpHolidaySet(d.getFullYear())[hdkey(d)] || ''; }
+function isJpHoliday(d){ return !!jpHolidaySet(d.getFullYear())[hdkey(d)]; }
+
+function inHolidayRange(mm,dd,sM,sD,eM,eD){
+  var v = mm*100+dd, a = sM*100+sD, b = eM*100+eD;
+  return (a<=b) ? (v>=a && v<=b) : (v>=a || v<=b); // a>b は年をまたぐ（例：12/28〜1/4）
+}
+function isSpecialHoliday(d){
+  var mm = d.getMonth()+1, dd = d.getDate();
+  for(var i=0;i<specialHolidays.length;i++){
+    var s = specialHolidays[i];
+    if(inHolidayRange(mm,dd,s.sMM,s.sDD,s.eMM,s.eDD)) return true;
+  }
+  return false;
+}
+/* 休業日＝定休（水・土・日）＋祝日＋特別休業 */
+function isClosedDay(d){
+  var wd = d.getDay();
+  if(wd===0 || wd===3 || wd===6) return true;   // 日・水・土
+  if(isJpHoliday(d)) return true;
+  if(isSpecialHoliday(d)) return true;
+  return false;
+}
+/* 翌営業日から数えて n 営業日目を返す（起点日は含めない） */
+function addBusinessDays(from, n){
+  var d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  var c = 0;
+  while(c < n){ d.setDate(d.getDate()+1); if(!isClosedDay(d)) c++; }
+  return d;
+}
+function hFmtMD(d){ return (d.getMonth()+1)+'/'+d.getDate()+'（'+['日','月','火','水','木','金','土'][d.getDay()]+'）'; }
+
+/* ---- 読み込み・保存（GAS優先／端末キャッシュで消えない）---- */
+async function loadHolidays(){
+  try{
+    var res = await fetch(GAS_URL + '?action=loadHolidays');
+    var data = await res.json();
+    if(data && data.status==='ok' && Array.isArray(data.holidays) && data.holidays.length){
+      specialHolidays = data.holidays.map(normalizeHoliday); holidaysLoaded = true; return;
+    }
+  }catch(e){}
+  try{
+    var ls = localStorage.getItem('oos_holidays_v1');
+    if(ls){ var arr = JSON.parse(ls); if(Array.isArray(arr) && arr.length){ specialHolidays = arr.map(normalizeHoliday); holidaysLoaded = true; return; } }
+  }catch(e){}
+  specialHolidays = defaultSpecialHolidays();
+  holidaysLoaded = true;
+}
+async function saveHolidays(){
+  try{ localStorage.setItem('oos_holidays_v1', JSON.stringify(specialHolidays)); }catch(e){}
+  showSyncStatus('保存しています...');
+  try{
+    var res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveHolidays', holidays: specialHolidays }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    var data = await res.json();
+    if(data && data.status==='ok'){ showSyncStatus('✅ お休みを保存しました'); }
+    else { showSyncStatus('この画面には保存しました（全アプリ共有は次の準備待ち）'); }
+  }catch(e){ showSyncStatus('この画面には保存しました（全アプリ共有は次の準備待ち）'); }
+}
+
+/* ---- 描画 ---- */
+async function renderHolidayPanel(){
+  if(!holidaysLoaded){ await loadHolidays(); }
+  if(hcalYear===null){ var now=new Date(); hcalYear=now.getFullYear(); hcalMonth=now.getMonth(); }
+  renderBusinessPreview();
+  renderCalendar();
+  renderSpecialList();
+}
+function renderBusinessPreview(){
+  var el = document.getElementById('hcal-preview'); if(!el) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var normal  = addBusinessDays(today, 6);
+  var rush    = addBusinessDays(today, 1);
+  var deliver = addBusinessDays(today, 10);
+  function stat(label,val){ return '<div class="stat"><div class="stat-label">'+label+'</div><div class="stat-val">'+val+'</div></div>'; }
+  el.innerHTML = stat('通常発送（6営業日以内）','〜 '+hFmtMD(normal)) +
+                 stat('急ぎ（翌営業日）', hFmtMD(rush)) +
+                 stat('お届け日指定（10営業日〜）', hFmtMD(deliver)+' 〜');
+}
+function renderCalendar(){
+  var grid = document.getElementById('hcal-grid'); var lbl = document.getElementById('hcal-month-label');
+  if(!grid || !lbl) return;
+  lbl.textContent = hcalYear + '年 ' + (hcalMonth+1) + '月';
+  var startDow = new Date(hcalYear, hcalMonth, 1).getDay();
+  var daysInMonth = new Date(hcalYear, hcalMonth+1, 0).getDate();
+  var todayKey = hdkey(new Date());
+  var h = '';
+  for(var b=0; b<startDow; b++) h += '<div></div>';
+  for(var d=1; d<=daysInMonth; d++){
+    var date = new Date(hcalYear, hcalMonth, d);
+    var cls = 'hcal-cell', tag = '';
+    if(isSpecialHoliday(date)){ cls += ' hcal-sp'; tag = '特別休'; }
+    else { var hn = jpHolidayName(date); if(hn){ cls += ' hcal-hol'; tag = hn; } else if(isClosedDay(date)){ cls += ' hcal-closed'; } }
+    if(hdkey(date)===todayKey) cls += ' hcal-today';
+    h += '<div class="'+cls+'"><div class="hcal-num">'+d+'</div>'+(tag?'<div class="hcal-tag">'+tag+'</div>':'')+'</div>';
+  }
+  grid.innerHTML = h;
+}
+function renderSpecialList(){
+  var el = document.getElementById('hcal-splist'); if(!el) return;
+  if(!specialHolidays.length){ el.innerHTML = '<div style="font-size:13px;color:#8a8578;padding:6px 0">特別なお休みはまだありません。「＋ お休みを追加」から登録してください。</div>'; return; }
+  var h = '';
+  specialHolidays.forEach(function(s){
+    h += '<div class="hsp-row"><div><span class="hsp-name">'+esc(s.name)+'</span><span class="hsp-range">'+s.sMM+'/'+s.sDD+' 〜 '+s.eMM+'/'+s.eDD+'</span></div>'+
+         '<div class="hsp-actions"><button class="hsp-iconbtn" title="編集" onclick="openHolidayForm(\''+s.id+'\')">✎</button>'+
+         '<button class="hsp-iconbtn" title="削除" style="color:#c0392b" onclick="deleteHoliday(\''+s.id+'\')">🗑️</button></div></div>';
+  });
+  el.innerHTML = h;
+}
+
+/* ---- 月移動 ---- */
+function hcalPrevMonth(){ hcalMonth--; if(hcalMonth<0){ hcalMonth=11; hcalYear--; } renderCalendar(); }
+function hcalNextMonth(){ hcalMonth++; if(hcalMonth>11){ hcalMonth=0; hcalYear++; } renderCalendar(); }
+
+/* ---- 追加・編集・削除（1回で完結：変更したら即その場で保存）---- */
+function openHolidayForm(id){
+  editingHolidayId = id;
+  function set(i,v){ document.getElementById(i).value = (v===undefined||v===null)?'':v; }
+  if(id){ var s = specialHolidays.find(function(x){ return x.id===id; });
+    if(s){ set('hf-name',s.name); set('hf-smm',s.sMM); set('hf-sdd',s.sDD); set('hf-emm',s.eMM); set('hf-edd',s.eDD); } }
+  else { set('hf-name',''); set('hf-smm',''); set('hf-sdd',''); set('hf-emm',''); set('hf-edd',''); }
+  document.getElementById('hcal-form').style.display = 'block';
+  document.getElementById('hcal-add-btn').style.display = 'none';
+}
+function closeHolidayForm(){
+  document.getElementById('hcal-form').style.display = 'none';
+  document.getElementById('hcal-add-btn').style.display = 'inline-flex';
+  editingHolidayId = null;
+}
+function saveHolidayForm(){
+  function val(i){ return document.getElementById(i).value; }
+  var name = (val('hf-name')||'').trim();
+  var sMM = parseInt(val('hf-smm'),10), sDD = parseInt(val('hf-sdd'),10);
+  var eMM = parseInt(val('hf-emm'),10), eDD = parseInt(val('hf-edd'),10);
+  if(!name){ alert('お休みの名前を入れてください。'); return; }
+  if(!(sMM>=1&&sMM<=12 && sDD>=1&&sDD<=31 && eMM>=1&&eMM<=12 && eDD>=1&&eDD<=31)){
+    alert('開始日・終了日の「月（1〜12）」と「日（1〜31）」を正しく入れてください。'); return;
+  }
+  if(editingHolidayId){
+    var s = specialHolidays.find(function(x){ return x.id===editingHolidayId; });
+    if(s){ s.name=name; s.sMM=sMM; s.sDD=sDD; s.eMM=eMM; s.eDD=eDD; }
+  } else {
+    specialHolidays.push({ id:'sh_'+Date.now(), name:name, sMM:sMM, sDD:sDD, eMM:eMM, eDD:eDD });
+  }
+  closeHolidayForm();
+  renderSpecialList(); renderCalendar(); renderBusinessPreview();
+  saveHolidays();
+}
+function deleteHoliday(id){
+  var s = specialHolidays.find(function(x){ return x.id===id; });
+  if(!s) return;
+  if(!confirm('「'+s.name+'」を削除しますか？')) return;
+  specialHolidays = specialHolidays.filter(function(x){ return x.id!==id; });
+  renderSpecialList(); renderCalendar(); renderBusinessPreview();
+  saveHolidays();
+}
+/* ===================== /お休みカレンダー ===================== */
 </script>
 </body>
 </html>
