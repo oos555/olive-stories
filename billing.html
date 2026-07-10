@@ -856,9 +856,10 @@ function generateInvoiceDoc(orderId){
     const sku = findProduct(l.productId)?findProduct(l.productId).sku:'';
     const effType = effectiveCustomerType(o.customerType, l.boxes);
     const unitPrice = priceForSku(sku, effType);
+    const openPrice = priceForSku(sku, 'general');
     const tax = taxRateForSku(sku);
     const upgraded = effType!==o.customerType;
-    return { name: l.productName+(upgraded?'（数量割引適用）':''), qty: totalQty, unitPrice: unitPrice, amount: unitPrice*totalQty, taxRate: tax };
+    return { name: l.productName+(upgraded?'（数量割引適用）':''), qty: totalQty, openPrice: openPrice, unitPrice: unitPrice, amount: unitPrice*totalQty, taxRate: tax };
   });
   const doc = buildInvoiceDocHtml({
     clientName: o.client, clientZip: o.zip, clientAddr: o.addr,
@@ -911,14 +912,23 @@ function buildInvoiceDocHtml(inv){
   html += '</tr><tr>';
   html += '<td style="font-size:20px;font-weight:700">¥'+total.toLocaleString()+'</td>';
   html += '</tr></table></div>';
-  html += '<table class="invoice-doc-table"><thead><tr><th style="width:5%">No.</th><th>件名</th><th style="width:10%">数量</th><th style="width:15%">単価</th><th style="width:8%">税率</th><th style="width:15%">金額</th></tr></thead><tbody>';
-  html += '<tr><td>1</td><td>'+esc(inv.subject)+'</td><td style="text-align:right">1</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td><td style="text-align:center">-</td><td style="text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
-  let rowNum = 2;
+  html += '<table class="invoice-doc-table"><thead><tr><th style="width:5%">No.</th><th>商品名</th><th style="width:9%">数量</th><th style="width:16%">オープン価格</th><th style="width:16%">卸価格</th><th style="width:16%">金額</th></tr></thead><tbody>';
+  let rowNum = 1;
+  inv.items.forEach(function(it){
+    html += '<tr><td style="text-align:center">'+rowNum+'</td>'
+      +'<td>'+esc(it.name)+'</td>'
+      +'<td style="text-align:right">'+it.qty+'</td>'
+      +'<td style="text-align:right">¥'+Math.round(it.openPrice).toLocaleString()+'</td>'
+      +'<td style="text-align:right;font-weight:700;color:#185fa5">¥'+Math.round(it.unitPrice).toLocaleString()+'</td>'
+      +'<td style="text-align:right;font-weight:700">¥'+Math.round(it.amount).toLocaleString()+'</td></tr>';
+    rowNum++;
+  });
   if(inv.adjAmount){
-    html += '<tr><td>'+rowNum+'</td><td>'+esc(inv.adjLabel||'調整')+'</td><td style="text-align:right">1</td><td style="text-align:right">¥'+inv.adjAmount.toLocaleString()+'</td><td style="text-align:center">-</td><td style="text-align:right">¥'+inv.adjAmount.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="text-align:center">'+rowNum+'</td><td>'+esc(inv.adjLabel||'調整')+'</td><td style="text-align:right">1</td><td style="text-align:right">-</td><td style="text-align:right">-</td><td style="text-align:right;font-weight:700">¥'+inv.adjAmount.toLocaleString()+'</td></tr>';
     rowNum++;
   }
   html += '</tbody></table>';
+  html += '<div style="font-size:11px;color:#2b2a26;margin-top:5px">※「オープン価格」は販売最低価格の目安です。青字の卸価格でご提供しております。</div>';
   html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
   if(subtotalTax8){
     html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計（8%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
