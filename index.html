@@ -1593,6 +1593,10 @@ function registerOrder(){
     updCustomerSelects();
   }
   const recordType = list[0].status;
+  if(recordType==='pending'){
+    list.forEach(applyStockDeductOnSend);   // ★通常受注は登録＝出荷指示送信なので、この時点で在庫を減らす
+    saveStockToGAS();
+  }
   document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
@@ -1728,6 +1732,8 @@ function convertToShipping(id){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
   o.status = 'pending';
+  applyStockDeductOnSend(o);   // ★出荷指示を送った時点で在庫を減らす（案A）
+  saveStockToGAS();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS();
   gotoSlip(id);
@@ -1792,47 +1798,84 @@ function renderList(){
   }).join('');
 }
 
-// ── 在庫連動：出荷済みにした注文の分だけ在庫を自動で減らす ────────────────────
+// ── 在庫連動：出荷指示を送った注文の分だけ、正しい枠から自動で減らす ────────────
+// condition（正規=normal→最新ロット / 旧=old→旧ロット / 不良=defect→不良在庫）で分けて減らす。
+// 実際に減らした先と本数を o.stockLog に記録し、キャンセル・変更で正確に元へ戻せるようにする。
+function deductFromLots(pid, status, qty, log){
+  let remain = qty;
+  const matching = lots.filter(l=>l.pid==pid && l.status===status)
+    .sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
+  matching.forEach(function(l){
+    if(remain<=0) return;
+    const take = Math.min(l.stock||0, remain);
+    if(take<=0) return;
+    l.stock = (l.stock||0) - take;
+    log.push({ kind:'lot', id:l.id, qty:take });
+    remain -= take;
+  });
+}
+function deductFromDefects(pid, qty, log){
+  let remain = qty;
+  const matching = defects.filter(d=>d.pid==pid && d.status!=='resolved')
+    .sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
+  matching.forEach(function(d){
+    if(remain<=0) return;
+    const defectRemain = Math.max(0,(d.qty||0)-(d.shippedQty||0));
+    const take = Math.min(defectRemain, remain);
+    if(take<=0) return;
+    d.shippedQty = (d.shippedQty||0) + take;
+    d.processedAt = new Date().toISOString();
+    if(d.shippedQty >= d.qty) d.status = 'resolved';
+    log.push({ kind:'defect', id:d.id, qty:take });
+    remain -= take;
+  });
+}
 function deductStockForOrder(o){
-  const needed = {};
+  const log = [];
   (o.lines||[]).forEach(function(l){
     const p = findProduct(l.productId);
     if(!p) return;
     const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
-    if(p.isSet && p.components){
-      p.components.forEach(function(c){ needed[c.sku] = (needed[c.sku]||0) + totalQty*(c.qty||1); });
-    } else {
-      needed[p.sku] = (needed[p.sku]||0) + totalQty;
+    if(totalQty<=0) return;
+    const cond = l.condition || 'normal';
+    const targets = (p.isSet && p.components)
+      ? p.components.map(c=>({ sku:c.sku, qty: totalQty*(c.qty||1) }))
+      : [{ sku:p.sku, qty: totalQty }];
+    targets.forEach(function(t){
+      const prod = findProductBySku(t.sku);
+      if(!prod) return;
+      if(cond==='defect') deductFromDefects(prod.id, t.qty, log);
+      else deductFromLots(prod.id, cond==='old' ? 'old' : 'new', t.qty, log);
+    });
+  });
+  o.stockLog = log;
+}
+function restoreStockForOrder(o){
+  (o.stockLog||[]).forEach(function(e){
+    if(e.kind==='lot'){
+      const l = lots.find(x=>x.id===e.id);
+      if(l) l.stock = (l.stock||0) + e.qty;
+    } else if(e.kind==='defect'){
+      const d = defects.find(x=>x.id===e.id);
+      if(d){
+        d.shippedQty = Math.max(0, (d.shippedQty||0) - e.qty);
+        if(d.status==='resolved' && d.shippedQty < d.qty) d.status = 'pending';
+      }
     }
   });
-  const isDefectOrder = o.customerType === 'defectprice';
-  Object.keys(needed).forEach(function(sku){
-    let remain = needed[sku];
-    const prod = findProductBySku(sku);
-    if(!prod || remain<=0) return;
-    if(isDefectOrder){
-      const matchingDefects = defects.filter(d=>d.pid==prod.id && d.status!=='resolved').sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
-      matchingDefects.forEach(function(d){
-        if(remain<=0) return;
-        const defectRemain = Math.max(0,(d.qty||0)-(d.shippedQty||0));
-        const take = Math.min(defectRemain, remain);
-        if(take<=0) return;
-        d.shippedQty = (d.shippedQty||0) + take;
-        d.processedAt = new Date().toISOString();
-        if(d.shippedQty >= d.qty) d.status = 'resolved';
-        remain -= take;
-      });
-    } else {
-      const matching = lots.filter(l=>l.pid==prod.id && l.status==='new').sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
-      matching.forEach(function(l){
-        if(remain<=0) return;
-        const take = Math.min(l.stock||0, remain);
-        if(take<=0) return;
-        l.stock = (l.stock||0) - take;
-        remain -= take;
-      });
-    }
-  });
+  o.stockLog = [];
+}
+// 出荷指示を送った時に1回だけ減らす（すでに減らし済みなら何もしない＝二重減算防止）
+function applyStockDeductOnSend(o){
+  if(o.stockDeducted) return;
+  deductStockForOrder(o);
+  o.stockDeducted = true;
+}
+// キャンセル・取り下げで、減らした分を元に戻す
+function undoStockForOrder(o){
+  if(!o.stockDeducted) return;
+  restoreStockForOrder(o);
+  o.stockDeducted = false;
 }
 function withProductNameForLots(arr){
   return arr.map(function(l){ const p = findProduct(l.pid); return Object.assign({}, l, { productName: p?p.name:(l.productName||'') }); });
@@ -1858,14 +1901,8 @@ async function markShipped(id){
     if(data.status!=='ok'){ showSyncStatus('⚠️ 出荷済み処理に失敗しました：'+(data.message||''), true); return; }
     o.status = 'shipped';
     o.shippedAt = new Date().toISOString();
-    if(!data.alreadyShipped){
-      deductStockForOrder(o);
-      saveStockToGAS();
-      renderStockStrip();
-      showSyncStatus('✅ 出荷済みにしました：'+o.num+'（在庫も反映しました）');
-    } else {
-      showSyncStatus('✅ 出荷済みにしました：'+o.num+'（在庫はすでに反映済みでした）');
-    }
+    if(!o.stockDeducted){ applyStockDeductOnSend(o); saveStockToGAS(); }  // 念のため：未減算のまま出荷済みになる取りこぼしを防ぐ
+    showSyncStatus('✅ 出荷済みにしました：'+o.num);
     updateSummary(); renderList();
   }catch(err){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
@@ -1877,6 +1914,7 @@ function cancelOrder(id){
   if(!confirm(o.num+' をキャンセルしますか？')) return;
   o.status = 'cancelled';
   o.cancelledAt = new Date().toISOString();
+  if(o.stockDeducted){ undoStockForOrder(o); saveStockToGAS(); }  // ★減らしていた分を自動で在庫に戻す
   updateSummary(); renderList();
   syncOrdersToGAS();
   showSyncStatus('キャンセルしました：'+o.num);
@@ -2157,13 +2195,14 @@ function importCSV(){
       status: 'pending', source: 'stores', registeredAt: new Date().toISOString()
     };
     orders.push(o);
+    applyStockDeductOnSend(o);   // ★STORES取込＝支払済み・出荷指示なので在庫を減らす（正規のみ）
     imported++;
   });
   document.getElementById('csv-result').style.display = 'block';
   document.getElementById('csv-result').innerHTML = '<div class="alert-bar alert-info">✅ '+imported+'件を取り込みました（'+skipped+'件は重複のためスキップ）</div>';
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
-  if(imported) syncOrdersToGAS();
+  if(imported){ saveStockToGAS(); syncOrdersToGAS(); }
 }
 
 // ── 取込モード切替（STORES CSV / PDF）────────────────────────────
