@@ -392,6 +392,19 @@ body{background:#fff}
     <div class="card">
       <div class="sec">STORES 注文CSVを取り込む</div>
       <div class="info-box"><strong>手順：</strong>STORES管理画面 → 注文管理 → CSVダウンロード → ここにドロップ<br>同じSTORES注文番号は自動的にスキップされます（重複取込防止）。商品名が一致しない行は取込時に手動で紐付けできます。</div>
+      <div class="info-box" style="background:#f6f8f0;border-color:#c9d3b4">
+        <div style="font-weight:700;color:#4a5a24;margin-bottom:6px">📋 CSVのどの欄を、どこに使っているか（スタッフ用の早見表）</div>
+        <div style="font-size:12.5px;line-height:1.9;color:#3a382f">
+          ・オーダー番号 → 注文番号（重複チェック）<br>
+          ・氏＋名（配送先）→ お届け先のお名前<br>
+          ・郵便番号・都道府県＋住所・電話（配送先）→ お届け先の住所ほか<br>
+          ・アイテム名／個数 → 商品・本数<br>
+          ・<strong>ギフトラッピング → のし・ラッピングの指示</strong>（「のし」があれば🎀赤で強調）<br>
+          ・<strong>備考 → 倉庫への連絡としてそのまま表示</strong>（ゆかさんの倉庫あてメモ）<br>
+          ・お届け希望時間 → 配達時間指定<br>
+          ・メモ → <span style="color:#8a8578">取り込みません（社内記録のため）</span>
+        </div>
+      </div>
       <div style="border:2px dashed #d5cfc3;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#fafaf8"
         onclick="document.getElementById('csv-file').click()"
         ondragover="event.preventDefault();this.style.borderColor='#185fa5'"
@@ -1890,6 +1903,10 @@ function buildSlipHtml(o){
   const wasHeld = !!o.holdUntilDate, wasReserved = !!o.expectedDate;
   let html = '<div class="slip">';
   html += '<div class="slip-title">出荷指示書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#57534e;font-size:14px">（ギフトなし）</span>')+'</div>';
+  const _recip = (o.recipientName||o.client||'');
+  if(o.buyerName && _recip && o.buyerName !== _recip){
+    html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px"><div style="font-size:13.5px;font-weight:700;color:#8a5a1c">🎁 ギフト便（送り主とお届け先が別）</div><div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.7">送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong><br>お届け先 → <strong>'+esc(_recip)+' 様</strong> <span style="color:#9a7b3a;font-size:12px">（ご購入：'+esc(o.buyerName)+' 様）</span></div></div>';
+  }
   if(wasHeld) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗄 取り置き商品（期限：'+o.holdUntilDate+'）</span></div>';
   if(wasReserved) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗓 予約商品（予定：'+o.expectedDate+'）</span></div>';
   html += '<div class="slip-meta">';
@@ -1901,7 +1918,14 @@ function buildSlipHtml(o){
   html += '<div class="slip-meta-item"><div class="slip-meta-label">配達時間指定</div><div class="slip-meta-val">'+(o.delivTime||'指定なし')+'</div></div>';
   html += '</div>';
   if(o.useRecycle) html += '<div style="margin-bottom:10px"><span class="recycle-badge">♻ リサイクル箱を使用</span></div>';
-  if(o.note) html += '<div class="alert-bar alert-danger" style="'+(hasNoshiKeyword(o.note)?'font-weight:700;border-width:2px':'')+'">'+(hasNoshiKeyword(o.note)?'🎀のし指示あり：':'📝')+' '+o.note+'</div>';
+  if(o.giftWrap){
+    if(hasNoshiKeyword(o.giftWrap)) html += '<div class="alert-bar alert-danger" style="font-weight:700;border-width:2px">🎀 のし指示あり：'+esc(o.giftWrap)+' → 倉庫で熨斗を印刷して同梱してください</div>';
+    else html += '<div style="font-size:12.5px;color:#8a6d2e;margin-bottom:10px">🎁 ギフトラッピング：'+esc(o.giftWrap)+'</div>';
+  }
+  if(o.note){
+    if(hasNoshiKeyword(o.note)) html += '<div class="alert-bar alert-danger" style="font-weight:700;border-width:2px">🎀のし指示あり：'+esc(o.note)+'</div>';
+    else html += '<div style="background:#eef2e3;border-left:4px solid #6b7a3a;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:10px"><span style="font-size:12px;font-weight:700;color:#4a5a24">📝 倉庫への連絡</span><div style="font-size:13.5px;color:#3a382f;margin-top:2px">'+esc(o.note)+'</div></div>';
+  }
   if(o.noshi){
     const n = o.noshi;
     const sub = [n.position, n.company].filter(Boolean).join('　');
@@ -1992,27 +2016,61 @@ function parseCsvText(text){
   const lines = text.split(/\r\n|\n|\r/).filter(l=>l.trim());
   if(lines.length<2){ alert('CSVの内容を読み取れませんでした'); return; }
   const headers = parseCsvLine(lines[0]).map(h=>h.trim());
-  const idxOrderNum = headers.findIndex(h=>h.includes('注文番号'));
-  const idxName = headers.findIndex(h=>h.includes('氏名')||h.includes('お名前'));
-  const idxZip = headers.findIndex(h=>h.includes('郵便番号'));
-  const idxAddr = headers.findIndex(h=>h.includes('住所'));
-  const idxTel = headers.findIndex(h=>h.includes('電話'));
-  const idxProduct = headers.findIndex(h=>h.includes('商品名'));
-  const idxQty = headers.findIndex(h=>h.includes('数量'));
+  // STORESのCSV列を探す。実物の列名（オーダー番号/アイテム名/氏(配送先)…）を優先し、旧名にもフォールバック。
+  function findCol(cands){
+    for(let i=0;i<cands.length;i++){ const x=headers.findIndex(h=>h===cands[i]); if(x>=0) return x; }
+    for(let i=0;i<cands.length;i++){ const x=headers.findIndex(h=>h.indexOf(cands[i])>=0); if(x>=0) return x; }
+    return -1;
+  }
+  const idxOrderNum  = findCol(['オーダー番号','注文番号']);
+  const idxShipLast  = findCol(['氏(配送先)']);
+  const idxShipFirst = findCol(['名(配送先)']);
+  const idxNameOne   = findCol(['氏名','お名前']); // 旧形式フォールバック
+  const idxZip       = findCol(['郵便番号(配送先)','郵便番号']);
+  const idxPref      = findCol(['都道府県(配送先)']);
+  const idxAddr      = findCol(['住所(配送先)','住所']);
+  const idxTel       = findCol(['電話番号(配送先)','電話']);
+  const idxProduct   = findCol(['アイテム名','商品名']);
+  const idxQty       = findCol(['個数','数量']);
+  const idxWrap      = findCol(['ギフトラッピング']);
+  const idxBiko      = findCol(['備考']);
+  const idxBuyLast   = findCol(['氏(購入者)']);
+  const idxBuyFirst  = findCol(['名(購入者)']);
+  const idxEmail     = findCol(['メールアドレス']);
+  const idxHopeTime  = findCol(['お届け希望時間']);
+  const cell=(r,i)=> (i>=0 && i<r.length) ? (r[i]||'').trim() : '';
   const rows = lines.slice(1).map(l=>parseCsvLine(l));
   const grouped = {};
   rows.forEach(function(r){
-    const num = idxOrderNum>=0 ? r[idxOrderNum] : ('STORES-'+Math.random().toString(36).slice(2,8));
+    const num = idxOrderNum>=0 ? cell(r,idxOrderNum) : '';
+    if(!num) return; // オーダー番号のない行（空行・継続行）はスキップ
+    const shipName = (idxShipLast>=0||idxShipFirst>=0)
+      ? (cell(r,idxShipLast)+(cell(r,idxShipFirst)?' '+cell(r,idxShipFirst):'')).trim()
+      : cell(r,idxNameOne);
+    const fullAddr = (cell(r,idxPref)+cell(r,idxAddr)).trim();
+    const buyerName = (cell(r,idxBuyLast)+(cell(r,idxBuyFirst)?' '+cell(r,idxBuyFirst):'')).trim();
     if(!grouped[num]) grouped[num] = {
-      storesOrderNum: num, client: idxName>=0?r[idxName]:'', zip: idxZip>=0?r[idxZip]:'',
-      addr: idxAddr>=0?r[idxAddr]:'', tel: idxTel>=0?r[idxTel]:'', lines: []
+      storesOrderNum: num, client:'', zip:'', addr:'', tel:'',
+      giftWrap:'', biko:'', buyerName:'', buyerEmail:'', hopeTime:'', lines: []
     };
-    const productName = idxProduct>=0 ? r[idxProduct] : '';
-    const qty = idxQty>=0 ? (parseInt(r[idxQty])||1) : 1;
+    const G = grouped[num];
+    // 付帯情報は最初に見つかった値で埋める（空なら後の行で補完）
+    if(!G.client && shipName) G.client = shipName;
+    if(!G.zip && cell(r,idxZip)) G.zip = cell(r,idxZip);
+    if(!G.addr && fullAddr) G.addr = fullAddr;
+    if(!G.tel && cell(r,idxTel)) G.tel = cell(r,idxTel);
+    if(!G.giftWrap && cell(r,idxWrap)) G.giftWrap = cell(r,idxWrap);
+    if(!G.biko && cell(r,idxBiko)) G.biko = cell(r,idxBiko);
+    if(!G.buyerName && buyerName) G.buyerName = buyerName;
+    if(!G.buyerEmail && cell(r,idxEmail)) G.buyerEmail = cell(r,idxEmail);
+    if(!G.hopeTime && cell(r,idxHopeTime)) G.hopeTime = cell(r,idxHopeTime);
+    const productName = cell(r,idxProduct);
+    if(!productName) return; // 商品名の無い行は明細に足さない
+    const qty = idxQty>=0 ? (parseInt(cell(r,idxQty))||1) : 1;
     const matched = PRODUCTS.find(p=>productName && (productName.includes(p.name) || p.name.includes(productName)));
-    grouped[num].lines.push({ raw:productName, productId: matched?matched.id:'', productName: matched?matched.name:productName, boxQty: matched?(matched.boxQty||1):1, giftType:'normal', bottles:qty, boxes:0, memo:'' });
+    G.lines.push({ raw:productName, productId: matched?matched.id:'', productName: matched?matched.name:productName, boxQty: matched?(matched.boxQty||1):1, giftType:'normal', bottles:qty, boxes:0, memo:'' });
   });
-  csvParsedRows = Object.values(grouped);
+  csvParsedRows = Object.values(grouped).filter(g=>g.lines.length);
   renderCsvPreview();
 }
 function renderCsvPreview(){
@@ -2022,12 +2080,18 @@ function renderCsvPreview(){
   csvParsedRows.forEach(function(g, gi){
     const dup = existingNums.has(g.storesOrderNum);
     html += '<div class="order-card" style="'+(dup?'opacity:.5':'')+'">';
-    html += '<div class="oc-top"><div class="oc-name">'+(g.client||'（氏名なし）')+' <span class="oc-num">STORES #'+g.storesOrderNum+'</span></div>'+(dup?'<span class="order-status os-cancelled">取込済み・スキップ</span>':'')+'</div>';
+    html += '<div class="oc-top"><div class="oc-name">'+esc(g.client||'（氏名なし）')+' <span class="oc-num">STORES #'+g.storesOrderNum+'</span></div>'+(dup?'<span class="order-status os-cancelled">取込済み・スキップ</span>':'')+'</div>';
     html += g.lines.map(function(l,li){
       if(l.productId) return '・'+l.productName+' × '+l.bottles;
-      return '・<span style="color:#dc2626">'+l.raw+'（未マッチ）</span> × '+l.bottles+
+      return '・<span style="color:#dc2626">'+esc(l.raw)+'（未マッチ）</span> × '+l.bottles+
         ' <select onchange="csvParsedRows['+gi+'].lines['+li+'].productId=this.value;csvParsedRows['+gi+'].lines['+li+'].productName=this.options[this.selectedIndex].text" style="font-size:11px;padding:2px 4px">'+productOptionsHtml()+'</select>';
     }).join('<br>');
+    if(g.giftWrap){
+      if(hasNoshiKeyword(g.giftWrap)) html += '<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:8px;padding:6px 10px;font-size:12.5px;color:#a32d2d;font-weight:700">🎀 のし指示あり：'+esc(g.giftWrap)+'</div>';
+      else html += '<div style="margin-top:6px;font-size:12px;color:#8a6d2e">🎁 ギフトラッピング：'+esc(g.giftWrap)+'</div>';
+    }
+    if(g.biko) html += '<div style="margin-top:6px;background:#eef2e3;border-left:4px solid #6b7a3a;border-radius:0 8px 8px 0;padding:6px 10px;font-size:12.5px"><span style="font-weight:700;color:#4a5a24">📝 倉庫への連絡（備考）</span> '+esc(g.biko)+'</div>';
+    if(g.buyerName && g.client && g.buyerName!==g.client) html += '<div style="margin-top:6px;font-size:12px;color:#8a5a1c">🎁 ギフト便：ご購入 '+esc(g.buyerName)+' 様 → お届け '+esc(g.client)+' 様</div>';
     html += '</div>';
   });
   document.getElementById('csv-preview-content').innerHTML = html;
@@ -2046,12 +2110,15 @@ function importCSV(){
     if(existingNums.has(g.storesOrderNum)){ skipped++; return; }
     const validLines = g.lines.filter(l=>l.productId);
     if(!validLines.length) return;
+    const isGiftWrap = !!(g.giftWrap && g.giftWrap.trim());
+    if(isGiftWrap) validLines.forEach(function(l){ l.giftType='gift'; });
     const o = {
       id: generateOrderId(), num: 'OS-'+todayYmd()+'-'+String(orders.filter(x=>(x.num||'').indexOf('OS-'+todayYmd())===0).length+1).padStart(3,'0'),
       storesOrderNum: g.storesOrderNum,
       client: g.client, zip: g.zip, addr: g.addr, tel: g.tel,
+      buyerName: g.buyerName||'', buyerEmail: g.buyerEmail||'',
       customerType: 'general', useRecycle: false, isDefectSale:false,
-      leadType: 'normal', leadDate:'', delivTime:'', note:'',
+      leadType: 'normal', leadDate:'', delivTime: g.hopeTime||'', note: g.biko||'', giftWrap: g.giftWrap||'',
       senderName:'', senderTel:'', senderZip:'', senderAddr:'',
       lines: validLines,
       status: 'pending', source: 'stores', registeredAt: new Date().toISOString()
