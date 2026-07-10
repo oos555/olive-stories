@@ -11,7 +11,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:15px;-webkit-tap-highlight-color:transparent}
 .app{max-width:520px;margin:0 auto;padding:14px}
-.topbar{font-family:'Zen Maru Gothic','Hiragino Sans','Yu Gothic',sans-serif;background:#8c7a68;color:#fff;padding:12px 16px;border-radius:12px;margin-bottom:14px;text-align:center;font-weight:700;font-size:15px}
+.topbar{font-family:'Zen Maru Gothic','Hiragino Sans','Yu Gothic',sans-serif;background:#6b7a3a;color:#fff;padding:12px 16px;border-radius:12px;margin-bottom:14px;text-align:center;font-weight:700;font-size:15px}
 .card{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:16px;margin-bottom:14px}
 .center{text-align:center}
 .spinner{font-size:14px;color:#57534e;padding:40px 0;text-align:center}
@@ -37,6 +37,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .item .pname{font-weight:700;font-size:15px}
 .item .psub{font-size:12px;color:#2b2a26;margin-top:2px}
 .item .pmemo{font-size:12px;color:#dc2626;margin-top:2px}
+.pick-cb{width:46px;height:46px;flex-shrink:0;accent-color:#6b7a3a;cursor:pointer;margin:0}
+.qty-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.qty-pill{font-size:14px;font-weight:700;padding:4px 11px;border-radius:7px}
+.qty-box{background:#dcfce7;color:#14532d}
+.qty-loose{background:#fdecd8;color:#8a5a1c}
+.qty-total{background:#6b7a3a;color:#fff}
+.lead-band{border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:center}
+.lead-band .lb-title{font-size:17px;font-weight:700}
+.lead-band .lb-sub{font-size:15px;font-weight:700;margin-top:2px}
+.lead-band .lb-date{font-size:26px;font-weight:700;margin:2px 0}
+.lb-normal{background:#eef3e0;border:2px solid #6b7a3a;color:#3b4a1a}
+.lb-urgent{background:#fee2e2;border:2px solid #dc2626;color:#991b1b}
+.lb-sched{background:#fee2e2;border:2px solid #dc2626;color:#991b1b}
+.lb-defect{background:#dbeafe;border:2px solid #2563eb;color:#1e3a8a}
+.lb-caution{background:#fef3c7;border:2px solid #d9a441;color:#78350f}
+.ctype-pill{display:inline-block;font-size:14px;font-weight:700;padding:5px 14px;border-radius:99px;margin:2px 4px 2px 0}
+.ctype-rt{background:#f3e8ff;color:#6b21a8}
+.ctype-w1{background:#dbeafe;color:#1e3a8a}
+.ctype-w2{background:#e0e7ff;color:#3730a3}
+.rt-docs{background:#fff8ea;border:2px solid #d9a441;border-radius:10px;padding:12px;margin-bottom:12px}
+.rt-docs .rt-docs-t{font-size:14px;font-weight:700;color:#8a5a1c;margin-bottom:8px}
+.rt-doc-item{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:15px;color:#8a5a1c;font-weight:600}
+.rt-doc-item:last-child{margin-bottom:0}
+.rt-doc-item input{width:26px;height:26px;accent-color:#8a5a1c}
+.complete-note{font-size:13px;color:#44433f;line-height:1.6;margin:-2px 0 10px;text-align:center}
 .actions{position:sticky;bottom:0;background:#f5f4f0;padding:10px 0;margin-top:10px}
 .btn-big{width:100%;padding:16px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
 .btn-complete{background:#16a34a;color:#fff}
@@ -61,7 +86,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .badge-rt{background:#f3e8ff;color:#6b21a8}
 .badge-defectprice{background:#fee2e2;color:#7f1d1d}
 .invoice-notice{margin-top:1.2rem;padding-top:1rem;border-top:1px solid #e8e2d8;font-size:10.5px;color:#2b2a26;line-height:1.7}
-.summary-card{background:#8c7a68;color:#fff;border-radius:12px;padding:16px;margin-bottom:14px;text-align:center}
+.summary-card{background:#6b7a3a;color:#fff;border-radius:12px;padding:16px;margin-bottom:14px;text-align:center}
 .summary-num{font-size:28px;font-weight:700}
 .summary-sub{font-size:13px;color:#f0ece3;margin-top:4px}
 .order-item{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer}
@@ -695,10 +720,33 @@ function renderAlreadyShipped(){
     '</div>';
 }
 
+function leadBandHtml(o){
+  const isRt = o.customerType === 'rt';
+  const amNote = isRt ? '<div class="lb-sub" style="font-weight:600;margin-top:6px;font-size:13px;line-height:1.5">🕐 できるだけ午前中着でお願いします<br><span style="font-size:12px">（難しい時は午後着でもOKです）</span></div>' : '';
+  if(o.leadType==='urgent'){
+    return '<div class="lead-band lb-urgent"><div class="lb-title">⚡ 急ぎ</div><div class="lb-sub">明日、出荷してください</div>'+amNote+'</div>';
+  }
+  if(o.leadType==='scheduled'){
+    const d = o.leadDate ? formatDateJp(o.leadDate) : '日程未指定';
+    return '<div class="lead-band lb-sched"><div class="lb-title">🗓 お届け希望日</div><div class="lb-date">'+esc(d)+'</div>'+amNote+'</div>';
+  }
+  if(o.leadType==='defect'){
+    return '<div class="lead-band lb-defect"><div class="lb-title">🔵 不良在庫出荷</div>'+amNote+'</div>';
+  }
+  if(o.leadType==='caution'){
+    return '<div class="lead-band lb-caution"><div class="lb-title">🟡 特別注意</div>'+amNote+'</div>';
+  }
+  return '<div class="lead-band lb-normal"><div class="lb-title">📦 通常</div><div class="lb-sub">6営業日以内に発送（定休日・祝日・お休みは数えません）</div>'+amNote+'</div>';
+}
+function customerTypePillHtml(o){
+  if(o.customerType==='rt') return '<span class="ctype-pill ctype-rt">🏨 卸（ホテル・RT）</span>';
+  if(o.customerType==='wholesale1') return '<span class="ctype-pill ctype-w1">🏪 卸①（販売店）</span>';
+  if(o.customerType==='wholesale2') return '<span class="ctype-pill ctype-w2">🏪 卸②（販売店）</span>';
+  return '';
+}
 function renderOrder(){
   const o = currentOrder;
-  const leadLabel = leadLabelWithDate(o);
-  const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
+  const isRt = o.customerType === 'rt';
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   const orderHasNoshi = hasNoshi(o);
   let html = '';
@@ -709,11 +757,12 @@ function renderOrder(){
   if(custNote){
     html += '<div class="alert-danger" style="background:#ede9fe;border-color:#7c3aed;color:#5b21b6">📝 <strong>'+esc(o.client)+'様の個別メモ：</strong><br>'+esc(custNote.note).replace(/\n/g,'<br>')+'</div>';
   }
+  html += leadBandHtml(o);
   html += '<div class="card">';
   html += '<div class="center" style="font-size:12px;color:#57534e;margin-bottom:4px">注文番号</div>';
   html += '<div class="center" style="font-size:20px;font-weight:700;margin-bottom:10px">'+esc(o.num)+'</div>';
   html += '<div class="center" style="margin-bottom:10px">';
-  html += '<span class="badge '+leadCls+'">'+leadLabel+'</span>';
+  html += customerTypePillHtml(o);
   if(hasGift) html += '<span class="badge b-gift">🎁 ギフトあり</span>';
   if(orderHasNoshi) html += '<span class="badge" style="background:#fdf0e3;color:#8a5a1c">🎀 熨斗あり</span>';
   if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
@@ -729,29 +778,44 @@ function renderOrder(){
     html += '<div class="note-box" style="background:#fdf6ee;border:2px solid #d9a441;color:#8a5a1c">🎀 <strong>熨斗（のし）あり</strong><br>表書き：<strong>'+esc(n.title||'-')+'</strong>　お名前：<strong>'+esc(n.name||'-')+'</strong>'+(sub?'<br>'+sub:'')+'<br><span style="font-size:12px;font-weight:400">下の「熨斗の見本を見て印刷」から印刷して同梱してください。印刷しないと発送完了できません。</span></div>';
     html += '<button class="btn-big no-print" style="background:#6b7a3a;color:#fff;margin-top:10px" onclick="previewNoshi()">🎀 熨斗の見本を見て印刷する'+(noshiPrinted?'（印刷済み）':'')+'</button>';
   }
-  html += '<div class="sec-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
-  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input" value="'+esc(o.shipNote||'')+'" placeholder="例：お詫びにサンプル1本同封" style="flex:1;padding:9px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:14px"><button class="btn-sm" onclick="saveShipNote()">保存</button></div>';
-  if(o.shipNote) html += '<div class="note-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>📦 出荷時の備考：</strong>'+esc(o.shipNote)+'</div>';
-  html += '<div class="sec-title">商品明細</div>';
+  html += '<div class="sec-title no-print">💬 倉庫への連絡事項（プレゼント追加・パンフレット同封など）</div>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input" value="'+esc(o.shipNote||'')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:9px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:14px"><button class="btn-sm" onclick="saveShipNote()">保存</button></div>';
+  if(o.shipNote) html += '<div class="note-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>💬 倉庫への連絡事項：</strong>'+esc(o.shipNote)+'</div>';
+  html += '<div class="sec-title">商品（ピッキングしたらチェック）</div>';
+  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:-4px 0 8px">左の大きなチェックは、ご自分の作業チェック用です</div>';
   html += '<div id="item-list">';
   (o.lines||[]).forEach(function(l, i){
+    const p = findProduct(l.productId);
+    const boxQty = l.boxQty || (p && p.boxQty) || 1;
+    const boxes = l.boxes||0, loose = l.bottles||0;
+    const total = loose + boxes*boxQty;
+    let qty = '<div class="qty-row">';
+    if(boxes) qty += '<span class="qty-pill qty-box">箱 '+boxes+'箱</span>';
+    if(loose) qty += '<span class="qty-pill qty-loose">バラ '+loose+'本</span>';
+    qty += '<span class="qty-pill qty-total">合計 '+total+'本</span></div>';
     html += '<div class="item" id="item-'+i+'">'+
+      '<input type="checkbox" class="pack-check pick-cb no-print" onchange="this.closest(\'.item\').classList.toggle(\'checked\',this.checked);updateCompleteBtn()">'+
       '<div class="info">'+
-        '<div class="pname">'+esc(l.productName)+'</div>'+
-        '<div class="psub">'+esc(l.bottles)+'本'+(l.boxes?'（'+esc(l.boxes)+'箱）':'')+'　['+esc(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+']</div>'+
+        '<div class="pname">'+esc(l.productName)+' <span style="font-size:12px;font-weight:400;color:#57534e">['+esc(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+']</span></div>'+
+        qty+
         (l.memo ? '<div class="pmemo">📝 '+esc(l.memo)+'</div>' : '')+
       '</div>'+
     '</div>';
   });
   html += '</div>';
-  html += '<div class="no-print" id="pack-check-box">'+
-    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">商品確認</label>'+
-    (orderHasNoshi ? '<label class="pack-check-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 熨斗の印刷</label>' : '')+
-    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書／請求書 同梱</label>'+
-    '<label class="pack-check-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">その他同梱物確認</label>'+
-    '</div>';
+  const noshiCheck = orderHasNoshi ? '<label class="rt-doc-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 熨斗を印刷して同梱</label>' : '';
+  if(isRt){
+    html += '<div class="rt-docs no-print"><div class="rt-docs-t">📎 印刷して同梱する書類（2枚）</div>'+
+      '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書</label>'+
+      '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">RT端末の伝票</label>'+
+      noshiCheck+
+      '</div>';
+  } else if(orderHasNoshi){
+    html += '<div class="rt-docs no-print" style="background:#fdf6ee;border-color:#e8d9c4">'+noshiCheck+'</div>';
+  }
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 発送完了にする</button>';
+  html += '<div class="complete-note">荷作りが終わったら、このボタンを押してください。押した時点で「本日発送」として扱い、在庫も自動で減ります（発送後のご連絡は不要です）。</div>';
   html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
   html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
   html += '<div id="qr-area" style="display:none;text-align:center;padding:16px;background:#fff;border:1px solid #e8e2d8;border-radius:10px;margin-top:-4px"></div>';
@@ -855,7 +919,7 @@ function showToastSimple(msg){
   if(!el){
     el = document.createElement('div');
     el.id = 'undo-toast';
-    el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#8c7a68;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999';
+    el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#6b7a3a;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999';
     document.body.appendChild(el);
   }
   el.textContent = msg;
