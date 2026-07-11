@@ -545,7 +545,8 @@ function productOptionsHtml(selected){
 let lots = [];          // {id, pid, lotCode, expiry, stock, status, note, incoming}
 let defects = [];       // {id, pid, lotId, qty, cat, note, status, shippedQty, processedAt}
 let defectHolds = [];   // {id, pid, client, qty, until, note}
-let holds = [];         // {id, pid, client, qty, date, orderId}
+let holds = [];         // {id, pid, client, qty, date, orderId}（アプリAの取り置き注文から組み立てる）
+let orders = [];        // アプリAの受注一覧（取り置き判定に使う・読むだけ・保存しない）
 let preorders = [];     // {id, pid, client, qty, bottles, boxes, note}
 let invLogs = [];       // {id, ts, type, text}
 let defectCategories = ['オイル漏れ','ラベル汚れ','その他'];
@@ -621,17 +622,26 @@ function onProdChange(prodId, lotId){
 // ── GAS 読み込み・保存 ────────────────────────────────────────────
 function loadAllDataFromGAS(){
   if(!gasSyncEnabled) return;
-  fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).then(function(d){
-    if(d.status!=='ok' || !d.data) return;
-    const data = d.data;
-    if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
-      stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
-    if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
-      cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'' }; });
-    if(data.defectHolds) defectHolds = data.defectHolds.map(function(x){ return { id:x.id, pid:parseInt(x.pid), client:x.client, qty:parseInt(x.qty)||0, until:x.until, note:x.note }; });
-    if(data.holds) holds = data.holds.map(function(h){ return { id:h.id, pid:parseInt(h.pid), client:h.client, qty:parseInt(h.qty)||0, date:h.date, orderId:h.orderId }; });
-    if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
-    if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
+  Promise.all([
+    fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
+    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
+  ]).then(function(res){
+    const d = res[0], ord = res[1];
+    if(d && d.status==='ok' && d.data){
+      const data = d.data;
+      if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
+        stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
+      if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
+        cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'' }; });
+      if(data.defectHolds) defectHolds = data.defectHolds.map(function(x){ return { id:x.id, pid:parseInt(x.pid), client:x.client, qty:parseInt(x.qty)||0, until:x.until, note:x.note }; });
+      if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
+      if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
+    }
+    if(ord && ord.status==='ok' && ord.data && Array.isArray(ord.data.orders)){
+      orders = ord.data.orders;
+    }
+    // 取り置きは注文（取り置き中）から組み立てる（GASのholdsには頼らない）
+    holds = buildHoldsFromOrders();
     renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderDefectHistory();
     renderHoldList(); renderPreList(); renderInvLogs(); renderCatOptions();
     showSyncStatus('✅ 保存されたデータを読み込みました');
@@ -668,6 +678,32 @@ function saveAllDataToGAS(){
 function addLog(type, text){
   invLogs.unshift({ id: nextId(), ts: new Date().toISOString(), type: type, text: text });
   if(invLogs.length>300) invLogs.length = 300;
+}
+
+// ── 取り置き（holds）はアプリAの「取り置き中の注文」から組み立てる ──────────
+// アプリAの computeHeldQtyBySku と同じ考え方。GASのholdsに頼らず、注文から直接。
+function buildHoldsFromOrders(){
+  const result = [];
+  orders.forEach(function(o){
+    if(o.status!=='held') return;
+    (o.lines||[]).forEach(function(l){
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+      if(totalQty<=0) return;
+      const client = o.client || o.recipientName || '';
+      const date = o.holdUntilDate || '';
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){
+          const cp = findProductBySku(c.sku);
+          if(cp) result.push({ id:'h_'+o.id+'_'+cp.id, pid:cp.id, client:client, qty: totalQty*(c.qty||1), date:date, orderId:o.id });
+        });
+      } else {
+        result.push({ id:'h_'+o.id+'_'+p.id, pid:p.id, client:client, qty: totalQty, date:date, orderId:o.id });
+      }
+    });
+  });
+  return result;
 }
 
 // ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
