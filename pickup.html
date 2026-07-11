@@ -147,6 +147,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .pres-modal .btn-ok:hover{background:#55622e}
 .pres-modal .btn-ok[disabled]{opacity:.6;cursor:default}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
+/* ── 梱包待ち一覧（そろった表・見張り） ── */
+.watch-metrics{display:flex;gap:8px;margin-bottom:12px}
+.wm-card{flex:1;border-radius:10px;padding:8px 11px}
+.wm-urg{background:#fdecec}
+.wm-pend{background:#f1efe8}
+.wm-label{font-size:12px;color:#5f5e5a;font-weight:600}
+.wm-urg .wm-label{color:#a32d2d}
+.wm-num{font-size:26px;font-weight:800;color:#b45309;line-height:1.1}
+.wm-urg .wm-num{color:#dc2626}
+.wm-unit{font-size:13px;font-weight:600;color:#5f5e5a}
+.watch-table{border:1px solid #e5e3da;border-radius:10px;overflow:hidden;margin-top:4px;margin-bottom:14px}
+.wt-head{display:flex;background:#eceadf}
+.wt-head span{padding:9px 5px;font-size:11px;color:#5f5e5a;font-weight:700}
+.wt-row{display:flex;align-items:flex-start;background:#fff;border-top:1px solid #e5e3da;cursor:pointer}
+.wt-row:active{filter:brightness(0.97)}
+.wt-row>span{padding:12px 5px;font-size:13px;color:#2b2a26}
+.wt-row.wt-urg{background:#fdecec}
+.wt-row.wt-done{background:#f5f3ec}
+.wt-c-name{flex:0 0 24%;font-weight:700}
+.wt-c-item{flex:0 0 24%;line-height:1.45}
+.wt-c-req{flex:0 0 16%;color:#5f5e5a !important;font-size:12px !important}
+.wt-c-wish{flex:0 0 18%;font-size:12px !important}
+.wt-c-stat{flex:0 0 18%}
+.wt-name-txt{display:block;color:#2b2a26}
+.wt-urg .wt-name-txt{color:#a32d2d}
+.wt-done .wt-name-txt,.wt-done .wt-c-item,.wt-done .wt-c-wish,.wt-done .wt-c-req{color:#a6a49c !important}
+.wt-mk{display:inline-block;font-size:11px;font-weight:800;margin-top:3px;margin-right:4px}
+.wt-mk-urg{color:#dc2626}
+.wt-mk-over{color:#7f1d1d}
+.wt-none{color:#b9b7ae}
+.wt-wait-txt{color:#b45309;font-weight:800;font-size:12px;white-space:nowrap}
+.wt-done-txt{color:#6b7a3a;font-weight:800;font-size:12px;white-space:nowrap;display:block}
+.wt-done-time{color:#a6a49c;font-size:10px;display:block;margin-top:1px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -252,6 +285,26 @@ function isOverdue(o){
   return due < todayISO;
 }
 const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect', caution:'b-caution', scheduled:'b-normal'};
+// ── 見張り一覧用：出荷依頼日（登録日）・お届け希望日を M/D で。梱包完了は当日中だけ表示 ──
+function fmtMD(v){
+  if(!v) return '';
+  var s = String(v).trim();
+  var d;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) d = new Date(s+'T00:00:00');
+  else d = new Date(s.indexOf('/')>=0 ? s.replace(/-/g,'/') : s);
+  if(isNaN(d.getTime())) return s;
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+function todayJpKey(){ return new Date().toLocaleString('ja-JP').trim().split(' ')[0]; } // 出荷日時と同じ生成経路で日付部分を作る
+function shippedDateKey(o){ return o.shippedAt ? String(o.shippedAt).trim().split(' ')[0] : ''; }
+function shippedToday(o){ return o.status==='shipped' && !!o.shippedAt && shippedDateKey(o)===todayJpKey(); }
+function shippedTimeShort(o){
+  if(!o.shippedAt) return '';
+  var p = String(o.shippedAt).trim().split(' ')[1] || '';
+  var hm = p.split(':');
+  if(hm.length>=2){ var mm = hm[1].length===1 ? ('0'+hm[1]) : hm[1]; return String(parseInt(hm[0],10))+':'+mm; }
+  return '';
+}
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'簡易ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
 // 在庫連動用の商品マスタ（アプリA・Bと同じ内容。セット商品の構成を把握するために必要）
@@ -584,8 +637,13 @@ async function loadOrderList(){
       document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>';
       return;
     }
-    // 出荷待ち、かつ「発送元から出荷指示が送られたもの」だけを表示します
-    allOrders = data.data.orders.filter(o=>o.status==='pending' && o.notified===true);
+    // 出荷待ち（出荷指示が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
+    allOrders = data.data.orders.filter(function(o){
+      if(o.notified!==true) return false;
+      if(o.status==='pending') return true;
+      if(o.status==='shipped' && shippedToday(o)) return true;
+      return false;
+    });
     renderList();
   }catch(err){
     document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
@@ -616,7 +674,7 @@ function renderList(){
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">3. 熨斗（のし）や同梱書類の指示があれば、その通りに付ける</div>'
     + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">4. そろったら「✅ 梱包完了にする」を押す</div>'
-    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：その分の在庫が自動で減ります。まだ実際に発送していなくても、梱包が終わった時点で「本日発送」とみなします。</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：まだ実際に発送していなくても、梱包が終わった時点で「本日発送」として扱います。</div>'
     + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は6営業日以内（定休日・祝日・お休みは数えません）／🚨急ぎは翌日／🗓 日付指定はその日に。</div>'
     + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：納品書＋RT端末の伝票の2点を<b>必ず</b>同梱してください。</div>'
     + '</div></details>';
@@ -627,12 +685,12 @@ function renderList(){
   if(globalNote){
     html += '<div class="note-box no-print" style="margin-bottom:14px">📌 '+esc(globalNote).replace(/\n/g,'<br>')+'</div>';
   }
-  html += '<div class="summary-card">';
-  html += '<div class="summary-num">📦 出荷指示 '+allOrders.length+'件</div>';
-  const parts = [];
-  if(urgent) parts.push('🚨急ぎ '+urgent+'件');
-  if(gift) parts.push('🎁ギフト '+gift+'件');
-  html += '<div class="summary-sub">'+(parts.length?parts.join('　'):'急ぎ・ギフトはありません')+'</div>';
+  // 集計は「梱包待ち（pending）」だけを数える（完了分は含めない）
+  const pendingList = allOrders.filter(function(o){return o.status==='pending';});
+  const urgentPending = pendingList.filter(function(o){return o.leadType==='urgent';}).length;
+  html += '<div class="watch-metrics no-print">';
+  html += '<div class="wm-card wm-urg"><div class="wm-label">急ぎ・未梱包</div><div class="wm-num">'+urgentPending+'<span class="wm-unit"> 件</span></div></div>';
+  html += '<div class="wm-card wm-pend"><div class="wm-label">梱包待ち 合計</div><div class="wm-num">'+pendingList.length+'<span class="wm-unit"> 件</span></div></div>';
   html += '</div>';
   html += '<button class="refresh-btn no-print" onclick="loadOrderList()">🔄 一覧を更新する</button>';
   html += '<button class="defect-btn no-print" onclick="location.href=\'pickup.html?mode=defect\'">🔴 不良品を見つけたので報告する</button>';
@@ -641,25 +699,46 @@ function renderList(){
   if(!allOrders.length){
     html += '<div class="card center" style="color:#57534e">現在、届いている出荷指示はありません。</div>';
   } else {
-    allOrders.slice().sort(function(a,b){
-      // 期限超過・急ぎを先頭に、あとは登録が古い順
+    const sorted = allOrders.slice().sort(function(a,b){
+      // 梱包待ちを上・梱包終了を下。待ちの中は 期限超過→急ぎ→登録が古い順。終了は完了が新しい順
+      const as = a.status==='shipped'?1:0, bs = b.status==='shipped'?1:0;
+      if(as!==bs) return as-bs;
+      if(as===1){ return String(b.shippedAt||'').localeCompare(String(a.shippedAt||'')); }
       const ao = isOverdue(a)?0:1, bo = isOverdue(b)?0:1;
       if(ao!==bo) return ao-bo;
       const au = a.leadType==='urgent'?0:1, bu = b.leadType==='urgent'?0:1;
       if(au!==bu) return au-bu;
       return (a.registeredAt||'').localeCompare(b.registeredAt||'');
-    }).forEach(function(o){
-      const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
-      const leadCls = LEAD_BADGE_CLASS[o.leadType]||'b-normal';
+    });
+    html += '<div class="watch-table">';
+    html += '<div class="wt-head"><span class="wt-c-name">お客様</span><span class="wt-c-item">内容</span><span class="wt-c-req">出荷依頼日</span><span class="wt-c-wish">お届け希望日</span><span class="wt-c-stat">状態</span></div>';
+    sorted.forEach(function(o){
+      const shipped = (o.status==='shipped');
+      const urgentNow = (!shipped && o.leadType==='urgent');
       const overdueNow = isOverdue(o);
+      const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
       const custNote = findCustomerNote(o.client);
-      html += '<div class="order-item" style="'+(overdueNow?'border-color:#dc2626;border-width:2px':'')+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
-      html += '<div class="oi-top"><span class="oi-name">'+esc(recipientLabel(o))+'</span>';
-      html += '<span>'+(custNote?'<span class="badge" style="margin:0 0 0 4px;background:#ede9fe;color:#5b21b6">📝メモあり</span>':'')+(hasNoshi(o)?'<span class="badge" style="margin:0 0 0 4px;background:#fdf0e3;color:#8a5a1c">🎀熨斗</span>':'')+(overdueNow?'<span class="badge b-urgent" style="margin:0 0 0 4px;background:#7f1d1d;color:#fff">⏰期限超過</span>':'')+(o.leadType==='urgent'?'<span class="badge '+leadCls+'" style="margin:0 0 0 4px">🚨</span>':'')+(hasGift?'<span class="badge b-gift" style="margin:0 0 0 4px">🎁</span>':'')+'</span></div>';
-      html += '<div class="oi-num">'+esc(o.num)+'　'+leadLabelWithDate(o)+'</div>';
-      html += '<div class="oi-products">'+(o.lines||[]).map(l=>esc(l.productName)+' ×'+esc(l.bottles)).join('　')+'</div>';
+      const rowCls = shipped ? 'wt-row wt-done' : (urgentNow ? 'wt-row wt-urg' : 'wt-row');
+      const marks = ''
+        + (urgentNow?'<span class="wt-mk wt-mk-urg">急ぎ</span>':'')
+        + (overdueNow?'<span class="wt-mk wt-mk-over">⏰期限超過</span>':'')
+        + (hasNoshi(o)?'<span class="wt-mk">🎀</span>':'')
+        + (custNote?'<span class="wt-mk">📝</span>':'')
+        + (hasGift?'<span class="wt-mk">🎁</span>':'');
+      const wish = o.leadDate ? esc(fmtMD(o.leadDate)) : '<span class="wt-none">希望日なし</span>';
+      const stat = shipped
+        ? '<span class="wt-done-txt">✓ 梱包終了</span><span class="wt-done-time">'+esc(shippedTimeShort(o))+'</span>'
+        : '<span class="wt-wait-txt">🕐 梱包待ち</span>';
+      const products = (o.lines||[]).map(function(l){return esc(l.productName)+' ×'+esc(l.bottles);}).join('、');
+      html += '<div class="'+rowCls+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
+      html +=   '<span class="wt-c-name"><span class="wt-name-txt">'+esc(recipientLabel(o))+'</span>'+marks+'</span>';
+      html +=   '<span class="wt-c-item">'+products+'</span>';
+      html +=   '<span class="wt-c-req">'+esc(fmtMD(o.registeredAt))+'</span>';
+      html +=   '<span class="wt-c-wish">'+wish+'</span>';
+      html +=   '<span class="wt-c-stat">'+stat+'</span>';
       html += '</div>';
     });
+    html += '</div>';
   }
   document.getElementById('content').innerHTML = html;
 }
@@ -765,7 +844,7 @@ function renderOrder(){
   html += '</div>';
   const noshiCheck = orderHasNoshi
     ? '<label class="rt-doc-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 のしを印刷して同梱した</label>'
-      + '<label class="rt-doc-item" style="background:#fffdf7;border:2px solid #d9a441;border-radius:8px;padding:8px 10px;margin-top:6px;align-items:flex-start"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">✋ 表書き「'+esc((o.noshi&&o.noshi.title)||'-')+'」と お名前「'+esc((o.noshi&&o.noshi.name)||'-')+'」をダブルチェックした</label>'
+      + '<label class="rt-doc-item" style="background:#fffdf7;border:2px solid #d9a441;border-radius:8px;padding:8px 10px;margin-top:6px;align-items:flex-start"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">✋ 表書き「'+esc((o.noshi&&o.noshi.title)||'-')+'」と お名前「'+esc((o.noshi&&o.noshi.name)||'-')+'」を再確認した</label>'
     : '';
   if(isRt){
     html += '<div class="rt-docs no-print"><div class="rt-docs-t">📎 印刷して同梱する書類（2枚）</div>'+
@@ -778,7 +857,7 @@ function renderOrder(){
   }
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
-  html += '<div class="complete-note">荷作りが終わったら、このボタンを押してください。押した時点で「本日発送」として扱い、在庫も自動で減ります（発送後のご連絡は不要です）。</div>';
+  html += '<div class="complete-note">荷作りが終わったら、このボタンを押してください。押した時点で「本日発送」として扱います（発送後のご連絡は不要です）。</div>';
   html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
   html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
   html += '<div id="qr-area" style="display:none;text-align:center;padding:16px;background:#fff;border:1px solid #e8e2d8;border-radius:10px;margin-top:-4px"></div>';
