@@ -308,7 +308,6 @@ let PRODUCTS = [
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
-function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
 
 // ── 商品マスタ：GASからの読み込み（キャッシュ先手・GAS裏取り・フォールバック）────
 let EXTRA_FIELDS = [];
@@ -352,66 +351,6 @@ async function initializeProducts(){
     }
   }catch(e){
     // 通信失敗時はキャッシュ、またはハードコードの初期値のまま動作を続ける
-  }
-}
-
-// 発送完了時に、注文の商品分だけ在庫（アプリB）を自動で減らす
-async function deductStockAndSave(o){
-  try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
-    const data = await res.json();
-    if(data.status!=='ok' || !data.data) return;
-    const lots = (data.data.lots||[]).map(function(l){
-      return { id:l.id, pid:parseInt(l.pid), productName:l.productName||'', lotCode:l.lotCode, expiry:l.expiry, stock:parseInt(l.stock)||0, defect:l.defect, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 };
-    });
-    const defects = (data.data.defects||[]).map(function(d){
-      return { id:d.id, pid:parseInt(d.pid), productName:d.productName||'', lotId:d.lotId, qty:parseInt(d.qty)||0, cat:d.cat, note:d.note, status:d.status, shippedQty:parseInt(d.shippedQty)||0, processedAt:d.processedAt||'' };
-    });
-    const needed = {};
-    (o.lines||[]).forEach(function(l){
-      const p = findProduct(l.productId);
-      if(!p) return;
-      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
-      if(p.isSet && p.components){
-        p.components.forEach(function(c){ needed[c.sku] = (needed[c.sku]||0) + totalQty*(c.qty||1); });
-      } else {
-        needed[p.sku] = (needed[p.sku]||0) + totalQty;
-      }
-    });
-    const isDefectOrder = o.customerType === 'defectprice';
-    Object.keys(needed).forEach(function(sku){
-      let remain = needed[sku];
-      const prod = findProductBySku(sku);
-      if(!prod || remain<=0) return;
-      if(isDefectOrder){
-        const matchingDefects = defects.filter(d=>d.pid===prod.id && d.status!=='resolved').sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
-        matchingDefects.forEach(function(d){
-          if(remain<=0) return;
-          const defectRemain = Math.max(0,(d.qty||0)-(d.shippedQty||0));
-          const take = Math.min(defectRemain, remain);
-          if(take<=0) return;
-          d.shippedQty = (d.shippedQty||0) + take;
-          d.processedAt = new Date().toISOString();
-          if(d.shippedQty >= d.qty) d.status = 'resolved';
-          remain -= take;
-        });
-      } else {
-        const matching = lots.filter(l=>l.pid===prod.id && l.status==='new').sort((a,b)=>String(a.expiry||'').localeCompare(String(b.expiry||'')));
-        matching.forEach(function(l){
-          if(remain<=0) return;
-          const take = Math.min(l.stock||0, remain);
-          if(take<=0) return;
-          l.stock -= take; remain -= take;
-        });
-      }
-    });
-    await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveAllData', payload:{ lots: lots, defects: defects } }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-  }catch(e){
-    // 在庫更新に失敗しても発送完了自体は成功させる（あとでアプリBで確認してください）
   }
 }
 
@@ -540,7 +479,7 @@ function previewNoshi(){
   html += '<div class="card no-print" style="background:#fdf6ee;border-color:#e8d9c4">';
   html += '<div class="sec-title" style="margin-top:0;color:#8a5a1c">🎀 熨斗の見本（この内容で印刷します）</div>';
   html += '<div style="font-size:13px;color:#2b2a26;line-height:1.8">表書き：<strong>'+esc(n.title||'-')+'</strong><br>お名前：<strong>'+esc(n.name||'-')+'</strong>'+(sub?'<br>社名・役職：'+sub:'')+'</div>';
-  html += '<div style="font-size:12px;color:#8a7f6a;margin-top:8px">下が実際に印刷される熨斗のイメージです。よければ「この熨斗を印刷する」を押してください。印刷が終わると「発送完了」ボタンが押せるようになります。</div>';
+  html += '<div style="font-size:12px;color:#8a7f6a;margin-top:8px">下が実際に印刷される熨斗のイメージです。よければ「この熨斗を印刷する」を押してください。印刷が終わると「梱包完了」ボタンが押せるようになります。</div>';
   html += '</div>';
   html += '<div class="noshi-preview-frame no-print">' + buildNoshiHtml(n) + '</div>';
   html += '<div class="actions no-print">';
@@ -565,7 +504,7 @@ function printNoshi(){
   document.getElementById('content').style.display = '';
   noshiPrinted = true;
   renderOrder();
-  showToastSimple('✅ 熨斗を印刷しました。発送完了ボタンが押せるようになりました');
+  showToastSimple('✅ のしを印刷しました。梱包完了ボタンが押せるようになりました');
 }
 
 let warehouseNotes = [];
@@ -665,6 +604,22 @@ function renderList(){
   const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   const overdue = allOrders.filter(o=>isOverdue(o)).length;
   let html = '';
+  html += '<details class="app-guide no-print" style="background:#faf7f2;border:2px solid #6b7a3a;border-radius:12px;margin-bottom:14px;overflow:hidden">'
+    + '<summary style="cursor:pointer;padding:13px 16px;color:#3b4a1a;font-weight:700;font-size:15px;background:#fff">📦 このアプリは何をする場所？（タップで開く）</summary>'
+    + '<div style="padding:14px 16px;border-top:2px solid #6b7a3a">'
+    + '<div style="color:#2b2a26;font-weight:700;font-size:16px;line-height:1.5;margin-bottom:6px">ここは、届いた「発送のお願い」を、その通りに発送する場所です</div>'
+    + '<div style="color:#5a5346;font-weight:500;font-size:13px;line-height:1.6;margin-bottom:12px">何を・何を付けて・いつ・どこへ送るかは、すべて注文カードに出ます。迷ったらカードを見ればOKです。</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">1. 発送する商品と届け先を確認する（注文カードに表示されます）</div>'
+    + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">2. 商品を荷作りする（箱・バラをチェック）＋ 納品書を同梱</div>'
+    + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">3. 熨斗（のし）や同梱書類の指示があれば、その通りに付ける</div>'
+    + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">4. そろったら「✅ 梱包完了にする」を押す</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：その分の在庫が自動で減ります。まだ実際に発送していなくても、梱包が終わった時点で「本日発送」とみなします。</div>'
+    + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は6営業日以内（定休日・祝日・お休みは数えません）／🚨急ぎは翌日／🗓 日付指定はその日に。</div>'
+    + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：納品書＋RT端末の伝票の2点を<b>必ず</b>同梱してください。</div>'
+    + '</div></details>';
   if(overdue){
     html += '<div class="alert-danger no-print">⏰ 出荷期限を過ぎているものが'+overdue+'件あります。優先して確認してください。</div>';
   }
@@ -713,7 +668,7 @@ function renderAlreadyShipped(){
   const o = currentOrder;
   document.getElementById('content').innerHTML =
     '<div class="alert-danger">'+
-      '⚠️ この注文（'+esc(o.num)+'）は<strong>すでに発送完了として処理されています。</strong><br><br>'+
+      '⚠️ この注文（'+esc(o.num)+'）は<strong>すでに梱包完了として処理されています。</strong><br><br>'+
       '二重にスキャンした可能性があります。内容を確認したい場合だけ、下のボタンを押してください。'+
       '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
 
@@ -775,7 +730,12 @@ function renderOrder(){
   if(orderHasNoshi){
     const n = o.noshi;
     const sub = [esc(n.position), esc(n.company)].filter(Boolean).join('　');
-    html += '<div class="note-box" style="background:#fdf6ee;border:2px solid #d9a441;color:#8a5a1c">🎀 <strong>熨斗（のし）あり</strong><br>表書き：<strong>'+esc(n.title||'-')+'</strong>　お名前：<strong>'+esc(n.name||'-')+'</strong>'+(sub?'<br>'+sub:'')+'<br><span style="font-size:12px;font-weight:400">下の「熨斗の見本を見て印刷」から印刷して同梱してください。印刷しないと発送完了できません。</span></div>';
+    html += '<div class="note-box" style="background:#fdf6ee;border:2px solid #d9a441;color:#8a5a1c">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:8px">🎀 のし（熨斗）があります</div>'
+      + '<div style="background:#fff;border:1px solid #ecd9b8;border-radius:8px;padding:8px 10px;margin-bottom:6px"><span style="font-size:12px;color:#8a7f6a;font-weight:700">表書き</span><div style="font-size:18px;font-weight:700;color:#2b2a26">'+esc(n.title||'-')+'</div></div>'
+      + '<div style="background:#fff;border:1px solid #ecd9b8;border-radius:8px;padding:8px 10px"><span style="font-size:12px;color:#8a7f6a;font-weight:700">お名前</span><div style="font-size:18px;font-weight:700;color:#2b2a26">'+esc(n.name||'-')+'</div></div>'
+      + (sub?'<div style="font-size:13px;margin-top:6px">'+sub+'</div>':'')
+      + '<div style="font-size:12px;font-weight:400;margin-top:8px">下の「熨斗の見本を見て印刷」から印刷して同梱してください。印刷しないと梱包完了できません。</div></div>';
     html += '<button class="btn-big no-print" style="background:#6b7a3a;color:#fff;margin-top:10px" onclick="previewNoshi()">🎀 熨斗の見本を見て印刷する'+(noshiPrinted?'（印刷済み）':'')+'</button>';
   }
   html += '<div class="sec-title no-print">💬 倉庫への連絡事項（プレゼント追加・パンフレット同封など）</div>';
@@ -803,7 +763,10 @@ function renderOrder(){
     '</div>';
   });
   html += '</div>';
-  const noshiCheck = orderHasNoshi ? '<label class="rt-doc-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 熨斗を印刷して同梱</label>' : '';
+  const noshiCheck = orderHasNoshi
+    ? '<label class="rt-doc-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 のしを印刷して同梱した</label>'
+      + '<label class="rt-doc-item" style="background:#fffdf7;border:2px solid #d9a441;border-radius:8px;padding:8px 10px;margin-top:6px;align-items:flex-start"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">✋ 表書き「'+esc((o.noshi&&o.noshi.title)||'-')+'」と お名前「'+esc((o.noshi&&o.noshi.name)||'-')+'」をダブルチェックした</label>'
+    : '';
   if(isRt){
     html += '<div class="rt-docs no-print"><div class="rt-docs-t">📎 印刷して同梱する書類（2枚）</div>'+
       '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書</label>'+
@@ -814,7 +777,7 @@ function renderOrder(){
     html += '<div class="rt-docs no-print" style="background:#fdf6ee;border-color:#e8d9c4">'+noshiCheck+'</div>';
   }
   html += '<div class="actions no-print">';
-  html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 発送完了にする</button>';
+  html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
   html += '<div class="complete-note">荷作りが終わったら、このボタンを押してください。押した時点で「本日発送」として扱い、在庫も自動で減ります（発送後のご連絡は不要です）。</div>';
   html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
   html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
@@ -1129,10 +1092,10 @@ function updateCompleteBtn(){
 async function completeOrder(){
   if(!currentOrder) return;
   if(hasNoshi(currentOrder) && !noshiPrinted){
-    alert('🎀 この注文には熨斗（のし）があります。\n\n先に「熨斗の見本を見て印刷する」から熨斗を印刷してください。印刷が終わると発送完了できます。');
+    alert('🎀 この注文には熨斗（のし）があります。\n\n先に「熨斗の見本を見て印刷する」から熨斗を印刷してください。印刷が終わると梱包完了できます。');
     return;
   }
-  if(!confirm('発送準備がすべて完了しましたか？\n「発送完了」にすると、この注文は出荷待ち一覧から消えます。')) return;
+  if(!confirm('梱包がすべて完了しましたか？\n「梱包完了」にすると、この注文は出荷待ち一覧から消えます。')) return;
   const btn = document.getElementById('complete-btn');
   btn.disabled = true;
   btn.textContent = '処理中...';
@@ -1144,21 +1107,18 @@ async function completeOrder(){
     });
     const data = await res.json();
     if(data.status === 'ok'){
-      if(!data.alreadyShipped){
-        deductStockAndSave(currentOrder); // 在庫（アプリB）にも反映（失敗しても発送完了は成立させる）
-      }
+      // 在庫は受注A（受注・出荷）が送信時に減らすため、倉庫Dでは在庫をさわらない（梱包完了にするだけ）
       document.getElementById('content').innerHTML =
-        '<div class="done-banner">✅ 発送完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
-        '<button class="btn-big btn-print no-print" onclick="printInvoice()">📄 納品書を印刷する</button>'+
+        '<div class="done-banner">✅ 梱包完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</button>';
     } else {
       btn.disabled = false;
-      btn.textContent = '✅ 発送完了にする';
+      btn.textContent = '✅ 梱包完了にする';
       alert('処理に失敗しました：'+(data.message||''));
     }
   }catch(err){
     btn.disabled = false;
-    btn.textContent = '✅ 発送完了にする';
+    btn.textContent = '✅ 梱包完了にする';
     alert('通信エラーが発生しました：'+err.message);
   }
 }
