@@ -2408,6 +2408,21 @@ function parseCsvText(text){
   csvParsedRows = Object.values(grouped).filter(g=>g.lines.length);
   renderCsvPreview();
 }
+function csvLineOptions(line){
+  return productOptionsHtml(line.productId||'') + '<option value="__skip__"'+(line.excluded?' selected':'')+'>🚫 この明細は取り込まない（除外）</option>';
+}
+function csvPickProduct(gi, li, sel){
+  const v = sel.value;
+  const line = csvParsedRows[gi].lines[li];
+  if(v==='__skip__'){
+    line.productId = ''; line.excluded = true; line.productName = line.raw;
+  } else if(v){
+    line.productId = v; line.excluded = false; line.productName = sel.options[sel.selectedIndex].text;
+  } else {
+    line.productId = ''; line.excluded = false; line.productName = line.raw;
+  }
+  renderCsvPreview();
+}
 function renderCsvPreview(){
   const existingNums = new Set(orders.map(o=>o.storesOrderNum).filter(Boolean));
   const el = document.getElementById('csv-preview-content');
@@ -2417,9 +2432,11 @@ function renderCsvPreview(){
     html += '<div class="order-card" style="'+(dup?'opacity:.5':'')+'">';
     html += '<div class="oc-top"><div class="oc-name">'+esc(g.client||'（氏名なし）')+' <span class="oc-num">STORES #'+g.storesOrderNum+'</span></div>'+(dup?'<span class="order-status os-cancelled">取込済み・スキップ</span>':'')+'</div>';
     html += g.lines.map(function(l,li){
-      if(l.productId) return '・'+l.productName+' × '+l.bottles;
+      if(l.excluded) return '・<span style="color:#9a938a;text-decoration:line-through">'+esc(l.raw)+'</span> <span style="color:#8a7f6a;font-size:12px">（取り込まない）</span>'+
+        ' <select onchange="csvPickProduct('+gi+','+li+',this)" style="font-size:11px;padding:2px 4px">'+csvLineOptions(l)+'</select>';
+      if(l.productId) return '・'+esc(l.productName)+' × '+l.bottles;
       return '・<span style="color:#dc2626">'+esc(l.raw)+'（未マッチ）</span> × '+l.bottles+
-        ' <select onchange="csvParsedRows['+gi+'].lines['+li+'].productId=this.value;csvParsedRows['+gi+'].lines['+li+'].productName=this.options[this.selectedIndex].text" style="font-size:11px;padding:2px 4px">'+productOptionsHtml()+'</select>';
+        ' <select onchange="csvPickProduct('+gi+','+li+',this)" style="font-size:11px;padding:2px 4px">'+csvLineOptions(l)+'</select>';
     }).join('<br>');
     if(g.giftWrap){
       if(hasNoshiKeyword(g.giftWrap)) html += '<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:8px;padding:6px 10px;font-size:12.5px;color:#a32d2d;font-weight:700">🎀 のし指示あり：'+esc(g.giftWrap)+'</div>';
@@ -2440,10 +2457,31 @@ function cancelCSV(){
 function importCSV(){
   if(!csvParsedRows) return;
   const existingNums = new Set(orders.map(o=>o.storesOrderNum).filter(Boolean));
+  // ★未マッチ（商品が特定できず、かつ除外もしていない）明細を検出。あれば取込を止めて警告（出荷漏れ防止）
+  const unmatched = [];
+  csvParsedRows.forEach(function(g){
+    if(existingNums.has(g.storesOrderNum)) return; // 重複注文はどのみち取り込まないので対象外
+    g.lines.forEach(function(l){
+      if(!l.productId && !l.excluded) unmatched.push({ num:g.storesOrderNum, raw:l.raw, qty:l.bottles });
+    });
+  });
+  if(unmatched.length){
+    const listHtml = unmatched.map(function(u){
+      return '<div style="background:#fff;border:1px solid #f0c4c4;border-radius:8px;padding:9px 11px;margin-bottom:6px;font-size:13px;color:#2b2a26;font-weight:500">STORES #'+esc(u.num)+' ／ <b style="color:#a32d2d">'+esc(u.raw)+'（未マッチ）</b> ／ ×'+esc(u.qty)+'</div>';
+    }).join('');
+    const box = document.getElementById('csv-result');
+    box.style.display = 'block';
+    box.innerHTML = '<div style="background:#fcebeb;border:2px solid #dc2626;border-radius:12px;padding:14px">'
+      + '<div style="color:#a32d2d;font-weight:700;font-size:15px;margin-bottom:8px;line-height:1.5">⚠️ 取り込めない明細が '+unmatched.length+'件あります（商品が特定できません）</div>'
+      + '<div style="color:#2b2a26;font-weight:500;font-size:13px;line-height:1.7;margin-bottom:10px">下のプレビューで、赤い「未マッチ」の商品を選び直してから、もう一度「取り込む」を押してください。このままだと<b>出荷漏れ</b>になります。<br>商品でない行（送料など）は「🚫 この明細は取り込まない（除外）」を選べば外せます。</div>'
+      + listHtml + '</div>';
+    box.scrollIntoView({ behavior:'smooth', block:'center' });
+    return; // ★未マッチが残っている間は取込を止める
+  }
   let imported = 0, skipped = 0;
   csvParsedRows.forEach(function(g){
     if(existingNums.has(g.storesOrderNum)){ skipped++; return; }
-    const validLines = g.lines.filter(l=>l.productId);
+    const validLines = g.lines.filter(l=>l.productId && !l.excluded);
     if(!validLines.length) return;
     const isGiftWrap = !!(g.giftWrap && g.giftWrap.trim());
     if(isGiftWrap) validLines.forEach(function(l){ l.giftType='gift'; });
