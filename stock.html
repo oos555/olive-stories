@@ -784,13 +784,25 @@ function promptOutStock(pid){
   if(qtyStr===null) return;
   const qty = parseInt(qtyStr);
   if(!qty || qty<=0){ alert('正しい数量を入力してください'); return; }
-  let lot = lots.find(l=>l.pid==pid && l.status==='new');
-  if(!lot){ lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'new', note:'' }; lots.push(lot); }
-  lot.stock = Math.max(0, (lot.stock||0) - qty);
-  addLog('出庫（在庫調整）', p.name+'　-'+qty+'本');
+  // 実在庫（入庫予定を除く）から、新→備品→旧の順に確実に減らす
+  const rank = { 'new':0, 'supply':1, 'old':2 };
+  const pLots = lots.filter(function(l){ return l.pid==pid && l.status!=='incoming' && (l.stock||0)>0; })
+                    .sort(function(a,b){ var ra=(rank[a.status]==null?9:rank[a.status]), rb=(rank[b.status]==null?9:rank[b.status]); return ra-rb; });
+  var remaining = qty;
+  for(var i=0;i<pLots.length && remaining>0;i++){
+    var take = Math.min(pLots[i].stock||0, remaining);
+    pLots[i].stock = (pLots[i].stock||0) - take;
+    remaining -= take;
+  }
+  var reduced = qty - remaining;
+  addLog('出庫（在庫調整）', p.name+'　-'+reduced+'本');
   renderInvTable(); renderLotList(); renderInvLogs();
   scheduleAutoSave();
-  showSyncStatus('✅ '+p.name+'の在庫を'+qty+'本 減らしました');
+  if(remaining>0){
+    showSyncStatus('⚠️ '+p.name+'は在庫が'+reduced+'本しかなく、'+reduced+'本だけ減らしました', true);
+  } else {
+    showSyncStatus('✅ '+p.name+'の在庫を'+qty+'本 減らしました');
+  }
 }
 function promptIncoming(pid){
   const p = findProduct(pid);
