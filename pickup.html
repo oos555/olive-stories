@@ -198,6 +198,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .stock-cell-num{line-height:1}
 .stock-cell-num>span:first-child{font-size:24px;font-weight:800}
 .stock-cell-unit{font-size:11px;color:#8a887f}
+.stock-guide{background:#fff;border:1px solid #e5e3da;border-radius:10px;padding:11px 12px;margin-bottom:12px}
+.stock-guide-ttl{font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:2px}
+.stock-guide-sub{font-size:12px;color:#6b675f;margin-bottom:9px}
+.stock-guide-row{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;margin-bottom:6px}
+.stock-guide-row:last-child{margin-bottom:0}
+.stock-guide-num{min-width:64px;text-align:center;font-size:21px;font-weight:800;line-height:1}
+.stock-guide-num small{font-size:12px;font-weight:700}
+.stock-guide-txt{font-size:14px;color:#2b2a26}
+.stock-guide-txt b{font-weight:800}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -651,8 +660,8 @@ async function loadSingleOrder(id){
 // ════════════════════════════════════
 // ★ 在庫を見る（本数）— 見るだけ・在庫Bと同じデータ／同じ計算
 // ════════════════════════════════════
-const STOCK_LOW = 12;   // これ以下で「少なめ」（黄）
-const STOCK_CRIT = 5;   // これ以下で「残りわずか」（赤）
+const STOCK_LOW = 60;   // これ以下で「少なめ」（黄）
+const STOCK_CRIT = 30;  // これ以下で「残りわずか」（赤）
 const STOCK_HIDE_GROUPS = { 'セット商品':1, 'ギフト箱・備品':1, 'その他':1 };
 
 // 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect）
@@ -689,6 +698,18 @@ function stockBackBtn(){
   return '<button class="refresh-btn no-print" style="margin-top:12px" onclick="location.href=\'pickup.html\'">← 梱包リストに戻る</button>';
 }
 
+// 在庫の色の見かた（しきい値は STOCK_LOW / STOCK_CRIT から自動で表示）
+function stockColorGuide(){
+  var ok = STOCK_LOW + 1;
+  return '<div class="stock-guide">'
+    + '<div class="stock-guide-ttl">在庫の色の見かた</div>'
+    + '<div class="stock-guide-sub">数字の色で、補充のタイミングが分かります。</div>'
+    + '<div class="stock-guide-row" style="background:#f2f5ea"><div class="stock-guide-num" style="color:#4a7a2f">'+ok+'<small> 本〜</small></div><div class="stock-guide-txt"><b>'+ok+'本以上</b> … ふつう</div></div>'
+    + '<div class="stock-guide-row" style="background:#fff6df"><div class="stock-guide-num" style="color:#b5820a">'+STOCK_LOW+'<small> 本↓</small></div><div class="stock-guide-txt"><b style="color:#b5820a">'+STOCK_LOW+'本以下</b> … そろそろ補充</div></div>'
+    + '<div class="stock-guide-row" style="background:#fdeaea"><div class="stock-guide-num" style="color:#dc2626">'+STOCK_CRIT+'<small> 本↓</small></div><div class="stock-guide-txt"><b style="color:#dc2626">'+STOCK_CRIT+'本以下</b> … すぐ補充してください</div></div>'
+    + '</div>';
+}
+
 function renderStockList(lots, defects, holds){
   // 取り扱っている商品（ロット記録か不良がある）だけ表示。0本でも表示（赤で気づけるように）
   var tracked = {};
@@ -716,6 +737,8 @@ function renderStockList(lots, defects, holds){
     document.getElementById('content').innerHTML = html;
     return;
   }
+
+  html += stockColorGuide();
 
   html += '<div class="stock-legend"><span><i class="lg-box" style="background:#6b7a3a"></i>正規（ふつうに出せる）</span>'
         + '<span><i class="lg-box" style="background:#b45309"></i>旧ロット</span>'
