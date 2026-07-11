@@ -42,9 +42,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .card{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
 .sec{font-size:14px;font-weight:700;margin:0 0 12px}
 .info-box{background:#f9f8f5;border-radius:8px;padding:11px 14px;font-size:13px;color:#2b2a26;line-height:1.6;margin-bottom:1rem;border:1px solid #e8e2d8}
-.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.fg label{font-size:12px;color:#2b2a26;font-weight:500}
-.fg input,.fg select,.fg textarea{width:100%;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;background:#fff;color:#1a1a18}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
+.fg label{font-size:15px;color:#2b2a26;font-weight:500}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 12px;border:1.5px solid #9d957f;border-radius:8px;font-size:16px;background:#fff;color:#2b2a26}
+.fg input::placeholder,.fg textarea::placeholder{color:#8a857a}
 .fg input:focus,.fg select:focus{outline:none;border-color:#6b7a3a}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -460,6 +461,10 @@ body{background:#fff}
       <div id="hold-date-wrap" style="display:none;margin-top:8px"><label style="font-size:11px">いつまでの取り置きか</label><input type="date" id="o-hold-date" style="font-size:12px;padding:6px"></div>
       <div id="reserved-date-wrap" style="display:none;margin-top:8px"><label style="font-size:11px">お届け予定時期</label><input type="date" id="o-expected-date" style="font-size:12px;padding:6px"></div>
       <div id="prepay-warn" style="display:none;font-size:11px;color:#b45309;margin-top:6px">⚠️ 先払いの場合、請求アプリCで入金確認するまで、この受注はLINE通知（倉庫への出荷指示）ができません。</div>
+    </div>
+
+    <div style="background:#fdf6ee;border:1.5px solid #e0b877;border-radius:8px;padding:11px 13px;margin-bottom:14px;font-size:15px;color:#2b2a26;line-height:1.6">
+      <span style="color:#dc2626;font-weight:700">「（任意）」以外は、ぜんぶ入れてください。</span><br>空欄のままでは登録できません（倉庫が発送できなくなるため）。
     </div>
 
     <div class="fg">
@@ -1354,7 +1359,7 @@ function addRecipient(){
       '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日</label><input type="date" data-role="leadDate"></div>'+
     '</div>'+
     '<div class="g2">'+
-      '<div class="fg"><label>配送時間指定</label>'+
+      '<div class="fg"><label>配送時間指定 <span style="font-size:13px;color:#2b2a26">（任意）</span></label>'+
         '<select data-role="time" onchange="toggleCardTimeOther(\''+id+'\')">'+
           '<option value="">指定なし</option>'+
           '<option value="午前中">午前中</option>'+
@@ -1365,7 +1370,7 @@ function addRecipient(){
       '</div>'+
       '<div class="fg" data-role="timeOtherWrap" style="display:none"><label>時間帯を記入</label><input type="text" data-role="timeOther" placeholder="例：14〜16時"></div>'+
     '</div>'+
-    '<div class="fg"><label>備考</label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：その他同梱物の指定など（のしは下の「熨斗をつける」で設定できます）"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。下の「熨斗をつける」でも設定できます。</div></div>'+
+    '<div class="fg"><label>備考 <span style="font-size:13px;color:#2b2a26">（任意）</span></label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：その他同梱物の指定など（のしは下の「熨斗をつける」で設定できます）"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。下の「熨斗をつける」でも設定できます。</div></div>'+
     '<div style="background:#fdf6ee;border:1px solid #e8d9c4;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
       '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;font-size:13px;color:#8a5a1c"><input type="checkbox" data-role="noshiOn" onchange="toggleNoshi(\''+id+'\')" style="width:auto">🎀 熨斗（のし）をつける</label>'+
       '<div data-role="noshiFields" style="display:none;margin-top:10px">'+
@@ -1427,7 +1432,46 @@ function formatTel(v){
   }
   return v;
 }
-function onZipBlur(el){ el.value = formatZip(el.value); }
+function fetchAddressByZip(zip, cb){
+  var d = (zip||'').replace(/[^\d]/g,'');
+  if(d.length!==7) return;
+  var fnName = '__zipcb_'+Date.now()+'_'+Math.floor(Math.random()*1000);
+  var s = document.createElement('script');
+  var done = function(){ try{ delete window[fnName]; }catch(e){ window[fnName]=undefined; } if(s.parentNode) s.parentNode.removeChild(s); };
+  window[fnName] = function(res){
+    try{
+      if(res && res.status===200 && res.results && res.results[0]){
+        var r = res.results[0];
+        cb((r.address1||'')+(r.address2||'')+(r.address3||''));
+      }
+    }catch(e){}
+    done();
+  };
+  s.onerror = done;
+  s.src = 'https://zipcloud.ibsnet.co.jp/api/search?zipcode='+d+'&callback='+fnName;
+  document.body.appendChild(s);
+}
+function zipAddrTarget(el){
+  if(el.id && /-zip$/.test(el.id)){
+    var a = document.getElementById(el.id.replace(/-zip$/,'-addr'));
+    if(a) return a;
+  }
+  var card = el.closest ? el.closest('.recipient-card') : null;
+  if(card){
+    if(el.getAttribute('data-role')==='zip') return card.querySelector('[data-role=addr]');
+    if(el.getAttribute('data-role')==='senderZipOv') return card.querySelector('[data-role=senderAddrOv]');
+  }
+  return null;
+}
+function onZipBlur(el){
+  el.value = formatZip(el.value);
+  var addrEl = zipAddrTarget(el);
+  if(addrEl && !((addrEl.value||'').trim())){
+    fetchAddressByZip(el.value, function(addr){
+      if(addr && !((addrEl.value||'').trim())) addrEl.value = addr;
+    });
+  }
+}
 function onTelBlur(el){ el.value = formatTel(el.value); }
 
 function onRecipientTypeChange(cardId){
@@ -1736,6 +1780,22 @@ function previewOrder(){
       document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ '+rtViolations.join('、')+' は、トルコ産100mlオイルの単品（バラ）販売で、RT（ホテル・レストラン）限定の商品です。定価・卸①・卸②のいずれのお客様にも単品では販売できません。サンプルとして出荷する場合は、種別を「サンプル(無償)」または「サンプル(有償)」に変更してください。</div>';
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
+    }
+    const rtype = document.getElementById('o-record-type').value;
+    if(rtype==='pending'){
+      const missing = [];
+      list.forEach(function(o){
+        const lack = [];
+        if(!((o.addr||'').trim())) lack.push('住所');
+        if(!((o.zip||'').trim())) lack.push('郵便番号');
+        if(!((o.tel||'').trim())) lack.push('電話番号');
+        if(lack.length) missing.push((o.recipientName||'（お名前なし）')+'：'+lack.join('・'));
+      });
+      if(missing.length){
+        document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ 入っていない項目があります。倉庫が発送できるよう、すべて入れてください。<br>'+missing.join('<br>')+'<br>（発注者と同じ住所の届け先は、発注元の郵便番号・住所・電話を入れてください）</div>';
+        document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+        return;
+      }
     }
     const recordType = document.getElementById('o-record-type').value;
     const recordTypeLabel = {pending:'通常受注', held:'🗄 取り置き', reserved:'🗓 予約'}[recordType];
