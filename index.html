@@ -971,20 +971,44 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
-function loadInitialData(){
+function loadInitialData(retry){
   if(!gasSyncEnabled) return;
+  retry = retry || 0;
   Promise.all([
     fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
     fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
   ]).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
-    if(dataRes && dataRes.status==='ok' && dataRes.data){
-      const d = dataRes.data;
-      lots = d.lots||[]; defects = d.defects||[]; holds = d.holds||[]; preorders = d.preorders||[];
-      customers = d.customers||[];
+    const dOk = !!(dataRes && dataRes.status==='ok' && dataRes.data);
+    const oOk = !!(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders));
+    const d = dOk ? dataRes.data : null;
+    const incomingCustomers = (d && Array.isArray(d.customers)) ? d.customers : null;
+    const incomingOrders = oOk ? ordersRes.data.orders : null;
+
+    // 「正常だけど全部空っぽ」＝更新中などに起きる一時的な空返事。鵜呑みにせず読み直す。
+    const everythingEmpty = dOk && oOk
+      && (!d.lots || d.lots.length===0)
+      && (!d.customers || d.customers.length===0)
+      && (!ordersRes.data.orders || ordersRes.data.orders.length===0);
+    const noResponse = !dataRes && !ordersRes;
+
+    if((everythingEmpty || noResponse) && retry < 3){
+      showSyncStatus('データを読み込み直しています…');
+      setTimeout(function(){ loadInitialData(retry+1); }, 4000);
+      renderStockStrip();
+      return;
     }
-    if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
-      orders = ordersRes.data.orders;
+
+    if(dOk){
+      // 空っぽの返事で、今表示できている在庫・お客様を消さない
+      if(Array.isArray(d.lots) && (d.lots.length>0 || lots.length===0)) lots = d.lots;
+      if(Array.isArray(d.defects)) defects = d.defects;
+      if(Array.isArray(d.holds)) holds = d.holds;
+      if(Array.isArray(d.preorders)) preorders = d.preorders;
+      if(incomingCustomers && (incomingCustomers.length>0 || customers.length===0)) customers = incomingCustomers;
+    }
+    if(oOk){
+      if(incomingOrders.length>0 || orders.length===0) orders = incomingOrders;
     }
     updCustomerSelects();
     renderStockStrip();
@@ -994,7 +1018,12 @@ function loadInitialData(){
     renderHoldPreAlerts();
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
-    showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    if(retry < 3){
+      showSyncStatus('データを読み込み直しています…');
+      setTimeout(function(){ loadInitialData(retry+1); }, 4000);
+    } else {
+      showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    }
     renderStockStrip();
   });
 }
