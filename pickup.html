@@ -180,6 +180,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .wt-wait-txt{color:#b45309;font-weight:800;font-size:12px;white-space:nowrap}
 .wt-done-txt{color:#6b7a3a;font-weight:800;font-size:12px;white-space:nowrap;display:block}
 .wt-done-time{color:#a6a49c;font-size:10px;display:block;margin-top:1px}
+/* ── 在庫を見る（本数） ── */
+.stock-head{background:#6b7a3a;border-radius:10px;padding:13px 15px;margin-bottom:10px}
+.stock-head-title{color:#fff;font-size:17px;font-weight:700}
+.stock-head-sub{color:#eef1e4;font-size:12px;margin-top:2px}
+.stock-warn{background:#fdf6ee;border:1px solid #d9a441;border-radius:9px;padding:9px 12px;margin-bottom:12px;color:#7a5410;font-size:12.5px;line-height:1.6}
+.stock-legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-size:11px;color:#5f5e5a;margin:2px 0 10px}
+.stock-legend .lg-box{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:3px;vertical-align:0}
+.stock-group{font-size:12px;font-weight:700;color:#57534e;margin:12px 0 6px;padding-left:2px}
+.stock-row{background:#fff;border:1px solid #e5e3da;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.stock-row-head{display:flex;align-items:baseline;gap:6px;margin-bottom:7px}
+.stock-name{font-size:15px;font-weight:700;color:#2b2a26}
+.stock-sku{font-size:11px;color:#a6a49c;font-family:monospace}
+.stock-cells{display:flex;gap:6px}
+.stock-cell{flex:1;text-align:center;padding:6px 2px;border-radius:8px}
+.stock-cell-label{font-size:11px;color:#5f5e5a;margin-bottom:1px}
+.stock-cell-num{line-height:1}
+.stock-cell-num>span:first-child{font-size:24px;font-weight:800}
+.stock-cell-unit{font-size:11px;color:#8a887f}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -576,6 +594,8 @@ async function init(){
     await loadNotesScreen();
   } else if(mode==='materials'){
     await loadMaterialsScreen();
+  } else if(mode==='stock'){
+    await loadStockScreen();
   } else {
     await loadOrderList();
   }
@@ -626,6 +646,108 @@ async function loadSingleOrder(id){
   }catch(err){
     document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
   }
+}
+
+// ════════════════════════════════════
+// ★ 在庫を見る（本数）— 見るだけ・在庫Bと同じデータ／同じ計算
+// ════════════════════════════════════
+const STOCK_LOW = 12;   // これ以下で「少なめ」（黄）
+const STOCK_CRIT = 5;   // これ以下で「残りわずか」（赤）
+const STOCK_HIDE_GROUPS = { 'セット商品':1, 'ギフト箱・備品':1, 'その他':1 };
+
+// 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect）
+function stockNumbersFor(pid, lots, defects, holds){
+  var stock=0, oldStock=0;
+  lots.forEach(function(l){ if(l.pid==pid && l.status!=='incoming'){ stock += (l.stock||0); if(l.status==='old') oldStock += (l.stock||0); } });
+  var defectQty=0;
+  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  var holdQty=0;
+  holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
+  var avail = Math.max(0, stock - oldStock - defectQty - holdQty);
+  return { stock:stock, oldStock:oldStock, defectQty:defectQty, avail:avail };
+}
+
+async function loadStockScreen(){
+  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const data = await res.json();
+    if(data.status!=='ok' || !data.data){
+      document.getElementById('content').innerHTML = '<div class="alert-danger">在庫を読み込めませんでした。</div>'+stockBackBtn();
+      return;
+    }
+    const lots    = (data.data.lots||[]).map(function(l){ return { pid:parseInt(l.pid), stock:parseInt(l.stock)||0, status:l.status }; });
+    const defects = (data.data.defects||[]).map(function(x){ return { pid:parseInt(x.pid), qty:parseInt(x.qty)||0, shippedQty:parseInt(x.shippedQty)||0, status:x.status||'pending' }; });
+    const holds   = (data.data.holds||[]).map(function(h){ return { pid:parseInt(h.pid), qty:parseInt(h.qty)||0 }; });
+    renderStockList(lots, defects, holds);
+  }catch(err){
+    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>'+stockBackBtn();
+  }
+}
+
+function stockBackBtn(){
+  return '<button class="refresh-btn no-print" style="margin-top:12px" onclick="location.href=\'pickup.html\'">← 梱包リストに戻る</button>';
+}
+
+function renderStockList(lots, defects, holds){
+  // 取り扱っている商品（ロット記録か不良がある）だけ表示。0本でも表示（赤で気づけるように）
+  var tracked = {};
+  lots.forEach(function(l){ tracked[l.pid]=true; });
+  defects.forEach(function(d){ tracked[d.pid]=true; });
+
+  var groups = {};
+  var order = [];
+  PRODUCTS.forEach(function(p){
+    if(p.isSet) return;
+    if(STOCK_HIDE_GROUPS[p.group]) return;
+    if(!tracked[p.id]) return;
+    if(!groups[p.group]){ groups[p.group]=[]; order.push(p.group); }
+    groups[p.group].push(p);
+  });
+
+  var html = '';
+  html += '<div class="stock-head"><div class="stock-head-title">倉庫の在庫（見るだけ）</div>'
+        + '<div class="stock-head-sub">数字を確認するだけのページです。ここでは在庫は変えられません。</div></div>';
+  html += '<div class="stock-warn">⚠️ 棚の数と画面の数が合わないときは、連絡してください。数字は常に合わせておきたいので。</div>';
+  html += '<button class="refresh-btn no-print" onclick="loadStockScreen()">🔄 最新の数字に更新する</button>';
+
+  if(!order.length){
+    html += '<div class="card center" style="color:#57534e">表示できる在庫がありません。</div>' + stockBackBtn();
+    document.getElementById('content').innerHTML = html;
+    return;
+  }
+
+  html += '<div class="stock-legend"><span><i class="lg-box" style="background:#6b7a3a"></i>正規（ふつうに出せる）</span>'
+        + '<span><i class="lg-box" style="background:#b45309"></i>旧ロット</span>'
+        + '<span><i class="lg-box" style="background:#dc2626"></i>不良</span></div>';
+
+  order.forEach(function(g){
+    html += '<div class="stock-group">'+esc(g)+'</div>';
+    groups[g].forEach(function(p){
+      var n = stockNumbersFor(p.id, lots, defects, holds);
+      var okColor = n.avail<=STOCK_CRIT ? '#dc2626' : (n.avail<=STOCK_LOW ? '#d9a441' : '#6b7a3a');
+      html += '<div class="stock-row">';
+      html +=   '<div class="stock-row-head"><span class="stock-name">'+esc(p.name)+'</span><span class="stock-sku">'+esc(p.sku)+'</span></div>';
+      html +=   '<div class="stock-cells">';
+      html +=     stockCell('出せる（正規）', n.avail, okColor, false);
+      html +=     stockCell('旧ロット', n.oldStock, '#b45309', true);
+      html +=     stockCell('不良', n.defectQty, '#dc2626', true);
+      html +=   '</div>';
+      html += '</div>';
+    });
+  });
+
+  html += stockBackBtn();
+  document.getElementById('content').innerHTML = html;
+}
+
+function stockCell(label, val, color, zeroMuted){
+  var c = (val===0 && zeroMuted) ? '#b9b7ae' : color;
+  var bg = (val===0) ? '#f6f4ee' : '#fff';
+  return '<div class="stock-cell" style="background:'+bg+'">'
+    + '<div class="stock-cell-label">'+label+'</div>'
+    + '<div class="stock-cell-num"><span style="color:'+c+'">'+val+'</span><span class="stock-cell-unit"> 本</span></div>'
+    + '</div>';
 }
 
 async function loadOrderList(){
@@ -696,6 +818,7 @@ function renderList(){
   html += '<button class="defect-btn no-print" onclick="location.href=\'pickup.html?mode=defect\'">🔴 不良品を見つけたので報告する</button>';
   html += '<button class="refresh-btn no-print" style="border-color:#7c3aed;color:#5b21b6" onclick="location.href=\'pickup.html?mode=notes\'">📝 メモを見る・書く</button>';
   html += '<button class="refresh-btn no-print" style="border-color:#92400e;color:#92400e" onclick="location.href=\'pickup.html?mode=materials\'">📦 資材カタログ（写真・数）</button>';
+  html += '<button class="refresh-btn no-print" style="border-color:#6b7a3a;color:#3b4a1a;background:#eef3e0;font-weight:700" onclick="location.href=\'pickup.html?mode=stock\'">📦 在庫を見る（本数）</button>';
   if(!allOrders.length){
     html += '<div class="card center" style="color:#57534e">現在、届いている出荷指示はありません。</div>';
   } else {
