@@ -375,7 +375,7 @@ body{background:#fff}
 </details>
 
 <div class="tab-row no-print">
-  <button class="tab" id="tab-pending" onclick="showPanel('pending',this)">🔔 要対応<span id="pending-tab-badge"></span></button>
+  <button class="tab" id="tab-pending" onclick="showPanel('pending',this)">🔔 アプリ受注・他<span id="pending-tab-badge"></span></button>
   <button class="tab active" id="tab-order" onclick="showPanel('order',this)">受注登録</button>
   <button class="tab" id="tab-stores" onclick="showPanel('stores',this)">データ取込</button>
   <button class="tab" id="tab-list" onclick="showPanel('list',this)">受注一覧</button>
@@ -476,6 +476,7 @@ body{background:#fff}
       <input type="text" id="o-client" placeholder="または直接入力" style="margin-top:6px" oninput="onClientInput()">
     </div>
     <div id="ctype-mismatch-warn"></div>
+    <div id="ctype-prev-info"></div>
     <div class="g2">
       <div class="fg"><label>発注元郵便番号</label><input type="text" id="o-zip" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>
       <div class="fg"><label>発注元電話番号</label><input type="text" id="o-tel" placeholder="0312345678（ハイフン無しでもOK）" onblur="onTelBlur(this)"></div>
@@ -536,7 +537,7 @@ body{background:#fff}
       </div>
       <label style="font-weight:400;font-size:13px;color:#2b2a26;display:flex;align-items:center;gap:7px">
         <input type="checkbox" id="o-include-pamphlet" checked style="width:auto;display:inline-block">
-        <span>パンフレットを同封する（いつも入れます。入れない時だけ外してください）</span>
+        <span>パンフレットを同封する（RT・卸は既定オフ／それ以外は既定オン。区分で自動、手で切替も可）</span>
       </label>
     </div>
 
@@ -1226,6 +1227,20 @@ function onCustomerSelect(){
   document.getElementById('o-tel').value = c.tel||'';
   document.getElementById('o-memo').value = c.note||'';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
+  showPrevOrderType(c); // ② 前回はこちら（注文履歴から・流れは変えない）
+}
+function showPrevOrderType(c){
+  var el = document.getElementById('ctype-prev-info');
+  if(!el || !c) return;
+  var prev = (typeof orders!=='undefined'?orders:[]).filter(function(o){
+    return (o.custId && c.id && o.custId==c.id) || (o.client && o.client===c.name);
+  }).sort(function(a,b){
+    return (b.registeredAt||b.createdAt||b.orderDate||'').localeCompare(a.registeredAt||a.createdAt||a.orderDate||'');
+  })[0];
+  if(prev && prev.customerType){
+    var d = (prev.registeredAt||prev.createdAt||prev.orderDate||'').slice(0,10);
+    el.innerHTML = '<div style="background:#e6f1fb;border:1.5px solid #185fa5;border-radius:8px;padding:8px 12px;margin-top:6px;font-size:13px;color:#0c447c;font-weight:700">🕐 前回はこちら：'+(CUSTOMER_TYPE_LABEL[prev.customerType]||prev.customerType)+' で受注'+(d?'（'+d+'）':'')+'</div>';
+  } else { el.innerHTML = ''; }
 }
 function clearCustomerSelect(){
   document.getElementById('o-customer-select').value = '';
@@ -1237,11 +1252,13 @@ function clearCustomerSelect(){
   document.getElementById('o-memo').value = '';
   selectedCustomerRecord = null;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
+  var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
 }
 function onClientInput(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
   selectedCustomerRecord = null;
+  var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
 }
 function onRecordTypeChange(){
   const sel = document.getElementById('o-record-type');
@@ -1254,6 +1271,9 @@ function onRecordTypeChange(){
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
+  // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
+  const pam = document.getElementById('o-include-pamphlet');
+  if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
   const warnEl = document.getElementById('ctype-mismatch-warn');
   const custId = document.getElementById('o-client').dataset.custId;
   if(custId){
@@ -1608,7 +1628,16 @@ function updateCardGiftSummary(cardId){
   const lines = getRecipientLines(cardId);
   const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
   if(!lines.length){ el.innerHTML = '<span style="color:#57534e">商品を追加すると内訳が表示されます</span>'; return; }
-  el.innerHTML = lines.map(l=>l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>':'')).join('<br>');
+  el.innerHTML = lines.map(function(l){
+    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>':'');
+    var sp = findProduct(l.productId);
+    if(sp && sp.isSet && sp.components && sp.components.length){
+      var cnt = (l.bottles||0)+(l.boxes||0)*(l.boxQty||sp.boxQty||1);
+      var items = sp.components.map(function(c){ var cp=findProductBySku(c.sku); return (cp?cp.name:c.sku)+'×'+((c.qty||1)*cnt); }).join('／');
+      base += '<div style="font-size:12px;color:#4a5a24;margin:2px 0 0 12px">┗ 中身：'+items+'</div>';
+    }
+    return base;
+  }).join('<br>');
 }
 function collectRecipients(){
   return Array.from(document.querySelectorAll('.recipient-card')).map(function(card){
@@ -2370,7 +2399,7 @@ function buildSlipHtml(o){
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   const wasHeld = !!o.holdUntilDate, wasReserved = !!o.expectedDate;
   let html = '<div class="slip">';
-  html += '<div class="slip-title">出荷指示書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#57534e;font-size:14px">（ギフトなし）</span>')+'</div>';
+  html += '<div class="slip-title">出荷依頼書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#57534e;font-size:14px">（ギフトなし）</span>')+'</div>';
   const _recip = (o.recipientName||o.client||'');
   if(o.buyerName && _recip && o.buyerName !== _recip){
     html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px"><div style="font-size:13.5px;font-weight:700;color:#8a5a1c">🎁 ギフト便（送り主とお届け先が別）</div><div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.7">送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong><br>お届け先 → <strong>'+esc(_recip)+' 様</strong> <span style="color:#9a7b3a;font-size:12px">（ご購入：'+esc(o.buyerName)+' 様）</span></div></div>';
@@ -2407,11 +2436,31 @@ function buildSlipHtml(o){
       : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>'
       : '<span style="color:#57534e">正規</span>';
     html += '<tr><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    var _sp = findProduct(l.productId);
+    if(_sp && _sp.isSet && _sp.components && _sp.components.length){
+      var _cnt = (l.bottles||0) + (l.boxes||0)*(l.boxQty||_sp.boxQty||1);
+      var _items = _sp.components.map(function(c){ var _cp=findProductBySku(c.sku); return (_cp?_cp.name:c.sku)+' × '+((c.qty||1)*_cnt); }).join('　／　');
+      html += '<tr><td colspan="6" style="background:#f6f4ee;color:#4a5a24;font-size:12.5px;padding:6px 10px">🔧 <strong>中身（'+_cnt+'セット分）：</strong>'+_items+'</td></tr>';
+    }
   });
   html += '</tbody></table>';
+  // No.15 賞味期限：カップオイルを含む注文のときだけ表示（RT=8ヶ月／他=5ヶ月）
+  var _hasCup = (o.lines||[]).some(function(l){ return (l.productName||'').indexOf('カップ')>=0; });
+  if(_hasCup){
+    var _expM = (o.customerType==='rt') ? 8 : 5;
+    html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">🗓 賞味期限</span><div style="font-size:15px;color:#2b2a26;margin-top:3px;font-weight:700">'+_expM+'ヶ月'+(o.customerType==='rt'?'（RT）':'')+'</div></div>';
+  }
+  // ⑦ 紙袋：ふだんは倉庫で合うサイズを選択（確認不要）／赤シールは常に貼る／スタッフ指定があればそれを出す
+  var _bagGift = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
+  var _bagLine;
+  if(o.bagSize){ _bagLine = '紙袋：'+esc(o.bagSize)+'（スタッフ指定）　／　赤シール 貼る'; }
+  else if(_bagGift){ _bagLine = '紙袋：あり　／　赤シール 貼る　<span style="font-weight:400;font-size:12px;color:#57534e">（合うサイズを倉庫でお選びください・確認不要）</span>'; }
+  else { _bagLine = '紙袋：なし'; }
+  html += '<div style="background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:8px 13px;margin:10px 0;font-size:14px;font-weight:700;color:#2b2a26">🛍 '+_bagLine+'</div>';
   const encDoc = o.enclosedDoc || '納品書兼請求書';
   const pamph = (o.includePamphlet !== false);
-  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div></div>';
+  var _isGiftSlip = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
+  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(_isGiftSlip?'<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#a32d2d">🎁 ギフトのため、金額の入った書類は入れないでください</div>':'')+'</div>';
   html += '<div class="slip-section-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
   html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input-'+o.id+'" value="'+(o.shipNote||'').replace(/"/g,'&quot;')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"><button class="btn-sm" onclick="saveShipNote(\''+o.id+'\')">保存</button></div>';
   if(o.shipNote) html += '<div class="alert-bar alert-warn"><strong>📦 出荷時の備考：</strong>'+o.shipNote+'</div>';
