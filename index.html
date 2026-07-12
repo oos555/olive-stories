@@ -1426,6 +1426,22 @@ function addRecipient(){
       '<div data-role="lines"></div>'+
     '</div>'+
     '<button class="btn-sm" onclick="addRecipientLine(\''+id+'\')" style="width:100%">＋ 商品を追加</button>'+
+    '<button class="btn-sm" onclick="togglePouchBuilder(\''+id+'\')" style="width:100%;margin-top:6px;background:#eef2e3">🧩 カップ巾着を組み立てて追加</button>'+
+    '<div data-role="pouchBuilder" style="display:none;margin-top:8px;background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:10px 12px">'+
+      '<div style="font-size:13px;font-weight:700;color:#4a5a24;margin-bottom:8px">🧩 カップ巾着（受注生産）を組み立て</div>'+
+      '<div style="font-size:12px;color:#57534e;margin-bottom:4px">① 巾着に何個入れる？</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:8px">'+
+        '<button type="button" class="pb-per" data-per="1" onclick="pbSetPer(\''+id+'\',1)" style="flex:1;padding:7px;border:1px solid #d5cfc3;border-radius:6px;background:#fff;font-weight:700">1個入り</button>'+
+        '<button type="button" class="pb-per" data-per="2" onclick="pbSetPer(\''+id+'\',2)" style="flex:1;padding:7px;border:1px solid #d5cfc3;border-radius:6px;background:#fff;font-weight:700">2個入り</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#57534e;margin-bottom:4px">② 味を選ぶ</div>'+
+      '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">'+
+        pbFlavorRow(id,0,'グリーンブーケ')+pbFlavorRow(id,1,'グリーンバナナ')+pbFlavorRow(id,2,'オレンジ＆レモン')+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:12px;color:#57534e">③ 巾着の数</span><input type="number" min="1" value="60" data-role="pbQty" style="width:80px;padding:5px"></div>'+
+      '<div data-role="pbTally" style="font-size:12px;margin-bottom:8px"></div>'+
+      '<button type="button" class="btn-sm" onclick="pbAdd(\''+id+'\')" style="width:100%;background:#6b7a3a;color:#fff">この中身を明細に追加</button>'+
+    '</div>'+
     '<div style="background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px" data-role="giftSummary"><span style="color:#57534e">商品を追加すると内訳が表示されます</span></div>';
   wrap.appendChild(card);
   addRecipientLine(id);
@@ -1638,6 +1654,78 @@ function updateCardGiftSummary(cardId){
     }
     return base;
   }).join('<br>');
+}
+var pouchBuilderState = {};
+function pbFlavorRow(cardId, i, name){
+  return '<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2ddd2;border-radius:6px;padding:5px 10px">'+
+    '<span style="font-size:13px">'+name+'</span>'+
+    '<span style="display:flex;align-items:center;gap:8px">'+
+      '<button type="button" onclick="pbFlavor(\''+cardId+'\','+i+',-1)" style="width:28px;height:28px;border:1px solid #d5cfc3;border-radius:5px;background:#faf8f4">−</button>'+
+      '<span class="pb-ct" data-i="'+i+'" style="min-width:14px;text-align:center;font-weight:700">0</span>'+
+      '<button type="button" onclick="pbFlavor(\''+cardId+'\','+i+',1)" style="width:28px;height:28px;border:1px solid #d5cfc3;border-radius:5px;background:#faf8f4">＋</button>'+
+    '</span>'+
+  '</div>';
+}
+function togglePouchBuilder(cardId){
+  var panel = document.getElementById(cardId).querySelector('[data-role=pouchBuilder]');
+  if(!panel) return;
+  var showing = panel.style.display!=='none';
+  panel.style.display = showing ? 'none' : 'block';
+  if(!showing){ pouchBuilderState[cardId] = {per:0, f:[0,0,0]}; pbRender(cardId); }
+}
+function pbSetPer(cardId, n){
+  var s = pouchBuilderState[cardId] || (pouchBuilderState[cardId]={per:0,f:[0,0,0]});
+  s.per = n;
+  if(s.f[0]+s.f[1]+s.f[2] > n) s.f=[0,0,0];
+  pbRender(cardId);
+}
+function pbFlavor(cardId, i, delta){
+  var s = pouchBuilderState[cardId] || (pouchBuilderState[cardId]={per:0,f:[0,0,0]});
+  var sum = s.f[0]+s.f[1]+s.f[2];
+  if(delta>0){ if(s.per>0 && sum<s.per) s.f[i]++; }
+  else { if(s.f[i]>0) s.f[i]--; }
+  pbRender(cardId);
+}
+function pbRender(cardId){
+  var card = document.getElementById(cardId); if(!card) return;
+  var s = pouchBuilderState[cardId] || {per:0,f:[0,0,0]};
+  card.querySelectorAll('[data-role=pouchBuilder] .pb-per').forEach(function(b){
+    var on = (+b.dataset.per===s.per);
+    b.style.background = on?'#6b7a3a':'#fff'; b.style.color = on?'#fff':'#2b2a26';
+  });
+  card.querySelectorAll('[data-role=pouchBuilder] .pb-ct').forEach(function(c){ c.textContent = s.f[+c.dataset.i]; });
+  var sum = s.f[0]+s.f[1]+s.f[2];
+  var tally = card.querySelector('[data-role=pbTally]');
+  if(tally){
+    if(s.per===0) tally.innerHTML='まず「1個入り／2個入り」を選んでください';
+    else if(sum===s.per) tally.innerHTML='<span style="color:#3b6d11;font-weight:700">OK：合計'+sum+'個</span>';
+    else tally.innerHTML='<span style="color:#dc2626;font-weight:700">味の合計を'+s.per+'個にしてください（今'+sum+'個）</span>';
+  }
+}
+function addLineWithProduct(cardId, sku, bottles){
+  addRecipientLine(cardId);
+  var wrap = document.getElementById(cardId).querySelector('[data-role=lines]');
+  var row = wrap.lastElementChild; if(!row) return;
+  var p = findProductBySku(sku);
+  if(p){ var psel=row.querySelector('[data-role=product]'); if(psel){ psel.value=p.id; onRecipientLineProductChange(cardId, row.id); } }
+  var bIn = row.querySelector('[data-role=bottles]'); if(bIn) bIn.value = bottles;
+}
+function pbAdd(cardId){
+  var s = pouchBuilderState[cardId];
+  if(!s || s.per===0){ alert('「1個入り／2個入り」を選んでください'); return; }
+  var sum = s.f[0]+s.f[1]+s.f[2];
+  if(sum!==s.per){ alert('味の合計を'+s.per+'個にしてください（今'+sum+'個）'); return; }
+  var qEl = document.getElementById(cardId).querySelector('[data-role=pbQty]');
+  var qty = parseInt(qEl?qEl.value:0)||0;
+  if(qty<=0){ alert('巾着の数を入れてください'); return; }
+  var skus=['CUP001','CUP002','CUP003'];
+  var names=['グリーンブーケ','グリーンバナナ','オレンジ＆レモン'];
+  var memoParts=[];
+  for(var i=0;i<3;i++){ if(s.f[i]>0){ addLineWithProduct(cardId, skus[i], s.f[i]*qty); memoParts.push(names[i]+(s.f[i]>1?'×'+s.f[i]:'')); } }
+  addLineWithProduct(cardId, 'BAG003', qty);
+  updateCardGiftSummary(cardId);
+  alert('カップ巾着（'+s.per+'個入り／'+memoParts.join('＋')+'／'+qty+'個）を明細に追加しました。\n味の組み合わせは、必要なら「倉庫への連絡」メモにも書いてください。');
+  togglePouchBuilder(cardId);
 }
 function collectRecipients(){
   return Array.from(document.querySelectorAll('.recipient-card')).map(function(card){
