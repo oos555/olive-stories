@@ -1423,12 +1423,41 @@ function onCtypeChange(){
   if(custId){
     const c = customers.find(x=>x.id==custId);
     if(c && c.type && c.type !== sel.value){
-      warnEl.innerHTML = '<div class="alert-bar alert-danger">⚠️ このお客様のマスタ登録区分は「'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+
-        '」です。今回「'+(CUSTOMER_TYPE_LABEL[sel.value]||sel.value)+'」で登録しようとしています。価格や納品書バッジが変わります。意図的な変更でなければ確認してください。</div>';
+      // No.28 区分を登録区分から変えたとき：次回からずっと／今回だけ を1回だけ聞く
+      const oldL = CUSTOMER_TYPE_LABEL[c.type]||c.type;
+      const newL = CUSTOMER_TYPE_LABEL[sel.value]||sel.value;
+      warnEl.innerHTML = '<div class="alert-bar alert-warn" style="flex-direction:column;align-items:stretch;gap:8px">'+
+        '<div>このお客様のマスタ登録区分は「'+oldL+'」です。今回「'+newL+'」に変更しています。<strong>このお客様、次回からもずっと「'+newL+'」にしますか？</strong></div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          '<button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff;font-weight:700" onclick="persistCustomerType()">✓ 次回からずっと「'+newL+'」にする</button>'+
+          '<button class="btn-sm" onclick="keepCtypeOnce()">今回だけ（マスタは「'+oldL+'」のまま）</button>'+
+        '</div></div>';
       return;
     }
   }
   warnEl.innerHTML = '';
+}
+// No.28 「次回からずっと」＝お客様マスタの区分を更新して保存
+function persistCustomerType(){
+  const custId = document.getElementById('o-client').dataset.custId;
+  const sel = document.getElementById('o-ctype');
+  const c = customers.find(x=>x.id==custId);
+  if(!c) return;
+  c.type = sel.value;
+  if(selectedCustomerRecord && selectedCustomerRecord.id==c.id) selectedCustomerRecord.type = sel.value;
+  updCustomerSelects();
+  saveCustomersToGAS();
+  const newL = CUSTOMER_TYPE_LABEL[sel.value]||sel.value;
+  document.getElementById('ctype-mismatch-warn').innerHTML = '<div class="alert-bar alert-info">✅ このお客様を次回からずっと「'+newL+'」にしました（マスタを更新）。</div>';
+}
+// No.28 「今回だけ」＝マスタは変えず、この注文だけ新しい区分で
+function keepCtypeOnce(){
+  const custId = document.getElementById('o-client').dataset.custId;
+  const c = customers.find(x=>x.id==custId);
+  const sel = document.getElementById('o-ctype');
+  const oldL = c ? (CUSTOMER_TYPE_LABEL[c.type]||c.type) : '';
+  const newL = CUSTOMER_TYPE_LABEL[sel.value]||sel.value;
+  document.getElementById('ctype-mismatch-warn').innerHTML = '<div class="alert-bar alert-info">🗒 今回だけ「'+newL+'」で登録します。マスタは「'+oldL+'」のまま変わりません。</div>';
 }
 const SELF_SENDER = { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' };
 function onSenderModeChange(){
