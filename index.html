@@ -799,6 +799,136 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 let gasSyncEnabled = true;
 
 /* ════════════════════════════════════════════════════════════════
+   No.12 お届け日指定：営業日エンジン（見積M mitsumori.html と同一ロジック）
+   ・休業日＝定休（水・土・日）＋祝日（自動判定）＋特別休業
+   ・特別休業は「お休みの大もと（見積Mのカレンダー）」＝GASから読む（ハードコードしない）
+   ・お届け日指定は 8営業日以降だけ選べる（それより前は選べない）
+   ════════════════════════════════════════════════════════════════ */
+const DELIVERY_MIN_BIZ_DAYS = 8;
+var specialHolidays = [];      // {id, name, sMM, sDD, eMM, eDD}
+var holidaysLoaded = false;
+var _holCache = {};
+function hpad2(n){ return (n<10?'0':'')+n; }
+function hdkey(d){ return d.getFullYear()+'-'+hpad2(d.getMonth()+1)+'-'+hpad2(d.getDate()); }
+function hNthMon(y,m,n){ var d=new Date(y,m-1,1); var off=(8-d.getDay())%7; return 1+off+(n-1)*7; }
+function hParseKey(k){ var p=k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function fmtISO(d){ return d.getFullYear()+'-'+hpad2(d.getMonth()+1)+'-'+hpad2(d.getDate()); }
+function hFmtMD(d){ return (d.getMonth()+1)+'/'+d.getDate()+'（'+['日','月','火','水','木','金','土'][d.getDay()]+'）'; }
+function defaultSpecialHolidays(){
+  return [
+    { id:'sh_natsu',    name:'夏休み',   sMM:8,  sDD:11, eMM:8, eDD:17 },
+    { id:'sh_nenmatsu', name:'年末年始', sMM:12, sDD:28, eMM:1, eDD:4  }
+  ];
+}
+function normalizeHoliday(s){
+  return {
+    id: s.id || ('sh_'+Math.random().toString(36).slice(2)),
+    name: s.name || 'お休み',
+    sMM: parseInt(s.sMM,10)||1, sDD: parseInt(s.sDD,10)||1,
+    eMM: parseInt(s.eMM,10)||1, eDD: parseInt(s.eDD,10)||1
+  };
+}
+function jpHolidaySet(year){
+  if(_holCache[year]) return _holCache[year];
+  var s = {};
+  function put(m,d,name){ if(d>=1) s[year+'-'+hpad2(m)+'-'+hpad2(d)] = name; }
+  put(1,1,'元日'); put(2,11,'建国記念日'); put(2,23,'天皇誕生日');
+  put(4,29,'昭和の日'); put(5,3,'憲法記念日'); put(5,4,'みどりの日'); put(5,5,'こどもの日');
+  put(8,11,'山の日'); put(11,3,'文化の日'); put(11,23,'勤労感謝');
+  put(1, hNthMon(year,1,2),'成人の日');
+  put(7, hNthMon(year,7,3),'海の日');
+  put(9, hNthMon(year,9,3),'敬老の日');
+  put(10, hNthMon(year,10,2),'スポーツ');
+  put(3, Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4)),'春分の日');
+  put(9, Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4)),'秋分の日');
+  var subs = {};
+  for(var k in s){
+    var dt = hParseKey(k);
+    if(dt.getDay()===0){
+      var nx = new Date(dt);
+      do { nx.setDate(nx.getDate()+1); } while(s[hdkey(nx)] || subs[hdkey(nx)]);
+      subs[hdkey(nx)] = '振替休日';
+    }
+  }
+  for(var ks in subs){ s[ks] = subs[ks]; }
+  var nat = {};
+  for(var mo=0; mo<12; mo++){
+    var dim = new Date(year, mo+1, 0).getDate();
+    for(var dd=1; dd<=dim; dd++){
+      var cur = new Date(year, mo, dd);
+      if(s[hdkey(cur)] || cur.getDay()===0) continue;
+      var pv = new Date(cur); pv.setDate(pv.getDate()-1);
+      var nt = new Date(cur); nt.setDate(nt.getDate()+1);
+      if(s[hdkey(pv)] && s[hdkey(nt)]) nat[hdkey(cur)] = '国民の休日';
+    }
+  }
+  for(var kn in nat){ s[kn] = nat[kn]; }
+  _holCache[year] = s;
+  return s;
+}
+function isJpHoliday(d){ return !!jpHolidaySet(d.getFullYear())[hdkey(d)]; }
+function inHolidayRange(mm,dd,sM,sD,eM,eD){
+  var v = mm*100+dd, a = sM*100+sD, b = eM*100+eD;
+  return (a<=b) ? (v>=a && v<=b) : (v>=a || v<=b);
+}
+function isSpecialHoliday(d){
+  var mm = d.getMonth()+1, dd = d.getDate();
+  for(var i=0;i<specialHolidays.length;i++){
+    var s = specialHolidays[i];
+    if(inHolidayRange(mm,dd,s.sMM,s.sDD,s.eMM,s.eDD)) return true;
+  }
+  return false;
+}
+function isClosedDay(d){
+  var wd = d.getDay();
+  if(wd===0 || wd===3 || wd===6) return true;   // 日・水・土
+  if(isJpHoliday(d)) return true;
+  if(isSpecialHoliday(d)) return true;
+  return false;
+}
+/* 翌営業日から数えて n 営業日目を返す（起点日は含めない） */
+function addBusinessDays(from, n){
+  var d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  var c = 0;
+  while(c < n){ d.setDate(d.getDate()+1); if(!isClosedDay(d)) c++; }
+  return d;
+}
+/* 今日から見た「最短お届け日」＝8営業日め */
+function earliestDeliveryDate(){ return addBusinessDays(new Date(), DELIVERY_MIN_BIZ_DAYS); }
+async function loadHolidays(){
+  try{
+    var res = await fetch(GAS_URL + '?action=loadHolidays');
+    var data = await res.json();
+    if(data && data.status==='ok' && Array.isArray(data.holidays) && data.holidays.length){
+      specialHolidays = data.holidays.map(normalizeHoliday); holidaysLoaded = true; refreshAllDeliveryMins(); return;
+    }
+  }catch(e){}
+  try{
+    var ls = localStorage.getItem('oos_holidays_v1');
+    if(ls){ var arr = JSON.parse(ls); if(Array.isArray(arr) && arr.length){ specialHolidays = arr.map(normalizeHoliday); holidaysLoaded = true; refreshAllDeliveryMins(); return; } }
+  }catch(e){}
+  specialHolidays = defaultSpecialHolidays();
+  holidaysLoaded = true; refreshAllDeliveryMins();
+}
+/* 開いている届け先カードの「希望到着日」の最小値・案内を今の休みで更新 */
+function applyDeliveryMin(card){
+  if(!card) return;
+  var input = card.querySelector('[data-role=leadDate]');
+  if(!input) return;
+  var min = earliestDeliveryDate();
+  input.min = fmtISO(min);
+  if(input.value && input.value < input.min){ input.value = ''; }
+  var hint = card.querySelector('[data-role=leadDateHint]');
+  if(hint) hint.textContent = '最短お届け日：'+hFmtMD(min)+'（8営業日め。定休〔水・土・日〕・祝日・特別休業は数えません）。これより前の日は選べません。';
+}
+function refreshAllDeliveryMins(){
+  document.querySelectorAll('.recipient-card').forEach(function(card){
+    if(card.querySelector('[data-role=lead]') && card.querySelector('[data-role=lead]').value==='scheduled'){ applyDeliveryMin(card); }
+  });
+}
+
+
+/* ════════════════════════════════════════════════════════════════
    玄関の鍵（home.htmlと共通）
    ・localStorage の oos_gate_ok に '1' が入っていれば、
      この端末ではもう聞かない（日付での区切りなし）
@@ -977,6 +1107,7 @@ document.addEventListener('DOMContentLoaded', function(){
   addRecipient();
   loadInitialData();
   loadPendingActions();
+  loadHolidays();
 });
 
 function showSyncStatus(msg,isError){
@@ -1410,7 +1541,7 @@ function addRecipient(){
           '<option value="scheduled">🗓 日程指定</option>'+
         '</select>'+
       '</div>'+
-      '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日</label><input type="date" data-role="leadDate"></div>'+
+      '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日（お届け日指定）</label><input type="date" data-role="leadDate"><div data-role="leadDateHint" style="font-size:12px;color:#185fa5;margin-top:4px;line-height:1.5"></div></div>'+
     '</div>'+
     '<div class="g2">'+
       '<div class="fg"><label>配送時間指定 <span style="font-size:13px;color:#2b2a26">（任意）</span></label>'+
@@ -1803,7 +1934,9 @@ function collectRecipients(){
 }
 function toggleCardLeadDate(cardId){
   const card = document.getElementById(cardId);
-  card.querySelector('[data-role=leadDateWrap]').style.display = card.querySelector('[data-role=lead]').value==='scheduled' ? 'block' : 'none';
+  const on = card.querySelector('[data-role=lead]').value==='scheduled';
+  card.querySelector('[data-role=leadDateWrap]').style.display = on ? 'block' : 'none';
+  if(on) applyDeliveryMin(card);
 }
 function toggleCardTimeOther(cardId){
   const card = document.getElementById(cardId);
@@ -1874,6 +2007,15 @@ function buildOrdersFromForm(){
   const includePamphlet = document.getElementById('o-include-pamphlet') ? document.getElementById('o-include-pamphlet').checked : true;
 
   const recipients = collectRecipients();
+  // No.12 お届け日指定チェック：日程指定は8営業日以降のみ選べる
+  const _minISO = fmtISO(earliestDeliveryDate());
+  for(var _ri=0; _ri<recipients.length; _ri++){
+    var _r = recipients[_ri];
+    if(_r.lead==='scheduled'){
+      if(!_r.leadDate){ alert('「日程指定」の届け先は、希望到着日を入れてください。'); return; }
+      if(_r.leadDate < _minISO){ alert('お届け日指定は8営業日以降しか選べません。\n最短お届け日：'+hFmtMD(earliestDeliveryDate())+' 以降を選んでください。'); return; }
+    }
+  }
   const list = [];
   recipients.forEach(function(r, i){
     if(!r.name || !r.lines.length) return;
