@@ -284,17 +284,33 @@ tr:last-child td{border-bottom:none}
 
 <!-- 価格マスタ -->
 <div id="panel-price" class="panel">
-  <!-- 上に貼りつく保存バー（スクロールしても常に見える） -->
+  <!-- ① この画面ですること（まとめ） -->
+  <div style="background:#e3efe9;border:2px solid #0f6e56;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+    <div style="font-family:'Zen Maru Gothic','Hiragino Sans',sans-serif;font-size:17px;font-weight:800;color:#0f5040;margin-bottom:10px">💰 この画面ですること</div>
+    <ul style="margin:0;padding-left:20px;line-height:1.9">
+      <li>商品の<strong>金額（定価・卸①・卸②・RT）を決める</strong>場所です。（不良在庫特価は、不良在庫として出荷する受注にだけ使われます）</li>
+      <li>金額を直すときは、下の「✅ 価格を変更する」にチェックを入れてから。</li>
+      <li>直したら、必ず「💾 価格マスタを保存する」を押します（押さないと消えます）。</li>
+      <li>税率の初期値：オリーブオイル本体＝<strong>8%</strong>／備品・その他＝<strong>10%</strong>（表の「税率」欄で商品ごとに直せます）。</li>
+      <li>「取り扱い中」のチェックを外すと、その商品は見積書・オイル価格表の選択肢から消えます（この画面には残ります）。在庫が0または未登録の商品は、目印として背景が赤くなります（自動でチェックが外れることはありません）。</li>
+    </ul>
+  </div>
+
+  <!-- ② 上に貼りつく操作バー（保存・商品追加。スクロールしても常に見える） -->
   <div style="position:sticky;top:0;z-index:20;background:#faf7f2;padding:10px 0;margin-bottom:6px;border-bottom:1px solid #e5e0d6">
     <div style="background:#e3efe9;border:2px solid #0f6e56;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <button class="btn btn-green" onclick="savePriceMaster()" style="font-size:16px;font-weight:800;padding:13px 24px">💾 価格マスタを保存する</button>
-      <span style="font-size:13px;color:#0f5040;font-weight:600">金額を直したら、必ずこのボタンを押す。</span>
+      <button class="btn btn-green" onclick="openAddProductModal()" style="font-size:15px;font-weight:800;padding:12px 20px">＋ 商品を追加</button>
+      <span style="font-size:13px;color:#0f5040;font-weight:600">金額を直したら、必ず「保存する」を押す。</span>
       <span id="price-dirty-indicator" style="font-size:13px;font-weight:700;color:#dc2626;margin-left:auto"></span>
+    </div>
+    <div style="font-size:12px;color:#83817b;margin-top:6px;padding-left:2px">
+      ※このバーは、下にスクロールしても画面の上に貼りついたまま見えます。<br>
+      ※「＋商品を追加」を押すと、新しい商品を登録できます（登録後はそのまま下の一覧に出ます／取り直し不要）。
     </div>
   </div>
 
-  <div class="info-box">この画面ですること：<strong>商品の金額（定価・卸①・卸②・RT）を決める場所</strong>です。不良在庫特価は、不良在庫として出荷する受注にだけ使われます。</div>
-
+  <!-- ③ 価格変更ロック -->
   <div class="card" style="background:#fef3c7;border-color:#f59e0b;margin-bottom:1rem">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
       <input type="checkbox" id="price-edit-lock" onchange="togglePriceEditLock()" style="width:18px;height:18px">
@@ -306,21 +322,13 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
-  <div class="info-box">💡 税率は商品ごとに設定します（オリーブオイル本体＝8%、ギフト箱・備品・その他＝10%が初期値）。下の表の「税率」欄で商品ごとに直せます。</div>
-  <div class="info-box">💡 「取り扱い中」のチェックを外すと、その商品は見積書・オイル価格表の選択肢から消えます（この画面には残ります）。在庫が0または未登録の商品は自動でチェックが外れることはありませんが、目印として背景が赤くなります（在庫がなくても見積もりだけ出したい場合があるためです）。</div>
-
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-    <button class="btn btn-green" onclick="openAddProductModal()">＋ 商品を追加</button>
-    <span style="font-size:12px;color:#83817b">追加したら、そのまま下の一覧に出ます（取り直し不要）</span>
-  </div>
-
   <div class="tbl-wrap">
     <table>
       <thead><tr>
         <th style="width:70px">取り扱い中 <span class="help-ic" onclick="alert('チェックを外すと、見積書・オイル価格表の商品選択に出てこなくなります（価格マスタ画面には残ります）。在庫が0または未登録の商品は、背景が赤く表示されます。ただし在庫が0でも見積もりだけ出したい場合もあるので、自動でチェックが外れることはありません。')">ⓘ</span></th>
         <th>商品名（SKU）</th>
         <th>入数 <span class="help-ic" onclick="alert('1箱に入っている本数です。各金額欄の下に、その本数分の「1箱あたりの価格」も表示されます。')">ⓘ</span></th>
-        <th>税率 <span class="help-ic" onclick="alert('オリーブオイル本体は軽減税率8%、ギフト箱・紙袋などの備品・その他の商品は標準税率10%です。商品によって自動で初期値が入りますが、ここで直すこともできます。')">ⓘ</span></th>
+        <th>税率 <span class="help-ic" onclick="alert('オリーブオイル本体は軽減税率8%、紙袋・空瓶などの備品・その他の商品は標準税率10%です。商品によって自動で初期値が入りますが、ここで直すこともできます。')">ⓘ</span></th>
         <th>定価 <span class="help-ic" onclick="alert('【定価】\n一般のお客様（卸ではない、通常価格でご購入いただく方）に適用する単価です。オープン価格とも呼ばれ、これより安く販売しないという最低ラインの目安にもなります。')">ⓘ</span></th>
         <th>卸① <span class="help-ic" onclick="alert('【卸①】\n通常の卸価格です。多くの卸先はこちらが基本になります。')">ⓘ</span></th>
         <th>卸② <span class="help-ic" onclick="alert('【卸②】\n卸①よりさらに安い特別価格です。2026年7月の決定により、卸①のお客様が同じ商品を6箱以上注文すると、その商品だけ自動でこの価格になります（頑張って買ってくれた人が得をする方式）。')">ⓘ</span></th>
@@ -338,6 +346,29 @@ tr:last-child td{border-bottom:none}
 
 <!-- エクスポート・バックアップ -->
 <div id="panel-export" class="panel">
+
+  <!-- この画面ですること（まとめ） -->
+  <div style="background:#e3efe9;border:2px solid #0f6e56;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+    <div style="font-family:'Zen Maru Gothic','Hiragino Sans',sans-serif;font-size:17px;font-weight:800;color:#0f5040;margin-bottom:10px">🛡️ この画面ですること</div>
+    <ul style="margin:0 0 4px;padding-left:20px;line-height:1.9">
+      <li>大切なデータを<strong>CSV（エクセルで開けるファイル）に書き出して保存</strong>しておく場所です。</li>
+      <li>取れるバックアップは<strong>2種類</strong>あります：</li>
+    </ul>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+      <div style="background:#fff;border:1px solid #cfe0d7;border-radius:8px;padding:10px 12px">
+        <strong>📦 発送リスト</strong> … <strong>誰に・いつ・何を・どの区分で送ったか</strong>の記録（出荷済みの受注一覧）。<br>
+        <span style="font-size:12px;color:#5f5e5a">→ 期間を選んでダウンロード。月に1回など、定期的な控えにおすすめ。</span>
+      </div>
+      <div style="background:#fff;border:1px solid #cfe0d7;border-radius:8px;padding:10px 12px">
+        <strong>🛡️ 請求データ</strong> … <strong>受注・金額・入金状況</strong>のまとめ（お金まわりの記録）。<br>
+        <span style="font-size:12px;color:#5f5e5a">→ 万一データがおかしくなった時は、このファイルを渡していただければ確認・復元をお手伝いできます。</span>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:13px;color:#78350f;background:#fff7ed;border-radius:8px;padding:8px 12px">
+      💡 どうすればいい？ → 下のボタンを押すだけ。ダウンロードしたファイルは、パソコンやGoogleドライブなどに保存しておいてください。
+    </div>
+  </div>
+
   <div class="card">
     <div class="sec">📦 発送リスト（誰に・いつ・何を・区分）をCSVで出力</div>
     <div class="info-box">出荷済みの受注を一覧化したCSVをダウンロードします。Excel・スプレッドシートで開けます。何かあった時の記録用に、定期的に保存しておくことをおすすめします。</div>
@@ -377,7 +408,7 @@ tr:last-child td{border-bottom:none}
         <strong>2026年7月決定：</strong><br>
         ・卸①のお客様が同じ商品を<strong>6箱以上</strong>注文した場合、その商品の行だけ自動的に卸②価格になる（「頑張って買ってくれた人が得をする」方式）<br>
         ・RT（ホテル・レストラン）と卸①の違いは、①トルコ産100mlオイルの単品卸はRT限定、②バラ出荷時の倉庫手数料（RT=700円／卸①②=250円）<br>
-        ・ギフトは your story と oliveNOVA の2つのみ。それ以外の「セット商品」はデフォルトは通常品で、お客様がギフトを希望した場合のみ、1個につき約300円のギフト手数料を追加する<br>
+        ・「ギフト」グループの商品（your story・oliveNOVA）は、そのままでも通常品として販売できる。お客様がギフト包装を希望した場合のみ、1個につき約300円のギフト手数料を追加する<br>
         <span style="color:#b45309">※上記②③（バラ出荷手数料・ギフト手数料）は、まだアプリの計算には反映されていません。次回実装予定です。</span>
       </div>
     </details>
@@ -390,7 +421,7 @@ tr:last-child td{border-bottom:none}
     <div class="modal-title">＋ 商品を追加</div>
     <div class="modal-note">
       新しい商品を「商品マスタ」に登録します。保存すると、その日のうちに他のアプリでも見えるようになります（各アプリを開き直せば反映されます）。<br>
-      ※セット商品（構成品つき）は仕組みが複雑なので、シートで直接編集をお願いしています。
+      ※ギフト（構成品つき）は仕組みが複雑なので、シートで直接編集をお願いしています。
     </div>
     <div class="g2">
       <div class="fg"><label>SKU（英数字・重複不可） <span style="color:#dc2626">*</span></label><input type="text" id="ap-sku" placeholder="例：NEW100" oninput="onAddProductInput()"></div>
@@ -495,21 +526,21 @@ let PRODUCTS = [
 {id:38, sku:'CUP001', jan:'7012', name:'カップオイル 13g グリーンブーケ（オルガニック）', group:'カップオイル', boxQty:120},
 {id:39, sku:'CUP002', jan:'7036', name:'カップオイル 13g グリーンバナナ（メメジック）',   group:'カップオイル', boxQty:120},
 {id:40, sku:'CUP003', jan:'7029', name:'カップオイル 13g オレンジ＆レモン（アグルミ）',   group:'カップオイル', boxQty:120},
-{id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+{id:50, sku:'YS100',  name:'your story 100ml×3本セット +ギフト箱+紙袋黒大', group:'ギフト', isSet:true,
   components:[{sku:'ORG100',qty:1},{sku:'MEM100',qty:1},{sku:'CHF100',qty:1},{sku:'BOX-YS3',qty:1},{sku:'BAG002',qty:1}]},
-{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+{id:51, sku:'YS250A', name:'your story 250ml×2本セット A（オルガニック＋メメジック）+ギフト箱+紙袋黒大', group:'ギフト', isSet:true,
   components:[{sku:'ORG250',qty:1},{sku:'MEM250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
-{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+{id:52, sku:'YS250B', name:'your story 250ml×2本セット B（メメジック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'ギフト', isSet:true,
   components:[{sku:'MEM250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
-{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+{id:53, sku:'YS250C', name:'your story 250ml×2本セット C（オルガニック＋シェフズブレンド）+ギフト箱+紙袋黒大', group:'ギフト', isSet:true,
   components:[{sku:'ORG250',qty:1},{sku:'CHF250',qty:1},{sku:'BOX-YS2',qty:1},{sku:'BAG002',qty:1}]},
-{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'セット商品', isSet:true,
+{id:54, sku:'GFT001', name:'カップオイル3個ギフトセット oliveNOVA +ギフト箱+紙袋黒大', group:'ギフト', isSet:true,
   components:[{sku:'CUP001',qty:1},{sku:'CUP002',qty:1},{sku:'CUP003',qty:1},{sku:'BOX-CUP',qty:1},{sku:'BAG002',qty:1}]},
-{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用（空箱）', group:'ギフト箱・備品'},
-{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用（空箱）', group:'ギフト箱・備品'},
-{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）（空箱）', group:'ギフト箱・備品'},
-{id:32, sku:'BAG001', name:'紙袋 黒 小', group:'ギフト箱・備品', noWholesale:true},
-{id:33, sku:'BAG002', name:'紙袋 黒 大', group:'ギフト箱・備品', noWholesale:true},
+{id:60, sku:'BOX-YS3', name:'ギフト箱 your story 100ml×3本用（空箱）', group:'備品'},
+{id:61, sku:'BOX-YS2', name:'ギフト箱 your story 250ml×2本用（空箱）', group:'備品'},
+{id:62, sku:'BOX-CUP', name:'ギフト箱 oliveNOVA（カップオイル用）（空箱）', group:'備品'},
+{id:32, sku:'BAG001', name:'紙袋 黒 小', group:'備品', noWholesale:true},
+{id:33, sku:'BAG002', name:'紙袋 黒 大', group:'備品', noWholesale:true},
 {id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
@@ -613,7 +644,7 @@ const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
 // オリーブオイル本体は軽減税率8%、ギフト箱・紙袋などの備品・その他は標準税率10%
 function defaultTaxRateForGroup(group){
-  return (group==='ギフト箱・備品' || group==='その他') ? 0.10 : 0.08;
+  return (group==='備品' || group==='その他') ? 0.10 : 0.08;
 }
 function taxRateForSku(sku){
   const p = priceMaster.find(x=>x.sku===sku);
@@ -1396,7 +1427,7 @@ function renderWhitelistTable(c){
   allowed.forEach(p=>{ (groups[p.group]=groups[p.group]||[]).push(p); });
   let html = '';
   if(!Array.isArray(c.whitelist)){
-    html += '<div class="info-box" style="background:#eef0e5;border-color:#a3b18a;color:#33421f">🌿 備品（紙袋・空瓶などギフト箱・備品／その他グループの商品）は、まだこのお客様に必要かどうか設定していないため、初期状態では<strong>チェックを外して</strong>あります。必要な備品だけチェックを入れて保存してください。</div>';
+    html += '<div class="info-box" style="background:#eef0e5;border-color:#a3b18a;color:#33421f">🌿 備品（紙袋・空瓶など備品／その他グループの商品）は、まだこのお客様に必要かどうか設定していないため、初期状態では<strong>チェックを外して</strong>あります。必要な備品だけチェックを入れて保存してください。</div>';
   }
   Object.keys(groups).forEach(function(g){
     html += '<div style="font-weight:700;margin:8px 0 4px">'+esc(g)+(EQUIPMENT_GROUPS.indexOf(g)>=0?' <span style="font-size:10px;font-weight:400;color:#8a6d3f">（備品）</span>':'')+'</div>';
@@ -1596,7 +1627,7 @@ function quoteAllowedProducts(c){
 // 2026年7月、中村様のご要望により追加：備品は今後も種類が増える想定なので、
 // お客様ごとの表示リストを初めて開いた時点では「備品グループ以外は全部ON、備品はOFF」を初期状態とする。
 // お客様が「この設定を保存」を押すと、その時点のON/OFFがc.whitelistとして明示的に保存され、以後はそちらが優先される。
-const EQUIPMENT_GROUPS = ['ギフト箱・備品', 'その他'];
+const EQUIPMENT_GROUPS = ['備品', 'その他'];
 function isEquipmentProduct(p){
   return !!p && EQUIPMENT_GROUPS.indexOf(p.group) >= 0;
 }
