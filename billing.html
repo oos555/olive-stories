@@ -607,7 +607,7 @@ const GROUP_CERT = {
   'その他オイル':{organic:'×',contamination:'×',analysis:'○'}
 };
 
-const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価' };
+const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価', hub:'貢献ハブ' };
 
 // ── いただいたExcel（2026年価格リスト）から読み取った初期価格 ──
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
@@ -762,13 +762,14 @@ function loadAllBilling(){
 // （4箱案も検討したが、卸①→卸②の値引き幅が20〜25%と大きく、条件が易しすぎると判断し6箱に決定）
 const BULK_UPGRADE_BOXES = 6; // 卸①のお客様が、同じ商品を1回の注文でこの箱数以上買うと、その行だけ自動的に卸②価格になる
 function effectiveCustomerType(customerType, boxes){
+  if(customerType==='hub') return 'wholesale2'; // 貢献ハブ：箱数に関係なく卸②価格
   if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
   return customerType;
 }
 function priceForSku(sku, customerType){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
   if(!p) return 0;
-  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect' };
+  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect', hub:'priceWholesale2' };
   const key = map[customerType] || 'priceGeneral';
   return parseFloat(p[key])||0;
 }
@@ -846,7 +847,7 @@ function renderInvoiceList(){
     const t = o.customerType;
     if(t==='general') mGeneral++;
     else if(t==='rt') mRT++;
-    else if(t==='wholesale1' || t==='wholesale2') mWho++;
+    else if(t==='wholesale1' || t==='wholesale2' || t==='hub') mWho++;
     else mOther++;
   });
   const _setTxt = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
@@ -1052,7 +1053,7 @@ function generateInvoiceDoc(orderId){
     const unitPrice = priceForSku(sku, effType);
     const openPrice = priceForSku(sku, 'general');
     const tax = taxRateForSku(sku);
-    const upgraded = effType!==o.customerType;
+    const upgraded = (o.customerType==='wholesale1' && effType!==o.customerType); // 数量割引は卸①→卸②の箱数昇格だけ（貢献ハブには付けない）
     return { name: l.productName+(upgraded?'（数量割引適用）':''), qty: totalQty, openPrice: openPrice, unitPrice: unitPrice, amount: unitPrice*totalQty, taxRate: tax };
   });
   const doc = buildInvoiceDocHtml({
@@ -1651,7 +1652,7 @@ function generateQuoteDoc(){
     const effType = effectiveCustomerType(c.type, boxes);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
-    const upgraded = effType!==c.type;
+    const upgraded = (c.type==='wholesale1' && effType!==c.type); // 数量割引は卸①→卸②の箱数昇格だけ（貢献ハブには付けない）
     items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
     if(boxes>0) totalBoxes += boxes;
   });
