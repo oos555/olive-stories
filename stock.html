@@ -248,9 +248,9 @@ tr:last-child td{border-bottom:none}
 <div class="tab-row">
   <button class="tab active" onclick="showPanel('inv',this)">在庫一覧</button>
   <button class="tab" onclick="showPanel('lot',this)">ロット管理</button>
-  <button class="tab" onclick="showPanel('defect',this)">不良在庫</button>
-  <button class="tab" onclick="showPanel('hold',this)">取り置き</button>
-  <button class="tab" onclick="showPanel('pre',this)">予約販売</button>
+  <button class="tab" onclick="showPanel('defect',this)">不良在庫リスト</button>
+  <button class="tab" onclick="showPanel('hold',this)">取り置きリスト</button>
+  <button class="tab" onclick="showPanel('pre',this)">予約販売リスト</button>
   <button class="tab" onclick="showPanel('ilog',this)">ログ</button>
 </div>
 
@@ -409,6 +409,7 @@ tr:last-child td{border-bottom:none}
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 let gasSyncEnabled = true;
+let invLoading = true; // 在庫データが揃うまでは在庫表に「読み込み中…」を出す（0のチラ見せ防止）
 
 // ── 商品マスタ（アプリAと共有。確定したらこちらからAへコピーしてください）────
 // ※ GAS（商品マスタシート）からの読み込みで上書きされます。通信失敗時の
@@ -621,7 +622,7 @@ function onProdChange(prodId, lotId){
 
 // ── GAS 読み込み・保存 ────────────────────────────────────────────
 function loadAllDataFromGAS(){
-  if(!gasSyncEnabled) return;
+  if(!gasSyncEnabled){ invLoading = false; renderInvTable(); return; }
   Promise.all([
     fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
     fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
@@ -642,10 +643,11 @@ function loadAllDataFromGAS(){
     }
     // 取り置きは注文（取り置き中）から組み立てる（GASのholdsには頼らない）
     holds = buildHoldsFromOrders();
+    invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderDefectHistory();
     renderHoldList(); renderPreList(); renderInvLogs(); renderCatOptions();
     showSyncStatus('✅ 保存されたデータを読み込みました');
-  }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
+  }).catch(function(){ invLoading = false; renderInvTable(); showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
 }
 
 let autoSaveTimer = null;
@@ -744,6 +746,11 @@ function toggleInvEdit(){
   renderInvTable();
 }
 function renderInvTable(){
+  if(invLoading){
+    const _tb = document.getElementById('inv-tbl-body');
+    if(_tb) _tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#57534e;padding:24px;font-size:14px">読み込み中…（在庫データを取得しています）</td></tr>';
+    return;
+  }
   const search = (document.getElementById('inv-search').value||'').toLowerCase();
   const groups = productGroups();
   let totalStock=0, totalAvail=0, totalOld=0, totalDefect=0, totalHold=0;
