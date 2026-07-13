@@ -32,7 +32,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .nav-atelier{background:rgba(201,169,166,.16)}
 .nav-atelier .nav-group-label{color:#8d6a66}
 
-.savebtn{background:#6b7a3a;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600}
+.savebtn{background:#0f6e56;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600}
+.savebtn:hover{background:#0c5a46}
 .tab-row{display:flex;border:1px solid #e8e2d8;border-radius:8px;overflow:hidden;margin-bottom:1.25rem;background:#fff;flex-wrap:wrap}
 .tab{flex:1;padding:8px 4px;font-size:12px;color:#57534e;background:transparent;border:none;cursor:pointer;border-right:1px solid #e8e2d8;text-align:center;min-width:90px}
 .tab:last-child{border-right:none}
@@ -50,9 +51,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
 @media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
 .btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
-.btn-primary{background:#dbeafe;color:#1e3a8a;border:1px solid #185fa5}
-.btn-primary:hover{background:#bfdbfe}
-.btn-green{background:#dcfce7;color:#14532d;border:1px solid #16a34a}
+.btn-primary{background:#0f6e56;color:#fff;border:none}
+.btn-primary:hover{background:#0c5a46}
+.btn-green{background:#0f6e56;color:#fff;border:none}
+.btn-green:hover{background:#0c5a46}
 .btn-gray{background:#f0ece3;color:#2b2a26;border:1px solid #d5cfc3}
 .btn-sm{font-size:11px;padding:4px 10px;border:1px solid #d5cfc3;border-radius:6px;background:#fff;color:#333;cursor:pointer}
 .btn-sm:hover{background:#f5f5f3}
@@ -282,30 +284,36 @@ tr:last-child td{border-bottom:none}
 
 <!-- 価格マスタ -->
 <div id="panel-price" class="panel">
-  <div class="info-box">商品ごとの単価を設定します。<strong>区分（定価・卸①・卸②・RTなど）によって金額が変わる場合はここで設定</strong>してください。不良在庫特価は、不良在庫として出荷する受注にだけ適用されます。</div>
+  <!-- 上に貼りつく保存バー（スクロールしても常に見える） -->
+  <div style="position:sticky;top:0;z-index:20;background:#faf7f2;padding:10px 0;margin-bottom:6px;border-bottom:1px solid #e5e0d6">
+    <div style="background:#e3efe9;border:2px solid #0f6e56;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="savePriceMaster()" style="font-size:16px;font-weight:800;padding:13px 24px">💾 価格マスタを保存する</button>
+      <span style="font-size:13px;color:#0f5040;font-weight:600">金額を直したら、必ずこのボタンを押す。</span>
+      <span id="price-dirty-indicator" style="font-size:13px;font-weight:700;color:#dc2626;margin-left:auto"></span>
+    </div>
+  </div>
+
+  <div class="info-box">この画面ですること：<strong>商品の金額（定価・卸①・卸②・RT）を決める場所</strong>です。不良在庫特価は、不良在庫として出荷する受注にだけ使われます。</div>
+
   <div class="card" style="background:#fef3c7;border-color:#f59e0b;margin-bottom:1rem">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
       <input type="checkbox" id="price-edit-lock" onchange="togglePriceEditLock()" style="width:18px;height:18px">
-      ✅ 価格を変更する（チェックを入れないと金額は編集できません）
+      ✅ 価格を変更する（チェックを入れないと、金額は触れません）
     </label>
     <div style="font-size:12px;color:#78350f;line-height:1.8;margin-top:8px;padding-top:8px;border-top:1px solid #f3d9a8">
-      <strong>この画面の仕組み：</strong><br>
-      ・上のチェックを入れるまで、下の金額欄はすべて触れません（間違って数字を変えてしまうのを防ぐためです）<br>
-      ・チェックを入れて金額を変えると、「保存する」ボタンの横に赤字で「保存されていない変更があります」と出ます<br>
-      ・「価格マスタを保存する」を押すと、必ず「保存しますか？」と確認が入ります。ここで「キャンセル」を押せば、何も保存されず元の金額のままになります<br>
-      ・保存しないままこの画面を離れよう（他のタブに移ろう）とすると、「保存していませんが、消しますか？」と警告が出ます。「キャンセル」を押せばこの画面に留まれます<br>
-      ・ブラウザを閉じる・再読み込みする場合も、保存していない変更があれば警告が出ます
+      チェックを入れて金額を直したら、上の「保存する」を押してください。<br>
+      保存せずに他の画面へ移ろうとすると、「消しますか？」と確認が出ます（キャンセルすれば戻れます）。
     </div>
   </div>
+
   <div class="info-box">💡 税率は商品ごとに設定します（オリーブオイル本体＝8%、ギフト箱・備品・その他＝10%が初期値）。下の表の「税率」欄で商品ごとに直せます。</div>
   <div class="info-box">💡 「取り扱い中」のチェックを外すと、その商品は見積書・オイル価格表の選択肢から消えます（この画面には残ります）。在庫が0または未登録の商品は自動でチェックが外れることはありませんが、目印として背景が赤くなります（在庫がなくても見積もりだけ出したい場合があるためです）。</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
     <button class="btn btn-green" onclick="openAddProductModal()">＋ 商品を追加</button>
+    <span style="font-size:12px;color:#83817b">追加したら、そのまま下の一覧に出ます（取り直し不要）</span>
   </div>
-  <div style="background:#fff5f4;border:2px solid #dc2626;border-radius:8px;padding:10px 12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-    <button onclick="forceReloadProducts()" style="background:#dc2626;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer;color:#fff">🔄 商品マスタを最新版に取り直す</button>
-    <span style="font-size:12px;color:#b91c1c;font-weight:700">⚠️ 商品を追加した時・商品情報をシートで直接直した時は、必ずこのボタンを押してください</span>
-  </div>
+
   <div class="tbl-wrap">
     <table>
       <thead><tr>
@@ -322,10 +330,9 @@ tr:last-child td{border-bottom:none}
       <tbody id="price-tbl-body"></tbody>
     </table>
   </div>
-  <div style="margin-top:12px;padding:12px;background:#f0f4e2;border:2px solid #6b7a3a;border-radius:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-    <button class="btn btn-green" onclick="savePriceMaster()" style="font-size:17px;font-weight:800;padding:14px 26px">💾 価格マスタを保存する</button>
-    <span style="font-size:12.5px;color:#3b4a12">金額を直したら、必ずこのボタンを押してください。押さないと変更は消えます。</span>
-    <span id="price-dirty-indicator" style="font-size:13px;font-weight:700;color:#dc2626"></span>
+  <div style="margin-top:16px;padding-top:12px;border-top:1px dashed #d8d2c6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:12px;color:#83817b">🔄 シートを直接直した時だけ：</span>
+    <button onclick="forceReloadProducts()" style="background:#f1eee7;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">最新版に取り直す</button>
   </div>
 </div>
 
