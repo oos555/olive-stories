@@ -823,16 +823,16 @@ function renderInvoiceList(){
     const overdue = isPaymentOverdueOneMonth(o);
     const effPaid = orderEffectivePaid(o);
     const paidBadge = effPaid ? '<span style="color:#8a8578;font-size:11px">入金済み</span>' : (overdue ? '<span class="badge" style="background:#dc2626;color:#fff">🚨1ヶ月超未入金</span>' : '<span class="badge badge-unpaid">未入金</span>');
-    // 入金済みの行は薄グレー＋文字も少し落ち着かせる（読めるけど「済んだ」感を出す）。未入金は通常色。
-    const rowBg = overdue ? '#fef2f2' : (effPaid ? '#f0eeea' : (_idx%2===1 ? '#f3efe6' : '#ffffff'));
+    // 消し込み済み（入金済み＝チェックが入った行）はグレーに統一（全アプリ共通ルール）。しま模様は付けない。
+    const rowBg = overdue ? '#fef2f2' : (effPaid ? '#eeece7' : '#ffffff');
     const rowColor = effPaid ? '#83817b' : '#2b2a26';
-    const numColor = effPaid ? '#6a86a8' : '#185FA5';
+    const numColor = effPaid ? '#8a8578' : '#185FA5';
     return '<tr style="background:'+rowBg+';color:'+rowColor+'"><td><a href="javascript:void(0)" onclick="toggleOrderDetail(\''+o.id+'\')" style="color:'+numColor+';font-weight:700;text-decoration:underline;cursor:pointer" title="タップすると注文の中身が下に開きます">'+o.num+'<span class="order-chev" data-id="'+o.id+'" style="font-size:9px;margin-left:3px">▶</span></a></td><td>'+(o.recipientName||o.client)+'</td><td>'+(o.registeredAt||'').slice(0,10)+'</td>'+
       '<td>'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'</td><td>'+payBadge+'</td>'+
       '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
       '<td>'+paidBadge+'</td>'+
       '<td><input type="text" class="billing-note-input" data-id="'+o.id+'" value="'+esc(o.billingNote||'')+'" placeholder="対応状況メモ" style="width:140px;padding:4px 6px;border:1px solid #d5cfc3;border-radius:4px;font-size:11px" onblur="saveBillingFields(\''+o.id+'\')"></td>'+
-      '<td style="text-align:center"><input type="checkbox" '+(effPaid?'checked':'')+' onchange="setOrderPaid(\''+o.id+'\', this.checked)" title="入金が済んだらチェック" style="width:26px;height:26px;accent-color:#6b7a3a;cursor:pointer;vertical-align:middle"></td></tr>'+
+      '<td style="text-align:center"><input type="checkbox" '+(effPaid?'checked':'')+' onchange="setOrderPaid(\''+o.id+'\', this)" title="入金が済んだらチェック" style="width:26px;height:26px;accent-color:#6b7a3a;cursor:pointer;vertical-align:middle"></td></tr>'+
       '<tr class="order-detail-row" data-id="'+o.id+'" style="display:none"><td colspan="9" style="padding:0 6px 8px">'+buildOrderDetailHtml(o)+'</td></tr>';
   }).join('') || '<tr><td colspan="9" style="text-align:center;color:#57534e;padding:20px">該当する受注がありません</td></tr>';
 
@@ -938,7 +938,18 @@ function orderEffectivePaid(o){
   return !!(o.paymentConfirmed || o.paymentMode==='prepay' || o.paymentMode==='paid');
 }
 // 売上一覧のチェックボックスを操作したときの保存。チェック＝入金済み、外す＝未入金。
-async function setOrderPaid(orderId, checked){
+// 保存中はもう一度触れないようにロックする（重ね押し・取り違え・上書き事故の防止）。
+let _paidSaving = false;
+async function setOrderPaid(orderId, el){
+  const checked = el.checked;
+  if(_paidSaving){
+    el.checked = !checked; // 前の保存が終わるまでは受け付けず、見た目も元に戻す
+    showSyncStatus('前の保存が終わるまで、少しだけ待ってください', true);
+    return;
+  }
+  _paidSaving = true;
+  // 保存が終わるまで、一覧のチェックを全部いったん触れなくする
+  document.querySelectorAll('#invoice-tbl-body input[type="checkbox"]').forEach(function(c){ c.disabled = true; });
   showSyncStatus('保存しています...');
   try{
     const freshRes = await fetch(GAS_URL + '?action=loadAll');
@@ -966,6 +977,8 @@ async function setOrderPaid(orderId, checked){
     }
   }catch(err){
     showSyncStatus('⚠️ 通信エラーが発生しました', true); renderInvoiceList();
+  }finally{
+    _paidSaving = false; // 保存が終わったのでロック解除（再描画でチェックは触れる状態に戻る）
   }
 }
 
