@@ -1305,6 +1305,26 @@ function onSenderModeChange(){
   document.getElementById('d-sender-client-box').style.display = mode==='client' ? 'block' : 'none';
   document.getElementById('d-sender-self-box').style.display = mode==='self' ? 'block' : 'none';
   document.getElementById('d-sender-custom-fields').style.display = mode==='custom' ? 'block' : 'none';
+  applyGiftModeToRecipients();
+}
+// No.10 送り主が自社以外（発注者名・別名義）＝ギフト扱い：届け先を別住所モードで自動展開し、
+//        「🎁 ギフトのため…」を表示、「発注者と同じ住所に戻す」ボタンは事故防止で隠す。
+//        入力済みの内容は消さない。送り主＝自社のときは従来どおり（発注者と同じ住所で開始）。
+function applyGiftModeToRecipients(){
+  const sel = document.getElementById('d-sender-mode');
+  const gift = sel && sel.value !== 'self';
+  document.querySelectorAll('.recipient-card').forEach(function(card){
+    const hint = card.querySelector('[data-role=giftHint]');
+    const resetBtn = card.querySelector('[data-role=resetAddrBtn]');
+    if(gift){
+      setRecipientAddrMode(card.id, false);
+      if(hint) hint.style.display = 'block';
+      if(resetBtn) resetBtn.style.display = 'none';
+    } else {
+      if(hint) hint.style.display = 'none';
+      if(resetBtn) resetBtn.style.display = '';
+    }
+  });
 }
 
 // ── 商品セレクトHTML ────────────────────────────────────────────
@@ -1356,7 +1376,8 @@ function addRecipient(){
       '</div>'+
     '</div>'+
     '<div data-role="addrFields" style="display:none">'+
-    '<button type="button" class="btn-sm" onclick="setRecipientAddrMode(\''+id+'\',true)" style="margin-bottom:10px">↩ 発注者と同じ住所に戻す</button>'+
+    '<div data-role="giftHint" style="display:none;background:#fdf6ee;border:1px solid #d9a441;border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#8a5a1c">🎁 ギフトのため、お届け先は発注者と別の住所を入れてください</div>'+
+    '<button type="button" class="btn-sm" data-role="resetAddrBtn" onclick="setRecipientAddrMode(\''+id+'\',true)" style="margin-bottom:10px">↩ 発注者と同じ住所に戻す</button>'+
     '<div class="fg"><label>届け先の種類</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0">'+
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="individual" data-role="rtypeInd" checked onchange="onRecipientTypeChange(\''+id+'\')">個人</label>'+
@@ -1459,6 +1480,7 @@ function addRecipient(){
   wrap.appendChild(card);
   addRecipientLine(id);
   renumberRecipients();
+  applyGiftModeToRecipients();
 }
 function toggleRecipientOverride(cardId){
   const panel = document.getElementById(cardId).querySelector('[data-role=overridePanel]');
