@@ -687,8 +687,19 @@ body{background:#fff}
 
 <!-- 取り置き・予約 -->
 <div id="panel-hold" class="panel">
-  <div class="info-box">取り置き・予約は「受注登録」画面の「登録の種類」から登録してください。入力する内容は通常の受注登録と完全に同じです。ここでは、登録済みの取り置き・予約の一覧と、期限が近づいた時の警告だけを表示します。</div>
+  <details style="background:#eef1e6;border:1px solid #c9d3b4;border-radius:10px;padding:10px 12px;margin-bottom:14px">
+    <summary style="font-size:14px;font-weight:700;color:#33421f;cursor:pointer">❓ この画面ですること（タップで開く）</summary>
+    <div style="font-size:13px;line-height:1.8;color:#33421f;margin-top:8px">
+      <div style="margin-bottom:6px">① 「受注登録」で取り置き・予約を登録。<b>「いつまで」は必ず入れます</b>（空欄では登録できません）。</div>
+      <div style="margin-bottom:6px">② 期限が近づくと、この画面が<b>色とお知らせ</b>で教えます（期限3日前＝黄・期限切れ＝赤）。</div>
+      <div>③ 出す時が来たら<b>「出荷指示書へ」</b>。チェックを付ければ<b>まとめて</b>進められます。</div>
+    </div>
+  </details>
   <div id="hold-alert-area"></div>
+  <div id="hold-batch-bar" style="display:none;align-items:center;gap:10px;background:#fff;border:1px solid #d6d6ce;border-radius:10px;padding:9px 11px;margin-bottom:12px">
+    <span style="font-size:14px;font-weight:700"><span id="hold-selected-count">0</span>件を選択中</span>
+    <button class="btn-sm" style="margin-left:auto;background:#6b7a3a;border-color:#6b7a3a;color:#fff;font-weight:700" onclick="convertSelectedHoldToShipping()">📦 選んだ分をまとめて出荷指示書へ</button>
+  </div>
   <div class="sec">🗄 取り置き中（<span id="held-count">0</span>件）</div>
   <div id="held-order-list"></div>
   <div class="sec" style="margin-top:1.5rem">🗓 予約中（<span id="reserved-count">0</span>件）</div>
@@ -1884,6 +1895,17 @@ function previewOrder(){
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
     }
+    const rt0 = document.getElementById('o-record-type').value;
+    if(rt0==='held' && !document.getElementById('o-hold-date').value){
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ 取り置きは「いつまでの取り置きか」を必ず入れてください。期限が入っていないと、いつまで取り置くのかが分からなくなり、お知らせも出ません。</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      return;
+    }
+    if(rt0==='reserved' && !document.getElementById('o-expected-date').value){
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">⚠️ 予約は「お届け予定時期」を必ず入れてください。予定日が入っていないと、お知らせが出ません。</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      return;
+    }
     const rtViolations = [];
     list.forEach(function(o){
       (o.lines||[]).forEach(function(l){
@@ -2228,7 +2250,7 @@ function renderHoldPreLists(){
   heldEl.innerHTML = heldOrders.length ? heldOrders.map(function(o){
     const overdue = isHeldOverdue(o), soon = isHeldDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
-      '<div class="oc-top"><div><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
+      '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限切れ</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅期限間近</span>':'')+
       '<div class="oc-num">'+o.num+'　取り置き期限：'+(o.holdUntilDate||'指定なし')+'</div></div></div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -2240,13 +2262,35 @@ function renderHoldPreLists(){
   resEl.innerHTML = reservedOrders.length ? reservedOrders.map(function(o){
     const overdue = isReservedOverdue(o), soon = isReservedDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
-      '<div class="oc-top"><div><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
+      '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰予定超過</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅予定間近</span>':'')+
       '<div class="oc-num">'+o.num+'　お届け予定：'+(o.expectedDate||'指定なし')+'</div></div></div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       '<div class="oc-actions"><button class="btn-sm" style="background:#dcfce7;border-color:#16a34a;color:#14532d" onclick="convertToShipping(\''+o.id+'\')">📦 出荷指示書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
   }).join('') : '<div style="color:#57534e;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>';
+
+  updateHoldSelected();
+}
+
+function updateHoldSelected(){
+  const n = document.querySelectorAll('.hold-select-cb:checked').length;
+  const cEl = document.getElementById('hold-selected-count');
+  if(cEl) cEl.textContent = n;
+  const bar = document.getElementById('hold-batch-bar');
+  if(bar) bar.style.display = n ? 'flex' : 'none';
+}
+
+function convertSelectedHoldToShipping(){
+  const ids = Array.from(document.querySelectorAll('.hold-select-cb:checked')).map(cb=>cb.value);
+  if(!ids.length){ alert('出荷指示書へ進めたい取り置き・予約にチェックを入れてください'); return; }
+  const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
+  list.forEach(function(o){ o.status='pending'; applyStockDeductOnSend(o); });
+  saveStockToGAS();
+  updateSummary(); renderList(); renderSlipSelect();
+  syncOrdersToGAS();
+  showSyncStatus('📦 '+list.length+'件を出荷指示書に届けました。出荷指示に進んでください。');
+  gotoSlip(list[0].id);
 }
 
 function convertToShipping(id){
@@ -2257,6 +2301,7 @@ function convertToShipping(id){
   saveStockToGAS();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS();
+  showSyncStatus('📦 出荷指示書に届きました。出荷指示に進んでください。');
   gotoSlip(id);
 }
 
