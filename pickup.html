@@ -110,7 +110,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .material-qty-row{display:flex;align-items:center;gap:8px;margin-top:8px}
 .material-qty-btn{width:32px;height:32px;border-radius:8px;border:1px solid #d5cfc3;background:#fff;font-size:16px;font-weight:700;cursor:pointer}
 .material-qty-num{font-size:18px;font-weight:700;min-width:36px;text-align:center}
-.back-link{display:inline-block;margin-bottom:10px;color:#185fa5;font-size:13px;font-weight:600;cursor:pointer}
+.back-link{display:block;width:100%;box-sizing:border-box;margin-bottom:12px;background:#6b7a3a;color:#fff;font-size:16px;font-weight:600;padding:13px;border-radius:9px;text-align:center;cursor:pointer}
+.back-link:active{background:#55622e}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-blue:active{background:#1d4ed8}
+.home-banner{background:#6b7a3a;color:#fff;border-radius:9px;padding:10px;text-align:center;margin-bottom:10px}
+.home-banner .hb-title{font-size:16px;font-weight:700}
+.home-banner .hb-sub{font-size:11px;opacity:.9;margin-top:1px}
+.tools-box{margin-bottom:12px}
+.tools-box>summary{list-style:none;cursor:pointer;background:#fff;border:1.5px solid #d5cfc3;border-radius:9px;padding:11px 13px;font-size:14px;font-weight:600;color:#2b2a26;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tools-box[open]>summary{border-color:#6b7a3a;color:#3b4a1a}
+.tools-box>summary::-webkit-details-marker{display:none}
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.tool-tile{border-radius:11px;padding:13px 4px;text-align:center;cursor:pointer;border:2px solid}
+.tool-tile:active{filter:brightness(0.97)}
+.tool-tile .tt-ic{font-size:23px;line-height:1}
+.tool-tile .tt-tx{font-size:13px;font-weight:700;margin-top:3px}
+.pk-card{background:#fff;border:1px solid #e5e3da;border-radius:11px;padding:11px 12px;margin-bottom:8px;cursor:pointer}
+.pk-card:active{filter:brightness(0.98)}
+.pk-card.pk-urg{background:#fdecec;border-color:#f3c9c9}
+.pk-card.pk-done{background:#f5f3ec}
+.pk-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.pk-name{font-size:16px;font-weight:700;color:#2b2a26}
+.pk-done .pk-name{color:#8a887f}
+.pk-stat-wait{font-size:13px;color:#b45309;font-weight:700;white-space:nowrap}
+.pk-stat-done{font-size:13px;color:#6b7a3a;font-weight:700;white-space:nowrap;text-align:right}
+.pk-stat-done .pk-time{display:block;font-size:10px;color:#a6a49c;font-weight:600}
+.pk-marks{margin-top:2px}
+.pk-items{font-size:13px;color:#2b2a26;margin-top:4px;line-height:1.45}
+.pk-done .pk-items{color:#8a887f}
+.pk-dates{display:flex;gap:16px;margin-top:5px}
+.pk-dates span{font-size:13px;color:#2b2a26}
+.pk-dates b{font-weight:700}
+.pk-wish-has{color:#185fa5 !important;font-weight:700}
+.admin-back{margin-top:16px;text-align:center}
+.admin-back a{display:inline-block;font-size:13px;color:#185fa5;font-weight:600;border:1px solid #b5d4f4;border-radius:20px;padding:7px 16px;cursor:pointer;text-decoration:none}
+.admin-back .ab-note{font-size:11px;color:#9ca3af;margin-top:5px}
 /* ── 熨斗（のし）シート A4横 ── */
 .noshi-preview-frame{background:#fff;border:1px solid #e8e2d8;border-radius:10px;padding:8px;margin-bottom:14px;overflow:hidden}
 .noshi-sheet{position:relative;width:100%;aspect-ratio:297/210;background:#fff;font-family:'Yu Mincho','Hiragino Mincho ProN',serif}
@@ -693,7 +728,7 @@ async function loadStockScreen(){
 }
 
 function stockBackBtn(){
-  return '<button class="refresh-btn no-print" style="margin-top:12px" onclick="location.href=\'pickup.html\'">← 梱包リストに戻る</button>';
+  return '<button class="refresh-btn no-print" style="margin-top:12px;background:#6b7a3a;color:#fff;border:none;font-size:16px" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
 }
 
 // 在庫の色の見かた（しきい値は STOCK_LOW / STOCK_CRIT から自動で表示）
@@ -772,12 +807,24 @@ function stockCell(label, val, color, zeroMuted){
 }
 
 async function loadOrderList(){
-  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  // ① まずキャッシュがあれば一瞬で表示（戻ってきたときに待たせない）
+  var hadCache = false;
+  try{
+    var c = sessionStorage.getItem('oos_pickup_orders_v1');
+    if(c){
+      var arr = JSON.parse(c);
+      if(Array.isArray(arr)){ allOrders = arr; hadCache = true; try{ renderList(); }catch(e){} }
+    }
+  }catch(e){}
+  if(!hadCache){
+    document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  }
+  // ② そのあと裏で最新を取りに行き、届いたら差し替える
   try{
     const [res, ] = await Promise.all([fetch(GAS_URL + '?action=loadAll'), fetchWarehouseNotes()]);
     const data = await res.json();
     if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
-      document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>';
+      if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>'; }
       return;
     }
     // 出荷待ち（出荷指示が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
@@ -787,9 +834,10 @@ async function loadOrderList(){
       if(o.status==='shipped' && shippedToday(o)) return true;
       return false;
     });
+    try{ sessionStorage.setItem('oos_pickup_orders_v1', JSON.stringify(allOrders)); }catch(e){}
     renderList();
   }catch(err){
-    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
+    if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>'; }
   }
 }
 
@@ -805,6 +853,7 @@ function renderList(){
   const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   const overdue = allOrders.filter(o=>isOverdue(o)).length;
   let html = '';
+  html += '<div class="home-banner no-print"><div class="hb-title">🏠 出荷依頼書 一覧</div><div class="hb-sub">（この画面がホームです）</div></div>';
   html += '<details class="app-guide no-print" style="background:#faf7f2;border:2px solid #6b7a3a;border-radius:12px;margin-bottom:14px;overflow:hidden">'
     + '<summary style="cursor:pointer;padding:13px 16px;color:#3b4a1a;font-weight:700;font-size:15px;background:#fff">📦 このアプリは何をする場所？（タップで開く）</summary>'
     + '<div style="padding:14px 16px;border-top:2px solid #6b7a3a">'
@@ -835,11 +884,16 @@ function renderList(){
   html += '<div class="wm-card wm-urg"><div class="wm-label">急ぎ・未梱包</div><div class="wm-num">'+urgentPending+'<span class="wm-unit"> 件</span></div></div>';
   html += '<div class="wm-card wm-pend"><div class="wm-label">梱包待ち 合計</div><div class="wm-num">'+pendingList.length+'<span class="wm-unit"> 件</span></div></div>';
   html += '</div>';
-  html += '<button class="refresh-btn no-print" onclick="loadOrderList()">🔄 一覧を更新する</button>';
-  html += '<button class="defect-btn no-print" onclick="location.href=\'pickup.html?mode=defect\'">🔴 不良品を見つけたので報告する</button>';
-  html += '<button class="refresh-btn no-print" style="border-color:#7c3aed;color:#5b21b6" onclick="location.href=\'pickup.html?mode=notes\'">📝 メモを見る・書く</button>';
-  html += '<button class="refresh-btn no-print" style="border-color:#92400e;color:#92400e" onclick="location.href=\'pickup.html?mode=materials\'">📦 資材カタログ（写真・数）</button>';
-  html += '<button class="refresh-btn no-print" style="border-color:#6b7a3a;color:#3b4a1a;background:#eef3e0;font-weight:700" onclick="location.href=\'pickup.html?mode=stock\'">📦 在庫を見る（本数）</button>';
+  html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList()">🔄 出荷依頼書を更新</button>';
+  html += '<details class="tools-box no-print">';
+  html += '<summary><span>🧰 その他のボタン（不良品・メモ・資材・在庫）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
+  html += '<div class="tool-grid">';
+  html += '<div class="tool-tile" style="background:#fef2f2;border-color:#dc2626" onclick="location.href=\'pickup.html?mode=defect\'"><div class="tt-ic" style="color:#991b1b">🔴</div><div class="tt-tx" style="color:#991b1b">不良品ほうこく</div></div>';
+  html += '<div class="tool-tile" style="background:#f1ecfb;border-color:#7c3aed" onclick="location.href=\'pickup.html?mode=notes\'"><div class="tt-ic" style="color:#6d28d9">📝</div><div class="tt-tx" style="color:#5b21b6">メモ</div></div>';
+  html += '<div class="tool-tile" style="background:#fbeede0;border-color:#b45309" onclick="location.href=\'pickup.html?mode=materials\'"><div class="tt-ic" style="color:#b45309">📦</div><div class="tt-tx" style="color:#7a3a0e">資材カタログ</div></div>';
+  html += '<div class="tool-tile" style="background:#eef3e0;border-color:#6b7a3a" onclick="location.href=\'pickup.html?mode=stock\'"><div class="tt-ic" style="color:#4a5a1f">🫒</div><div class="tt-tx" style="color:#3b4a1a">在庫を見る</div></div>';
+  html += '</div>';
+  html += '</details>';
   if(!allOrders.length){
     html += '<div class="card center" style="color:#57534e">現在、届いている出荷指示はありません。</div>';
   } else {
@@ -854,36 +908,37 @@ function renderList(){
       if(au!==bu) return au-bu;
       return (a.registeredAt||'').localeCompare(b.registeredAt||'');
     });
-    html += '<div class="watch-table">';
-    html += '<div class="wt-head"><span class="wt-c-name">お客様</span><span class="wt-c-item">内容</span><span class="wt-c-req">出荷依頼日</span><span class="wt-c-wish">お届け希望日</span><span class="wt-c-stat">状態</span></div>';
     sorted.forEach(function(o){
       const shipped = (o.status==='shipped');
       const urgentNow = (!shipped && o.leadType==='urgent');
       const overdueNow = isOverdue(o);
       const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
       const custNote = findCustomerNote(o.client);
-      const rowCls = shipped ? 'wt-row wt-done' : (urgentNow ? 'wt-row wt-urg' : 'wt-row');
+      const cardCls = shipped ? 'pk-card pk-done' : (urgentNow ? 'pk-card pk-urg' : 'pk-card');
       const marks = ''
         + (urgentNow?'<span class="wt-mk wt-mk-urg">急ぎ</span>':'')
         + (overdueNow?'<span class="wt-mk wt-mk-over">⏰期限超過</span>':'')
         + (hasNoshi(o)?'<span class="wt-mk">🎀</span>':'')
         + (custNote?'<span class="wt-mk">📝</span>':'')
         + (hasGift?'<span class="wt-mk">🎁</span>':'');
-      const wish = o.leadDate ? esc(fmtMD(o.leadDate)) : '<span class="wt-none">希望日なし</span>';
+      const wishHtml = o.leadDate ? '<b class="pk-wish-has">'+esc(fmtMD(o.leadDate))+'</b>' : '<b>なし</b>';
       const stat = shipped
-        ? '<span class="wt-done-txt">✓ 梱包終了</span><span class="wt-done-time">'+esc(shippedTimeShort(o))+'</span>'
-        : '<span class="wt-wait-txt">🕐 梱包待ち</span>';
+        ? '<span class="pk-stat-done">✓ 梱包終了<span class="pk-time">'+esc(shippedTimeShort(o))+'</span></span>'
+        : '<span class="pk-stat-wait">🕐 梱包待ち</span>';
       const products = (o.lines||[]).map(function(l){return esc(l.productName)+' ×'+esc(l.bottles);}).join('、');
-      html += '<div class="'+rowCls+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
-      html +=   '<span class="wt-c-name"><span class="wt-name-txt">'+esc(recipientLabel(o))+'</span>'+marks+'</span>';
-      html +=   '<span class="wt-c-item">'+products+'</span>';
-      html +=   '<span class="wt-c-req">'+esc(fmtMD(o.registeredAt))+'</span>';
-      html +=   '<span class="wt-c-wish">'+wish+'</span>';
-      html +=   '<span class="wt-c-stat">'+stat+'</span>';
+      html += '<div class="'+cardCls+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
+      html +=   '<div class="pk-top"><span class="pk-name">'+esc(recipientLabel(o))+'</span>'+stat+'</div>';
+      if(marks) html += '<div class="pk-marks">'+marks+'</div>';
+      html +=   '<div class="pk-items">'+products+'</div>';
+      html +=   '<div class="pk-dates"><span>依頼日 <b>'+esc(fmtMD(o.registeredAt))+'</b></span><span>希望日 '+wishHtml+'</span></div>';
       html += '</div>';
     });
-    html += '</div>';
   }
+  try{
+    if(localStorage.getItem('oos_atelier_ok')==='1' || localStorage.getItem('oos_home_ok')==='1'){
+      html += '<div class="admin-back no-print"><a onclick="location.href=\'home.html\'">🏠 管理画面へ戻る</a><div class="ab-note">※ 倉庫さんのスマホには表示されません</div></div>';
+    }
+  }catch(e){}
   document.getElementById('content').innerHTML = html;
 }
 
@@ -928,7 +983,7 @@ function renderOrder(){
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   const orderHasNoshi = hasNoshi(o);
   let html = '';
-  html += '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  html += '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>';
   if(o.holdUntilDate) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;padding:4px 12px">🗄 取り置き商品（期限：'+esc(o.holdUntilDate)+'）</span></div>';
   if(o.expectedDate) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;padding:4px 12px">🗓 予約商品（予定：'+esc(o.expectedDate)+'）</span></div>';
   const custNote = findCustomerNote(o.client);
@@ -1050,19 +1105,22 @@ function renderNotesScreen(customerSearch){
   const search = customerSearch || '';
   const globalNote = getGlobalNote();
   const customerNotesList = warehouseNotes.filter(n=>n.type==='customer' && n.note);
-  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>';
+  html += '<div class="card no-print" style="background:#eef3e0;border:1.5px solid #6b7a3a"><div style="font-size:15px;font-weight:700;color:#3b4a1a">🏭 ここは倉庫の中だけのメモです</div><div style="font-size:13px;color:#4a5a1f;margin-top:3px;line-height:1.6">本部への連絡ではありません。倉庫内での覚え書きにお使いください。</div></div>';
   html += '<div class="card">';
-  html += '<div class="sec-title" style="margin-top:0">📌 全体用メモ（倉庫のみんなに伝えたいこと）</div>';
+  html += '<div class="sec-title" style="margin-top:0">📌 倉庫みんなで見るメモ</div>';
+  html += '<div style="font-size:13px;color:#57534e;margin-bottom:8px;line-height:1.6">倉庫の中で共有したいこと。ホーム画面の上にも出ます。</div>';
   html += '<textarea id="note-global" placeholder="例：本日16時以降は出荷締切です">'+esc(globalNote)+'</textarea>';
-  html += '<button class="btn-big btn-complete" style="margin-top:10px" onclick="saveGlobalNoteFromScreen()">全体用メモを保存</button>';
+  html += '<button class="btn-big btn-blue" style="margin-top:10px" onclick="saveGlobalNoteFromScreen()">このメモを保存</button>';
   html += '</div>';
   html += '<div class="card">';
-  html += '<div class="sec-title" style="margin-top:0">📝 顧客個別メモ</div>';
+  html += '<div class="sec-title" style="margin-top:0">📝 お客様ごとの注意メモ</div>';
+  html += '<div style="font-size:13px;color:#57534e;margin-bottom:8px;line-height:1.6">お客様ごとに注意することがあれば、お客様名と注意事項を書いてください。（例：置き配希望、割れ物注意）</div>';
   html += '<input type="text" id="note-cust-search" placeholder="お客様名で検索・新規追加" value="'+esc(search)+'" oninput="renderNotesScreen(this.value)" style="width:100%;padding:11px;border:1px solid #d5cfc3;border-radius:8px;font-size:15px;margin-bottom:10px">';
   if(search){
     const existing = warehouseNotes.find(n=>n.type==='customer' && n.key===search);
     html += '<div class="form-group"><label>「'+esc(search)+'」様へのメモ</label><textarea id="note-cust-text" placeholder="例：いつも玄関前に置き配希望">'+esc(existing?existing.note:'')+'</textarea></div>';
-    html += '<button class="btn-big btn-complete" onclick="saveCustomerNoteFromScreen(\''+esc(search).replace(/'/g,"\\'")+'\')">「'+esc(search)+'」様のメモを保存</button>';
+    html += '<button class="btn-big btn-blue" onclick="saveCustomerNoteFromScreen(\''+esc(search).replace(/'/g,"\\'")+'\')">「'+esc(search)+'」様のメモを保存</button>';
     if(existing) html += '<button class="btn-big btn-print" onclick="deleteCustomerNoteFromScreen(\''+esc(search).replace(/'/g,"\\'")+'\')">このメモを削除</button>';
   }
   if(customerNotesList.length){
@@ -1139,14 +1197,14 @@ async function saveMaterials(){
   }
 }
 function renderMaterialsScreen(){
-  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>';
   html += '<div class="card">';
   html += '<div class="sec-title" style="margin-top:0">📦 資材カタログ</div>';
-  html += '<div style="font-size:13px;color:#2b2a26;line-height:1.7">オイル以外の資材（箱・袋・テープなど）を、写真と大きさのメモつきで管理する倉庫専用のメモです。梱包の際の資材探しの時短になればとご用意しました。自由にお使いください。<br>数は<strong>ご都合の良い時に</strong>直していただければ大丈夫です。オイルの本数はここでは扱いません。</div>';
+  html += '<div style="font-size:13px;color:#2b2a26;line-height:1.7">オイル以外の資材（箱・袋・テープなど）を、写真と大きさのメモつきで管理する倉庫専用のメモです。梱包の際の資材探しの時短になればとご用意しました。自由にお使いください。<br><strong>オイルの本数はここでは扱いません。</strong></div>';
   html += '</div>';
   html += '<div id="material-list">' + warehouseMaterials.map(materialCardHtml).join('') + '</div>';
   if(!warehouseMaterials.length) html += '<div class="card center" style="color:#57534e">まだ何も登録されていません。下から追加してください。</div>';
-  html += '<button class="btn-big btn-complete no-print" onclick="showAddMaterialForm()">＋ 新しい資材を登録する</button>';
+  html += '<button class="btn-big btn-blue no-print" onclick="showAddMaterialForm()">＋ 新しい資材を登録する</button>';
   html += '<div id="add-material-form"></div>';
   document.getElementById('content').innerHTML = html;
 }
@@ -1187,7 +1245,7 @@ function showAddMaterialForm(){
     '<div class="form-group"><label>大きさなどのメモ（任意）</label><input type="text" id="mat-new-size" placeholder="例：幅50mm、A4サイズが入る大きさ"></div>'+
     '<div class="form-group"><label>写真（任意・スマホならその場で撮影できます）</label><input type="file" id="mat-new-photo" accept="image/*" capture="environment"></div>'+
     '<div class="form-group"><label>今の数</label><input type="number" id="mat-new-qty" min="0" value="0"></div>'+
-    '<button class="btn-big btn-complete" onclick="addMaterial()">この内容で登録する</button>'+
+    '<button class="btn-big btn-blue" onclick="addMaterial()">この内容で登録する</button>'+
     '</div>';
   el.scrollIntoView({behavior:'smooth'});
 }
@@ -1227,14 +1285,14 @@ async function addMaterial(){
 }
 
 function renderDefectForm(){
-  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</div>';
+  let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>';
   html += '<div class="card">';
   html += '<div class="sec-title" style="margin-top:0">🔴 不良品の報告</div>';
   html += '<div class="form-group"><label>商品</label><select id="df-product">'+productOptionsHtml()+'</select></div>';
   html += '<div class="form-group"><label>本数</label><input type="number" id="df-qty" min="1" value="1"></div>';
   html += '<div class="form-group"><label>原因</label><select id="df-cat">'+DEFECT_CATEGORIES.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></div>';
   html += '<div class="form-group"><label>メモ（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた など"></textarea></div>';
-  html += '<button class="btn-big btn-complete" id="df-submit-btn" onclick="submitDefect()">この内容で報告する</button>';
+  html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()">この内容で報告する</button>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
 }
@@ -1263,10 +1321,11 @@ async function submitDefect(){
     });
     const saveData = await saveRes.json();
     if(saveData.status==='ok'){
+      try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(cat)+']</span></div>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html?mode=defect\'">続けて報告する</button>'+
-        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</button>';
+        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
     } else {
       btn.disabled = false; btn.textContent = 'この内容で報告する';
       alert('送信に失敗しました：'+(saveData.message||''));
@@ -1331,9 +1390,10 @@ async function completeOrder(){
     const data = await res.json();
     if(data.status === 'ok'){
       // 在庫は受注A（受注・出荷）が送信時に減らすため、倉庫Dでは在庫をさわらない（梱包完了にするだけ）
+      try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 梱包完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
-        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷待ち一覧に戻る</button>';
+        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
     } else {
       btn.disabled = false;
       btn.textContent = '✅ 梱包完了にする';
