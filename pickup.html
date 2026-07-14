@@ -252,7 +252,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   </div>
 </div>
 <div class="app" id="main-wrap">
-  <div class="topbar no-print">📦 ピッキング確認</div>
   <div id="inapp-banner" class="no-print" style="display:none;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">⚠️ アプリ内ブラウザで開いています。印刷したいときは、右上の「…」メニューから「Safari／Chromeで開く」を選んでください。</div>
   <div id="content"><div class="spinner">読み込み中...</div></div>
   <div id="invoice-print-area" style="display:none"></div>
@@ -665,13 +664,13 @@ async function openOrderInPage(id){
   // ページごと開き直さず、手元のデータですぐ表示（速度改善）。URLは同期させておく。
   try{ history.replaceState(null,'','pickup.html?id='+encodeURIComponent(id)); }catch(e){}
   const cached = (allOrders||[]).find(function(o){ return String(o.id)===String(id); });
-  if(cached && Array.isArray(cached.lines) && cached.lines.length && cached.enclosedDoc!==undefined){
+  if(cached && Array.isArray(cached.lines) && cached.lines.length){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
     currentOrder = cached; noshiPrinted = false;
     if(currentOrder.status === 'shipped' || currentOrder.orderStatus === 'shipped') renderAlreadyShipped(); else renderOrder();
     return;
   }
-  await loadSingleOrder(id);  // 手元に十分なデータが無ければ従来どおり1件だけ取得
+  await loadSingleOrder(id);  // 手元にlinesが無いときだけ従来どおり1件だけ取得
 }
 async function loadSingleOrder(id){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
@@ -1267,7 +1266,7 @@ function showAddMaterialForm(){
     '<div class="form-group"><label>名前</label><input type="text" id="mat-new-name" placeholder="例：ガムテープ、紙袋 黒 大"></div>'+
     '<div class="form-group"><label>大きさなどのメモ（任意）</label><input type="text" id="mat-new-size" placeholder="例：幅50mm、A4サイズが入る大きさ"></div>'+
     '<div class="form-group"><label>写真（任意・スマホならその場で撮影できます）</label><input type="file" id="mat-new-photo" accept="image/*" capture="environment"></div>'+
-    '<div class="form-group"><label>今の数</label><input type="number" id="mat-new-qty" min="0" value="0"></div>'+
+    '<div class="form-group"><label>入庫したときの数（入ってきた数）</label><input type="number" id="mat-new-qty" min="0" value="0"><div style="font-size:12px;color:#57534e;margin-top:4px">今ある数を数えなくてOK。<b>入ってきた数（届いた数）</b>だけ書いてください。</div></div>'+
     '<button class="btn-big btn-blue" onclick="addMaterial()">この内容で登録する</button>'+
     '</div>';
   el.scrollIntoView({behavior:'smooth'});
@@ -1358,7 +1357,8 @@ async function submitDefect(){
     const defects = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
     defects.push({
       id: 'def_'+Date.now(), pid: p.id, productName: p.name, lotId: '',
-      qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note, status: 'pending', shippedQty: 0, processedAt: ''
+      qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note,
+      status: 'pending', shippedQty: 0, processedAt: '', reportedAt: new Date().toISOString(), source: 'warehouse'
     });
     const saveRes = await fetch(GAS_URL, {
       method: 'POST',
