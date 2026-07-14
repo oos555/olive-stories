@@ -1338,14 +1338,14 @@ function computeAvailable(sku){
     stock += (l.stock||0);
     if(l.status==='old') oldStock += (l.stock||0);
   });
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   const holdQty = computeHeldQtyBySku(sku);
   return Math.max(0, stock - oldStock - defectQty - holdQty);
 }
 
 function computeDefectQty(pid){
   let q = 0;
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') q += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) q += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   return q;
 }
 function renderStockStrip(){ /* 在庫サマリー・見張り表示は廃止（受注登録では在庫を表示しない） */ }
@@ -1764,11 +1764,18 @@ function giftOptionsHtml(isSet, selected){
   const keys = isSet ? ['gift'] : Object.keys(GIFT_TYPE_LABEL).filter(k=>k!=='gift');
   return keys.map(k=>'<option value="'+k+'" '+(k===selected?'selected':'')+'>'+GIFT_TYPE_LABEL[k]+'</option>').join('');
 }
+function isActiveDefect(d){
+  if(!d) return false;
+  if(d.status==='resolved' || d.status==='rejected') return false;
+  if(d.source==='warehouse' && !d.reviewed) return false;
+  if(d.level==='relabel' || d.level==='discard') return false;
+  return true;
+}
 function lotStockFor(pid, status){
   var s=0; lots.forEach(function(l){ if(l.pid==pid && l.status===status) s+=(l.stock||0); }); return s;
 }
 function defectStockFor(pid){
-  var s=0; defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') s+=Math.max(0,(d.qty||0)-(d.shippedQty||0)); }); return s;
+  var s=0; defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) s+=Math.max(0,(d.qty||0)-(d.shippedQty||0)); }); return s;
 }
 function condAvail(pid){
   var p = findProduct(pid);
@@ -2622,7 +2629,7 @@ function deductFromLots(pid, status, qty, log){
 }
 function deductFromDefects(pid, qty, log){
   let remain = qty;
-  const matching = defects.filter(d=>d.pid==pid && d.status!=='resolved')
+  const matching = defects.filter(d=>d.pid==pid && isActiveDefect(d))
     .sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
   matching.forEach(function(d){
     if(remain<=0) return;

@@ -699,22 +699,30 @@ async function loadSingleOrder(id){
 // ════════════════════════════════════
 const STOCK_HIDE_GROUPS = { 'セット商品':1, 'ギフト箱・備品':1, 'その他':1 };
 
-// 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect）
+// 不良の「有効判定」：未処理の倉庫報告・却下・青(貼替)・黒(廃棄)は不良に数えない（在庫Bと同一ルール）
+function isActiveDefect(d){
+  if(!d) return false;
+  if(d.status==='resolved' || d.status==='rejected') return false;
+  if(d.source==='warehouse' && !d.reviewed) return false;
+  if(d.level==='relabel' || d.level==='discard') return false;
+  return true;
+}
+// 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect、廃棄＝discard）
 function stockNumbersFor(pid, lots, defects, holds){
-  var stock=0, oldStock=0, incoming=0;
+  var stock=0, oldStock=0, incoming=0, discard=0;
   lots.forEach(function(l){
     if(l.pid!=pid) return;
     if(l.status==='incoming'){ incoming += (l.stock||0); return; }
+    if(l.status==='discard'){ discard += (l.stock||0); return; }
     stock += (l.stock||0);
     if(l.status==='old') oldStock += (l.stock||0);
   });
   var defectQty=0;
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   var holdQty=0;
   holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
   var avail = Math.max(0, stock - oldStock - defectQty - holdQty);
-  // discard(廃棄) は、2本目の「不良5区分（黒＝廃棄）」導入で本物の数字が入る。それまでは0。
-  return { stock:stock, oldStock:oldStock, defectQty:defectQty, holdQty:holdQty, incoming:incoming, discard:0, avail:avail };
+  return { stock:stock, oldStock:oldStock, defectQty:defectQty, holdQty:holdQty, incoming:incoming, discard:discard, avail:avail };
 }
 
 async function loadStockScreen(){
@@ -727,7 +735,7 @@ async function loadStockScreen(){
       return;
     }
     const lots    = (data.data.lots||[]).map(function(l){ return { pid:parseInt(l.pid), stock:parseInt(l.stock)||0, status:l.status }; });
-    const defects = (data.data.defects||[]).map(function(x){ return { pid:parseInt(x.pid), qty:parseInt(x.qty)||0, shippedQty:parseInt(x.shippedQty)||0, status:x.status||'pending' }; });
+    const defects = (data.data.defects||[]).map(function(x){ return { pid:parseInt(x.pid), qty:parseInt(x.qty)||0, shippedQty:parseInt(x.shippedQty)||0, status:x.status||'pending', level:x.level||'', source:x.source||'', reviewed:!!x.reviewed }; });
     const holds   = (data.data.holds||[]).map(function(h){ return { pid:parseInt(h.pid), qty:parseInt(h.qty)||0 }; });
     renderStockList(lots, defects, holds);
   }catch(err){

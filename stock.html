@@ -255,6 +255,7 @@ tr:last-child td{border-bottom:none}
   <button class="tab active" onclick="showPanel('inv',this)">在庫一覧</button>
   <button class="tab" onclick="showPanel('lot',this)">ロット管理</button>
   <button class="tab" onclick="showPanel('defect',this)">不良在庫リスト</button>
+  <button class="tab" onclick="showPanel('report',this)">倉庫からの報告<span id="report-badge"></span></button>
   <button class="tab" onclick="showPanel('hold',this)">取り置きリスト</button>
   <button class="tab" onclick="showPanel('pre',this)">予約販売リスト</button>
   <button class="tab" onclick="showPanel('ilog',this)">ログ</button>
@@ -280,14 +281,14 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="tbl-wrap">
     <table>
-      <colgroup><col style="width:16%"><col style="width:8%"><col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:15%"></colgroup>
+      <colgroup><col style="width:15%"><col style="width:8%"><col style="width:7%"><col style="width:6%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:14%"></colgroup>
       <thead>
       <tr>
         <th rowspan="2">商品名</th>
         <th rowspan="2">管理番号</th>
         <th rowspan="2">実在庫 <span class="help-ic" onclick="showHelp('stock')">ⓘ</span></th>
         <th rowspan="2" style="color:#b45309">旧ロット <span class="help-ic" onclick="showHelp('old')">ⓘ</span></th>
-        <th rowspan="2" style="color:#dc2626">不良 <span class="help-ic" onclick="showHelp('defect')">ⓘ</span></th>
+        <th colspan="3" style="text-align:center;background:#fceceb;color:#dc2626">不良 <span class="help-ic" onclick="showHelp('defect')">ⓘ</span></th>
         <th rowspan="2" style="color:#92400e">取置 <span class="help-ic" onclick="showHelp('hold')">ⓘ</span></th>
         <th rowspan="2" style="color:#15803d">販売可能数 <span class="help-ic" onclick="showHelp('avail')">ⓘ</span></th>
         <th rowspan="2" style="border-left:1px solid #e2ddd2">廃棄 <span class="help-ic" onclick="showHelp('discard')">ⓘ</span></th>
@@ -295,6 +296,9 @@ tr:last-child td{border-bottom:none}
         <th rowspan="2">操作</th>
       </tr>
       <tr>
+        <th style="text-align:right;background:#fceceb;color:#d06a6a">軽</th>
+        <th style="text-align:right;background:#fceceb;color:#d06a6a">中</th>
+        <th style="text-align:right;background:#fceceb;color:#d06a6a">重</th>
         <th style="text-align:right;background:#f6f9fc">予定</th>
         <th style="text-align:right;background:#f6f9fc;color:#185fa5">予約</th>
         <th style="text-align:right;background:#f6f9fc">フリー</th>
@@ -386,6 +390,15 @@ tr:last-child td{border-bottom:none}
 
   <div class="sec" style="margin-top:1.5rem">処理履歴レポート</div>
   <div id="defect-history"></div>
+</div>
+
+<!-- 倉庫からの報告 -->
+<div id="panel-report" class="panel">
+  <div class="info-box"><strong>このタブは何をする場所？</strong> 倉庫さんから上がってきた不良品の報告を、ここで確認して在庫に反映する場所です。<strong>倉庫さんは報告するだけ。数字を動かすのはスタッフ。</strong> 中身を確かめて「反映する」を押すと、シールの色にあわせて自動で正しい棚へ（🔵青＝通常のまま／🟢🟡🔴＝不良に＋／⚫黒＝廃棄に＋）。手で本数を打ち込む必要はありません。間違った報告は「却下」。数字は動かず、なかったことになります（却下済みとして小さく履歴に残ります）。</div>
+  <div class="sec">未処理の報告</div>
+  <div id="report-list"></div>
+  <div class="sec" style="margin-top:1.5rem;color:#6b6a63">却下済み（小さく履歴に残る）</div>
+  <div id="report-rejected"></div>
 </div>
 
 <!-- 取り置き -->
@@ -616,6 +629,7 @@ function showPanel(name, btn){
   if(name==='inv') renderInvTable();
   if(name==='lot') renderLotList();
   if(name==='defect'){ renderCatSummary(); renderDefectGroups(); renderDefectHistory(); }
+  if(name==='report') renderReportList();
   if(name==='hold') renderHoldList();
   if(name==='pre') renderPreList();
   if(name==='ilog') renderInvLogs();
@@ -656,7 +670,8 @@ function loadAllDataFromGAS(){
       if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
         stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
       if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
-        cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'' }; });
+        cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'',
+        level:x.level||'', seal:x.seal||'', reportedAt:x.reportedAt||'', source:x.source||'', reviewed:!!x.reviewed }; });
       if(data.defectHolds) defectHolds = data.defectHolds.map(function(x){ return { id:x.id, pid:parseInt(x.pid), client:x.client, qty:parseInt(x.qty)||0, until:x.until, note:x.note }; });
       if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
       if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
@@ -731,12 +746,39 @@ function buildHoldsFromOrders(){
   return result;
 }
 
+// ── 不良の「有効判定」＆廃棄移動 ───────────────────────────────
+// 有効な不良＝在庫の不良枠に数える対象。未処理の倉庫報告・却下・青(貼替)・黒(廃棄)は数えない。
+function isActiveDefect(d){
+  if(!d) return false;
+  if(d.status==='resolved' || d.status==='rejected') return false;
+  if(d.source==='warehouse' && !d.reviewed) return false;
+  if(d.level==='relabel' || d.level==='discard') return false;
+  return true;
+}
+// 黒＝廃棄：正規→旧の順（賞味期限の早い順）で実在庫を減らし、廃棄ロットに積む
+function moveToDiscard(pid, qty){
+  var remain = qty;
+  var cand = lots.filter(function(l){ return l.pid==pid && (l.status==='new'||l.status==='old'); })
+    .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); });
+  cand.forEach(function(l){ if(remain<=0) return; var take=Math.min(l.stock||0, remain); l.stock=(l.stock||0)-take; remain-=take; });
+  var moved = qty - remain;
+  if(moved>0){ lots.push({ id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock: moved, status:'discard', note:'倉庫報告より廃棄' }); }
+  return moved;
+}
+
 // ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
 function computeStockNumbers(pid){
   let stock=0, oldStock=0;
   lots.forEach(function(l){ if(l.pid==pid && l.status!=='incoming' && l.status!=='discard'){ stock += (l.stock||0); if(l.status==='old') oldStock += (l.stock||0); } });
-  let defectQty = 0;
-  defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
+  let defLight=0, defMid=0, defHeavy=0;
+  defects.forEach(function(d){
+    if(d.pid!=pid || !isActiveDefect(d)) return;
+    var dq = Math.max(0,(d.qty||0)-(d.shippedQty||0));
+    if(d.level==='lv1') defLight += dq;
+    else if(d.level==='lv3') defHeavy += dq;
+    else defMid += dq;
+  });
+  let defectQty = defLight + defMid + defHeavy;
   let holdQty = 0;
   holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
   let preQty = 0;
@@ -746,7 +788,7 @@ function computeStockNumbers(pid){
   let discardQty = 0;
   lots.forEach(function(l){ if(l.pid==pid && l.status==='discard') discardQty += (l.stock||0); });
   const avail = Math.max(0, stock - oldStock - defectQty - holdQty);
-  return { stock, oldStock, defectQty, holdQty, preQty, incoming, discardQty, avail };
+  return { stock, oldStock, defectQty, defLight, defMid, defHeavy, holdQty, preQty, incoming, discardQty, avail };
 }
 function computeAvailable(sku){
   const p = findProductBySku(sku);
@@ -777,7 +819,7 @@ function ivNum(v, cc){
 function renderInvTable(){
   if(invLoading){
     const _tb = document.getElementById('inv-tbl-body');
-    if(_tb) _tb.innerHTML = '<tr><td colspan="12" style="text-align:center;color:#2b2a26;padding:24px;font-size:14px">読み込み中…（在庫データを取得しています）</td></tr>';
+    if(_tb) _tb.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#2b2a26;padding:24px;font-size:14px">読み込み中…（在庫データを取得しています）</td></tr>';
     return;
   }
   const search = (document.getElementById('inv-search').value||'').toLowerCase();
@@ -787,12 +829,12 @@ function renderInvTable(){
   Object.keys(groups).forEach(function(g){
     const items = groups[g].filter(p=>!search || p.name.toLowerCase().includes(search) || (p.sku||'').toLowerCase().includes(search));
     if(!items.length) return;
-    rows += '<tr><td colspan="12" class="group-header">'+g+'</td></tr>';
+    rows += '<tr><td colspan="14" class="group-header">'+g+'</td></tr>';
     items.forEach(function(p){
       let n;
       if(p.isSet){
         const avail = computeAvailable(p.sku);
-        n = { stock:'-', oldStock:'-', defectQty:'-', holdQty:'-', preQty:'-', incoming:'-', discardQty:'-', avail: avail===null?0:avail };
+        n = { stock:'-', oldStock:'-', defectQty:'-', defLight:'-', defMid:'-', defHeavy:'-', holdQty:'-', preQty:'-', incoming:'-', discardQty:'-', avail: avail===null?0:avail };
       } else {
         n = computeStockNumbers(p.id);
         totalStock += n.stock; totalAvail += n.avail; totalOld += n.oldStock; totalDefect += n.defectQty; totalHold += n.holdQty;
@@ -827,7 +869,9 @@ function renderInvTable(){
         '<td class="iv-sku">'+(p.sku||'')+'</td>'+
         '<td>'+ivNum(n.stock)+'</td>'+
         '<td class="col-old">'+ivNum(n.oldStock,'amber')+'</td>'+
-        '<td class="col-defect">'+ivNum(n.defectQty,'red')+'</td>'+
+        '<td class="col-defect">'+ivNum(n.defLight,'red')+'</td>'+
+        '<td class="col-defect">'+ivNum(n.defMid,'red')+'</td>'+
+        '<td class="col-defect">'+ivNum(n.defHeavy,'red')+'</td>'+
         '<td class="col-hold">'+ivNum(n.holdQty,'brown')+'</td>'+
         '<td class="col-avail">'+availCell+'</td>'+
         '<td class="col-disc">'+ivNum(n.discardQty)+'</td>'+
@@ -837,12 +881,13 @@ function renderInvTable(){
         '<td>'+actionCell+'</td></tr>';
     });
   });
-  document.getElementById('inv-tbl-body').innerHTML = rows || '<tr><td colspan="12" style="color:#2b2a26;text-align:center;padding:20px">該当する商品がありません</td></tr>';
+  document.getElementById('inv-tbl-body').innerHTML = rows || '<tr><td colspan="14" style="color:#2b2a26;text-align:center;padding:20px">該当する商品がありません</td></tr>';
   document.getElementById('s-stock').textContent = totalStock;
   document.getElementById('s-avail').textContent = totalAvail;
   document.getElementById('s-old').textContent = totalOld;
   document.getElementById('s-defect').textContent = totalDefect;
   document.getElementById('s-hold-inv').textContent = totalHold;
+  renderReportBadge();
 }
 
 // ── 在庫一覧からの直接操作（入庫・出庫・輸入予定・確認入庫） ────────────────────
@@ -1104,12 +1149,12 @@ function addCategory(){
 function renderCatSummary(){
   const el = document.getElementById('cat-summary');
   el.innerHTML = defectCategories.map(function(cat){
-    const total = defects.filter(d=>d.cat===cat && d.status!=='resolved').reduce((s,d)=>s+Math.max(0,(d.qty||0)-(d.shippedQty||0)),0);
+    const total = defects.filter(d=>d.cat===cat && isActiveDefect(d)).reduce((s,d)=>s+Math.max(0,(d.qty||0)-(d.shippedQty||0)),0);
     return '<div class="cat-card"><div class="cat-lbl">'+cat+'</div><div class="cat-val">'+total+'本</div></div>';
   }).join('');
 }
 function renderDefectGroups(){
-  const pending = defects.filter(d=>d.status!=='resolved' && ((d.qty||0)-(d.shippedQty||0))>0);
+  const pending = defects.filter(d=>isActiveDefect(d) && ((d.qty||0)-(d.shippedQty||0))>0);
   const el = document.getElementById('defect-groups');
   if(!pending.length){ el.innerHTML = '<div style="color:#2b2a26;font-size:13px;padding:8px 0">処理待ちの不良品はありません。</div>'; return; }
   // 在庫一覧と同じ商品グループの並び順にする
@@ -1127,13 +1172,90 @@ function renderDefectGroups(){
   });
   el.innerHTML = html;
 }
+// ── 倉庫からの報告タブ ───────────────────────────────────────
+var REPORT_META = {
+  relabel:{ label:'青・貼り替えればOK', color:'#2563eb', effect:function(n){ return '→ 反映しても「通常在庫のまま」（不良には入れない）'; } },
+  lv1:    { label:'緑・レベル1',        color:'#16a34a', effect:function(n){ return '→ 反映すると「不良（軽）」に ＋'+n+'本'; } },
+  lv2:    { label:'黄・レベル2',        color:'#eab308', textcolor:'#a06a08', effect:function(n){ return '→ 反映すると「不良（中）」に ＋'+n+'本'; } },
+  lv3:    { label:'赤・レベル3',        color:'#dc2626', effect:function(n){ return '→ 反映すると「不良（重）」に ＋'+n+'本'; } },
+  discard:{ label:'黒・廃棄',           color:'#1a1a18', effect:function(n){ return '→ 反映すると「廃棄」に ＋'+n+'本（実在庫から抜ける）'; } }
+};
+function fmtReportedAt(iso){
+  if(!iso) return '';
+  var d = new Date(iso); if(isNaN(d.getTime())) return String(iso);
+  var mm=d.getMonth()+1, dd=d.getDate(), hh=('0'+d.getHours()).slice(-2), mi=('0'+d.getMinutes()).slice(-2);
+  return mm+'/'+dd+' '+hh+':'+mi;
+}
+function pendingReports(){ return defects.filter(function(d){ return d.source==='warehouse' && d.status==='pending' && !d.reviewed && ((d.qty||0)-(d.shippedQty||0))>0; }); }
+function renderReportBadge(){
+  var el = document.getElementById('report-badge'); if(!el) return;
+  var n = pendingReports().length;
+  el.innerHTML = n>0 ? '<span style="background:#dc2626;color:#fff;border-radius:99px;padding:0 7px;font-size:11px;margin-left:5px">'+n+'</span>' : '';
+}
+function renderReportList(){
+  renderReportBadge();
+  var el = document.getElementById('report-list');
+  var list = pendingReports();
+  if(!list.length){ el.innerHTML = '<div style="color:#2b2a26;font-size:13px;padding:8px 0">未処理の報告はありません。</div>'; }
+  else {
+    el.innerHTML = list.map(function(d){
+      var p = findProduct(d.pid); var meta = REPORT_META[d.level] || REPORT_META.lv2;
+      var n = (d.qty||0)-(d.shippedQty||0); var tc = meta.textcolor || meta.color;
+      return '<div class="card" style="border-left:5px solid '+meta.color+';padding:12px 14px;margin-bottom:10px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'+
+          '<div style="font-weight:700">'+(p?p.name:'')+'　残り <span style="font-size:19px;color:'+tc+'">'+n+'本</span></div>'+
+          '<div style="font-weight:700;color:'+tc+';white-space:nowrap"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:'+meta.color+';margin-right:4px;vertical-align:0"></span>'+meta.label+'</div>'+
+        '</div>'+
+        '<div style="font-size:13px;margin-top:5px">'+(d.note?('メモ：'+d.note+'　／　'):'')+'🚚 倉庫から '+fmtReportedAt(d.reportedAt)+' に報告</div>'+
+        '<div style="font-size:12px;color:#6b6a63;margin-top:6px">'+meta.effect(n)+'</div>'+
+        '<div style="margin-top:10px;display:flex;gap:8px">'+
+          '<button class="btn-primary btn" style="padding:8px 18px" onclick="applyReport(\''+d.id+'\')">反映する</button>'+
+          '<button class="btn" style="padding:8px 16px;background:#fff;border:1px solid #e89a9a;color:#a32d2d" onclick="rejectReport(\''+d.id+'\')">却下</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+  var rel = document.getElementById('report-rejected');
+  var rej = defects.filter(function(d){ return d.source==='warehouse' && d.status==='rejected'; });
+  if(!rej.length){ rel.innerHTML = '<div style="color:#8a857a;font-size:12px;padding:4px 0">却下済みはありません。</div>'; }
+  else {
+    rel.innerHTML = '<div style="background:#f4f2ec;border:1px solid #e4dfd4;border-radius:8px;padding:9px 12px;font-size:12px;color:#5f5e57;line-height:1.9">'+
+      rej.map(function(d){ var p=findProduct(d.pid); var meta=REPORT_META[d.level]||{}; var n=(d.qty||0)-(d.shippedQty||0);
+        return '・'+(p?p.name:'')+' '+n+'本（<span style="color:'+((meta.textcolor)||(meta.color)||'#5f5e57')+'">'+((meta.label||'').split('・')[0])+'</span>）　'+fmtReportedAt(d.processedAt||d.reportedAt)+' に却下'; }).join('<br>')+
+      '</div>';
+  }
+}
+function applyReport(id){
+  var d = defects.find(function(x){ return x.id===id; }); if(!d) return;
+  var p = findProduct(d.pid); var n = Math.max(0,(d.qty||0)-(d.shippedQty||0));
+  if(d.level==='relabel'){
+    d.status='resolved'; d.processedAt=new Date().toISOString();
+    addLog('報告反映', (p?p.name:'')+'　青＝通常のまま');
+  } else if(d.level==='discard'){
+    var moved = moveToDiscard(d.pid, n);
+    d.status='resolved'; d.processedAt=new Date().toISOString();
+    addLog('報告反映', (p?p.name:'')+'　黒＝廃棄に＋'+moved+'本');
+  } else {
+    d.reviewed=true; d.processedAt=new Date().toISOString();
+    addLog('報告反映', (p?p.name:'')+'　'+(d.seal||'')+'＝不良に＋'+n+'本');
+  }
+  renderReportList(); renderInvTable(); renderCatSummary(); renderDefectGroups(); scheduleAutoSave();
+}
+function rejectReport(id){
+  var d = defects.find(function(x){ return x.id===id; }); if(!d) return;
+  if(!confirm('この報告を却下しますか？\n数字は動きません。却下済みとして履歴に残ります。')) return;
+  var p = findProduct(d.pid); var n = Math.max(0,(d.qty||0)-(d.shippedQty||0));
+  d.status='rejected'; d.processedAt=new Date().toISOString();
+  addLog('報告却下', (p?p.name:'')+'　'+(d.seal||'')+'　'+n+'本');
+  renderReportList(); renderInvTable(); scheduleAutoSave();
+}
 function addDefect(){
   const pid = document.getElementById('d-product').value;
   const qty = parseInt(document.getElementById('d-qty').value)||0;
   const cat = document.getElementById('d-cat').value;
   if(!pid || qty<=0){ alert('商品と数量を指定してください'); return; }
   // 同じ商品・同じ原因の処理待ち不良品があれば、行を増やさず数量を累計する
-  let d = defects.find(x=>x.pid==pid && x.cat===cat && x.status!=='resolved');
+  let d = defects.find(x=>x.pid==pid && x.cat===cat && x.source!=='warehouse' && x.status!=='resolved');
   const p = findProduct(pid);
   if(d){
     d.qty = (d.qty||0) + qty;
