@@ -661,6 +661,18 @@ async function saveWarehouseNotes(){
   });
 }
 
+async function openOrderInPage(id){
+  // ページごと開き直さず、手元のデータですぐ表示（速度改善）。URLは同期させておく。
+  try{ history.replaceState(null,'','pickup.html?id='+encodeURIComponent(id)); }catch(e){}
+  const cached = (allOrders||[]).find(function(o){ return String(o.id)===String(id); });
+  if(cached && Array.isArray(cached.lines) && cached.lines.length && cached.enclosedDoc!==undefined){
+    document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+    currentOrder = cached; noshiPrinted = false;
+    if(currentOrder.status === 'shipped' || currentOrder.orderStatus === 'shipped') renderAlreadyShipped(); else renderOrder();
+    return;
+  }
+  await loadSingleOrder(id);  // 手元に十分なデータが無ければ従来どおり1件だけ取得
+}
 async function loadSingleOrder(id){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
@@ -748,7 +760,6 @@ function renderStockList(lots, defects, holds){
   var html = '';
   html += '<div class="stock-head"><div class="stock-head-title">倉庫の在庫（見るだけ）</div>'
         + '<div class="stock-head-sub">数字を確認するだけのページです。ここでは在庫は変えられません。</div></div>';
-  html += '<div class="stock-warn">⚠️ 棚の数と画面の数が合わないときは、連絡してください。数字は常に合わせておきたいので。</div>';
   html += '<button class="refresh-btn no-print" onclick="loadStockScreen()">🔄 最新の数字に更新する</button>';
 
   if(!order.length){
@@ -852,7 +863,7 @@ function renderList(){
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">3. 熨斗（のし）や同梱書類の指示があれば、その通りに付ける</div>'
     + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">4. そろったら「✅ 梱包完了にする」を押す</div>'
-    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：まだ実際に発送していなくても、梱包が終わった時点で「本日発送」として扱います。</div>'
+    + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：この注文は出荷待ち一覧から消えます（作業おわりの記録になります）。実際の発送は下の「いつ発送？」の期日内でOK。当日でなくてかまいません。</div>'
     + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は6営業日以内（定休日・祝日・お休みは数えません）／🚨急ぎは翌日／🗓 日付指定はその日に。</div>'
     + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：納品書＋RT端末の伝票の2点を<b>必ず</b>同梱してください。</div>'
     + '</div></details>';
@@ -912,7 +923,7 @@ function renderList(){
         ? '<span class="pk-stat-done">✓ 梱包終了<span class="pk-time">'+esc(shippedTimeShort(o))+'</span></span>'
         : '<span class="pk-stat-wait">🕐 梱包待ち</span>';
       const products = (o.lines||[]).map(function(l){return esc(l.productName)+' ×'+esc(l.bottles);}).join('、');
-      html += '<div class="'+cardCls+'" onclick="location.href=\'?id='+encodeURIComponent(o.id)+'\'">';
+      html += '<div class="'+cardCls+'" onclick="openOrderInPage(\''+String(o.id).replace(/'/g,"\\'")+'\')">';
       html +=   '<div class="pk-top"><span class="pk-name">'+esc(recipientLabel(o))+'</span>'+stat+'</div>';
       if(marks) html += '<div class="pk-marks">'+marks+'</div>';
       html +=   '<div class="pk-items">'+products+'</div>';
@@ -1031,21 +1042,52 @@ function renderOrder(){
     ? '<label class="rt-doc-item"><input type="checkbox" class="pack-check" id="noshi-check" onchange="updateCompleteBtn()" disabled>🎀 のしを印刷して同梱した</label>'
       + '<label class="rt-doc-item" style="background:#fffdf7;border:2px solid #d9a441;border-radius:8px;padding:8px 10px;margin-top:6px;align-items:flex-start"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">✋ 表書き「'+esc((o.noshi&&o.noshi.title)||'-')+'」と お名前「'+esc((o.noshi&&o.noshi.name)||'-')+'」を再確認した</label>'
     : '';
-  if(isRt){
-    html += '<div class="rt-docs no-print"><div class="rt-docs-t">📎 印刷して同梱する書類（2枚）</div>'+
-      '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書</label>'+
-      '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">RT端末の伝票</label>'+
-      noshiCheck+
-      '</div>';
-  } else if(orderHasNoshi){
-    html += '<div class="rt-docs no-print" style="background:#fdf6ee;border-color:#e8d9c4">'+noshiCheck+'</div>';
+  // ── 同梱するもの（入れたらチェック）── ギフト（よそ様あて）は金額の紙をブロック
+  const _norm = function(s){ return String(s||'').replace(/[\s　]/g,''); };
+  const isGiftOrder = (o.lines||[]).some(function(l){ return l.giftType==='gift' || l.giftType==='simple'; });
+  const recipientDiffers = !!_norm(o.recipientName) && !!_norm(o.client) && _norm(o.recipientName)!==_norm(o.client);
+  const isGiftToOther = isGiftOrder && recipientDiffers;
+  const encDoc = o.enclosedDoc || '納品書兼請求書';
+  const includePamphlet = (o.includePamphlet !== false);
+  html += '<div class="sec-title no-print">📦 同梱するもの（入れたらチェック）</div>';
+  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:-4px 0 8px">ぜんぶチェックが入ると、下の「梱包完了」が押せます。</div>';
+  if(isGiftToOther){
+    html += '<div class="note-box no-print" style="background:#fbeaea;border:2px solid #dc2626;color:#991b1b">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🎁 よそ様あてのギフトです</div>'
+      + '<div style="font-size:14px;font-weight:500;line-height:1.6">金額のわかる紙（<b>納品書・請求書・領収書</b>）は<b>入れないでください</b>。お相手に値段が見えてしまいます。</div></div>';
+    html += '<div class="rt-docs no-print" style="background:#fff5f5;border-color:#dc2626">'
+      + '<div class="rt-docs-t" style="color:#991b1b">🚫 納品書・請求書・領収書は入れない</div>'
+      + '<label class="rt-doc-item" style="background:#fff;border:2px solid #dc2626;border-radius:8px;padding:10px 11px"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()"><span style="color:#991b1b;font-weight:700">金額の紙は入れていません（確認しました）</span></label>';
+    if(includePamphlet){
+      html += '<label class="rt-doc-item" style="margin-top:6px"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">📎 パンフレットを入れた（棚から1枚）</label>';
+    } else {
+      html += '<div class="rt-doc-item" style="margin-top:6px;color:#991b1b;font-weight:700">🚫 パンフレットも入れない（この注文の指示）</div>';
+    }
+    html += noshiCheck + '</div>';
+  } else {
+    html += '<div class="rt-docs no-print">';
+    if(isRt){
+      html += '<div class="rt-docs-t">🖨 印刷して入れる書類（2枚）</div>'
+        + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 納品書を印刷する</button>'
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書を入れた</label>'
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">RT端末の伝票を入れた</label>';
+    } else if(encDoc && encDoc!=='なし'){
+      html += '<div class="rt-docs-t">🖨 印刷して入れる</div>'
+        + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 '+esc(encDoc)+'を印刷する</button>'
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">'+esc(encDoc)+'を入れた</label>';
+    } else {
+      html += '<div class="rt-docs-t" style="color:#57534e">この注文に入れる書類はありません</div>';
+    }
+    html += noshiCheck + '</div>';
+    if(includePamphlet){
+      html += '<div class="rt-docs no-print" style="background:#eef3e0;border-color:#b6c48a">'
+        + '<div class="rt-docs-t" style="color:#4a5a1f">📦 倉庫にあるものを入れる（印刷なし）</div>'
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">📎 パンフレットを入れた（棚から1枚）</label></div>';
+    }
   }
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
-  html += '<div class="complete-note">荷作りが終わったら、このボタンを押してください。押した時点で「本日発送」として扱います（発送後のご連絡は不要です）。</div>';
-  html += '<button class="btn-big btn-print" onclick="printInvoice()">📄 納品書を印刷する</button>';
-  html += '<button class="btn-big btn-print" onclick="toggleQr()">📱 スマホに引き継ぐ（QRコード）</button>';
-  html += '<div id="qr-area" style="display:none;text-align:center;padding:16px;background:#fff;border:1px solid #e8e2d8;border-radius:10px;margin-top:-4px"></div>';
+  html += '<div class="complete-note">荷造りが終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送は、上の色帯の期日内でOK（当日でなくてかまいません）。</div>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
   if(orderHasNoshi){
@@ -1055,21 +1097,16 @@ function renderOrder(){
   updateCompleteBtn();
 }
 
-function toggleQr(){
-  const area = document.getElementById('qr-area');
-  if(area.style.display === 'none'){
-    area.style.display = 'block';
-    if(!area.dataset.rendered && window.QRCode){
-      new QRCode(area, { text: location.href, width:180, height:180 });
-      area.dataset.rendered = '1';
-    }
-  } else {
-    area.style.display = 'none';
-  }
-}
 
 // ── 不良品の報告（倉庫アプリから直接） ────────────────────────────
-const DEFECT_CATEGORIES = ['オイル漏れ','ラベル汚れ','その他'];
+const DEFECT_LEVELS = [
+  { code:'relabel', name:'貼り替えればOK',      seal:'青', hex:'#2563eb', bg:'#eaf1fc', tx:'#0c447c', desc:'ラベルを貼り替えればOK。通常品在庫としてカウント' },
+  { code:'lv1',     name:'レベル1・軽い',       seal:'緑', hex:'#16a34a', bg:'#eef7ea', tx:'#166534', desc:'小さな難あり。通常発送および卸で、ご理解いただければそのまま出荷できる' },
+  { code:'lv2',     name:'レベル2・中くらい',   seal:'黄', hex:'#eab308', bg:'#fdf6e3', tx:'#854d0e', desc:'へこみ・キャップやラベルのやや目立つ不良。ご理解いただいた上での卸し、または値引き・特価対象' },
+  { code:'lv3',     name:'レベル3・重い',       seal:'赤', hex:'#dc2626', bg:'#fceaea', tx:'#991b1b', desc:'オイル漏れ・瓶のヒビ。発送は難しいがカップオイル加工に使える' },
+  { code:'discard', name:'レベル4・廃棄',       seal:'黒', hex:'#1a1a18', bg:'#ececeb', tx:'#1a1a18', desc:'ひどい破損。売り物にも加工にも使えない' }
+];
+function defectLevelByCode(code){ return DEFECT_LEVELS.find(function(l){ return l.code===code; }); }
 function productOptionsHtml(){
   const groups = {};
   PRODUCTS.forEach(function(p){ if(p.isSet) return; (groups[p.group]=groups[p.group]||[]).push(p); });
@@ -1275,19 +1312,42 @@ function renderDefectForm(){
   html += '<div class="card">';
   html += '<div class="sec-title" style="margin-top:0">🔴 不良品の報告</div>';
   html += '<div class="form-group"><label>商品</label><select id="df-product">'+productOptionsHtml()+'</select></div>';
-  html += '<div class="form-group"><label>本数</label><input type="number" id="df-qty" min="1" value="1"></div>';
-  html += '<div class="form-group"><label>原因</label><select id="df-cat">'+DEFECT_CATEGORIES.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('')+'</select></div>';
-  html += '<div class="form-group"><label>メモ（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた など"></textarea></div>';
-  html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()">この内容で報告する</button>';
+  html += '<div class="form-group"><label>本数</label><input type="number" id="df-qty" min="1" value="1"><div style="font-size:12px;color:#57534e;margin-top:4px">同じ商品が3本なら「3」と入力でOK（1本ずつ登録しなくて大丈夫）</div></div>';
+  html += '<div class="form-group"><label>どのくらいの状態？<span style="color:#dc2626">（えらんでください）</span></label>';
+  html += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">えらぶと、貼るシールの色が出ます。迷ったら近いほうでOK。</div>';
+  html += '<div id="df-levels" style="display:flex;flex-direction:column;gap:8px">';
+  DEFECT_LEVELS.forEach(function(l){
+    html += '<label class="df-lv" style="display:block;border:2px solid '+l.hex+';background:'+l.bg+';border-radius:9px;padding:10px 11px;cursor:pointer">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<input type="radio" name="df-level" value="'+l.code+'" style="width:auto;margin:0" onchange="updateDefectSubmit()">'
+      + '<span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:'+l.hex+';flex:none"></span>'
+      + '<span style="font-size:15px;font-weight:700;color:'+l.tx+'">'+esc(l.name)+'</span></div>'
+      + '<div style="font-size:12px;color:'+l.tx+';margin-top:3px;padding-left:24px">'+esc(l.desc)+' → <b>'+esc(l.seal)+'シール</b></div></label>';
+  });
+  html += '</div></div>';
+  html += '<div class="form-group"><label>メモ（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた、オイル漏れ など"></textarea></div>';
+  html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()" disabled>状態をえらぶと報告できます</button>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
+}
+function updateDefectSubmit(){
+  const sel = document.querySelector('input[name="df-level"]:checked');
+  const btn = document.getElementById('df-submit-btn');
+  if(btn){ btn.disabled = !sel; btn.textContent = sel ? 'この内容で報告する' : '状態をえらぶと報告できます'; }
+  document.querySelectorAll('#df-levels .df-lv').forEach(function(el){
+    const r = el.querySelector('input[name="df-level"]');
+    el.style.boxShadow = (r && r.checked) ? '0 0 0 3px rgba(37,99,235,0.25)' : 'none';
+  });
 }
 async function submitDefect(){
   const pid = document.getElementById('df-product').value;
   const qty = parseInt(document.getElementById('df-qty').value)||0;
-  const cat = document.getElementById('df-cat').value;
+  const levelSel = document.querySelector('input[name="df-level"]:checked');
   const note = document.getElementById('df-note').value;
   if(!pid || qty<=0){ alert('商品と本数を入力してください'); return; }
+  if(!levelSel){ alert('「どのくらいの状態？」をえらんでください'); return; }
+  const lv = defectLevelByCode(levelSel.value);
+  if(!confirm('【'+lv.seal+'】のシールを貼りましたか？\n\n貼ってから「OK」を押してください。（まだなら「キャンセル」）')) return;
   const p = findProduct(pid);
   const btn = document.getElementById('df-submit-btn');
   btn.disabled = true;
@@ -1298,7 +1358,7 @@ async function submitDefect(){
     const defects = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
     defects.push({
       id: 'def_'+Date.now(), pid: p.id, productName: p.name, lotId: '',
-      qty: qty, cat: cat, note: note, status: 'pending', shippedQty: 0, processedAt: ''
+      qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note, status: 'pending', shippedQty: 0, processedAt: ''
     });
     const saveRes = await fetch(GAS_URL, {
       method: 'POST',
@@ -1309,7 +1369,7 @@ async function submitDefect(){
     if(saveData.status==='ok'){
       try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
       document.getElementById('content').innerHTML =
-        '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(cat)+']</span></div>'+
+        '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html?mode=defect\'">続けて報告する</button>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
     } else {
