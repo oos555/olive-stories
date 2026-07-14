@@ -1334,7 +1334,8 @@ function computeAvailable(sku){
   const pid = p.id;
   let stock = 0, oldStock = 0, defectQty = 0;
   lots.forEach(function(l){
-    if(l.pid != pid || l.status==='incoming') return;
+    // 輸入予定（incoming）と廃棄（discard）は実在庫に数えない（在庫Bの computeStockNumbers と完全に同じ判定にする）
+    if(l.pid != pid || l.status==='incoming' || l.status==='discard') return;
     stock += (l.stock||0);
     if(l.status==='old') oldStock += (l.stock||0);
   });
@@ -2239,9 +2240,52 @@ function logGiftIfApplicable(o){
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).catch(function(){ });
 }
+// ⑤ 在庫超過チェック：この注文バッチが「正規在庫（販売可能数）」を超えていないか調べる。
+// 旧ロット・不良特価（condition が old/defect）はイレギュラー枠なので通常在庫の警告対象にしない。
+// セット商品は構成品それぞれの必要本数に展開して判定する。
+function checkStockShortage(list){
+  const demand = {}; // sku -> 必要本数（正規のみ）
+  (list||[]).forEach(function(o){
+    (o.lines||[]).forEach(function(l){
+      const cond = l.condition || 'normal';
+      if(cond!=='normal') return;
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const qty = lineTotal(l);
+      if(qty<=0) return;
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){ demand[c.sku] = (demand[c.sku]||0) + qty*(c.qty||1); });
+      } else {
+        demand[p.sku] = (demand[p.sku]||0) + qty;
+      }
+    });
+  });
+  const short = [];
+  Object.keys(demand).forEach(function(sku){
+    const avail = computeAvailable(sku);
+    if(avail===null) return; // 在庫管理の対象外（空箱など）は判定しない
+    if(demand[sku] > avail){
+      const p = findProductBySku(sku);
+      short.push({ name: p?p.name:sku, need: demand[sku], avail: avail });
+    }
+  });
+  return short;
+}
 function registerOrder(){
   const list = window._pendingOrders;
   if(!list || !list.length) return;
+  // ⑤ 在庫超過の警告（必須）：通常出荷・取り置きで正規在庫が足りない時は、必ず確認をはさむ。
+  // 予約（reserved＝入荷前）は在庫を超えて当然なので対象外。
+  const _recType = list[0].status;
+  if(_recType==='pending' || _recType==='held'){
+    const short = checkStockShortage(list);
+    if(short.length){
+      const msg = '⚠️ 在庫が足りない商品があります。\n\n'
+        + short.map(function(s){ return '・'+s.name+'：必要 '+s.need+'本 ／ 販売可能 '+s.avail+'本（'+(s.need-s.avail)+'本たりません）'; }).join('\n')
+        + '\n\nこのまま登録して進めますか？\n「OK」＝このまま登録する　／　「キャンセル」＝中止して数量を見直す';
+      if(!confirm(msg)) return;
+    }
+  }
   list.forEach(o=>orders.push(o));
   list.forEach(logGiftIfApplicable);
   const saveCustomer = list[0].saveCustomer;
@@ -2258,12 +2302,12 @@ function registerOrder(){
   const recordType = list[0].status;
   if(recordType==='pending'){
     list.forEach(applyStockDeductOnSend);   // ★通常受注は登録＝出荷依頼送信なので、この時点で在庫を減らす
-    saveStockToGAS();
+    persistStockDeduct(list);               // ① 減らした分だけを最新在庫に反映して保存
   }
   document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
-  syncOrdersToGAS();
+  syncOrdersToGAS(list);                     // ① 登録した注文だけを最新にマージして保存
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
@@ -2533,9 +2577,9 @@ function convertSelectedHoldToShipping(){
   if(!ids.length){ alert('出荷依頼書へ進めたい取り置き・予約にチェックを入れてください'); return; }
   const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
   list.forEach(function(o){ o.status='pending'; applyStockDeductOnSend(o); });
-  saveStockToGAS();
+  persistStockDeduct(list);                  // ① 減らした分だけを最新在庫に反映
   updateSummary(); renderList(); renderSlipSelect();
-  syncOrdersToGAS();
+  syncOrdersToGAS(list);                      // ① 変換した注文だけを最新にマージ
   showSyncStatus('📦 '+list.length+'件を出荷依頼書に届けました。出荷依頼に進んでください。');
   gotoSlip(list[0].id);
 }
@@ -2545,9 +2589,9 @@ function convertToShipping(id){
   if(!o) return;
   o.status = 'pending';
   applyStockDeductOnSend(o);   // ★出荷依頼を送った時点で在庫を減らす（案A）
-  saveStockToGAS();
+  persistStockDeduct([o]);     // ① 減らした分だけを最新在庫に反映
   updateSummary(); renderList(); renderSlipSelect();
-  syncOrdersToGAS();
+  syncOrdersToGAS([o]);        // ① この注文だけを最新にマージ
   showSyncStatus('📦 出荷依頼書に届きました。出荷依頼に進んでください。');
   gotoSlip(id);
 }
@@ -2693,6 +2737,7 @@ function undoStockForOrder(o){
 function withProductNameForLots(arr){
   return arr.map(function(l){ const p = findProduct(l.pid); return Object.assign({}, l, { productName: p?p.name:(l.productName||'') }); });
 }
+// 【フォールバック】最新が取れない時だけ使う、手元まるごと保存（従来動作）
 function saveStockToGAS(){
   if(!gasSyncEnabled) return;
   fetch(GAS_URL, {
@@ -2701,6 +2746,63 @@ function saveStockToGAS(){
     headers: {'Content-Type':'text/plain;charset=utf-8'}
   }).catch(function(){ showSyncStatus('⚠️ 在庫データの保存に失敗しました（アプリBで確認してください）', true); });
 }
+
+// ── ① 在庫の安全保存（差分適用）────────────────────────────────
+// 手元のロット全部で上書きすると、その間に在庫Bが入れた「＋在庫」や新ロットを消してしまう。
+// そこで「自分が減らした／戻した分（増減リスト）」だけを、保存直前に取り直した最新データへ適用して保存する。
+//
+// 注文の stockLog（[{kind:'lot',id,qty} / {kind:'defect',id,qty}]）から、符号つきの増減リストを作る。
+//   mode='deduct'（出荷で減らす）: ロット -qty ／ 不良 shippedQty +qty
+//   mode='restore'（キャンセルで戻す）: ロット +qty ／ 不良 shippedQty -qty
+function buildStockDeltas(list, mode){
+  const sign = (mode==='restore') ? +1 : -1;   // ロット在庫に対する符号
+  const deltas = [];
+  (list||[]).forEach(function(o){
+    (o.stockLog||[]).forEach(function(e){
+      if(e.kind==='lot')      deltas.push({ kind:'lot',    id:e.id, delta: sign*(e.qty||0) });
+      else if(e.kind==='defect') deltas.push({ kind:'defect', id:e.id, shipDelta: (-sign)*(e.qty||0) });
+    });
+  });
+  return deltas;
+}
+// 増減リストを、取り直した最新データに適用して保存する
+function persistStockDeltas(deltas){
+  if(!gasSyncEnabled) return;
+  if(!deltas || !deltas.length) return;
+  fetch(GAS_URL + '?action=loadAllData').then(function(r){ return r.json(); }).then(function(data){
+    var freshLots, freshDefects, gotFresh = false;
+    if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
+      freshLots = data.data.lots;
+      freshDefects = Array.isArray(data.data.defects) ? data.data.defects : [];
+      gotFresh = true;
+    } else {
+      // 最新が取れない → 手元をそのまま保存（従来動作フォールバック）
+      freshLots = lots; freshDefects = defects;
+    }
+    deltas.forEach(function(e){
+      if(e.kind==='lot'){
+        var l = freshLots.find(function(x){ return x.id===e.id; });
+        if(l) l.stock = Math.max(0, (l.stock||0) + e.delta);
+      } else if(e.kind==='defect'){
+        var d = freshDefects.find(function(x){ return x.id===e.id; });
+        if(d){
+          d.shippedQty = Math.max(0, (d.shippedQty||0) + e.shipDelta);
+          if(d.shippedQty >= (d.qty||0)) d.status = 'resolved';
+          else if(d.status==='resolved') d.status = 'pending';
+        }
+      }
+    });
+    return fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveAllData', payload:{ lots: withProductNameForLots(freshLots), defects: withProductNameForLots(freshDefects) } }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    }).then(function(){
+      if(gotFresh){ lots = freshLots; defects = freshDefects; }  // 手元も最新化
+    });
+  }).catch(function(){ showSyncStatus('⚠️ 在庫データの保存に失敗しました（アプリBで確認してください）', true); });
+}
+// 注文リスト（出荷で減らした分）を最新在庫へ差分反映して保存
+function persistStockDeduct(list){ persistStockDeltas(buildStockDeltas(list, 'deduct')); }
 async function markShipped(id){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
@@ -2714,7 +2816,7 @@ async function markShipped(id){
     if(data.status!=='ok'){ showSyncStatus('⚠️ 出荷済み処理に失敗しました：'+(data.message||''), true); return; }
     o.status = 'shipped';
     o.shippedAt = new Date().toISOString();
-    if(!o.stockDeducted){ applyStockDeductOnSend(o); saveStockToGAS(); }  // 念のため：未減算のまま出荷済みになる取りこぼしを防ぐ
+    if(!o.stockDeducted){ applyStockDeductOnSend(o); persistStockDeduct([o]); }  // 念のため：未減算のまま出荷済みになる取りこぼしを防ぐ（① 差分反映）
     showSyncStatus('✅ 出荷済みにしました：'+o.num);
     updateSummary(); renderList();
   }catch(err){
@@ -2727,9 +2829,13 @@ function cancelOrder(id){
   if(!confirm(o.num+' をキャンセルしますか？')) return;
   o.status = 'cancelled';
   o.cancelledAt = new Date().toISOString();
-  if(o.stockDeducted){ undoStockForOrder(o); saveStockToGAS(); }  // ★減らしていた分を自動で在庫に戻す
+  if(o.stockDeducted){
+    var _restoreDeltas = buildStockDeltas([o], 'restore');  // ★stockLogが消える前に「戻す増減」を確保
+    undoStockForOrder(o);                                    // 手元を元に戻す（ここで stockLog がクリアされる）
+    persistStockDeltas(_restoreDeltas);                      // ① 戻した分だけを最新在庫に反映して保存
+  }
   updateSummary(); renderList();
-  syncOrdersToGAS();
+  syncOrdersToGAS([o]);                                       // ① キャンセルした注文だけを最新にマージ
   showSyncStatus('キャンセルしました：'+o.num);
 }
 function gotoSlip(id){
@@ -2852,7 +2958,7 @@ function saveShipNote(orderId){
   if(!o) return;
   const input = document.getElementById('ship-note-input-'+orderId);
   o.shipNote = input.value;
-  syncOrdersToGAS();
+  syncOrdersToGAS([o]);                        // ① この注文だけを最新にマージ
   showSyncStatus('✅ 出荷時の備考を保存しました');
   if(window._currentSlipOrder && window._currentSlipOrder.id===orderId){ document.getElementById('slip-area').innerHTML = buildSlipHtml(o); }
   else if(window._currentSlipOrders){ document.getElementById('slip-area').innerHTML = window._currentSlipOrders.map(x=>buildSlipHtml(x)).join(''); }
@@ -2878,7 +2984,7 @@ function notifyLineShort(listArg){
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   list.forEach(function(o){ o.notified = true; });
-  syncOrdersToGAS();
+  syncOrdersToGAS(list);                       // ① 通知済みにした注文だけを最新にマージ
   const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷依頼：'+list.length+'件';
   const parts = [];
@@ -3048,6 +3154,7 @@ function importCSV(){
     return; // ★未マッチが残っている間は取込を止める
   }
   let imported = 0, skipped = 0;
+  const importedOrders = [];   // ① 取り込んだ注文だけを集める
   csvParsedRows.forEach(function(g){
     if(existingNums.has(g.storesOrderNum)){ skipped++; return; }
     const validLines = g.lines.filter(l=>l.productId && !l.excluded);
@@ -3067,13 +3174,14 @@ function importCSV(){
     };
     orders.push(o);
     applyStockDeductOnSend(o);   // ★STORES取込＝支払済み・出荷依頼なので在庫を減らす（正規のみ）
+    importedOrders.push(o);      // ① 集める
     imported++;
   });
   document.getElementById('csv-result').style.display = 'block';
   document.getElementById('csv-result').innerHTML = '<div class="alert-bar alert-info">✅ '+imported+'件を取り込みました（'+skipped+'件は重複のためスキップ）</div>';
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
-  if(imported){ saveStockToGAS(); syncOrdersToGAS(); }
+  if(imported){ persistStockDeduct(importedOrders); syncOrdersToGAS(importedOrders); }  // ① 差分反映＋変更分マージ
 }
 
 // ── 取込モード切替（STORES CSV / PDF）────────────────────────────
@@ -3280,15 +3388,51 @@ function applyPdfToOrderForm(){
 }
 
 // ── GAS 保存（必ず「今ある受注を全部」送る）────────────────────────────
-function syncOrdersToGAS(){
+// ── ① 注文の安全保存（最新取り直し＋変更分だけマージ）──────────────
+// 手元の orders 全部で上書きすると、その間に請求Cで付けた「入金済み」や、
+// 倉庫Dが入れた出荷メモなど、他アプリの変更を消してしまう。
+// そこで保存の直前に最新を取り直し、「自分が作った／直した注文」だけを id で重ね、
+// 触っていない注文は最新のまま残す。
+//   changed … このクライアントが新規作成・変更した注文の配列。
+//             省略時は従来どおり手元まるごと保存（フォールバック）。
+function syncOrdersToGAS(changed){
   if(!gasSyncEnabled) return;
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveOrders', orders: orders }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-    else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+  const fallbackSave = function(arr){
+    return fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveOrders', orders: arr }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    }).then(r=>r.json());
+  };
+  // 変更リストが渡されていない場合＝従来動作
+  if(!Array.isArray(changed)){
+    fallbackSave(orders).then(function(d){
+      if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      else showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
+    }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
+    return;
+  }
+  fetch(GAS_URL + '?action=loadAll').then(function(r){ return r.json(); }).then(function(fresh){
+    var base;
+    if(fresh && fresh.status==='ok' && fresh.data && Array.isArray(fresh.data.orders)){
+      // 最新をベースに、自分の変更した注文だけを id で重ねる（新規は追加）
+      var byId = {};
+      fresh.data.orders.forEach(function(o){ byId[o.id] = o; });
+      changed.forEach(function(o){ byId[o.id] = o; });
+      base = Object.keys(byId).map(function(k){ return byId[k]; });
+    } else {
+      // 最新が取れない → 手元まるごと（フォールバック）
+      base = orders;
+    }
+    return fallbackSave(base).then(function(d){
+      if(d && d.status==='ok'){
+        orders = base;   // 手元も最新化（他アプリの変更もここで反映される）
+        renderList();
+        showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      } else {
+        showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
+      }
+    });
   }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
 }
 </script>
