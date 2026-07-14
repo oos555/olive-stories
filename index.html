@@ -1764,6 +1764,49 @@ function giftOptionsHtml(isSet, selected){
   const keys = isSet ? ['gift'] : Object.keys(GIFT_TYPE_LABEL).filter(k=>k!=='gift');
   return keys.map(k=>'<option value="'+k+'" '+(k===selected?'selected':'')+'>'+GIFT_TYPE_LABEL[k]+'</option>').join('');
 }
+function lotStockFor(pid, status){
+  var s=0; lots.forEach(function(l){ if(l.pid==pid && l.status===status) s+=(l.stock||0); }); return s;
+}
+function defectStockFor(pid){
+  var s=0; defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') s+=Math.max(0,(d.qty||0)-(d.shippedQty||0)); }); return s;
+}
+function condAvail(pid){
+  var p = findProduct(pid);
+  if(!p) return { old:0, defect:0 };
+  if(p.isSet && p.components && p.components.length){
+    var oldMin=Infinity, defMin=Infinity;
+    p.components.forEach(function(c){
+      var cp = findProductBySku(c.sku); var per=(c.qty||1);
+      var o = cp ? lotStockFor(cp.id,'old') : 0;
+      var d = cp ? defectStockFor(cp.id) : 0;
+      oldMin = Math.min(oldMin, Math.floor(o/per));
+      defMin = Math.min(defMin, Math.floor(d/per));
+    });
+    return { old: isFinite(oldMin)?oldMin:0, defect: isFinite(defMin)?defMin:0 };
+  }
+  return { old: lotStockFor(pid,'old'), defect: defectStockFor(pid) };
+}
+function conditionOptionsHtml(pid, selected){
+  var a = condAvail(pid);
+  var sel = selected||'normal';
+  function opt(val,label,dis){ return '<option value="'+val+'"'+(sel===val?' selected':'')+(dis?' disabled':'')+'>'+label+'</option>'; }
+  return opt('normal','正規',false)
+    + opt('old','旧ロット（残'+a.old+'）', a.old<=0)
+    + opt('defect','不良（残'+a.defect+'）', a.defect<=0);
+}
+function refreshLineCondition(row){
+  if(!row) return;
+  var prodSel = row.querySelector('[data-role=product]');
+  var condSel = row.querySelector('[data-role=condition]');
+  if(!prodSel || !condSel) return;
+  var pid = prodSel.value;
+  var cur = condSel.value || 'normal';
+  var a = condAvail(pid);
+  if((cur==='old' && a.old<=0) || (cur==='defect' && a.defect<=0)) cur='normal';
+  condSel.innerHTML = conditionOptionsHtml(pid, cur);
+  condSel.value = cur;
+  condSel.setAttribute('data-cond', cur);
+}
 function addRecipientLine(cardId){
   const id = 'rline'+(++recipientLineCounter);
   const card = document.getElementById(cardId);
@@ -1776,11 +1819,12 @@ function addRecipientLine(cardId){
     '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+giftOptionsHtml(false)+'</select>'+
     '<input type="number" min="0" value="0" data-role="bottles" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="number" min="0" value="0" data-role="boxes" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
-    '<select data-role="condition" data-cond="normal" onchange="this.setAttribute(\'data-cond\',this.value)"><option value="normal">正規</option><option value="old">旧</option><option value="defect">不良</option></select>'+
+    '<select data-role="condition" data-cond="normal" onchange="this.setAttribute(\'data-cond\',this.value)"></select>'+
     '<input type="text" placeholder="メモ" data-role="memo">'+
     '<button class="btn-sm" onclick="removeRecipientLine(\''+cardId+'\',\''+id+'\')" title="削除">✕</button>';
   wrap.appendChild(row);
   updateCardGiftSummary(cardId);
+  refreshLineCondition(row);
 }
 function onRecipientLineProductChange(cardId, lineId){
   const row = document.getElementById(lineId);
@@ -1792,6 +1836,7 @@ function onRecipientLineProductChange(cardId, lineId){
   giftSel.disabled = isSet;
   updateCardGiftSummary(cardId);
   updateRecycleLock(cardId);
+  refreshLineCondition(row);
 }
 function onRecipientLineGiftChange(cardId){
   updateRecycleLock(cardId);
