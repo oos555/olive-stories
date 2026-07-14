@@ -303,28 +303,19 @@ tr:last-child td{border-bottom:none}
       <tbody id="inv-tbl-body"></tbody>
     </table>
   </div>
-  <div class="card">
-    <div class="sec">入庫 / 出庫を記録 <span class="help-ic" onclick="showHelp('form')">ⓘ</span></div>
-    <div class="info-box">💡 商品ごとの「➕入庫」「➖出庫」ボタン（上の表）とは違い、こちらは<strong>特定のロット（賞味期限）を選んで</strong>正確に数を直したいときに使います。「（新規ロットとして扱う）」のままだと、新しいロットが作られます。</div>
-    <div class="g4">
-      <div class="fg"><label>商品</label><select id="f-product" onchange="onProdChange('f-product','f-lot')"></select></div>
-      <div class="fg"><label>ロット・賞味期限</label><select id="f-lot"></select></div>
-      <div class="fg"><label>区分</label><select id="f-type"><option value="in">入庫</option><option value="out">出庫</option></select></div>
-      <div class="fg"><label>数量</label><input type="number" id="f-qty" min="1" value="1"></div>
-    </div>
-    <div class="fg"><label>メモ</label><input type="text" id="f-note" placeholder="入荷便・注文番号など"></div>
-    <button class="btn-primary btn" onclick="recordMovement()">記録する</button>
+  <div class="card" style="text-align:center;background:#f9f8f5">
+    <div style="font-size:13px;color:#2b2a26;line-height:1.7">ロットごとの数直し・新しいロットの登録は<br><strong>「ロット管理」タブ</strong>にまとめました。</div>
+    <button class="btn-primary btn" style="margin-top:10px" onclick="(function(){var lb=document.querySelectorAll('.tab-row .tab')[1];if(lb)showPanel('lot',lb);})()">ロット管理タブを開く →</button>
   </div>
 </div>
 
 <!-- ロット管理 -->
 <div id="panel-lot" class="panel">
-  <div class="info-box">同じ商品でも<strong>ロット（賞味期限）が異なる在庫を別管理</strong>します。旧ロットは実在庫に含まれますが、<strong>販売可能数からは除外</strong>されます。輸入予定は確認入庫ボタンで実在庫に反映されます。</div>
-  <div id="lot-alerts"></div>
-  <div class="sec">ロット・賞味期限別 在庫一覧</div>
-  <div id="lot-list"></div>
-  <div class="card">
-    <div class="sec">新しいロットを登録（入庫 / 輸入予定）</div>
+  <div class="info-box">同じ商品でも<strong>ロット（賞味期限）が異なる在庫を別管理</strong>します。旧ロットは実在庫に含まれますが、<strong>販売可能数からは除外</strong>されます。輸入予定は確認入庫ボタンで実在庫に反映されます。<br>登録・数直しは、この下の<strong>①②</strong>にまとめました（一番上）。</div>
+
+  <div class="card" style="border-left:4px solid #16a34a">
+    <div class="sec">① 新しいロットを登録する（届いた・輸入予定）</div>
+    <div class="info-box">賞味期限つきで、ロットをまるごと新規で作ります。輸入予定もここ。</div>
     <div class="g3">
       <div class="fg"><label>商品</label><select id="l-product"></select></div>
       <div class="fg"><label>ロット（例：A5）</label><input type="text" id="l-lot" placeholder="A5"></div>
@@ -344,6 +335,23 @@ tr:last-child td{border-bottom:none}
     </div>
     <button class="btn-primary btn" onclick="addLot()">登録する</button>
   </div>
+
+  <div class="card" id="card-adjust" style="border-left:4px solid #2563eb">
+    <div class="sec">② 今あるロットの数を直す（入庫 / 出庫）</div>
+    <div class="info-box">「A5だけ2本足りない」など、<strong>特定のロット（賞味期限）を選んで</strong>正確に数を直すときに使います。上の表の「➕入庫」「➖出庫」ボタンは、ロットを気にせずざっくり増減します。</div>
+    <div class="g4">
+      <div class="fg"><label>商品</label><select id="f-product" onchange="onProdChange('f-product','f-lot',false)"></select></div>
+      <div class="fg"><label>ロット・賞味期限 <span style="color:#dc2626">※必須</span></label><select id="f-lot"></select></div>
+      <div class="fg"><label>区分</label><select id="f-type"><option value="in">入庫</option><option value="out">出庫</option></select></div>
+      <div class="fg"><label>数量</label><input type="number" id="f-qty" min="1" value="1"></div>
+    </div>
+    <div class="fg"><label>メモ</label><input type="text" id="f-note" placeholder="入荷便・注文番号など"></div>
+    <button class="btn-primary btn" onclick="recordMovement()">記録する</button>
+  </div>
+
+  <div id="lot-alerts"></div>
+  <div class="sec">ロット・賞味期限別 在庫一覧</div>
+  <div id="lot-list"></div>
 </div>
 
 <!-- 不良在庫 -->
@@ -506,7 +514,7 @@ function refreshAllProductSelects(){
     const prev = el.value;
     el.innerHTML = productOptionsHtml(prev);
   });
-  onProdChange('f-product','f-lot');
+  onProdChange('f-product','f-lot',false);
   onProdChange('d-product','d-lot');
   renderCatOptions();
 }
@@ -618,7 +626,7 @@ function fillProductSelects(){
     document.getElementById(id).innerHTML = productOptionsHtml();
   });
   document.getElementById('f-product').addEventListener('change', function(){});
-  onProdChange('f-product','f-lot');
+  onProdChange('f-product','f-lot',false);
   onProdChange('d-product','d-lot');
   renderCatOptions();
 }
@@ -629,9 +637,10 @@ function lotOptionsFor(pid, includeIncoming){
 }
 function lotStatusLabel(s){ return {new:'新',old:'旧',supply:'備品',incoming:'輸入予定'}[s]||s; }
 
-function onProdChange(prodId, lotId){
+function onProdChange(prodId, lotId, allowNew){
   const pid = document.getElementById(prodId).value;
-  document.getElementById(lotId).innerHTML = '<option value="">（新規ロットとして扱う）</option>' + lotOptionsFor(pid, false);
+  const head = (allowNew===false) ? '<option value="">ロットを選ぶ…</option>' : '<option value="">（新規ロットとして扱う）</option>';
+  document.getElementById(lotId).innerHTML = head + lotOptionsFor(pid, false);
 }
 
 // ── GAS 読み込み・保存 ────────────────────────────────────────────
@@ -966,9 +975,11 @@ function showUndoToast(msg){
   el._t = setTimeout(()=>{ el.style.display='none'; lastConfirmedIncoming=null; }, 8000);
 }
 function quickSelectProduct(pid){
+  var lb=document.querySelectorAll('.tab-row .tab')[1];
+  if(lb) showPanel('lot', lb);
   document.getElementById('f-product').value = pid;
-  onProdChange('f-product','f-lot');
-  document.getElementById('panel-inv').scrollIntoView({behavior:'smooth'});
+  onProdChange('f-product','f-lot',false);
+  var c=document.getElementById('card-adjust'); if(c) c.scrollIntoView({behavior:'smooth'});
 }
 
 // ── 入出庫記録 ────────────────────────────────────────────
@@ -979,12 +990,10 @@ function recordMovement(){
   const qty = parseInt(document.getElementById('f-qty').value)||0;
   const note = document.getElementById('f-note').value;
   if(!pid || qty<=0){ alert('商品と数量を指定してください'); return; }
+  if(!lotId){ alert('ロット（賞味期限）を選んでください。新しいロットは上の「① 新しいロットを登録する」から作れます。'); return; }
   const p = findProduct(pid);
   let lot = lots.find(l=>l.id===lotId);
-  if(!lot){
-    lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'new', note:'' };
-    lots.push(lot);
-  }
+  if(!lot){ alert('選んだロットが見つかりません。'); return; }
   if(type==='in') lot.stock = (lot.stock||0) + qty;
   else lot.stock = Math.max(0, (lot.stock||0) - qty);
   addLog(type==='in'?'入庫':'出庫', p.name+'　'+(type==='in'?'+':'-')+qty+'　'+note);
@@ -1070,7 +1079,7 @@ function addLot(){
   document.getElementById('l-qty').value = 0;
   document.getElementById('l-note').value = '';
   renderLotList(); renderInvTable(); renderInvLogs();
-  onProdChange('f-product','f-lot'); onProdChange('d-product','d-lot');
+  onProdChange('f-product','f-lot',false); onProdChange('d-product','d-lot');
   scheduleAutoSave();
 }
 
