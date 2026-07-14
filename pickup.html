@@ -220,28 +220,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .stock-head-title{color:#fff;font-size:17px;font-weight:700}
 .stock-head-sub{color:#eef1e4;font-size:12px;margin-top:2px}
 .stock-warn{background:#fdf6ee;border:1px solid #d9a441;border-radius:9px;padding:9px 12px;margin-bottom:12px;color:#7a5410;font-size:12.5px;line-height:1.6}
-.stock-legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-size:11px;color:#5f5e5a;margin:2px 0 10px}
-.stock-legend .lg-box{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:3px;vertical-align:0}
 .stock-group{font-size:12px;font-weight:700;color:#57534e;margin:12px 0 6px;padding-left:2px}
-.stock-row{background:#fff;border:1px solid #e5e3da;border-radius:10px;padding:10px 12px;margin-bottom:8px}
-.stock-row-head{display:flex;align-items:baseline;gap:6px;margin-bottom:7px}
-.stock-name{font-size:15px;font-weight:700;color:#2b2a26}
-.stock-sku{font-size:11px;color:#a6a49c;font-family:monospace}
-.stock-cells{display:flex;gap:6px}
-.stock-cell{flex:1;text-align:center;padding:6px 2px;border-radius:8px}
-.stock-cell-label{font-size:11px;color:#5f5e5a;margin-bottom:1px}
-.stock-cell-num{line-height:1}
-.stock-cell-num>span:first-child{font-size:24px;font-weight:800}
-.stock-cell-unit{font-size:11px;color:#8a887f}
-.stock-guide{background:#fff;border:1px solid #e5e3da;border-radius:10px;padding:11px 12px;margin-bottom:12px}
-.stock-guide-ttl{font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:2px}
-.stock-guide-sub{font-size:12px;color:#6b675f;margin-bottom:9px}
-.stock-guide-row{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;margin-bottom:6px}
-.stock-guide-row:last-child{margin-bottom:0}
-.stock-guide-num{min-width:64px;text-align:center;font-size:21px;font-weight:800;line-height:1}
-.stock-guide-num small{font-size:12px;font-weight:700}
-.stock-guide-txt{font-size:14px;color:#2b2a26}
-.stock-guide-txt b{font-weight:800}
+.stock-note{font-size:12.5px;color:#2b2a26;line-height:1.7;margin:0 2px 10px}
+.stk-tbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.stk-tbl thead tr{border-bottom:2px solid #6b7a3a}
+.stk-tbl th{font-size:11px;line-height:1.15;color:#2b2a26;padding:5px 1px;font-weight:700;text-align:center}
+.stk-tbl th.stk-name{text-align:left;padding-left:3px}
+.stk-tbl th.stk-av{background:#e8f4ec}
+.stk-tbl th.stk-in{color:#1d4ed8;border-left:2px solid #dfe6ef}
+.stk-tbl td{padding:8px 1px;text-align:center;font-weight:700;font-size:17px;border-bottom:1px solid #ece7dc}
+.stk-tbl td.stk-nm{text-align:left;padding:8px 3px;line-height:1.25}
+.stk-tbl td.stk-nm b{font-size:13px;color:#2b2a26}
+.stk-tbl td.stk-nm small{display:block;font-size:10.5px;color:#6b6459;font-weight:600;margin-top:1px}
+.stk-tbl td.stk-av-td{font-size:20px;font-weight:800;color:#16a34a;background:#eef8f1}
+.stk-tbl td.stk-in-td{font-size:14px;color:#7c93b3;border-left:2px solid #eef1f6}
+.stk-grp-row td{background:#f1eee7;font-size:11.5px;font-weight:700;color:#5a5340;text-align:left;padding:4px 6px;border-bottom:none}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -693,20 +686,24 @@ async function loadSingleOrder(id){
 // ════════════════════════════════════
 // ★ 在庫を見る（本数）— 見るだけ・在庫Bと同じデータ／同じ計算
 // ════════════════════════════════════
-const STOCK_LOW = 60;   // これ以下で「少なめ」（黄）
-const STOCK_CRIT = 30;  // これ以下で「残りわずか」（赤）
 const STOCK_HIDE_GROUPS = { 'セット商品':1, 'ギフト箱・備品':1, 'その他':1 };
 
 // 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect）
 function stockNumbersFor(pid, lots, defects, holds){
-  var stock=0, oldStock=0;
-  lots.forEach(function(l){ if(l.pid==pid && l.status!=='incoming'){ stock += (l.stock||0); if(l.status==='old') oldStock += (l.stock||0); } });
+  var stock=0, oldStock=0, incoming=0;
+  lots.forEach(function(l){
+    if(l.pid!=pid) return;
+    if(l.status==='incoming'){ incoming += (l.stock||0); return; }
+    stock += (l.stock||0);
+    if(l.status==='old') oldStock += (l.stock||0);
+  });
   var defectQty=0;
   defects.forEach(function(d){ if(d.pid==pid && d.status!=='resolved') defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   var holdQty=0;
   holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
   var avail = Math.max(0, stock - oldStock - defectQty - holdQty);
-  return { stock:stock, oldStock:oldStock, defectQty:defectQty, avail:avail };
+  // discard(廃棄) は、2本目の「不良5区分（黒＝廃棄）」導入で本物の数字が入る。それまでは0。
+  return { stock:stock, oldStock:oldStock, defectQty:defectQty, holdQty:holdQty, incoming:incoming, discard:0, avail:avail };
 }
 
 async function loadStockScreen(){
@@ -731,20 +728,9 @@ function stockBackBtn(){
   return '<button class="refresh-btn no-print" style="margin-top:12px;background:#6b7a3a;color:#fff;border:none;font-size:16px" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
 }
 
-// 在庫の色の見かた（しきい値は STOCK_LOW / STOCK_CRIT から自動で表示）
-function stockColorGuide(){
-  var ok = STOCK_LOW + 1;
-  return '<div class="stock-guide">'
-    + '<div class="stock-guide-ttl">在庫の色の見かた</div>'
-    + '<div class="stock-guide-sub">数字の色で、補充のタイミングが分かります。</div>'
-    + '<div class="stock-guide-row" style="background:#f2f5ea"><div class="stock-guide-num" style="color:#4a7a2f">'+ok+'<small> 本〜</small></div><div class="stock-guide-txt"><b>'+ok+'本以上</b> … ふつう</div></div>'
-    + '<div class="stock-guide-row" style="background:#fff6df"><div class="stock-guide-num" style="color:#b5820a">'+STOCK_LOW+'<small> 本↓</small></div><div class="stock-guide-txt"><b style="color:#b5820a">'+STOCK_LOW+'本以下</b> … そろそろ補充</div></div>'
-    + '<div class="stock-guide-row" style="background:#fdeaea"><div class="stock-guide-num" style="color:#dc2626">'+STOCK_CRIT+'<small> 本↓</small></div><div class="stock-guide-txt"><b style="color:#dc2626">'+STOCK_CRIT+'本以下</b> … すぐ補充してください</div></div>'
-    + '</div>';
-}
-
+// 在庫を見る（表組み・見るだけ）：実在庫/販売可能/旧ロット/不良/取置/廃棄 ＋ 右端に入庫予定
 function renderStockList(lots, defects, holds){
-  // 取り扱っている商品（ロット記録か不良がある）だけ表示。0本でも表示（赤で気づけるように）
+  // 取り扱っている商品（ロット記録か不良がある）だけ表示。0本でも表示。
   var tracked = {};
   lots.forEach(function(l){ tracked[l.pid]=true; });
   defects.forEach(function(d){ tracked[d.pid]=true; });
@@ -771,39 +757,39 @@ function renderStockList(lots, defects, holds){
     return;
   }
 
-  html += stockColorGuide();
+  html += '<div class="stock-note"><b style="color:#16a34a">販売可能</b>＝いま出荷につかえる本数（旧ロット・不良・取り置きを引いた数）。<br>いちばん右の<b style="color:#1d4ed8">入庫予定</b>＝これから届く本数（置き場所の目安に）。</div>';
 
-  html += '<div class="stock-legend"><span><i class="lg-box" style="background:#6b7a3a"></i>正規（ふつうに出せる）</span>'
-        + '<span><i class="lg-box" style="background:#b45309"></i>旧ロット</span>'
-        + '<span><i class="lg-box" style="background:#dc2626"></i>不良</span></div>';
+  html += '<table class="stk-tbl"><colgroup>'
+        + '<col style="width:22%"><col style="width:12%"><col style="width:14%"><col style="width:11%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:12%">'
+        + '</colgroup><thead><tr>'
+        + '<th class="stk-name">商品</th><th>実在庫</th><th class="stk-av">販売<br>可能</th><th>旧<br>ロット</th><th>不良</th><th>取置</th><th>廃棄</th><th class="stk-in">入庫<br>予定</th>'
+        + '</tr></thead><tbody>';
 
   order.forEach(function(g){
-    html += '<div class="stock-group">'+esc(g)+'</div>';
+    html += '<tr class="stk-grp-row"><td colspan="8">'+esc(g)+'</td></tr>';
     groups[g].forEach(function(p){
       var n = stockNumbersFor(p.id, lots, defects, holds);
-      var okColor = n.avail<=STOCK_CRIT ? '#dc2626' : (n.avail<=STOCK_LOW ? '#d9a441' : '#6b7a3a');
-      html += '<div class="stock-row">';
-      html +=   '<div class="stock-row-head"><span class="stock-name">'+esc(p.name)+'</span><span class="stock-sku">'+esc(p.sku)+'</span></div>';
-      html +=   '<div class="stock-cells">';
-      html +=     stockCell('出せる（正規）', n.avail, okColor, false);
-      html +=     stockCell('旧ロット', n.oldStock, '#b45309', true);
-      html +=     stockCell('不良', n.defectQty, '#dc2626', true);
-      html +=   '</div>';
-      html += '</div>';
+      var box = p.boxQty ? '・1箱'+p.boxQty+'本' : '';
+      html += '<tr>';
+      html +=   '<td class="stk-nm"><b>'+esc(p.name)+'</b><small>'+esc(p.sku)+box+'</small></td>';
+      html +=   '<td>'+stkNum(n.stock, '#2b2a26')+'</td>';
+      html +=   '<td class="stk-av-td">'+n.avail+'</td>';
+      html +=   '<td>'+stkNum(n.oldStock, '#b45309')+'</td>';
+      html +=   '<td>'+stkNum(n.defectQty, '#dc2626')+'</td>';
+      html +=   '<td>'+stkNum(n.holdQty, '#b45309')+'</td>';
+      html +=   '<td>'+stkNum(n.discard, '#1a1a18')+'</td>';
+      html +=   '<td class="stk-in-td">'+(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming)+'</td>';
+      html += '</tr>';
     });
   });
 
+  html += '</tbody></table>';
   html += stockBackBtn();
   document.getElementById('content').innerHTML = html;
 }
 
-function stockCell(label, val, color, zeroMuted){
-  var c = (val===0 && zeroMuted) ? '#b9b7ae' : color;
-  var bg = (val===0) ? '#f6f4ee' : '#fff';
-  return '<div class="stock-cell" style="background:'+bg+'">'
-    + '<div class="stock-cell-label">'+label+'</div>'
-    + '<div class="stock-cell-num"><span style="color:'+c+'">'+val+'</span><span class="stock-cell-unit"> 本</span></div>'
-    + '</div>';
+function stkNum(val, color){
+  return '<span style="color:'+(val===0 ? '#c9c3b6' : color)+'">'+val+'</span>';
 }
 
 async function loadOrderList(){
@@ -827,7 +813,7 @@ async function loadOrderList(){
       if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>'; }
       return;
     }
-    // 出荷待ち（出荷指示が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
+    // 出荷待ち（出荷依頼書が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
     allOrders = data.data.orders.filter(function(o){
       if(o.notified!==true) return false;
       if(o.status==='pending') return true;
@@ -895,7 +881,7 @@ function renderList(){
   html += '</div>';
   html += '</details>';
   if(!allOrders.length){
-    html += '<div class="card center" style="color:#57534e">現在、届いている出荷指示はありません。</div>';
+    html += '<div class="card center" style="color:#57534e">現在、届いている出荷依頼書はありません。</div>';
   } else {
     const sorted = allOrders.slice().sort(function(a,b){
       // 梱包待ちを上・梱包終了を下。待ちの中は 期限超過→急ぎ→登録が古い順。終了は完了が新しい順
