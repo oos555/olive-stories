@@ -1359,31 +1359,59 @@ async function submitDefect(){
   const btn = document.getElementById('df-submit-btn');
   btn.disabled = true;
   btn.textContent = '送信中...';
-  try{
+
+  // 報告する不良品（1件）
+  const newDefect = {
+    id: 'def_'+Date.now(), pid: p.id, productName: p.name, lotId: '',
+    qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note,
+    status: 'pending', shippedQty: 0, processedAt: '', reportedAt: new Date().toISOString(), source: 'warehouse'
+  };
+
+  function showDone(){
+    try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
+    document.getElementById('content').innerHTML =
+      '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
+      '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html?mode=defect\'">続けて報告する</button>'+
+      '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
+  }
+  function showFail(msg){
+    btn.disabled = false; btn.textContent = 'この内容で報告する';
+    alert('送信に失敗しました：'+(msg||''));
+  }
+
+  // 【従来方式・フォールバック】全件読み→1件足す→全件保存。
+  // GAS側にまだ appendDefect が無い場合や、追記に失敗した場合に使う。
+  async function fallbackSaveWhole(){
     const res = await fetch(GAS_URL + '?action=loadAllData');
     const data = await res.json();
     const defects = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
-    defects.push({
-      id: 'def_'+Date.now(), pid: p.id, productName: p.name, lotId: '',
-      qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note,
-      status: 'pending', shippedQty: 0, processedAt: '', reportedAt: new Date().toISOString(), source: 'warehouse'
-    });
+    defects.push(newDefect);
     const saveRes = await fetch(GAS_URL, {
       method: 'POST',
       body: JSON.stringify({ action:'saveAllData', payload:{ defects: defects } }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
     const saveData = await saveRes.json();
-    if(saveData.status==='ok'){
-      try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
-      document.getElementById('content').innerHTML =
-        '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
-        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html?mode=defect\'">続けて報告する</button>'+
-        '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
-    } else {
-      btn.disabled = false; btn.textContent = 'この内容で報告する';
-      alert('送信に失敗しました：'+(saveData.message||''));
-    }
+    if(saveData.status==='ok'){ showDone(); } else { showFail(saveData.message); }
+  }
+
+  try{
+    // 【新方式】GASに「不良を1件だけ追記する専用の窓口」があれば、そちらを使う。
+    // GAS側で順番待ち（LockService）にして1行だけ足すので、2人同時に報告しても消えない。
+    // 窓口がまだ無い／未対応なら、appended:true が返らないので従来方式へ自動で切り替える。
+    let appended = false;
+    try{
+      const apRes = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action:'appendDefect', defect: newDefect }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const apData = await apRes.json();
+      appended = !!(apData && apData.status==='ok' && apData.appended===true);
+    }catch(e){ appended = false; }
+
+    if(appended){ showDone(); }
+    else { await fallbackSaveWhole(); }   // 窓口が無い間も、従来どおり報告できる
   }catch(err){
     btn.disabled = false; btn.textContent = 'この内容で報告する';
     alert('通信エラーが発生しました：'+err.message);

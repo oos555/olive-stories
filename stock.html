@@ -676,6 +676,7 @@ function loadAllDataFromGAS(){
       if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
       if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
     }
+    snapshotStockBaseline(); // 読み込んだ時点を基準線に。以後の保存は「ここから自分が変えた分」だけを最新に重ねる
     if(ord && ord.status==='ok' && ord.data && Array.isArray(ord.data.orders)){
       orders = ord.data.orders;
     }
@@ -696,22 +697,71 @@ function scheduleAutoSave(){
 function withProductName(arr){
   return arr.map(function(x){ const p = findProduct(x.pid); return Object.assign({}, x, {productName: p?p.name:''}); });
 }
+
+// ── 保存の安全化（丸ごと上書きで他アプリ／他端末の更新を消さないため）────────────
+// この画面を開いた後、受注A（在庫の減算）や倉庫D（不良品の報告）がサーバー側の
+// lots・defects を更新することがある。手元のスナップショットで丸ごと上書きすると、
+// それらを消してしまう。そこで「保存直前に最新を取り直し、この画面で自分が変えた分
+// （追加・変更・削除）だけを id 単位で最新に重ねてから保存する」方式にする。
+// defectHolds（備品在庫の取り置き）と defectCategories は在庫Bだけが書くので従来どおり。
+let baselineLots = [];      // 最後に読み込み／保存した時点の lots（自分の変更を検出する基準）
+let baselineDefects = [];   // 同上 defects
+function snapshotStockBaseline(){
+  baselineLots = JSON.parse(JSON.stringify(lots || []));
+  baselineDefects = JSON.parse(JSON.stringify(defects || []));
+}
+function stockRecStr(o){   // フラットなレコードを、キー順に依存しない文字列にして比較用に使う
+  if(o == null) return 'null';
+  return Object.keys(o).sort().map(function(k){ return k + '=' + o[k]; }).join('|');
+}
 function saveAllDataToGAS(){
   if(!gasSyncEnabled) return;
-  const payload = {
-    lots: withProductName(lots),
-    defects: withProductName(defects),
-    defectHolds: withProductName(defectHolds),
-    defectCategories: defectCategories
-    // holds・preorders はアプリAが管理するため、ここでは送らない（Aの最新データを上書きしないため）
-  };
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveAllData', payload: payload }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).then(r=>r.json()).then(function(d){
-    if(d.status==='ok') showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-    else showSyncStatus('⚠️ 保存エラー: '+(d.message||''), true);
+  // いま保存しようとしている中身を固定（保存中にさらに編集されても、その分は次回の保存で拾う）
+  const sentLots = JSON.parse(JSON.stringify(lots || []));
+  const sentDefects = JSON.parse(JSON.stringify(defects || []));
+  const localDefectHolds = withProductName(defectHolds);
+  const localDefectCategories = defectCategories;
+
+  function withPN(x){ const p = findProduct(x.pid); return Object.assign({}, x, {productName: p ? p.name : ''}); }
+
+  // この画面で自分が変えた分（追加・変更・削除）を id 単位で洗い出す
+  function buildEdits(cur, base){
+    const baseById = {}; (base || []).forEach(function(r){ baseById[r.id] = r; });
+    const curIds = {};   (cur  || []).forEach(function(r){ curIds[r.id] = 1; });
+    const changed = [], removedIds = [];
+    (cur || []).forEach(function(r){ const b = baseById[r.id]; if(!b || stockRecStr(b) !== stockRecStr(r)) changed.push(r); });
+    (base || []).forEach(function(r){ if(!curIds[r.id]) removedIds.push(r.id); });
+    return { changed: changed, removedIds: removedIds };
+  }
+  const lotEdits = buildEdits(sentLots, baselineLots);
+  const defEdits = buildEdits(sentDefects, baselineDefects);
+
+  // 最新が取れない時は、従来どおり手元まるごと保存（オフライン等のフォールバック）
+  function fallbackWholeSave(){
+    const payload = { lots: sentLots.map(withPN), defects: sentDefects.map(withPN), defectHolds: localDefectHolds, defectCategories: localDefectCategories };
+    return fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} }).then(function(r){ return r.json(); });
+  }
+
+  fetch(GAS_URL + '?action=loadAllData').then(function(r){ return r.json(); }).then(function(d){
+    if(!(d && d.status==='ok' && d.data && Array.isArray(d.data.lots))) return fallbackWholeSave();
+    function applyEdits(fresh, edits){
+      const byId = {}; fresh.forEach(function(r){ byId[r.id] = r; });
+      edits.removedIds.forEach(function(id){ delete byId[id]; });   // 自分が消した分は最新からも消す
+      edits.changed.forEach(function(r){ byId[r.id] = withPN(r); }); // 自分が足した／変えた分だけ重ねる
+      return Object.keys(byId).map(function(k){ return byId[k]; });  // 触っていない分は最新（＝他アプリの更新）のまま
+    }
+    const mergedLots = applyEdits(d.data.lots.slice(), lotEdits);
+    const mergedDefects = applyEdits(Array.isArray(d.data.defects) ? d.data.defects.slice() : [], defEdits);
+    const payload = { lots: mergedLots, defects: mergedDefects, defectHolds: localDefectHolds, defectCategories: localDefectCategories };
+    return fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} }).then(function(r){ return r.json(); });
+  }).then(function(d){
+    if(d && d.status==='ok'){
+      // 保存できた分を基準線に更新（保存中に増えた編集は、現在の lots と基準線の差として次回に拾われる）
+      baselineLots = sentLots; baselineDefects = sentDefects;
+      showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+    } else {
+      showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
+    }
   }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
 }
 
