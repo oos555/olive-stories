@@ -37,6 +37,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .tab{flex:1;padding:8px 4px;font-size:12px;color:#2b2a26;background:transparent;border:none;cursor:pointer;border-right:1px solid #e8e2d8;text-align:center;min-width:70px}
 .tab:last-child{border-right:none}
 .tab.active{background:#fff;color:#2b2a26;font-weight:700;border-bottom:2px solid #55622e}
+@keyframes tabPulseRed{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.55)}50%{box-shadow:0 0 0 7px rgba(220,38,38,0)}}
+.tab.tab-alert{background:#dc2626!important;color:#fff!important;font-weight:700;animation:tabPulseRed 1.2s ease-in-out infinite;position:relative;z-index:1}
 .panel{display:none}
 .panel.active{display:block}
 .card{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
@@ -380,7 +382,7 @@ body{background:#fff}
   <button class="tab" id="tab-pending" onclick="showPanel('pending',this)">🔔 アプリ受注・他<span id="pending-tab-badge"></span></button>
   <button class="tab active" id="tab-order" onclick="showPanel('order',this)">受注登録</button>
   <button class="tab" id="tab-stores" onclick="showPanel('stores',this)">データ取込</button>
-  <button class="tab" id="tab-list" onclick="showPanel('list',this)">受注一覧</button>
+  <button class="tab" id="tab-list" onclick="showPanel('list',this)">受注一覧<span id="list-tab-badge"></span></button>
   <button class="tab" id="tab-hold" onclick="showPanel('hold',this)">取り置き・予約<span id="hold-tab-badge"></span></button>
   <button class="tab" id="tab-slip" onclick="showPanel('slip',this)">出荷依頼書</button>
   <button class="tab" id="tab-customers" onclick="showPanel('customers',this)">🛒 顧客管理</button>
@@ -2641,6 +2643,7 @@ function updateSummary(){
 
 // ── 受注一覧 ────────────────────────────────────────────
 function renderList(){
+  updateListBadge();
   const filter = document.getElementById('list-filter').value;
   const ctypeFilter = document.getElementById('list-ctype').value;
   const sort = document.getElementById('list-sort').value;
@@ -2687,6 +2690,22 @@ function renderList(){
       '</div>'+
     '</div>';
   }).join('');
+}
+
+// 受注一覧タブ：倉庫にまだ出せていない「出荷待ち」があるとき赤く光らせる（忘れ防止）
+function updateListBadge(){
+  var pend = orders.filter(function(o){ return o.status==='pending'; }).length;
+  var tab = document.getElementById('tab-list');
+  var badge = document.getElementById('list-tab-badge');
+  if(badge){
+    badge.innerHTML = pend
+      ? ' <span style="background:#fff;color:#dc2626;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700">'+pend+'</span>'
+      : '';
+  }
+  if(tab){
+    if(pend) tab.classList.add('tab-alert');
+    else tab.classList.remove('tab-alert');
+  }
 }
 
 // ── 在庫連動：出荷依頼を送った注文の分だけ、正しい枠から自動で減らす ────────────
@@ -3019,7 +3038,7 @@ function notifyLineShort(listArg){
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   list.forEach(function(o){ o.notified = true; });
   syncOrdersToGAS(list);                       // ① 通知済みにした注文だけを最新にマージ
-  const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
+  const pickupUrl = location.href.split(/[?#]/)[0].replace(/[^/]*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷依頼：'+list.length+'件';
   const parts = [];
   if(urgent) parts.push('🚨急ぎ'+urgent+'件');
@@ -3027,7 +3046,7 @@ function notifyLineShort(listArg){
   if(parts.length) text += '（'+parts.join('・')+'）';
   text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
   navigator.clipboard.writeText(text).catch(function(){});
-  location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
+  window.open('https://line.me/R/share?text='+encodeURIComponent(text), '_blank');
 }
 
 // ── STORES CSV取込 ────────────────────────────────────────────
