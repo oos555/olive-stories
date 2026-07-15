@@ -312,7 +312,8 @@ tr:last-child td{border-bottom:none}
       <li>金額を直すときは、下の「✅ 価格を変更する」にチェックを入れてから。</li>
       <li>直したら、必ず「💾 商品・価格マスターを保存する」を押します（押さないと消えます）。</li>
       <li>税率の初期値：オリーブオイル本体＝<strong>8%</strong>／備品・その他＝<strong>10%</strong>（表の「税率」欄で商品ごとに直せます）。</li>
-      <li>「取り扱い中」のチェックを外すと、その商品は見積書・オイル価格表の選択肢から消えます（この画面には残ります）。在庫が0または未登録の商品は、目印として背景が赤くなります（自動でチェックが外れることはありません）。</li>
+      <li><strong>商品名を変える</strong>ときも「✅ 価格を変更する」にチェックを入れてから、商品名の欄を直します。保存のときに変更内容の確認が出ます。SKU（品番）は変わらないので、過去の受注・見積・在庫とのつながりは保たれます。</li>
+      <li><strong>商品を取り下げる（廃番）</strong>には「取り扱い中」のチェックを外して保存します。その商品は見積書・オイル価格表の選択肢から消え、表の一番下の「▶ 取り下げた商品（過去の商品）」に畳まれます（クリックで開けます。完全には消えないので、いつでも戻せます）。在庫が0または未登録の商品は、目印として背景が赤くなります（自動でチェックが外れることはありません）。</li>
     </ul>
     </div>
   </details>
@@ -346,7 +347,7 @@ tr:last-child td{border-bottom:none}
   <div class="tbl-wrap">
     <table>
       <thead><tr>
-        <th style="width:70px">取り扱い中 <span class="help-ic" onclick="alert('チェックを外すと、見積書・オイル価格表の商品選択に出てこなくなります（商品・価格マスター画面には残ります）。在庫が0または未登録の商品は、背景が赤く表示されます。ただし在庫が0でも見積もりだけ出したい場合もあるので、自動でチェックが外れることはありません。')">ⓘ</span></th>
+        <th style="width:96px">取り扱い中 <span class="help-ic" onclick="alert('チェックを外すと、見積書・オイル価格表の商品選択に出てこなくなります（商品・価格マスター画面には残ります）。在庫が0または未登録の商品は、背景が赤く表示されます。ただし在庫が0でも見積もりだけ出したい場合もあるので、自動でチェックが外れることはありません。')">ⓘ</span><div style="font-size:10px;font-weight:400;color:#b45309;margin-top:3px;line-height:1.35">チェックを外すと<br>取り下げ（一覧から外れます）</div></th>
         <th>商品名（SKU）</th>
         <th>入数 <span class="help-ic" onclick="alert('1箱に入っている本数です。各金額欄の下に、その本数分の「1箱あたりの価格」も表示されます。')">ⓘ</span></th>
         <th>税率 <span class="help-ic" onclick="alert('オリーブオイル本体は軽減税率8%、紙袋・空瓶などの備品・その他の商品は標準税率10%です。商品によって自動で初期値が入りますが、ここで直すこともできます。')">ⓘ</span></th>
@@ -492,7 +493,7 @@ tr:last-child td{border-bottom:none}
     <div id="ep-product-name" style="font-size:13px;color:#2b2a26;margin-bottom:10px;padding:8px 10px;background:#f9f8f5;border-radius:6px"></div>
     <div class="modal-note">
       原産地・容器・メモ・追加情報を編集できます。<br>
-      ※商品名・SKU・グループ・入数などの「基本情報」は、まちがえて変えると受注に影響が出るので、スプレッドシートで直接編集する形にしています。
+      ※SKU（品番）・グループ・入数などは、まちがえて変えると受注に影響が出るので、スプレッドシートで直接編集する形にしています。（商品名は「商品・価格マスター（登録）」の表で、編集モードにすると直せます。SKUは変わらないので、過去の受注・見積・在庫とのつながりは保たれます。）
     </div>
     <div class="g2">
       <div class="fg"><label>原産地</label><input type="text" id="ep-origin" placeholder="例：トルコ／イタリア"></div>
@@ -2174,8 +2175,13 @@ function computeOldLotStock(){
 function computeTotalStockBySku(){
   const map = {};
   (lots||[]).forEach(function(l){
-    if(!l.sku) return;
-    map[l.sku] = (map[l.sku]||0) + (parseInt(l.qty)||0);
+    if(!l) return;
+    if(l.status==='discard' || l.status==='incoming') return; // 実在庫のみ（廃棄・輸入予定は除く）
+    let sku = l.sku;
+    if(!sku){ const prod = findProduct(parseInt(l.pid)); sku = prod ? prod.sku : ''; }
+    if(!sku) return;
+    const qty = parseInt(l.stock!=null ? l.stock : l.qty) || 0;
+    map[sku] = (map[sku]||0) + qty;
   });
   return map;
 }
@@ -2426,41 +2432,69 @@ function buildMemoBtn(p){
 function renderPriceTable(){
   const groups = productGroups();
   const stockMap = computeTotalStockBySku();
-  let html = '';
-  Object.keys(groups).forEach(function(g){
-    html += '<tr><td colspan="9" class="group-header">'+esc(g)+'</td></tr>';
-    groups[g].forEach(function(p){
-      const rec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
-      const defaultTax = defaultTaxRateForGroup(p.group);
-      const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
-      const isActive = isProductActive(p);
-      const stock = stockMap[p.sku] || 0;
-      const outOfStock = stock <= 0;
-      html += '<tr>';
-      html += '<td'+(outOfStock?' style="background:#fee2e2"':'')+'>'
-        + '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
-        + '<input type="checkbox" data-active-sku="'+p.sku+'" '+(isActive?'checked':'')+' disabled onchange="markPriceDirty()" style="width:16px;height:16px">'
-        + (outOfStock?'<span style="font-size:9px;color:#b91c1c;font-weight:700;white-space:nowrap">⚠️在庫0</span>':'')
-        + '</label></td>';
-      html += '<td>'+esc(p.name)+' <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
-      html += '<td>'+(p.boxQty||'-')+'</td>';
-      html += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:80px" disabled onchange="markPriceDirty()">'
-        + '<option value="0.08"'+(taxR===0.08?' selected':'')+'>8%</option>'
-        + '<option value="0.10"'+(taxR===0.10?' selected':'')+'>10%</option>'
-        + '</select></td>';
-      ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
-        const key = 'price'+kind;
-        const val = rec[key] || 0;
-        html += '<td><input type="text" inputmode="numeric" data-price-sku="'+p.sku+'" data-price-kind="'+kind+'" value="'+val.toLocaleString()+'" class="price-input" disabled onchange="onPriceInputChanged(this,\''+p.sku+'\')">';
-        if(p.boxQty && p.boxQty>1){
-          html += '<div style="font-size:10px;color:#2b2a26;margin-top:2px" data-price-preview="'+p.sku+'_'+kind+'">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
-        }
-        html += '</td>';
-      });
-      html += '</tr>';
+  function buildRow(p, rowClass){
+    const rec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
+    const defaultTax = defaultTaxRateForGroup(p.group);
+    const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
+    const isActive = isProductActive(p);
+    const stock = stockMap[p.sku] || 0;
+    const outOfStock = stock <= 0;
+    let h = '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>';
+    h += '<td'+(outOfStock?' style="background:#fee2e2"':'')+'>'
+      + '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
+      + '<input type="checkbox" data-active-sku="'+p.sku+'" '+(isActive?'checked':'')+' disabled onchange="markPriceDirty()" style="width:16px;height:16px">'
+      + (outOfStock
+          ? '<span style="font-size:10px;color:#b91c1c;font-weight:700;white-space:nowrap">⚠️在庫0</span>'
+          : '<span style="font-size:10px;color:#15803d;font-weight:700;white-space:nowrap">在庫 '+stock+'</span>')
+      + '</label></td>';
+    h += '<td><input type="text" data-name-sku="'+esc(p.sku)+'" value="'+esc(p.name)+'" class="price-input" style="width:170px;font-weight:600;color:#2b2a26" disabled onchange="markPriceDirty()"> <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
+    h += '<td>'+(p.boxQty||'-')+'</td>';
+    h += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:80px" disabled onchange="markPriceDirty()">'
+      + '<option value="0.08"'+(taxR===0.08?' selected':'')+'>8%</option>'
+      + '<option value="0.10"'+(taxR===0.10?' selected':'')+'>10%</option>'
+      + '</select></td>';
+    ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
+      const key = 'price'+kind;
+      const val = rec[key] || 0;
+      h += '<td><input type="text" inputmode="numeric" data-price-sku="'+p.sku+'" data-price-kind="'+kind+'" value="'+val.toLocaleString()+'" class="price-input" disabled onchange="onPriceInputChanged(this,\''+p.sku+'\')">';
+      if(p.boxQty && p.boxQty>1){
+        h += '<div style="font-size:10px;color:#2b2a26;margin-top:2px" data-price-preview="'+p.sku+'_'+kind+'">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
+      }
+      h += '</td>';
     });
+    h += '</tr>';
+    return h;
+  }
+  let html = '';
+  let retired = [];
+  Object.keys(groups).forEach(function(g){
+    const activeItems = groups[g].filter(function(p){ return isProductActive(p); });
+    groups[g].forEach(function(p){ if(!isProductActive(p)) retired.push(p); });
+    if(!activeItems.length) return;
+    html += '<tr><td colspan="9" class="group-header">'+esc(g)+'</td></tr>';
+    activeItems.forEach(function(p){ html += buildRow(p, ''); });
   });
+  if(retired.length){
+    html += '<tr class="retired-head-row"><td colspan="9" style="background:#f5f5f3;padding:0;border-top:2px solid #e5e1d8">'
+      + '<button type="button" onclick="toggleRetiredProducts()" id="retired-toggle-btn" style="width:100%;text-align:left;background:none;border:none;padding:11px 14px;font-size:14px;font-weight:700;color:#78350f;cursor:pointer">▶ 取り下げた商品（過去の商品）'+retired.length+'件（クリックで開く）</button>'
+      + '</td></tr>';
+    retired.forEach(function(p){ html += buildRow(p, 'retired-row'); });
+  }
   document.getElementById('price-tbl-body').innerHTML = html;
+  var rr = document.querySelectorAll('#price-tbl-body .retired-row');
+  for(var i=0;i<rr.length;i++){ rr[i].style.display = 'none'; }
+  var lock = document.getElementById('price-edit-lock');
+  if(lock && lock.checked){
+    document.querySelectorAll('#price-tbl-body input, #price-tbl-body select').forEach(function(i){ i.disabled = false; });
+  }
+}
+function toggleRetiredProducts(){
+  var rows = document.querySelectorAll('#price-tbl-body .retired-row');
+  var btn = document.getElementById('retired-toggle-btn');
+  if(!rows.length) return;
+  var show = rows[0].style.display === 'none';
+  for(var i=0;i<rows.length;i++){ rows[i].style.display = show ? '' : 'none'; }
+  if(btn){ btn.textContent = (show?'▼':'▶') + ' 取り下げた商品（過去の商品）' + rows.length + '件' + (show?'（クリックで閉じる）':'（クリックで開く）'); }
 }
 async function savePriceMaster(){
   if(!confirm('商品・価格マスターを保存しますか？\n（キャンセルを押せば、変更は保存されず元のままになります）')) return;
@@ -2481,6 +2515,23 @@ async function savePriceMaster(){
   document.querySelectorAll('[data-active-sku]').forEach(function(cb){
     activeMap[cb.getAttribute('data-active-sku')] = cb.checked;
   });
+  // 商品名の変更を集める（SKU＝品番は変更不可のまま。名前だけ安全に変える）
+  const nameMap = {};
+  const nameChanges = [];
+  let emptyName = false;
+  document.querySelectorAll('[data-name-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-name-sku');
+    const newName = (inp.value||'').trim();
+    if(newName === ''){ emptyName = true; return; }
+    nameMap[sku] = newName;
+    const cur = findProductBySku(sku);
+    const oldName = cur ? cur.name : '';
+    if(oldName && newName !== oldName){ nameChanges.push('・'+oldName+' → '+newName); }
+  });
+  if(emptyName){ alert('商品名が空の欄があります。商品名は空にできません。'); return; }
+  if(nameChanges.length){
+    if(!confirm('次の商品名を変更します。よろしいですか？\n\n'+nameChanges.join('\n')+'\n\n※SKU（品番）は変わりません。過去の受注・見積・在庫とのつながりは保たれます。')) return;
+  }
   showSyncStatus('保存しています...');
   try{
     // 商品マスタの「取り扱い中」フラグを保存（他の端末での変更を上書きしないよう、直前に最新を取り直す）
@@ -2491,6 +2542,9 @@ async function savePriceMaster(){
       freshProducts.forEach(function(p){
         if(Object.prototype.hasOwnProperty.call(activeMap, p.sku)){
           p.active = activeMap[p.sku];
+        }
+        if(Object.prototype.hasOwnProperty.call(nameMap, p.sku)){
+          p.name = nameMap[p.sku];
         }
       });
       const saveProdRes = await fetch(GAS_URL, {
