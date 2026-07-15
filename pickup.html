@@ -64,14 +64,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .complete-note{font-size:13px;color:#44433f;line-height:1.6;margin:-2px 0 10px;text-align:center}
 .actions{position:sticky;bottom:0;background:#f5f4f0;padding:10px 0;margin-top:10px}
 .btn-big{width:100%;padding:16px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
-.btn-complete{background:#16a34a;color:#fff}
-.btn-complete:disabled{background:#ccc;color:#eee}
+.btn-complete{background:#2563eb;color:#fff}
+.btn-complete:disabled{background:#c7d7f5;color:#eef}
 #pack-check-box{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .pack-check-item{display:flex;align-items:center;gap:5px;background:#fef3c7;border:1px solid #f3d9a8;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:600;color:#78350f;cursor:pointer;white-space:nowrap}
 .pack-check-item input{width:16px;height:16px}
 .pack-check-item:has(input:checked){background:#dcfce7;border-color:#86efac;color:#14532d}
-.btn-complete:disabled{background:#a7d8b8;color:#eee}
-.btn-print{background:#fff;color:#2b2a26;border:1px solid #d5cfc3}
+.btn-complete:disabled{background:#c7d7f5;color:#eef}
+.btn-print{background:#2563eb;color:#fff;border:none}
 .done-banner{background:#dcfce7;border:2px solid #16a34a;color:#14532d;border-radius:10px;padding:16px;text-align:center;font-weight:700;font-size:16px;margin-bottom:14px}
 .invoice{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:1.5rem 1.2rem}
 .invoice-title{font-size:18px;font-weight:700;text-align:center;margin-bottom:1.2rem;letter-spacing:.08em}
@@ -588,7 +588,7 @@ function previewNoshi(){
   html += '</div>';
   html += '<div class="noshi-preview-frame no-print">' + buildNoshiHtml(n) + '</div>';
   html += '<div class="actions no-print">';
-  html += '<button class="btn-big" style="background:#6b7a3a;color:#fff" onclick="printNoshi()">🖨 この熨斗を印刷する</button>';
+  html += '<button class="btn-big" style="background:#2563eb;color:#fff" onclick="printNoshi()">🖨 この熨斗を印刷する</button>';
   html += '<button class="btn-big btn-print" onclick="renderOrder()">← 戻る</button>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
@@ -1018,7 +1018,7 @@ function renderOrder(){
       + '<div style="background:#fff;border:1px solid #ecd9b8;border-radius:8px;padding:8px 10px"><span style="font-size:12px;color:#8a7f6a;font-weight:700">お名前</span><div style="font-size:18px;font-weight:700;color:#2b2a26">'+esc(n.name||'-')+'</div></div>'
       + (sub?'<div style="font-size:13px;margin-top:6px">'+sub+'</div>':'')
       + '<div style="font-size:12px;font-weight:400;margin-top:8px">下の「熨斗の見本を見て印刷」から印刷して同梱してください。印刷しないと梱包完了できません。</div></div>';
-    html += '<button class="btn-big no-print" style="background:#6b7a3a;color:#fff;margin-top:10px" onclick="previewNoshi()">🎀 熨斗の見本を見て印刷する'+(noshiPrinted?'（印刷済み）':'')+'</button>';
+    html += '<button class="btn-big no-print" style="background:#2563eb;color:#fff;margin-top:10px" onclick="previewNoshi()">🎀 熨斗の見本を見て印刷する'+(noshiPrinted?'（印刷済み）':'')+'</button>';
   }
   html += '<div class="sec-title no-print">💬 倉庫への連絡事項（プレゼント追加・パンフレット同封など）</div>';
   html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input" value="'+esc(o.shipNote||'')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:9px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:14px"><button class="btn-sm" onclick="saveShipNote()">保存</button></div>';
@@ -1079,9 +1079,23 @@ function renderOrder(){
         + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書を入れた</label>'
         + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">RT端末の伝票を入れた</label>';
     } else if(encDoc && encDoc!=='なし'){
-      html += '<div class="rt-docs-t">🖨 印刷して入れる</div>'
-        + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 '+esc(encDoc)+'を印刷する</button>'
-        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">'+esc(encDoc)+'を入れた</label>';
+      var _docs = String(encDoc).split(' ＋ ');
+      var _list = [];
+      _docs.forEach(function(d){
+        d = String(d).replace(/^[\s　]+|[\s　]+$/g,'');
+        if(!d) return;
+        if(d==='RT発注伝票＋納品書'){ _list.push('RT発注伝票'); _list.push('納品書'); }
+        else _list.push(d);
+      });
+      var _circ = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+      html += '<div class="rt-docs-t">🖨 印刷して入れる'+(_list.length>1?'（'+_list.length+'枚）':'')+'</div>';
+      _list.forEach(function(d, i){
+        var no = _list.length>1 ? (_circ[i]||(i+1))+' ' : '';
+        html += '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">'
+          + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 '+no+esc(d)+'を印刷する</button>'
+          + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">'+no+esc(d)+'を入れた</label>'
+          + '</div>';
+      });
     } else {
       html += '<div class="rt-docs-t" style="color:#57534e">この注文に入れる書類はありません</div>';
     }
