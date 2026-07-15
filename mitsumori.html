@@ -466,13 +466,13 @@ th.center,td.center{text-align:center}
 <!-- お休みカレンダー -->
 <div id="panel-holiday" class="panel">
   <div class="info-box">
-    ここが<strong>全アプリのお休みの大もと</strong>です。定休日（水・土・日）と祝日はアプリが自動で判定します。夏休みなどの<strong>特別なお休みだけ、下で足したり直したり</strong>してください。ここを直せば、倉庫やお客様ページに出る「発送の目安日」も自動でそろいます。
+    ここが<strong>全アプリのお休みの大もと</strong>です。定休日（水・日）と祝日はアプリが自動で判定します（土曜は営業日）。夏休みなどの<strong>特別なお休みだけ、下で足したり直したり</strong>してください。ここを直せば、倉庫やお客様ページに出る「発送の目安日」も自動でそろいます。
   </div>
 
   <div class="card">
     <div class="sec">📅 発送の目安（今日を起点に自動で計算）</div>
     <div class="stats" id="hcal-preview"></div>
-    <div style="font-size:12px;color:#2b2a26;margin-top:8px">※「営業日」は<strong>翌営業日から</strong>数えます（例：金曜に受注 → 土日・定休をとばして月曜が1営業日目）。定休・祝日・特別なお休みは、すべて数に入れません。</div>
+    <div style="font-size:12px;color:#2b2a26;margin-top:8px">※「営業日」は<strong>発注日を1営業日目</strong>として数えます（例：月曜に受注 → その月曜が1営業日目）。水・日・祝日・特別なお休みはとばします（<strong>土曜は営業日</strong>）。発注日が定休・祝日のときは、次の営業日を1営業日目とします。</div>
   </div>
 
   <div class="card">
@@ -485,7 +485,7 @@ th.center,td.center{text-align:center}
     <div class="hcal-dow"><div style="color:#c0392b">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color:#2c7a4b">土</div></div>
     <div class="hcal-grid" id="hcal-grid"></div>
     <div class="hcal-legend">
-      <span style="background:#f1efe8;color:#6b665c">定休（水・土・日）</span>
+      <span style="background:#f1efe8;color:#6b665c">定休（水・日）</span>
       <span style="background:#fcebeb;color:#a32d2d">祝日</span>
       <span style="background:#faeeda;color:#7a5b1a">特別休業</span>
       <span style="border:2px solid #6b7a3a;color:#4a5a24">今日</span>
@@ -2575,20 +2575,30 @@ function isSpecialHoliday(d){
   }
   return false;
 }
-/* 休業日＝定休（水・土・日）＋祝日＋特別休業 */
+/* 休業日＝定休（水・日）＋祝日＋特別休業　※土曜は営業日 */
 function isClosedDay(d){
   var wd = d.getDay();
-  if(wd===0 || wd===3 || wd===6) return true;   // 日・水・土
+  if(wd===0 || wd===3) return true;   // 日・水
   if(isJpHoliday(d)) return true;
   if(isSpecialHoliday(d)) return true;
   return false;
 }
-/* 翌営業日から数えて n 営業日目を返す（起点日は含めない） */
+/* 翌営業日から数えて n 営業日目を返す（起点日は含めない）※急ぎ〔翌営業日〕用 */
 function addBusinessDays(from, n){
   var d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   var c = 0;
   while(c < n){ d.setDate(d.getDate()+1); if(!isClosedDay(d)) c++; }
   return d;
+}
+/* 発注当日を1営業日目として数え、n営業日目の日付を返す
+   （発注当日が定休・祝日のときは、次の営業日を1営業日目とする） */
+function bizDayInclusive(from, n){
+  var d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  var c = 0;
+  while(true){
+    if(!isClosedDay(d)){ c++; if(c>=n) return d; }
+    d.setDate(d.getDate()+1);
+  }
 }
 function hFmtMD(d){ return (d.getMonth()+1)+'/'+d.getDate()+'（'+['日','月','火','水','木','金','土'][d.getDay()]+'）'; }
 
@@ -2634,13 +2644,13 @@ async function renderHolidayPanel(){
 function renderBusinessPreview(){
   var el = document.getElementById('hcal-preview'); if(!el) return;
   var today = new Date(); today.setHours(0,0,0,0);
-  var normal  = addBusinessDays(today, 6);
+  var normal  = bizDayInclusive(today, 5);
   var rush    = addBusinessDays(today, 1);
-  var deliver = addBusinessDays(today, 8);
+  var deliver = bizDayInclusive(today, 7);
   function stat(label,val){ return '<div class="stat"><div class="stat-label">'+label+'</div><div class="stat-val">'+val+'</div></div>'; }
-  el.innerHTML = stat('通常発送（6営業日以内）','〜 '+hFmtMD(normal)) +
+  el.innerHTML = stat('通常発送（発注日から5営業日目）', hFmtMD(normal)) +
                  stat('急ぎ（翌営業日）', hFmtMD(rush)) +
-                 stat('お届け日指定（8営業日〜）', hFmtMD(deliver)+' 〜');
+                 stat('お届け日指定（発注日から7営業日目〜）', hFmtMD(deliver)+' 〜');
 }
 function renderCalendar(){
   var grid = document.getElementById('hcal-grid'); var lbl = document.getElementById('hcal-month-label');
