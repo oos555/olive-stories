@@ -134,6 +134,40 @@ tr:last-child td{border-bottom:none}
 #oos-whatis summary:hover{background:#faf7f2}
 .oos-whatis-chev::after{content:'開く ▼'}
 #oos-whatis[open] .oos-whatis-chev::after{content:'閉じる ▲'}
+/* 在庫一覧の「数を直す」1ボタン（列を細く＝横滑り防止） */
+.op-edit{font-size:14px;font-weight:700;padding:10px 14px;border-radius:9px;cursor:pointer;border:1px solid #6b7a3a;background:#f2f4e9;color:#3f4a1f;white-space:nowrap}
+.op-edit:hover{background:#e7ecd6}
+.op-edit-inc{font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;border:1px solid #16a34a;background:#16a34a;color:#fff;white-space:nowrap}
+.op-edit-inc:hover{background:#128a3e}
+/* 数を直すパネル（モーダル） */
+#sep-overlay{position:fixed;inset:0;background:rgba(40,38,32,.45);z-index:10000;display:none;overflow-y:auto;padding:24px 12px}
+#sep-overlay.open{display:block}
+.sep-box{background:#fff;border:2px solid #6b7a3a;border-radius:14px;padding:16px;max-width:440px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,.2)}
+.sep-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #e8e2d8;padding-bottom:9px;margin-bottom:11px}
+.sep-title{font-size:16px;font-weight:700;color:#2b2a26}
+.sep-x{background:none;border:none;font-size:22px;line-height:1;color:#8a857c;cursor:pointer;padding:0 4px}
+.sep-now{font-size:12px;color:#6b665d;margin-bottom:12px;line-height:1.5}
+.sep-info{background:#e9f1fa;border:1px solid #9cc0e6;border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#12406e;line-height:1.6}
+.sep-sect{background:#fbf7ef;border:1px solid #e6ddca;border-radius:10px;padding:12px;margin-bottom:12px}
+.sep-sect-t{font-size:13px;font-weight:700;color:#7a5a10;margin-bottom:10px}
+.sep-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.sep-row label{flex:1;font-size:14px;font-weight:700}
+.sep-row input{width:74px;height:38px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:18px;font-weight:700;color:#2b2a26;text-align:center;padding:0 4px}
+.sep-row .unit{font-size:13px;color:#6b665d;width:18px}
+.sep-btn{display:block;width:100%;font-size:16px;font-weight:700;padding:13px;border-radius:10px;text-align:center;border:1px solid #6b7a3a;background:#6b7a3a;color:#fff;cursor:pointer;margin-top:4px}
+.sep-btn:hover{background:#55622e}
+.sep-lbl{font-size:12px;font-weight:700;color:#6b665d;margin-bottom:6px}
+.sep-note{font-size:11px;color:#a06a6a;margin-top:9px;line-height:1.5}
+.sep-flow{background:#f6f8f1;border:1px solid #cfd9b6;border-radius:9px;padding:11px;margin:11px 0}
+.sep-flow-t{font-size:12px;font-weight:700;color:#3f4a1f;margin-bottom:9px}
+.sep-flow-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sep-fc{background:#fff;border-radius:8px;padding:9px}
+.sep-fc .cap{display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:5px;margin:1px}
+.sep-imp{background:#eafaf0;border:1px solid #16a34a;border-radius:9px;padding:10px;margin-bottom:12px}
+.sep-adjbtn{display:block;width:100%;font-size:15px;font-weight:700;padding:12px;border-radius:9px;text-align:center;border:1px solid #6b7a3a;background:#f2f4e9;color:#3f4a1f;cursor:pointer}
+.sep-adjbtn:hover{background:#e7ecd6}
+.sep-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e8e2d8;margin-top:6px;padding-top:11px}
+.sep-link{background:none;border:none;font-size:12px;font-weight:700;cursor:pointer;padding:6px 4px}
 </style>
 </head>
 <body>
@@ -900,13 +934,8 @@ function renderInvTable(){
       } else if(!invEditMode){
         actionCell = '<span class="iv-lock">🔒 ロック中</span>';
       } else {
-        actionCell = '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-          '<button class="op-big" style="border:1px solid #16a34a;background:#dcfce7;color:#14532d" onclick="promptInStock('+p.id+')">＋ 入庫</button>'+
-          '<button class="op-big" style="border:1px solid #dc2626;background:#fee2e2;color:#7f1d1d" onclick="promptOutStock('+p.id+')">－ 出庫</button>'+
-          '<button class="op-big" style="border:1px solid #185fa5;background:#dbeafe;color:#12406e" onclick="promptIncoming('+p.id+')">📥 輸入予定</button>'+
-          '<button class="op-big" style="border:1px solid #57534e;background:#efede8;color:#3a3a3a" onclick="promptDiscard('+p.id+')">🗑 廃棄</button>'+
-          (n.incoming>0 ? '<button class="op-big" style="border:1px solid #16a34a;background:#16a34a;color:#fff" onclick="confirmIncomingFromList('+p.id+')">✅ 実在庫にする</button>' : '')+
-          '</div>';
+        actionCell = '<button class="op-edit" onclick="openStockEditPanel('+p.id+')">✏️ 数を直す</button>'+
+          (n.incoming>0 ? '<div style="margin-top:6px"><button class="op-edit-inc" onclick="confirmIncomingFromList('+p.id+')">✅ 実在庫にする</button></div>' : '');
       }
       var incNum = (typeof n.incoming === 'number') ? n.incoming : 0;
       var preInc, freeInc;
@@ -1366,6 +1395,207 @@ function renderInvLogs(){
     return '<div class="log-item">'+l.text+'<span class="lmeta">'+l.type+'　'+l.ts.slice(0,16).replace('T',' ')+'</span></div>';
   }).join('');
 }
+
+// ── 数を直すパネル（在庫一覧の「数を直す」1ボタンから開く）────────────────
+// 目的：操作列を1ボタンに細くして横滑りを防ぐ。パネルの中で、旧ロット・不良（軽/中/重）を
+// まとめて登録、輸入予定の設定と実在庫への反映、在庫調整（入庫・出庫＝ロック＋確認つき）、
+// 廃棄、ロット管理への導線を提供する。倉庫からの検品報告は従来どおり別タブ。
+var sepPid = null;         // いま開いている商品ID
+var sepAdjustOpen = false; // 在庫調整（入庫・出庫）のロックを開けたか
+
+function sepReadInt(id){ var el=document.getElementById(id); if(!el) return 0; var v=parseInt(el.value); return (isNaN(v)||v<0)?0:v; }
+
+function openStockEditPanel(pid){
+  if(!invEditMode){ alert('先に「在庫をさわる（編集）」をONにしてください'); return; }
+  var p = findProduct(pid); if(!p) return;
+  if(p.isSet){ alert('セット商品は構成品で管理します（このパネルでは扱いません）'); return; }
+  sepPid = pid; sepAdjustOpen = false;
+  renderStockEditPanel();
+  var ov = document.getElementById('sep-overlay'); if(ov){ ov.classList.add('open'); ov.scrollTop = 0; }
+}
+function closeStockEditPanel(){
+  var ov = document.getElementById('sep-overlay'); if(ov) ov.classList.remove('open');
+  sepPid = null; sepAdjustOpen = false;
+}
+
+function renderStockEditPanel(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid); if(!p) return;
+  var n = computeStockNumbers(pid);
+  var box = document.getElementById('sep-box'); if(!box) return;
+  var nowLine = 'いま：実在庫 '+n.stock+' ／ 旧 '+n.oldStock+' ／ 不良 軽'+n.defLight+'・中'+n.defMid+'・重'+n.defHeavy+' ／ 取置 '+n.holdQty+' ／ 販売可能 '+n.avail;
+
+  var html = '';
+  html += '<div class="sep-head"><div class="sep-title">'+p.name+' <span style="font-size:11px;color:#6b665d">'+(p.sku||'')+'</span></div>'+
+          '<button class="sep-x" onclick="closeStockEditPanel()">×</button></div>';
+  html += '<div class="sep-now">'+nowLine+'</div>';
+  html += '<div class="sep-info">ここは、<b>倉庫からの報告以外で数を動かす場所</b>です。<br>倉庫さんの検品報告を反映するときは <b>「倉庫からの報告」タブ</b>へ。</div>';
+
+  // 状態を動かす（旧・不良をまとめて登録）
+  html += '<div class="sep-sect">'+
+    '<div class="sep-sect-t">数を動かす</div>'+
+    '<div class="sep-row"><label style="color:#78350f">旧ロットへ移す</label><input id="sep-old" type="number" min="0" value="0" style="border-color:#d9a441"><span class="unit">本</span></div>'+
+    '<div class="sep-row"><label style="color:#993c1d">不良にする・軽</label><input id="sep-lv1" type="number" min="0" value="0" style="border-color:#e0a58c"><span class="unit">本</span></div>'+
+    '<div class="sep-row"><label style="color:#791f1f">不良にする・中</label><input id="sep-lv2" type="number" min="0" value="0" style="border-color:#e08585"><span class="unit">本</span></div>'+
+    '<div class="sep-row"><label style="color:#501313">不良にする・重</label><input id="sep-lv3" type="number" min="0" value="0" style="border-color:#c07272"><span class="unit">本</span></div>'+
+    '<div class="sep-flow"><div class="sep-flow-t">数はどう動く？</div><div class="sep-flow-cards">'+
+      '<div class="sep-fc" style="border:1px solid #cfd9b6"><div style="font-size:11px;font-weight:700;color:#3f4a1f;margin-bottom:6px">旧・不良にする</div>'+
+        '<div style="margin-bottom:6px"><span class="cap" style="background:#dcfce7;color:#14532d">販売可能</span> → <span class="cap" style="background:#fef3c7;color:#78350f">旧</span><span class="cap" style="background:#fde7e7;color:#7f1d1d">不良</span></div>'+
+        '<div style="font-size:10px;color:#3f4a1f;line-height:1.5">実在庫は<b>そのまま</b>。販売可能が減るだけ。</div></div>'+
+      '<div class="sep-fc" style="border:1px solid #e0c3c3"><div style="font-size:11px;font-weight:700;color:#7f1d1d;margin-bottom:6px">廃棄する</div>'+
+        '<div style="margin-bottom:6px"><span class="cap" style="background:#eeece7;color:#57534e">実在庫</span> → 🗑</div>'+
+        '<div style="font-size:10px;color:#7f1d1d;line-height:1.5">実在庫<b>からも減る</b>（本当に無くなる）。</div></div>'+
+    '</div></div>'+
+    '<button class="sep-btn" onclick="sepSubmitStates()">✅ この内容で登録する</button>'+
+    '<div class="sep-note">ℹ️ 倉庫さんの検品報告は「倉庫からの報告」タブで確認します。</div>'+
+  '</div>';
+
+  // 輸入
+  html += '<div class="sep-lbl">輸入</div>';
+  html += '<div class="sep-row"><label style="color:#12406e">輸入予定を入れる</label><input id="sep-inc" type="number" min="0" value="'+n.incoming+'" style="border-color:#7ba7d6"><span class="unit">本</span></div>';
+  html += '<button class="sep-adjbtn" style="border-color:#185fa5;background:#dbeafe;color:#12406e;margin-bottom:12px" onclick="sepSetIncoming()">輸入予定を設定する</button>';
+  if(n.incoming>0){
+    html += '<div class="sep-imp"><div style="font-size:11px;color:#14532d;margin-bottom:7px">輸入予定に <b>'+n.incoming+'本</b> あります。現物が届いたら押す：</div>'+
+      '<button class="sep-btn" style="border-color:#16a34a;background:#16a34a" onclick="sepConfirmIncoming()">✅ 輸入予定 '+n.incoming+'本を 実在庫にする</button></div>';
+  }
+
+  // 在庫調整（ロック＋確認）
+  html += '<div class="sep-lbl">在庫調整（倉庫と数がズレた時だけ）</div>';
+  html += '<div style="font-size:11px;color:#9a958c;margin-bottom:7px">ふだんの受注・出荷では触りません。</div>';
+  if(!sepAdjustOpen){
+    html += '<button class="sep-adjbtn" style="margin-bottom:12px" onclick="sepUnlockAdjust()">🔒 在庫を調整する</button>';
+  } else {
+    html += '<div style="background:#f4f2ec;border:1px dashed #c9c4b8;border-radius:9px;padding:11px;margin-bottom:12px">'+
+      '<div style="font-size:11px;color:#3f4a1f;margin-bottom:8px">倉庫の実数に合わせて直す分だけ入れてください。</div>'+
+      '<div class="sep-row"><label style="color:#14532d">＋ 入庫</label><input id="sep-in" type="number" min="0" value="0" style="border-color:#8ac09a"><span class="unit">本</span></div>'+
+      '<div class="sep-row"><label style="color:#7f1d1d">－ 出庫</label><input id="sep-out" type="number" min="0" value="0" style="border-color:#e0a0a0"><span class="unit">本</span></div>'+
+      '<button class="sep-btn" onclick="sepApplyAdjust()">この差の分を反映する</button>'+
+    '</div>';
+  }
+
+  // 廃棄・ロット管理
+  html += '<div class="sep-foot">'+
+    '<button class="sep-link" style="color:#7f1d1d" onclick="sepDiscard()">🗑 廃棄する</button>'+
+    '<button class="sep-link" style="color:#185fa5" onclick="sepGoLot()">期限ごとに細かく → ロット管理</button>'+
+  '</div>';
+
+  box.innerHTML = html;
+}
+
+// 旧・不良をまとめて登録
+function sepSubmitStates(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid); if(!p) return;
+  var oldN = sepReadInt('sep-old');
+  var l1 = sepReadInt('sep-lv1'), l2 = sepReadInt('sep-lv2'), l3 = sepReadInt('sep-lv3');
+  if(oldN<=0 && l1<=0 && l2<=0 && l3<=0){ alert('動かす本数を入れてください'); return; }
+  var n = computeStockNumbers(pid);
+  var total = oldN + l1 + l2 + l3;
+  if(total > n.avail){
+    if(!confirm('販売可能数（'+n.avail+'本）より多い指定です（合計'+total+'本）。\nこのまま登録しますか？')) return;
+  }
+  var msgs = [];
+  if(oldN>0){ var moved = sepMoveToOld(pid, oldN); msgs.push('旧に'+moved+'本'); if(moved<oldN) showSyncStatus('⚠️ '+p.name+'は新ロットが足りず、旧へは'+moved+'本だけ移しました', true); }
+  function addDef(level, qty, seal){
+    if(qty<=0) return;
+    defects.push({ id: nextId(), pid: parseInt(pid), productName:p.name, lotId:'', qty:qty, cat:'', note:'在庫Bで登録', status:'open', shippedQty:0, level:level, seal:seal, reportedAt:new Date().toISOString(), source:'staff', reviewed:true });
+  }
+  addDef('lv1', l1, '軽'); addDef('lv2', l2, '中'); addDef('lv3', l3, '重');
+  if(l1>0) msgs.push('不良軽'+l1+'本'); if(l2>0) msgs.push('不良中'+l2+'本'); if(l3>0) msgs.push('不良重'+l3+'本');
+  addLog('状態を登録', p.name+'　'+msgs.join('、'));
+  renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs();
+  scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'　'+msgs.join('、')+' を登録しました');
+  renderStockEditPanel();
+}
+
+// 旧へ移す：new ロットから賞味期限の古い順に old ロットへ積み替える（実在庫の合計は不変）
+function sepMoveToOld(pid, qty){
+  var remain = qty;
+  var cand = lots.filter(function(l){ return l.pid==pid && l.status==='new' && (l.stock||0)>0; })
+    .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); });
+  cand.forEach(function(l){ if(remain<=0) return; var take=Math.min(l.stock||0, remain); l.stock=(l.stock||0)-take; remain-=take; });
+  var moved = qty - remain;
+  if(moved>0){
+    var oldLot = lots.find(function(l){ return l.pid==pid && l.status==='old'; });
+    if(!oldLot){ oldLot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'old', note:'在庫Bで旧に移動' }; lots.push(oldLot); }
+    oldLot.stock = (oldLot.stock||0) + moved;
+  }
+  return moved;
+}
+
+function sepSetIncoming(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid);
+  var qty = sepReadInt('sep-inc');
+  var lot = lots.find(function(l){ return l.pid==pid && l.status==='incoming'; });
+  if(!lot){ lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'incoming', note:'' }; lots.push(lot); }
+  lot.stock = qty;
+  addLog('輸入予定を設定', p.name+'　輸入予定'+qty+'本');
+  renderInvTable(); renderLotList(); renderInvLogs(); scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'の輸入予定を'+qty+'本にしました');
+  renderStockEditPanel();
+}
+function sepConfirmIncoming(){
+  var pid = sepPid; if(pid==null) return;
+  confirmIncomingFromList(pid);
+  renderStockEditPanel();
+}
+function sepUnlockAdjust(){
+  if(!confirm('倉庫の在庫数と、本当に差がありましたか？\n\n［OK］＝はい、差があった（入庫・出庫の欄を開く）\n［キャンセル］＝いいえ')) return;
+  sepAdjustOpen = true;
+  renderStockEditPanel();
+}
+function sepApplyAdjust(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid);
+  var inN = sepReadInt('sep-in'), outN = sepReadInt('sep-out');
+  if(inN<=0 && outN<=0){ alert('入庫か出庫の本数を入れてください'); return; }
+  var msgs = [];
+  if(inN>0){
+    var lot = lots.find(function(l){ return l.pid==pid && l.status==='new'; });
+    if(!lot){ lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'new', note:'' }; lots.push(lot); }
+    lot.stock = (lot.stock||0) + inN;
+    addLog('入庫（在庫調整）', p.name+'　+'+inN+'本'); msgs.push('+'+inN+'本');
+  }
+  if(outN>0){
+    var rank = { 'new':0, 'supply':1, 'old':2 };
+    var pLots = lots.filter(function(l){ return l.pid==pid && l.status!=='incoming' && l.status!=='discard' && (l.stock||0)>0; })
+                    .sort(function(a,b){ var ra=(rank[a.status]==null?9:rank[a.status]), rb=(rank[b.status]==null?9:rank[b.status]); return ra-rb; });
+    var remaining = outN;
+    for(var i=0;i<pLots.length && remaining>0;i++){ var take=Math.min(pLots[i].stock||0, remaining); pLots[i].stock=(pLots[i].stock||0)-take; remaining-=take; }
+    var reduced = outN - remaining;
+    addLog('出庫（在庫調整）', p.name+'　-'+reduced+'本'); msgs.push('-'+reduced+'本');
+    if(remaining>0) showSyncStatus('⚠️ '+p.name+'は在庫が足りず、'+reduced+'本だけ減らしました', true);
+  }
+  renderInvTable(); renderLotList(); renderInvLogs(); scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'　在庫調整 '+msgs.join('、'));
+  sepAdjustOpen = false;
+  renderStockEditPanel();
+}
+function sepDiscard(){
+  var pid = sepPid; if(pid==null) return;
+  promptDiscard(pid);
+  renderStockEditPanel();
+}
+function sepGoLot(){
+  closeStockEditPanel();
+  var lb = document.querySelectorAll('.tab-row .tab')[1];
+  if(lb) showPanel('lot', lb);
+}
+
+// オーバーレイの器をbodyに用意（×か背景クリック／Escで閉じる）
+(function(){
+  if(!document.getElementById('sep-overlay')){
+    var ov = document.createElement('div');
+    ov.id = 'sep-overlay';
+    ov.innerHTML = '<div class="sep-box" id="sep-box"></div>';
+    ov.addEventListener('click', function(e){ if(e.target === ov) closeStockEditPanel(); });
+    document.body.appendChild(ov);
+  }
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeStockEditPanel(); });
+})();
+
 </script>
 </body>
 </html>
