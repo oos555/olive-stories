@@ -377,7 +377,13 @@ th.center,td.center{text-align:center}
           </div>
         </div>
         <div class="g3">
-          <div class="fg"><label>郵便番号</label><input type="text" id="nc-zip" placeholder="1000001"></div>
+          <div class="fg"><label>郵便番号</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="nc-zip" placeholder="1000001" style="flex:1" oninput="onZipInput('nc-zip','nc-addr','nc-zipmsg')">
+              <button type="button" class="btn-sm" style="white-space:nowrap;font-weight:700" onclick="lookupZipTo('nc-zip','nc-addr','nc-zipmsg')">住所を表示</button>
+            </div>
+            <div id="nc-zipmsg" style="font-size:11px;color:#7a776d;min-height:14px;margin-top:2px"></div>
+          </div>
           <div class="fg"><label>住所</label><input type="text" id="nc-addr" placeholder="東京都..."></div>
           <div class="fg"><label>電話番号</label><input type="text" id="nc-tel" placeholder="0312345678"></div>
         </div>
@@ -515,6 +521,68 @@ th.center,td.center{text-align:center}
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+// ── 郵便番号→住所 自動入力（共通部品：他アプリにこのブロックごとコピー可） ──────────────
+// zipcloud（外部の郵便番号辞書サービス）にHTMLから直接問い合わせる方式。GAS不使用。
+function oosZipLookup(zip, onSuccess, onError){
+  var digits = String(zip||'').replace(/[^0-9]/g,'');
+  if(digits.length !== 7){ if(onError) onError('7digits'); return; }
+  var cbName = 'oosZipCb_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+  var script = document.createElement('script');
+  var done = false;
+  var timer = setTimeout(function(){
+    if(done) return; done = true;
+    cleanup(); if(onError) onError('timeout');
+  }, 8000);
+  function cleanup(){
+    try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
+    if(script.parentNode) script.parentNode.removeChild(script);
+    clearTimeout(timer);
+  }
+  window[cbName] = function(data){
+    if(done) return; done = true;
+    cleanup();
+    if(data && data.status === 200 && data.results && data.results.length){
+      var r = data.results[0];
+      var addr = (r.address1||'') + (r.address2||'') + (r.address3||'');
+      if(onSuccess) onSuccess(addr, r);
+    } else {
+      if(onError) onError('notfound');
+    }
+  };
+  script.onerror = function(){
+    if(done) return; done = true;
+    cleanup(); if(onError) onError('network');
+  };
+  script.src = 'https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + digits + '&callback=' + cbName;
+  document.body.appendChild(script);
+}
+function lookupZipTo(zipId, addrId, msgId){
+  var zipEl = document.getElementById(zipId);
+  var addrEl = document.getElementById(addrId);
+  var msgEl = msgId ? document.getElementById(msgId) : null;
+  if(!zipEl || !addrEl) return;
+  function setMsg(t, color){ if(msgEl){ msgEl.textContent = t; msgEl.style.color = color; } }
+  var digits = String(zipEl.value||'').replace(/[^0-9]/g,'');
+  if(digits.length !== 7){ setMsg('郵便番号は7桁で入力してください', '#b45309'); return; }
+  setMsg('住所を調べています…', '#7a776d');
+  oosZipLookup(digits, function(addr){
+    addrEl.value = addr;
+    addrEl.style.borderColor = '#2563eb';
+    setMsg('住所が入りました（この後に番地・建物名を足せます）', '#15803d');
+  }, function(reason){
+    if(reason === 'notfound'){ setMsg('この郵便番号は見つかりませんでした', '#b45309'); }
+    else if(reason === 'timeout' || reason === 'network'){ setMsg('住所の取得に失敗しました。通信環境をご確認のうえもう一度お試しください', '#b45309'); }
+    else { setMsg('郵便番号は7桁で入力してください', '#b45309'); }
+  });
+}
+function onZipInput(zipId, addrId, msgId){
+  var zipEl = document.getElementById(zipId);
+  if(!zipEl) return;
+  var digits = String(zipEl.value||'').replace(/[^0-9]/g,'');
+  if(digits.length === 7){ lookupZipTo(zipId, addrId, msgId); }
+}
+// ── /郵便番号→住所 自動入力 ────────────────────────────────────────────────
 
 // ── 商品マスタ（他アプリと共通・ハードコード版はフォールバック用） ────────────────────────────────────────────
 // Phase 2以降、起動時にGASの商品マスタシートから読み込んで上書きします。
