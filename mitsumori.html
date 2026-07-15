@@ -954,6 +954,16 @@ function confirmRtGate(gateType){
   document.getElementById('q-general-skip-wrap').style.display = (gateType==='general') ? '' : 'none';
   document.getElementById('nc-rt-hint').style.display = (gateType==='rt') ? '' : 'none';
   renderQuoteCustomerSelect();
+  // ★どの入口も同じ流れに：入口を決めた時点で作業画面（作成ボタン込み）をすぐ表示する。
+  //   お客様が未選択でもボタンは灰色で見え、濃い文字で「何をすれば押せるか」を出す。
+  const wl = document.getElementById('q-whitelist-card');
+  if(isPartialGate(gateType)){
+    if(wl){ wl.style.display = ''; document.getElementById('q-whitelist-area').innerHTML = '<div class="info-box">上で「お客様」を選ぶと、ここに「載せる商品／外す商品」が出ます。</div>'; }
+  } else {
+    if(wl) wl.style.display = 'none';
+  }
+  showPriceListForm();      // q-pricelist-form-card（価格表・作成ボタン）を表示
+  checkContactPersonReady();
 }
 function warehouseFeeForGate(){
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
@@ -1419,20 +1429,26 @@ function renderExtraFieldsForProduct(sku, selectedFields, overrides){
   });
   return parts.length ? '<div style="font-size:10px;color:#2b2a26;margin-top:2px;line-height:1.5">'+parts.map(esc).join(' ／ ')+'</div>' : '';
 }
+// 見積もり作成：作成ボタンを押せる条件を1か所で判定（画面に依存しない純粋ロジック）
+function quoteReadiness(hasCustomer, person, generalNoCustomerMode){
+  if(generalNoCustomerMode) return { ready:true,  reason:'' };
+  if(!hasCustomer)          return { ready:false, reason:'※ 上で「お客様」を選ぶと押せます（一般は「登録なしで作る」でもOK）' };
+  if(!person)               return { ready:false, reason:'※ お客様の「担当者名」を入れると押せます' };
+  return { ready:true, reason:'' };
+}
+// どの入口でも共通：2つの作成ボタン（価格表・見積書）の状態を同じ判定でそろえる
 function checkContactPersonReady(){
-  const person = document.getElementById('q-contact-person-shared').value.trim();
-  const qBtn = document.getElementById('q-generate-btn');
-  const qWarn = document.getElementById('q-generate-warn');
-  const plBtn = document.getElementById('pl-generate-btn');
-  const plWarn = document.getElementById('pl-generate-warn');
-  const noCustomerOk = !!window.generalNoCustomerMode; // 一般・お客様登録なしモードは担当者名なしでもOK
-  if(!person && !noCustomerOk){
-    if(qBtn){ qBtn.disabled = true; qWarn.textContent = '※①お客様カードの担当者名を入力すると作成できるようになります'; }
-    if(plBtn){ plBtn.disabled = true; plWarn.textContent = '※①お客様カードの担当者名を入力すると作成できるようになります'; }
-    return;
-  }
-  if(qBtn){ qBtn.disabled = false; qWarn.textContent = ''; }
-  if(plBtn){ plBtn.disabled = false; plWarn.textContent = ''; }
+  const personEl = document.getElementById('q-contact-person-shared');
+  const person = personEl ? personEl.value.trim() : '';
+  const custEl = document.getElementById('q-customer');
+  const hasCustomer = !!(custEl && custEl.value);
+  const st = quoteReadiness(hasCustomer, person, !!window.generalNoCustomerMode);
+  [['q-generate-btn','q-generate-warn'], ['pl-generate-btn','pl-generate-warn']].forEach(function(p){
+    const btn = document.getElementById(p[0]);
+    const warn = document.getElementById(p[1]);
+    if(btn) btn.disabled = !st.ready;
+    if(warn) warn.textContent = st.reason;
+  });
 }
 async function saveCustomerWhitelist(){
   const cid = document.getElementById('q-customer').value;
