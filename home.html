@@ -324,11 +324,11 @@
      鍵①：玄関(home.html)自体のロック
      ・localStorage の oos_gate_ok に '1' が入っていれば、
        日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
-     ・パスワードはM2424（COST_DATA_PASSWORDと同じ値）
-     ・注意：これは「社長専用（secret）グループ」のK358Zとは
-       別のパスワードなので、ここでは oos_unlock_secret は
-       立てない（誤って別のパスワードを社長専用の鍵として
-       保存してしまうと、E/G/H/I/Kの自動解錠が失敗する）
+     ・パスワードは GAS の GROUP_PASSWORDS.gate（＝K358Z。スタッフ共通の玄関鍵）を
+       verifyPassword(group:'gate') で照合する
+     ・注意：これは「社長専用（secret）グループ」とは別グループ・別パスワード。
+       玄関を開けても社長専用の印(oos_unlock_secret)は立てないので、
+       E/G/H/I/K は玄関を開けたあとでも改めて社長専用パスワードを求める
      ============================================================ */
   function gateCheck(){
     let ok = false;
@@ -352,7 +352,7 @@
     try{
       const res = await fetch(GAS_URL, {
         method:'POST',
-        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+        body: JSON.stringify({ action:'verifyPassword', group:'gate', password: pw }),
         headers: {'Content-Type':'text/plain;charset=utf-8'}
       });
       const data = await res.json();
