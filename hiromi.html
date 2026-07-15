@@ -228,7 +228,7 @@ function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === 
 
 document.addEventListener('DOMContentLoaded', function(){
   const saved = oosSavedPw('secret');
-  if(saved && oosAtelierOk()){ autoUnlock(saved); }
+  if(saved){ autoUnlock(saved); }
 });
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -249,13 +249,19 @@ async function post(body){
   return await res.json();
 }
 
+/* ★2026-07-15 仕様変更：
+   保存された鍵を、開くたびにサーバーで照合してから解錠する（輸入Eと同じ方式）。
+   メモ読込(loadStickyMemos)がサーバー側でパスワードを照合するので、その成否で判定する。
+   ・正しい鍵（status:ok）→ 中身を表示してメモを描画
+   ・古い/違う鍵 → 中身（ガワ）も見せずロック画面に戻し、その端末の鍵を消す
+   ・通信の一瞬の不調 → 押し戻さない（ループ防止。中身は開いて再試行できるように） */
 async function autoUnlock(pw){
   password = pw;
-  document.getElementById('locked-view').style.display = 'none';
-  document.getElementById('unlocked-view').style.display = 'block';
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw });
     if(data.status==='ok'){
+      document.getElementById('locked-view').style.display = 'none';
+      document.getElementById('unlocked-view').style.display = 'block';
       memos = data.data.memos || [];
       renderMemoList();
       renderAlerts();
@@ -263,10 +269,18 @@ async function autoUnlock(pw){
       loadTodos();
       showSyncStatus('✅ 読み込みました');
     } else {
-      showSyncStatus('⚠️ データの読み込みに失敗しました：'+(data.message||''), true);
+      // パスワードが違う（古い/誤った鍵）→ ガワも見せずロック画面へ戻し、鍵を消す
+      oosClearUnlock('secret');
+      password = '';
+      document.getElementById('unlocked-view').style.display = 'none';
+      document.getElementById('locked-view').style.display = 'block';
+      showSyncStatus('🔒 玄関から社長専用パスワードを入れ直してください', true);
     }
   }catch(err){
-    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+    // 通信の一瞬の不調では鍵を消さず、ロックにも戻さない（ループ防止）
+    document.getElementById('locked-view').style.display = 'none';
+    document.getElementById('unlocked-view').style.display = 'block';
+    showSyncStatus('⚠️ 通信エラーが発生しました。少し待って画面を開き直してください', true);
   }
 }
 

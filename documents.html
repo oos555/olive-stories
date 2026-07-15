@@ -229,15 +229,29 @@ function oosMarkUnlocked(group, pw){
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
 
-/* ★2026-07-08 仕様変更：
-   毎回サーバーへパスワードの正誤を問い合わせて画面を開くかどうかを決める
-   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
-   (oos_atelier_ok)だけを見る」方式に統一。通信の一瞬の不調でロック画面へ
-   押し戻される「ループ」が仕組みとして起こらなくなる。 */
-(function(){
+/* ★2026-07-15 仕様変更：
+   保存された鍵を、開くたびにサーバーで照合してから解錠する（輸入Eと同じ方式）。
+   ・正しい鍵 → ロック画面を隠して中身を表示
+   ・古い/違う鍵 → その端末の鍵を消し、ロック画面のまま（玄関から入り直してもらう）
+   ・通信の一瞬の不調 → 押し戻さない（ループ防止のため中身を表示）
+   ローカルの印(oos_atelier_ok)だけで開く依存はやめ、判定はサーバー照合に一本化。 */
+(async function(){
   const saved = oosSavedPw('secret');
-  if(saved && oosAtelierOk()){
-    $("lockScreen").style.display="none";
+  if(!saved) return; // 鍵が無ければロック画面のまま
+  try{
+    const res = await fetch(OOS_GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: saved }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      $("lockScreen").style.display="none";
+    } else {
+      oosClearUnlock('secret'); // 古い/違う鍵は消す（ロック画面はそのまま）
+    }
+  }catch(e){
+    $("lockScreen").style.display="none"; // 通信エラーでは押し戻さない
   }
 })();
 

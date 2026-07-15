@@ -96,7 +96,7 @@ function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === 
 
 document.addEventListener('DOMContentLoaded', function(){
   const saved = oosSavedPw('secret');
-  if(saved && oosAtelierOk()){ autoUnlock(saved); }
+  if(saved){ autoUnlock(saved); }
 });
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -112,16 +112,42 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
-/* ★2026-07-08 仕様変更：
-   毎回サーバーへパスワードの正誤を問い合わせて画面を開くかどうかを決める
-   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
-   (oos_atelier_ok)だけを見る」方式に統一。画面は必ず開き、取引先データの
-   読み込みはその後の別ステップとして行う（失敗してもロック画面には戻さない）。 */
+/* ★2026-07-15 仕様変更：
+   保存された鍵を、開くたびにサーバーで照合してから解錠する（輸入Eと同じ方式）。
+   取引先メモは loadAllData（パスワード照合なし）で読めてしまうため、
+   照合が取れる前は取引先を出さないようにする。
+   ・正しい鍵（status:ok）→ 中身を表示して取引先を読み込む
+   ・古い/違う鍵 → 中身（ガワ）も見せずロック画面に戻し、その端末の鍵を消す
+   ・通信の一瞬の不調 → 押し戻さないが、確認が取れていないので取引先は出さない
+     （画面の枠だけ出して、開き直しを促す。ループは起こさない） */
 async function autoUnlock(pw){
-  document.getElementById('locked-view').style.display = 'none';
-  document.getElementById('unlocked-view').style.display = 'block';
-  showSyncStatus('✅ 読み込みました');
-  loadPartners();
+  try{
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      document.getElementById('locked-view').style.display = 'none';
+      document.getElementById('unlocked-view').style.display = 'block';
+      showSyncStatus('✅ 読み込みました');
+      loadPartners();
+    } else {
+      // パスワードが違う（古い/誤った鍵）→ ガワも見せずロック画面へ戻し、鍵を消す
+      oosClearUnlock('secret');
+      document.getElementById('unlocked-view').style.display = 'none';
+      document.getElementById('locked-view').style.display = 'block';
+      showSyncStatus('🔒 玄関から社長専用パスワードを入れ直してください', true);
+    }
+  }catch(err){
+    // 通信の一瞬の不調では鍵を消さず、ロックにも戻さない（ループ防止）。
+    // ただし鍵の正誤が確認できていないので、取引先メモ自体は読み込まない。
+    document.getElementById('locked-view').style.display = 'none';
+    document.getElementById('unlocked-view').style.display = 'block';
+    document.getElementById('partner-list').innerHTML = '<div style="color:#dc2626;padding:8px">通信エラーが発生しました。少し待って画面を開き直してください。</div>';
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
 }
 
 // ── 取引先メモ（RT・卸のお客様） ────────────────────────────────────────────

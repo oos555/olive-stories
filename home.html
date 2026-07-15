@@ -319,12 +319,13 @@
       localStorage.removeItem('oos_unlock_date');
     }catch(e){}
   }
+  function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 
   /* ============================================================
      鍵①：玄関(home.html)自体のロック
      ・localStorage の oos_gate_ok に '1' が入っていれば、
        日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
-     ・パスワードは GAS の GROUP_PASSWORDS.gate（＝K358Z。スタッフ共通の玄関鍵）を
+     ・パスワードは GAS の GROUP_PASSWORDS.gate（スタッフ共通の玄関鍵。値はGAS側にのみ保持）を
        verifyPassword(group:'gate') で照合する
      ・注意：これは「社長専用（secret）グループ」とは別グループ・別パスワード。
        玄関を開けても社長専用の印(oos_unlock_secret)は立てないので、
@@ -374,12 +375,44 @@
 
   document.querySelectorAll('.pres-locked').forEach(function(a){
     a.addEventListener('click', function(e){
-      if(oosSavedPw('secret')) return; // 今日すでに解錠済み → そのまま素通り
+      // ★2026-07-15：保存された社長専用の鍵があっても、素通りさせる前に
+      //   サーバーで「その鍵が今も正しいか」を確かめてから進む。
+      //   ・正しい → そのまま行き先へ
+      //   ・古い/違う → 鍵を消して、その場でパスワード入力を出す
+      //   ・通信エラー → 止めない（行き先ページ側でも改めて照合される）
       e.preventDefault();
       presTargetHref = a.getAttribute('href');
-      presOpenModal();
+      const saved = oosSavedPw('secret');
+      if(saved){
+        presVerifySavedThenGo(saved);
+      } else {
+        presOpenModal();
+      }
     });
   });
+
+  async function presVerifySavedThenGo(pw){
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const data = await res.json();
+      if(data.status==='ok'){
+        const dest = presTargetHref; presTargetHref = null;
+        if(dest) window.location.href = dest;
+      } else {
+        // 古い/違う鍵 → 消して、その場でパスワード入力を出す
+        oosClearUnlock('secret');
+        presOpenModal();
+      }
+    }catch(err){
+      // 通信の一瞬の不調では止めない（行き先ページ側でも再照合される）
+      const dest = presTargetHref; presTargetHref = null;
+      if(dest) window.location.href = dest;
+    }
+  }
 
   function presOpenModal(){
     document.getElementById('pres-err').textContent = '';

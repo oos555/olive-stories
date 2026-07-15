@@ -273,19 +273,34 @@ async function checkPw(isAuto){
     document.getElementById("pw-err").style.display="block";
   }
 }
-/* ★2026-07-08 仕様変更：
-   ページを開くたびにサーバーへ「パスワードは合っているか」を問い合わせる
-   のをやめ、玄関の外側の鍵と同じ「一度確認できたら、ローカルの印
-   (oos_atelier_ok)だけを見る」方式に統一。通信の一瞬の不調でロック画面へ
-   押し戻される「ループ」が仕組みとして起こらなくなる。 */
-function initLock(){
+/* ★2026-07-15 仕様変更：
+   保存された鍵を、開くたびにサーバー（メインGAS）で照合してから解錠する（輸入Eと同じ方式）。
+   確認が取れるまでは必ずロックを出して中身を隠す。
+   ・正しい鍵（status:ok）→ ロックを外して中身を表示
+   ・古い/違う鍵 → その端末の鍵を消し、パスワード入力を出す
+   ・通信の一瞬の不調 → 押し戻さない（ループ防止のため中身を表示）
+   ローカルの印(oos_atelier_ok)だけで開く依存はやめ、判定はサーバー照合に一本化。 */
+async function initLock(){
+  const lock = document.getElementById("lock");
+  lock.style.display="flex"; // 確認が取れるまで中身を隠す
   const saved = oosSavedPw('secret');
-  if(saved && oosAtelierOk()){
-    document.getElementById("lock").style.display="none";
-    return;
+  if(!saved){ setTimeout(()=>document.getElementById("pw-input").focus(),100); return; }
+  try{
+    const res = await fetch(MAIN_GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'verifyPassword', group:'secret', password: saved }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      lock.style.display="none";
+    } else {
+      oosClearUnlock('secret'); // 古い/違う鍵は消して入力を促す
+      setTimeout(()=>document.getElementById("pw-input").focus(),100);
+    }
+  }catch(e){
+    lock.style.display="none"; // 通信エラーでは押し戻さない
   }
-  document.getElementById("lock").style.display="flex";
-  setTimeout(()=>document.getElementById("pw-input").focus(),100);
 }
 initLock();
 
