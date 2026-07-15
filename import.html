@@ -348,17 +348,9 @@ const DEFAULT_PRICES = {
 
 // ── 原価の初期値（1本あたり・オイル＋経費、円） ──
 // 「🔒原価データ」タブを開くと、まだ保存されていない商品にはここから初期値が表示されます
-const DEFAULT_COSTS = {
-  ORG100:944, ORG250:1539, ORG500:2931, ORG750:3799, ORG2L:9748, ORG5L:22142,
-  MEM100:917, MEM250:1493, MEM500:2830, MEM750:3680, MEM2L:9390, MEM5L:21407,
-  CHF100:963, CHF250:1557,
-  MISC002:1185,
-  PRI250:2372, PRI500:4166, PRI3L:12504,
-  ZAI250:2425, ZAI500:4251,
-  AGR100:1317, AGR250:2333, AGR3L:21173,
-  ARM500:3385, ARM3L:13671,
-  TGR100:1009
-};
+// 原価の初期値（旧 DEFAULT_COSTS）は、公開ソースから原価が読めてしまうため削除しました。
+// 原価は必ずGASの「原価データ」シート（社長専用パスワードの内側）からのみ取得します。
+// シートに値が無いSKUは、原価欄は空欄／計算上は0として扱います。
 
 document.addEventListener('DOMContentLoaded', function(){
   onFarmChange();
@@ -370,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(e.target.id!=='edit-lock') markDirty();
   });
   const saved = oosSavedPw('secret');
-  if(saved && oosAtelierOk()){ autoUnlock(saved); }
+  if(saved){ autoUnlock(saved); }
 });
 
 function showSyncStatus(msg,isError){
@@ -404,8 +396,6 @@ function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === 
    そちらが失敗してもロック画面には戻さずエラー表示のみ行う。 */
 async function autoUnlock(pw){
   password = pw;
-  document.getElementById('locked-view').style.display = 'none';
-  document.getElementById('unlocked-view').style.display = 'block';
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
@@ -414,6 +404,9 @@ async function autoUnlock(pw){
     });
     const data = await res.json();
     if(data.status==='ok'){
+      // サーバーが鍵を認めたときだけ中身を表示する
+      document.getElementById('locked-view').style.display = 'none';
+      document.getElementById('unlocked-view').style.display = 'block';
       importBatches = data.data.batches || [];
       renderHistory();
       onFarmChange();
@@ -421,10 +414,18 @@ async function autoUnlock(pw){
       if(typeof loadStockAndPriceRef === 'function') loadStockAndPriceRef();
       loadCostDataFromGAS();
     } else {
-      showSyncStatus('⚠️ データの読み込みに失敗しました：'+(data.message||''), true);
+      // パスワードが違う（古い/誤った鍵）→ 画面（ガワ）も見せず、鍵を消してロック画面へ戻す
+      oosClearUnlock('secret');
+      password = '';
+      document.getElementById('unlocked-view').style.display = 'none';
+      document.getElementById('locked-view').style.display = 'block';
+      showSyncStatus('🔒 玄関から社長専用パスワードを入れ直してください', true);
     }
   }catch(err){
-    showSyncStatus('⚠️ データ読み込み時に通信エラーが発生しました', true);
+    // 通信の一瞬の不調では鍵を消さず、ロックにも戻さない（ループ防止）。中身を出して再試行できるようにする。
+    document.getElementById('locked-view').style.display = 'none';
+    document.getElementById('unlocked-view').style.display = 'block';
+    showSyncStatus('⚠️ 通信エラーが発生しました。少し待って画面を開き直してください', true);
   }
 }
 
@@ -849,7 +850,7 @@ function renderCostProductTable(){
     html += '<tr><td colspan="3" class="group-header">'+esc(FARM_LABEL[farm])+'</td></tr>';
     items.forEach(function(p){
       const rec = costData[p.sku] || {};
-      const cost = rec.cost !== undefined && rec.cost !== '' ? rec.cost : (DEFAULT_COSTS[p.sku]||'');
+      const cost = rec.cost !== undefined && rec.cost !== '' ? rec.cost : '';
       const memo = rec.memo || '';
       html += '<tr><td style="padding:6px 10px">'+esc(p.name)+' <span style="font-size:11px;color:#3a4a5c;font-family:monospace;font-weight:600;margin-left:6px;padding:1px 5px;background:#eef1f5;border-radius:4px">'+esc(p.sku)+'</span></td>';
       html += '<td style="padding:6px 10px;text-align:right"><input type="number" data-cost-sku="'+p.sku+'" value="'+cost+'" class="price-input" disabled onchange="markCostDirty()"></td>';
@@ -871,7 +872,7 @@ function onRateSlotChange(idx, val){
 function getCostForSku(sku){
   const rec = costData[sku];
   if(rec && rec.cost !== undefined && rec.cost !== '') return parseFloat(rec.cost)||0;
-  return DEFAULT_COSTS[sku] || 0;
+  return 0;
 }
 function getOpenPriceForSku(sku){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
