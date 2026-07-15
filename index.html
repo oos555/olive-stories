@@ -570,6 +570,7 @@ body{background:#fff}
   <div class="tab-row no-print" style="margin-bottom:1rem">
     <button class="tab active" id="import-tab-csv" onclick="switchImportMode('csv')">STORES CSV取込</button>
     <button class="tab" id="import-tab-pdf" onclick="switchImportMode('pdf')">お客様リスト（PDF）取込</button>
+    <button class="tab" id="import-tab-rt" onclick="switchImportMode('rt')">🏨 RT伝票取込</button>
   </div>
 
   <div id="import-mode-csv">
@@ -644,6 +645,26 @@ body{background:#fff}
           <button class="btn btn-gray" onclick="cancelPdfImport()">キャンセル</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="import-mode-rt" style="display:none">
+    <div class="card">
+      <div class="sec">🏨 RT（ホテル・レストラン）の発注伝票（受領書）を取り込む</div>
+      <div class="info-box"><strong>使い方：</strong>RTから届いた発注伝票のPDF（1枚）をここに読み込むと、お届け先・商品・本数・納品予定日を自動で拾い、下に確認画面を出します。<br>
+      <strong>読み取ったあと、必ず内容を確認してください。</strong>RTは入金確認をはさまずそのまま出荷されるため、伝票と納品書が合っていることを確認してから進めます。違うところはその場で直せます。</div>
+      <div style="border:2px dashed #b9d0e3;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#f4f8fb"
+        onclick="document.getElementById('rt-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='#1f4a6d'"
+        ondragleave="this.style.borderColor='#b9d0e3'"
+        ondrop="handleRtDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px">🏨</div>
+        <div style="font-weight:700;color:#1f4a6d;margin-bottom:4px">RT発注伝票のPDFをここにドロップ</div>
+        <div style="font-size:13px;color:#2b2a26">またはクリックしてファイルを選択</div>
+        <input type="file" id="rt-file" accept=".pdf" style="display:none" onchange="handleRtFileSelect(event)">
+      </div>
+      <div id="rt-loading" style="display:none;text-align:center;color:#2b2a26;font-size:13px;padding:12px 0">📖 伝票を読み取り中...</div>
+      <div id="rt-preview" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -1048,6 +1069,25 @@ let PRODUCTS = [
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
 
+// ── RT専用品（発注伝票取込用の対応表）───────────────────────────────
+// RTから届く発注伝票の「商品コード」を、弊社の表示名・単価に変換するための小さな対応表。
+// これらは商品マスタ（請求C＋GAS）には入れず、この受注Aの中だけで持ちます（在庫は動かしません）。
+// 新しいRT専用品が増えたら、下の配列に1行足すだけでRT取込に対応できます。
+const RT_IMPORT_PRODUCTS = [
+  { id:'RT410-1310', sku:'RT410-1310', name:'調合オイル 5リットル', group:'RT専用品',
+    noWholesale:true, boxQty:1, rtImport:true, rtCode:'410-1310', rtUnitPrice:5990, rtTaxRate:8 },
+];
+// 伝票の商品コード → RT専用品ID（コードのハイフンやスペースの揺れを吸収するため、数字だけで照合します）
+const RT_CODE_MAP = {};
+RT_IMPORT_PRODUCTS.forEach(function(p){ if(p.rtCode) RT_CODE_MAP[p.rtCode.replace(/\D/g,'')] = p.id; });
+// PRODUCTSにRT専用品が入っていなければ足す（GAS/キャッシュ/フォールバックのどの読み込み後でも保持されるように）
+function ensureRtProducts(){
+  RT_IMPORT_PRODUCTS.forEach(function(rp){
+    if(!PRODUCTS.some(function(p){ return String(p.id)===String(rp.id); })) PRODUCTS.push(rp);
+  });
+}
+ensureRtProducts();
+
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'包装紙ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)' };
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
@@ -1084,6 +1124,7 @@ function refreshAllProductSelects(){
 function applyLoadedProducts(products, extraFields){
   if(!products || !products.length) return;
   PRODUCTS = products;
+  ensureRtProducts();
   EXTRA_FIELDS = extraFields || [];
   refreshAllProductSelects();
   renderStockStrip();
@@ -3232,8 +3273,10 @@ function importCSV(){
 function switchImportMode(mode){
   document.getElementById('import-tab-csv').classList.toggle('active', mode==='csv');
   document.getElementById('import-tab-pdf').classList.toggle('active', mode==='pdf');
+  var rtTab = document.getElementById('import-tab-rt'); if(rtTab) rtTab.classList.toggle('active', mode==='rt');
   document.getElementById('import-mode-csv').style.display = mode==='csv' ? 'block' : 'none';
   document.getElementById('import-mode-pdf').style.display = mode==='pdf' ? 'block' : 'none';
+  var rtPanel = document.getElementById('import-mode-rt'); if(rtPanel) rtPanel.style.display = mode==='rt' ? 'block' : 'none';
   if(mode==='pdf' && !document.getElementById('pdf-common-product').options.length){
     document.getElementById('pdf-common-product').innerHTML = productOptionsHtml();
     document.getElementById('pdf-common-gift').innerHTML = Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('');
@@ -3429,6 +3472,227 @@ function applyPdfToOrderForm(){
   showPanel('order', document.getElementById('tab-order'));
   showSyncStatus('📕 PDFから'+document.querySelectorAll('.recipient-card').length+'件の届け先を反映しました。内容を確認してください');
   document.getElementById('panel-order').scrollIntoView({behavior:'smooth'});
+}
+
+// ── RT発注伝票（受領書）取込 ───────────────────────────────────────
+let rtParsed = null;
+
+function handleRtDrop(e){
+  e.preventDefault();
+  e.currentTarget.style.borderColor = '#b9d0e3';
+  const file = e.dataTransfer.files[0];
+  if(file) readRtPdf(file);
+}
+function handleRtFileSelect(e){
+  const file = e.target.files[0];
+  if(file) readRtPdf(file);
+}
+function readRtPdf(file){
+  document.getElementById('rt-loading').style.display = 'block';
+  document.getElementById('rt-preview').style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    if(!window.pdfjsLib){ alert('PDF読み取り機能の準備ができていません。少し待ってから再度お試しください。'); document.getElementById('rt-loading').style.display='none'; return; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.getDocument({ data: ev.target.result }).promise.then(function(pdf){
+      const pagePromises = [];
+      for(let i=1;i<=pdf.numPages;i++) pagePromises.push(extractPdfPageLines(pdf, i));
+      return Promise.all(pagePromises);
+    }).then(function(pagesLines){
+      const allLines = [].concat.apply([], pagesLines);
+      rtParsed = parseRtSlip(allLines);
+      document.getElementById('rt-loading').style.display = 'none';
+      renderRtPreview();
+    }).catch(function(err){
+      document.getElementById('rt-loading').style.display = 'none';
+      alert('伝票の読み取りに失敗しました：'+err.message);
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// 発注伝票（受領書）の上段だけを読み、届け先・伝票番号・納品予定日・商品コード（縦割れ対応）・本数を拾う
+function parseRtSlip(lines){
+  let cut = lines.findIndex(function(l){ return /納\s*品\s*伝\s*票/.test(l); });
+  const top = (cut > 0) ? lines.slice(0, cut) : lines.slice();
+  const blob = top.join(' \n ');
+  function m(re){ const x = blob.match(re); return x ? String(x[1]).trim() : ''; }
+
+  const slipNo = m(/伝票番号[:：]\s*(\d+)/);
+  const orderDate = m(/発注日[:：]\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
+  const deliveryDate = m(/納品予定日[:：]\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
+  const dept = m(/納品先[:：]\s*([^\n|(（]+)/);
+  const tel = m(/TEL[:：]\s*([0-9\-]+)/);
+
+  // お届け先（御中）＝仕入先「オリーブオイル・ストーリーズ」の行の、もう片方が届け先名
+  let recipientName = '';
+  for(let i=0;i<top.length;i++){
+    if(/ストーリーズ/.test(top[i])){
+      const other = top[i].split('|').map(function(s){return s.trim();})
+        .filter(function(s){ return s && !/オリーブオイル|ストーリーズ/.test(s); });
+      if(other.length){ recipientName = other[0]; break; }
+    }
+  }
+  if(!recipientName){
+    const gi = top.findIndex(function(l){ return /御中/.test(l); });
+    if(gi>=0) recipientName = top[gi].replace(/御中.*/,'').trim() || (gi>0 ? top[gi-1].split('|').pop().trim() : '');
+  }
+  recipientName = recipientName.replace(/御中|T\d{10,}/g,'').trim();
+
+  // 郵便番号・都道府県・住所（上段の最初の〒行）
+  let zip='', pref='', addrRest='';
+  const zi = top.findIndex(function(l){ return /\d{3}-?\d{4}/.test(l) && /[都道府県]/.test(l); });
+  if(zi>=0){
+    const zm = top[zi].match(/(\d{3}-?\d{4})/); if(zm) zip = zm[1];
+    const pm = top[zi].match(/([^\s|〒0-9]{2,4}[都道府県])/); if(pm) pref = pm[1];
+    for(let j=zi+1;j<top.length;j++){
+      const s = top[j].replace(/\|/g,' ').trim();
+      if(!s || /T\d{10,}|TEL|FAX|伝票番号|発注日|納品先|納品予定/.test(s)) continue;
+      if(/[市区町村郡]/.test(s)){ addrRest = s; break; }
+    }
+  }
+  const addr = (pref + ' ' + addrRest).replace(/\s+/g,' ').trim();
+
+  // 明細：表ヘッダ〜「納品金額（税抜）／合計」の間だけを見る
+  let he = top.findIndex(function(l){ return /納品金額（税抜）|^合\s*計/.test(l.trim()); });
+  const region = top.slice(0, he>0 ? he : top.length);
+  const tokens = [];
+  region.forEach(function(l){ l.split('|').forEach(function(seg){ seg.trim().split(/\s+/).forEach(function(t){ if(t) tokens.push(t); }); }); });
+  let prefix='', suffix='';
+  tokens.forEach(function(t){
+    if(!prefix && /^\d{3}$/.test(t)) prefix = t;       // 商品コードの前半（例 410）
+    if(!suffix && /^-\d{4}$/.test(t)) suffix = t;       // 商品コードの後半（例 -1310）※ハイフン必須で単価5990等と誤認しない
+  });
+  const rawCode = (prefix||'') + (suffix||'');
+  const codeDigits = rawCode.replace(/\D/g,'');
+  const productId = RT_CODE_MAP[codeDigits] || '';
+  const prod = productId ? findProduct(productId) : null;
+  // 単価×本数＝金額 の関係から本数を割り出す（最も確実）。取れなければ「◯本」から。
+  const yenNums = tokens.map(function(t){ const mm=t.match(/^([\d,]+)円$/); return mm?parseInt(mm[1].replace(/,/g,''),10):null; }).filter(function(n){return n!=null;});
+  const amount = yenNums.length ? Math.max.apply(null, yenNums) : 0;
+  const unitPrice = (prod && prod.rtUnitPrice) ? prod.rtUnitPrice : (yenNums.length ? Math.min.apply(null, yenNums) : 0);
+  let bottles = (amount && unitPrice) ? Math.round(amount/unitPrice) : 0;
+  if(!bottles){ const bm = region.join(' ').match(/(\d{1,4})\s*本/); if(bm) bottles = parseInt(bm[1],10); }
+  if(!bottles) bottles = 1;
+
+  const line = {
+    rawCode: (prefix||'') + (suffix||''),
+    productId: productId, name: prod ? prod.name : '',
+    bottles: bottles, unitPrice: unitPrice,
+    taxRate: (prod && prod.rtTaxRate) ? prod.rtTaxRate : 8,
+    matched: !!productId
+  };
+  return { slipNo:slipNo, orderDate:orderDate, deliveryDate:deliveryDate, dept:dept,
+           recipientName:recipientName, zip:zip, addr:addr, tel:tel, lines:[line] };
+}
+
+function rtFld(label, key, val, span){
+  return '<div class="fg"'+(span>1?' style="grid-column:span '+span+'"':'')+'>'
+    +'<label style="font-size:12px;color:#33421f">'+label+'</label>'
+    +'<input type="text" value="'+esc(val||'')+'" oninput="rtParsed.'+key+'=this.value" '
+    +'style="padding:7px 9px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:15px;font-weight:700;color:#2b2a26"></div>';
+}
+function renderRtPreview(){
+  const p = rtParsed;
+  const el = document.getElementById('rt-preview');
+  el.style.display = 'block';
+  if(!p){ el.innerHTML=''; return; }
+  const ln = p.lines[0] || {};
+  const prodSelect = '<select onchange="rtParsed.lines[0].productId=this.value;rtParsed.lines[0].matched=!!this.value" '
+    +'style="width:100%;padding:6px 9px;border:1.5px solid '+(ln.matched?'#d5cfc3':'#dc2626')+';border-radius:6px;font-size:13px;font-weight:700">'
+    +productOptionsHtml(ln.productId)+'</select>';
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:#2b2a26">'
+      +'<span style="background:#1f4a6d;color:#fff;padding:3px 10px;border-radius:99px;font-weight:700">② 確認・修正</span>'
+      +'<span>伝票番号 <b>'+esc(p.slipNo||'—')+'</b></span><span>／</span><span>納品予定日 <b>'+esc(p.deliveryDate||'—')+'</b></span>'
+    +'</div>'
+    +'<div class="order-card" style="padding:1rem 1.1rem">'
+      +'<div style="font-size:13px;font-weight:700;color:#33421f;margin-bottom:8px">お届け先（その場で直せます）</div>'
+      +'<div class="g3" style="margin-bottom:6px">'+rtFld('会社名・お届け先','recipientName',p.recipientName,2)+rtFld('納品先（部門）','dept',p.dept,1)+'</div>'
+      +'<div class="g3" style="margin-bottom:6px">'+rtFld('郵便番号','zip',p.zip,1)+rtFld('住所','addr',p.addr,2)+'</div>'
+      +'<div class="g3">'+rtFld('電話番号','tel',p.tel,1)+rtFld('納品予定日','deliveryDate',p.deliveryDate,1)+rtFld('伝票番号','slipNo',p.slipNo,1)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#33421f;margin:14px 0 6px">商品明細</div>'
+      +'<div style="display:grid;grid-template-columns:84px 1.5fr 66px 104px;gap:8px;align-items:end">'
+        +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">伝票コード</div>'+esc(ln.rawCode||'—')+'</div>'
+        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>'+prodSelect+(ln.matched?'':'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ この伝票コードは対応表にありません。商品を選んでください</div>')+'</div>'
+        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="1" value="'+(ln.bottles||1)+'" oninput="rtParsed.lines[0].bottles=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
+        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価／税</div><div style="font-size:16px;font-weight:700;color:#2b2a26">¥'+((ln.unitPrice||0).toLocaleString())+' <span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+(ln.taxRate||8)+'%</span></div></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+        +'<span style="background:#1f4a6d;color:#fff;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">RT（後払い・入金確認なし）</span>'
+        +'<span style="background:#eef4f9;color:#1f4a6d;border:1px solid #b9d0e3;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">同梱：RT発注伝票 ＋ 納品書（必ずセット）</span>'
+      +'</div>'
+    +'</div>'
+    +'<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
+      +'<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">⚠️ 伝票と納品書を確認しましたか？</div>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="rt-confirm-chk" onchange="document.getElementById(\'rt-go-btn\').disabled=!this.checked" style="width:18px;height:18px"> 伝票の内容と、作られる納品書が合っていることを確認しました</label>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+        +'<button id="rt-go-btn" class="btn btn-green" disabled onclick="applyRtToOrderForm()">確認して受注登録画面へ進む ▶</button>'
+        +'<button class="btn btn-gray" onclick="cancelRtImport()">キャンセル</button>'
+      +'</div>'
+    +'</div>';
+}
+function cancelRtImport(){
+  rtParsed = null;
+  const el = document.getElementById('rt-preview');
+  el.style.display='none'; el.innerHTML='';
+  document.getElementById('rt-file').value='';
+}
+function rtSetVal(card, role, v){ const el = card.querySelector('[data-role='+role+']'); if(el) el.value = (v||''); }
+function applyRtToOrderForm(){
+  if(!rtParsed) return;
+  const p = rtParsed;
+  const ln = p.lines[0] || {};
+  if(!ln.productId){ alert('商品が特定できていません。商品を選んでから進んでください。'); return; }
+  const memoText = ['RT伝票取込', p.slipNo?('伝票番号 '+p.slipNo):'', p.deliveryDate?('納品予定日 '+p.deliveryDate):'', p.dept?('納品先 '+p.dept):''].filter(Boolean).join(' ／ ');
+
+  // 発注元（＝御中先。RTはホテル・レストラン）
+  const clientEl = document.getElementById('o-client');
+  clientEl.value = p.recipientName || '';
+  if(clientEl.dataset) delete clientEl.dataset.custId;
+  document.getElementById('o-ctype').value = 'rt';
+  if(typeof onCtypeChange==='function') onCtypeChange();
+  document.getElementById('o-payment-mode').value = 'postpay';
+  if(document.getElementById('prepay-warn')) document.getElementById('prepay-warn').style.display='none';
+  if(document.getElementById('o-zip')) document.getElementById('o-zip').value = p.zip || '';
+  if(document.getElementById('o-addr')) document.getElementById('o-addr').value = p.addr || '';
+  if(document.getElementById('o-tel')) document.getElementById('o-tel').value = p.tel || '';
+  if(document.getElementById('o-memo')) document.getElementById('o-memo').value = memoText;
+  const recType = document.getElementById('o-record-type'); if(recType){ recType.value='pending'; if(typeof onRecordTypeChange==='function') onRecordTypeChange(); }
+
+  // 届け先カード（ホテル＝会社）
+  document.getElementById('recipients').innerHTML = '';
+  addRecipient();
+  const cards = document.querySelectorAll('.recipient-card');
+  const card = cards[cards.length-1];
+  const comRadio = card.querySelector('[data-role=rtypeCom]');
+  if(comRadio){ comRadio.checked = true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(card.id); }
+  rtSetVal(card,'companyName', p.recipientName);
+  rtSetVal(card,'deptName', p.dept);
+  rtSetVal(card,'personName','');
+  rtSetVal(card,'zip', p.zip);
+  rtSetVal(card,'addr', p.addr);
+  rtSetVal(card,'tel', p.tel);
+  rtSetVal(card,'note', memoText);
+
+  // 商品行
+  const linesWrap = card.querySelector('[data-role=lines]');
+  const lineRow = linesWrap ? linesWrap.children[0] : null;
+  if(lineRow){
+    const psel = lineRow.querySelector('[data-role=product]');
+    const bnum = lineRow.querySelector('[data-role=bottles]');
+    if(psel){ psel.value = ln.productId; if(typeof onRecipientLineProductChange==='function') onRecipientLineProductChange(card.id, lineRow.id); }
+    if(bnum) bnum.value = ln.bottles || 1;
+  }
+  if(typeof renumberRecipients==='function') renumberRecipients();
+
+  // 同梱＝RT発注伝票＋納品書（必ずセット）だけにする
+  document.querySelectorAll('.enc-doc').forEach(function(cb){ cb.checked = (cb.getAttribute('data-doc')==='rtset'); });
+
+  cancelRtImport();
+  showPanel('order', document.getElementById('tab-order'));
+  showSyncStatus('🏨 RT伝票から受注登録画面に反映しました。内容を確認して「登録」を押してください');
+  const po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
 }
 
 // ── GAS 保存（必ず「今ある受注を全部」送る）────────────────────────────
