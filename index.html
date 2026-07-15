@@ -522,17 +522,15 @@ body{background:#fff}
 
     <div style="background:#f6f4ee;border:1px solid #e8e2d8;border-radius:8px;padding:12px 14px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:700;color:#4a5a24;margin-bottom:8px">📄 同梱書類（お荷物に入れる紙）</div>
-      <div class="fg" style="margin-bottom:8px">
-        <label>書類（多くても2枚まで）</label>
-        <select id="o-enclosed-doc" onchange="document.getElementById('o-enclosed-doc-custom-wrap').style.display=this.value==='other'?'block':'none'" style="font-weight:700">
-          <option value="納品書兼請求書">納品書兼請求書（1枚にまとめる）</option>
-          <option value="納品書">納品書</option>
-          <option value="請求書">請求書</option>
-          <option value="領収書">領収書</option>
-          <option value="納品書兼領収書">納品書兼領収書（1枚にまとめる）</option>
-          <option value="なし">同梱書類なし</option>
-          <option value="other">その他（自分で書く）</option>
-        </select>
+      <div style="font-size:13px;font-weight:700;color:#2b2a26;margin-bottom:8px">入れる紙にチェック</div>
+      <div id="o-enclosed-doc-list" style="display:flex;flex-direction:column;gap:7px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" data-doc="none" value="なし" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">同梱書類なし</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" value="納品書" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">納品書</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" value="請求書" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">請求書</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" value="領収書" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">領収書</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" value="納品書兼請求書" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">納品書兼請求書</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" value="納品書兼領収書" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">納品書兼領収書</label>
+        <label style="display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;font-size:15px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" class="enc-doc" data-doc="other" value="その他" onchange="onEnclosedDocToggle(this)" style="width:18px;height:18px">その他（自分で書く）</label>
       </div>
       <div id="o-enclosed-doc-custom-wrap" style="display:none;margin-bottom:8px">
         <div class="fg" style="margin-bottom:0"><label>同梱書類（自由入力）</label><input type="text" id="o-enclosed-doc-custom" placeholder="例：お礼状を同封"></div>
@@ -1414,6 +1412,43 @@ function onRecordTypeChange(){
   sel.style.background = colors[type][0];
   sel.style.color = colors[type][1];
 }
+// ── 同梱書類（チェック式・多くても2枚まで・「なし」は排他） ──────────────
+function onEnclosedDocToggle(cb){
+  var list = Array.prototype.slice.call(document.querySelectorAll('.enc-doc'));
+  var noneCb = list.filter(function(x){ return x.getAttribute('data-doc')==='none'; })[0];
+  if(cb.getAttribute('data-doc')==='none' && cb.checked){
+    // 「同梱書類なし」を選んだら他は全部外す
+    list.forEach(function(x){ if(x!==cb){ x.checked=false; } });
+    var w0=document.getElementById('o-enclosed-doc-custom-wrap'); if(w0){ w0.style.display='none'; }
+    return;
+  }
+  if(cb.checked && noneCb){ noneCb.checked=false; }
+  // 書類は多くても2枚まで（「なし」はカウント外）
+  var docChecked = list.filter(function(x){ return x.getAttribute('data-doc')!=='none' && x.checked; });
+  if(docChecked.length>2){
+    cb.checked=false;
+    alert('同梱書類は多くても2枚までです。');
+  }
+  // 「その他」の自由入力欄を出す／隠す
+  var otherCb = list.filter(function(x){ return x.getAttribute('data-doc')==='other'; })[0];
+  var wrap = document.getElementById('o-enclosed-doc-custom-wrap');
+  if(wrap){ wrap.style.display = (otherCb && otherCb.checked) ? 'block' : 'none'; }
+}
+function collectEnclosedDoc(){
+  var list = Array.prototype.slice.call(document.querySelectorAll('.enc-doc'));
+  var noneCb = list.filter(function(x){ return x.getAttribute('data-doc')==='none'; })[0];
+  if(noneCb && noneCb.checked) return 'なし';
+  var parts = [];
+  list.forEach(function(x){
+    if(x.getAttribute('data-doc')==='none' || !x.checked) return;
+    if(x.getAttribute('data-doc')==='other'){
+      parts.push((document.getElementById('o-enclosed-doc-custom')||{}).value || 'その他');
+    } else {
+      parts.push(x.value);
+    }
+  });
+  return parts.join(' ＋ ');
+}
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
@@ -1827,7 +1862,7 @@ function addRecipientLine(cardId){
     '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+giftOptionsHtml(false)+'</select>'+
     '<input type="number" min="0" value="0" data-role="bottles" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="number" min="0" value="0" data-role="boxes" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
-    '<select data-role="condition" data-cond="normal" onchange="this.setAttribute(\'data-cond\',this.value)"></select>'+
+    '<select data-role="condition" data-cond="normal" onchange="this.setAttribute(\'data-cond\',this.value);updateCardGiftSummary(\''+cardId+'\')"></select>'+
     '<input type="text" placeholder="メモ" data-role="memo">'+
     '<button class="btn-sm" onclick="removeRecipientLine(\''+cardId+'\',\''+id+'\')" title="削除">✕</button>';
   wrap.appendChild(row);
@@ -1893,7 +1928,7 @@ function updateCardGiftSummary(cardId){
   const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
   if(!lines.length){ el.innerHTML = '<span style="color:#2b2a26">商品を追加すると内訳が表示されます</span>'; return; }
   el.innerHTML = lines.map(function(l){
-    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>':'');
+    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 7px;border-radius:99px">正規</span>');
     var sp = findProduct(l.productId);
     if(sp && sp.isSet && sp.components && sp.components.length){
       var cnt = (l.bottles||0)+(l.boxes||0)*(l.boxQty||sp.boxQty||1);
@@ -2083,9 +2118,8 @@ function buildOrdersFromForm(){
   const dSenderZip = senderMode==='self' ? SELF_SENDER.zip : senderMode==='custom' ? document.getElementById('d-sender-zip').value : document.getElementById('o-zip').value;
   const dSenderAddr = senderMode==='self' ? SELF_SENDER.addr : senderMode==='custom' ? document.getElementById('d-sender-addr').value : document.getElementById('o-addr').value;
 
-  const docSel = document.getElementById('o-enclosed-doc');
-  let enclosedDoc = docSel ? docSel.value : '納品書兼請求書';
-  if(enclosedDoc==='other') enclosedDoc = (document.getElementById('o-enclosed-doc-custom').value || 'その他');
+  let enclosedDoc = collectEnclosedDoc();
+  if(!enclosedDoc){ alert('同梱書類を選んでください。\n（紙を入れない場合は「同梱書類なし」にチェック）'); return; }
   const includePamphlet = document.getElementById('o-include-pamphlet') ? document.getElementById('o-include-pamphlet').checked : true;
 
   const recipients = collectRecipients();
@@ -2342,7 +2376,7 @@ function clearForm(){
   document.getElementById('o-tel').value = '';
   document.getElementById('o-memo').value = '';
   document.getElementById('o-save-customer').checked = false;
-  if(document.getElementById('o-enclosed-doc')){ document.getElementById('o-enclosed-doc').value = '納品書兼請求書'; }
+  Array.prototype.slice.call(document.querySelectorAll('.enc-doc')).forEach(function(x){ x.checked=false; });
   if(document.getElementById('o-enclosed-doc-custom')){ document.getElementById('o-enclosed-doc-custom').value = ''; }
   if(document.getElementById('o-enclosed-doc-custom-wrap')){ document.getElementById('o-enclosed-doc-custom-wrap').style.display = 'none'; }
   if(document.getElementById('o-include-pamphlet')){ document.getElementById('o-include-pamphlet').checked = true; }
