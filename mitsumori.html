@@ -1664,8 +1664,17 @@ function showQuoteDoc(doc, record){
   pdfBtn.style.marginLeft = '8px';
   pdfBtn.textContent = '📥 PDFでダウンロード';
   pdfBtn.onclick = function(){ downloadQuotePdf(record); };
+  const orderBtn = document.createElement('button');
+  orderBtn.className = 'btn no-print';
+  orderBtn.style.marginTop = '10px';
+  orderBtn.style.marginLeft = '8px';
+  orderBtn.style.background = '#6b7a3a';
+  orderBtn.style.color = '#fff';
+  orderBtn.textContent = '🔗 お客様専用の注文URLを作る';
+  orderBtn.onclick = function(){ showOrderUrlBox(record); };
   wrap.appendChild(printBtn);
   wrap.appendChild(pdfBtn);
+  wrap.appendChild(orderBtn);
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
 }
@@ -2060,6 +2069,46 @@ function viewQuoteHistoryItem(rid){
   const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
   const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : buildQuoteDocHtml(r, c));
   showQuoteDocGeneric(doc, r);
+}
+function makeOrderUrl(record){
+  var c = customers.find(function(x){ return x.id===record.customerId; })
+    || { name:record.customerName, type:record.customerType, id:record.customerId };
+  var items = (record.items||[]).map(function(it){
+    var p = findProductBySku(it.sku) || {};
+    return { id: (p.id||''), sku: it.sku, name: (p.name||it.name), boxQty: (p.boxQty||1),
+      unitPrice: it.unitPrice, taxRate: it.taxRate, boxes: (it.boxes||0), bottles: (it.bottles||0) };
+  });
+  var payload = {
+    orderNum: (new Date()).toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000+Math.random()*9000)),
+    customer: { name:c.name, type:(c.type||record.customerType), custId:(c.id||record.customerId||''),
+      zip:(c.zip||''), addr:(c.addr||''), tel:(c.tel||''), isCompany:true },
+    items: items
+  };
+  var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g,'-').replace(/\//g,'_');
+  return 'https://oos555.github.io/olive-stories/order.html?d=' + b64;
+}
+function showOrderUrlBox(record){
+  var url = makeOrderUrl(record);
+  var area = document.getElementById('quote-doc-area');
+  var old = document.getElementById('oos-order-url-box'); if(old) old.remove();
+  var box = document.createElement('div');
+  box.id = 'oos-order-url-box';
+  box.className = 'no-print';
+  box.style.cssText = 'margin-top:12px;padding:12px;border:1px solid #6b7a3a;border-radius:8px;background:#f3f5ec';
+  box.innerHTML = '<div style="font-size:13px;font-weight:700;color:#33421f;margin-bottom:6px">お客様専用の注文URL（このままLINEやメールで送れます）</div>'
+    + '<textarea readonly style="width:100%;height:64px;font-size:12px;padding:8px;border:1px solid #cdd3b8;border-radius:6px;background:#fff"></textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+    + '<button class="btn btn-primary" id="oos-copy-url">コピーする</button>'
+    + '<a href="'+url+'" target="_blank" rel="noopener" class="btn" style="background:#6b7a3a;color:#fff;text-decoration:none;display:inline-flex;align-items:center;padding:8px 14px;border-radius:6px">開いて確認する</a>'
+    + '</div>';
+  var ta = box.querySelector('textarea'); ta.value = url;
+  area.appendChild(box);
+  box.querySelector('#oos-copy-url').onclick = function(){
+    ta.select();
+    try{ navigator.clipboard.writeText(url); }catch(e){ try{ document.execCommand('copy'); }catch(_){} }
+    this.textContent = 'コピーしました ✓';
+  };
+  box.scrollIntoView({behavior:'smooth'});
 }
 function showQuoteDocGeneric(doc, record){
   // 履歴表示用（印刷ボタンのみ、保存はしない）
