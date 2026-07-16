@@ -377,10 +377,9 @@ body{background:#fff}
 </details>
 
 <div class="tab-row no-print">
-  <button class="tab" id="tab-pending" onclick="showPanel('pending',this)">🔔 アプリ受注・他<span id="pending-tab-badge"></span></button>
   <button class="tab active" id="tab-order" onclick="showPanel('order',this)">受注登録</button>
   <button class="tab" id="tab-stores" onclick="showPanel('stores',this)">データ取込</button>
-  <button class="tab" id="tab-list" onclick="showPanel('list',this)">受注一覧</button>
+  <button class="tab" id="tab-list" onclick="showPanel('list',this)">🔔 受注一覧<span id="pending-tab-badge"></span></button>
   <button class="tab" id="tab-hold" onclick="showPanel('hold',this)">取り置き・予約<span id="hold-tab-badge"></span></button>
   <button class="tab" id="tab-slip" onclick="showPanel('slip',this)">出荷依頼書</button>
   <button class="tab" id="tab-customers" onclick="showPanel('customers',this)">🛒 顧客管理</button>
@@ -1160,10 +1159,16 @@ let csvParsedRows = null;
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();
   addRecipient();
+  relocatePendingIntoList();
   loadInitialData();
   loadPendingActions();
   loadHolidays();
 });
+function relocatePendingIntoList(){
+  var pp = document.getElementById('panel-pending');
+  var pl = document.getElementById('panel-list');
+  if(pp && pl){ pp.classList.remove('panel'); pp.style.display='block'; pl.insertBefore(pp, pl.firstChild); }
+}
 
 function showSyncStatus(msg,isError){
   let el = document.getElementById('sync-status');
@@ -1306,7 +1311,7 @@ function updatePendingBadge(){
       : '';
   }
   // 対応が1件でもあればタブ自体を赤くして気づきやすくする
-  const pendingTab = document.getElementById('tab-pending');
+  const pendingTab = document.getElementById('tab-list');
   if(pendingTab){
     if(open.length){
       pendingTab.style.background = '#fee2e2';
@@ -2450,10 +2455,9 @@ function showPanel(name, btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
-  if(name==='list') renderList();
+  if(name==='list'){ renderList(); loadPendingActions(); }
   if(name==='slip') renderSlipSelect();
   if(name==='hold') renderHoldPreLists();
-  if(name==='pending') loadPendingActions();
   if(name==='customers') renderCustomerList();
 }
 
@@ -2720,7 +2724,14 @@ function renderList(){
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
     const overdueBadge = isOverdue(o) ? '<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限超過</span>' : '';
-    const unpaidBadge = (o.paymentMode==='prepay' && !o.paymentConfirmed) ? '<span class="pill pill-urgent" style="background:#b45309;color:#fff">💰未入金</span>' : '';
+    const locked = (o.paymentMode==='prepay' && !o.paymentConfirmed);
+    const appPre = (o.source==='app' && !o.paymentClaimed);
+    const unpaidBadge = locked ? (appPre
+      ? '<span class="pill pill-urgent" style="background:#6b7280;color:#fff">🕓入金前</span>'
+      : '<span class="pill pill-urgent" style="background:#b45309;color:#fff">💰入金確認待ち</span>') : '';
+    const payMsg = !locked ? '' : (appPre
+      ? '<div style="font-size:12px;color:#6b5a10;background:#faf3e4;border:1px solid #eeddb8;padding:4px 8px;border-radius:6px;margin-top:2px">🕓 入金前です（お客様がお支払い手続き中）</div>'
+      : '<div style="font-size:12px;color:#7c2d12;background:#fff4ed;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;margin-top:2px">💰 入金を確認の上、出荷依頼書へ進んでください</div>');
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     return '<div class="order-card">'+
@@ -2730,11 +2741,13 @@ function renderList(){
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
-      (o.note ? '<div style="font-size:12px;color:#dc2626;'+(hasNoshiKeyword(o.note)?'font-weight:700;background:#fef2f2;padding:3px 8px;border-radius:6px':'')+'">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
+      (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
+      payMsg+
       '<div class="oc-actions no-print">'+
-        (o.status==='pending' ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
+        (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
+        (o.status==='pending' && !locked ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
         (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')+
-        '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>'+
+        (!locked ? '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')+
       '</div>'+
     '</div>';
   }).join('');
@@ -2908,10 +2921,28 @@ async function markShipped(id){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
 }
+function confirmPayment(id){
+  const o = orders.find(x=>x.id===id);
+  if(!o) return;
+  if(!confirm(o.num+' の入金を確認しましたか？\n「OK」を押すと、出荷（出荷依頼書）へ進めるようになります。')) return;
+  o.paymentConfirmed = true;
+  o.paymentConfirmedAt = new Date().toISOString();
+  updateSummary(); renderList();
+  syncOrdersToGAS([o]);                                       // 入金確認だけを最新にマージ
+  // 関連する要対応（入金連絡）を対応済みに
+  var pa = pendingActions.find(function(p){ return p.status!=='done' && p.type==='payment' && p.orderNum===o.num; });
+  if(pa) resolvePending(pa.id);
+  showSyncStatus('入金確認しました：'+o.num);
+}
+
 function cancelOrder(id){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
   if(!confirm(o.num+' をキャンセルしますか？')) return;
+  var hasRefund = false;
+  if(o.paymentConfirmed || o.paymentClaimed || o.paymentMode==='paid'){
+    hasRefund = confirm('このお客様はすでにお支払い済み（または入金申告済み）です。\n返金が必要ですか？\n\n「OK」＝返金あり（要対応リストに赤で残します）\n「キャンセル」＝返金なし');
+  }
   o.status = 'cancelled';
   o.cancelledAt = new Date().toISOString();
   if(o.stockDeducted){
@@ -2921,7 +2952,17 @@ function cancelOrder(id){
   }
   updateSummary(); renderList();
   syncOrdersToGAS([o]);                                       // ① キャンセルした注文だけを最新にマージ
-  showSyncStatus('キャンセルしました：'+o.num);
+  if(hasRefund){
+    var item = {
+      id:'pa_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), type:'cancel',
+      customerName:(o.client||o.recipientName||''), orderNum:o.num,
+      detail:'キャンセルに伴う返金あり。返金手続きをしてください。（'+(o.orderTotal?('お支払い額 ¥'+Number(o.orderTotal).toLocaleString()):'金額は請求Cで確認')+'）',
+      hasRefund:true, status:'open', createdAt:new Date().toISOString(), source:'manual'
+    };
+    pendingActions.push(item); renderPendingList(); updatePendingBadge();
+    fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'savePendingAction', item:item }), headers:{'Content-Type':'text/plain;charset=utf-8'} }).catch(function(){});
+  }
+  showSyncStatus('キャンセルしました：'+o.num+(hasRefund?'（返金あり・要対応に追加）':''));
 }
 function gotoSlip(id){
   const o = orders.find(x=>x.id===id);
