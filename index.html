@@ -152,22 +152,6 @@ tr:last-child td{border-bottom:none}
 .search-row{display:flex;gap:8px;margin-bottom:1rem}
 .search-row input{flex:1;padding:7px 12px;border:1px solid #d5cfc3;border-radius:8px;font-size:13px}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
-/* ===== 要対応リスト（2026/07/10追加） ===== */
-.pa-row{background:#fff;border:1px solid #e8e2d8;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
-.pa-row.pa-refund{border:2px solid #dc2626;background:#fef2f2}
-.pa-main{flex:1;min-width:0}
-.pa-name{font-size:16px;font-weight:700;color:#2b2a26}
-.pa-type{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;margin-left:6px;vertical-align:middle;white-space:nowrap}
-.pa-type-payment{background:#dcfce7;color:#14532d}
-.pa-type-change{background:#fef3c7;color:#78350f}
-.pa-type-cancel{background:#ffedd5;color:#9a3412}
-.pa-type-add{background:#dbeafe;color:#1e3a8a}
-.pa-type-refund{background:#dc2626;color:#fff}
-.pa-detail{font-size:14px;color:#2b2a26;line-height:1.5;margin-top:3px;overflow-wrap:anywhere}
-.pa-sub{font-size:11px;color:#8a857c;margin-top:3px}
-.pa-done-btn{flex-shrink:0;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:14px;font-weight:700;cursor:pointer;line-height:1.3}
-.pa-done-btn:hover{background:#1d4ed8}
-@media(max-width:640px){.pa-row{padding:9px 10px}.pa-name{font-size:15px}.pa-done-btn{padding:8px 10px;font-size:12px}}
 @media print{
 body{background:#fff}
 .app{padding:0}
@@ -175,7 +159,7 @@ body{background:#fff}
 .invoice{border:none;padding:1cm}
 .slip{border:2px solid #000;page-break-inside:avoid}
 .slip:not(:last-child){page-break-after:always}
-#panel-order,#panel-stores,#panel-list,#panel-pending{display:none!important}
+#panel-order,#panel-stores,#panel-list{display:none!important}
 #panel-slip{display:block!important}
 }
 #main-wrap{display:none}
@@ -345,10 +329,6 @@ body{background:#fff}
     <div style="font-size:14px;font-weight:700;color:#2b2a26;margin:0 0 8px">タブごとの説明</div>
 
     <div class="wt-row">
-      <span class="wt-tab" style="background:#fef3c7;border:1px solid #eab308;color:#78350f">🔔 要対応</span>
-      <div class="wt-desc">お客様からの「入金した・変更・キャンセル・追加」の連絡を1か所で見る。<strong>返金ありは赤で一番上</strong>。終わったら「対応済み」で消える（間違えても戻せる）。1件でもあるとタブが赤くなります。</div>
-    </div>
-    <div class="wt-row">
       <span class="wt-tab" style="background:#eef1e6;border:1px solid #c9d3b4;color:#3b4a1c">受注登録</span>
       <div class="wt-desc">電話・LINEなどで受けた注文を手で登録する。お客様・届け先・商品を入れて登録 → 出荷依頼書へ。※住所は顧客管理から呼び出す。お客様は自動で顧客管理に保存。</div>
     </div>
@@ -379,42 +359,10 @@ body{background:#fff}
 <div class="tab-row no-print">
   <button class="tab active" id="tab-order" onclick="showPanel('order',this)">受注登録</button>
   <button class="tab" id="tab-stores" onclick="showPanel('stores',this)">データ取込</button>
-  <button class="tab" id="tab-list" onclick="showPanel('list',this)">🔔 受注一覧<span id="pending-tab-badge"></span></button>
+  <button class="tab" id="tab-list" onclick="showPanel('list',this)">受注一覧</button>
   <button class="tab" id="tab-hold" onclick="showPanel('hold',this)">取り置き・予約<span id="hold-tab-badge"></span></button>
   <button class="tab" id="tab-slip" onclick="showPanel('slip',this)">出荷依頼書</button>
   <button class="tab" id="tab-customers" onclick="showPanel('customers',this)">🛒 顧客管理</button>
-</div>
-
-<!-- 要対応リスト（2026/07/10追加） -->
-<div id="panel-pending" class="panel">
-  <div class="info-box">お客様からの<strong>入金連絡・変更・キャンセル・追加</strong>のご連絡をここに1か所にまとめます。対応が終わったら、右の「<strong>✔ 対応済みにする</strong>」を押してください（1件ずつリストから外れます）。<strong style="color:#dc2626">返金があるものは赤枠で一番上</strong>に表示されます。間違えて押しても、下の「対応済み」から戻せます。</div>
-
-  <div class="sec" style="font-size:16px">🔔 要対応（<span id="pending-open-count" style="font-size:20px;color:#dc2626">0</span> 件）</div>
-  <div id="pending-list"><div style="color:#2b2a26;font-size:13px;padding:8px 0">読み込み中...</div></div>
-
-  <details style="margin:14px 0">
-    <summary style="cursor:pointer;font-size:13px;color:#2b2a26;font-weight:700;padding:4px 0">✅ 対応済み（最近のもの・押すと開きます）</summary>
-    <div id="pending-done-list" style="margin-top:8px"></div>
-  </details>
-
-  <div class="card" style="margin-top:14px">
-    <div class="sec" style="font-size:13px">＋ 手動で追加（電話・LINEなどで受けたご連絡をメモする）</div>
-    <div class="g2" style="margin-bottom:10px">
-      <div class="fg" style="margin-bottom:0"><label>種類</label>
-        <select id="pa-type" style="font-weight:700;font-size:14px;padding:9px 10px">
-          <option value="payment">💰 入金連絡</option>
-          <option value="change">✏️ 変更</option>
-          <option value="cancel">✕ キャンセル</option>
-          <option value="add">＋ 追加</option>
-        </select>
-      </div>
-      <div class="fg" style="margin-bottom:0"><label>お名前</label><input type="text" id="pa-name" placeholder="例：佐藤" style="font-size:14px;padding:9px 10px"></div>
-    </div>
-    <div class="fg"><label>内容</label><input type="text" id="pa-detail" placeholder="例：御中元3箱のご注文をキャンセルとのこと" style="font-size:14px;padding:9px 10px"></div>
-    <div class="fg"><label>管理番号（あれば）</label><input type="text" id="pa-num" placeholder="例：20260710-sato0480" style="font-size:14px;padding:9px 10px"></div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#dc2626;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="pa-refund" style="width:20px;height:20px">⚠️ 返金あり</label>
-    <button class="btn btn-primary" onclick="addPendingManual()">要対応リストに追加する</button>
-  </div>
 </div>
 
 <!-- 受注登録 -->
@@ -812,11 +760,6 @@ body{background:#fff}
      senderName, senderTel, senderZip, senderAddr,
      lines: [{ productId, productName, boxQty, giftType, bottles, boxes, memo }]
    }
-
-   ★2026/07/10追加：要対応リスト
-   POST { action:'loadPendingActions' } → { status:'ok', data:{ items:[...] } }
-   POST { action:'savePendingAction', item:{...} }
-   POST { action:'resolvePendingAction', id, resolved }
    ════════════════════════════════════════════════════════════════ */
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
@@ -1152,23 +1095,15 @@ let lots = [];
 let defects = [];
 let holds = [];
 let preorders = [];
-let pendingActions = [];
 let orderLineCounter = 0;
 let csvParsedRows = null;
 
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();
   addRecipient();
-  relocatePendingIntoList();
   loadInitialData();
-  loadPendingActions();
   loadHolidays();
 });
-function relocatePendingIntoList(){
-  var pp = document.getElementById('panel-pending');
-  var pl = document.getElementById('panel-list');
-  if(pp && pl){ pp.classList.remove('panel'); pp.style.display='block'; pl.insertBefore(pp, pl.firstChild); }
-}
 
 function showSyncStatus(msg,isError){
   let el = document.getElementById('sync-status');
@@ -1238,132 +1173,6 @@ function loadInitialData(retry){
   });
 }
 
-/* ════════════════════════════════════════════════════════════════
-   ★ 要対応リスト（2026/07/10追加）
-   お客様からの入金連絡・変更・キャンセル・追加を1か所にまとめる。
-   ・返金ありは赤枠で一番上に固定
-   ・「対応済みにする」で1件ずつ外れる（完全削除ではなく done へ移動）
-   ・手動追加（source:'manual'）は通知しない。それ以外はGAS側で通知される。
-   ════════════════════════════════════════════════════════════════ */
-const PA_TYPE_LABEL = { payment:'入金連絡', change:'変更', cancel:'キャンセル', add:'追加' };
-const PA_TYPE_ICON = { payment:'💰', change:'✏️', cancel:'✕', add:'＋' };
-
-function loadPendingActions(){
-  if(!gasSyncEnabled) return;
-  fetch(GAS_URL + '?action=loadPendingActions').then(r=>r.json()).then(function(d){
-    if(d && d.status==='ok' && d.data && Array.isArray(d.data.items)){
-      pendingActions = d.data.items;
-      renderPendingList();
-      updatePendingBadge();
-    }
-  }).catch(function(){ /* 取得失敗時は静かに従来表示のまま */ });
-}
-
-function paSortKey(a){
-  // 返金ありを最優先（0）、次に新しい順
-  const refundRank = a.hasRefund ? 0 : 1;
-  return refundRank + ' ' + (a.createdAt||'');
-}
-function renderPendingList(){
-  const open = pendingActions.filter(p=>p.status!=='done');
-  const done = pendingActions.filter(p=>p.status==='done');
-  // 返金ありを上、その中で新しい順。返金なしはその下で新しい順。
-  open.sort(function(a,b){
-    if(!!a.hasRefund !== !!b.hasRefund) return a.hasRefund ? -1 : 1;
-    return (b.createdAt||'').localeCompare(a.createdAt||'');
-  });
-  done.sort((a,b)=>(b.resolvedAt||'').localeCompare(a.resolvedAt||''));
-
-  document.getElementById('pending-open-count').textContent = open.length;
-  const listEl = document.getElementById('pending-list');
-  listEl.innerHTML = open.length ? open.map(paRowHtml).join('')
-    : '<div style="color:#2b2a26;font-size:14px;padding:12px 4px">いま対応が必要なものはありません。お疲れさまです。</div>';
-
-  const doneEl = document.getElementById('pending-done-list');
-  doneEl.innerHTML = done.length ? done.slice(0,30).map(function(p){
-    return '<div class="pa-row" style="opacity:.6"><div class="pa-main"><span class="pa-name" style="font-size:14px">'+esc(p.customerName||'（お名前なし）')+'</span>'+
-      '<span class="pa-type pa-type-'+(p.type||'')+'">'+(PA_TYPE_LABEL[p.type]||p.type||'')+'</span>'+
-      (p.detail?'<div class="pa-detail" style="font-size:12px">'+esc(p.detail)+'</div>':'')+'</div>'+
-      '<button class="pa-done-btn" style="background:#f0ece3;border-color:#d5cfc3;color:#2b2a26" onclick="reopenPending(\''+p.id+'\')">↩ 戻す</button></div>';
-  }).join('') : '<div style="color:#8a857c;font-size:12px;padding:6px 4px">まだありません。</div>';
-}
-function paRowHtml(p){
-  const typeLabel = p.hasRefund ? '返金あり・'+(PA_TYPE_LABEL[p.type]||p.type||'') : (PA_TYPE_LABEL[p.type]||p.type||'');
-  const typeCls = p.hasRefund ? 'pa-type-refund' : 'pa-type-'+(p.type||'');
-  const dt = (p.createdAt||'').slice(0,16).replace('T',' ');
-  return '<div class="pa-row'+(p.hasRefund?' pa-refund':'')+'">'+
-    '<div class="pa-main">'+
-      '<span class="pa-name">'+esc(p.customerName||'（お名前なし）')+'</span>'+
-      '<span class="pa-type '+typeCls+'">'+(p.hasRefund?'⚠️ ':'')+typeLabel+'</span>'+
-      (p.detail?'<div class="pa-detail">'+esc(p.detail)+'</div>':'')+
-      '<div class="pa-sub">'+dt+(p.orderNum?'　'+esc(p.orderNum):'')+'</div>'+
-    '</div>'+
-    '<button class="pa-done-btn" onclick="resolvePending(\''+p.id+'\')">✔<br>対応済み</button>'+
-  '</div>';
-}
-function updatePendingBadge(){
-  const open = pendingActions.filter(p=>p.status!=='done');
-  const refund = open.filter(p=>p.hasRefund).length;
-  const badge = document.getElementById('pending-tab-badge');
-  if(badge){
-    badge.innerHTML = open.length
-      ? ' <span style="background:'+(refund?'#dc2626':'#b45309')+';color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700">'+open.length+'</span>'
-      : '';
-  }
-  // 対応が1件でもあればタブ自体を赤くして気づきやすくする
-  const pendingTab = document.getElementById('tab-list');
-  if(pendingTab){
-    if(open.length){
-      pendingTab.style.background = '#fee2e2';
-      pendingTab.style.color = '#991b1b';
-      pendingTab.style.fontWeight = '700';
-    } else {
-      pendingTab.style.background = '';
-      pendingTab.style.color = '';
-      pendingTab.style.fontWeight = '';
-    }
-  }
-}
-function addPendingManual(){
-  const type = document.getElementById('pa-type').value;
-  const name = document.getElementById('pa-name').value.trim();
-  const detail = document.getElementById('pa-detail').value.trim();
-  const num = document.getElementById('pa-num').value.trim();
-  const refund = document.getElementById('pa-refund').checked;
-  if(!name){ alert('お名前を入力してください'); return; }
-  const item = {
-    id: 'pa_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-    type: type, customerName: name, orderNum: num, detail: detail,
-    hasRefund: refund, status: 'open', createdAt: new Date().toISOString(), source: 'manual'
-  };
-  pendingActions.push(item);
-  renderPendingList();
-  updatePendingBadge();
-  document.getElementById('pa-name').value = '';
-  document.getElementById('pa-detail').value = '';
-  document.getElementById('pa-num').value = '';
-  document.getElementById('pa-refund').checked = false;
-  fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'savePendingAction', item: item }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
-    .then(r=>r.json()).then(function(d){ showSyncStatus(d.status==='ok'?'✅ 要対応に追加しました':'⚠️ 保存エラー', d.status!=='ok'); })
-    .catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
-}
-function resolvePending(id){
-  const p = pendingActions.find(x=>x.id===id);
-  if(!p) return;
-  p.status = 'done'; p.resolvedAt = new Date().toISOString();
-  renderPendingList(); updatePendingBadge();
-  fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'resolvePendingAction', id:id, resolved:true }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
-    .then(r=>r.json()).then(function(d){ showSyncStatus(d.status==='ok'?'✅ 対応済みにしました':'⚠️ 保存エラー', d.status!=='ok'); })
-    .catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
-}
-function reopenPending(id){
-  const p = pendingActions.find(x=>x.id===id);
-  if(!p) return;
-  p.status = 'open'; p.resolvedAt = '';
-  renderPendingList(); updatePendingBadge();
-  fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'resolvePendingAction', id:id, resolved:false }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
-    .then(r=>r.json()).catch(function(){});
-}
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
 // ── 在庫サマリー（読み取り専用。実際の在庫はアプリBで管理）────────────────
@@ -2455,7 +2264,7 @@ function showPanel(name, btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
-  if(name==='list'){ renderList(); loadPendingActions(); }
+  if(name==='list'){ renderList(); }
   if(name==='slip') renderSlipSelect();
   if(name==='hold') renderHoldPreLists();
   if(name==='customers') renderCustomerList();
@@ -2929,9 +2738,6 @@ function confirmPayment(id){
   o.paymentConfirmedAt = new Date().toISOString();
   updateSummary(); renderList();
   syncOrdersToGAS([o]);                                       // 入金確認だけを最新にマージ
-  // 関連する要対応（入金連絡）を対応済みに
-  var pa = pendingActions.find(function(p){ return p.status!=='done' && p.type==='payment' && p.orderNum===o.num; });
-  if(pa) resolvePending(pa.id);
   showSyncStatus('入金確認しました：'+o.num);
 }
 
@@ -2941,7 +2747,7 @@ function cancelOrder(id){
   if(!confirm(o.num+' をキャンセルしますか？')) return;
   var hasRefund = false;
   if(o.paymentConfirmed || o.paymentClaimed || o.paymentMode==='paid'){
-    hasRefund = confirm('このお客様はすでにお支払い済み（または入金申告済み）です。\n返金が必要ですか？\n\n「OK」＝返金あり（要対応リストに赤で残します）\n「キャンセル」＝返金なし');
+    hasRefund = confirm('このお客様はすでにお支払い済み（または入金申告済み）です。\n返金が必要ですか？\n\n「OK」＝返金あり　／　「キャンセル」＝返金なし');
   }
   o.status = 'cancelled';
   o.cancelledAt = new Date().toISOString();
@@ -2953,16 +2759,9 @@ function cancelOrder(id){
   updateSummary(); renderList();
   syncOrdersToGAS([o]);                                       // ① キャンセルした注文だけを最新にマージ
   if(hasRefund){
-    var item = {
-      id:'pa_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), type:'cancel',
-      customerName:(o.client||o.recipientName||''), orderNum:o.num,
-      detail:'キャンセルに伴う返金あり。返金手続きをしてください。（'+(o.orderTotal?('お支払い額 ¥'+Number(o.orderTotal).toLocaleString()):'金額は請求Cで確認')+'）',
-      hasRefund:true, status:'open', createdAt:new Date().toISOString(), source:'manual'
-    };
-    pendingActions.push(item); renderPendingList(); updatePendingBadge();
-    fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'savePendingAction', item:item }), headers:{'Content-Type':'text/plain;charset=utf-8'} }).catch(function(){});
+    alert('⚠️ 返金が必要な注文をキャンセルしました。\n\n'+o.num+'（'+(o.client||o.recipientName||'')+'）\n'+(o.orderTotal?('お支払い額 ¥'+Number(o.orderTotal).toLocaleString()):'金額は請求Cで確認')+'\n\n返金手続きを忘れずに行ってください。');
   }
-  showSyncStatus('キャンセルしました：'+o.num+(hasRefund?'（返金あり・要対応に追加）':''));
+  showSyncStatus('キャンセルしました：'+o.num+(hasRefund?'（返金あり・要返金）':''));
 }
 function gotoSlip(id){
   const o = orders.find(x=>x.id===id);
