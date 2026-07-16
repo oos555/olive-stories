@@ -641,6 +641,11 @@ function isProductActive(p){
 function activeProducts(){
   return PRODUCTS.filter(isProductActive);
 }
+// 編集フォームに出さないシステム用の列（active＝取り扱い中フラグ。外す／戻すボタンが管理）
+function isHiddenExtraField(f){ return String(f==null?'':f).trim().toLowerCase()==='active'; }
+// 見積・注文ページに表示する「公開コメント」系の列は、コメント欄（textarea）として大きく出す
+function isPublicCommentField(f){ var s=String(f==null?'':f).trim(); return s==='公開コメント'||s==='公開情報'||s==='公開メモ'; }
+function editableExtraFields(){ return (EXTRA_FIELDS||[]).filter(function(f){ return !isHiddenExtraField(f); }); }
 
 // ── 商品マスタ：GAS読み込み＋キャッシュ ────────────────────────────────────────────
 // 起動時：キャッシュがあれば先に表示 → 裏でGASの最新版を取得 → 差分があれば更新
@@ -2762,11 +2767,15 @@ function openAddProductModal(){
     .concat(Object.keys(existingGroups).map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>'))
     .concat(['<option value="__new__">＋ 新しいグループを作る</option>']);
   groupSelect.innerHTML = opts.join('');
-  // 追加情報の入力欄（EXTRA_FIELDSがあれば）
+  // 追加情報の入力欄（EXTRA_FIELDSがあれば・activeなどシステム列は出さない）
   const extrasArea = document.getElementById('ap-extras-area');
-  if(EXTRA_FIELDS && EXTRA_FIELDS.length){
+  const apExtraFields = editableExtraFields();
+  if(apExtraFields.length){
     extrasArea.innerHTML = '<div class="modal-note" style="margin-top:10px;background:#eef0e5;border-color:#a3b18a">🌱 商品マスタシートに追加した項目：</div>'
-      + EXTRA_FIELDS.map(function(field){
+      + apExtraFields.map(function(field){
+          if(isPublicCommentField(field)){
+            return '<div class="fg"><label>'+esc(field)+'（見積・注文ページに表示されます）</label><textarea data-ap-extra="'+esc(field)+'" placeholder="例：500mlが3本まで入ります（約20×30cm）" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px"></textarea></div>';
+          }
           return '<div class="fg"><label>'+esc(field)+'（任意）</label><input type="text" data-ap-extra="'+esc(field)+'"></div>';
         }).join('');
   } else {
@@ -2949,12 +2958,16 @@ function openEditProductInfoModal(sku){
   document.getElementById('ep-origin').value = p.origin || '';
   document.getElementById('ep-container').value = p.container || '';
   document.getElementById('ep-memo').value = p.memo || '';
-  // 追加情報の入力欄
+  // 追加情報の入力欄（activeなどシステム列は出さない）
   const extrasArea = document.getElementById('ep-extras-area');
-  if(EXTRA_FIELDS && EXTRA_FIELDS.length){
+  const epExtraFields = editableExtraFields();
+  if(epExtraFields.length){
     extrasArea.innerHTML = '<div class="modal-note" style="margin-top:10px;background:#eef0e5;border-color:#a3b18a">🌱 商品マスタシートに追加した項目：</div>'
-      + EXTRA_FIELDS.map(function(field){
+      + epExtraFields.map(function(field){
           const cur = (p.extras && p.extras[field]) ? p.extras[field] : '';
+          if(isPublicCommentField(field)){
+            return '<div class="fg"><label>'+esc(field)+'（見積・注文ページに表示されます）</label><textarea data-ep-extra="'+esc(field)+'" placeholder="例：500mlが3本まで入ります（約20×30cm）" style="width:100%;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;min-height:60px">'+esc(cur)+'</textarea></div>';
+          }
           return '<div class="fg"><label>'+esc(field)+'</label><input type="text" data-ep-extra="'+esc(field)+'" value="'+esc(cur)+'"></div>';
         }).join('');
   } else {
@@ -2991,9 +3004,11 @@ async function saveEditProductInfo(){
     target.container = container;
     target.memo = memo;
     // 追加情報：既存の追加情報を保持しつつ、EXTRA_FIELDSに載っているものだけ上書き
+    // （active などシステム列は触らない＝取り扱い中フラグを壊さない）
     target.extras = target.extras || {};
     if(EXTRA_FIELDS && EXTRA_FIELDS.length){
       EXTRA_FIELDS.forEach(function(field){
+        if(isHiddenExtraField(field)) return;
         if(extras[field] !== undefined) target.extras[field] = extras[field];
         else delete target.extras[field];
       });
