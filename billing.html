@@ -308,54 +308,41 @@ tr:last-child td{border-bottom:none}
     <div class="tab-help-app">「売上・価格C」は、<strong>売上の確認・卸の月末請求・商品の価格管理・データの控え</strong>をする場所です。</div>
     <div class="tab-help-now">▼ このタブ：商品・価格マスター（登録）</div>
     <ul style="margin:0;padding-left:20px;line-height:1.9;font-size:13px">
-      <li>商品の<strong>金額（定価・卸①・卸②・RT）を決める</strong>場所です。（不良在庫特価は、不良在庫として出荷する受注にだけ使われます）</li>
-      <li>金額を直すときは、下の「✅ 価格を変更する」にチェックを入れてから。</li>
-      <li>直したら、必ず「💾 商品・価格マスターを保存する」を押します（押さないと消えます）。</li>
-      <li>税率の初期値：オリーブオイル本体＝<strong>8%</strong>／備品・その他＝<strong>10%</strong>（表の「税率」欄で商品ごとに直せます）。</li>
-      <li><strong>商品名を変える</strong>ときも「✅ 価格を変更する」にチェックを入れてから、商品名の欄を直します。保存のときに変更内容の確認が出ます。SKU（品番）は変わらないので、過去の受注・見積・在庫とのつながりは保たれます。</li>
-      <li><strong>商品を取り下げる（廃番）</strong>には「取り扱い中」のチェックを外して保存します。その商品は見積書・オイル価格表の選択肢から消え、表の一番下の「▶ 取り下げた商品（過去の商品）」に畳まれます（クリックで開けます。完全には消えないので、いつでも戻せます）。在庫が0または未登録の商品は、目印として背景が赤くなります（自動でチェックが外れることはありません）。</li>
+      <li>商品の<strong>金額（定価・卸①・卸②・RT。すべて税抜き）を決める</strong>場所です。（不良在庫特価は、不良在庫として出荷する受注にだけ使われます）</li>
+      <li>直すときは上の<strong>「✏️ 編集する」</strong>を押します。金額・商品名の変更、新しい商品の追加、いらない商品を<strong>「外す」</strong>のすべてを、開いた編集画面の中で行います。</li>
+      <li>編集画面は<strong>「💾 編集を保存する」を押すまで閉じません</strong>。追加した商品も、この保存1回でまとめて確定します（保存の押し忘れが起きません）。</li>
+      <li>税率の初期値：オリーブオイル本体＝<strong>8%</strong>／備品・その他＝<strong>10%</strong>（商品ごとに直せます）。</li>
+      <li>商品名を変えても、SKU（品番）は変わらないので、過去の受注・見積・在庫とのつながりは保たれます（保存のときに変更内容の確認が出ます）。</li>
+      <li><strong>「外す」</strong>した商品は、見積書・オイル価格表の選択肢から消え、表の一番下の「▶ 外した商品（過去の商品）」に畳まれます（クリックで開けます。完全には消えないので、いつでも戻せます）。販売可能数が0（または未登録）の商品は、目印として背景が赤くなります。</li>
     </ul>
     </div>
   </details>
 
-  <!-- ② 上に貼りつく操作バー（保存・商品追加。スクロールしても常に見える） -->
+  <!-- ② 上に貼りつく操作バー（編集ボタン。スクロールしても常に見える） -->
   <div style="position:sticky;top:0;z-index:20;background:#faf7f2;padding:10px 0;margin-bottom:6px;border-bottom:1px solid #e5e0d6">
     <div style="background:#eaf1fb;border:2px solid #2563eb;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button class="btn btn-green" onclick="savePriceMaster()" style="font-size:16px;font-weight:800;padding:13px 24px">💾 商品・価格マスターを保存する</button>
-      <button class="btn btn-green" onclick="openAddProductModal()" style="font-size:15px;font-weight:800;padding:12px 20px">＋ 商品を追加</button>
-      <span style="font-size:13px;color:#1d4ed8;font-weight:600">金額を直したら、必ず「保存する」を押す。</span>
-      <span id="price-dirty-indicator" style="font-size:13px;font-weight:700;color:#dc2626;margin-left:auto"></span>
+      <button class="btn btn-primary" onclick="openMasterEditModal()" style="font-size:16px;font-weight:800;padding:13px 26px">✏️ 編集する</button>
+      <span style="font-size:13px;color:#1d4ed8;font-weight:600">金額・商品名を直す／商品を追加する／外す は、ぜんぶこの中で（金額はすべて税抜き）。</span>
+      <span id="price-dirty-indicator" style="display:none"></span>
+      <input type="checkbox" id="price-edit-lock" style="display:none">
     </div>
     <div style="font-size:12px;color:#83817b;margin-top:6px;padding-left:2px">
-      ※このバーは、下にスクロールしても画面の上に貼りついたまま見えます。<br>
-      ※「＋商品を追加」を押すと、新しい商品を登録できます（登録後はそのまま下の一覧に出ます／取り直し不要）。
-    </div>
-  </div>
-
-  <!-- ③ 価格変更ロック -->
-  <div class="card" style="background:#fef3c7;border-color:#f59e0b;margin-bottom:1rem">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
-      <input type="checkbox" id="price-edit-lock" onchange="togglePriceEditLock()" style="width:18px;height:18px">
-      ✅ 価格を変更する（チェックを入れないと、金額は触れません）
-    </label>
-    <div style="font-size:12px;color:#78350f;line-height:1.8;margin-top:8px;padding-top:8px;border-top:1px solid #f3d9a8">
-      チェックを入れて金額を直したら、上の「保存する」を押してください。<br>
-      保存せずに他の画面へ移ろうとすると、「消しますか？」と確認が出ます（キャンセルすれば戻れます）。
+      ※下の表は見るだけの一覧です。直すときは「✏️ 編集する」を押してください（保存を押すまで編集画面は閉じません＝押し忘れが起きません）。
     </div>
   </div>
 
   <div class="tbl-wrap">
     <table>
       <thead><tr>
-        <th style="width:96px">取り扱い中 <span class="help-ic" onclick="alert('チェックを外すと、見積書・オイル価格表の商品選択に出てこなくなります（商品・価格マスター画面には残ります）。在庫が0または未登録の商品は、背景が赤く表示されます。ただし在庫が0でも見積もりだけ出したい場合もあるので、自動でチェックが外れることはありません。')">ⓘ</span><div style="font-size:10px;font-weight:400;color:#b45309;margin-top:3px;line-height:1.35">チェックを外すと<br>取り下げ（一覧から外れます）</div></th>
+        <th style="width:96px">状態 <span class="help-ic" onclick="alert('「外す」した商品は、見積書・オイル価格表の商品選択に出てこなくなります（表の一番下に畳まれます）。販売可能数が0（または未登録）の商品は、背景が赤く表示されます。ただし販売可能数が0でも見積もりだけ出したい場合もあるので、自動で外れることはありません。')">ⓘ</span><div style="font-size:10px;font-weight:400;color:#83817b;margin-top:3px;line-height:1.35">編集は上の<br>「✏️ 編集する」から</div></th>
         <th>商品名（SKU）</th>
         <th>入数 <span class="help-ic" onclick="alert('1箱に入っている本数です。各金額欄の下に、その本数分の「1箱あたりの価格」も表示されます。')">ⓘ</span></th>
-        <th>税率 <span class="help-ic" onclick="alert('オリーブオイル本体は軽減税率8%、紙袋・空瓶などの備品・その他の商品は標準税率10%です。商品によって自動で初期値が入りますが、ここで直すこともできます。')">ⓘ</span></th>
-        <th>定価 <span class="help-ic" onclick="alert('【定価】\n一般のお客様（卸ではない、通常価格でご購入いただく方）に適用する単価です。オープン価格とも呼ばれ、これより安く販売しないという最低ラインの目安にもなります。')">ⓘ</span></th>
-        <th>卸① <span class="help-ic" onclick="alert('【卸①】\n通常の卸価格です。多くの卸先はこちらが基本になります。')">ⓘ</span></th>
-        <th>卸② <span class="help-ic" onclick="alert('【卸②】\n卸①よりさらに安い特別価格です。2026年7月の決定により、卸①のお客様が同じ商品を6箱以上注文すると、その商品だけ自動でこの価格になります（頑張って買ってくれた人が得をする方式）。')">ⓘ</span></th>
-        <th>RT・ホテル <span class="help-ic" onclick="alert('【RT】\nホテル・レストラン向けの価格です。トルコ産オイル100mlの単品（バラ）卸など、RTのお客様だけに許可している商品があります。')">ⓘ</span></th>
-        <th>不良在庫特価 <span class="help-ic" onclick="alert('【不良在庫特価】\n不良在庫（ラベル汚れ・オイル漏れなど）として出荷する受注にだけ適用される、特別に安い価格です。')">ⓘ</span></th>
+        <th>税率 <span class="help-ic" onclick="alert('オリーブオイル本体は軽減税率8%、紙袋・空瓶などの備品・その他の商品は標準税率10%です。商品によって自動で初期値が入りますが、編集画面で直すこともできます。')">ⓘ</span></th>
+        <th>定価（税抜） <span class="help-ic" onclick="alert('【定価（税抜き）】\n一般のお客様（卸ではない、通常価格でご購入いただく方）に適用する単価です。金額はすべて税抜きで管理します。')">ⓘ</span></th>
+        <th>卸①（税抜） <span class="help-ic" onclick="alert('【卸①（税抜き）】\n通常の卸価格です。多くの卸先はこちらが基本になります。')">ⓘ</span></th>
+        <th>卸②（税抜） <span class="help-ic" onclick="alert('【卸②（税抜き）】\n卸①よりさらに安い特別価格です。2026年7月の決定により、卸①のお客様が同じ商品を6箱以上注文すると、その商品だけ自動でこの価格になります（頑張って買ってくれた人が得をする方式）。')">ⓘ</span></th>
+        <th>RT・ホテル（税抜） <span class="help-ic" onclick="alert('【RT（税抜き）】\nホテル・レストラン向けの価格です。トルコ産オイル100mlの単品（バラ）卸など、RTのお客様だけに許可している商品があります。')">ⓘ</span></th>
+        <th>不良在庫特価（税抜） <span class="help-ic" onclick="alert('【不良在庫特価（税抜き）】\n不良在庫（ラベル汚れ・オイル漏れなど）として出荷する受注にだけ適用される、特別に安い価格です。')">ⓘ</span></th>
       </tr></thead>
       <tbody id="price-tbl-body"></tbody>
     </table>
@@ -437,13 +424,49 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- ✏️ 商品・価格の編集：モーダル（保存を押すまで閉じない） -->
+<div id="master-edit-modal" class="modal-backdrop no-print">
+  <div class="modal-box" style="max-width:1100px;width:96%;max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-title">✏️ 商品・価格の編集 <span style="font-size:12px;font-weight:600;color:#8a5a1f">（金額はすべて税抜き）</span></div>
+    <div class="modal-note" style="background:#fef3c7;border-color:#f59e0b;color:#78350f">
+      この画面は<strong>「💾 編集を保存する」を押すまで閉じません</strong>。金額・商品名の変更、「外す」、追加した新しい商品は、保存1回でまとめて確定します。
+    </div>
+    <div style="overflow:auto;flex:1;border:1px solid #e5e0d6;border-radius:8px;margin-top:8px">
+      <table style="min-width:900px">
+        <thead><tr>
+          <th style="width:84px">外す</th>
+          <th style="min-width:200px">商品名（直せます）</th>
+          <th>入数</th>
+          <th>税率</th>
+          <th>定価（税抜）</th>
+          <th>卸①（税抜）</th>
+          <th>卸②（税抜）</th>
+          <th>RT（税抜）</th>
+          <th>不良特価（税抜）</th>
+        </tr></thead>
+        <tbody id="price-tbl-body-edit"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-gray" onclick="openAddProductModal()" style="font-weight:700">＋ 新しい商品を追加</button>
+      <button class="btn btn-primary" onclick="saveMasterEdits()" style="font-size:16px;font-weight:800;padding:12px 26px;margin-left:auto">💾 編集を保存する（保存して閉じる）</button>
+    </div>
+    <div style="text-align:right;margin-top:8px">
+      <a href="#" onclick="cancelMasterEdit();return false;" style="font-size:12px;color:#8a5a1f">保存せずにやめる</a>
+    </div>
+  </div>
+</div>
+
 <!-- ＋商品を追加：モーダル -->
 <div id="add-product-modal" class="modal-backdrop no-print">
   <div class="modal-box">
     <div class="modal-title">＋ 商品を追加</div>
     <div class="modal-note">
-      新しい商品を「商品マスタ」に登録します。保存すると、その日のうちに他のアプリでも見えるようになります（各アプリを開き直せば反映されます）。<br>
-      ※ギフト（構成品つき）は仕組みが複雑なので、シートで直接編集をお願いしています。
+      記入して「この内容で追加する」を押すと、編集画面の表に<strong>「新規」の行として並びます（まだ保存されません）</strong>。最後の「💾 編集を保存する」で確定します。
+    </div>
+    <div class="seg-type" style="display:flex;border:1.5px solid #93b4e6;border-radius:8px;overflow:hidden;margin:8px 0 10px">
+      <button type="button" id="ap-type-normal" onclick="apSetType('normal')" style="flex:1;padding:10px 4px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:700;cursor:pointer">ふつうの商品</button>
+      <button type="button" id="ap-type-set" onclick="apSetType('set')" style="flex:1;padding:10px 4px;border:none;background:#fff;color:#1d4ed8;font-size:13px;font-weight:700;cursor:pointer">セット商品（組み合わせ）</button>
     </div>
     <div class="g2">
       <div class="fg"><label>SKU（英数字・重複不可） <span style="color:#dc2626">*</span></label><input type="text" id="ap-sku" placeholder="例：NEW100" oninput="onAddProductInput()"></div>
@@ -470,6 +493,43 @@ tr:last-child td{border-bottom:none}
           <input type="checkbox" id="ap-nowholesale" style="width:16px;height:16px">
           RT限定（卸には販売しない）
         </label>
+      </div>
+    </div>
+
+    <!-- セット商品のとき：中身とギフト資材 -->
+    <div id="ap-set-fields" style="display:none">
+      <div style="background:#fff;border:1px solid #e5e0d6;border-radius:10px;overflow:hidden;margin-top:6px">
+        <div style="padding:8px 10px;font-size:12px;font-weight:700;color:#5f5e5a;background:#f1efe8">① セットの中身（オイルなどの商品） <span style="color:#dc2626">*</span></div>
+        <div id="ap-comp-list"></div>
+        <div style="padding:8px 10px;border-top:1px solid #eee7d8;display:flex;gap:8px">
+          <select id="ap-comp-sel" style="flex:1;font-size:13px"></select>
+          <button type="button" class="btn-sm" style="background:#2563eb;color:#fff;border:none;font-weight:700;white-space:nowrap" onclick="apAddComp('ap-comp-list','ap-comp-sel')">＋ 入れる</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#5f5e5a;margin-top:4px;line-height:1.5">在庫はセット自体では持ちません。構成品の在庫から「作れる数」を自動計算します（一番少ない構成品に合わせます）。</div>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;cursor:pointer">
+        <input type="checkbox" id="ap-gift" onchange="apToggleGift()" style="width:18px;height:18px">
+        <span style="font-size:14px;font-weight:600">ギフト仕立てにする<br><span style="font-size:11px;font-weight:400;color:#5f5e5a">箱・紙袋込みでお届けするセット</span></span>
+      </label>
+      <div id="ap-gift-box" style="display:none;background:#fff;border:1px solid #e5e0d6;border-radius:10px;overflow:hidden;margin-top:6px">
+        <div style="padding:8px 10px;font-size:12px;font-weight:700;color:#5f5e5a;background:#fef3c7">② ギフトの資材（備品リストから選べます・要らなければ入れない）</div>
+        <div id="ap-supp-list"></div>
+        <div style="padding:8px 10px;border-top:1px solid #eee7d8;display:flex;gap:8px">
+          <select id="ap-supp-sel" style="flex:1;font-size:13px"></select>
+          <button type="button" class="btn-sm" style="background:#2563eb;color:#fff;border:none;font-weight:700;white-space:nowrap" onclick="apAddComp('ap-supp-list','ap-supp-sel')">＋ 入れる</button>
+        </div>
+        <div style="padding:7px 10px;font-size:11px;color:#8a5a1f;background:#fef3c7;border-top:1px solid #f3d9a8;line-height:1.5">ここに入れた資材の在庫も、セットと一緒に自動で引かれます。下の単価は<strong>資材代込み</strong>で決めてください。</div>
+      </div>
+    </div>
+
+    <!-- 単価（税抜き） -->
+    <div style="background:#fff;border:1px solid #e5e0d6;border-radius:8px;padding:8px 10px;margin-top:10px">
+      <div style="font-size:11px;font-weight:700;color:#5f5e5a">単価（すべて税抜き・あとで編集画面でも直せます）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:4px">
+        <div class="fg" style="margin-bottom:0"><label style="font-size:10px">定価（税抜き）</label><input type="text" inputmode="numeric" id="ap-p-general" placeholder="0" style="text-align:right"></div>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:10px">卸①（税抜き）</label><input type="text" inputmode="numeric" id="ap-p-w1" placeholder="0" style="text-align:right"></div>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:10px">卸②（税抜き）</label><input type="text" inputmode="numeric" id="ap-p-w2" placeholder="0" style="text-align:right"></div>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:10px">RT（税抜き）</label><input type="text" inputmode="numeric" id="ap-p-rt" placeholder="0" style="text-align:right"></div>
       </div>
     </div>
     <div class="g2">
@@ -2373,8 +2433,7 @@ function renderSpecialPriceList(){
 // ── 価格マスタ ────────────────────────────────────────────
 let priceMasterDirty = false;
 function togglePriceEditLock(){
-  const on = document.getElementById('price-edit-lock').checked;
-  document.querySelectorAll('#price-tbl-body input, #price-tbl-body select').forEach(i=>i.disabled = !on);
+  // 旧・編集ロック方式は廃止（編集は「✏️ 編集する」モーダルで行う）。互換のため関数だけ残す。
 }
 function markPriceDirty(){
   priceMasterDirty = true;
@@ -2429,36 +2488,90 @@ function buildMemoBtn(p){
   return '<span class="memo-btn '+cls+'" tabindex="0" onclick="openEditProductInfoModal(\''+esc(p.sku)+'\')" title="'+esc(p.name)+'の情報を編集">'+icon
        + '<span class="memo-pop">'+popHtml+'<br><span style="color:#a3b18a;font-style:italic;font-size:10px">クリックで編集</span></span></span>';
 }
+// ── 販売可能数の計算（在庫Bと同じ式：実在庫 − 旧ロット − 不良 − 取置）───────────
+function isActiveDefectB(d){
+  if(!d) return false;
+  if(d.status==='resolved' || d.status==='rejected') return false;
+  if(d.source==='warehouse' && !d.reviewed) return false;
+  if(d.level==='relabel' || d.level==='discard') return false;
+  return true;
+}
+function buildHoldsFromOrdersB(){
+  const result = [];
+  (orders||[]).forEach(function(o){
+    if(o.status!=='held') return;
+    (o.lines||[]).forEach(function(l){
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+      if(totalQty<=0) return;
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){
+          const cp = findProductBySku(c.sku);
+          if(cp) result.push({ pid:cp.id, qty: totalQty*(c.qty||1) });
+        });
+      } else {
+        result.push({ pid:p.id, qty: totalQty });
+      }
+    });
+  });
+  return result;
+}
+function computeStockPidMap(){
+  const m = {};
+  function ensure(pid){ if(!m[pid]) m[pid] = {stock:0, oldStock:0, defectQty:0, holdQty:0}; return m[pid]; }
+  (lots||[]).forEach(function(l){
+    if(!l || l.status==='incoming' || l.status==='discard') return;
+    const q = parseInt(l.stock!=null?l.stock:l.qty)||0;
+    const e = ensure(parseInt(l.pid)); e.stock += q; if(l.status==='old') e.oldStock += q;
+  });
+  (defects||[]).forEach(function(d){
+    if(!isActiveDefectB(d)) return;
+    const e = ensure(parseInt(d.pid)); e.defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0));
+  });
+  buildHoldsFromOrdersB().forEach(function(h){
+    const e = ensure(parseInt(h.pid)); e.holdQty += (h.qty||0);
+  });
+  return m;
+}
+function availableForSku(sku, pidMap){
+  const p = findProductBySku(sku);
+  if(!p) return 0;
+  if(p.isSet){
+    if(!p.components || !p.components.length) return 0;
+    return Math.min.apply(null, p.components.map(function(c){ return Math.floor(availableForSku(c.sku, pidMap)/(c.qty||1)); }));
+  }
+  const n = pidMap[p.id] || {stock:0, oldStock:0, defectQty:0, holdQty:0};
+  return Math.max(0, n.stock - n.oldStock - n.defectQty - n.holdQty);
+}
+
+// ── 価格マスタ表（見るだけの一覧。編集は「✏️ 編集する」のモーダルで）──────────
+function priceRecFor(sku){ return priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku] || {}; }
 function renderPriceTable(){
   const groups = productGroups();
-  const stockMap = computeTotalStockBySku();
+  const pidMap = computeStockPidMap();
   function buildRow(p, rowClass){
-    const rec = priceMaster.find(x=>x.sku===p.sku) || DEFAULT_PRICES[p.sku] || {};
+    const rec = priceRecFor(p.sku);
     const defaultTax = defaultTaxRateForGroup(p.group);
     const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
-    const isActive = isProductActive(p);
-    const stock = stockMap[p.sku] || 0;
+    const stock = availableForSku(p.sku, pidMap);
     const outOfStock = stock <= 0;
     let h = '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>';
-    h += '<td'+(outOfStock?' style="background:#fee2e2"':'')+'>'
-      + '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
-      + '<input type="checkbox" data-active-sku="'+p.sku+'" '+(isActive?'checked':'')+' disabled onchange="markPriceDirty()" style="width:16px;height:16px">'
-      + (outOfStock
-          ? '<span style="font-size:10px;color:#b91c1c;font-weight:700;white-space:nowrap">⚠️在庫0</span>'
-          : '<span style="font-size:10px;color:#15803d;font-weight:700;white-space:nowrap">在庫 '+stock+'</span>')
-      + '</label></td>';
-    h += '<td><input type="text" data-name-sku="'+esc(p.sku)+'" value="'+esc(p.name)+'" class="price-input" style="width:170px;font-weight:600;color:#2b2a26" disabled onchange="markPriceDirty()"> <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
+    h += '<td'+(outOfStock?' style="background:#fee2e2"':'')+' >'
+      + (isProductActive(p)
+          ? (outOfStock
+              ? '<span style="font-size:10px;color:#dc2626;font-weight:700;white-space:nowrap">⚠️販売可能0</span>'
+              : '<span style="font-size:10px;color:#16a34a;font-weight:700;white-space:nowrap">販売可能 '+stock+'</span>')
+          : '<span style="font-size:10px;color:#78350f;font-weight:700;white-space:nowrap">外し済み</span>')
+      + '</td>';
+    h += '<td><strong>'+esc(p.name)+'</strong> <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
     h += '<td>'+(p.boxQty||'-')+'</td>';
-    h += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:80px" disabled onchange="markPriceDirty()">'
-      + '<option value="0.08"'+(taxR===0.08?' selected':'')+'>8%</option>'
-      + '<option value="0.10"'+(taxR===0.10?' selected':'')+'>10%</option>'
-      + '</select></td>';
+    h += '<td>'+(taxR===0.10?'10%':'8%')+'</td>';
     ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
-      const key = 'price'+kind;
-      const val = rec[key] || 0;
-      h += '<td><input type="text" inputmode="numeric" data-price-sku="'+p.sku+'" data-price-kind="'+kind+'" value="'+val.toLocaleString()+'" class="price-input" disabled onchange="onPriceInputChanged(this,\''+p.sku+'\')">';
+      const val = rec['price'+kind] || 0;
+      h += '<td style="text-align:right">¥'+val.toLocaleString();
       if(p.boxQty && p.boxQty>1){
-        h += '<div style="font-size:10px;color:#2b2a26;margin-top:2px" data-price-preview="'+p.sku+'_'+kind+'">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
+        h += '<div style="font-size:10px;color:#2b2a26;margin-top:2px">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
       }
       h += '</td>';
     });
@@ -2476,17 +2589,13 @@ function renderPriceTable(){
   });
   if(retired.length){
     html += '<tr class="retired-head-row"><td colspan="9" style="background:#f5f5f3;padding:0;border-top:2px solid #e5e1d8">'
-      + '<button type="button" onclick="toggleRetiredProducts()" id="retired-toggle-btn" style="width:100%;text-align:left;background:none;border:none;padding:11px 14px;font-size:14px;font-weight:700;color:#78350f;cursor:pointer">▶ 取り下げた商品（過去の商品）'+retired.length+'件（クリックで開く）</button>'
+      + '<button type="button" onclick="toggleRetiredProducts()" id="retired-toggle-btn" style="width:100%;text-align:left;background:none;border:none;padding:11px 14px;font-size:14px;font-weight:700;color:#78350f;cursor:pointer">▶ 外した商品（過去の商品）'+retired.length+'件（クリックで開く）</button>'
       + '</td></tr>';
     retired.forEach(function(p){ html += buildRow(p, 'retired-row'); });
   }
   document.getElementById('price-tbl-body').innerHTML = html;
   var rr = document.querySelectorAll('#price-tbl-body .retired-row');
   for(var i=0;i<rr.length;i++){ rr[i].style.display = 'none'; }
-  var lock = document.getElementById('price-edit-lock');
-  if(lock && lock.checked){
-    document.querySelectorAll('#price-tbl-body input, #price-tbl-body select').forEach(function(i){ i.disabled = false; });
-  }
 }
 function toggleRetiredProducts(){
   var rows = document.querySelectorAll('#price-tbl-body .retired-row');
@@ -2494,70 +2603,137 @@ function toggleRetiredProducts(){
   if(!rows.length) return;
   var show = rows[0].style.display === 'none';
   for(var i=0;i<rows.length;i++){ rows[i].style.display = show ? '' : 'none'; }
-  if(btn){ btn.textContent = (show?'▼':'▶') + ' 取り下げた商品（過去の商品）' + rows.length + '件' + (show?'（クリックで閉じる）':'（クリックで開く）'); }
+  if(btn){ btn.textContent = (show?'▼':'▶') + ' 外した商品（過去の商品）' + rows.length + '件' + (show?'（クリックで閉じる）':'（クリックで開く）'); }
 }
-async function savePriceMaster(){
-  if(!confirm('商品・価格マスターを保存しますか？\n（キャンセルを押せば、変更は保存されず元のままになります）')) return;
-  const rows = {};
-  document.querySelectorAll('[data-price-sku]').forEach(function(inp){
-    const sku = inp.getAttribute('data-price-sku');
-    const kind = inp.getAttribute('data-price-kind');
-    if(!rows[sku]){
-      const p = findProductBySku(sku);
-      rows[sku] = { sku: sku, productName: p?p.name:sku };
-    }
-    if(kind==='TaxRate') rows[sku].taxRate = parseFloat(inp.value)||0.08;
-    else rows[sku]['price'+kind] = parsePriceInputValue(inp.value);
+
+// ── ✏️ 編集モーダル ─────────────────────────────────────────────
+let pendingNewProducts = [];   // 追加待ちの新商品（保存で確定）
+let editRemovedMap = {};       // 編集中の「外す」状態 {sku: true=外す}
+function openMasterEditModal(){
+  pendingNewProducts = [];
+  editRemovedMap = {};
+  PRODUCTS.forEach(function(p){ editRemovedMap[p.sku] = !isProductActive(p); });
+  renderPriceTableEdit();
+  priceMasterDirty = false;
+  document.getElementById('master-edit-modal').classList.add('open');
+}
+function renderPriceTableEdit(){
+  const groups = productGroups();
+  let html = '';
+  function editRow(p, isNew){
+    const rec = isNew ? (p._prices||{}) : priceRecFor(p.sku);
+    const defaultTax = defaultTaxRateForGroup(p.group);
+    const taxR = isNew ? (p._taxRate!=null?p._taxRate:defaultTax) : (rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax);
+    const removed = !!editRemovedMap[p.sku];
+    let h = '<tr data-edit-sku="'+esc(p.sku)+'"'+(isNew?' style="background:#eef6ee"':'')+(removed?' style="opacity:0.45"':'')+'>';
+    h += '<td><button type="button" class="btn-sm" style="color:#2563eb;border-color:#93b4e6;font-weight:700" onclick="toggleRowRemoved(\''+esc(p.sku)+'\',this)">'+(removed?'戻す':'外す')+'</button></td>';
+    h += '<td><input type="text" data-name-sku="'+esc(p.sku)+'" value="'+esc(p.name)+'" class="price-input" style="width:190px;font-weight:600;color:#2b2a26"> <span class="sku-tag">'+esc(p.sku)+'</span>'+(isNew?' <span style="font-size:10px;color:#15803d;font-weight:700">新規'+(p.isSet?'・セット':'')+'</span>':'')+'</td>';
+    h += '<td>'+(p.boxQty||'-')+'</td>';
+    h += '<td><select data-price-sku="'+p.sku+'" data-price-kind="TaxRate" class="price-input" style="width:76px" onchange="markPriceDirty()">'
+      + '<option value="0.08"'+(taxR!==0.10?' selected':'')+'>8%</option>'
+      + '<option value="0.10"'+(taxR===0.10?' selected':'')+'>10%</option>'
+      + '</select></td>';
+    ['General','Wholesale1','Wholesale2','RT','Defect'].forEach(function(kind){
+      const val = rec['price'+kind] || 0;
+      h += '<td><input type="text" inputmode="numeric" data-price-sku="'+p.sku+'" data-price-kind="'+kind+'" value="'+val.toLocaleString()+'" class="price-input" onchange="onPriceInputChanged(this,\''+p.sku+'\')"></td>';
+    });
+    h += '</tr>';
+    return h;
+  }
+  Object.keys(groups).forEach(function(g){
+    html += '<tr><td colspan="9" class="group-header">'+esc(g)+'</td></tr>';
+    groups[g].forEach(function(p){ html += editRow(p, false); });
   });
-  const newMaster = Object.values(rows);
-  // 「取り扱い中」チェックの状態を集める
-  const activeMap = {};
-  document.querySelectorAll('[data-active-sku]').forEach(function(cb){
-    activeMap[cb.getAttribute('data-active-sku')] = cb.checked;
-  });
-  // 商品名の変更を集める（SKU＝品番は変更不可のまま。名前だけ安全に変える）
+  if(pendingNewProducts.length){
+    html += '<tr><td colspan="9" class="group-header" style="background:#dcfce7;color:#14532d">🆕 今回追加する商品（保存で確定）</td></tr>';
+    pendingNewProducts.forEach(function(p){ html += editRow(p, true); });
+  }
+  document.getElementById('price-tbl-body-edit').innerHTML = html;
+}
+function toggleRowRemoved(sku, btn){
+  editRemovedMap[sku] = !editRemovedMap[sku];
+  const tr = btn.closest('tr');
+  tr.style.opacity = editRemovedMap[sku] ? '0.45' : '1';
+  btn.textContent = editRemovedMap[sku] ? '戻す' : '外す';
+  markPriceDirty();
+}
+function cancelMasterEdit(){
+  if(priceMasterDirty || pendingNewProducts.length){
+    if(!confirm('保存していない変更は消えます。やめますか？')) return;
+  }
+  pendingNewProducts = [];
+  priceMasterDirty = false;
+  document.getElementById('master-edit-modal').classList.remove('open');
+}
+async function saveMasterEdits(){
+  // 商品名の収集（空ガード＋変更確認）
   const nameMap = {};
   const nameChanges = [];
   let emptyName = false;
-  document.querySelectorAll('[data-name-sku]').forEach(function(inp){
+  document.querySelectorAll('#price-tbl-body-edit [data-name-sku]').forEach(function(inp){
     const sku = inp.getAttribute('data-name-sku');
     const newName = (inp.value||'').trim();
     if(newName === ''){ emptyName = true; return; }
     nameMap[sku] = newName;
     const cur = findProductBySku(sku);
-    const oldName = cur ? cur.name : '';
-    if(oldName && newName !== oldName){ nameChanges.push('・'+oldName+' → '+newName); }
+    if(cur && cur.name && newName !== cur.name){ nameChanges.push('・'+cur.name+' → '+newName); }
   });
   if(emptyName){ alert('商品名が空の欄があります。商品名は空にできません。'); return; }
-  if(nameChanges.length){
-    if(!confirm('次の商品名を変更します。よろしいですか？\n\n'+nameChanges.join('\n')+'\n\n※SKU（品番）は変わりません。過去の受注・見積・在庫とのつながりは保たれます。')) return;
-  }
+  let msg = '編集を保存しますか？';
+  if(nameChanges.length) msg += '\n\n【商品名の変更】\n'+nameChanges.join('\n')+'\n※SKU（品番）は変わりません。過去の受注・見積・在庫とのつながりは保たれます。';
+  if(pendingNewProducts.length) msg += '\n\n【新しく追加する商品】\n'+pendingNewProducts.map(function(p){return '・'+p.name+'（'+p.sku+'）';}).join('\n');
+  const removedNow = Object.keys(editRemovedMap).filter(function(s){ const cur=findProductBySku(s); return editRemovedMap[s] && cur && isProductActive(cur); });
+  if(removedNow.length) msg += '\n\n【外す商品】\n'+removedNow.map(function(s){const c=findProductBySku(s);return '・'+(c?c.name:s);}).join('\n');
+  if(!confirm(msg)) return;
+  // 価格の収集（編集モーダルの入力から）
+  const rows = {};
+  document.querySelectorAll('#price-tbl-body-edit [data-price-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-price-sku');
+    const kind = inp.getAttribute('data-price-kind');
+    if(!rows[sku]){
+      rows[sku] = { sku: sku, productName: nameMap[sku] || sku };
+    }
+    if(kind==='TaxRate') rows[sku].taxRate = parseFloat(inp.value)||0.08;
+    else rows[sku]['price'+kind] = parsePriceInputValue(inp.value);
+  });
+  const newMaster = Object.values(rows);
   showSyncStatus('保存しています...');
   try{
-    // 商品マスタの「取り扱い中」フラグを保存（他の端末での変更を上書きしないよう、直前に最新を取り直す）
+    // 直前に最新の商品リストを取り直す（他端末の変更を上書きしない）
     const freshProdRes = await fetch(GAS_URL + '?action=loadProducts');
     const freshProdData = await freshProdRes.json();
-    if(freshProdData.status === 'ok' && Array.isArray(freshProdData.products)){
-      const freshProducts = freshProdData.products;
-      freshProducts.forEach(function(p){
-        if(Object.prototype.hasOwnProperty.call(activeMap, p.sku)){
-          p.active = activeMap[p.sku];
-        }
-        if(Object.prototype.hasOwnProperty.call(nameMap, p.sku)){
-          p.name = nameMap[p.sku];
-        }
-      });
-      const saveProdRes = await fetch(GAS_URL, {
-        method:'POST',
-        body: JSON.stringify({ action:'saveProducts', products: freshProducts }),
-        headers: {'Content-Type':'text/plain;charset=utf-8'}
-      });
-      const saveProdData = await saveProdRes.json();
-      if(saveProdData.status === 'ok'){
-        applyLoadedProducts(freshProducts, saveProdData.extraFields);
-        saveProductsToCache(freshProducts, saveProdData.extraFields);
-      }
+    if(freshProdData.status !== 'ok' || !Array.isArray(freshProdData.products)){
+      showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return;
     }
+    const freshProducts = freshProdData.products;
+    let maxId = 0, maxSort = 0;
+    freshProducts.forEach(function(p){
+      if(parseInt(p.id)>maxId) maxId = parseInt(p.id);
+      if(parseInt(p.sortOrder)>maxSort) maxSort = parseInt(p.sortOrder);
+      if(Object.prototype.hasOwnProperty.call(nameMap, p.sku)) p.name = nameMap[p.sku];
+      if(Object.prototype.hasOwnProperty.call(editRemovedMap, p.sku)) p.active = !editRemovedMap[p.sku];
+    });
+    // 追加待ちの新商品（SKU重複は最新側を優先してスキップ）
+    const skipped = [];
+    pendingNewProducts.forEach(function(np){
+      if(freshProducts.some(function(p){ return p.sku===np.sku; })){ skipped.push(np.sku); return; }
+      maxId += 1; maxSort += 1;
+      freshProducts.push({
+        id:maxId, sku:np.sku, name:nameMap[np.sku]||np.name, group:np.group,
+        boxQty:np.boxQty, noWholesale:!!np.noWholesale, isSet:!!np.isSet,
+        components:np.components||[], jan:'', origin:np.origin||'', container:np.container||'',
+        sortOrder:maxSort, memo:np.memo||'', active:!editRemovedMap[np.sku], extras:np.extras||{}
+      });
+    });
+    const saveProdRes = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveProducts', products: freshProducts }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const saveProdData = await saveProdRes.json();
+    if(saveProdData.status !== 'ok'){ showSyncStatus('⚠️ 商品マスタの保存に失敗しました', true); return; }
+    applyLoadedProducts(freshProducts, saveProdData.extraFields || freshProdData.extraFields);
+    saveProductsToCache(freshProducts, saveProdData.extraFields || freshProdData.extraFields);
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: newMaster }),
@@ -2567,8 +2743,9 @@ async function savePriceMaster(){
     if(data.status==='ok'){
       priceMaster = newMaster;
       priceMasterDirty = false;
-      document.getElementById('price-dirty-indicator').textContent = '';
-      showSyncStatus('✅ 商品・価格マスターを保存しました');
+      pendingNewProducts = [];
+      document.getElementById('master-edit-modal').classList.remove('open');
+      showSyncStatus('✅ 編集を保存しました'+(skipped.length?'（SKU重複でスキップ：'+skipped.join(', ')+'）':''));
       renderInvoiceList();
       renderPriceTable();
     } else { showSyncStatus('⚠️ 保存に失敗しました', true); }
@@ -2604,6 +2781,13 @@ function openAddProductModal(){
   document.getElementById('ap-new-group-wrap').style.display = 'none';
   document.getElementById('ap-save-btn').disabled = true;
   document.getElementById('ap-save-warn').textContent = '※SKUと商品名とグループを入力すると保存できます';
+  // タイプ初期化（ふつうの商品）＋セット欄リセット＋単価欄リセット
+  document.getElementById('ap-comp-list').innerHTML = '';
+  document.getElementById('ap-supp-list').innerHTML = '';
+  document.getElementById('ap-gift').checked = false;
+  document.getElementById('ap-gift-box').style.display = 'none';
+  ['ap-p-general','ap-p-w1','ap-p-w2','ap-p-rt'].forEach(function(id){ document.getElementById(id).value=''; });
+  apSetType('normal');
   document.getElementById('add-product-modal').classList.add('open');
 }
 function closeAddProductModal(){
@@ -2634,7 +2818,7 @@ function onAddProductInput(){
     warn.style.color = '#dc2626';
     return;
   }
-  if(PRODUCTS.some(p=>p.sku===sku)){
+  if(PRODUCTS.some(p=>p.sku===sku) || pendingNewProducts.some(p=>p.sku===sku)){
     btn.disabled = true;
     warn.textContent = '⚠️ そのSKUはすでに使われています。別のSKUにしてください';
     warn.style.color = '#dc2626';
@@ -2643,73 +2827,116 @@ function onAddProductInput(){
   btn.disabled = false;
   warn.textContent = '';
 }
-async function saveNewProduct(){
+let apType = 'normal';
+function apSetType(t){
+  apType = t;
+  document.getElementById('ap-type-normal').style.background = (t==='normal')?'#2563eb':'#fff';
+  document.getElementById('ap-type-normal').style.color = (t==='normal')?'#fff':'#1d4ed8';
+  document.getElementById('ap-type-set').style.background = (t==='set')?'#2563eb':'#fff';
+  document.getElementById('ap-type-set').style.color = (t==='set')?'#fff':'#1d4ed8';
+  document.getElementById('ap-set-fields').style.display = (t==='set')?'block':'none';
+  // 例文もタイプに合わせて切り替え
+  document.getElementById('ap-sku').placeholder = (t==='set')?'例：SET-SUMMER26':'例：ORG500';
+  document.getElementById('ap-name').placeholder = (t==='set')?'例：夏の2本セット':'例：オルガニック 500ml';
+  if(t==='set'){
+    apFillCompSelects();
+    const g = document.getElementById('ap-group');
+    if(g && !g.value){
+      for(let k=0;k<g.options.length;k++){ if(g.options[k].value==='セット商品'){ g.value='セット商品'; break; } }
+    }
+  }
+  onAddProductInput();
+}
+function apFillCompSelects(){
+  const compSel = document.getElementById('ap-comp-sel');
+  const suppSel = document.getElementById('ap-supp-sel');
+  const contents = PRODUCTS.filter(function(p){ return isProductActive(p) && !p.isSet && p.group!=='ギフト箱・備品'; });
+  const supplies = PRODUCTS.filter(function(p){ return isProductActive(p) && !p.isSet && p.group==='ギフト箱・備品'; });
+  compSel.innerHTML = contents.map(function(p){ return '<option value="'+esc(p.sku)+'">'+esc(p.name)+'</option>'; }).join('');
+  suppSel.innerHTML = supplies.length
+    ? supplies.map(function(p){ return '<option value="'+esc(p.sku)+'">'+esc(p.name)+'</option>'; }).join('')
+    : '<option value="">（備品グループに商品がありません）</option>';
+}
+function apToggleGift(){
+  document.getElementById('ap-gift-box').style.display = document.getElementById('ap-gift').checked ? 'block' : 'none';
+}
+function apAddComp(listId, selId){
+  const sel = document.getElementById(selId);
+  const sku = sel.value;
+  if(!sku) return;
+  const p = findProductBySku(sku);
+  const d = document.createElement('div');
+  d.setAttribute('data-comp-sku', sku);
+  d.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-top:1px solid #eee7d8;font-size:13px';
+  d.innerHTML = '<span style="flex:1;font-weight:600">'+esc(p?p.name:sku)+'</span>'
+    + '<span style="font-size:11px;color:#5f5e5a">×</span>'
+    + '<input type="number" min="1" value="1" data-comp-qty style="width:56px;text-align:center;padding:5px;border:1px solid #d5cfc3;border-radius:6px">'
+    + '<button type="button" class="btn-sm" style="color:#dc2626;border-color:#f0b0b0" onclick="this.parentNode.remove()">削除</button>';
+  document.getElementById(listId).appendChild(d);
+}
+function apCollectComps(){
+  const comps = [];
+  ['ap-comp-list','ap-supp-list'].forEach(function(listId){
+    document.querySelectorAll('#'+listId+' [data-comp-sku]').forEach(function(row){
+      const sku = row.getAttribute('data-comp-sku');
+      const qty = parseInt(row.querySelector('[data-comp-qty]').value)||1;
+      const ex = comps.find(function(c){ return c.sku===sku; });
+      if(ex) ex.qty += qty; else comps.push({ sku:sku, qty:qty });
+    });
+  });
+  return comps;
+}
+function saveNewProduct(){
+  // 「追加」＝保存待ちの新規行として編集画面に並べる（保存は「💾 編集を保存する」1回のみ）
   const sku = document.getElementById('ap-sku').value.trim().toUpperCase();
   const name = document.getElementById('ap-name').value.trim();
   const groupSel = document.getElementById('ap-group').value;
   const newGroup = document.getElementById('ap-new-group').value.trim();
   const group = groupSel === '__new__' ? newGroup : groupSel;
   const boxQty = parseInt(document.getElementById('ap-boxqty').value) || null;
-  const taxRate = parseFloat(document.getElementById('ap-taxrate').value) || 0.08;
-  const noWholesale = document.getElementById('ap-nowholesale').checked;
-  const origin = document.getElementById('ap-origin').value.trim();
-  const container = document.getElementById('ap-container').value.trim();
-  const memo = document.getElementById('ap-memo').value.trim();
-  // 追加情報を集める
+  if(!sku || !name || !group){ alert('SKU・商品名・グループは必須です'); return; }
+  if(!/^[A-Z0-9_-]+$/.test(sku)){ alert('SKUは半角英数字とハイフン・アンダースコアのみ使えます'); return; }
+  if(PRODUCTS.some(function(p){return p.sku===sku;}) || pendingNewProducts.some(function(p){return p.sku===sku;})){
+    alert('そのSKUはすでに使われています。別のSKUにしてください'); return;
+  }
+  let isSet = (apType==='set');
+  let components = [];
+  if(isSet){
+    components = apCollectComps();
+    if(!components.length){ alert('セットの中身（構成品）を1つ以上入れてください'); return; }
+    if(document.getElementById('ap-gift').checked){
+      const hasSupply = components.some(function(c){ const p=findProductBySku(c.sku); return p && p.group==='ギフト箱・備品'; });
+      if(!hasSupply && !confirm('「ギフト仕立て」ですが、資材（箱・紙袋）が入っていません。このまま追加しますか？')) return;
+    }
+  }
   const extras = {};
   document.querySelectorAll('[data-ap-extra]').forEach(function(inp){
-    const val = inp.value.trim();
-    if(val) extras[inp.getAttribute('data-ap-extra')] = val;
+    const v = inp.value.trim(); if(v) extras[inp.getAttribute('data-ap-extra')] = v;
   });
-  // 新しいidを決める（既存の最大＋10）
-  const maxId = PRODUCTS.reduce(function(m,p){ return Math.max(m, parseInt(p.id)||0); }, 0);
-  const newId = maxId + 10;
-  // 新しい表示順を決める（既存の最大＋10）
-  const maxSort = PRODUCTS.reduce(function(m,p){ return Math.max(m, parseInt(p.sortOrder)||0); }, 0);
-  const newSort = maxSort + 10;
-  const newProduct = {
-    id: newId, sku: sku, name: name, group: group,
-    boxQty: boxQty, noWholesale: noWholesale, isSet: false, components: [],
-    jan: '', origin: origin, container: container,
-    sortOrder: newSort, memo: memo, extras: extras
+  const np = {
+    sku:sku, name:name, group:group, boxQty:boxQty,
+    noWholesale: document.getElementById('ap-nowholesale').checked,
+    isSet:isSet, components:components,
+    origin: document.getElementById('ap-origin').value.trim(),
+    container: document.getElementById('ap-container').value.trim(),
+    memo: document.getElementById('ap-memo').value.trim(),
+    extras: extras,
+    _taxRate: parseFloat(document.getElementById('ap-taxrate').value)||0.08,
+    _prices: {
+      taxRate: parseFloat(document.getElementById('ap-taxrate').value)||0.08,
+      priceGeneral: parsePriceInputValue(document.getElementById('ap-p-general').value),
+      priceWholesale1: parsePriceInputValue(document.getElementById('ap-p-w1').value),
+      priceWholesale2: parsePriceInputValue(document.getElementById('ap-p-w2').value),
+      priceRT: parsePriceInputValue(document.getElementById('ap-p-rt').value),
+      priceDefect: 0
+    }
   };
-  if(!confirm('この内容で商品を追加しますか？\n\nSKU: '+sku+'\n商品名: '+name+'\nグループ: '+group+'\n\n（追加後は「商品・価格マスターを保存する」で単価を設定してください）')) return;
-
-  showSyncStatus('保存しています...');
-  try{
-    // 保存直前に最新の商品リストを取り直す（他の端末で追加されたものを上書きしないため）
-    const freshRes = await fetch(GAS_URL + '?action=loadProducts');
-    const freshData = await freshRes.json();
-    if(freshData.status !== 'ok'){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
-    const freshProducts = freshData.products || [];
-    // 重複チェック（他の端末で先に追加されていた場合）
-    if(freshProducts.some(p=>p.sku===sku)){
-      showSyncStatus('⚠️ このSKUは他の端末でもう追加されていました。取り直します。', true);
-      applyLoadedProducts(freshProducts, freshData.extraFields);
-      saveProductsToCache(freshProducts, freshData.extraFields);
-      closeAddProductModal();
-      return;
-    }
-    // 新商品を末尾に追加
-    freshProducts.push(newProduct);
-    const saveRes = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveProducts', products: freshProducts }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
-    const saveData = await saveRes.json();
-    if(saveData.status === 'ok'){
-      applyLoadedProducts(freshProducts, freshData.extraFields);
-      saveProductsToCache(freshProducts, freshData.extraFields);
-      showSyncStatus('✅ 商品を追加しました（'+sku+'）');
-      closeAddProductModal();
-      renderPriceTable();
-    } else {
-      showSyncStatus('⚠️ 保存に失敗しました：'+(saveData.message||''), true);
-    }
-  }catch(err){
-    showSyncStatus('⚠️ 通信エラーが発生しました', true);
-  }
+  pendingNewProducts.push(np);
+  editRemovedMap[sku] = false;
+  renderPriceTableEdit();
+  markPriceDirty();
+  closeAddProductModal();
+  showSyncStatus('🆕 「'+name+'」を編集画面に並べました（保存で確定）');
 }
 
 // ── 商品情報を編集：モーダル（📝アイコンをクリックすると開く） ────────────────────────
