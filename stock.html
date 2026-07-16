@@ -1467,17 +1467,26 @@ function renderStockEditPanel(){
   html += '<div class="sep-row"><label style="color:#12406e">輸入予定を入れる</label><input id="sep-inc" type="number" min="0" value="'+n.incoming+'" style="border-color:#7ba7d6"><span class="unit">本</span></div>';
   html += '<button class="sep-btn" style="margin-bottom:12px" onclick="sepSetIncoming()">輸入予定を設定する</button>';
 
-  // 在庫調整（ロック＋確認）
-  html += '<div class="sep-lbl">在庫調整（倉庫と数がズレた時だけ）</div>';
-  html += '<div style="font-size:11px;color:#9a958c;margin-bottom:7px">ふだんの受注・出荷では触りません。</div>';
+  // 数合わせ（ロック＋確認）
+  html += '<div class="sep-lbl">数合わせ（見つかったり、紛失したりの帳尻合わせ）</div>';
+  html += '<div style="font-size:11px;color:#9a958c;margin-bottom:7px">倉庫の実数とズレた時だけ。ふだんの受注・出荷では触りません。</div>';
   if(!sepAdjustOpen){
-    html += '<button class="sep-adjbtn" style="margin-bottom:12px" onclick="sepUnlockAdjust()">🔒 在庫を調整する</button>';
+    html += '<button class="sep-adjbtn" style="margin-bottom:12px" onclick="sepUnlockAdjust()">🔒 数合わせをする</button>';
   } else {
     html += '<div style="background:#f4f2ec;border:1px dashed #c9c4b8;border-radius:9px;padding:11px;margin-bottom:12px">'+
-      '<div style="font-size:11px;color:#3f4a1f;margin-bottom:8px">倉庫の実数に合わせて直す分だけ入れてください。</div>'+
-      '<div class="sep-row"><label style="color:#14532d">＋ 入庫</label><input id="sep-in" type="number" min="0" value="0" style="border-color:#8ac09a"><span class="unit">本</span></div>'+
-      '<div class="sep-row"><label style="color:#7f1d1d">－ 出庫</label><input id="sep-out" type="number" min="0" value="0" style="border-color:#e0a0a0"><span class="unit">本</span></div>'+
-      '<button class="sep-btn" onclick="sepApplyAdjust()">この差の分を反映する</button>'+
+      '<div style="font-size:11px;color:#3f4a1f;margin-bottom:6px">① どの在庫か選ぶ</div>'+
+      '<select id="sep-recon-bucket" onchange="sepReconPreview()" style="width:100%;height:38px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 8px;margin-bottom:10px">'+
+        '<option value="new">正規（ふつうに売れる）</option>'+
+        '<option value="old">旧ロット</option>'+
+        '<option value="lv1">不良・軽</option>'+
+        '<option value="lv2">不良・中</option>'+
+        '<option value="lv3">不良・重</option>'+
+      '</select>'+
+      '<div style="font-size:11px;color:#3f4a1f;margin-bottom:6px">② 何本?</div>'+
+      '<div class="sep-row"><label style="color:#14532d">＋ 増やす</label><input id="sep-recon-plus" type="number" min="0" value="0" oninput="sepReconPreview()" style="border-color:#8ac09a"><span class="unit">本</span></div>'+
+      '<div class="sep-row"><label style="color:#7f1d1d">− 減らす</label><input id="sep-recon-minus" type="number" min="0" value="0" oninput="sepReconPreview()" style="border-color:#e0a0a0"><span class="unit">本</span></div>'+
+      '<div id="sep-recon-preview" style="background:#eef4e6;border:1px solid #cfd9b6;border-radius:10px;padding:11px;margin:10px 0"></div>'+
+      '<button class="sep-btn" onclick="sepApplyReconcile()">この数合わせを反映する</button>'+
     '</div>';
   }
 
@@ -1488,6 +1497,7 @@ function renderStockEditPanel(){
   '</div>';
 
   box.innerHTML = html;
+  if(sepAdjustOpen && document.getElementById('sep-recon-preview')) sepReconPreview();
 }
 
 // 旧・不良をまとめて登録
@@ -1603,30 +1613,77 @@ function sepUnlockAdjust(){
   sepAdjustOpen = true;
   renderStockEditPanel();
 }
-function sepApplyAdjust(){
+function sepReconPreview(){
+  var el = document.getElementById('sep-recon-preview'); if(!el) return;
+  var pid = sepPid; if(pid==null) return;
+  var n = computeStockNumbers(pid);
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
+  var delta = sepReadInt('sep-recon-plus') - sepReadInt('sep-recon-minus');
+  var newStock = Math.max(0, n.stock + delta);
+  var newAvail = (bucket==='new') ? Math.max(0, n.avail + delta) : n.avail;
+  var note = (bucket==='new')
+    ? '正規は売れる在庫。実在庫も販売可能も動きます。'
+    : '選んだ在庫は「販売可能」から外れる分なので、実在庫だけ動いて、販売可能は変わりません。';
+  function arrow(a,b){ var c=(b>a)?'#166534':(b<a?'#b91c1c':'#6b665d'); var d=(b-a); var ds=(d>0?'（＋'+d+'）':(d<0?'（'+d+'）':'（変わらず）')); return a+' → <span style="color:'+c+'">'+b+'</span> <span style="font-size:12px;color:'+c+'">'+ds+'</span>'; }
+  el.innerHTML =
+    '<div style="font-size:12px;font-weight:700;color:#3f4a1f;margin-bottom:8px">押すと、こう変わります 👇</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span>実在庫</span><span style="font-weight:700">'+arrow(n.stock,newStock)+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:14px"><span>販売可能</span><span style="font-weight:700">'+arrow(n.avail,newAvail)+'</span></div>'+
+    '<div style="font-size:11px;color:#3f4a1f;margin-top:8px;line-height:1.5">'+note+'</div>';
+}
+// 数合わせ：どの在庫か選んで、増やす／減らす。実在庫・販売可能が正しく動くように配線。
+var SEP_BUCKET_LABEL = {'new':'正規','old':'旧ロット','lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重'};
+function sepReconAdd(pid, bucket, qty){
+  var p = findProduct(pid);
+  function ensureLot(status, note){
+    var lot = lots.find(function(l){ return l.pid==pid && l.status===status; });
+    if(!lot){ lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:status, note:note||'' }; lots.push(lot); }
+    return lot;
+  }
+  if(bucket==='new'){ var ln=ensureLot('new','数合わせ'); ln.stock=(ln.stock||0)+qty; return qty; }
+  if(bucket==='old'){ var lo=ensureLot('old','数合わせで旧に追加'); lo.stock=(lo.stock||0)+qty; return qty; }
+  // 不良：物理在庫を足して（実在庫＋）、不良の記録も足す（販売可能は±0）
+  var lp=ensureLot('new','数合わせ（不良）'); lp.stock=(lp.stock||0)+qty;
+  var sealMap = {'lv1':'軽','lv2':'中','lv3':'重'};
+  defects.push({ id: nextId(), pid: parseInt(pid), productName:p.name, lotId:'', qty:qty, cat:'', note:'数合わせで追加', status:'open', shippedQty:0, level:bucket, seal:(sealMap[bucket]||'中'), reportedAt:new Date().toISOString(), source:'staff', reviewed:true });
+  return qty;
+}
+function sepReconRemove(pid, bucket, qty){
+  var remain = qty;
+  if(bucket==='new' || bucket==='old'){
+    var st = (bucket==='new') ? 'new' : 'old';
+    var cand = lots.filter(function(l){ return l.pid==pid && l.status===st && (l.stock||0)>0; })
+      .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); });
+    cand.forEach(function(l){ if(remain<=0) return; var take=Math.min(l.stock||0, remain); l.stock=(l.stock||0)-take; remain-=take; });
+    return qty - remain;
+  }
+  // 不良：不良記録を減らし、同じ本数だけ物理在庫も減らす（実在庫－・販売可能±0）
+  var reducedDef = sepReturnDefect(pid, bucket, qty);
+  var rank = { 'new':0, 'supply':1, 'old':2 };
+  var pLots = lots.filter(function(l){ return l.pid==pid && l.status!=='incoming' && l.status!=='discard' && (l.stock||0)>0; })
+    .sort(function(a,b){ var ra=(rank[a.status]==null?9:rank[a.status]), rb=(rank[b.status]==null?9:rank[b.status]); return ra-rb; });
+  var pr = reducedDef;
+  for(var i=0;i<pLots.length && pr>0;i++){ var take=Math.min(pLots[i].stock||0, pr); pLots[i].stock=(pLots[i].stock||0)-take; pr-=take; }
+  return reducedDef;
+}
+function sepApplyReconcile(){
   var pid = sepPid; if(pid==null) return;
   var p = findProduct(pid);
-  var inN = sepReadInt('sep-in'), outN = sepReadInt('sep-out');
-  if(inN<=0 && outN<=0){ alert('入庫か出庫の本数を入れてください'); return; }
-  var msgs = [];
-  if(inN>0){
-    var lot = lots.find(function(l){ return l.pid==pid && l.status==='new'; });
-    if(!lot){ lot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'new', note:'' }; lots.push(lot); }
-    lot.stock = (lot.stock||0) + inN;
-    addLog('入庫（在庫調整）', p.name+'　+'+inN+'本'); msgs.push('+'+inN+'本');
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
+  var delta = sepReadInt('sep-recon-plus') - sepReadInt('sep-recon-minus');
+  var label = SEP_BUCKET_LABEL[bucket] || bucket;
+  if(delta===0){ alert('増やす、または減らす本数を入れてください'); return; }
+  var done = 0;
+  if(delta>0){ done = sepReconAdd(pid, bucket, delta); }
+  else {
+    done = sepReconRemove(pid, bucket, -delta);
+    if(done < -delta) showSyncStatus('⚠️ '+p.name+'の'+label+'は足りず、'+done+'本だけ減らしました', true);
   }
-  if(outN>0){
-    var rank = { 'new':0, 'supply':1, 'old':2 };
-    var pLots = lots.filter(function(l){ return l.pid==pid && l.status!=='incoming' && l.status!=='discard' && (l.stock||0)>0; })
-                    .sort(function(a,b){ var ra=(rank[a.status]==null?9:rank[a.status]), rb=(rank[b.status]==null?9:rank[b.status]); return ra-rb; });
-    var remaining = outN;
-    for(var i=0;i<pLots.length && remaining>0;i++){ var take=Math.min(pLots[i].stock||0, remaining); pLots[i].stock=(pLots[i].stock||0)-take; remaining-=take; }
-    var reduced = outN - remaining;
-    addLog('出庫（在庫調整）', p.name+'　-'+reduced+'本'); msgs.push('-'+reduced+'本');
-    if(remaining>0) showSyncStatus('⚠️ '+p.name+'は在庫が足りず、'+reduced+'本だけ減らしました', true);
-  }
-  renderInvTable(); renderLotList(); renderInvLogs(); scheduleAutoSave();
-  showSyncStatus('✅ '+p.name+'　在庫調整 '+msgs.join('、'));
+  if(done===0){ alert('反映できる在庫がありませんでした（'+label+'の残りをご確認ください）'); renderStockEditPanel(); return; }
+  var sign = (delta>0)?'＋':'−';
+  addLog('数合わせ', p.name+'　'+label+'　'+sign+done+'本');
+  renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'　'+label+' を '+sign+done+'本 数合わせしました');
   sepAdjustOpen = false;
   renderStockEditPanel();
 }
