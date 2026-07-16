@@ -154,8 +154,8 @@ tr:last-child td{border-bottom:none}
 .sep-row label{flex:1;font-size:14px;font-weight:700}
 .sep-row input{width:74px;height:38px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:18px;font-weight:700;color:#2b2a26;text-align:center;padding:0 4px}
 .sep-row .unit{font-size:13px;color:#6b665d;width:18px}
-.sep-btn{display:block;width:100%;font-size:16px;font-weight:700;padding:13px;border-radius:10px;text-align:center;border:1px solid #6b7a3a;background:#6b7a3a;color:#fff;cursor:pointer;margin-top:4px}
-.sep-btn:hover{background:#55622e}
+.sep-btn{display:block;width:100%;font-size:16px;font-weight:700;padding:13px;border-radius:10px;text-align:center;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer;margin-top:4px}
+.sep-btn:hover{background:#1d4ed8}
 .sep-lbl{font-size:12px;font-weight:700;color:#6b665d;margin-bottom:6px}
 .sep-note{font-size:11px;color:#a06a6a;margin-top:9px;line-height:1.5}
 .sep-flow{background:#f6f8f1;border:1px solid #cfd9b6;border-radius:9px;padding:11px;margin:11px 0}
@@ -1417,6 +1417,12 @@ function closeStockEditPanel(){
   var ov = document.getElementById('sep-overlay'); if(ov) ov.classList.remove('open');
   sepPid = null; sepAdjustOpen = false;
 }
+// 編集を保存してポップを閉じる：2秒待たずに今すぐ保存を確定させてから閉じる（保存し忘れ・取りこぼしを防ぐ）
+function sepSaveAndClose(){
+  if(autoSaveTimer){ clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+  saveAllDataToGAS();
+  closeStockEditPanel();
+}
 
 function renderStockEditPanel(){
   var pid = sepPid; if(pid==null) return;
@@ -1458,14 +1464,14 @@ function renderStockEditPanel(){
     '<div class="sep-row"><label style="color:#993c1d">不良・軽 → 販売可能</label><input id="sep-ret-lv1" type="number" min="0" value="0" style="border-color:#e0a58c"><span class="unit">本</span></div>'+
     '<div class="sep-row"><label style="color:#791f1f">不良・中 → 販売可能</label><input id="sep-ret-lv2" type="number" min="0" value="0" style="border-color:#e08585"><span class="unit">本</span></div>'+
     '<div class="sep-row"><label style="color:#501313">不良・重 → 販売可能</label><input id="sep-ret-lv3" type="number" min="0" value="0" style="border-color:#c07272"><span class="unit">本</span></div>'+
-    '<button class="sep-btn" style="background:#b45309;border-color:#b45309" onclick="sepSubmitRestore()">↩ 販売可能に戻す</button>'+
+    '<button class="sep-btn" onclick="sepSubmitRestore()">↩ 販売可能に戻す</button>'+
     '<div class="sep-note" style="color:#92400e">戻すと実在庫はそのまま。旧・不良の分が減って、販売可能が増えます。古い報告から順に戻します。</div>'+
   '</div>';
 
   // 輸入
   html += '<div class="sep-lbl">輸入</div>';
   html += '<div class="sep-row"><label style="color:#12406e">輸入予定を入れる</label><input id="sep-inc" type="number" min="0" value="'+n.incoming+'" style="border-color:#7ba7d6"><span class="unit">本</span></div>';
-  html += '<button class="sep-adjbtn" style="border-color:#185fa5;background:#dbeafe;color:#12406e;margin-bottom:12px" onclick="sepSetIncoming()">輸入予定を設定する</button>';
+  html += '<button class="sep-btn" style="margin-bottom:12px" onclick="sepSetIncoming()">輸入予定を設定する</button>';
 
   // 在庫調整（ロック＋確認）
   html += '<div class="sep-lbl">在庫調整（倉庫と数がズレた時だけ）</div>';
@@ -1486,6 +1492,11 @@ function renderStockEditPanel(){
     '<button class="sep-link" style="color:#7f1d1d" onclick="sepDiscard()">🗑 廃棄する</button>'+
     '<button class="sep-link" style="color:#185fa5" onclick="sepGoLot()">期限ごとに細かく → ロット管理</button>'+
   '</div>';
+
+  // 保存して閉じる（出口ボタン）
+  html += '<div style="border-top:2px dashed #e3e0d8;margin:12px 0 12px"></div>';
+  html += '<button class="sep-btn" onclick="sepSaveAndClose()">💾 編集を保存してポップを閉じる</button>';
+  html += '<div style="font-size:11px;color:#6b665d;text-align:center;margin-top:8px;line-height:1.5">押すと今の内容をすぐ保存して、この画面を閉じます。<br>（×や画面の外を押しても閉じられます）</div>';
 
   box.innerHTML = html;
 }
