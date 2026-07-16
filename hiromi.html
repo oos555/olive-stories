@@ -11,8 +11,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px}
 .app{max-width:900px;margin:0 auto;padding:1rem}
+/* ★2026-07-16 上のタグ（ヘッダー＋ナビ）を常に画面上に固定 */
+.oos-topbar{position:sticky;top:0;z-index:60;background:#faf7f2;padding-top:8px;margin:-8px 0 1.25rem}
 .oos-header{background:#c9a9a6;color:#4a3532;padding:14px 16px;font-size:16px;font-weight:bold;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",'Hiragino Sans',sans-serif;letter-spacing:.04em}
-.oos-nav{background:#fff;border:1px solid #e8e2d8;border-top:none;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-radius:0 0 12px 12px;margin-bottom:1.25rem}
+.oos-nav{background:#fff;border:1px solid #e8e2d8;border-top:none;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-radius:0 0 12px 12px;box-shadow:0 4px 10px rgba(80,70,50,.06)}
 .oos-nav a{color:#55622e;text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid #e8e2d8;border-radius:6px;background:#fff}
 .oos-nav a.current{background:#55622e;color:#fff;border-color:#55622e;font-weight:700}
 .oos-nav a:hover:not(.current){background:#eef0e5}
@@ -178,6 +180,19 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 @keyframes oosPostGlow{0%,100%{box-shadow:0 0 0 0 rgba(47,102,144,.5)}50%{box-shadow:0 0 0 6px rgba(47,102,144,0)}}
 .bd-post.glow{border-color:#2f6690;animation:oosPostGlow 1.2s infinite}
 .bd-new{font-size:10.5px;font-weight:900;color:#fff;background:#dc2626;border-radius:6px;padding:1px 7px;margin-left:6px}
+/* ★2026-07-16 追加：伝言板 最新1件表示・コンパクト・完了/返信/削除を一列・光を消す */
+.bd-dismiss{margin-left:auto;background:rgba(255,255,255,.92);color:#8a3a5e;border:none;border-radius:999px;padding:6px 13px;font-size:12px;font-weight:800;cursor:pointer;display:none}
+.bd-actrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.bd-actrow .bd-status{margin:0}
+.bd-actrow .bd-act.del{margin-left:auto}
+.bd-more{margin:2px 0 4px;font-size:12.5px;font-weight:800;color:#6d675c;background:#f4f0ea;border:1px solid #e3ddd2;border-radius:999px;padding:6px 13px;cursor:pointer}
+.sc-optrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.sc-red{font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;color:#dc2626;font-weight:700}
+.sc-red input{width:15px;height:15px}
+.sc-dt{font-size:11.5px;color:#57534e;display:flex;align-items:center;gap:5px}
+.sc-dt input[type=date]{padding:5px 8px;border:1px solid #d8cfc4;border-radius:8px;font-size:12px;color:#2b2a26}
+.sc-star{margin-left:auto;background:#c2761f;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:800;cursor:pointer}
+.sc-star:hover{background:#a9640f}
 
 /* ★2026-07-16 追加：やること＝箱をやめて箇条書き。見出し＋横線で今日/明日/今週/来週を区切る */
 .tb-head{font-size:13.5px;font-weight:800;padding:7px 2px 6px;border-bottom:2px solid #eadfce;margin:14px 0 3px;display:flex;align-items:center;gap:6px}
@@ -220,10 +235,11 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 <body>
 <div class="app">
 
-<header class="oos-header no-print">
+<div class="oos-topbar no-print">
+<header class="oos-header">
   <span>🗒️ ひろみ I</span>
 </header>
-<nav class="oos-nav no-print">
+<nav class="oos-nav">
   <a href="home.html">🏠 玄関</a>
   <a href="import.html">✈️ 輸入 E</a>
   <a href="documents.html">📂 書類 G</a>
@@ -231,6 +247,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
   <a class="current" id="nav-hiromi-tab" href="hiromi.html">🗒️ ひろみ I<span id="nav-board-badge" style="display:none;margin-left:5px;font-size:11px;font-weight:700">📌<span id="nav-board-count"></span></span></a>
   <a href="eigyo.html">💼 営業 K</a>
 </nav>
+</div>
 
 <div id="locked-view">
   <div class="card" style="max-width:400px;margin:2rem auto;text-align:center">
@@ -243,47 +260,49 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 
 <div id="unlocked-view" style="display:none">
 
-  <!-- スマホ用タブ -->
-  <div class="bd-tabs" id="bd-tabs">
-    <button class="bd-tab active" id="tab-board" onclick="bdShowTab('board')">💬 伝言板<span id="bd-tab-badge" style="display:none;color:#dc2626"> ●</span></button>
-    <button class="bd-tab" id="tab-mine" onclick="bdShowTab('mine')">📝 自分のメモ</button>
-  </div>
-
-  <div class="bd-split">
-  <!-- 左：伝言板 -->
-  <div class="bd-col-board active" id="col-board">
-    <div class="bd-wrap">
-      <div class="bd-head">
-        <div class="bd-brand">ひろみ ⇄ ゆか 伝言板</div>
-        <div class="bd-sub">LINEじゃなくて、ここでゆっくり伝える場所</div>
-      </div>
-      <div class="bd-purpose">🌙 夜18時以降・ちょっと長め・説明がいる連絡はここへ。<br><small>LINEの着信で手を止めなくて大丈夫。ゆかちゃんは翌朝ここを見ればOK。</small></div>
-      <div class="bd-composer">
-        <textarea id="bd-newtext" placeholder="ゆかちゃんへの用件を書く（自由に・長くてもOK）"></textarea>
-        <div class="bd-tools">
-          <button class="bd-chip" onclick="bdPickImage()">📷 写真</button>
-          <button class="bd-chip" onclick="bdAddLink()">🔗 リンク</button>
-          <button class="bd-chip" id="bd-planbtn" onclick="bdSetPlan()">📅 予定日</button>
-          <button class="bd-send" onclick="bdAdd()">はりだす</button>
-          <input type="file" id="bd-file" accept="image/*" style="display:none" onchange="bdOnFile(this)">
-        </div>
-        <div id="bd-pending" class="bd-pending" style="display:none"></div>
-      </div>
-      <div class="bd-feed" id="bd-feed"></div>
-      <div class="bd-donebar">
-        <button class="bd-donetoggle" id="bd-donetoggle" onclick="bdToggleDone()">▽ 終了したもの（<span id="bd-c-done">0</span>）を見る</button>
-        <span class="bd-retention">🗓 3日間だけ残ります</span>
-      </div>
-      <div class="bd-feed" id="bd-donefeed" style="display:none;max-height:none"></div>
+  <!-- ① なんでもメモ（一番上・普段のメモ。⭐で大切なメモへ） -->
+  <div class="scratch-card">
+    <h3>📝 なんでもメモ（ここに普段のメモを書く）</h3>
+    <textarea id="scratch-text" placeholder="思いついたこと・用事など、ここに自由に書く。済んだら消せばOK…" oninput="onScratchInput()"></textarea>
+    <div class="sc-optrow">
+      <label class="sc-red"><input type="checkbox" id="sc-red"><span>赤字にする</span></label>
+      <span class="sc-dt">思い出したい日 <input type="date" id="sc-date"></span>
+      <button class="sc-star" onclick="promoteScratch()">⭐ 大切なメモにする</button>
     </div>
+    <div class="sc-hint">書いた内容は自動保存。「⭐ 大切なメモにする」を押すと、下の「大切なメモ」に移ります。🔒 パスワード類（銀行・カード・暗証番号など）は書かないでください。</div>
   </div>
 
-  <!-- 右：自分のメモ（今までのやること・メモ一式） -->
-  <div class="bd-col-mine active" id="col-mine">
-    <div class="bd-mine-note">📝 ここは自分のメモ・予定です。上の伝言が増えても、こちらは動きません。</div>
+  <!-- ② 伝言板（最新1件だけ表示・コンパクト） -->
+  <div class="bd-wrap" style="margin-top:14px">
+    <div class="bd-head" style="display:flex;align-items:center;gap:10px">
+      <div>
+        <div class="bd-brand">ひろみ ⇄ ゆか 伝言板</div>
+        <div class="bd-sub">夜・長め・説明がいる連絡はここへ</div>
+      </div>
+      <button class="bd-dismiss" id="bd-dismiss" onclick="bdDismissGlow()">🔕 光を消す</button>
+    </div>
+    <div class="bd-composer">
+      <textarea id="bd-newtext" placeholder="ゆかちゃんへの用件を書く（自由に・長くてもOK）"></textarea>
+      <div class="bd-tools">
+        <button class="bd-chip" onclick="bdPickImage()">📷 写真</button>
+        <button class="bd-chip" onclick="bdAddLink()">🔗 リンク</button>
+        <button class="bd-chip" id="bd-planbtn" onclick="bdSetPlan()">📅 予定日</button>
+        <button class="bd-send" onclick="bdAdd()">はりだす</button>
+        <input type="file" id="bd-file" accept="image/*" style="display:none" onchange="bdOnFile(this)">
+      </div>
+      <div id="bd-pending" class="bd-pending" style="display:none"></div>
+    </div>
+    <div class="bd-feed" id="bd-feed"></div>
+    <div id="bd-more-wrap" style="padding:0 12px"></div>
+    <div class="bd-donebar" style="padding:0 12px 10px">
+      <button class="bd-donetoggle" id="bd-donetoggle" onclick="bdToggleDone()">▽ 終了したもの（<span id="bd-c-done">0</span>）を見る</button>
+      <span class="bd-retention">🗓 3日間だけ残ります</span>
+    </div>
+    <div class="bd-feed" id="bd-donefeed" style="display:none;max-height:none"></div>
+  </div>
 
-  <!-- やることリスト -->
-  <div class="card">
+  <!-- ③ やること -->
+  <div class="card" style="margin-top:14px">
     <div class="sec" style="margin-top:0">✅ やること</div>
     <div class="info-box" style="margin-bottom:12px">やることを書いて＋を押すと、下に入ります。文字を押すと取り消し線（＝済み）。各項目の右の「今日▾」を押すと、今日／明日／今週／来週に動かせます（同じ場所で「書き直し・終了・消す」もできます）。</div>
     <div class="todo-addbar">
@@ -297,46 +316,16 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
     </details>
   </div>
 
-  <!-- なんでもメモ（備忘録・自由に書ける） -->
-  <div class="scratch-card">
-    <h3>📝 なんでもメモ（とりあえず書く）</h3>
-    <textarea id="scratch-text" placeholder="思いついたこと・気になることを、ここに自由に書いておけます…" oninput="onScratchInput()"></textarea>
-    <div class="sc-hint">書くと自動で保存されます。🔒 パスワード類（銀行・カード・暗証番号など）は書かないでください。</div>
-  </div>
-
-  <!-- メモを書く（区分は選ばない。書いたあと★で大切にできる） -->
-  <div class="card">
-    <div class="sec" style="margin:0 0 10px">✏️ メモを書く</div>
-    <div class="info-box" style="background:#fdf2e0;border-color:#e6c9a0;font-size:11.5px;padding:8px 12px">🔒 <b>パスワード類（銀行・カード・暗証番号など）は書かないでください。</b></div>
-    <textarea id="memo-text" placeholder="例：プリモ印刷に朝一で電話する"></textarea>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-        <label style="font-size:12px;color:#2b2a26;display:flex;align-items:center;gap:5px"><input type="checkbox" id="memo-tell" style="width:16px;height:16px">誰かに伝える</label>
-        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="memo-red" style="width:16px;height:16px"><span style="color:#dc2626;font-weight:700">赤字にする</span></label>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <label style="font-size:11px;color:#57534e">思い出したい日</label>
-        <input type="date" id="memo-date">
-      </div>
-    </div>
-    <button class="btn btn-primary" style="margin-top:10px" onclick="addMemoUnified()">このメモを追加する</button>
-  </div>
-
-  <div class="card" id="alert-card" style="display:none">
-    <div class="sec" style="margin-top:0">🔔 リマインダー</div>
-    <div id="alert-list"></div>
-  </div>
-
-  <div class="card">
+  <!-- ④ 大切なメモ（上の⭐で溜まる） -->
+  <div class="card" style="margin-top:14px">
     <div class="shd"><span class="sec" style="margin:0">⭐ 大切なメモ（<span id="imp-count">0</span>）</span><button class="tog" id="imp-toggle" onclick="toggleImpSection()">隠す</button></div>
-    <div id="imp-list"></div>
-    <div class="shd" style="margin-top:14px"><span class="sec" style="margin:0">📋 ふつうのメモ（<span id="mm-count">0</span>）</span></div>
-    <div class="hint">↓ 書いたメモは「★大切にする」で上へ。どのメモも「✎編集」で書き直せます。</div>
-    <div id="memo-list"></div>
+    <div class="hint">上の「なんでもメモ」から「⭐ 大切なメモにする」を押したものが、ここに溜まります。</div>
+    <div id="alert-card" style="display:none;margin:8px 0">
+      <div class="sec" style="margin:0 0 6px;font-size:13px">🔔 今日・明日のリマインダー</div>
+      <div id="alert-list"></div>
+    </div>
+    <div id="imp-list" style="margin-top:8px"></div>
   </div>
-
-  </div><!-- /col-mine -->
-  </div><!-- /bd-split -->
 
 </div>
 
@@ -406,6 +395,18 @@ let bdPendingImg = '', bdPendingLink = '', bdPendingLinkLabel = '', bdPendingPla
 function bdEsc(v){ return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function bdSeen(){ try{ return JSON.parse(localStorage.getItem('oos_bd_seen')||'{}'); }catch(e){ return {}; } }
 function bdSaveSeen(o){ try{ localStorage.setItem('oos_bd_seen', JSON.stringify(o)); }catch(e){} }
+/* ★2026-07-16 追加：見た投稿の記録（光を止めるため。この端末基準） */
+function bdSeenPosts(){ try{ return JSON.parse(localStorage.getItem('oos_bd_seenposts')||'{}'); }catch(e){ return {}; } }
+function bdSaveSeenPosts(o){ try{ localStorage.setItem('oos_bd_seenposts', JSON.stringify(o)); }catch(e){} }
+let bdShowAll = false;   // 伝言板を「ぜんぶ表示」しているか（普段は最新1件だけ）
+/* ゆかからの未対応の投稿 or 新しい返信で、まだ「見た（消した）」記録がないものは光る */
+function bdIsGlowing(it){
+  if(it.status==='done') return false;
+  const seenP = bdSeenPosts(), seenR = bdSeen();
+  const newPost  = (it.from==='y') && !seenP[it.id];
+  const newReply = ((it.replies||[]).length > (seenR[it.id]||0));
+  return newPost || newReply;
+}
 
 function bdBadge(f){ return f==='h'
   ? '<span class="bd-badge h">ひろみ</span><span class="bd-arrow">→ ゆか</span>'
@@ -433,36 +434,74 @@ function bdRepliesBlock(it){
   }
   return h;
 }
+/* 返信の中身だけ（開閉ボタンは下の一列に置く） */
+function bdRepliesOnly(it){
+  let h = '<div class="bd-replies">';
+  (it.replies||[]).forEach(function(r){
+    h += '<div class="bd-reply"><span class="bd-rmini '+(r.from==='h'?'h':'y')+'">'+(r.from==='h'?'ひろみ':'ゆか')+'</span><span class="bd-rtext">'+bdEsc(r.text)+'</span></div>';
+  });
+  h += '<div class="bd-replybox"><input id="bd-reply-'+it.id+'" placeholder="返信を書く…" onkeydown="if(event.key===\'Enter\')bdAddReply(\''+it.id+'\')"><button onclick="bdAddReply(\''+it.id+'\')">送る</button></div>';
+  h += '</div>';
+  return h;
+}
 function bdPostHTML(it){
   let att='';
   if(it.img)  att += '<div class="bd-thumb" onclick="bdZoom(\''+it.id+'\')"><img src="'+it.img+'" alt="写真"></div>';
   let body = '<div class="bd-body">'+bdEsc(it.text);
   if(it.link) body += '<br>→ <a href="'+bdEsc(it.link)+'" target="_blank" rel="noopener">'+bdEsc(it.linkLabel||'🔗 リンク')+'</a>';
   body += '</div>';
-  const acts = (it.status==='done')
-    ? '<div class="bd-acts"><button class="bd-act" onclick="bdReopen(\''+it.id+'\')">↩ 戻す</button><button class="bd-act del" title="完全に削除（ゆかちゃん側からも消えます）" onclick="bdDelete(\''+it.id+'\')">🗑 削除</button></div>'
-    : '<div class="bd-acts"><button class="bd-act done-btn" onclick="bdComplete(\''+it.id+'\')">✅ 完了</button><button class="bd-act del" title="完全に削除（ゆかちゃん側からも消えます）" onclick="bdDelete(\''+it.id+'\')">🗑 削除</button></div>';
-  // ゆかからの未対応の投稿は光らせて「●新着」を出す（完了か削除で消える）
+  const glow = bdIsGlowing(it);
+  const n = (it.replies||[]).length;
+  const seenR = bdSeen();
+  const newReply = n > (seenR[it.id]||0);
+  const open = !!bdExpanded[it.id];
+  // 完了/戻す・返信・削除 を一列に
+  const doneBtn = (it.status==='done')
+    ? '<button class="bd-act" onclick="bdReopen(\''+it.id+'\')">↩ 戻す</button>'
+    : '<button class="bd-act done-btn" onclick="bdComplete(\''+it.id+'\')">✅ 完了</button>';
+  const replyBtn = '<button class="bd-act reply" onclick="bdToggleReplies(\''+it.id+'\')">💬 返信 '+n+' '+(open?'▲':'')+(newReply && !open ? '<span class="bd-newdot">●</span>' : '')+'</button>';
+  const delBtn = '<button class="bd-act del" title="完全に削除（ゆかちゃん側からも消えます）" onclick="bdDelete(\''+it.id+'\')">🗑 削除</button>';
   const isIncoming = (it.from==='y' && it.status!=='done');
-  return '<div class="bd-post from-'+(it.from||'h')+(it.status==='done'?' done':'')+(isIncoming?' glow':'')+'">'+
-    '<div class="bd-ptop">'+bdBadge(it.from||'h')+(isIncoming?'<span class="bd-new">●新着</span>':'')+'<span class="bd-time">'+bdEsc(it.time||'')+'</span></div>'+
+  return '<div class="bd-post from-'+(it.from||'h')+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
+    '<div class="bd-ptop">'+bdBadge(it.from||'h')+(isIncoming && glow?'<span class="bd-new">●新着</span>':'')+'<span class="bd-time">'+bdEsc(it.time||'')+'</span></div>'+
     body+att+
-    '<div class="bd-statusrow">'+bdStatusPill(it)+acts+'</div>'+
-    (it.status==='done' ? '' : bdRepliesBlock(it))+
+    '<div class="bd-actrow">'+bdStatusPill(it)+doneBtn+replyBtn+delBtn+'</div>'+
+    (open ? bdRepliesOnly(it) : '')+
     '</div>';
 }
 function renderBoard(){
-  const open = boardItems.filter(function(x){return x.status!=='done';});
+  let open = boardItems.filter(function(x){return x.status!=='done';});
+  // 新しい順（新着が一番上）
+  open.sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
   const done = boardItems.filter(function(x){return x.status==='done';});
-  document.getElementById('bd-feed').innerHTML = open.length ? open.map(bdPostHTML).join('') : '<div class="bd-empty">未対応の伝言はありません 🎉</div>';
+  // ★普段は最新1件だけ表示。残りは「ほかの伝言」で開く
+  const shown = bdShowAll ? open : open.slice(0,1);
+  document.getElementById('bd-feed').innerHTML = shown.length ? shown.map(bdPostHTML).join('') : '<div class="bd-empty">未対応の伝言はありません 🎉</div>';
+  const mw = document.getElementById('bd-more-wrap');
+  if(mw){
+    if(open.length>1){
+      const rest = open.length-1;
+      mw.innerHTML = '<button class="bd-more" onclick="bdToggleAll()">'+(bdShowAll?'△ 最新の1件だけにする':'▽ ほかの伝言（'+rest+'件）を見る')+'</button>';
+    } else { mw.innerHTML=''; }
+  }
   document.getElementById('bd-donefeed').innerHTML = done.length ? done.map(bdPostHTML).join('') : '<div class="bd-empty">終了したものはありません</div>';
   document.getElementById('bd-c-done').textContent = done.length;
-  // ゆかから「未対応の投稿」または「新しい返信」があれば、ひろみタブを光らせる
-  const seen = bdSeen();
-  const anyNew = boardItems.some(function(x){ return (x.replies||[]).length > (seen[x.id]||0); });
+  // 光る判定（ゆかからの未対応 or 新しい返信で、まだ消していないもの）
+  const anyGlow = boardItems.some(bdIsGlowing);
   const incoming = boardItems.filter(function(x){ return x.status!=='done' && x.from==='y'; }).length;
-  const glowOn = (incoming>0 || anyNew);
-  updateBoardTab(glowOn, incoming);
+  updateBoardTab(anyGlow, incoming);
+  const dm = document.getElementById('bd-dismiss'); if(dm) dm.style.display = anyGlow ? 'inline-block' : 'none';
+}
+function bdToggleAll(){ bdShowAll = !bdShowAll; renderBoard(); }
+/* 「🔕 光を消す」：今光っているものを全部「見た」ことにして光を止める（完了にはしない） */
+function bdDismissGlow(){
+  const seenP = bdSeenPosts(), seenR = bdSeen();
+  boardItems.forEach(function(x){
+    if(x.from==='y') seenP[x.id] = true;
+    seenR[x.id] = (x.replies||[]).length;
+  });
+  bdSaveSeenPosts(seenP); bdSaveSeen(seenR);
+  renderBoard();
 }
 function updateBoardTab(glowOn, incoming){
   const tab = document.getElementById('nav-hiromi-tab');
@@ -652,32 +691,36 @@ async function autoUnlock(pw){
 let impCollapsed = false;
 let editingId = null;
 
-async function addMemoUnified(){
-  const text = document.getElementById('memo-text').value.trim();
-  if(!text){ alert('メモの内容を入力してください'); return; }
+/* ★2026-07-16：なんでもメモの内容を「大切なメモ」に昇格させる。
+   ・大切メモシート(SHEET_IMPORTANT)に保存し、なんでもメモは空にする（重複防止） */
+async function promoteScratch(){
+  const el = document.getElementById('scratch-text');
+  const text = (el.value||'').trim();
+  if(!text){ alert('先に「なんでもメモ」に内容を書いてから押してください'); return; }
   const lower = text.toLowerCase();
   if(lower.indexOf('パスワード')>=0 || lower.indexOf('password')>=0 || lower.indexOf('暗証')>=0){
-    if(!confirm('パスワードや暗証番号らしき言葉が含まれています。\nパスワード類はここに書かないルールです。本当に追加しますか？')) return;
+    if(!confirm('パスワードや暗証番号らしき言葉が含まれています。\nパスワード類はここに書かないルールです。本当に大切なメモにしますか？')) return;
   }
   const memo = {
     id: 'memo_'+Date.now(),
     text: text,
-    reminderDate: document.getElementById('memo-date').value,
-    tellSomeone: document.getElementById('memo-tell').checked,
-    color: document.getElementById('memo-red').checked ? 'red' : '',
+    reminderDate: document.getElementById('sc-date').value,
+    tellSomeone: false,
+    color: document.getElementById('sc-red').checked ? 'red' : '',
     done: false,
     createdAt: new Date().toISOString()
   };
-  memos.push(memo);
-  document.getElementById('memo-text').value = '';
-  document.getElementById('memo-date').value = '';
-  document.getElementById('memo-tell').checked = false;
-  document.getElementById('memo-red').checked = false;
+  importantMemos.push(memo);
+  // なんでもメモを空にする（画面＋サーバー両方）
+  el.value = '';
+  document.getElementById('sc-date').value = '';
+  document.getElementById('sc-red').checked = false;
   renderMemoList();
   renderAlerts();
   try{
-    await post({ action:'saveStickyMemo', sheetName: SHEET_NAME, password: password, memo: memo });
-    showSyncStatus('✅ 追加しました');
+    await post({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: memo });
+    saveScratch();  // 空になったなんでもメモを保存
+    showSyncStatus('⭐ 大切なメモにしました');
   }catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
 }
 
@@ -691,19 +734,15 @@ function toggleImpSection(){
 
 function renderMemoList(){
   const impArr = importantMemos.filter(m=>!m.done);
-  const normArr = memos.filter(m=>!m.done);
   impArr.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  normArr.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const ic = document.getElementById('imp-count'); if(ic) ic.textContent = impArr.length;
-  const mc = document.getElementById('mm-count'); if(mc) mc.textContent = normArr.length;
   const impEl = document.getElementById('imp-list');
   if(impEl){
     impEl.style.display = impCollapsed ? 'none' : 'block';
-    impEl.innerHTML = impArr.length ? impArr.map(m=>memoCardHtml(m)).join('') : '<div style="color:#57534e;font-size:13px;padding:6px 0">大切なメモはまだありません。</div>';
+    impEl.innerHTML = impArr.length
+      ? impArr.map(m=>memoCardHtml(m)).join('')
+      : '<div style="color:#57534e;font-size:13px;padding:6px 0">まだありません。上の「なんでもメモ」に書いて「⭐ 大切なメモにする」を押すと、ここに溜まります。</div>';
   }
-  document.getElementById('memo-list').innerHTML = normArr.length
-    ? normArr.map(m=>memoCardHtml(m)).join('')
-    : '<div style="color:#57534e;font-size:13px;padding:6px 0">メモはまだありません。</div>';
 }
 function renderAlerts(){
   const today = oosToday();
@@ -738,12 +777,9 @@ function memoCardHtml(m, alertType){
   if(alertType==='today') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">📣 本日が期日です。対応はお済みですか？</div>';
   else if(alertType==='pre') banner = '<div style="font-weight:700;color:#a4611a;margin-bottom:4px">⏰ 明日が期日です</div>';
   const tags =
-    (isImp ? '<span class="tag" style="background:#fdf3d6;color:#8a5a12">⭐大切</span>' : '')+
     (m.tellSomeone ? '<span class="tag">誰かに伝える</span>' : '')+
-    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">'+esc(m.reminderDate)+'</span>' : '');
-  const starBtn = isImp
-    ? '<button class="mbtn unstar" onclick="toggleImportant(\''+m.id+'\')">★大切をやめる</button>'
-    : '<button class="mbtn star" onclick="toggleImportant(\''+m.id+'\')">★大切にする</button>';
+    (m.reminderDate ? '<span class="tag" style="background:#dbeafe;color:#1e3a8a">📅 '+esc(m.reminderDate)+'</span>' : '');
+  const starBtn = '';
   const editBtn = alertType ? '' : '<button class="mbtn" onclick="startMemoEdit(\''+m.id+'\')">✎編集</button>';
   return '<div class="memo-card'+(isImp?' imp':'')+(alertType==='today'?' memo-alert':(alertType==='pre'?' memo-pre':''))+'">'+
     banner+ tags+
