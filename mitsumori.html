@@ -455,7 +455,7 @@ th.center,td.center{text-align:center}
       <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
         <div id="nc-rt-hint" class="info-box" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>会社名（施設名）</strong>と<strong>担当者名</strong>のどちらか一方が入っていれば登録できます。</div>
         <div class="g2">
-          <div class="fg"><label>お客様名（会社名・施設名）<span style="font-size:11px;font-weight:400;color:#57534e">— 個人のお客様は空でOK</span></label><input type="text" id="nc-name" placeholder="〇〇株式会社（無ければ空のまま）"></div>
+          <div class="fg"><label>お客様名（会社名・施設名）<span style="font-size:11px;font-weight:400;color:#57534e">— 個人のお客様は空でOK</span></label><input type="text" id="nc-name" placeholder="〇〇株式会社（無ければ空のまま）" oninput="autofillSharedFromNc()"></div>
           <div class="fg"><label>区分（価格帯）</label>
             <select id="nc-type">
               <option value="general">定価</option>
@@ -2098,11 +2098,14 @@ function onSharedPersonInput(){
   if(typeof checkContactPersonReady==='function') checkContactPersonReady();
 }
 function autofillSharedFromNc(){
-  const src = document.getElementById('nc-contact');
+  const contact = document.getElementById('nc-contact');
+  const name = document.getElementById('nc-name');
   const dst = document.getElementById('q-contact-person-shared');
-  if(!src || !dst) return;
+  if(!dst) return;
   if(dst.dataset.touched === '1') return; // 手で書き換え済みなら尊重して何もしない
-  dst.value = src.value;
+  // 担当者名があればそれを、無ければお客様名（個人のお客様）を自動でコピー（同じ名前を二度書かせない）
+  const cv = contact ? contact.value.trim() : '';
+  dst.value = cv || (name ? name.value : '');
   if(typeof checkContactPersonReady==='function') checkContactPersonReady();
 }
 // 標準価格表タグ用：外側divを持たず、御中／様のルールだけ適用したテキストを返す
@@ -2307,7 +2310,7 @@ function specPriceColForType(custType){
   const t = effectiveCustomerType(custType, 0); // hub→卸②の互換もここで吸収
   if(t==='wholesale1') return {label:'卸価格①', type:'wholesale1'};
   if(t==='wholesale2') return {label:'卸価格②', type:'wholesale2'};
-  if(t==='rt') return {label:'RT価格', type:'rt'};
+  if(t==='rt') return {label:'卸価格', type:'rt'};
   if(t==='defectprice') return {label:'特価', type:'defectprice'};
   return null; // 一般＝オープン価格のみ
 }
@@ -2826,7 +2829,7 @@ function generatePriceListDoc(){
   showQuoteDoc(doc, record);
 }
 function priceListPriceColumns(customerType){
-  if(customerType==='rt') return [{type:'general',label:'オープン価格'},{type:'rt',label:'RT価格'}];
+  if(customerType==='rt') return [{type:'general',label:'オープン価格'},{type:'rt',label:'卸価格'}];
   if(customerType==='wholesale1' || customerType==='wholesale2') return [{type:'general',label:'オープン価格'},{type:'wholesale1',label:'卸①'},{type:'wholesale2',label:'卸②'}];
   return [{type:'general',label:'オープン価格'}];
 }
