@@ -403,22 +403,30 @@ th.center,td.center{text-align:center}
     <div id="q-style-note" style="font-size:12px;color:#57534e;margin-top:6px">今までどおりの見積書・価格表です。</div>
   </div>
 
-  <!-- 区分ゲート（6択）：最初に必ず確認 -->
-  <div class="card" id="q-rt-gate-card" style="border:2px solid #d5cfc3">
-    <div class="sec" style="margin-top:0;font-size:16px">つぎに選ぶ：どの入口から作りますか？<span style="font-size:12px;font-weight:600;color:#57534e">（押すとすぐ進みます）</span></div>
-    <div class="gate-section-label">■ その価格の全商品を「そのまま」出す</div>
-    <div class="gate-grid">
-      <button class="gate-btn" onclick="selectRtGate('rt')">🏨 RT<span>ホテル・レストラン</span></button>
-      <button class="gate-btn" onclick="selectRtGate('wholesale')">🏢 卸し<span>卸①・卸②</span></button>
-      <button class="gate-btn" onclick="selectRtGate('general')">🛍️ 一般<span>定価のみ</span></button>
+  <!-- gateType保持用の隠し要素（入口ゲート廃止後も、既存コードの q-rt-gate-card.dataset.gateType 参照を壊さないための互換用） -->
+  <div id="q-rt-gate-card" style="display:none"></div>
+
+  <!-- 区分バッジ＋変更（2026-07-17 入口ゲート廃止）：お客様を選ぶと区分が自動で決まり、ここでアラート付きで変更できる -->
+  <div class="card" id="q-kubun-card" style="border:2px solid #d5cfc3;display:none">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:14px;font-weight:800;color:#2b2a26">いまの区分：</span>
+      <span id="q-kubun-badge" style="display:inline-flex;align-items:center;gap:4px;font-size:16px;font-weight:800;padding:5px 14px;border-radius:99px;background:#dbeafe;color:#12406e">RT</span>
+      <button type="button" class="btn-sm" style="font-weight:700" onclick="toggleKubunSwitch()">🔀 区分を変更</button>
+      <span style="font-size:11.5px;color:#57534e">（社内用の色分け。お客様の書類には出ません）</span>
     </div>
-    <div class="gate-section-label">■ 全商品から「見せたくないものを引く」／その場限りの特価</div>
-    <div class="gate-grid">
-      <button class="gate-btn" onclick="selectRtGate('partialWholesale')">🏢 一部卸し<span>卸①②の部分見積もり</span></button>
-      <button class="gate-btn" onclick="selectRtGate('partialGeneral')">🛍️ 一部一般<span>定価の部分見積もり</span></button>
-      <button class="gate-btn" onclick="goToSpecialFromGate()">💛 特価<span>正規・旧ロット・不良をまとめて選べる</span></button>
+    <div id="q-kubun-switch" style="display:none;background:#fff7ed;border:1.5px solid #f0c96a;border-radius:10px;padding:12px;margin-top:10px">
+      <div style="font-size:13px;font-weight:700;color:#78350f;margin-bottom:8px">どの区分に変更しますか？（変更前に確認が出ます）</div>
+      <div class="gate-grid">
+        <button class="gate-btn" onclick="askChangeKubun('rt')">🏨 RT<span>ホテル・レストラン</span></button>
+        <button class="gate-btn" onclick="askChangeKubun('wholesale')">🏢 卸し<span>卸①・卸②</span></button>
+        <button class="gate-btn" onclick="askChangeKubun('general')">🛍️ 一般<span>定価のみ</span></button>
+      </div>
+      <div class="gate-grid" style="margin-top:6px">
+        <button class="gate-btn" onclick="askChangeKubun('partialWholesale')">🏢 一部卸し<span>卸①②の部分見積もり</span></button>
+        <button class="gate-btn" onclick="askChangeKubun('partialGeneral')">🛍️ 一部一般<span>定価の部分見積もり</span></button>
+        <button class="gate-btn" onclick="goToSpecialFromGate()">💛 特価パネル<span>まとめて特価で作る</span></button>
+      </div>
     </div>
-    <div id="q-rt-gate-confirm"></div>
   </div>
 
   <div id="q-after-gate" style="display:none">
@@ -547,7 +555,7 @@ th.center,td.center{text-align:center}
           <span style="color:#d5cfc3">｜</span>
           <span style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px"><strong>📦 ピックアップ手数料</strong><span style="font-size:10.5px;color:#57534e">（ケース割れの倉庫作業費）</span>
             <select id="q-pickup-mode" style="padding:6px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:12.5px;background:#fff">
-              <option value="charge">通常どおり（自動・10箱以上で無料）</option>
+              <option value="charge">通常どおり（RT 700円／卸①② 250円）</option>
               <option value="free">無料（サービス）</option>
             </select>
           </span>
@@ -1002,7 +1010,11 @@ function setExtractInvoice(b){
 function refreshQuoteStyleUI(){
   const t = currentDocType();
   const card = document.getElementById('q-style-card');
-  if(card) card.style.display = (t==='quote') ? '' : 'none';
+  // 2026-07-17：スタイル選択（一覧表／抜き出し上下分割）は「見積書・価格表」と「見積書 兼 請求書」で使える。
+  if(card) card.style.display = (t==='quote' || t==='both') ? '' : 'none';
+  // 「見積書 兼 請求書」を選んだら、上下分割（抜き出し＋ご請求書）を既定にする（ひろみさんが見た「昔の1枚もの」を出さない）
+  if(t==='both' && !window.__bothStyleInit){ quoteStyle = 'extract'; extractWithInvoice = true; window.__bothStyleInit = true; }
+  if(t!=='both'){ window.__bothStyleInit = false; }
   function seg(id, on, color){
     const el = document.getElementById(id); if(!el) return;
     el.style.background = on ? color : '#fff';
@@ -1214,24 +1226,29 @@ async function registerNewCustomer(){
   }
 }
 
-// ── 4択ゲート（RT／卸し／一般／特価） ────────────────────────────────────────────
+// ── 見積画面の初期化（2026-07-17 入口ゲート廃止：お客様を選ぶところから始める） ──
 function resetRtGate(){
   const card = document.getElementById('q-rt-gate-card');
-  card.dataset.gateType = '';
-  card.style.display = '';
-  document.getElementById('q-after-gate').style.display = 'none';
-  document.getElementById('q-rt-gate-confirm').innerHTML = '';
-  document.getElementById('q-rt-gate-banner').innerHTML = '';
+  if(card) card.dataset.gateType = '';
+  const kubunCard = document.getElementById('q-kubun-card'); if(kubunCard) kubunCard.style.display = 'none';
+  const kubunSw = document.getElementById('q-kubun-switch'); if(kubunSw) kubunSw.style.display = 'none';
+  // お客様を選ぶまでは、後続（区分バッジ・商品入力など）は隠しておく
+  const after = document.getElementById('q-after-gate'); if(after) after.style.display = 'none';
+  const banner = document.getElementById('q-rt-gate-banner'); if(banner) banner.innerHTML = '';
   window.quoteShownSkus = null;
   window.generalNoCustomerMode = false;
   const searchEl = document.getElementById('q-customer-search'); if(searchEl) searchEl.value = '';
-  // 書類の種類・請求書欄・お届け先欄も初期化（前のお客様の内容が残らないように）
   const dq = document.querySelector('input[name="q-doctype"][value="quote"]'); if(dq){ dq.checked = true; }
-  ['q-invoice-date','q-invoice-due','q-delivery-addr','q-delivery-tel','q-delivery-wish'].forEach(function(id){ const el = document.getElementById(id); if(el) el.value = ''; });
+  ['q-invoice-date','q-invoice-due','q-delivery-zip','q-delivery-addr','q-delivery-tel','q-delivery-wish'].forEach(function(id){ const el = document.getElementById(id); if(el) el.value = ''; });
   const bEl = document.getElementById('q-invoice-bank'); if(bEl) delete bEl.dataset.userTouched;
   const selWrap = document.getElementById('q-customer-select-wrap'); if(selWrap) selWrap.style.display = 'none';
   const ncForm = document.getElementById('new-cust-form'); if(ncForm) ncForm.style.display = 'none';
-  if(typeof setQuoteGuide==='function') setQuoteGuide('書類と入口を選ぶ（タップ1回ずつ）');
+  // 入口ゲートは廃止。お客様を選ぶところから始めるので、選び方ボタンを最初から出しておく。
+  if(after) after.style.display = '';
+  const cust = document.getElementById('q-customer'); if(cust) cust.value = '';
+  const custInfo = document.getElementById('q-customer-info'); if(custInfo) custInfo.innerHTML = '';
+  renderQuoteCustomerSelect();
+  if(typeof setQuoteGuide==='function') setQuoteGuide('お客様を選ぶ（新しい方は登録）。区分は自動で決まります');
   if(typeof onDocTypeChange==='function') onDocTypeChange();
 }
 const GATE_LABELS = {
@@ -1284,47 +1301,62 @@ function qcChooseNew(){
   if(n){ try{ n.focus(); }catch(e){} }
   setQuoteGuide('お客様の名前を入れて、緑の「登録して選択する」を押す');
 }
-function selectRtGate(gateType){
-  // 2026-07-17 シンプル化：「はい、間違いありません」の確認ステップを廃止し、押したらすぐ進む。
-  // 間違い防止は、confirmRtGate が出す色つき帯（「◯◯として作成します＋やり直す」）が常に見えていることで担保する。
-  confirmRtGate(gateType);
+function selectRtGate(gateType){ confirmRtGate(gateType); }
+// お客様の区分から入口タイプ(gateType)を決める（2026-07-17 入口ゲート廃止）
+function kubunFromCustomerType(ctype){
+  if(ctype==='rt') return 'rt';
+  if(ctype==='wholesale1' || ctype==='wholesale2' || ctype==='hub') return 'wholesale';
+  return 'general';
 }
-function confirmRtGate(gateType){
+// 区分バッジの見た目を更新
+function renderKubunBadge(gateType){
+  const info = GATE_LABELS[gateType]; if(!info) return;
+  const card = document.getElementById('q-kubun-card'); if(card) card.style.display = '';
+  const badge = document.getElementById('q-kubun-badge');
+  if(badge){ badge.textContent = info.label; badge.style.background = info.bg; badge.style.color = info.color; }
+}
+function toggleKubunSwitch(){
+  const p = document.getElementById('q-kubun-switch');
+  if(p) p.style.display = (p.style.display==='none') ? '' : 'none';
+}
+// アラート付きで区分を変更する
+function askChangeKubun(gateType){
+  const info = GATE_LABELS[gateType]; if(!info) return;
+  if(!confirm('区分を「'+info.label+'」に変更しますか？\n\n（違う価格でお渡ししてしまわないよう、念のため確認しています）')) return;
+  const sw = document.getElementById('q-kubun-switch'); if(sw) sw.style.display = 'none';
+  // このお客様に対して手動で区分を変えた印（同じお客様の再描画では自動区分で上書きしない）
+  window.__kubunManualFor = (document.getElementById('q-customer')||{}).value || null;
+  applyKubun(gateType, true);
+}
+// 区分を実際に適用する（バッジ更新＋画面の出し分け）。keepCustomer=true なら選択中のお客様は保持したまま作り直す。
+function applyKubun(gateType, keepCustomer){
   const card = document.getElementById('q-rt-gate-card');
   card.dataset.gateType = gateType;
-  card.style.display = 'none';
-  document.getElementById('q-rt-gate-confirm').innerHTML = '';
-  const info = GATE_LABELS[gateType];
-  const banner = document.getElementById('q-rt-gate-banner');
-  banner.innerHTML = '<div class="info-box no-print" style="background:'+info.bg+';border-color:'+info.border+';color:'+info.color+';font-weight:700">'
-    + info.label+' として見積もりを作成します。（社内確認用の色分けです。お客様の見積書には表示されません）'
-    + '<button class="btn-sm" style="margin-left:10px" onclick="resetRtGate()">最初からやり直す</button></div>';
+  renderKubunBadge(gateType);
   window.generalNoCustomerMode = false;
   window.quoteShownSkus = null;
   document.getElementById('q-after-gate').style.display = '';
   const skipBtn = document.getElementById('qc-skip-btn');
   if(skipBtn) skipBtn.style.display = (gateType==='general') ? '' : 'none';
-  document.getElementById('nc-rt-hint').style.display = (gateType==='rt') ? '' : 'none';
-  // 新規登録フォームの区分は、選んだ入口に合わせた初期値にしておく（入れ直しの手間と間違いアラートを減らす）
+  const rtHint = document.getElementById('nc-rt-hint'); if(rtHint) rtHint.style.display = (gateType==='rt') ? '' : 'none';
   const ncType = document.getElementById('nc-type');
   if(ncType) ncType.value = (gateType==='rt') ? 'rt' : ((gateType==='wholesale'||gateType==='partialWholesale') ? 'wholesale1' : 'general');
-  // お客様の選び方はボタン（登録済み／新規）で選ぶまで畳んでおく
-  const selWrap = document.getElementById('q-customer-select-wrap');
-  if(selWrap) selWrap.style.display = 'none';
-  const ncForm = document.getElementById('new-cust-form');
-  if(ncForm) ncForm.style.display = 'none';
+  // お客様を保持したまま区分だけ変えた場合は、選択中のお客様で画面を作り直す
+  const cid = (document.getElementById('q-customer')||{}).value;
+  if(keepCustomer && cid){ onQuoteCustomerChange(); return; }
+  // お客様未選択のときは、選び方ボタンだけ見せておく
+  const selWrap = document.getElementById('q-customer-select-wrap'); if(selWrap) selWrap.style.display = 'none';
+  const ncForm = document.getElementById('new-cust-form'); if(ncForm) ncForm.style.display = 'none';
   renderQuoteCustomerSelect();
-  // ★どの入口も同じ流れに：入口を決めた時点で作業画面（作成ボタン込み）をすぐ表示する。
-  //   お客様が未選択でもボタンは灰色で見え、濃い文字で「何をすれば押せるか」を出す。
   const wl = document.getElementById('q-whitelist-card');
   if(isPartialGate(gateType)){
     if(wl){ wl.style.display = ''; document.getElementById('q-whitelist-area').innerHTML = '<div class="info-box">上で「お客様」を選ぶと、ここに「載せる商品／外す商品」が出ます。</div>'; }
-  } else {
-    if(wl) wl.style.display = 'none';
-  }
-  showPriceListForm();      // q-pricelist-form-card（価格表・作成ボタン）を表示
+  } else { if(wl) wl.style.display = 'none'; }
+  showPriceListForm();
   checkContactPersonReady();
 }
+// 旧confirmRtGate：入口ゲート廃止後は applyKubun のラッパー（既存呼び出し互換）
+function confirmRtGate(gateType){ applyKubun(gateType, false); }
 function warehouseFeeForGate(){
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   return gateType==='rt' ? 700 : 250;
@@ -1391,6 +1423,22 @@ function onQuoteCustomerChange(){
   const c = customers.find(x=>x.id===cid);
   window.generalNoCustomerMode = false;
   window.quoteShownSkus = null;
+  // 2026-07-17 入口ゲート廃止：お客様を選んだら、その人の区分から自動でgateTypeを決めてバッジを出す。
+  // ただし、区分バッジの「変更」で手動変更した後（partial/特価など）に同じお客様を再描画する場合は、その手動区分を尊重する。
+  if(c){
+    const card = document.getElementById('q-rt-gate-card');
+    const cur = card.dataset.gateType || '';
+    const autoKubun = kubunFromCustomerType(c.type);
+    // まだ区分が未設定 or 現在の区分がこのお客様の素の区分と食い違う「別のお客様の区分」の場合は、自動区分に合わせる。
+    // 手動で partial/特価に変えた状態は、対象が同じお客様である限り保持する（window.__kubunManualForで管理）。
+    if(!cur || window.__kubunManualFor !== cid){
+      card.dataset.gateType = autoKubun;
+      window.__kubunManualFor = null;
+    }
+    renderKubunBadge(card.dataset.gateType);
+    const skipBtn = document.getElementById('qc-skip-btn');
+    if(skipBtn) skipBtn.style.display = (card.dataset.gateType==='general') ? '' : 'none';
+  }
   // 提出先ご担当者名：選んだお客様の担当者名を自動で入れる。手で書き換えOK。
   // お客様を選び直したら自動入力をやり直せるよう、touchedをいったんリセットする。
   const cpEl = document.getElementById('q-contact-person-shared');
@@ -1954,10 +2002,15 @@ function addQuoteItemRow(){
     '<div class="fg"><label>商品</label><select data-q-sku onchange="onQuoteItemSkuChange(\''+rowId+'\')">'+opts+'</select></div>'+
     '<div class="fg"><label>本数</label><input type="number" data-q-bottles min="0" value="0"></div>'+
     '<div class="fg"><label>箱数</label><input type="number" data-q-boxes min="0" value="0"></div>'+
-    '<div class="fg"><label>区分</label><select data-q-kind onchange="onQuoteItemKindChange(\''+rowId+'\')"><option value="normal">通常</option><option value="free">無償サンプル</option><option value="paid">有償サンプル</option></select></div>'+
+    '<div class="fg"><label>区分</label><select data-q-kind onchange="onQuoteItemKindChange(\''+rowId+'\')"><option value="normal">通常</option><option value="tokka">特価（不良品など）</option><option value="free">無償サンプル</option><option value="paid">有償サンプル</option></select></div>'+
     '<div class="fg" style="justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\''+rowId+'\').remove()">削除</button></div>'+
     '</div>'+
     '<div data-q-freenote style="display:none;font-size:11.5px;font-weight:700;color:#0f5040;background:#e3efe9;border-radius:6px;padding:4px 10px;margin:2px 0 6px">この行は無償サンプル：単価0円で書類に載ります</div>'+
+    '<div data-q-tokkabox style="display:none;background:#fef3c7;border:1px solid #f0c96a;border-radius:8px;padding:6px 10px;margin:2px 0 6px">'+
+      '<span style="font-size:12px;font-weight:700;color:#78350f">💛 特価（この見積もり限りの特別価格）：</span> '+
+      '<input type="number" data-q-tokkaprice min="0" value="0" style="width:120px;padding:5px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:14px;font-weight:700;text-align:right"> 円'+
+      '<span style="font-size:11px;color:#78350f">（RTの通常商品と同じ1枚に載せられます）</span>'+
+    '</div>'+
     '<div data-q-paidbox style="display:none;background:#fffbeb;border:1px solid #f0c96a;border-radius:8px;padding:6px 10px;margin:2px 0 6px">'+
       '<span style="font-size:12px;font-weight:700;color:#78350f">有償サンプルの単価：</span> '+
       '<select data-q-pricebase onchange="onQuotePriceBaseChange(\''+rowId+'\')" style="width:auto;padding:5px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px">'+
@@ -1976,11 +2029,14 @@ function onQuoteItemKindChange(rowId){
   const kind = row.querySelector('[data-q-kind]').value;
   const skuSel = row.querySelector('[data-q-sku]');
   const keep = skuSel.value;
+  // 特価・無償・有償は、通常は隠れているRT限定商品なども選べる（不良品を特価で出す等）
   const list = quoteItemOptionList(c, kind!=='normal');
   skuSel.innerHTML = list.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
   if(list.some(p=>p.sku===keep)){ skuSel.value = keep; }
   row.querySelector('[data-q-freenote]').style.display = (kind==='free') ? 'block' : 'none';
   row.querySelector('[data-q-paidbox]').style.display = (kind==='paid') ? 'block' : 'none';
+  const tokkaBox = row.querySelector('[data-q-tokkabox]');
+  if(tokkaBox) tokkaBox.style.display = (kind==='tokka') ? 'block' : 'none';
   if(kind==='paid') onQuotePriceBaseChange(rowId);
 }
 // 有償サンプル：単価のもとを選んだら、その段の金額を自動で入れる（自由入力は触らない）
@@ -2083,8 +2139,10 @@ function onShipModeChange(){
   else hint.textContent = '';
 }
 function generateQuoteDoc(){
-  // 抜き出し（仕様表）スタイルのときは専用処理へ（一覧表スタイル＝以下の既存処理は一切変更なし）
-  if(currentDocType()==='quote' && quoteStyle==='extract'){ generateExtractQuoteDoc(); return; }
+  // 抜き出し（仕様表・上下分割）スタイルのときは専用処理へ。
+  // 見積書・価格表(quote)に加え、見積書 兼 請求書(both)でも抜き出しを選べる（2026-07-17）。
+  const dt = currentDocType();
+  if((dt==='quote' || dt==='both') && quoteStyle==='extract'){ generateExtractQuoteDoc(); return; }
   const cid = document.getElementById('q-customer').value;
   const c = customers.find(x=>x.id===cid); if(!c) return;
   const contactPerson = document.getElementById('q-contact-person-shared').value.trim();
@@ -2109,6 +2167,11 @@ function generateQuoteDoc(){
     if(rowKind==='free'){
       // 無償サンプル：0円。暗号（お客様区分の判定）には混ぜない
       items.push({ sku, name: p.name+'（無償サンプル）', bottles, boxes, qty: totalQty, unitPrice: 0, amount: 0, taxRate: tax, sampleKind:'free' });
+    } else if(rowKind==='tokka'){
+      // 特価（不良品など）：この見積もり限りの特別価格。暗号には混ぜない
+      const tp = parseInt((r.querySelector('[data-q-tokkaprice]')||{}).value)||0;
+      if(tp<=0){ paidSampleMissing = true; return; }
+      items.push({ sku, name: p.name+'（特価）', bottles, boxes, qty: totalQty, unitPrice: tp, amount: tp*totalQty, taxRate: tax, sampleKind:'tokka' });
     } else if(rowKind==='paid'){
       // 有償サンプル：選んだ段 or 自由入力の単価。暗号には混ぜない
       const up = parseInt((r.querySelector('[data-q-paidprice]')||{}).value)||0;
@@ -2124,7 +2187,7 @@ function generateQuoteDoc(){
     }
     if(boxes>0) totalBoxes += boxes;
   });
-  if(paidSampleMissing){ alert('有償サンプルの単価が0円の行があります。単価を入れてください。'); return; }
+  if(paidSampleMissing){ alert('有償サンプル、または特価の単価が0円の行があります。単価を入れてください。'); return; }
   if(!items.length){ alert('数量を入力してください'); return; }
   const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
   const remarks = document.getElementById('q-remarks').value;
@@ -2135,7 +2198,7 @@ function generateQuoteDoc(){
   const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
   const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
   const pickupMode = (document.getElementById('q-pickup-mode')||{}).value || 'charge';
-  const bulkWarehouseFee = (pickupMode==='free') ? 0 : (totalBoxes >= 10 ? 0 : warehouseFeeForGate());
+  const bulkWarehouseFee = (pickupMode==='free') ? 0 : warehouseFeeForGate();
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   const docType = currentDocType();
   const deliveryAddr = (document.getElementById('q-delivery-addr')||{}).value || '';
@@ -2450,6 +2513,10 @@ function generateExtractQuoteDoc(){
     const rowKind = kindEl ? kindEl.value : 'normal';
     if(rowKind==='free'){
       items.push({ sku, name: p.name+'（無償サンプル）', bottles, boxes, qty: totalQty, unitPrice: 0, amount: 0, taxRate: tax, sampleKind:'free' });
+    } else if(rowKind==='tokka'){
+      const tp = parseInt((r.querySelector('[data-q-tokkaprice]')||{}).value)||0;
+      if(tp<=0){ paidSampleMissing = true; return; }
+      items.push({ sku, name: p.name+'（特価）', bottles, boxes, qty: totalQty, unitPrice: tp, amount: tp*totalQty, taxRate: tax, sampleKind:'tokka' });
     } else if(rowKind==='paid'){
       const up = parseInt((r.querySelector('[data-q-paidprice]')||{}).value)||0;
       if(up<=0){ paidSampleMissing = true; return; }
@@ -2464,7 +2531,7 @@ function generateExtractQuoteDoc(){
     }
     if(boxes>0) totalBoxes += boxes;
   });
-  if(paidSampleMissing){ alert('有償サンプルの単価が0円の行があります。単価を入れてください。'); return; }
+  if(paidSampleMissing){ alert('有償サンプル、または特価の単価が0円の行があります。単価を入れてください。'); return; }
   if(!specSkus.length){ alert('商品を1件以上選んでください'); return; }
   if(extractWithInvoice && !items.length){ alert('ご請求書を付ける場合は、数量を1件以上入力してください。\n（仕様表だけでよい場合は「ご請求書：付けない」を選んでください）'); return; }
   const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
@@ -2476,7 +2543,7 @@ function generateExtractQuoteDoc(){
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   const feeGate = (gateType==='rt' || gateType==='wholesale' || gateType==='partialWholesale');
   const pickupMode = (document.getElementById('q-pickup-mode')||{}).value || 'charge';
-  const bulkWarehouseFee = (pickupMode==='free') ? 0 : (totalBoxes >= 10 ? 0 : (feeGate ? warehouseFeeForGate() : 0));
+  const bulkWarehouseFee = (pickupMode==='free') ? 0 : (feeGate ? warehouseFeeForGate() : 0);
   const record = {
     id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
@@ -2574,9 +2641,9 @@ function buildQuoteDocHtml(record, c){
   }
   html += '※印は軽減税率対象商品です。<br>';
   if(record.gateType==='rt'){
-    html += '※バラ（単品・ケース割れ）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として700円を頂戴します（10箱以上のご注文で無料）。<br>';
+    html += '※バラ（単品・ケース割れ）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として700円を頂戴します。<br>';
   } else if(record.gateType==='wholesale'){
-    html += '※バラ（単品・ケース割れ）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として250円を頂戴します（10箱以上のご注文で無料）。<br>';
+    html += '※バラ（単品・ケース割れ）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として250円を頂戴します。<br>';
     html += '※同じ商品を6箱以上ご注文の場合、卸①のお客様は自動的に卸②価格が適用されます。<br>';
   }
   html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
@@ -2826,8 +2893,12 @@ function buildPriceListDocHtml(record, c){
     html += '<div class="invoice-doc-note" style="margin-top:16px"><strong>備考：</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
   }
   html += '<div class="invoice-doc-note" style="margin-top:8px">';
-  html += '※卸①のお客様が同じ商品を6箱以上ご注文の場合、自動的に卸②価格が適用されます。<br>';
-  html += '※バラ（単品）でのご出荷の場合、卸①・卸②のお客様には250円、RTのお客様には700円の出荷手数料を頂戴します（10箱以上のご注文で無料）。<br>';
+  if(record.customerType==='rt'){
+    html += '※バラ（単品）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として700円を頂戴します。<br>';
+  } else if(record.customerType==='wholesale1' || record.customerType==='wholesale2' || record.customerType==='hub'){
+    html += '※同じ商品を6箱以上ご注文の場合、卸①のお客様は自動的に卸②価格が適用されます。<br>';
+    html += '※バラ（単品）でのご出荷の場合、ピックアップ手数料（倉庫作業費）として250円を頂戴します。<br>';
+  }
   html += '※季節・入荷状況により、在庫が変動する場合がございます。<br>';
   html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。<br>';
   html += '発送元倉庫：'+esc(PRICELIST_INFO.warehouseLocation);
