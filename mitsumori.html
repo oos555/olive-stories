@@ -173,6 +173,7 @@ th.center,td.center{text-align:center}
 .qhist-mini-btn.blue{background:#dbeafe;border-color:#185fa5;color:#1e3a8a}
 .qhist-mini-btn.gray{background:#f0ece3;border-color:#d5cfc3;color:#2b2a26}
 .qhist-mini-btn.dark{background:#e5e5e0;border-color:#a8a29e;color:#44403c}
+.qhist-mini-btn.del{background:#fff;border-color:#dc2626;color:#dc2626}
 .qhist-snooze-box{display:none;width:100%;margin-top:8px;padding:8px 10px;background:#eff6ff;border:1px solid #185fa5;border-radius:8px;font-size:11px}
 .qhist-snooze-box.open{display:block}
 /* 標準価格表：刷新レイアウト（2026年7月） */
@@ -234,6 +235,20 @@ th.center,td.center{text-align:center}
 .smx-other-item input{width:22px;height:22px;cursor:pointer}
 .smx-other-off{opacity:.55;background:#f5f5f3}
 .smx-other-off span{text-decoration:line-through;color:#2b2a26}
+/* タイル式マトリクス（2026-07-17：横スクロール解消） */
+.smx-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.smx-tile{border:1.5px solid #6b7a3a;border-radius:10px;padding:9px 11px;background:#fbfcf7}
+.smx-tile-off{border-color:#c9c3b6;background:#f5f5f3;opacity:.6}
+.smx-tile-head{display:flex;align-items:center;gap:8px;cursor:pointer}
+.smx-tile-head input{width:22px;height:22px;cursor:pointer;flex:none}
+.smx-tile-name{font-weight:700;font-size:14.5px;color:#2b2a26;line-height:1.3}
+.smx-tile-group{font-size:11px;color:#8a6d3f;font-weight:600;margin:2px 0 8px 30px}
+.smx-tile-sizes{display:flex;flex-wrap:wrap;gap:6px;margin-left:30px}
+.smx-size-pill{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;padding:5px 9px;border:1px solid #6b7a3a;border-radius:7px;background:#fff;color:#2b2a26;cursor:pointer}
+.smx-size-pill.on{background:#eef0e5}
+.smx-size-pill.dis{border-color:#c9c3b6;color:#a8a29e;cursor:not-allowed}
+.smx-size-pill input{width:18px;height:18px;cursor:pointer}
+.smx-size-pill.dis input{cursor:not-allowed}
 #oos-whatis summary::-webkit-details-marker{display:none}
 #oos-whatis summary{outline:none}
 #oos-whatis summary:hover{background:#faf7f2}
@@ -1606,22 +1621,25 @@ function renderSubtractMatrix(c){
   });
   const shown = new Set(window.quoteShownSkus);
   let html = '';
-  html += '<table class="smx-table"><thead><tr><th style="text-align:left">商品（左のチェックを外すと全サイズ消えます）</th><th>サイズごとに載せる／外す</th></tr></thead><tbody>';
+  // タイル式：商品ごとのカードを画面幅に合わせて折り返す（横スクロールなし）
+  html += '<div style="font-size:12px;color:#57534e;margin-bottom:6px">商品名のチェックを外すと、その商品を丸ごと（全サイズ）この見積から外します。</div>';
+  html += '<div class="smx-tiles">';
   oilOrder.forEach(function(key){
     const row = oilRows[key];
     const anyShown = row.items.some(function(p){ return shown.has(p.sku); });
-    html += '<tr'+(anyShown?'':' class="smx-row-off"')+'>';
-    html += '<td class="smx-line-cell"><label><input type="checkbox" class="smx-master-chk" '+(anyShown?'checked':'')+' onchange="onSubtractMaster(this)" data-line-skus="'+row.items.map(function(p){return p.sku;}).join(',')+'">'+esc(row.line)+' <span style="font-size:10px;color:#8a6d3f;font-weight:600">'+esc(row.group)+'</span></label></td>';
-    html += '<td><div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:flex-start">';
+    html += '<div class="smx-tile'+(anyShown?'':' smx-tile-off')+'">';
+    html += '<label class="smx-tile-head"><input type="checkbox" class="smx-master-chk" '+(anyShown?'checked':'')+' onchange="onSubtractMaster(this)" data-line-skus="'+row.items.map(function(p){return p.sku;}).join(',')+'"><span class="smx-tile-name">'+esc(row.line)+'</span></label>';
+    html += '<div class="smx-tile-group">'+esc(row.group)+'</div>';
+    html += '<div class="smx-tile-sizes">';
     row.items.forEach(function(p){
       const on = shown.has(p.sku);
-      html += '<label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer">'
+      html += '<label class="smx-size-pill'+(on?' on':'')+(anyShown?'':' dis')+'">'
         + '<input type="checkbox" class="smx-size-chk" '+(on?'checked':'')+' '+(anyShown?'':'disabled')+' onchange="onSubtractSize(this)" data-sku="'+p.sku+'">'
-        + '<span class="smx-size-label">'+esc(subtractSizeLabel(p))+'</span></label>';
+        + '<span>'+esc(subtractSizeLabel(p))+'</span></label>';
     });
-    html += '</div></td></tr>';
+    html += '</div></div>';
   });
-  html += '</tbody></table>';
+  html += '</div>';
   if(others.length){
     html += '<div style="margin-top:14px;font-weight:700;font-size:13px">その他（サイズ展開のない商品：カップオイル・ギフト・備品など）</div>';
     html += '<div style="display:flex;flex-wrap:wrap;margin-top:5px">';
@@ -2829,7 +2847,7 @@ function renderQuoteHistory(){
   if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
   listEl.innerHTML = sorted.map(function(r){
     const dateStr = (r.issuedAt||'').slice(0,10);
-    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : (r.kind==='invoice' ? '🧾 請求書' : (r.kind==='both' ? '📄🧾 見積書 兼 請求書' : '📝 見積書')));
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : (r.kind==='invoice' ? '🧾 請求書' : (r.kind==='both' ? '📄🧾 見積書 兼 請求書' : (r.kind==='extract' ? '📄 抜き出し見積（仕様表）' : '📝 見積書'))));
     const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
     const state = effectiveFollowUpState(r, now);
     const issued = new Date(r.issuedAt);
@@ -2845,7 +2863,10 @@ function renderQuoteHistory(){
 
     let actionsHtml;
     if(hasOrder){
-      actionsHtml = '<button class="btn-sm" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</button>';
+      actionsHtml = '<div class="qhist-actions">'
+        + '<span class="qhist-mini-btn gray" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</span>'
+        + '<span class="qhist-mini-btn del" onclick="deleteQuoteHistoryItem(\''+r.id+'\')">🗑 削除</span>'
+        + '</div>';
     } else {
       const todayStr = now.toISOString().slice(0,10);
       const defaultSnooze = new Date(now); defaultSnooze.setDate(defaultSnooze.getDate()+FOLLOWUP_THRESHOLD_DAYS);
@@ -2856,6 +2877,7 @@ function renderQuoteHistory(){
         + '<span class="qhist-mini-btn gray" onclick="markFollowUpStatus(\''+r.id+'\',\'muted\')">🔕 今回は様子見</span>'
         + '<span class="qhist-mini-btn dark" onclick="markFollowUpStatus(\''+r.id+'\',\'notInterested\')">❌ 興味なし</span>'
         + '<span class="qhist-mini-btn gray" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</span>'
+        + '<span class="qhist-mini-btn del" onclick="deleteQuoteHistoryItem(\''+r.id+'\')">🗑 削除</span>'
         + '</div>'
         + '<div class="qhist-snooze-box" id="snoozebox_'+r.id+'">'
         + '次にアラートを出す日：<input type="date" id="snoozedate_'+r.id+'" value="'+defaultSnoozeStr+'" min="'+todayStr+'" style="padding:3px 6px;border:1px solid #185fa5;border-radius:4px;font-size:11px">'
@@ -2884,6 +2906,27 @@ function viewQuoteHistoryItem(rid){
   const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
   const doc = r.kind==='extract' ? buildExtractDocHtml(r, c) : (r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : ((r.kind==='invoice'||r.kind==='both') ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c))));
   showQuoteDocGeneric(doc, r);
+}
+// 見積提出履歴を1件削除（必ず確認してから）。受注Aに登録済みの注文には影響しない。
+function deleteQuoteHistoryItem(rid){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
+  const kindStr = r.kind==='pricelist' ? '標準価格表' : (r.kind==='oilwholesale' ? 'オイル価格表' : (r.kind==='invoice' ? '請求書' : (r.kind==='both' ? '見積書 兼 請求書' : (r.kind==='extract' ? '抜き出し見積（仕様表）' : '見積書'))));
+  const dateStr = (r.issuedAt||'').slice(0,10);
+  let msg = 'この履歴を本当に削除しますか？\n\n'
+    + '　お客様：' + (r.customerName||'') + '\n'
+    + '　種類　：' + kindStr + '\n'
+    + '　発行日：' + dateStr + '\n\n'
+    + '削除すると元に戻せません。';
+  if(r.orderRegistered){
+    msg += '\n※受注Aに登録済みの注文（' + (r.orderRegistered.num||'') + '）はそのまま残ります。この履歴だけが消えます。';
+  }
+  if(!confirm(msg)) return;
+  const idx = quoteHistory.findIndex(x=>x.id===rid);
+  if(idx < 0) return;
+  quoteHistory.splice(idx, 1);
+  saveQuoteHistoryToGAS();
+  renderQuoteHistory();
+  showSyncStatus('🗑 見積履歴を1件削除しました');
 }
 
 // ── 📦 受注Aに登録（見積・請求からワンタップで発送に進む） ────────────────
