@@ -253,10 +253,6 @@ th.center,td.center{text-align:center}
         <div style="font-size:13px;font-weight:700;color:#2b2a26">卸①→卸② 自動昇格</div>
         <div style="font-size:12px;color:#2b2a26;margin-top:3px;line-height:1.6">卸①のお客様が同じ商品を6箱以上で、その商品だけ自動的に卸②価格。</div>
       </div>
-      <div style="flex:1;min-width:220px;background:#fff;border:1px solid #e8e2d8;border-left:3px solid #6b7a3a;border-radius:8px;padding:10px 12px">
-        <div style="font-size:13px;font-weight:700;color:#33421f">貢献ハブ</div>
-        <div style="font-size:12px;color:#2b2a26;margin-top:3px;line-height:1.6">最初から卸②価格。お客様には見えません。</div>
-      </div>
     </div>
   </div>
 </details>
@@ -326,7 +322,7 @@ th.center,td.center{text-align:center}
 
 <!-- 見積書 -->
 <div id="panel-quote" class="panel active">
-<div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。<br>💛 <strong>「貢献ハブ」</strong>に登録したお客様は、箱数に関係なく最初から<strong>卸②価格</strong>になります（いつも広めてくださる方への特別区分・お客様には見えません）。</div>
+<div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
 
   <!-- 区分ゲート（6択）：最初に必ず確認 -->
   <div class="card" id="q-rt-gate-card" style="border:2px solid #d5cfc3">
@@ -334,7 +330,7 @@ th.center,td.center{text-align:center}
     <div class="gate-section-label">■ その価格の全商品を「そのまま」出す</div>
     <div class="gate-grid">
       <button class="gate-btn" onclick="selectRtGate('rt')">🏨 RT<span>ホテル・レストラン</span></button>
-      <button class="gate-btn" onclick="selectRtGate('wholesale')">🏢 卸し<span>卸①・卸②・貢献ハブ卸②</span></button>
+      <button class="gate-btn" onclick="selectRtGate('wholesale')">🏢 卸し<span>卸①・卸②</span></button>
       <button class="gate-btn" onclick="selectRtGate('general')">🛍️ 一般<span>定価のみ</span></button>
     </div>
     <div class="gate-section-label">■ 全商品から「見せたくないものを引く」／その場限りの特価</div>
@@ -374,7 +370,6 @@ th.center,td.center{text-align:center}
               <option value="general">定価</option>
               <option value="wholesale1">卸①</option>
               <option value="wholesale2">卸②</option>
-              <option value="hub">貢献ハブ（卸②価格）</option>
               <option value="rt">RT</option>
             </select>
           </div>
@@ -755,7 +750,7 @@ const GROUP_CERT = {
   'その他オイル':{organic:'×',contamination:'×',analysis:'○'}
 };
 
-const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価', hub:'貢献ハブ' };
+const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価', hub:'卸②（旧・貢献ハブ）' }; // 貢献ハブは2026年7月廃止。過去に登録済みのお客様の表示・計算のためだけに残す
 
 // ── いただいたExcel（2026年価格リスト）から読み取った初期価格 ──
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
@@ -824,7 +819,7 @@ function priceCodeForInvoice(custType, effTypes){
   if(custType==='rt') return PRICE_CODE.rt;
   if(custType==='general') return PRICE_CODE.general;
   if(custType==='defectprice') return PRICE_CODE.defect;
-  if(custType==='wholesale2' || custType==='hub') return PRICE_CODE.wholesale2; // 貢献ハブは卸②価格なのでOS2扱い
+  if(custType==='wholesale2' || custType==='hub') return PRICE_CODE.wholesale2; // 旧・貢献ハブ（廃止済み）も卸②＝OS2扱い
   if(custType==='wholesale1'){
     const has1 = effTypes.indexOf('wholesale1')>=0, has2 = effTypes.indexOf('wholesale2')>=0;
     if(has1 && has2) return PRICE_CODE.mix12;
@@ -948,7 +943,7 @@ function loadAllBilling(){
 // （4箱案も検討したが、卸①→卸②の値引き幅が20〜25%と大きく、条件が易しすぎると判断し6箱に決定）
 const BULK_UPGRADE_BOXES = 6; // 卸①のお客様が、同じ商品を1回の注文でこの箱数以上買うと、その行だけ自動的に卸②価格になる
 function effectiveCustomerType(customerType, boxes){
-  if(customerType==='hub') return 'wholesale2'; // 貢献ハブ：箱数に関係なく、最初から卸②価格
+  if(customerType==='hub') return 'wholesale2'; // 旧・貢献ハブ（廃止済み）：過去に登録したお客様を卸②として扱うための互換
   if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
   return customerType;
 }
@@ -1701,7 +1696,7 @@ function generateQuoteDoc(){
     effTypes.push(effType);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
-    const upgraded = (c.type==='wholesale1' && effType!==c.type); // 「数量割引適用」は卸①→卸②の箱数昇格だけ。貢献ハブには付けない
+    const upgraded = (c.type==='wholesale1' && effType!==c.type); // 「数量割引適用」は卸①→卸②の箱数昇格だけ
     items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
     if(boxes>0) totalBoxes += boxes;
   });
@@ -2240,10 +2235,19 @@ function renderQuoteHistory(){
         + ' <span class="qhist-mini-btn blue" onclick="confirmSnooze(\''+r.id+'\')">この日で確定</span>'
         + '</div>';
     }
+    let ordRegHtml = '';
+    if(r.kind!=='pricelist' && r.kind!=='oilwholesale'){ // 見積書・請求書だけ受注Aに進める
+      if(r.orderRegistered){
+        ordRegHtml = '<div style="margin:4px 0 10px;padding:6px 10px;background:#f0fdf4;border:1px solid #16a34a;border-radius:6px;font-size:12px;color:#14532d;font-weight:700">✅ 受注A登録済み：'+esc(r.orderRegistered.num||'')+'（'+esc(String(r.orderRegistered.at||'').slice(0,10))+'）　<a href="index.html" style="color:#185fa5">受注Aを開く →</a></div>';
+      } else {
+        ordRegHtml = '<div style="margin:4px 0 10px"><button class="btn-sm" style="font-weight:700;border-color:#185fa5;color:#185fa5" onclick="openOrderRegPanel(\''+r.id+'\')">📦 受注Aに登録（発送に進む）</button><div id="ordreg_'+r.id+'" style="display:none"></div></div>';
+      }
+    }
     return '<div class="qhist-row">'
       + '<div class="hist-info"><strong>'+esc(r.customerName)+'</strong> '+badge+'<br><span style="font-size:11px;color:#2b2a26">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
       + actionsHtml
-      + '</div>';
+      + '</div>'
+      + ordRegHtml;
   }).join('');
 }
 function viewQuoteHistoryItem(rid){
@@ -2252,6 +2256,176 @@ function viewQuoteHistoryItem(rid){
   const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : (r.kind==='invoice' ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)));
   showQuoteDocGeneric(doc, r);
 }
+
+// ── 📦 受注Aに登録（見積・請求からワンタップで発送に進む） ────────────────
+// 受注A（index.html）の注文データ形式・保存パターンに合わせて書き込む。
+// 安全策：①保存直前に最新の注文一覧を取り直してマージ（丸ごと上書き事故の防止）
+//         ②在庫はロット差分だけを最新データに反映（受注Aと同じ考え方）
+//         ③二重登録防止（登録済みならボタンが出ない＋処理中は再実行不可）
+function openOrderRegPanel(rid){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r || r.orderRegistered) return;
+  const box = document.getElementById('ordreg_'+rid); if(!box) return;
+  if(box.style.display==='block'){ box.style.display='none'; return; }
+  const c = customers.find(x=>x.id===r.customerId) || {};
+  const addr = r.deliveryAddr || c.addr || '';
+  const tel = r.deliveryTel || c.tel || '';
+  const zip = r.deliveryAddr ? '' : (c.zip || '');
+  const encl = (r.kind==='invoice')
+    ? '請求書発行済み（'+(r.invoiceNo||'')+'）。同梱は納品書のみ。'
+    : '納品書兼請求書を同梱。';
+  let html = '<div style="border:2px solid #185fa5;border-radius:10px;padding:12px;background:#eff6ff;margin-top:6px">';
+  html += '<div style="font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:8px">📦 この内容で受注Aに登録します（確認してください）</div>';
+  html += '<table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-bottom:8px">';
+  html += '<tr><td style="padding:3px 6px;color:#57534e;width:30%">お客様</td><td style="padding:3px 6px;font-weight:700">'+esc(r.customerName)+'（'+esc(CUSTOMER_TYPE_LABEL[r.customerType]||r.customerType)+'）</td></tr>';
+  html += '<tr><td style="padding:3px 6px;color:#57534e">商品</td><td style="padding:3px 6px">'+r.items.map(function(it){ let q=''; if(it.boxes&&it.bottles)q=it.boxes+'箱＋'+it.bottles+'本'; else if(it.boxes)q=it.boxes+'箱'; else q=it.bottles+'本'; return esc(it.name)+'：'+q; }).join('<br>')+'</td></tr>';
+  html += '<tr><td style="padding:3px 6px;color:#57534e">同梱書類</td><td style="padding:3px 6px">'+esc(encl)+'</td></tr>';
+  html += '</table>';
+  html += '<div class="g2">';
+  html += '<div class="fg"><label>届け先住所</label><input type="text" id="oreg-addr-'+rid+'" value="'+esc(addr)+'"></div>';
+  html += '<div class="fg"><label>届け先電話</label><input type="text" id="oreg-tel-'+rid+'" value="'+esc(tel)+'"></div>';
+  html += '</div>';
+  html += '<div class="g2">';
+  html += '<div class="fg"><label>郵便番号</label><input type="text" id="oreg-zip-'+rid+'" value="'+esc(zip)+'"></div>';
+  html += '<div class="fg"><label>発送区分</label><select id="oreg-lead-'+rid+'"><option value="normal">通常（3日以内）</option><option value="urgent">🚨急ぎ（明日まで）</option></select></div>';
+  html += '</div>';
+  html += '<div class="fg"><label>メモ（倉庫・社内向け）</label><input type="text" id="oreg-note-'+rid+'" value="'+esc(r.deliveryWish||'')+'" placeholder="例：8月上旬希望／なるはや"></div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">';
+  html += '<button class="btn btn-primary" id="oreg-go-'+rid+'" onclick="registerOrderFromQuote(\''+rid+'\')">この内容で受注Aに登録する</button>';
+  html += '<button class="btn-sm" onclick="document.getElementById(\'ordreg_'+rid+'\').style.display=\'none\'">やめる</button>';
+  html += '</div>';
+  html += '<div id="oreg-msg-'+rid+'" style="font-size:12px;margin-top:6px"></div>';
+  html += '</div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+// 受注Aと同じ：賞味期限の早いロットから順に減らす（正規'new'のみ。見積M経由は正規在庫の注文だけ）
+function mDeductFromLots(freshLots, pid, qty, log){
+  let remain = qty;
+  const matching = freshLots.filter(function(l){ return l.pid==pid && l.status==='new'; })
+    .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); });
+  matching.forEach(function(l){
+    if(remain<=0) return;
+    const take = Math.min(l.stock||0, remain);
+    if(take<=0) return;
+    l.stock = (l.stock||0) - take;
+    log.push({ kind:'lot', id:l.id, qty:take });
+    remain -= take;
+  });
+  return remain; // 引ききれなかった本数（在庫不足分）
+}
+function mProductNameForLots(arr){
+  return arr.map(function(l){ const p = PRODUCTS.find(function(x){ return x.id==l.pid; }); return Object.assign({}, l, { productName: p?p.name:(l.productName||'') }); });
+}
+async function registerOrderFromQuote(rid){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
+  if(r.orderRegistered){ showSyncStatus('この'+(r.kind==='invoice'?'請求':'見積')+'はすでに受注A登録済みです'); return; }
+  const goBtn = document.getElementById('oreg-go-'+rid);
+  const msgEl = document.getElementById('oreg-msg-'+rid);
+  if(goBtn && goBtn.disabled) return; // 二重押し防止
+  if(goBtn){ goBtn.disabled = true; goBtn.textContent = '登録しています...'; }
+  const setMsg = function(t, bad){ if(msgEl){ msgEl.textContent = t; msgEl.style.color = bad?'#b91c1c':'#14532d'; msgEl.style.fontWeight='700'; } };
+  try{
+    // ① 注文の形を作る（受注Aの仕様に合わせる）
+    const lines = [];
+    r.items.forEach(function(it){
+      const p = findProductBySku(it.sku); if(!p) return;
+      lines.push({ productId: p.id, productName: p.name, boxQty: p.boxQty||1, giftType:'', bottles: it.bottles||0, boxes: it.boxes||0, memo:'' });
+    });
+    if(!lines.length){ setMsg('商品の情報が見つかりませんでした', true); if(goBtn){goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する';} return; }
+    const encl = (r.kind==='invoice')
+      ? '請求書発行済み（'+(r.invoiceNo||'')+'）・同梱は納品書のみ'
+      : '納品書兼請求書を同梱';
+    const userNote = (document.getElementById('oreg-note-'+rid)||{}).value || '';
+    const feeNote = (r.warehouseFee ? '倉庫手数料'+r.warehouseFee+'円請求済み。' : '');
+    const now = new Date();
+    const order = {
+      id: 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      num: '', // 最新の注文一覧を見て採番する（下で入れる）
+      client: r.customerName, customerType: r.customerType,
+      zip: (document.getElementById('oreg-zip-'+rid)||{}).value || '',
+      addr: (document.getElementById('oreg-addr-'+rid)||{}).value || '',
+      tel: (document.getElementById('oreg-tel-'+rid)||{}).value || '',
+      leadType: (document.getElementById('oreg-lead-'+rid)||{}).value || 'normal',
+      leadDate: '', delivTime: '',
+      note: '【見積Mから登録】'+encl+'。'+feeNote+(userNote?('メモ：'+userNote):''),
+      useRecycle: false, isDefectSale: false,
+      status: 'pending', registeredAt: now.toISOString(), shippedAt:'', cancelledAt:'',
+      storesOrderNum: '', source: 'mitsumori',
+      senderName:'', senderTel:'', senderZip:'', senderAddr:'',
+      stockDeducted: false,
+      lines: lines
+    };
+    // ② 最新の注文一覧を取り直して、採番＋マージ保存（丸ごと上書き事故の防止）
+    const freshRes = await fetch(GAS_URL + '?action=loadAll');
+    const fresh = await freshRes.json();
+    if(!(fresh && fresh.status==='ok' && fresh.data && Array.isArray(fresh.data.orders))){
+      setMsg('受注データの取得に失敗しました。通信環境を確認して、もう一度押してください。', true);
+      if(goBtn){ goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する'; }
+      return;
+    }
+    const freshOrders = fresh.data.orders;
+    const ymd = now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
+    const todays = freshOrders.filter(function(o){ return (o.num||'').indexOf('OS-'+ymd)===0; }).length;
+    order.num = 'OS-'+ymd+'-'+String(todays+1).padStart(3,'0');
+    const merged = freshOrders.concat([order]);
+    const saveRes = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: merged }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const saveData = await saveRes.json();
+    if(!(saveData && saveData.status==='ok')){
+      setMsg('注文の保存に失敗しました。もう一度押してください。', true);
+      if(goBtn){ goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する'; }
+      return;
+    }
+    // ③ ここで登録は確定。履歴に「登録済み」を刻む（在庫処理が失敗しても二重登録を防ぐ）
+    r.orderRegistered = { orderId: order.id, num: order.num, at: now.toISOString() };
+    saveQuoteHistoryToGAS();
+    // ④ 在庫を減らす（最新ロットを取り直し、賞味期限の早い順に差し引いて保存。受注Aと同じ考え方）
+    let stockOk = false, shortage = [];
+    try{
+      const stRes = await fetch(GAS_URL + '?action=loadAllData');
+      const stData = await stRes.json();
+      if(stData && stData.status==='ok' && stData.data && Array.isArray(stData.data.lots)){
+        const freshLots = stData.data.lots;
+        const freshDefects = Array.isArray(stData.data.defects) ? stData.data.defects : [];
+        const log = [];
+        lines.forEach(function(l){
+          const p = PRODUCTS.find(function(x){ return x.id==l.productId; }); if(!p) return;
+          const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+          if(totalQty<=0) return;
+          const targets = (p.isSet && p.components)
+            ? p.components.map(function(cp){ return { sku:cp.sku, qty: totalQty*(cp.qty||1) }; })
+            : [{ sku:p.sku, qty: totalQty }];
+          targets.forEach(function(t){
+            const prod = findProductBySku(t.sku); if(!prod) return;
+            const remain = mDeductFromLots(freshLots, prod.id, t.qty, log);
+            if(remain>0) shortage.push(prod.name+'：'+remain+'本たりません');
+          });
+        });
+        const stSave = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload:{ lots: mProductNameForLots(freshLots), defects: mProductNameForLots(freshDefects) } }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+        const stSaveData = await stSave.json().catch(function(){ return null; });
+        if(stSaveData==null || stSaveData.status==='ok'){
+          // ⑤ 注文に「在庫は引き落とし済み」の印を付けて、もう一度マージ保存
+          order.stockDeducted = true; order.stockLog = log;
+          const re2 = await fetch(GAS_URL + '?action=loadAll');
+          const f2 = await re2.json();
+          if(f2 && f2.status==='ok' && f2.data && Array.isArray(f2.data.orders)){
+            const byId = {}; f2.data.orders.forEach(function(o){ byId[o.id]=o; }); byId[order.id]=order;
+            await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: Object.keys(byId).map(function(k){ return byId[k]; }) }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+          }
+          stockOk = true;
+        }
+      }
+    }catch(e){ /* 在庫処理の失敗は下のメッセージで案内（注文自体は登録済み・出荷時に受注Aが自動で引く） */ }
+    let doneMsg = '✅ 受注Aに登録しました：'+order.num;
+    if(shortage.length) doneMsg += '（⚠️ 在庫不足あり：'+shortage.join('、')+'。在庫Bで確認してください）';
+    if(!stockOk) doneMsg += '（在庫の引き落としは出荷時に受注Aが自動で行います）';
+    showSyncStatus(doneMsg, shortage.length>0);
+    renderQuoteHistory();
+  }catch(err){
+    setMsg('通信エラーが発生しました。もう一度押してください。', true);
+    if(goBtn){ goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する'; }
+  }
+}
+
 function makeOrderUrl(record){
   var c = customers.find(function(x){ return x.id===record.customerId; })
     || { name:record.customerName, type:record.customerType, id:record.customerId };
