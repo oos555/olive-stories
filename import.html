@@ -908,6 +908,26 @@ async function loadCostDataFromGAS(){
   }catch(err){}
 }
 
+// ── 在庫と価格マスタ（見積・請求Cと共通）を読み込む ──
+// ★2026-07-17 追加：この関数がずっと未定義だったため、価格マスタ（定価・卸①・卸②など）が
+//   一度も読み込まれず、priceMaster が空のままだった。そのため利益ヒートマップと掛け率
+//   シミュレーションは初期値（DEFAULT_PRICES）を表示しており、シミュレーションで「卸②に使う」を
+//   押して保存しても、画面を開き直すと初期値に戻って見えていた（保存自体はできていても、
+//   保存後の値を画面が読み込み直していなかった）。loadAllData から priceMaster と在庫ロットを
+//   取得して反映することで解消する。
+async function loadStockAndPriceRef(){
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const data = await res.json();
+    if(data && data.status==='ok' && data.data){
+      priceMaster = data.data.priceMaster || [];
+      currentLots = data.data.lots || data.data.stock || data.data.stockLots || currentLots || [];
+      renderProfitHeatmap();
+      renderRateSimulation();
+    }
+  }catch(err){}
+}
+
 function toggleCostEditLock(){
   const on = document.getElementById('cost-edit-lock').checked;
   document.querySelectorAll('#cost-product-table input, #novello-note-area input').forEach(i=>i.disabled = !on);
