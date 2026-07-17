@@ -438,9 +438,9 @@ th.center,td.center{text-align:center}
         </select>
       </div>
       <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
-        <div id="nc-rt-hint" class="info-box" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#78350f">RTのお客様は、<strong>会社名（施設名）</strong>と<strong>担当者名</strong>のどちらか一方が入っていれば登録できます。</div>
+        <div id="nc-rt-hint" class="info-box" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>会社名（施設名）</strong>と<strong>担当者名</strong>のどちらか一方が入っていれば登録できます。</div>
         <div class="g2">
-          <div class="fg"><label>お客様名（会社名・施設名）</label><input type="text" id="nc-name" placeholder="〇〇株式会社"></div>
+          <div class="fg"><label>お客様名（会社名・施設名）<span style="font-size:11px;font-weight:400;color:#57534e">— 個人のお客様は空でOK</span></label><input type="text" id="nc-name" placeholder="〇〇株式会社（無ければ空のまま）"></div>
           <div class="fg"><label>区分（価格帯）</label>
             <select id="nc-type">
               <option value="general">定価</option>
@@ -462,14 +462,21 @@ th.center,td.center{text-align:center}
           <div class="fg"><label>電話番号</label><input type="text" id="nc-tel" placeholder="0312345678"></div>
         </div>
         <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="nc-email" placeholder="example@example.com"></div>
-        <div class="fg"><label>担当者名（RTの場合、会社名の代わりでも可）</label><input type="text" id="nc-contact" placeholder="例：山口 玲子"></div>
+        <div class="fg"><label>担当者名（会社名が無いときは、ここだけでOK）</label><input type="text" id="nc-contact" placeholder="例：山口 玲子" oninput="autofillSharedFromNc()"><div style="font-size:11.5px;color:#0f5040;margin-top:3px">↓ ここに入れた名前は、下の「提出先ご担当者名」に自動で入ります（違うときは書き換えOK）</div></div>
         <div class="fg"><label>メモ（任意）</label><input type="text" id="nc-note" placeholder="紹介経緯など"></div>
         <button class="btn btn-green" onclick="registerNewCustomer()">このお客様を登録して選択する</button>
       </div>
-      <div class="fg" style="margin-top:12px" id="q-contact-person-wrap"><label>提出先ご担当者名（自動で「様」が付きます）</label><input type="text" id="q-contact-person-shared" placeholder="例：山口 玲子" oninput="checkContactPersonReady()"></div>
+      <div class="fg" style="margin-top:12px" id="q-contact-person-wrap"><label>提出先ご担当者名（自動で「様」が付きます・違えば書き換えOK）</label><input type="text" id="q-contact-person-shared" placeholder="例：山口 玲子" oninput="onSharedPersonInput()"></div>
       <details style="margin-top:10px;border:1px dashed #d5cfc3;border-radius:8px;background:#f9f8f5">
-        <summary style="font-size:12.5px;font-weight:700;color:#2b2a26;padding:8px 12px;cursor:pointer;list-style:none">📦 お届け先情報（社内用・自動入力済み — 違う場所に送るときだけ開く ▾）</summary>
+        <summary style="font-size:12.5px;font-weight:700;color:#2b2a26;padding:8px 12px;cursor:pointer;list-style:none">📦 お届け先情報（違う場所に送るときだけ記入 ▾）</summary>
         <div style="padding:0 12px 10px">
+        <div class="fg" style="margin-bottom:8px"><label>届け先の郵便番号（入れると住所が自動で入ります）</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="q-delivery-zip" placeholder="1920000" style="flex:1;padding:5px 8px;font-size:12.5px" oninput="onZipInput('q-delivery-zip','q-delivery-addr','q-delivery-zipmsg')">
+            <button type="button" class="btn-sm" style="white-space:nowrap;font-weight:700" onclick="lookupZipTo('q-delivery-zip','q-delivery-addr','q-delivery-zipmsg')">住所を表示</button>
+          </div>
+          <div id="q-delivery-zipmsg" style="font-size:11px;color:#7a776d;min-height:14px;margin-top:2px"></div>
+        </div>
         <div class="g3">
           <div class="fg" style="margin-bottom:0"><label>届け先住所</label><input type="text" id="q-delivery-addr" placeholder="例：東京都八王子市…" style="padding:5px 8px;font-size:12.5px"></div>
           <div class="fg" style="margin-bottom:0"><label>届け先電話番号</label><input type="text" id="q-delivery-tel" placeholder="例：09012345678" style="padding:5px 8px;font-size:12.5px"></div>
@@ -1156,16 +1163,16 @@ async function registerNewCustomer(){
   const contact = document.getElementById('nc-contact').value.trim();
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   const type = document.getElementById('nc-type').value;
+  // 2026-07-17 中村様確定：会社名が無くても担当者名だけで登録OK（一般・卸・RTすべて）
+  if(!name && !contact){ alert('会社名か担当者名の、どちらか一方は入力してください'); return; }
+  // 区分の取り違え防止アラートは安全のため残す
   if(gateType==='rt'){
-    if(!name && !contact){ alert('RTのお客様は、会社名（施設名）と担当者名のどちらか一方を入力してください'); return; }
     if(type!=='rt'){ alert('最初に「RT」を選んでいます。区分を「RT」にするか、上のゲート選択からやり直してください。'); return; }
-  } else {
-    if(!name){ alert('お客様名を入力してください'); return; }
-    if(gateType==='wholesale' && type==='rt'){ alert('最初に「卸し」を選んでいます。区分を「RT」以外にするか、上のゲート選択からやり直してください。'); return; }
-    if(gateType==='general' && type!=='general'){ alert('最初に「一般」を選んでいます。区分を「定価」にするか、上のゲート選択からやり直してください。'); return; }
-  }
+  } else if(gateType==='wholesale' && type==='rt'){ alert('最初に「卸し」を選んでいます。区分を「RT」以外にするか、上のゲート選択からやり直してください。'); return; }
+  else if(gateType==='general' && type!=='general'){ alert('最初に「一般」を選んでいます。区分を「定価」にするか、上のゲート選択からやり直してください。'); return; }
   const newCust = {
     id: 'c'+Date.now(), name: name || contact, type: type,
+    companyName: name, // 宛名の御中／様の出し分け用に、会社名そのもの（空なら空）を別に持つ
     zip: document.getElementById('nc-zip').value.trim(),
     addr: document.getElementById('nc-addr').value.trim(),
     tel: document.getElementById('nc-tel').value.trim(),
@@ -1384,10 +1391,18 @@ function onQuoteCustomerChange(){
   const c = customers.find(x=>x.id===cid);
   window.generalNoCustomerMode = false;
   window.quoteShownSkus = null;
-  // 提出先ご担当者名：選んだお客様の担当者名（無ければお客様名）を自動で入れる。手で書き換えOK。
+  // 提出先ご担当者名：選んだお客様の担当者名を自動で入れる。手で書き換えOK。
+  // お客様を選び直したら自動入力をやり直せるよう、touchedをいったんリセットする。
   const cpEl = document.getElementById('q-contact-person-shared');
-  if(cpEl) cpEl.value = c ? (c.contactPerson || c.name || '') : '';
+  if(cpEl){
+    delete cpEl.dataset.touched;
+    // 会社名があるお客様は担当者名だけ（無ければ空）／会社名の無い個人客は名前を入れる
+    const company = c ? (c.companyName!==undefined ? c.companyName : c.name) : '';
+    if(c){ cpEl.value = c.contactPerson || (company ? '' : (c.name || '')); }
+    else { cpEl.value = ''; }
+  }
   // お届け先情報：登録済みの住所・電話を自動で入れる（違う場所に送るときだけ書き換える運用）
+  const dzEl = document.getElementById('q-delivery-zip'); if(dzEl) dzEl.value = c ? (c.zip || '') : '';
   const daEl = document.getElementById('q-delivery-addr'); if(daEl) daEl.value = c ? (c.addr || '') : '';
   const dtEl = document.getElementById('q-delivery-tel'); if(dtEl) dtEl.value = c ? (c.tel || '') : '';
   if(typeof checkContactPersonReady==='function') checkContactPersonReady();
@@ -1989,6 +2004,63 @@ function formatContactName(raw){
   if(/様$/.test(s)) return s;
   return s+' 様';
 }
+// ── 宛名ブロックの共通生成（2026-07-17 中村様確定ルール） ──
+// ・担当者名がある → 会社名は敬称なし、担当者名に「様」（御中は付けない＝二重敬称を避ける）
+// ・担当者名がない → 会社名に「御中」だけ
+// ・会社名がない（個人のお客様） → 担当者名に「様」だけ
+// nameSize/personSize は各帳票の既存の見た目に合わせて呼び出し側から渡す。
+function buildAddresseeHtml(companyName, contactPerson, opt){
+  opt = opt || {};
+  const nameSize = opt.nameSize || '15px';
+  const personSize = opt.personSize || '13px';
+  const company = (companyName||'').trim();
+  const person = (contactPerson||'').trim();
+  if(company && person){
+    return '<div style="font-size:'+nameSize+';font-weight:700">'+esc(company)+'</div>'
+         + '<div style="margin-top:2px;font-size:'+personSize+';font-weight:700">'+esc(formatContactName(person))+'</div>';
+  }
+  if(company && !person){
+    return '<div style="font-size:'+nameSize+';font-weight:700">'+esc(company)+' 御中</div>';
+  }
+  return '<div style="font-size:'+nameSize+';font-weight:700">'+esc(formatContactName(person))+'</div>';
+}
+// ── 提出先ご担当者名への自動転記（2026-07-17） ──
+// 登録フォームの担当者名を打つと、提出先欄へ自動で入る。ただし提出先を手で触った後は上書きしない。
+function onSharedPersonInput(){
+  const el = document.getElementById('q-contact-person-shared');
+  if(el) el.dataset.touched = '1'; // 人が手で編集した印。以後は自動転記で上書きしない
+  if(typeof checkContactPersonReady==='function') checkContactPersonReady();
+}
+function autofillSharedFromNc(){
+  const src = document.getElementById('nc-contact');
+  const dst = document.getElementById('q-contact-person-shared');
+  if(!src || !dst) return;
+  if(dst.dataset.touched === '1') return; // 手で書き換え済みなら尊重して何もしない
+  dst.value = src.value;
+  if(typeof checkContactPersonReady==='function') checkContactPersonReady();
+}
+// 標準価格表タグ用：外側divを持たず、御中／様のルールだけ適用したテキストを返す
+function buildAddresseeTagHtml(companyName, contactPerson){
+  const company = (companyName||'').trim();
+  const person = (contactPerson||'').trim();
+  if(company && person){
+    return esc(company) + '<div style="font-size:13px;margin-top:4px;font-weight:700">'+esc(formatContactName(person))+'</div>';
+  }
+  if(company && !person){ return esc(company) + ' 御中'; }
+  return esc(formatContactName(person));
+}
+// 帳票recordから「宛名に使う会社名」を導く。
+// ・record.companyName があればそれを最優先（新しい登録データ）
+// ・無い旧データでは customerName を会社名とみなすが、担当者名と同じ文字列なら
+//   「会社名の無い個人客（nameに担当者名を入れて登録した）」と判断して会社名を空にする。
+function recordCompanyName(record){
+  if(!record) return '';
+  if(record.companyName !== undefined && record.companyName !== null) return record.companyName;
+  const nm = (record.customerName||'').trim();
+  const cp = (record.contactPerson||'').trim();
+  if(nm && cp && nm === cp) return ''; // 個人客：nameに担当者名が入っている旧データ
+  return nm;
+}
 function updateLastTimeHint(cid){
   const box = document.getElementById('q-lasttime-hint');
   if(!box) return;
@@ -2070,7 +2142,7 @@ function generateQuoteDoc(){
   const deliveryTel = (document.getElementById('q-delivery-tel')||{}).value || '';
   const deliveryWish = (document.getElementById('q-delivery-wish')||{}).value || '';
   const record = {
-    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
     warehouseFee: bulkWarehouseFee, gateType: gateType,
@@ -2227,8 +2299,7 @@ function buildSpecSectionHtml(record, c){
   let html = '';
   html += '<div style="text-align:center;font-size:22px;font-weight:700;letter-spacing:.15em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin-bottom:12px">お見積書</div>';
   html += '<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px">';
-  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
-  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  html += '<div>' + buildAddresseeHtml(recordCompanyName(record), record.contactPerson, {nameSize:'15px', personSize:'13px'});
   if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
   if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
   html += '</div>';
@@ -2407,7 +2478,7 @@ function generateExtractQuoteDoc(){
   const pickupMode = (document.getElementById('q-pickup-mode')||{}).value || 'charge';
   const bulkWarehouseFee = (pickupMode==='free') ? 0 : (totalBoxes >= 10 ? 0 : (feeGate ? warehouseFeeForGate() : 0));
   const record = {
-    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
     specSkus: specSkus, exWithInvoice: extractWithInvoice,
@@ -2456,8 +2527,7 @@ function buildQuoteDocHtml(record, c){
   let html = '<div class="invoice-doc">';
   html += '<div class="doc2-title">お見積書</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
-  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  html += '<div>' + buildAddresseeHtml(recordCompanyName(record), record.contactPerson, {nameSize:'15px', personSize:'13px'});
   if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
   if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
   html += '</div>';
@@ -2541,8 +2611,7 @@ function buildInvoiceDocHtml(record, c){
     ? '<div class="doc2-title">お見積兼ご請求書</div>'
     : '<div class="doc2-title">ご請求書</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
-  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  html += '<div>' + buildAddresseeHtml(recordCompanyName(record), record.contactPerson, {nameSize:'15px', personSize:'13px'});
   if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
   if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
   html += '</div>';
@@ -2642,7 +2711,7 @@ function generatePriceListDoc(){
     expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
   }
   const record = {
-    id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson,
     products: list.map(p=>({sku:p.sku, name:p.name, group:p.group, boxQty:p.boxQty})),
     selectedFields: fieldsConfig.selectedFields,
@@ -2669,8 +2738,7 @@ function buildPriceListDocHtml(record, c){
   html += '<div class="invoice-doc-title">標 準 価 格 表</div>';
   html += '<div class="pricelist-doc-top">';
   html += '<div>';
-  html += '<div class="pricelist-customer-tag">'+esc(record.customerName)+' 御中</div>';
-  if(record.contactPerson) html += '<div style="font-size:13px;margin-top:4px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  html += '<div class="pricelist-customer-tag">' + buildAddresseeTagHtml(recordCompanyName(record), record.contactPerson) + '</div>';
   html += '<div class="pricelist-expiry">発行日：'+dateStr+'／有効期限：'+esc(record.expiryStr)+'</div>';
   html += '</div>';
   html += '<div class="pricelist-company-info">';
@@ -3520,7 +3588,7 @@ function renderSpecialPriceDocBatch(records, cust){
   let html = '<div class="invoice-doc">';
   html += '<div class="invoice-doc-title">特 別 見 積 書</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700">'+esc(cust.name)+' 御中</div>';
+  html += '<div>' + buildAddresseeHtml((cust.companyName!==undefined?cust.companyName:cust.name), (cust.contactPerson||''), {nameSize:'15px', personSize:'13px'});
   if(cust.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(cust.zip)+'</div>';
   if(cust.addr) html += '<div style="font-size:12px">'+esc(cust.addr)+'</div>';
   html += '<div style="margin-top:10px;font-size:13px">下記の通り、特別価格にて御見積り申し上げます。</div></div>';
@@ -3639,8 +3707,7 @@ function buildOilWholesaleDocHtml(record){
   let html = '<div class="invoice-doc">';
   html += '<div class="invoice-doc-title">'+(titleMap[mode]||'価 格 表')+'</div>';
   html += '<div class="invoice-doc-top">';
-  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
-  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  html += '<div>' + buildAddresseeHtml(recordCompanyName(record), record.contactPerson, {nameSize:'15px', personSize:'13px'});
   if(record.email) html += '<div style="font-size:12px">'+esc(record.email)+'</div>';
   html += '<div style="margin-top:10px;font-size:13px">下記の通り、お取り扱い商品の価格をご案内申し上げます。</div></div>';
   html += '<div style="text-align:right">';
