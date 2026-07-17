@@ -469,6 +469,17 @@ th.center,td.center{text-align:center}
         <div class="fg"><label>件名</label><input type="text" id="q-subject" value="オリーブオイル 御見積り"></div>
         <div class="fg"><label>有効期限（発行日から自動計算・2ヶ月固定）</label><input type="text" id="q-expiry" readonly style="background:#f0ece3;color:#2b2a26"></div>
       </div>
+      <div class="fg"><label>🚚 送料</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="q-ship-mode" onchange="onShipModeChange()" style="max-width:280px;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;background:#fff">
+            <option value="none">記載しない（送料は別途）</option>
+            <option value="manual">手入力する（税抜・10%対象）</option>
+            <option value="free">🎁 送料無料サービス（書類に明記します）</option>
+          </select>
+          <span id="q-ship-manual-wrap" style="display:none">¥ <input type="number" id="q-ship-amount" min="0" value="0" style="width:120px;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px;text-align:right"></span>
+        </div>
+        <div id="q-ship-hint" style="font-size:11px;color:#57534e"></div>
+      </div>
       <div class="fg"><label>備考（お客様に見える）</label>
         <select id="q-remarks-preset" onchange="onRemarksPresetChange('q')">
           <option value="rt">RT定型文</option>
@@ -1792,6 +1803,14 @@ function formatContactName(raw){
   if(/様$/.test(s)) return s;
   return s+' 様';
 }
+function onShipModeChange(){
+  const mode = document.getElementById('q-ship-mode').value;
+  document.getElementById('q-ship-manual-wrap').style.display = (mode==='manual') ? '' : 'none';
+  const hint = document.getElementById('q-ship-hint');
+  if(mode==='free') hint.innerHTML = '見積書・請求書に<strong>「送料 無料（サービス）」の行</strong>と一言を載せます。サービスがちゃんと伝わります。';
+  else if(mode==='manual') hint.textContent = '入力した送料（税抜）を10%対象として明細に載せます。';
+  else hint.textContent = '';
+}
 function generateQuoteDoc(){
   const cid = document.getElementById('q-customer').value;
   const c = customers.find(x=>x.id===cid); if(!c) return;
@@ -1853,6 +1872,8 @@ function generateQuoteDoc(){
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
     warehouseFee: bulkWarehouseFee, gateType: gateType,
+    shipMode: (document.getElementById('q-ship-mode')||{}).value || 'none',
+    shipFee: parseInt((document.getElementById('q-ship-amount')||{}).value)||0,
     selectedFields: fieldsConfig.selectedFields,
     fieldOverrides: fieldsConfig.overrides,
     deliveryAddr: deliveryAddr, deliveryTel: deliveryTel, deliveryWish: deliveryWish,
@@ -1936,7 +1957,10 @@ function buildQuoteDocHtml(record, c){
   const subtotal = subtotalTax8 + subtotalTax10;
   const totalTax = taxAmount8 + taxAmount10;
   const warehouseFee = record.warehouseFee || 0;
-  const total = subtotal + totalTax + warehouseFee;
+  const shipFee = (record.shipMode==='manual') ? (record.shipFee||0) : 0; // 送料は10%対象
+  const shipTax = Math.round(shipFee * 0.10);
+  const shipFree = (record.shipMode==='free');
+  const total = subtotal + totalTax + warehouseFee + shipFee + shipTax;
   let html = '<div class="invoice-doc">';
   html += '<div class="invoice-doc-title">御 見 積 書</div>';
   html += '<div class="invoice-doc-top">';
@@ -1979,9 +2003,19 @@ function buildQuoteDocHtml(record, c){
   if(warehouseFee){
     html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">倉庫手数料（バラ出荷）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+warehouseFee.toLocaleString()+'</td></tr>';
   }
+  if(shipFee){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">送料（10%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+shipFee.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">送料の消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+shipTax.toLocaleString()+'</td></tr>';
+  }
+  if(shipFree){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #6b7a3a;background:#eef3e4;color:#33421f;font-weight:700">🎁 送料　無料（サービス）</td><td style="padding:4px 12px;border:1px solid #6b7a3a;background:#eef3e4;color:#33421f;text-align:right;font-weight:700">¥0</td></tr>';
+  }
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
   html += '<div class="invoice-doc-note" style="margin-top:10px;background:#e3efe9;border-radius:8px;padding:8px 12px;color:#0f5040;font-weight:700">🚚 お届けの目安：ご注文から1週間以内<br><span style="font-weight:400;color:#2b2a26;font-size:12px">できるだけ早くお届けできるよう手配いたします。</span></div>';
+  if(shipFree){
+    html += '<div class="invoice-doc-note" style="margin-top:8px;background:#eef3e4;border-radius:8px;padding:8px 12px;color:#33421f;font-weight:700">🎁 送料は当社サービスとして<u>無料</u>にて承ります。</div>';
+  }
   if(record.remarks){
     html += '<div class="invoice-doc-note"><strong>備考：</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
   }
@@ -2014,7 +2048,10 @@ function buildInvoiceDocHtml(record, c){
   const totalTax = taxAmount8 + taxAmount10;
   const warehouseFee = record.warehouseFee || 0; // 倉庫手数料は10%対象
   const warehouseTax = Math.round(warehouseFee * 0.10);
-  const total = subtotal + totalTax + warehouseFee + warehouseTax;
+  const shipFee = (record.shipMode==='manual') ? (record.shipFee||0) : 0; // 送料は10%対象
+  const shipTax = Math.round(shipFee * 0.10);
+  const shipFree = (record.shipMode==='free');
+  const total = subtotal + totalTax + warehouseFee + warehouseTax + shipFee + shipTax;
   const bank = BANK_ACCOUNTS[record.bankIndex] || BANK_ACCOUNTS[0];
   const isBoth = (record.kind==='both'); // 📄🧾 見積書 兼 請求書
   let html = '<div class="invoice-doc">';
@@ -2057,12 +2094,22 @@ function buildInvoiceDocHtml(record, c){
     html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">8%対象（軽減税率※）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
     html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（8%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount8.toLocaleString()+'</td></tr>';
   }
-  if(subtotalTax10 || warehouseFee){
-    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">10%対象'+(warehouseFee?'（倉庫手数料含む）':'')+'</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+(subtotalTax10+warehouseFee).toLocaleString()+'</td></tr>';
-    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+(taxAmount10+warehouseTax).toLocaleString()+'</td></tr>';
+  if(shipFee){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">送料（10%対象）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+shipFee.toLocaleString()+'</td></tr>';
+  }
+  if(subtotalTax10 || warehouseFee || shipFee){
+    const notes=[]; if(warehouseFee) notes.push('倉庫手数料'); if(shipFee) notes.push('送料');
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">10%対象'+(notes.length?'（'+notes.join('・')+'含む）':'')+'</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+(subtotalTax10+warehouseFee+shipFee).toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+(taxAmount10+warehouseTax+shipTax).toLocaleString()+'</td></tr>';
+  }
+  if(shipFree){
+    html += '<tr><td style="padding:4px 12px;border:1px solid #6b7a3a;background:#eef3e4;color:#33421f;font-weight:700">🎁 送料　無料（サービス）</td><td style="padding:4px 12px;border:1px solid #6b7a3a;background:#eef3e4;color:#33421f;text-align:right;font-weight:700">¥0</td></tr>';
   }
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計（税込）</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
+  if(shipFree){
+    html += '<div class="invoice-doc-note" style="margin-top:10px;background:#eef3e4;border-radius:8px;padding:8px 12px;color:#33421f;font-weight:700">🎁 送料は当社サービスとして<u>無料</u>にて承っております。</div>';
+  }
   html += '<div class="invoice-doc-note" style="margin-top:12px;background:#f7f5f0"><strong>【お振込先】</strong><br>';
   html += esc(bank.bank)+' '+esc(bank.branch)+'　'+esc(bank.type)+'　'+esc(bank.number)+'<br>';
   html += '口座名義：'+esc(bank.holder)+'<br>';

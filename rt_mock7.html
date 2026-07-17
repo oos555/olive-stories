@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RT納品書（モック v3）</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#faf7f2; --ink:#2b2a26; --blue:#2c5578; --blue2:#2f6690;
+  --olive:#6b7a3a; --act:#2563eb; --ok:#16a34a; --warn:#dc2626;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Zen Maru Gothic","Hiragino Sans",sans-serif;font-size:16px;line-height:1.6;}
+.mockband{background:#fde68a;color:#78350f;text-align:center;font-weight:900;padding:6px;font-size:14px;letter-spacing:.1em;}
+header{background:var(--blue2);color:#fff;padding:14px 18px;}
+header h1{margin:0;font-size:21px;font-weight:900;}
+header .sub{font-size:13px;opacity:.9;}
+.wrap{max-width:940px;margin:0 auto;padding:14px;}
+/* 説明パネル */
+details.exp{background:#fff;border:2px solid #d8d2c6;border-radius:12px;margin:12px 0;overflow:hidden;}
+details.exp>summary{cursor:pointer;padding:12px 14px;font-weight:900;font-size:16px;background:#f1ecdf;list-style:none;}
+details.exp>summary::before{content:"▶ ";color:var(--olive);}
+details.exp[open]>summary::before{content:"▼ ";}
+details.exp .body{padding:12px 16px;}
+.flowbox{background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 12px;margin:8px 0;font-weight:700;}
+.flowbox .who{display:inline-block;background:var(--blue2);color:#fff;border-radius:6px;padding:0 8px;font-size:13px;margin-right:6px;}
+.flowbox .who.sys{background:var(--olive);}
+.flowarrow{text-align:center;color:#94a3b8;font-weight:900;margin:-2px 0;}
+.calcstep{margin:6px 0;padding-left:8px;border-left:4px solid #a3b18a;}
+.hint{font-size:13px;color:#6b6a63;font-weight:500;}
+/* カード */
+.card{background:#fff;border:2px solid #d8d2c6;border-radius:14px;margin:14px 0;overflow:hidden;}
+.card>.chead{background:var(--blue2);color:#fff;font-weight:900;font-size:17px;padding:10px 14px;}
+.card>.cbody{padding:14px;}
+label.f{display:block;font-weight:900;font-size:14px;margin:10px 0 3px;}
+input[type=text],input[type=number],input[type=date],select{
+  font-family:inherit;font-size:18px;font-weight:700;color:var(--ink);
+  border:2px solid #c9c2b2;border-radius:8px;padding:8px 10px;background:#fff;
+}
+input.num{text-align:right;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+/* スクショ投入 */
+.dropzone{border:3px dashed var(--blue2);background:#eef4fa;border-radius:14px;padding:26px 14px;text-align:center;cursor:pointer;font-weight:900;font-size:17px;color:var(--blue);}
+.dropzone .big{font-size:34px;display:block;}
+.dropzone:hover{background:#e0edf8;}
+.orline{text-align:center;font-weight:900;color:#8b8676;margin:10px 0 0;}
+/* 商品行 */
+.pline{border:2px solid #e2ddd0;border-radius:12px;padding:10px;margin:10px 0;background:#fdfcf8;}
+.pline .top{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+.pline select{min-width:230px;}
+.pline .del{background:none;border:none;color:var(--warn);font-weight:900;font-size:14px;cursor:pointer;margin-left:auto;}
+.eq{font-size:15px;font-weight:700;margin-top:6px;color:#4b4a44;}
+.addbtn{background:var(--olive);color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:900;font-size:16px;padding:10px 16px;cursor:pointer;}
+/* 送料 */
+.shipline{display:flex;justify-content:space-between;font-weight:700;padding:3px 0;font-size:15px;}
+.shiptotal{display:flex;justify-content:space-between;align-items:center;border-top:2px solid #c9c2b2;margin-top:6px;padding-top:8px;font-weight:900;font-size:17px;}
+.shiptotal input{width:120px;font-size:20px;}
+.gobtn{display:block;width:100%;background:var(--act);color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:900;font-size:20px;padding:14px;cursor:pointer;margin:16px 0 4px;}
+/* アラート */
+.alert{border-radius:10px;padding:10px 14px;font-weight:900;font-size:16px;margin:10px 0;}
+.alert.warn{background:#fef2f2;border:2px solid var(--warn);color:#991b1b;}
+.alert.info{background:#fffbeb;border:2px solid #d97706;color:#92400e;}
+.alert.ok{background:#f0fdf4;border:2px solid var(--ok);color:#166534;}
+.exbtns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+.exbtns button{background:#fff;border:2px solid var(--olive);color:var(--olive);border-radius:20px;font-family:inherit;font-weight:900;font-size:14px;padding:6px 14px;cursor:pointer;}
+.outbtns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
+.outbtns button{flex:1;min-width:180px;background:var(--act);color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:900;font-size:16px;padding:12px;cursor:pointer;}
+.outbtns button.gray{background:#8b8676;}
+/* ══ ②カードのコンパクト表示 ══ */
+#ordercard .cbody{padding:10px 12px;}
+#ordercard label.f{margin:4px 0 2px;font-size:13px;}
+#ordercard input[type=text],#ordercard input[type=number],#ordercard input[type=date],#ordercard select{font-size:15px;padding:5px 8px;}
+#ordercard .row{gap:8px;}
+#ordercard .pline{padding:6px 8px;margin:6px 0;}
+#ordercard .pline select{min-width:210px;}
+#ordercard .eq{font-size:13px;margin-top:2px;}
+#ordercard .hint{font-size:12px;}
+#ordercard .addbtn{padding:6px 12px;font-size:14px;}
+#ordercard .shipline{font-size:13px;padding:1px 0;}
+#ordercard .shiptotal{font-size:15px;margin-top:4px;padding-top:5px;}
+#ordercard .shiptotal input{font-size:17px;width:100px;}
+/* ══ ③カードのコンパクト表示（②と同じ詰まり具合） ══ */
+#ipsection .cbody{padding:10px 12px;}
+#ipsection .iptable th{font-size:13px;padding:5px 6px;}
+#ipsection .iptable td{padding:6px 8px;font-size:15px;}
+#ipsection .iptable td.pn{font-size:14px;}
+#ipsection .iptable td.uval{font-size:26px;}
+#ipsection .ipfoot{gap:8px;margin-top:8px;}
+#ipsection .cmt{font-size:16px;padding:6px 10px;}
+#ipsection .cmt .lab{font-size:11px;}
+#ipsection .totchk{font-size:13px;padding:6px 10px;}
+#ipsection .gobtn{margin:10px 0 2px;padding:11px;font-size:18px;}
+/* ══ 納品書：実物とそっくりのA4プレビュー ══ */
+.a4{background:#fff;border:1px solid #bbb;box-shadow:0 2px 8px rgba(0,0,0,.12);
+  width:100%;max-width:560px;margin:0 auto;padding:26px 30px;
+  font-family:"Hiragino Sans","Yu Gothic",sans-serif;font-size:11px;line-height:1.5;color:#222;}
+.a4 h3{text-align:center;margin:0 0 22px;font-size:18px;font-weight:700;letter-spacing:.6em;text-indent:.6em;}
+.a4 .hdr{display:flex;justify-content:space-between;gap:8px;}
+.a4 .cust .nm{font-size:14px;font-weight:700;}
+.a4 .meta td{padding:1px 4px;}
+.a4 .meta td:last-child{text-align:right;min-width:92px;}
+.a4 .comp{display:flex;justify-content:flex-end;margin-top:14px;position:relative;}
+.a4 .comp .txt{text-align:left;}
+.a4 .comp .cnm{font-size:13px;font-weight:700;}
+.a4 .seal{position:absolute;right:-6px;top:-4px;width:52px;height:52px;border:2px dashed #dc2626;color:#dc2626;font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:4px;background:rgba(255,255,255,.7);}
+.a4 .logo{height:28px;margin-top:8px;}
+.a4 table{width:100%;border-collapse:collapse;}
+.a4 th,.a4 td{border:1px solid #444;padding:4px 6px;font-size:11px;}
+.a4 th{background:#fff;font-weight:700;text-align:center;}
+.a4 .tR{text-align:right;}
+.a4 .totbox{width:60%;min-width:280px;margin-top:6px;}
+.a4 .totbox .big{font-size:17px;font-weight:900;}
+.a4 .kmk{font-weight:700;margin:14px 0 4px;}
+.a4 .itm{margin-top:8px;}
+.a4 .itm td.emp{height:22px;}
+.a4 .foot{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-top:10px;}
+.a4 .uchi{width:auto;min-width:250px;}
+.a4 .biko{border:1px solid #444;padding:6px 10px;margin-top:14px;width:70%;}
+/* ══ アイポーター入力表 ══ */
+.iptable{width:100%;border-collapse:collapse;margin-top:6px;}
+.iptable th{background:var(--blue2);color:#fff;font-size:14px;padding:8px 6px;border:1px solid #b9cbdb;}
+.iptable td{border:1px solid #b9cbdb;padding:10px 8px;font-weight:700;font-size:16px;background:#fff;}
+.iptable td.pn{font-size:15px;}
+.iptable td.tR{text-align:right;}
+.iptable td.uval{text-align:right;font-size:30px;font-weight:900;color:var(--act);background:#eef4fa;white-space:nowrap;}
+.iptable td.chk{font-size:13px;color:var(--ok);}
+.ipfoot{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;align-items:stretch;}
+.cmt{flex:1;min-width:240px;background:#fff;border:2px dashed var(--blue2);border-radius:10px;padding:8px 12px;font-weight:900;font-size:18px;}
+.cmt .lab{font-size:12px;color:#6b6a63;font-weight:700;display:block;}
+.totchk{flex:1;min-width:240px;background:#f0fdf4;border:2px solid var(--ok);border-radius:10px;padding:8px 12px;font-weight:900;font-size:15px;color:#166534;}
+</style>
+</head>
+<body>
+<div class="mockband">🔧 これはモック v3（見本）です — ボタンと計算は動きますが、保存はされません</div>
+<header>
+  <h1>🏨 RT納品書 &amp; アイポーター計算</h1>
+  <div class="sub">サンクチュアリコート・エクシブ向け ／ ゆかさん専用</div>
+</header>
+<div class="wrap">
+
+<!-- ═══ 説明①：このアプリの流れ ═══ -->
+<details class="exp">
+  <summary>このアプリは何をする場所？（タップで開く）</summary>
+  <div class="body">
+    <div class="flowbox"><span class="who">ゆか</span>① RT端末に注文が届く → 端末画面をスクショ → <b>システムに投げる</b>（手で入力してもOK）</div>
+    <div class="flowarrow">↓</div>
+    <div class="flowbox"><span class="who sys">システム</span>② 注文内容を取り込んで表示 → 内容が合っていれば、<b>アイポーターに入力する数字の表</b>がすぐ下に出ている</div>
+    <div class="flowarrow">↓</div>
+    <div class="flowbox"><span class="who">ゆか</span>③ 表を見ながら端末に入力 → 端末で伝票を作成</div>
+    <div class="flowarrow">↓</div>
+    <div class="flowbox"><span class="who">ゆか</span>④ <b>「伝票作成済みなので納品書を作成する」</b>を押す（念のため、端末から出た伝票PDFをシステムに投げて検算もできる）</div>
+    <div class="flowarrow">↓</div>
+    <div class="flowbox"><span class="who sys">システム</span>⑤ 伝票と計算が合っているか検算 ✓ → <b>納品書を確定してPDF作成</b><br>
+      　→ <b>Dropboxに自動保存</b>（保存先：<b>◯◯◯◯◯◯</b> ※あとで指定します）<br>
+      　→ 同時に<b>その場でPDFを取り出せる</b>（Dropboxまで見に行かなくてもOK）</div>
+  </div>
+</details>
+
+<!-- ═══ 説明②：計算のやり方 ═══ -->
+<details class="exp">
+  <summary>どういう計算をしているの？（ゆかさん方式・タップで開く）</summary>
+  <div class="body">
+    <div class="calcstep">❶ 納品書の税込合計（オイル8%＋送料10%）を出す</div>
+    <div class="calcstep">❷ 合計 ÷ 1.08 → 小数第1位を<b>繰り上げ</b> → アイポーター用の税抜合計<br><span class="hint">※ <b>経費のみの注文</b>（紙袋だけ・空瓶だけ等）は、÷1.08 ではなく <b>÷1.1</b> で割って個数で割ります。税表示も10%に変わります（自動判定）</span></div>
+    <div class="calcstep">❸ 全本数で割って、小数第3位を<b>繰り上げ</b> → 税抜単価（小数第2位まで）</div>
+    <div class="calcstep">❹ 1円ズレたら → 小数第2位を上下に振って自動調整</div>
+    <div class="calcstep">❺ どうしても合わない → <b>送料を1円引き</b>で着地（納品書にも自動反映）</div>
+    <div class="calcstep">❻ 2円以上どうしても合わない → <b>📞 庶務課へ電話</b>と表示（ほぼ起きません）</div>
+    <div class="hint">※ 金額がバラバラの商品が混ざる時は、送料÷1.08を本数で割って各単価に足すやり方（ゆかさん方式）で計算します。</div>
+  </div>
+</details>
+
+<!-- ═══ ① スクショを投げる ═══ -->
+<div class="card">
+  <div class="chead">📷 ① 端末のスクショを投げる</div>
+  <div class="cbody">
+    <div class="dropzone" onclick="demoShot()">
+      <span class="big">📷</span>
+      ここに端末画面のスクショをドロップ<br>（タップして写真を選んでもOK）
+      <div class="hint" style="margin-top:6px;">モックでは、タップするとデモ（実例②）が取り込まれます</div>
+    </div>
+    <div class="orline">── または、下の「② 取り込まれた注文内容」に手で入力 ──</div>
+    <div class="exbtns" style="margin-top:10px;">
+      <span class="hint" style="align-self:center;">🧪 実例デモ：</span>
+      <button onclick="loadEx(1)">① 日光 307367</button>
+      <button onclick="loadEx(2)">② 高山 373952</button>
+      <button onclick="loadEx(3)">③ 高山 369987（1円引き）</button>
+      <button onclick="loadEx(4)">④ 鳴門 741370（送料なし）</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ② 取り込まれた注文内容 ═══ -->
+<div class="card" id="ordercard">
+  <div class="chead">📋 ② 取り込まれた注文内容（確認・手直しできます）</div>
+  <div class="cbody">
+    <div id="shotmsg"></div>
+    <div class="row">
+      <div>
+        <label class="f">伝票番号</label>
+        <input type="text" id="slipNo" class="num" style="width:110px" placeholder="307367">
+      </div>
+      <div>
+        <label class="f">納品先ホテル</label>
+        <select id="hotel">
+          <option>サンクチュアリコート日光</option>
+          <option>サンクチュアリコート高山</option>
+          <option>グランドエクシブ鳴門</option>
+        </select>
+      </div>
+      <div>
+        <label class="f">部門</label>
+        <input type="text" id="dept" style="width:220px" placeholder="例：鉄板焼レストラン商品部門">
+      </div>
+      <div>
+        <label class="f">発注日（受注日）</label>
+        <input type="date" id="orderDate">
+      </div>
+      <div>
+        <label class="f">納品日 <span class="hint">※ホテル指定日・変更OK</span></label>
+        <input type="date" id="delivDate">
+      </div>
+    </div>
+
+    <label class="f" style="margin-top:10px;">商品</label>
+    <div id="plines"></div>
+    <button class="addbtn" onclick="addLine()">＋ 商品を追加</button>
+
+    <label class="f" style="margin-top:10px;">送料（税抜）</label>
+    <div id="shipDetail"></div>
+    <div class="shiptotal">
+      <span>送料一式（手直しOK）</span>
+      <span>¥ <input type="number" id="shipTotal" class="num" value="0" oninput="shipEdited=true;recalc()"></span>
+    </div>
+    <div class="hint">商品とケース数から自動で入ります。ギフトセット・ピックアップ手数料など特別な時は、ここを直接書き換えてください。</div>
+
+  </div>
+</div>
+
+<div id="alerts"></div>
+
+<!-- ═══ ③ アイポーターに入力する数字（独立カード・青） ═══ -->
+<div class="card" id="ipsection" style="display:none;border-color:var(--blue2);border-width:3px;">
+  <div class="chead">⌨️ ③ アイポーターに入力する数字（この表を見ながら端末に入力）</div>
+  <div class="cbody">
+    <div id="ipcard"></div>
+    <button class="gobtn" onclick="makeInvoice()">🖨 伝票作成済みなので納品書を作成する</button>
+  </div>
+</div>
+
+<!-- ═══ 結果 ═══ -->
+<div id="results" style="display:none;">
+  <div class="card">
+    <div class="chead" style="background:#4b5563;">📄 ④ 納品書（できあがり）</div>
+    <div class="cbody">
+      <div class="a4" id="invprev"></div>
+      <div class="outbtns">
+        <button onclick="alert('モックのため動きません。本実装では、その場でPDFがダウンロードできます（Dropboxまで見に行かなくてOK）。')">📄 PDFをその場で取り出す</button>
+        <button class="gray" onclick="alert('モックのため動きません。本実装ではDropboxに自動保存されます。\n保存先：◯◯◯◯◯◯（あとで指定）')">☁️ Dropboxに保存（保存先：◯◯◯◯◯◯）</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ ⑤ 月次まとめ（アイポーター照合） ═══ -->
+<div class="card" id="monthcard">
+  <div class="chead" style="background:var(--olive);">🗓 ⑤ 月次まとめ（アイポーター照合）</div>
+  <div class="cbody">
+    <div class="hint" style="margin-bottom:8px;">納品書を作成するたびに、ここに自動で溜まります（モックなので画面を閉じると消えます）。<b>アイポーターと同じ「月まとめで税を1回だけ丸める」方式</b>で月次請求額を計算するので、1〜2円のズレの突き合わせは不要になります。</div>
+    <div class="exbtns"><button onclick="loadMonthDemo()">🧪 デモ：高山7月分の3枚を読み込む</button>
+    <button onclick="monthLog=[];renderMonth()">🗑 まとめをクリア</button></div>
+    <div id="monthbody"><div class="hint">まだ納品書がありません。</div></div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+<script>
+// ── 商品マスタ（モック用。本実装では価格マスタから自動取得）──
+const PRODUCTS=[
+ {sku:'ORG100',name:'オルガニック 100ml',perCase:24,unit:'本',rtCase:46080,ship:1050},
+ {sku:'MEM100',name:'メメジック 100ml',perCase:24,unit:'本',rtCase:46080,ship:1050},
+ {sku:'ORG250',name:'オルガニック 250ml',perCase:20,unit:'本',rtCase:76000,ship:1050},
+ {sku:'MEM250',name:'メメジック 250ml',perCase:20,unit:'本',rtCase:76000,ship:1050},
+ {sku:'ORG500',name:'オルガニック 500ml',perCase:12,unit:'本',rtCase:0,ship:1250},
+ {sku:'MEM500',name:'メメジック 500ml',perCase:12,unit:'本',rtCase:0,ship:1250},
+ {sku:'ORG2L',name:'オルガニック 2L',perCase:6,unit:'缶',rtCase:109350,ship:1250},
+ {sku:'MEM2L',name:'メメジック 2L',perCase:6,unit:'缶',rtCase:109350,ship:1250},
+ {sku:'ORG5L',name:'オルガニック 5L',perCase:4,unit:'缶',rtCase:0,ship:1650},
+ {sku:'PRI250',name:'プリモフルット 250ml',perCase:12,unit:'本',rtCase:0,ship:1050},
+ {sku:'PRI500',name:'プリモフルット 500ml',perCase:12,unit:'本',rtCase:0,ship:1050},
+ {sku:'CHO5L',name:'調合オイル 5リットル（バラ）',perCase:1,unit:'本',rtCase:5990,ship:1650},
+ {sku:'BAG_S',name:'紙袋 黒 小',perCase:1,unit:'枚',rtCase:0,ship:0,exp:true},
+ {sku:'BAG_L',name:'紙袋 黒 大',perCase:1,unit:'枚',rtCase:0,ship:0,exp:true},
+ {sku:'BIN500',name:'トルコ500ml用 空瓶＋注ぎ口',perCase:1,unit:'個',rtCase:0,ship:0,exp:true},
+];
+function isExpOnly(ls){ return ls.length>0 && ls.every(l=>!!prod(l.sku).exp); }
+const HOTELS={
+ 'サンクチュアリコート日光':{zip:'321-2523',addr:'栃木県日光市高徳38-3'},
+ 'サンクチュアリコート高山':{zip:'〒506-0055',addr:'岐阜県高山市上岡本町 1丁目124－1'},
+ 'グランドエクシブ鳴門':{zip:'7710376',addr:'徳島県鳴門市北灘町折野字上三津167'},
+};
+let lines=[]; let shipEdited=false;
+function addLine(d){
+  lines.push(Object.assign({sku:'MEM250',cases:1,casePrice:null,lot:''},d||{}));
+  shipEdited=false; render();
+}
+function delLine(i){ lines.splice(i,1); shipEdited=false; render(); }
+function prod(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+function fmt(n){ return n.toLocaleString('ja-JP'); }
+function render(){
+  const box=document.getElementById('plines'); box.innerHTML='';
+  lines.forEach((l,i)=>{
+    const p=prod(l.sku); const cp=(l.casePrice!=null)?l.casePrice:p.rtCase;
+    const el=document.createElement('div'); el.className='pline';
+    el.innerHTML=`<div class="top">
+      <div><label class="f">商品</label><select onchange="lines[${i}].sku=this.value;lines[${i}].casePrice=null;shipEdited=false;render()">
+        <optgroup label="オイル（軽減税率8%）">${PRODUCTS.filter(pp=>!pp.exp).map(pp=>`<option value="${pp.sku}" ${pp.sku===l.sku?'selected':''}>${pp.name}（${pp.perCase}${pp.unit}入）</option>`).join('')}</optgroup>
+        <optgroup label="経費・備品（10%）">${PRODUCTS.filter(pp=>pp.exp).map(pp=>`<option value="${pp.sku}" ${pp.sku===l.sku?'selected':''}>${pp.name}</option>`).join('')}</optgroup>
+      </select></div>
+      <div><label class="f">ケース数</label><input type="number" class="num" style="width:80px" min="1" value="${l.cases}" oninput="lines[${i}].cases=Number(this.value)||1;shipEdited=false;render()"></div>
+      <div><label class="f">1ケース金額(税抜)</label><input type="number" class="num" style="width:130px" value="${cp||''}" placeholder="RT価格" oninput="lines[${i}].casePrice=Number(this.value)||0;recalc()"></div>
+      <div><label class="f">ロット/賞味期限</label><input type="text" style="width:120px" value="${l.lot||''}" placeholder="20271111" oninput="lines[${i}].lot=this.value;recalc()"></div>
+      <button class="del" onclick="delLine(${i})">🗑 消す</button>
+    </div>
+    <div class="eq">${p.perCase===1
+      ? `＝ <b>${l.cases}${p.unit}（バラ）</b>`
+      : `＝ ${l.cases}ケース × ${p.perCase}${p.unit} ＝ <b>${l.cases*p.perCase}${p.unit}</b> ／ 送料 ${fmt(p.ship)}円 × ${l.cases} ＝ ${fmt(p.ship*l.cases)}円`}</div>`;
+    box.appendChild(el);
+  });
+  const sd=document.getElementById('shipDetail'); sd.innerHTML='';
+  let total=0;
+  lines.forEach(l=>{ const p=prod(l.sku);
+    if(p.perCase===1){
+      sd.innerHTML+=`<div class="shipline"><span>${p.name} × ${l.cases}${p.unit}</span><span>手入力（自動計算なし）</span></div>`;
+      return;
+    }
+    const s=p.ship*l.cases; total+=s;
+    sd.innerHTML+=`<div class="shipline"><span>${p.name} × ${l.cases}ケース</span><span>${fmt(s)}円</span></div>`; });
+  if(!shipEdited) document.getElementById('shipTotal').value=total;
+  recalc();
+}
+// ── ゆかさん方式の計算 ──
+function floorYen(x){ return Math.floor(x+1e-7); }
+function lineAmt(unitSen,n){ return Math.floor(unitSen*n/100 + 1e-7); }
+function findUnit(target,n){
+  let base=Math.ceil(target*100/n - 1e-7);
+  for(let d=0;d<=8;d++){ for(const u of [base+d, base-d]){
+    if(u>0 && lineAmt(u,n)===target) return u; } }
+  return null;
+}
+let lastSol=null, lastShip=0;
+// 注文内容が変わるたびに自動計算して、入力する数字の表を出す
+function recalc(){
+  const alerts=document.getElementById('alerts');
+  const ipsec=document.getElementById('ipsection');
+  lastSol=null;
+  if(!lines.length){ alerts.innerHTML=''; ipsec.style.display='none'; return; }
+  for(const l of lines){ const p=prod(l.sku); const cp=(l.casePrice!=null)?l.casePrice:p.rtCase;
+    if(!cp){ alerts.innerHTML='<div class="hint">※ 1ケース金額(税抜)を入れると、アイポーターに入力する数字がここに出ます</div>'; ipsec.style.display='none'; return; } }
+  let ship=Number(document.getElementById('shipTotal').value)||0;
+  const origShip=ship;
+  let sol=null, tried=0;
+  while(tried<3){
+    sol=trySolve(ship);
+    if(sol) break;
+    ship--; tried++;
+  }
+  alerts.innerHTML='';
+  if(!sol || tried>=2){
+    alerts.innerHTML=`<div class="alert warn">📞 このパターンは自動で合わせられません（2円以上のズレ）。<b>庶務課に電話してください。</b></div>`;
+    if(!sol){ ipsec.style.display='none'; return; }
+  }
+  if(tried===1){ alerts.innerHTML+=`<div class="alert info">⚠️ そのままでは合わないパターンでした。<b>送料を ${fmt(origShip)}円 → ${fmt(ship)}円 に1円引いて</b>着地させました（納品書にも反映済み）。</div>`; }
+  else if(sol.adjusted){ alerts.innerHTML+=`<div class="alert info">ℹ️ 1円のズレが出たので、小数第2位を振って自動調整しました。</div>`; }
+  else { alerts.innerHTML+=`<div class="alert ok">✓ きれいに割り切れるパターンです。そのまま入力してください。</div>`; }
+  if(sol.expOnly){ alerts.innerHTML+=`<div class="alert info">🧾 経費のみの注文です：<b>÷1.1（消費税10%）</b>で計算しています。納品書の税表示も10%になります。</div>`; }
+  lastSol=sol; lastShip=ship;
+  drawIporter(sol, ship);
+  ipsec.style.display='block';
+}
+// 伝票作成済み → 納品書を作る
+function makeInvoice(){
+  if(!lastSol){ alert('先に「② 取り込まれた注文内容」（商品・1ケース金額）を確認してください'); return; }
+  drawInvoice(lastSol, lastShip);
+  document.getElementById('results').style.display='block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth'});
+  addToMonth(lastSol, lastShip);
+}
+// ── 月次まとめ（アイポーター方式＝月合計に税率ごと1回丸め） ──
+let monthLog=[];
+function addToMonth(sol, ship){
+  const hotel=document.getElementById('hotel').value;
+  const dv=document.getElementById('delivDate').value;
+  const ym = dv ? dv.slice(0,7) : '未指定';
+  const slip=document.getElementById('slipNo').value||('無番'+(monthLog.length+1));
+  const idx=monthLog.findIndex(e=>e.slip===slip);
+  const entry={hotel, ym, slip, S:sol.S, incl:sol.incl, rate:sol.rate};
+  if(idx>=0) monthLog[idx]=entry; else monthLog.push(entry);
+  renderMonth();
+}
+function renderMonth(){
+  const box=document.getElementById('monthbody');
+  if(!monthLog.length){ box.innerHTML='<div class="hint">まだ納品書がありません。</div>'; return; }
+  const groups={};
+  monthLog.forEach(e=>{ const k=e.hotel+'｜'+e.ym; (groups[k]=groups[k]||[]).push(e); });
+  let html='';
+  Object.keys(groups).sort().forEach(k=>{
+    const es=groups[k];
+    const S8=es.filter(e=>e.rate!==1.10).reduce((a,e)=>a+e.S,0);
+    const S10=es.filter(e=>e.rate===1.10).reduce((a,e)=>a+e.S,0);
+    const ip=floorYen(S8*1.08)+floorYen(S10*1.10);
+    const naive=es.reduce((a,e)=>a+e.incl,0);
+    const diff=ip-naive;
+    const diffTxt = diff===0 ? '±0円' : (diff>0?'+':'')+fmt(diff)+'円';
+    const diffCls = Math.abs(diff)<=3 ? 'ok' : 'warn';
+    let rows=es.map(e=>`<tr><td class="pn">伝票 ${e.slip}${e.rate===1.10?'（経費のみ・10%）':''}</td><td class="tR">${fmt(e.incl)}円</td></tr>`).join('');
+    html+=`<div style="font-weight:900;margin:12px 0 4px;">${k.replace('｜',' ／ ')}　（${es.length}枚）</div>
+    <table class="iptable">
+      <tr><th>納品書</th><th>税込合計</th></tr>${rows}
+      <tr><td class="pn"><b>納品書の単純合算</b></td><td class="tR"><b>${fmt(naive)}円</b></td></tr>
+      <tr><td class="pn"><b>月次請求額（アイポーター方式：月合計に1回丸め）</b></td><td class="uval">${fmt(ip)}円</td></tr>
+    </table>
+    <div class="alert ${diffCls}" style="margin-top:8px;">差額 ${diffTxt} ${Math.abs(diff)<=3?'── 端数処理の違いによる正常範囲です。<b>この月次請求額（アイポーター側）で請求してOK</b>':'── 差が大きすぎます。納品書の内容を確認してください'}</div>`;
+  });
+  box.innerHTML=html;
+}
+function loadMonthDemo(){
+  monthLog=[];
+  const demos=[
+    {slip:'373952', hotel:'サンクチュアリコート高山', ym:'2026-07', ls:[{sku:'ORG2L',cases:1,casePrice:109350},{sku:'MEM2L',cases:1,casePrice:109350}], ship:2500},
+    {slip:'373960', hotel:'サンクチュアリコート高山', ym:'2026-07', ls:[{sku:'MEM250',cases:1,casePrice:76000}], ship:1050},
+    {slip:'373975', hotel:'サンクチュアリコート高山', ym:'2026-07', ls:[{sku:'ORG100',cases:1,casePrice:46080}], ship:1050},
+  ];
+  demos.forEach(d=>{
+    let ship=d.ship, sol=null, tried=0;
+    while(tried<3){ sol=trySolve(ship, d.ls); if(sol) break; ship--; tried++; }
+    if(sol) monthLog.push({hotel:d.hotel, ym:d.ym, slip:d.slip, S:sol.S, incl:sol.incl, rate:sol.rate});
+  });
+  renderMonth();
+  document.getElementById('monthcard').scrollIntoView({behavior:'smooth'});
+}
+function trySolve(ship, ls){
+  ls = ls || lines;
+  const oil=ls.reduce((s,l)=>{const p=prod(l.sku); return s+(p.exp?0:((l.casePrice!=null?l.casePrice:p.rtCase)*l.cases));},0);
+  const exp=ls.reduce((s,l)=>{const p=prod(l.sku); return s+(p.exp?((l.casePrice!=null?l.casePrice:p.rtCase)*l.cases):0);},0);
+  const expOnly=isExpOnly(ls);
+  const rate = expOnly ? 1.10 : 1.08;
+  const tax8=floorYen(oil*0.08), tax10=floorYen((exp+ship)*0.10);
+  const incl=oil+exp+ship+tax8+tax10;
+  let S=null; const base=Math.ceil(incl/rate - 1e-7);
+  for(let d=-2;d<=2;d++){ const c=base+d; if(floorYen(c*rate)===incl){ S=c; break; } }
+  if(S==null) return null;
+  const ws=ls.map(l=>{const p=prod(l.sku); return (l.casePrice!=null?l.casePrice:p.rtCase)*l.cases;});
+  const wsum=ws.reduce((a,b)=>a+b,0);
+  let targets=ws.map(w=>Math.floor(S*w/wsum)); let rest=S-targets.reduce((a,b)=>a+b,0);
+  const order=ws.map((w,i)=>i).sort((a,b)=>ws[b]-ws[a]);
+  for(let k=0;k<rest;k++) targets[order[k%order.length]]++;
+  function solveTargets(tg){
+    const units=[];
+    for(let i=0;i<ls.length;i++){
+      const n=ls[i].cases*prod(ls[i].sku).perCase;
+      const u=findUnit(tg[i],n); if(u==null) return null; units.push(u);
+    }
+    return units;
+  }
+  let units=solveTargets(targets); let adjusted=false;
+  if(!units && ls.length>1){
+    outer: for(let i=0;i<ls.length;i++) for(let j=0;j<ls.length;j++){
+      if(i===j) continue;
+      const tg=targets.slice(); tg[i]++; tg[j]--;
+      units=solveTargets(tg); if(units){ targets=tg; adjusted=true; break outer; }
+    }
+  }
+  if(!units) return null;
+  const simpleAdj = ls.some((l,i)=>{
+    const n=l.cases*prod(l.sku).perCase;
+    const naive=Math.ceil(targets[i]*100/n - 1e-7);
+    return naive!==units[i];
+  });
+  return {oil,exp,expOnly,rate,tax8,tax10,incl,S,targets,units,adjusted:adjusted||simpleAdj};
+}
+function jdate(v){ if(!v) return '─'; const d=new Date(v+'T00:00:00'); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// ── 納品書（実物と同じ形式） ──
+function drawInvoice(sol, ship){
+  const hotel=document.getElementById('hotel').value, dept=document.getElementById('dept').value;
+  const dd=jdate(document.getElementById('delivDate').value), od=document.getElementById('orderDate').value;
+  const no=document.getElementById('slipNo').value||'─';
+  const h=HOTELS[hotel]||{zip:'',addr:''};
+  let rows='';
+  lines.forEach((l,i)=>{ const p=prod(l.sku); const cp=(l.casePrice!=null?l.casePrice:p.rtCase);
+    const mark=p.exp?'':' ※';
+    if(p.perCase===1){
+      rows+=`<tr><td>${p.name.replace('（バラ）','').replace(' ','　')}${l.lot?'（'+l.lot+'）':''}${mark}</td><td class="tR">${l.cases} ${p.unit}</td><td class="tR">${fmt(cp)}</td><td class="tR">${fmt(cp*l.cases)}</td></tr>`;
+    }else{
+      rows+=`<tr><td>${p.name.replace(' ','　')}　${p.perCase}${p.unit}入り${l.lot?'（'+l.lot+'）':''}${mark}</td><td class="tR">${l.cases} ケース</td><td class="tR">${fmt(cp)}</td><td class="tR">${fmt(cp*l.cases)}</td></tr>`;
+    } });
+  if(ship>0) rows+=`<tr><td>送料</td><td class="tR">1 式</td><td class="tR">${fmt(ship)}</td><td class="tR">${fmt(ship)}</td></tr>`;
+  const used=lines.length+(ship>0?1:0);
+  for(let k=used;k<8;k++) rows+=`<tr><td class="emp"></td><td></td><td></td><td></td></tr>`;
+  const t10base = sol.exp + ship;
+  const row10 = (t10base>0)
+    ? `<tr><td>10%対象(税抜)</td><td class="tR">${fmt(t10base)}円</td></tr>
+       <tr><td style="font-size:9px;padding-left:14px;">10%消費税</td><td class="tR" style="font-size:9px;">${fmt(sol.tax10)}円</td></tr>` : '';
+  const row8 = (sol.oil>0)
+    ? `<tr><td>軽減税率8%対象(税抜)</td><td class="tR">${fmt(sol.oil)}円</td></tr>
+       <tr><td style="font-size:9px;padding-left:14px;">軽減税率8%消費税</td><td class="tR" style="font-size:9px;">${fmt(sol.tax8)}円</td></tr>` : '';
+  const uchiwake = row10 + row8;
+  document.getElementById('invprev').innerHTML=`
+   <h3>納品書</h3>
+   <div class="hdr">
+     <div class="cust">
+       <div class="nm">${hotel} 御中</div>
+       <div>${dept||''}</div>
+       <div style="margin-top:10px;">${h.zip}<br>${h.addr}</div>
+     </div>
+     <table class="meta" style="width:auto;align-self:flex-start;">
+       <tr><td style="border:none;">納品日</td><td style="border:none;">${dd}</td></tr>
+       <tr><td style="border:none;">納品書番号</td><td style="border:none;">${no}</td></tr>
+       <tr><td style="border:none;">登録番号</td><td style="border:none;">T9012801020687</td></tr>
+     </table>
+   </div>
+   <div class="comp">
+     <div class="txt">
+       <div class="cnm">株式会社オリーブオイル・ストーリーズ</div>
+       <div style="margin-top:6px;">190-0023<br>東京都立川市柴崎町4-18-9</div>
+       <img class="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAnCAYAAABKSgfJAAAQAElEQVR4AexcB3zUVfKfty1lEwghoVcBJRAQFKnCiQgiYAQ5AcESFVFR8fB/0hFFiu3OO7hDQUU8C0UBpdgQRRSUIr13EEMkBALJtmx5//m+ze/HJmw2yZocwUs+eX3mldk3b97Mm10DVfxVUKCCAoVSoIJBCiVNRUNJKPDZ9u5y+dYbpdOdKUuCV95hKxikvH9CV8D8Mi5skmeyf6ZczwWymOKugBkXf4oVDFJ8WlVAFkKBTUfHkdfnouqVb6TtJ16ijUfGyC3HJst9aW/J0xc2SJ/0XrFSpYJBCvnQK6qLR4Hz9sPybM5Oio6oTR5vDm059hzt/OXvtPX4FFp3cDgt39qZFv7UkDYfnSiznSeuOEYpQwYpHoEroK5sCqw7+Ch5fHZqXX8C3dBwOhkNkZcsyJ6briTLxxuTaP3BEdLuSr9iGKWCQS75OCsqikuBA+n/wRWKqlib09U17hPWyNri2npjCkX3STftTXuDPt7UjLYdf0l6fbnlnlEqGKTQj7OiIRQF0rN+kBuPjCazMZZuafaxDtq6/jjRIKGvXg6WcfNV7OdjE2nZlg50zra3XDNJBYME+wQr6kJSIO3cd3L1noHkY8W8Q+PXCJIjEOGmpPeoSfV7AquC5s/adtKKbV0I/QUFKAeVFQxSDj6E8jwFt9fGJtwt8pfML1T60cYk+e3ewWy1crDe8SxdVW2AKDh/oyFCdGk6V9zSfAlZI+oUbM5XzvWcpy939qLjZ1aUS0lyZTJIPhJXFMqCAo7cDAmFev6PdenTLe3pq10pnHagbOcxcroz1HuH2RgTcuj6CX3EXW33UsfGMygmskGhsD7WTcB06XxtKxToMjVUMMhlInx5HvZoxlK5eFMLpVC7WV+4OFdJUnpV0eY6qcy4a/beF9IqBWmSVPtRxSg9kpdRw8T+ZBAW1Udg5PU5CUwCxgysv9z5Cga53J9AORsfD3zfsH7h8pzVZ1YpqhFVr9SRy5fcpujw6QXKKlXU6W8QRlG3ak9xc7P5YlD7o9SpySzFLPHWFuoaZjFVpihLDcKLPA9Ubv4rGKTcfBSXfyJ4zMMDnzYTXItubbGC+Jok+rReIwa1O0KQAgiBSjikTElO/yhLomhaa6hiln5tfmaGOSLu7ZQh+l6/UTGRNn55SEuNQVavXi179eolH3jggXKpbP23iH348GFFB9AiJyfniqHFvrS3JNxENDrVie9Od1z3I9WJ76GLDSu/c0AKIEAJ79nyC4o0JyoUe95joCr8gaJSYxCbzUa//fYbpaenX9Hk+b2T93g8ig6ghc/n+73dlRhfej0lZsrM7G3yx0N/0ceqV7U3dU9expu/qs4cemNApnaVm8WNV7+u1xxIn0sud1aJx9c7KIeZUmOQUGs7f/68zMjI+EMRDutNS0uTdru9XKzLc2KzdLw7WNpndsXUih3wmr12/0Pkk7kKp2pMK7op6X1WpI0hmUMBc1Q/IUVAj+Asub02Op65DNmwg892Vuaumy29GQfLBV3LnEHAGH369KHevXvTrl27ysWiw/70AhBxpbz99tupf//+5HQ6L/u6PLtXknvLQpLO8wGzLDp7MP0/hAc7QMJs2zVpPr+OW4vFHMBBaFR9MBIOktKz1nAa/r9z4aPkXDSc7P/qHn4npYhZ5gySlZVFfMqS1+tVV49SnPtl7erkyZNq/MzMTHK5XCp/JUZ70y5ekVrVH0+VoxuViDmw5lpxF6VWRvZmVIUdRHQVhSus8Sq93FGZM0iTJk3Ea6+9RpMnT6Zu3bqVmPiXm0CFjX/33XfT+PHj6Y033qDKlStfkeuC7hEoPZrWHFbYckPWV7Em6+14SNQLYWQi7/oXRT+xmqKf/DYM7NJHCckgfOrLCxcuSI+n5Ipf4FS7dOki+IpV5pvI7XbL7OzssK87LOkkGxuKhW+xWMSdd94prrvuuuKuK5AkRealxyW9p3ZLz/FN0pu+V0p36V/jjp5ZrM+jXtUUfh2PDWstRoNF4HqGzrz84Ae9BvlQQXrd0vvbPuk5sk767Od0mgujWZia3CQMUUUfOjLXIb1MG0Uj1lmkt/j7FGN6T27z0zfzqD5+wTlfwiDYIO+++64cPHiw7NChA3Xt2pXatWtH/fr1kzNmzCixso3+Bg0aJBGOHTumJjJq1Cg5YMAA+dJLL6lywUkFK0+bNk3hjBs3Lh8OGHj27NkS88N8b7rpJmrbtq2899575cKFC2VubmiX6h07dkj0yeuUnTt3JmZm4n7kyJEjJfSMYHNB3ebNm9V8Stus7U3bKe1zB8jsUXFke7El2f/enmzTkyl7VGWy/a2ddK35p/Q5/YeA9+xxmT26iuQ2mbvqRUyLfOl7AKvqUK8HhvM5zuej3a/nvlY4iBom3okk7CCEUcf1eO16PnfzhzyXOJnzYks1tvfMYen44EGZMyaebNOak/2fXcj363Yd3rl8vIK3z0lR8HpDQMb7y1Y/jdAH00bRaEpTyhlfnZxLRkpf9m+F4rq3LZagY87YBLK9cr2fvpMbU/YzsapP945P8uHmY5ANGzZIKNTMCLR//36lN2jzOnHiBDHjUEpKCi1ZsiRfJxpMsJSlEB08eFAF7a7evn174vcC+uijj4j7LbKvI0eOSB5T4XTq1EkfBpv0jjvuoDlz5qAfktLfFcbcs2cPvfzyy5SamkoZGZda0CAtJk6ciHcb+vLLL4kZTe+XmYrWrl1LzMgEBgiGn52dreZz6NAhHe/3Zjz7V0vbq23Js30xkddvVdL79HnIe2IzuZY+TbbJjfzV0sdK+QWSrpyL8EwDlC8JzgtEDO9HJGWOzczeqooGYaaaAXqEqixhlOu5aByIMMddlES8DunKJmk7R+6ti6TtxWvJvfFdkrkXmSjfUG47r4fhGSdffV7B9dU0afvbDUFpJB1ZlPvdDLJNb0FgojwUPXF+Olo63hlAoKNemZfBfEB3x9v9yTF/mH8jcZuBg/rnDSEff/xxtVGio6Pp/vvvp9dff11t4rfffpueeOIJqlatGmHzTJ06Fcyid6I6KEEEJoyPjyds6Pfff79IzPfee0/BYvxbb71VwYOZhw8fruZbqVIlGjFiBOZEn376Kb355ps0ZMgQMhqNitGfeuop8ng8+nx5DWqtn332meqLr0k0adIk+uCDD2jRokU0ffp06EskhCCWMIoWZ86c0fEVUilHuHI43k9VG13EJFLkoNlkHb+XYqafIeukIxQ1dCmZOz1CZI7kzZapRhfWBIoc/LYKphYp/rpKtVRZqw9MhSVawSA6k7OFJPnfaRJjbyCLKbzrFfoK/CUTuIygrmCQtjPEZmgit4NEbHWK6PsKWUdtpZjnT5CxfruC4EHLri8mS9fKiczokgw1kihyyDtkffYQxUzLIOvobRRx2yTCGqUtk+xv3Ea+nIufGczgud+8qvo1NuxIUY+sUGMr+o7ZQaCTKamnape2DJUiMiDCO8WECRMIG/aaa66hpUuXYsMJvqqIq666SrRq1UrwSSoWL16sNg5wZs6cic0nkS9pwP0dDAi85cuXU6jNxw9ucuXKlQAlSAOTySScTqfEfCEpmjVrRp988gk2sUhOThZ16tRResHTTz8t5s6dqzMJ5q464eidd95RG18IQVC0maEES0bRtGlT0ahRI9GjRw/B0kfMmjWLeK7K+sZlxiy7f9+p3SQvpKkBolIXkKXDUGGsdrUwRFcRxvj6wtwiRUQNmCViJhwg07X9FZwhMlZY2qWqYKjdStUJaxXS6gqmwhShn+zZjiMKHlHl6GuQhB0C+4qJqBe8H5YkvMEIm9M6dhdFdH1aGGu3FIa42kJYovR5BUfmc+PXHZIZRDWbrxtI1md+Jkvb+4SxakNhsMYLY60WIqLnsyJ65HoSEbEkczLI9flzCh6Rd4//MMThEz38KzI3u02Nrehbs7miYfSjK0X0U2vJUOOi0UExCE5O1hXIarUSrlcJCQlBJ8ySRUyZMoV4E/FapbLgYPBwAusMxP0pifThhx8W2gXmBkaAlMB1CoCQEmfPnlWbFxaywqxIYJh77vF/cWfBggVApWxW4ufNm6fyDz74IEHRVoUgEQ6I5557TrWwPkJ8bQvrQFAdFBGxEq5DiLjaer5gBhsq+sFFBT6fglBFl/nU14GiLNX0fDiZzJztOloVaws9XzAjWLpFDVtGBt7QBduKKru+nEK86ciQ2IQgOQKZPRAXjGK57VlV5d4wj3wum/rMpNul6kRUHIViSNNVnURknxd0+ioGWbVqlUJmRZoKYw4FwJHFYhGPPMKinvPr1q0jZiw1AS6W6J+ZUcBUCiToIsH8liDZ0AYYXJkiIyPVxL/+2q9c4qGuqPmy9QzoSkeBLrF+/XrFlLwOSB3VFiriK53AgQCYNWvWICmTgCsDGf1u4M4Fw8h37pew6Frcyfmkf8MA3mSIQRJ2SD+/VsetGuOXZHpFQCai1yTCiR1QVaysZGuVZ4//FmHpOpIKYw6tM3ObIf4sX+d8JzapvLFeG5X6Mg6Sc8VEiT5VRRGRAcoqK8oK7MYbb1RpURGUbMDgZIeyjXw4AQyCjcpzoMArkNYXmIP1BQIMW720alztVD4uLo6gqIcKfH1TsIhOnTpFe/fuRZZat24NiakYTlWEiLT1arghQMNuglkzosdYhe89tJZynm9I9jf7ytyf5kpf1q+lziwR5gQ1FiJ8AQppOMGRmyGPnflER60T79cR9QotYzCRqfVArVSi1PfbPiK3U+GImGoE82yoIM+fIhFZScH7Mv1XSVNyH9KYJHfVNMqZWIsci4ZL985lUpMyCqFAZAjcQNWrVy/QHLyI0x/XI7RmZWUhCStUqVJF9O3bV+FCWWdm0DcC9Axcr9B41113EV+x1GZGvc1mQzXBeABpFipAkVfAedHp06dJCEHFXSvQYBxAyhIISZkF3KEjWHklc5S6Tnh2LSfn/IcpZ1I9gpkUFhxfzqUWuXAmFKUziCCb60Q4XSgceADj7YNIUELs9VTFmqQ+JyrwJ9i4AJ2pQHWxir7sdB3OMffPyjwLE22oIGG1A1ae5U4YzSLqsS8I+ouq5nb3utnkeKsfweRrf72nhEkaxhK0a8EQFcUfRl7J4XDk5YpOXHnuFSaTqWjgEBD8XqEUaegUK1as0CGhZ8D0CksUYLQGs9msZZVkAaMWJzBT4/pIMTExfJWVJXIPcbvdaszAsVVFGUQRrLzCshP555mkrCpGixrFx0o8LDi2yU3IvX2pfpCoxjCiylFX52FJyrLzCZ1XKkly3n5Y7js1Jw9FUqt6fgmYV1F6CZuuw+1MxNbQUXG9i7r/QwEjgaXns2Sofa2/jQ0Inn2ryPnevYr5vPxW428gMsDciisMKg4cOICkyIB3CVyvAFirVi0kYQfGF3zPV/iwLnG/6uUeby5CCOXkmJiYKBQAR8wwAnPmLD3zzDP0/fffi+IENmMLjKVJg5Jcl/AmhPHq1q2LpMwDeowYngAACElJREFUlFhL5+ECVpXYF88qk6S57f1EzCx4U3DMG6SuGb9nInHWJBLCqLo47zio3kVUoWAUorz+0OPklx5E1Sq1JXj2hgAPu8lQ+eIeg5UJptniBlPSpVc+Y40kEXnbJBEzaouImZJGMPEaG3dR88NB5HijN2mSxIAN16ZNG9UIk6vKFBFpJz02W4MGDUQR4EU2p6amKpi0tDSCIgyjAZt3VZ1mDlaFvEjTCT7//PO8muInGi70ruJ4F587d05+9913agANVxX+S5GwRAmYJKOGzBXWcbvUGwLxo2Hueu3kDm8iRkOESOQrEbDxPfMjp/1WPpSLE3adnCHTzn2jQMFoHRrPUPmyiAw1mxNMt+jbe+g7pehDGhQnCL5aAa+wYIitrky81ie/FVGp8xUYFHlIFBSUFQt3fBRg4eFNF1J8Y1NBXwB8oOKMcriBrUQCLh7Ah14BSYL8zTffTMEYUDP3btmyhZYtWxZyvugHQbOSJScnC7z1oG4Km6zZQBASH06WrBtBByLMB3hlEbyZR4u0rBgTGgnTtXeq4X0Zh1SqRcxIKiuzT6u0OFHjan4TOGB3nPw7SwNXSFoADgE/AbTpyMXrVHKdpyghtmx80jAeNrmpzWBkKXf1K2FZ+OCzpToIEZlbDxCCTdEAAZMgVQzCm1N07NgRZfWiDN8mVoTzEQsv0UuWLJEPP/ww+Xw+4usKwQqlkEoh4odI1QuuM5plTJMsqiEgYoknevXqpWqwgfntRuKkVxUFom3btmHO8ptv/KcdmseMGUMsOZX7C8bg1/J8awUMSxj55JNPSr6aoUh4jWf95XdLS9VZkAgno+3l1uTe/dklc9HAfc5s6d3vN3Eb4upo1So1JF6tUjyQeU/tvqQPb8ZB6T25LV99o+pDKMIUr/BynMfU7+eqQogIPzf69e7+5JN+vSyBpdD1DSaHwCidpoge41mKsP7IyrV9ZleCg2JhPUu3U/msudb8U1+va8U4sr/VT3pP79frCuJ7TmyWMvuUqtboqxgENdOmTaOWLVsq/yv4Nt1yyy3EFiD5/PPPK8e97t2709SpUwmnac2aNenf//43ae8SwP+9gcfGC7jeDRwk+ZVc6BUFMmPHjlVOlHj9h74CPYaZTM2X16LNWT700EMESROIjrFeeOEFxSRgRsajfv36STgtIsBRkx8QCRIVeOiDrW2FzgUwpRFwajnm3M4m3quk46MnZO6Pb0n3jk9k7sb/SDjx2aY2I8BgLHPb+5DowXh1NxJRcaps/1c3ZesHvmv1y9I+J0XapiWT99dtql2L4F5yfQP/Qyjq8IMN+C0sj9d5ySaCQr5qVz/5/f6hOnPgRx26N19KRoOlzGljiKstIlMXErEe5ss86ncynNlVwrLn3rrIT6d1s6Vj/jAJqx981qQjC8vSg2fnMgINbf/oLJ38FgKrFQwe+AYj8Oz/6ExswSFhrUrGPLcTnUFiY2MFGOOxxx7TX7g3bNiAK4xy3NMsSvgGHa5Y9erVE/rIARkhglYHQBSexUbVWlNTU7Vs0DQ6OhquIGLUqFEEpZ2Ve+U+wlcu9aaydu1agmUMyGA2Zgpk9cAMJebNm0fww0IlSwzltAjHRUgxMB6vkfBSzwdF+ItC58UIxsZ/IlNT/7fofGePk/uH18m54BGC85zzgwco9+sX/a4oTF+YguESHtitITJWQNkkfm+AFIGtH/iuZWMJ3zaE3hIIr+WvqfUw4QcatDJ+XHrpz60JP/8DabH711kSjLF4czKdyFypgVFcdFPqc+23FB1Ro5i0uRRM76yYGXOznnmuIEkKA+9FrpUTyTHvbj+dFg0n909vE3yxQAdD1YYKDpG5/UOklb1H+bGY30KcbLWC2RjfYAQeHETBHFEP82t/hFVNWGcQ1YnZLIYOHSpYD1GesFCQU1JSCCmc+eDcxyesCObawdceevXVVwk+UuhLCzAjox4B1zKtPljK1zzBp78aG24ewWAK1g0cOFBgXvCbAnODgQPnDMMDt4lgugwkFPyw4OoycuRIgk4FfPTD10z6+OOP4f6uCFVwXNZl1HqnslQNbMMasVYErD2wLVQePkXRj30hrH/dTJbu48gIiYD7ML+J4NELiqrlTyPIOnq78mMK1pe5ZV9h/esmMvN93RBfn68ksSTi6pKpeW+Ce4ZZe2EOQDYIo7i52SKqV7W3XnvBcZggTSAtfjr0F8UYUOT9AIKSaj1KKa3XkzWytvDXFR4bMH6LFDK1uL1woIAWrBOOl8aGwR+tTfVvENZR2yhq2HIys2UPrieCHwXhpAj9AXSL6P0CWSceUL5aWtfm5D5s5Njtx+v0iHo0FCwpFB6nRrZiRaRMJ+uE/WRq2F5fVz4G0TrDXRvf/hsxYoRgxhBIedOJhIQEHVGD1dJatWqJrl27QpfJB2NmpkM9AqSUBl9YipMdYxfWHqweY7CUUMwNBg6cM+YVDCewjpV2cc8994jRo0cL4OOQYIYXrKfkW0sgTiKbnrEm6G+B9Vgj6hEwr8C24uSNdVsrXyDr41+J2Bd+EZVezRGxL50TMWN2iMg7XxPGms0LnRP6hwNg1L3viZhJR0Tsy1ki9vljInrYMgHHPlGIRcdstIruyUsFfiI0wlwV3QQNkDQprX+gjk1mCLMpJuQ8tA5M13QT0UOXCsxJqwuVwkkT8IH+UAXhhdEkzM17iSi27MVM2KfoE/tKtqIX6BbRY5wwxte/ZH7CFOHHGzBLWP9vg4iddlooPE5hxYroNkoYoqvkwwvKIAUnVFH+36AAfiJ0YLtD1DXpfWpR92n1C+2QFmCcP9+wl25tsVIkVroh3wb6o1Pm/wEAAP//3uqKygAAAAZJREFUAwD5sxeP8pBoLQAAAABJRU5ErkJggg==" alt="oliveoil stories">
+     </div>
+     <div class="seal">社判<br>（後で<br>入ります）</div>
+   </div>
+   <div style="margin-top:8px;">下記の通り納品致します。</div>
+   <div class="kmk">件名</div>
+   <table class="totbox"><tr><th>小計</th><th>消費税</th><th>合計金額</th></tr>
+   <tr><td class="tR">${fmt(sol.oil+sol.exp+ship)}円</td><td class="tR">${fmt(sol.tax8+sol.tax10)}円</td><td class="tR big">${fmt(sol.incl)}円</td></tr></table>
+   <table class="itm"><tr><th style="width:52%;">摘要</th><th>数量</th><th>単価</th><th>明細金額</th></tr>${rows}</table>
+   <div class="foot">
+     <div style="font-size:10px;">${sol.oil>0?'※印は軽減税率対象です。':''}</div>
+     <table class="uchi"><tr><th colspan="2">内訳</th></tr>${uchiwake}</table>
+   </div>
+   <div class="biko">
+     <b>備考</b><br>受注日：${od||'─'}<br><br>いつもありがとうございます。
+   </div>
+   <div style="text-align:center;margin-top:10px;">1 ／ 1</div>`;
+}
+// ── アイポーター入力表（横並び・複数商品対応） ──
+function drawIporter(sol, ship){
+  let rows='';
+  lines.forEach((l,i)=>{ const p=prod(l.sku); const n=l.cases*p.perCase;
+    const u=(sol.units[i]/100).toFixed(2).replace(/\.?0+$/,'');
+    rows+=`<tr>
+      <td class="tR">${i+1}</td>
+      <td class="pn">${p.name.replace('（バラ）','')}${l.lot?`<br><span style="font-size:12px;color:#6b6a63;">ロット ${l.lot}</span>`:''}</td>
+      <td class="tR">${n} ${p.unit}</td>
+      <td class="uval">${Number(u).toLocaleString('ja-JP',{maximumFractionDigits:2})}</td>
+      <td class="tR">${fmt(sol.targets[i])}円</td>
+      <td class="chk">✓</td>
+    </tr>`; });
+  document.getElementById('ipcard').innerHTML=`
+   <table class="iptable">
+     <tr><th>No</th><th>商品名</th><th>数量</th><th>納品単価 ← これを入力</th><th>納品金額（自動で出ます）</th><th></th></tr>
+     ${rows}
+   </table>
+   <div class="ipfoot">
+     <div class="cmt"><span class="lab">コメント欄に書く（必須の送料記載）</span>送料${fmt(ship)}円</div>
+     <div class="totchk">検算 ✓ 税抜合計 ${fmt(sol.S)}円 × ${sol.rate===1.10?'1.1':'1.08'} → 切り捨て ＝ <b>${fmt(sol.incl)}円</b><br>（納品書の合計金額と一致しています${sol.expOnly?'／経費のみ・10%':''}）</div>
+   </div>`;
+}
+// ── スクショのデモ ──
+function demoShot(){
+  loadEx(2);
+  document.getElementById('shotmsg').innerHTML=`<div class="alert ok">📷 スクショを読み取りました（デモ）。下の内容が合っているか確認して、「納品書を作成する」を押してください。</div>`;
+  document.querySelector('.card:nth-of-type(2)') && document.getElementById('shotmsg').scrollIntoView({behavior:'smooth'});
+}
+// ── 実例 ──
+function loadEx(n){
+  document.getElementById('shotmsg').innerHTML='';
+  document.getElementById('results').style.display='none';
+  document.getElementById('shipTotal').value=0; shipEdited=false;
+  if(n===1){ lines=[{sku:'MEM250',cases:1,casePrice:76000,lot:'20271111'}];
+    document.getElementById('hotel').value='サンクチュアリコート日光';
+    document.getElementById('dept').value='鉄板焼レストラン商品部門';
+    document.getElementById('orderDate').value='2026-07-13';
+    document.getElementById('delivDate').value='2026-07-20';
+    document.getElementById('slipNo').value='307367';
+  }
+  if(n===2){ lines=[{sku:'ORG2L',cases:1,casePrice:109350,lot:'2027.11.11'},{sku:'MEM2L',cases:1,casePrice:109350,lot:'2027.11.11'}];
+    document.getElementById('hotel').value='サンクチュアリコート高山';
+    document.getElementById('dept').value='イタリアン厨房料理部門';
+    document.getElementById('orderDate').value='2026-07-11';
+    document.getElementById('delivDate').value='2026-07-15';
+    document.getElementById('slipNo').value='373952';
+  }
+  if(n===3){ lines=[{sku:'ORG100',cases:1,casePrice:46080,lot:''}];
+    document.getElementById('hotel').value='サンクチュアリコート高山';
+    document.getElementById('dept').value='イタリアンレストラン商品部門';
+    document.getElementById('orderDate').value='2026-06-01';
+    document.getElementById('delivDate').value='2026-06-09';
+    document.getElementById('slipNo').value='369987';
+  }
+  if(n===4){ lines=[{sku:'CHO5L',cases:20,casePrice:5990,lot:''}];
+    document.getElementById('hotel').value='グランドエクシブ鳴門';
+    document.getElementById('dept').value='イタリアン厨房料理部門';
+    document.getElementById('orderDate').value='2026-07-12';
+    document.getElementById('delivDate').value='2026-07-17';
+    document.getElementById('slipNo').value='741370';
+    render();
+    document.getElementById('shipTotal').value=0; shipEdited=true;
+    recalc();
+    return;
+  }
+  render();
+}
+addLine();
+</script>
+</body>
+</html>
