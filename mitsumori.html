@@ -392,10 +392,10 @@ th.center,td.center{text-align:center}
       </div>
       <div class="fg" style="margin-top:12px" id="q-contact-person-wrap"><label>提出先ご担当者名（自動で「様」が付きます）</label><input type="text" id="q-contact-person-shared" placeholder="例：山口 玲子" oninput="checkContactPersonReady()"></div>
       <div style="margin-top:10px;border:1px dashed #d5cfc3;border-radius:8px;padding:10px 12px;background:#f9f8f5">
-        <div style="font-size:12.5px;font-weight:700;color:#2b2a26;margin-bottom:6px">📦 お届け先情報（任意・社内用）</div>
-        <div style="font-size:11.5px;color:#57534e;margin-bottom:8px">空欄でも見積書・請求書は作れます。ここまで書いておくと、後で受注に進めるとき入力がほぼ不要になります。書類には印刷されません。</div>
+        <div style="font-size:12.5px;font-weight:700;color:#2b2a26;margin-bottom:6px">📦 お届け先情報（社内用・書類には印刷されません）</div>
+        <div style="font-size:11.5px;color:#57534e;margin-bottom:8px">登録済みのお客様は、住所・電話が<strong>自動で入ります</strong>（調べ直し不要）。<strong>違う場所に送るときだけ</strong>書き換えてください。空欄でも見積書・請求書は作れます。</div>
         <div class="g2">
-          <div class="fg"><label>届け先住所（お客様の住所と違う場合だけ）</label><input type="text" id="q-delivery-addr" placeholder="例：東京都八王子市…"></div>
+          <div class="fg"><label>届け先住所</label><input type="text" id="q-delivery-addr" placeholder="例：東京都八王子市…"></div>
           <div class="fg"><label>届け先電話番号</label><input type="text" id="q-delivery-tel" placeholder="例：09012345678"></div>
         </div>
         <div class="fg"><label>お届け希望日メモ</label><input type="text" id="q-delivery-wish" placeholder="例：8月上旬希望／なるはや"></div>
@@ -1170,6 +1170,13 @@ function onQuoteCustomerChange(){
   const c = customers.find(x=>x.id===cid);
   window.generalNoCustomerMode = false;
   window.quoteShownSkus = null;
+  // 提出先ご担当者名：選んだお客様の担当者名（無ければお客様名）を自動で入れる。手で書き換えOK。
+  const cpEl = document.getElementById('q-contact-person-shared');
+  if(cpEl) cpEl.value = c ? (c.contactPerson || c.name || '') : '';
+  // お届け先情報：登録済みの住所・電話を自動で入れる（違う場所に送るときだけ書き換える運用）
+  const daEl = document.getElementById('q-delivery-addr'); if(daEl) daEl.value = c ? (c.addr || '') : '';
+  const dtEl = document.getElementById('q-delivery-tel'); if(dtEl) dtEl.value = c ? (c.tel || '') : '';
+  if(typeof checkContactPersonReady==='function') checkContactPersonReady();
   const info = document.getElementById('q-customer-info');
   if(!c){
     info.innerHTML = '';
@@ -1183,9 +1190,6 @@ function onQuoteCustomerChange(){
   const badgeInfo = GATE_LABELS[c.type==='rt'?'rt':(c.type==='wholesale1'||c.type==='wholesale2'||c.type==='hub'?'wholesale':'general')];
   const badge = '<span class="no-print" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px;background:'+badgeInfo.bg+';color:'+badgeInfo.color+';border:1px solid '+badgeInfo.border+'">'+badgeInfo.label+'（社内用）</span>';
   info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'+badge+'<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+'</div>';
-  // 既存のお客様は担当者名を自動表示（未入力のときだけ・そのまま編集も可）
-  const cpEl = document.getElementById('q-contact-person-shared');
-  if(cpEl && !cpEl.value && c.contactPerson){ cpEl.value = c.contactPerson; }
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   if(isPartialGate(gateType)){
     // 一部卸し・一部一般：案A（まるごと出す→引き算）マトリクスを表示
@@ -1520,7 +1524,7 @@ function renderQuoteFieldsCheckboxes(containerId, c, docType){
     const on = enabledSet ? enabledSet.has(opt.key) : !!opt.defaultOn;
     const previewText = opt.key==='certificates' ? certificatesPreviewText(products) : fieldPreviewText(products, opt.key);
     const safeId = containerId+'_'+opt.key.replace(/[^a-zA-Z0-9]/g,'_');
-    return '<div class="chk-row" style="border:1px solid '+(on?'#16a34a':'#d5cfc3')+';border-radius:6px;padding:6px 10px;margin-bottom:6px;background:'+(on?'#f0fdf4':'#fff')+'">'
+    return '<div class="chk-row" style="flex:1 1 100%;min-width:100%;box-sizing:border-box;border:1px solid '+(on?'#16a34a':'#d5cfc3')+';border-radius:6px;padding:6px 10px;margin-bottom:6px;background:'+(on?'#f0fdf4':'#fff')+'">'
       + '<label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer">'
       + '<input type="checkbox" data-quote-field="'+esc(opt.key)+'" '+(on?'checked':'')+' onchange="updateFieldCheckboxLabel(this)" style="margin-top:2px">'
       + '<span style="flex:1"><strong style="font-size:12px">'+esc(opt.label)+'</strong>'
@@ -2269,7 +2273,7 @@ function openOrderRegPanel(rid){
   const c = customers.find(x=>x.id===r.customerId) || {};
   const addr = r.deliveryAddr || c.addr || '';
   const tel = r.deliveryTel || c.tel || '';
-  const zip = r.deliveryAddr ? '' : (c.zip || '');
+  const zip = (r.deliveryAddr && c.addr && r.deliveryAddr!==c.addr) ? '' : (c.zip || ''); // 登録住所のままなら郵便番号も引き継ぐ
   const encl = (r.kind==='invoice')
     ? '請求書発行済み（'+(r.invoiceNo||'')+'）。同梱は納品書のみ。'
     : '納品書兼請求書を同梱。';
