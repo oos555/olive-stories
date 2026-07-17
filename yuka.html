@@ -56,16 +56,18 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
 .tag{display:inline-block;background:#dbeafe;color:#1e3a8a;font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;margin-right:6px}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
 
-/* ===== 要対応アラート（2026/07/10追加。受注Aへ飛ぶだけの入口） ===== */
-.pa-alert-card{background:#fff;border:2px solid #dc2626;border-radius:12px;padding:14px 16px;margin-bottom:1rem;display:none}
+/* ===== 要対応アラート（2026/07/10追加。受注Aへ飛ぶだけの入口）
+   ★2026-07-17改：スマホでも1行に収まるコンパクト表示。
+   件数＋「受注Aで詳しく見る」ボタンだけ。1件以上あるときはカードが光る ===== */
+.pa-alert-card{background:#fff;border:2px solid #dc2626;border-radius:12px;padding:10px 14px;margin-bottom:1rem;display:none;align-items:center;gap:8px;flex-wrap:wrap}
 .pa-alert-card.pa-none{border-color:#bcd0c2;background:#f4f9f5}
-.pa-alert-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.pa-alert-title{font-size:16px;font-weight:700;color:#2b2a26}
+.pa-alert-title{font-size:15px;font-weight:700;color:#2b2a26;white-space:nowrap}
 .pa-alert-count{font-size:22px;font-weight:800;color:#dc2626;line-height:1}
-.pa-alert-names{font-size:15px;line-height:1.7;color:#2b2a26;font-weight:700}
-.pa-alert-names .pa-refund-name{color:#dc2626}
-.pa-alert-btn{display:inline-block;margin-top:10px;background:#6b7a3a;color:#fff;text-decoration:none;padding:11px 18px;border-radius:9px;font-size:14px;font-weight:700}
-.pa-alert-btn:hover{background:#255074}
+.pa-alert-ken{font-size:14px;color:#57534e;font-weight:700}
+.pa-alert-btn{margin-left:auto;background:#6b7a3a;color:#fff;text-decoration:none;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:700;white-space:nowrap}
+.pa-alert-btn:hover{background:#55622e}
+@keyframes paGlow{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.55)}50%{box-shadow:0 0 0 8px rgba(220,38,38,0)}}
+.pa-alert-card.pa-glow{animation:paGlow 1.2s infinite}
 
 /* ===== メモ切替（大切／ふつう を1枠に） ===== */
 .seg{display:inline-flex;border:1px solid #cfd8e0;border-radius:8px;overflow:hidden}
@@ -121,14 +123,12 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
   <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
 </nav>
 
-<!-- 要対応アラート（2026/07/10追加。ここには詳細を持たず、受注Aへ飛ぶ入口だけ） -->
+<!-- 要対応アラート（2026/07/10追加。ここには詳細を持たず、受注Aへ飛ぶ入口だけ）
+     ★2026-07-17改：スマホ向けに1行だけ（件数＋ボタン）。1件以上あるときは光る -->
 <div class="pa-alert-card" id="pa-alert-card">
-  <div class="pa-alert-head">
-    <span class="pa-alert-title">🔔 要対応</span>
-    <span class="pa-alert-count" id="pa-alert-count">0</span>
-    <span style="font-size:14px;color:#57534e;font-weight:700">件</span>
-  </div>
-  <div class="pa-alert-names" id="pa-alert-names"></div>
+  <span class="pa-alert-title">🔔 要対応</span>
+  <span class="pa-alert-count" id="pa-alert-count">0</span>
+  <span class="pa-alert-ken">件</span>
   <a class="pa-alert-btn" href="index.html#pending">受注Aで詳しく見る →</a>
 </div>
 
@@ -294,33 +294,23 @@ function renderPendingAlert(items){
   const card = document.getElementById('pa-alert-card');
   if(!card) return;
   const countEl = document.getElementById('pa-alert-count');
-  const namesEl = document.getElementById('pa-alert-names');
+  card.style.display = 'flex';   // 1行のコンパクト表示
   if(!open.length){
-    // 0件のときは、緑の「対応待ちなし」を控えめに出す（安心材料）
-    card.style.display = 'block';
+    // 0件：件数の「0」だけで伝わるので、文章は出さない（緑の枠＝安心の印）
     card.classList.add('pa-none');
+    card.classList.remove('pa-glow');
     card.style.borderColor = '#bcd0c2';
     countEl.style.color = '#4a7a58';
     countEl.textContent = '0';
-    namesEl.innerHTML = '<span style="color:#4a7a58;font-weight:700">いま対応が必要なものはありません 🍃</span>';
     return;
   }
-  card.style.display = 'block';
+  // 1件以上：カードが光ってお知らせ。詳しくは「受注Aで詳しく見る」ボタンから
   card.classList.remove('pa-none');
-  card.style.borderColor = open.some(p=>p.hasRefund) ? '#dc2626' : '#e0a63a';
-  countEl.style.color = open.some(p=>p.hasRefund) ? '#dc2626' : '#b45309';
+  card.classList.add('pa-glow');
+  const hasRefund = open.some(p=>p.hasRefund);
+  card.style.borderColor = hasRefund ? '#dc2626' : '#e0a63a';
+  countEl.style.color = hasRefund ? '#dc2626' : '#b45309';
   countEl.textContent = open.length;
-  // 返金ありを先頭に、その中で新しい順
-  const sorted = open.slice().sort(function(a,b){
-    if(!!a.hasRefund !== !!b.hasRefund) return a.hasRefund ? -1 : 1;
-    return (b.createdAt||'').localeCompare(a.createdAt||'');
-  });
-  const typeLabel = { payment:'入金連絡', change:'変更', cancel:'キャンセル', add:'追加' };
-  namesEl.innerHTML = sorted.map(function(p){
-    const label = p.hasRefund ? '返金・'+(typeLabel[p.type]||p.type||'') : (typeLabel[p.type]||p.type||'');
-    const cls = p.hasRefund ? 'pa-refund-name' : '';
-    return '<span class="'+cls+'">'+(p.hasRefund?'⚠️ ':'')+esc(p.customerName||'（お名前なし）')+'様（'+esc(label)+'）</span>';
-  }).join('　');
 }
 
 /* ============================================================
