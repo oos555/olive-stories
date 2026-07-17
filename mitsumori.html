@@ -196,6 +196,14 @@ th.center,td.center{text-align:center}
 .gate-btn:hover{background:#f5f3ee;border-color:#b9b2a3}
 .gate-btn span{display:block;font-size:10.5px;font-weight:600;margin-top:2px;color:#2b2a26}
 .gate-section-label{font-size:11.5px;font-weight:700;color:#8a6d3f;letter-spacing:.03em;margin:10px 2px 4px}
+/* ── 2026-07-17 シンプル化：押せないボタンは必ず灰色に見せる（「押しても無反応」事故の防止） ── */
+.btn:disabled,.btn[disabled]{background:#d3d1c7 !important;color:#888780 !important;border-color:#d3d1c7 !important;cursor:not-allowed;opacity:1}
+#q-guide-bar{background:#fef3c7;border:1px solid #f0c96a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:15px;font-weight:800;color:#78350f}
+.qc-btn{flex:1;min-width:150px;padding:13px 8px;font-size:14px;font-weight:800;border:1.5px solid #6b7a3a;border-radius:10px;background:#fff;color:#3b5323;cursor:pointer;line-height:1.4;text-align:center}
+.qc-btn:hover{background:#f5f8ec}
+.qc-btn small{display:block;font-size:11px;font-weight:600;color:#57534e;margin-top:2px}
+.gen-lock-note{border-radius:8px;padding:10px 12px;font-size:15px;font-weight:800;margin-bottom:10px;background:#fcebeb;border:1px solid #f09595;color:#791f1f}
+.gen-lock-note.ready{background:#f0fdf4;border-color:#16a34a;color:#14532d}
 .subtract-count{display:inline-block;background:#dcfce7;border:2px solid #16a34a;color:#14532d;font-weight:800;border-radius:10px;padding:6px 16px;font-size:22px;line-height:1}
 .subtract-count small{font-size:12px;font-weight:600;color:#15803d}
 .smx-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -364,6 +372,7 @@ th.center,td.center{text-align:center}
 <!-- 見積書 -->
 <div id="panel-quote" class="panel active">
 <div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
+<div id="q-guide-bar">👉 いまやること：書類と入口を選ぶ（タップ1回ずつ）</div>
 
   <!-- ステップ0：書類の種類（最初に選ぶ） -->
   <div class="card" id="q-doctype-card" style="border:2px solid #2563eb">
@@ -396,7 +405,7 @@ th.center,td.center{text-align:center}
 
   <!-- 区分ゲート（6択）：最初に必ず確認 -->
   <div class="card" id="q-rt-gate-card" style="border:2px solid #d5cfc3">
-    <div class="sec" style="margin-top:0;font-size:16px">つぎに確認：どの入口から作りますか？</div>
+    <div class="sec" style="margin-top:0;font-size:16px">つぎに選ぶ：どの入口から作りますか？<span style="font-size:12px;font-weight:600;color:#57534e">（押すとすぐ進みます）</span></div>
     <div class="gate-section-label">■ その価格の全商品を「そのまま」出す</div>
     <div class="gate-grid">
       <button class="gate-btn" onclick="selectRtGate('rt')">🏨 RT<span>ホテル・レストラン</span></button>
@@ -417,20 +426,17 @@ th.center,td.center{text-align:center}
 
     <div class="card">
       <div class="card-step-label">① お客様</div>
-      <div class="fg" id="q-customer-select-wrap"><label>提出先（お客様）を選択</label>
+      <div id="q-cust-choice" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button type="button" class="qc-btn" id="qc-skip-btn" style="display:none;border-color:#16a34a;color:#14532d" onclick="skipCustomerForGeneral()">🛍️ 登録なしで<br>固定価格表を作る</button>
+        <button type="button" class="qc-btn" id="qc-existing-btn" onclick="qcChooseExisting()">📇 登録済みから選ぶ</button>
+        <button type="button" class="qc-btn" id="qc-new-btn" onclick="qcChooseNew()">＋ 新しいお客様を登録<small>押すと登録フォームが開きます</small></button>
+      </div>
+      <div class="fg" id="q-customer-select-wrap" style="display:none"><label>提出先（お客様）を選択</label>
         <input type="text" id="q-customer-search" placeholder="🔍 会社名・担当者名で検索" oninput="renderQuoteCustomerSelect()" style="margin-bottom:6px">
         <select id="q-customer" onchange="onQuoteCustomerChange()">
           <option value="">お客様を選択...</option>
         </select>
       </div>
-      <div id="q-general-skip-wrap" style="display:none;margin-top:4px;margin-bottom:10px">
-        <div class="info-box" style="background:#f0fdf4;border-color:#16a34a;color:#14532d;margin-bottom:8px">🛍️ 一般のお客様は、次のどちらでも作れます。</div>
-        <div class="g2">
-          <button class="btn btn-green" style="padding:14px;font-size:14px;font-weight:700" onclick="skipCustomerForGeneral()">お客様登録なしで<br>固定価格表を作る</button>
-          <button class="btn btn-primary" style="padding:14px;font-size:14px;font-weight:700" onclick="focusCustomerForGeneral()">お客様を登録して<br>見積もりを作る</button>
-        </div>
-      </div>
-      <button class="btn-sm" onclick="toggleNewCustomerForm()" id="new-cust-toggle-btn">＋ まだ登録されていないお客様を追加する</button>
       <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
         <div id="nc-rt-hint" class="info-box" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#78350f">RTのお客様は、<strong>会社名（施設名）</strong>と<strong>担当者名</strong>のどちらか一方が入っていれば登録できます。</div>
         <div class="g2">
@@ -504,8 +510,8 @@ th.center,td.center{text-align:center}
       <div class="fg"><label>この価格表に載せる追加情報（お客様ごとに覚えます）</label>
         <div id="pl-fields-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;background:#f9f8f5;min-height:36px"></div>
       </div>
+      <div id="pl-generate-warn" class="gen-lock-note"></div>
       <button class="btn btn-primary" id="pl-generate-btn" onclick="generatePriceListDoc()">価格表を作成する</button>
-      <div id="pl-generate-warn" style="font-size:11px;color:#b45309;margin-top:4px"></div>
       <div style="margin-top:10px"><a href="#" onclick="event.preventDefault();showIndividualQuoteForm()" style="font-size:13px;font-weight:700;color:#185fa5;text-decoration:underline">📄🧾 特定の商品・数量の見積書・請求書を作る →</a><div style="font-size:11px;color:#57534e;margin-top:2px">金額が決まっている方への請求書も、ここから作れます。</div></div>
     </div>
 
@@ -561,8 +567,8 @@ th.center,td.center{text-align:center}
           <div class="fg" style="margin-bottom:0"><label>お振込先（自動選択・変更可）</label><select id="q-invoice-bank" style="padding:5px 8px;font-size:12.5px"></select></div>
         </div>
       </div>
+      <div id="q-generate-warn" class="gen-lock-note"></div>
       <button class="btn btn-primary" id="q-generate-btn" onclick="generateQuoteDoc()">見積書を作成する</button>
-      <div id="q-generate-warn" style="font-size:11px;color:#b45309;margin-top:4px"></div>
     </div>
   </div>
 
@@ -1140,9 +1146,10 @@ function setPrintOrientation(landscape){
 // ── 見積書：新規お客様追加 ────────────────────────────────────────────
 function toggleNewCustomerForm(){
   const form = document.getElementById('new-cust-form');
-  const btn = document.getElementById('new-cust-toggle-btn');
-  if(form.style.display==='none'){ form.style.display=''; btn.textContent='－ 追加フォームを閉じる'; }
-  else { form.style.display='none'; btn.textContent='＋ まだ登録されていないお客様を追加する'; }
+  if(!form) return;
+  form.style.display = (form.style.display==='none') ? '' : 'none';
+  const btn = document.getElementById('new-cust-toggle-btn'); // 旧トグルボタンは撤去済み（qc-new-btnに交代）。残っていた場合だけ文言を更新
+  if(btn) btn.textContent = (form.style.display==='none') ? '＋ まだ登録されていないお客様を追加する' : '－ 追加フォームを閉じる';
 }
 async function registerNewCustomer(){
   const name = document.getElementById('nc-name').value.trim();
@@ -1182,6 +1189,8 @@ async function registerNewCustomer(){
       showSyncStatus('✅ お客様を登録しました');
       toggleNewCustomerForm();
       renderQuoteCustomerSelect();
+      const selWrapEl = document.getElementById('q-customer-select-wrap');
+      if(selWrapEl) selWrapEl.style.display = ''; // 登録した人が選択欄に「選択中」で見えるように開く
       document.getElementById('q-customer').value = newCust.id;
       onQuoteCustomerChange();
       if(contact && !document.getElementById('q-contact-person-shared').value){
@@ -1213,6 +1222,9 @@ function resetRtGate(){
   const dq = document.querySelector('input[name="q-doctype"][value="quote"]'); if(dq){ dq.checked = true; }
   ['q-invoice-date','q-invoice-due','q-delivery-addr','q-delivery-tel','q-delivery-wish'].forEach(function(id){ const el = document.getElementById(id); if(el) el.value = ''; });
   const bEl = document.getElementById('q-invoice-bank'); if(bEl) delete bEl.dataset.userTouched;
+  const selWrap = document.getElementById('q-customer-select-wrap'); if(selWrap) selWrap.style.display = 'none';
+  const ncForm = document.getElementById('new-cust-form'); if(ncForm) ncForm.style.display = 'none';
+  if(typeof setQuoteGuide==='function') setQuoteGuide('書類と入口を選ぶ（タップ1回ずつ）');
   if(typeof onDocTypeChange==='function') onDocTypeChange();
 }
 const GATE_LABELS = {
@@ -1237,31 +1249,44 @@ function skipCustomerForGeneral(){
   document.getElementById('q-customer').value = '';
   window.generalNoCustomerMode = true;
   window.quoteShownSkus = null;
+  const selWrapEl = document.getElementById('q-customer-select-wrap'); if(selWrapEl) selWrapEl.style.display = 'none';
+  const ncFormEl = document.getElementById('new-cust-form'); if(ncFormEl) ncFormEl.style.display = 'none';
   const info = document.getElementById('q-customer-info');
   info.innerHTML = '<div class="info-box" style="background:#f0fdf4;border-color:#16a34a;color:#14532d">🛍️ お客様登録なしで、この場で固定価格表（定価のみ）を作成します。</div>';
   document.getElementById('q-whitelist-card').style.display = 'none';
   showPriceListForm();
   checkContactPersonReady();
 }
-function focusCustomerForGeneral(){
-  const sel = document.getElementById('q-customer');
-  if(sel){ try{ sel.focus(); }catch(e){} sel.scrollIntoView({behavior:'smooth', block:'center'}); }
+// ── 2026-07-17 シンプル化：お客様の選び方（ボタンで選ぶまで検索欄・フォームは畳んでおく） ──
+function qcChooseExisting(){
+  const form = document.getElementById('new-cust-form');
+  if(form) form.style.display = 'none';
+  const wrap = document.getElementById('q-customer-select-wrap');
+  if(wrap){ wrap.style.display = ''; wrap.scrollIntoView({behavior:'smooth', block:'center'}); }
+  renderQuoteCustomerSelect();
+  const search = document.getElementById('q-customer-search');
+  if(search){ try{ search.focus(); }catch(e){} }
+  setQuoteGuide('一覧からお客様を選ぶ（🔍で名前の検索もできます）');
+}
+function qcChooseNew(){
+  const wrap = document.getElementById('q-customer-select-wrap');
+  if(wrap) wrap.style.display = 'none';
+  const form = document.getElementById('new-cust-form');
+  if(form){ form.style.display = ''; form.scrollIntoView({behavior:'smooth', block:'center'}); }
+  const n = document.getElementById('nc-name');
+  if(n){ try{ n.focus(); }catch(e){} }
+  setQuoteGuide('お客様の名前を入れて、緑の「登録して選択する」を押す');
 }
 function selectRtGate(gateType){
-  const card = document.getElementById('q-rt-gate-card');
-  card.dataset.gateType = gateType;
-  const info = GATE_LABELS[gateType];
-  const confirmEl = document.getElementById('q-rt-gate-confirm');
-  confirmEl.innerHTML = '<div class="info-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f;font-weight:700">'
-    + '「'+info.label+'」を選択しました。'
-    + '<br>本当にこれで進めてよろしいですか？（間違えると違う価格をお渡ししてしまいます）<br>'
-    + '<button class="btn btn-primary" style="margin-top:8px" onclick="confirmRtGate(\''+gateType+'\')">はい、間違いありません</button>'
-    + '<button class="btn-sm" style="margin-left:8px" onclick="resetRtGate()">やり直す</button>'
-    + '</div>';
+  // 2026-07-17 シンプル化：「はい、間違いありません」の確認ステップを廃止し、押したらすぐ進む。
+  // 間違い防止は、confirmRtGate が出す色つき帯（「◯◯として作成します＋やり直す」）が常に見えていることで担保する。
+  confirmRtGate(gateType);
 }
 function confirmRtGate(gateType){
   const card = document.getElementById('q-rt-gate-card');
+  card.dataset.gateType = gateType;
   card.style.display = 'none';
+  document.getElementById('q-rt-gate-confirm').innerHTML = '';
   const info = GATE_LABELS[gateType];
   const banner = document.getElementById('q-rt-gate-banner');
   banner.innerHTML = '<div class="info-box no-print" style="background:'+info.bg+';border-color:'+info.border+';color:'+info.color+';font-weight:700">'
@@ -1270,8 +1295,17 @@ function confirmRtGate(gateType){
   window.generalNoCustomerMode = false;
   window.quoteShownSkus = null;
   document.getElementById('q-after-gate').style.display = '';
-  document.getElementById('q-general-skip-wrap').style.display = (gateType==='general') ? '' : 'none';
+  const skipBtn = document.getElementById('qc-skip-btn');
+  if(skipBtn) skipBtn.style.display = (gateType==='general') ? '' : 'none';
   document.getElementById('nc-rt-hint').style.display = (gateType==='rt') ? '' : 'none';
+  // 新規登録フォームの区分は、選んだ入口に合わせた初期値にしておく（入れ直しの手間と間違いアラートを減らす）
+  const ncType = document.getElementById('nc-type');
+  if(ncType) ncType.value = (gateType==='rt') ? 'rt' : ((gateType==='wholesale'||gateType==='partialWholesale') ? 'wholesale1' : 'general');
+  // お客様の選び方はボタン（登録済み／新規）で選ぶまで畳んでおく
+  const selWrap = document.getElementById('q-customer-select-wrap');
+  if(selWrap) selWrap.style.display = 'none';
+  const ncForm = document.getElementById('new-cust-form');
+  if(ncForm) ncForm.style.display = 'none';
   renderQuoteCustomerSelect();
   // ★どの入口も同じ流れに：入口を決めた時点で作業画面（作成ボタン込み）をすぐ表示する。
   //   お客様が未選択でもボタンは灰色で見え、濃い文字で「何をすれば押せるか」を出す。
@@ -1803,6 +1837,12 @@ function quoteReadiness(hasCustomer, person, generalNoCustomerMode){
   return { ready:true, reason:'' };
 }
 // どの入口でも共通：2つの作成ボタン（価格表・見積書）の状態を同じ判定でそろえる
+// 2026-07-17 シンプル化：押せない間はボタンが灰色になり（CSS .btn:disabled）、
+// ボタンの真上に大きな案内箱（赤=まだ押せない／緑=押せる）を出す。上部の「いまやること」帯も連動して更新する。
+function setQuoteGuide(text){
+  const el = document.getElementById('q-guide-bar');
+  if(el) el.innerHTML = '👉 いまやること：' + text;
+}
 function checkContactPersonReady(){
   const personEl = document.getElementById('q-contact-person-shared');
   const person = personEl ? personEl.value.trim() : '';
@@ -1813,8 +1853,22 @@ function checkContactPersonReady(){
     const btn = document.getElementById(p[0]);
     const warn = document.getElementById(p[1]);
     if(btn) btn.disabled = !st.ready;
-    if(warn) warn.textContent = st.reason;
+    if(warn){
+      if(st.ready){ warn.classList.add('ready'); warn.textContent = '✅ 押せるようになりました'; }
+      else { warn.classList.remove('ready'); warn.textContent = '🔒 まだ押せません：' + String(st.reason||'').replace(/^※\s*/, ''); }
+    }
   });
+  const gateCard = document.getElementById('q-rt-gate-card');
+  const gateType = (gateCard && gateCard.dataset) ? (gateCard.dataset.gateType || '') : '';
+  if(!gateType){
+    setQuoteGuide('書類と入口を選ぶ（タップ1回ずつ）');
+  } else if(!st.ready){
+    setQuoteGuide('お客様を選ぶ（新しい方は登録）');
+  } else {
+    const itemsCard = document.getElementById('q-items-card');
+    if(itemsCard && itemsCard.style.display !== 'none') setQuoteGuide('商品と数量を入れて、下の青いボタンで作成');
+    else setQuoteGuide('内容を確かめて、下の青い作成ボタンを押す');
+  }
 }
 async function saveCustomerWhitelist(){
   const cid = document.getElementById('q-customer').value;
