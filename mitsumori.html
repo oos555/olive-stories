@@ -360,6 +360,25 @@ th.center,td.center{text-align:center}
     </div>
   </div>
 
+  <!-- 見積書のスタイル（一覧表／抜き出し仕様表）：2026-07-17 新様式。「見積書・価格表」のときだけ表示 -->
+  <div class="card" id="q-style-card" style="border:2px solid #6b7a3a;padding:10px 14px">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span style="font-size:14px;font-weight:800;color:#2b2a26">スタイル：</span>
+      <span style="display:inline-flex;border:1.5px solid #6b7a3a;border-radius:8px;overflow:hidden">
+        <button type="button" id="q-style-btn-list" onclick="setQuoteStyle('list')" style="border:none;border-radius:0;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;background:#6b7a3a;color:#fff">一覧表（今まで）</button>
+        <button type="button" id="q-style-btn-extract" onclick="setQuoteStyle('extract')" style="border:none;border-radius:0;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;background:#fff;color:#57534e">抜き出し（仕様表）</button>
+      </span>
+      <span id="q-extract-inv-wrap" style="display:none;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:14px;font-weight:800;color:#2b2a26">ご請求書：</span>
+        <span style="display:inline-flex;border:1.5px solid #2563eb;border-radius:8px;overflow:hidden">
+          <button type="button" id="q-exinv-btn-no" onclick="setExtractInvoice(false)" style="border:none;border-radius:0;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;background:#2563eb;color:#fff">付けない</button>
+          <button type="button" id="q-exinv-btn-yes" onclick="setExtractInvoice(true)" style="border:none;border-radius:0;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;background:#fff;color:#57534e">付ける</button>
+        </span>
+      </span>
+    </div>
+    <div id="q-style-note" style="font-size:12px;color:#57534e;margin-top:6px">今までどおりの見積書・価格表です。</div>
+  </div>
+
   <!-- 区分ゲート（6択）：最初に必ず確認 -->
   <div class="card" id="q-rt-gate-card" style="border:2px solid #d5cfc3">
     <div class="sec" style="margin-top:0;font-size:16px">つぎに確認：どの入口から作りますか？</div>
@@ -915,6 +934,7 @@ let taxRate = 0.08;
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();  // 商品マスタをGASから取得（キャッシュがあれば即座に反映、裏で最新版を確認）
   loadAllBilling();
+  refreshQuoteStyleUI(); // 見積書スタイル選択（一覧表／抜き出し）の初期表示
 });
 
 function showSyncStatus(msg,isError){
@@ -935,11 +955,64 @@ function currentDocType(){
 }
 // 「請求書」または「見積書 兼 請求書」＝請求書の設定（請求日・支払期限・振込先）を使う書類
 function isInvoiceLikeType(t){ return t==='invoice' || t==='both'; }
+// ── 見積書のスタイル（一覧表／抜き出し仕様表）：2026-07-17 新様式 ──
+let quoteStyle = 'list';          // 'list'＝今までどおり／'extract'＝抜き出し仕様表
+let extractWithInvoice = false;   // 抜き出しのとき、下段にご請求書を付けるか
+// 請求書の設定欄（請求日・支払期限・振込先）が必要かどうか（抜き出し＋付けるでも必要）
+function needInvoiceFields(){
+  const t = currentDocType();
+  return isInvoiceLikeType(t) || (t==='quote' && quoteStyle==='extract' && extractWithInvoice);
+}
+function setQuoteStyle(s){
+  quoteStyle = (s==='extract') ? 'extract' : 'list';
+  refreshQuoteStyleUI();
+}
+function setExtractInvoice(b){
+  extractWithInvoice = !!b;
+  refreshQuoteStyleUI();
+}
+function refreshQuoteStyleUI(){
+  const t = currentDocType();
+  const card = document.getElementById('q-style-card');
+  if(card) card.style.display = (t==='quote') ? '' : 'none';
+  function seg(id, on, color){
+    const el = document.getElementById(id); if(!el) return;
+    el.style.background = on ? color : '#fff';
+    el.style.color = on ? '#fff' : '#57534e';
+  }
+  seg('q-style-btn-list', quoteStyle==='list', '#6b7a3a');
+  seg('q-style-btn-extract', quoteStyle==='extract', '#6b7a3a');
+  const invWrap = document.getElementById('q-extract-inv-wrap');
+  if(invWrap) invWrap.style.display = (quoteStyle==='extract') ? 'inline-flex' : 'none';
+  seg('q-exinv-btn-no', !extractWithInvoice, '#2563eb');
+  seg('q-exinv-btn-yes', extractWithInvoice, '#2563eb');
+  const note = document.getElementById('q-style-note');
+  if(note){
+    if(quoteStyle==='list'){
+      note.textContent = '今までどおりの見積書・価格表です。';
+    } else if(extractWithInvoice){
+      note.textContent = '頼まれた商品だけの仕様表＋下段にご請求書。10商品までは1枚、11商品からは自動で2枚（2枚目はいつものご請求書）になります。';
+    } else {
+      note.textContent = '頼まれた商品だけの仕様表を1枚で出します。数量は入れなくてもOK（商品を選ぶだけで作れます）。';
+    }
+  }
+  // 請求書の設定欄（請求日・支払期限・振込先）の表示
+  const box = document.getElementById('q-invoice-fields');
+  if(box) box.style.display = needInvoiceFields() ? 'block' : 'none';
+  if(needInvoiceFields()) initInvoiceFields();
+  // 作成ボタンの文言
+  const btn = document.getElementById('q-generate-btn');
+  if(btn && t==='quote'){
+    btn.textContent = (quoteStyle==='extract')
+      ? (extractWithInvoice ? '仕様表＋ご請求書を作成する' : '仕様表（抜き出し見積書）を作成する')
+      : '見積書を作成する';
+  }
+}
 function onDocTypeChange(){
   const t = currentDocType();
   const isInv = isInvoiceLikeType(t);
   const box = document.getElementById('q-invoice-fields');
-  if(box) box.style.display = isInv ? 'block' : 'none';
+  if(box) box.style.display = needInvoiceFields() ? 'block' : 'none';
   const btn = document.getElementById('q-generate-btn');
   if(btn) btn.textContent = (t==='invoice') ? '請求書を作成する' : (t==='both' ? '見積書 兼 請求書を作成する' : '見積書を作成する');
   const labels = { quote:'q-doctype-label-quote', invoice:'q-doctype-label-invoice', both:'q-doctype-label-both' };
@@ -950,6 +1023,7 @@ function onDocTypeChange(){
     el.style.background = on ? '#eff6ff' : '#fff';
   });
   if(isInv) initInvoiceFields();
+  refreshQuoteStyleUI(); // スタイル選択（一覧表／抜き出し）の表示更新
   // すでにお客様を選んで進んでいる場合は、選び直した書類に合わせて画面を出し直す
   const cid = (document.getElementById('q-customer')||{}).value;
   const after = document.getElementById('q-after-gate');
@@ -1865,6 +1939,8 @@ function onShipModeChange(){
   else hint.textContent = '';
 }
 function generateQuoteDoc(){
+  // 抜き出し（仕様表）スタイルのときは専用処理へ（一覧表スタイル＝以下の既存処理は一切変更なし）
+  if(currentDocType()==='quote' && quoteStyle==='extract'){ generateExtractQuoteDoc(); return; }
   const cid = document.getElementById('q-customer').value;
   const c = customers.find(x=>x.id===cid); if(!c) return;
   const contactPerson = document.getElementById('q-contact-person-shared').value.trim();
@@ -2000,6 +2076,294 @@ function showQuoteDoc(doc, record){
   }
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
+}
+// ══════════════════════════════════════════════════════════════════
+// 抜き出し（仕様表）スタイル：2026-07-17 新様式
+// お客様に頼まれた商品だけを抜き出した仕様表（お見積書）を出す。
+// ・ご請求書を付ける場合：10商品まで1枚2段／11商品から自動2枚
+//   （2枚目は恒久固定の buildInvoiceDocHtml をそのまま使う＝様式無傷）
+// ・賞味期限などは商品マスタに人が書いた値だけ。空欄は空欄のまま出す。
+// ══════════════════════════════════════════════════════════════════
+// 区分ごとの卸価格の列（オープン価格は全区分共通で必ず出す）
+function specPriceColForType(custType){
+  const t = effectiveCustomerType(custType, 0); // hub→卸②の互換もここで吸収
+  if(t==='wholesale1') return {label:'卸価格①', type:'wholesale1'};
+  if(t==='wholesale2') return {label:'卸価格②', type:'wholesale2'};
+  if(t==='rt') return {label:'RT価格', type:'rt'};
+  if(t==='defectprice') return {label:'特価', type:'defectprice'};
+  return null; // 一般＝オープン価格のみ
+}
+// 商品名の末尾が容量（例「250ml」）と同じなら、仕様表の表示でだけ省く（マスタは変えない）
+function specDisplayName(name, cap){
+  const n = String(name||''), c = String(cap||'').trim();
+  if(!c) return n;
+  const low = n.toLowerCase(), lc = c.toLowerCase();
+  if(low.endsWith(lc)) return n.slice(0, n.length - c.length).replace(/[\s　]+$/,'');
+  return n;
+}
+function specCell(v, style){
+  return '<td style="border:1px solid #a3b18a;padding:4px 3px;'+(style||'')+'">'+v+'</td>';
+}
+// 仕様表テーブル本体（分類は連続する同じ値を縦にセル結合して1回だけ小さく表示）
+function buildSpecTableHtml(specSkus, custType){
+  const wcol = specPriceColForType(custType);
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed">';
+  html += '<thead><tr style="background:#eef0e5;color:#3a4220">';
+  function th(label, w, extra){ return '<th style="border:1px solid #a3b18a;padding:4px 2px;width:'+w+';'+(extra||'')+'">'+label+'</th>'; }
+  html += th('分類','7%') + th('生産地','8%') + th('商品名', wcol?'18%':'26%') + th('容量','8%') + th('1箱数','7%') + th('賞味期限','9%');
+  html += th('オープン価格<br>（税抜）', wcol?'11%':'14%');
+  if(wcol) html += th(wcol.label+'<br>（税抜）','11%','background:#dde5c8');
+  html += th('容器','8%') + th('EU<br>有機','6%') + th('分析表','6%');
+  html += '</tr></thead><tbody>';
+  // 分類のセル結合：連続する同じ分類の行数を先に数える
+  const rows = specSkus.map(function(sku){
+    const p = findProductBySku(sku); if(!p) return null;
+    const ex = p.extras || {};
+    return { p:p, cat:String(ex['分類']||'').trim(), cap:String(ex['容量']||'').trim(),
+             exp:String(ex['賞味期限']||'').trim(), eu:String(ex['EU有機']||'').trim(), ana:String(ex['分析表']||'').trim() };
+  }).filter(Boolean);
+  rows.forEach(function(r, i){
+    html += '<tr>';
+    if(i===0 || rows[i-1].cat !== r.cat){
+      let span = 1;
+      for(let j=i+1; j<rows.length && rows[j].cat===r.cat; j++) span++;
+      const catHtml = r.cat ? esc(r.cat).replace(/(オイル|セット|ギフト)/,'<br>$1') : '';
+      html += '<td rowspan="'+span+'" style="border:1px solid #a3b18a;padding:4px 2px;text-align:center;vertical-align:middle;font-size:8px;color:#57534e">'+catHtml+'</td>';
+    }
+    const openPrice = priceForSku(r.p.sku, 'general');
+    html += specCell(esc(r.p.origin||''), 'text-align:center');
+    html += specCell('<span style="font-weight:700">'+esc(specDisplayName(r.p.name, r.cap))+'</span>');
+    html += specCell(esc(r.cap), 'text-align:center');
+    html += specCell(r.p.boxQty ? String(r.p.boxQty) : '', 'text-align:center');
+    html += specCell(esc(r.exp), 'text-align:center;font-weight:700'); // 空欄は空欄のまま（機械は補完しない）
+    html += specCell(openPrice ? '¥'+openPrice.toLocaleString() : '－', 'text-align:right');
+    if(wcol){
+      const wp = priceForSku(r.p.sku, wcol.type);
+      html += specCell(wp ? '¥'+wp.toLocaleString() : '－', 'text-align:right;font-weight:700;background:#f6f8ef');
+    }
+    html += specCell(esc(r.p.container||''), 'text-align:center');
+    html += specCell(esc(r.eu), 'text-align:center');
+    html += specCell(esc(r.ana), 'text-align:center');
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+// 仕様表（お見積書）部分：見出し・宛名・右上の確定文言・会社ブロック・表
+function buildSpecSectionHtml(record, c){
+  const dateStr = record.issuedDateStr || '';
+  let html = '';
+  html += '<div style="text-align:center;font-size:22px;font-weight:700;letter-spacing:.15em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin-bottom:12px">お見積書</div>';
+  html += '<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px">';
+  html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
+  if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
+  if(c.zip) html += '<div style="margin-top:4px;font-size:12px">〒'+esc(c.zip)+'</div>';
+  if(c.addr) html += '<div style="font-size:12px">'+esc(c.addr)+'</div>';
+  html += '</div>';
+  html += '<div style="text-align:right;font-size:11px;line-height:1.7">';
+  html += '<div style="color:#b91c1c;font-weight:700;font-size:12px">低温空輸・低温管理・農園内タンク指定買付商品</div>';
+  if(record.estimateNo) html += '<div>見積番号：'+esc(record.estimateNo)+'</div>';
+  html += '<div>発行日：'+esc(dateStr)+'</div>';
+  html += '<div>有効期限：'+esc(record.expiryStr)+'</div>';
+  html += docCompanyBlockHtml();
+  html += '</div></div>';
+  html += '<div style="margin-bottom:8px;font-size:13px">下記の通り御見積り申し上げます。</div>';
+  html += buildSpecTableHtml(record.specSkus, record.customerType);
+  if(record.remarks){
+    html += '<div style="margin-top:8px;font-size:11px;border:1px solid #d5cfc3;border-radius:6px;padding:6px 10px"><strong>備考</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
+  }
+  return html;
+}
+// 下段のコンパクトなご請求書（10商品以内で1枚に収めるときだけ使う）
+// 倉庫手数料・送料は必ず項目として載せる。無料のときは元の金額に取り消し線＋「当社サービス ¥0」
+function buildCompactInvoiceHtml(record){
+  let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
+  record.items.forEach(function(it){
+    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
+  });
+  const warehouseFee = record.warehouseFee || 0;
+  const warehouseTax = Math.round(warehouseFee * 0.10);
+  const shipFee = (record.shipMode==='manual') ? (record.shipFee||0) : 0;
+  const shipTax = Math.round(shipFee * 0.10);
+  const total = subtotalTax8 + subtotalTax10 + taxAmount8 + taxAmount10 + warehouseFee + warehouseTax + shipFee + shipTax;
+  const feeBase = record.exFeeBase || 0; // 卸・RTゲートのときの基礎手数料（それ以外は0＝行を出さない）
+  let serviceTotal = 0;
+  let html = '';
+  html += '<div style="border-top:3px solid #1a1a18;margin:14px 0 10px"></div>';
+  html += '<div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.12em;margin-bottom:8px">ご請求書</div>';
+  html += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;flex-wrap:wrap;gap:4px">';
+  html += '<div>請求番号：'+esc(record.invoiceNo||'')+'</div>';
+  html += '<div>請求日：'+esc(record.invoiceDateStr||'')+'　お支払期日：'+esc(record.dueStr||'')+'</div></div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f4f2ec">';
+  html += '<th style="border:1px solid #b7b2a6;padding:4px">品名</th><th style="border:1px solid #b7b2a6;padding:4px;width:16%">数量</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">単価（税抜）</th><th style="border:1px solid #b7b2a6;padding:4px;width:16%">金額（税抜）</th>';
+  html += '</tr></thead><tbody>';
+  function td(v, style){ return '<td style="border:1px solid #b7b2a6;padding:4px;'+(style||'')+'">'+v+'</td>'; }
+  record.items.forEach(function(it){
+    const p = findProductBySku(it.sku);
+    const boxQty = p ? (p.boxQty||1) : 1;
+    let qtyStr = '';
+    if(it.boxes && it.bottles) qtyStr = it.boxes+'箱＋'+it.bottles+'本（計'+it.qty+'本）';
+    else if(it.boxes) qtyStr = it.boxes+'箱（'+(it.boxes*boxQty)+'本）';
+    else qtyStr = it.bottles+'本';
+    const taxMark = (it.taxRate===0.10 ? '' : ' ※');
+    html += '<tr>'+td(esc(it.name)+taxMark)+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
+  });
+  // 倉庫出荷手数料：卸・RTのご注文のとき必ず項目として載せる（無料でも金額を見せる）
+  if(feeBase > 0){
+    if(warehouseFee > 0){
+      html += '<tr>'+td('倉庫出荷手数料（卸の場合のバラ出荷）')+td('1式','text-align:center')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+'</tr>';
+    } else {
+      serviceTotal += feeBase;
+      html += '<tr>'+td('倉庫出荷手数料（卸の場合のバラ出荷）')+td('1式','text-align:center')
+        +td('<s style="color:#9a3412">¥'+feeBase.toLocaleString()+'</s>','text-align:right')
+        +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
+    }
+  }
+  // 送料：必ず項目として載せる
+  if(record.shipMode==='manual' && shipFee > 0){
+    html += '<tr>'+td('送料')+td('1式','text-align:center')+td('¥'+shipFee.toLocaleString(),'text-align:right')+td('¥'+shipFee.toLocaleString(),'text-align:right')+'</tr>';
+  } else if(record.shipMode==='free'){
+    const base = record.shipFee || 0;
+    if(base > 0) serviceTotal += base;
+    html += '<tr>'+td('送料')+td('1式','text-align:center')
+      +td(base > 0 ? '<s style="color:#9a3412">¥'+base.toLocaleString()+'</s>' : '－','text-align:right')
+      +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
+  } else {
+    html += '<tr>'+td('送料')+td('1式','text-align:center')+td('－','text-align:right')+td('別途','text-align:right')+'</tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px;gap:10px;flex-wrap:wrap">';
+  if(serviceTotal > 0){
+    html += '<div style="border:1.5px solid #0f5040;background:#e3efe9;border-radius:6px;padding:6px 10px;font-size:11px;color:#0f5040;font-weight:700">🎁 今回のサービス合計：¥'+serviceTotal.toLocaleString()+' お得になっています</div>';
+  } else {
+    html += '<div></div>';
+  }
+  html += '<table style="border-collapse:collapse;font-size:11px;min-width:46%">';
+  if(subtotalTax8){
+    html += '<tr><td style="padding:2px 6px">8%対象（軽減税率※・税抜）</td><td style="padding:2px 6px;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:2px 6px">消費税（8%）</td><td style="padding:2px 6px;text-align:right">¥'+taxAmount8.toLocaleString()+'</td></tr>';
+  }
+  if(subtotalTax10 || warehouseFee || shipFee){
+    html += '<tr><td style="padding:2px 6px">10%対象（税抜）</td><td style="padding:2px 6px;text-align:right">¥'+(subtotalTax10+warehouseFee+shipFee).toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:2px 6px">消費税（10%）</td><td style="padding:2px 6px;text-align:right">¥'+(taxAmount10+warehouseTax+shipTax).toLocaleString()+'</td></tr>';
+  }
+  html += '<tr style="font-weight:700;font-size:13px;border-top:2px solid #1a1a18"><td style="padding:4px 6px">ご請求合計（税込）</td><td style="padding:4px 6px;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '</table></div>';
+  const bank = BANK_ACCOUNTS[record.bankIndex] || BANK_ACCOUNTS[0];
+  html += '<div style="border:1px solid #b7b2a6;border-radius:4px;padding:6px 10px;margin-top:8px;font-size:10.5px;line-height:1.7">';
+  html += 'お振込先：'+esc(bank.bank)+'　'+esc(bank.branch)+'　'+esc(bank.type)+'　'+esc(bank.number)+'　'+esc(bank.holder)+'<br>';
+  html += '※印は軽減税率対象商品です。お振込手数料はお客様のご負担にてお願いいたします。';
+  html += '</div>';
+  return html;
+}
+// 抜き出しスタイルの帳票全体
+function buildExtractDocHtml(record, c){
+  const withInv = !!record.exWithInvoice;
+  const specCount = (record.specSkus||[]).length;
+  if(withInv && specCount >= 11){
+    // 11商品以上：1枚目＝仕様表、2枚目＝恒久固定のご請求書様式そのまま
+    let html = '<div class="invoice-doc" style="background:transparent;border:none;padding:0">';
+    html += '<div style="background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem">'+buildSpecSectionHtml(record, c)+'</div>';
+    html += '<div style="page-break-before:always"></div>';
+    html += buildInvoiceDocHtml(record, c);
+    html += '</div>';
+    return html;
+  }
+  let html = '<div class="invoice-doc">';
+  html += buildSpecSectionHtml(record, c);
+  if(withInv && record.items && record.items.length){
+    html += buildCompactInvoiceHtml(record);
+  }
+  html += '</div>';
+  return html;
+}
+// 抜き出しスタイルの作成処理（generateQuoteDoc から分岐して呼ばれる）
+function generateExtractQuoteDoc(){
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid);
+  if(!c){ alert('抜き出しスタイルは、お客様の区分で卸価格の列が決まるため、お客様を選んで（または登録して）作成してください。'); return; }
+  const contactPerson = document.getElementById('q-contact-person-shared').value.trim();
+  if(!contactPerson){ alert('提出先ご担当者名を入力してください'); return; }
+  const rows = document.getElementById('q-items-area').children;
+  if(!rows.length){ alert('見積もる商品を1件以上追加してください'); return; }
+  const specSkus = [];
+  const items = [];
+  let totalBoxes = 0;
+  const effTypes = [];
+  let paidSampleMissing = false;
+  Array.from(rows).forEach(function(r){
+    const sku = r.querySelector('[data-q-sku]').value;
+    if(!sku) return;
+    const p = findProductBySku(sku); if(!p) return;
+    if(specSkus.indexOf(sku) < 0) specSkus.push(sku); // 仕様表には数量ゼロでも載る
+    const bottles = parseInt(r.querySelector('[data-q-bottles]').value)||0;
+    const boxes = parseInt(r.querySelector('[data-q-boxes]').value)||0;
+    if(bottles===0 && boxes===0) return; // 数量なし＝仕様表のみ（ご請求書の明細には載らない）
+    const boxQty = p.boxQty||1;
+    const totalQty = bottles + boxes*boxQty;
+    const tax = taxRateForSku(sku);
+    const kindEl = r.querySelector('[data-q-kind]');
+    const rowKind = kindEl ? kindEl.value : 'normal';
+    if(rowKind==='free'){
+      items.push({ sku, name: p.name+'（無償サンプル）', bottles, boxes, qty: totalQty, unitPrice: 0, amount: 0, taxRate: tax, sampleKind:'free' });
+    } else if(rowKind==='paid'){
+      const up = parseInt((r.querySelector('[data-q-paidprice]')||{}).value)||0;
+      if(up<=0){ paidSampleMissing = true; return; }
+      const base = (r.querySelector('[data-q-pricebase]')||{}).value || 'custom';
+      items.push({ sku, name: p.name+'（有償サンプル）', bottles, boxes, qty: totalQty, unitPrice: up, amount: up*totalQty, taxRate: tax, sampleKind:'paid', sampleBase: base });
+    } else {
+      const effType = effectiveCustomerType(c.type, boxes);
+      effTypes.push(effType);
+      const unitPrice = priceForSku(sku, effType);
+      const upgraded = (c.type==='wholesale1' && effType!==c.type);
+      items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
+    }
+    if(boxes>0) totalBoxes += boxes;
+  });
+  if(paidSampleMissing){ alert('有償サンプルの単価が0円の行があります。単価を入れてください。'); return; }
+  if(!specSkus.length){ alert('商品を1件以上選んでください'); return; }
+  if(extractWithInvoice && !items.length){ alert('ご請求書を付ける場合は、数量を1件以上入力してください。\n（仕様表だけでよい場合は「ご請求書：付けない」を選んでください）'); return; }
+  const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
+  const remarks = document.getElementById('q-remarks').value;
+  const internalMemo = document.getElementById('q-internal-memo').value;
+  const today = new Date();
+  const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+2);
+  const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
+  const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
+  const feeGate = (gateType==='rt' || gateType==='wholesale' || gateType==='partialWholesale');
+  const pickupMode = (document.getElementById('q-pickup-mode')||{}).value || 'charge';
+  const bulkWarehouseFee = (pickupMode==='free') ? 0 : (totalBoxes >= 10 ? 0 : (feeGate ? warehouseFeeForGate() : 0));
+  const record = {
+    id: 'q'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
+    contactPerson: contactPerson, subject: subject,
+    items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
+    specSkus: specSkus, exWithInvoice: extractWithInvoice,
+    exFeeBase: feeGate ? warehouseFeeForGate() : 0,
+    warehouseFee: extractWithInvoice ? bulkWarehouseFee : 0, gateType: gateType,
+    shipMode: (document.getElementById('q-ship-mode')||{}).value || 'none',
+    shipFee: parseInt((document.getElementById('q-ship-amount')||{}).value)||0,
+    pickupMode: pickupMode,
+    deliveryAddr: (document.getElementById('q-delivery-addr')||{}).value || '',
+    deliveryTel: (document.getElementById('q-delivery-tel')||{}).value || '',
+    deliveryWish: (document.getElementById('q-delivery-wish')||{}).value || '',
+    remarks: remarks, internalMemo: internalMemo,
+    issuedAt: today.toISOString(),
+    issuedDateStr: today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日',
+    expiryStr: expiryStr, kind: 'extract'
+  };
+  record.priceCode = priceCodeForInvoice(c.type, effTypes);
+  record.estimateNo = record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+  if(extractWithInvoice){
+    initInvoiceFields(); // 空欄なら今日＋30日を入れる
+    record.invoiceDateStr = document.getElementById('q-invoice-date').value || fmtDateJa(today);
+    record.dueStr = document.getElementById('q-invoice-due').value || dueDateFromInvoiceDate(record.invoiceDateStr);
+    record.bankIndex = parseInt(document.getElementById('q-invoice-bank').value) || 0;
+    record.invoiceNo = 'INV-' + record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+  }
+  quoteHistory.push(record);
+  saveQuoteHistoryToGAS();
+  showQuoteDoc(buildExtractDocHtml(record, c), record);
 }
 function buildQuoteDocHtml(record, c){
   const today = new Date();
@@ -2518,7 +2882,7 @@ function renderQuoteHistory(){
 function viewQuoteHistoryItem(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
   const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
-  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : ((r.kind==='invoice'||r.kind==='both') ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)));
+  const doc = r.kind==='extract' ? buildExtractDocHtml(r, c) : (r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : ((r.kind==='invoice'||r.kind==='both') ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c))));
   showQuoteDocGeneric(doc, r);
 }
 
