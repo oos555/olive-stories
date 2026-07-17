@@ -23,6 +23,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .oos-nav a.nav-blue:hover:not(.current){background:#d2e3f2}
 .oos-nav a.nav-lock{position:relative;padding-right:22px}
 .oos-nav a.nav-lock::after{content:'🔒';position:absolute;top:2px;right:5px;font-size:9px;line-height:1}
+@keyframes basaraGlowP{0%,100%{box-shadow:0 0 0 0 rgba(123,47,160,0)}50%{box-shadow:0 0 0 3px rgba(123,47,160,.55)}}
+.order-card.basara-glow{border-color:#7b2fa0 !important;animation:basaraGlowP 1.1s ease-in-out infinite}
+.basara-paste{width:100%;min-height:210px;padding:12px 14px;border:1.5px solid #9d957f;border-radius:8px;font-size:13px;line-height:1.7;color:#2b2a26;resize:vertical}
 .nav-group{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 8px;border-radius:10px}
 .nav-group-label{font-size:10px;font-weight:700;letter-spacing:.04em;margin-right:2px;opacity:.8}
 .nav-marche{background:rgba(163,177,138,.14)}
@@ -518,6 +521,7 @@ body{background:#fff}
     <button class="tab active" id="import-tab-csv" onclick="switchImportMode('csv')">STORES CSV取込</button>
     <button class="tab" id="import-tab-pdf" onclick="switchImportMode('pdf')">お客様リスト（PDF）取込</button>
     <button class="tab" id="import-tab-rt" onclick="switchImportMode('rt')">🏨 RT伝票取込</button>
+    <button class="tab" id="import-tab-basara" onclick="switchImportMode('basara')">📧 バサラ取込</button>
   </div>
 
   <div id="import-mode-csv">
@@ -612,6 +616,20 @@ body{background:#fff}
       </div>
       <div id="rt-loading" style="display:none;text-align:center;color:#2b2a26;font-size:13px;padding:12px 0">📖 伝票を読み取り中...</div>
       <div id="rt-preview" style="display:none"></div>
+    </div>
+  </div>
+
+  <div id="import-mode-basara" style="display:none">
+    <div class="card">
+      <div class="sec">📧 バサラから届いた「発送お願い」メールを貼り付ける</div>
+      <div class="info-box" style="background:#f4eef8;border-color:#ddc9ea;color:#4a2c5e">
+        <strong>使い方：</strong>バサラ（原さん）から来たメールを<strong>件名から本文まで丸ごと</strong>コピーして、下の枠に貼り付け、「読み取る」を押してください。<br>
+        <code>[商品名]</code>・<code>[送付先]</code>・<code>[配送日時指定:]</code>・<code>[依頼人名]</code> のカッコ見出しを目印に、商品・お届け先・のし・差出人を自動で拾います。違うところはその場で直せます。<br>
+        <strong>発注日・発注番号は件名にあります。</strong>件名も一緒に貼ると、同じ注文の二重取込を自動で止められます。
+      </div>
+      <textarea id="basara-paste" class="basara-paste" placeholder="ここにバサラのメールを、件名から本文まで丸ごと貼り付け"></textarea>
+      <div style="margin-top:12px"><button class="btn" style="background:#7b2fa0;color:#fff" onclick="parseBasaraFromPaste()">この内容を読み取る ▶</button></div>
+      <div id="basara-preview" style="display:none;margin-top:1rem"></div>
     </div>
   </div>
 </div>
@@ -2021,7 +2039,11 @@ function buildOrdersFromForm(){
       notified: false,
       holdUntilDate: recordType==='held' ? holdDate : '',
       expectedDate: recordType==='reserved' ? expectedDate : '',
-      status: recordType, source: 'manual', registeredAt: new Date().toISOString()
+      status: recordType,
+      source: ((typeof basaraImportMeta!=='undefined' && basaraImportMeta && (document.getElementById('o-client').value||'').indexOf('バサラ')>=0) ? 'basara' : 'manual'),
+      basaraOrderNo: ((typeof basaraImportMeta!=='undefined' && basaraImportMeta) ? (basaraImportMeta.orderNo||'') : ''),
+      basaraOrderDate: ((typeof basaraImportMeta!=='undefined' && basaraImportMeta) ? (basaraImportMeta.orderDate||'') : ''),
+      registeredAt: new Date().toISOString()
     });
   });
   return list;
@@ -2119,6 +2141,7 @@ function previewOrder(){
 }
 
 function logGiftIfApplicable(o){
+  if(o.source==='basara') return;   // バサラは卸取引：ギフト記録に入れない
   const buyerName = (o.client||'').trim();
   const destName = (o.recipientName||'').trim();
   const reasons = [];
@@ -2256,6 +2279,7 @@ function clearForm(){
   document.getElementById('recipients').innerHTML = '';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
   selectedCustomerRecord = null;
+  if(typeof basaraImportMeta!=='undefined') basaraImportMeta = null;
   addRecipient();
 }
 
@@ -2532,6 +2556,8 @@ function renderList(){
     const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
+    const basaraBadge = o.source==='basara' ? '<span class="pill" style="background:#7b2fa0;color:#fff">📧バサラ</span>' : '';
+    const basaraCls = (o.source==='basara' && !basaraAcked(o.id)) ? ' basara-glow' : '';
     const overdueBadge = isOverdue(o) ? '<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限超過</span>' : '';
     const locked = (o.paymentMode==='prepay' && !o.paymentConfirmed);
     const appPre = (o.source==='app' && !o.paymentClaimed);
@@ -2543,16 +2569,17 @@ function renderList(){
       : '<div style="font-size:12px;color:#7c2d12;background:#fff4ed;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;margin-top:2px">💰 入金を確認の上、出荷依頼書へ進んでください</div>');
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
-    return '<div class="order-card">'+
+    return '<div class="order-card'+basaraCls+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
       payMsg+
       '<div class="oc-actions no-print">'+
+        (o.source==='basara' && !basaraAcked(o.id) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : '')+
         (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
         (o.status==='pending' && !locked ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
         (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')+
@@ -3117,6 +3144,8 @@ function switchImportMode(mode){
   document.getElementById('import-mode-csv').style.display = mode==='csv' ? 'block' : 'none';
   document.getElementById('import-mode-pdf').style.display = mode==='pdf' ? 'block' : 'none';
   var rtPanel = document.getElementById('import-mode-rt'); if(rtPanel) rtPanel.style.display = mode==='rt' ? 'block' : 'none';
+  var bTab = document.getElementById('import-tab-basara'); if(bTab) bTab.classList.toggle('active', mode==='basara');
+  var bPanel = document.getElementById('import-mode-basara'); if(bPanel) bPanel.style.display = mode==='basara' ? 'block' : 'none';
   if(mode==='pdf' && !document.getElementById('pdf-common-product').options.length){
     document.getElementById('pdf-common-product').innerHTML = productOptionsHtml();
     document.getElementById('pdf-common-gift').innerHTML = Object.keys(GIFT_TYPE_LABEL).map(k=>'<option value="'+k+'">'+GIFT_TYPE_LABEL[k]+'</option>').join('');
@@ -3534,6 +3563,253 @@ function applyRtToOrderForm(){
   showSyncStatus('🏨 RT伝票から受注登録画面に反映しました。内容を確認して「登録」を押してください');
   const po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
 }
+
+// ════════════════════════════════════════════════════════════════
+//  📧 バサラ（楽天）取込：メール本文を貼り付け → 受注登録画面へ
+//  ・発注元＝バサラ／後払い／同梱＝納品書／差出人＝[依頼人名]
+//  ・ギフト記録には入れない（source==='basara' で logGiftIfApplicable が除外）
+//  ・二重取込：お名前＋発注日＋発注番号 で確認
+//  ・商品は「農園名は無視して商品ライン＋mlで照合」。確信が持てなければ選ばせる
+// ════════════════════════════════════════════════════════════════
+var basaraImportMeta = null;   // {orderNo, orderDate} 登録時に source='basara' を付ける目印
+var basaraParsed = null;
+
+function basaraAckSet(){ try{ return JSON.parse(localStorage.getItem('oos_basara_ack')||'[]'); }catch(e){ return []; } }
+function basaraAcked(id){ return basaraAckSet().indexOf(id) >= 0; }
+function ackBasara(id){ var st=basaraAckSet(); if(st.indexOf(id)<0){ st.push(id); localStorage.setItem('oos_basara_ack', JSON.stringify(st)); } renderList(); }
+
+function basaraSizeToken(str){
+  var m = String(str).match(/(\d+(?:\.\d+)?)\s*(ml|ｍｌ|mL|ML|cc|l|L|Ｌ|リットル)/);
+  if(!m) return '';
+  var num = m[1]; var unit = m[2].toLowerCase();
+  if(unit==='リットル' || unit==='l' || unit==='ｌ') return num+'L';
+  return num+'ml';
+}
+function matchBasaraProduct(text){
+  var t = String(text).replace(/\s/g,'');
+  var size = basaraSizeToken(text);
+  var cands = PRODUCTS.filter(function(p){
+    if(p.isSet) return false;
+    if(p.group==='ギフト箱・備品' || p.group==='その他') return false;
+    var key = (p.group||'').replace(/\s/g,'');
+    if(!key || t.indexOf(key) < 0) return false;
+    if(size && (p.name||'').replace(/\s/g,'').indexOf(size) < 0) return false;
+    return true;
+  });
+  if(cands.length===1) return cands[0].id;
+  return '';
+}
+function basaraSection(text, startLabel, endLabels){
+  var re = new RegExp('\\[' + startLabel + '\\][:：]?');
+  var i = text.search(re);
+  if(i < 0) return '';
+  var rest = text.slice(i).replace(re, '');
+  var end = rest.length;
+  (endLabels||[]).forEach(function(lb){
+    var j = rest.search(new RegExp('\\[' + lb + '\\]'));
+    if(j >= 0 && j < end) end = j;
+  });
+  return rest.slice(0, end).trim();
+}
+function parseBasaraEmail(text){
+  text = String(text||'').replace(/\r/g,'');
+  var od = text.match(/(\d{4}\/\d{1,2}\/\d{1,2})\s*発注/);
+  if(!od) od = text.match(/(\d{4}\/\d{1,2}\/\d{1,2})/);
+  var orderDate = od ? od[1] : '';
+  var no = text.match(/発注\s*[#＃]?\s*(\d+)/);
+  var orderNo = no ? no[1] : '';
+
+  var prodBlock = basaraSection(text, '商品名', ['包装紙','熨斗','送付先','配送日時指定','依頼人名']);
+  var prodLine = '';
+  prodBlock.split('\n').forEach(function(l){
+    l = l.trim();
+    if(!prodLine && l && !/^計/.test(l)) prodLine = l.replace(/^\d+[\.．、]\s*/, '');
+  });
+  var bottlesM = prodBlock.match(/計\s*(\d+)\s*本/);
+  if(!bottlesM) bottlesM = text.match(/計\s*(\d+)\s*本/);
+  var bottles = bottlesM ? parseInt(bottlesM[1],10) : 1;
+  var productId = prodLine ? matchBasaraProduct(prodLine) : '';
+
+  var wrap = basaraSection(text, '包装紙', ['熨斗','送付先','配送日時指定','依頼人名']);
+  var noshi = basaraSection(text, '熨斗', ['送付先','配送日時指定','依頼人名']);
+
+  var to = basaraSection(text, '送付先', ['配送日時指定','依頼人名','包装紙','熨斗']);
+  var toName='', toZip='', toAddr='', toTel='';
+  to.split('\n').map(function(x){return x.trim();}).filter(Boolean).forEach(function(x){
+    var z = x.match(/〒?\s*(\d{3}-?\d{4})/);
+    var tel = x.match(/(0\d{1,4}-?\d{1,4}-?\d{3,4})/);
+    if(z && !toZip){ toZip = z[1]; return; }
+    if(/[都道府県]|[市区町村郡]|丁目|番地|番|号/.test(x) && !toAddr){ toAddr = x; return; }
+    if(tel && !toTel){ toTel = tel[1]; return; }
+    if(!toName){ toName = x.replace(/様$/,'').trim(); }
+  });
+
+  var deliv = basaraSection(text, '配送日時指定', ['依頼人名']);
+  var urgent = /最速|なるはや|至急/.test(deliv) || /最速/.test(text);
+
+  var from = basaraSection(text, '依頼人名', []);
+  from = from.replace(/以下の名称にて願います。?/,'').trim();
+  var fromName='', fromZip='', fromAddr='', fromTel='';
+  from.split('\n').map(function(x){return x.trim();}).filter(Boolean).forEach(function(x){
+    var z = x.match(/〒?\s*(\d{3}-?\d{4})/);
+    var tel = x.match(/Tel[;:：]?\s*(0[\d\-]+)/i) || x.match(/(0\d{1,4}-?\d{1,4}-?\d{3,4})/);
+    if(z && !fromZip){ fromZip = z[1]; return; }
+    if(tel && !fromTel){ fromTel = (tel[1]||'').replace(/^Tel[;:：]?/i,''); return; }
+    if(/[都道府県]|[市区町村郡]|丁目|番地|番|号|−/.test(x) && !fromAddr && !/^Tel/i.test(x)){ fromAddr = x; return; }
+    if(!fromName){ fromName = x; }
+  });
+
+  return {
+    orderNo: orderNo, orderDate: orderDate,
+    productLine: prodLine, productId: productId, bottles: bottles,
+    wrap: wrap, noshi: noshi, urgent: urgent,
+    to: { name: toName, zip: toZip, addr: toAddr, tel: toTel },
+    from:{ name: fromName, zip: fromZip, addr: fromAddr, tel: fromTel }
+  };
+}
+function parseBasaraFromPaste(){
+  var raw = document.getElementById('basara-paste').value || '';
+  if(!raw.trim()){ alert('メールの本文を貼り付けてから「読み取る」を押してください。'); return; }
+  basaraParsed = parseBasaraEmail(raw);
+  renderBasaraPreview();
+}
+function bFld(label, key, val, span){
+  return '<div class="fg"' + (span>1 ? ' style="grid-column:span '+span+'"' : '') + '>'
+    + '<label style="font-size:11px;color:#5a1f7a;font-weight:700">' + label + '</label>'
+    + '<input type="text" value="' + esc(val||'') + '" oninput="' + key + '=this.value" '
+    + 'style="padding:7px 9px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:15px;font-weight:700;color:#2b2a26"></div>';
+}
+function renderBasaraPreview(){
+  var p = basaraParsed;
+  var el = document.getElementById('basara-preview');
+  el.style.display = 'block';
+  if(!p){ el.innerHTML=''; return; }
+  var matched = !!p.productId;
+  var prodSelect = '<select onchange="basaraParsed.productId=this.value" '
+    + 'style="width:100%;padding:6px 9px;border:1.5px solid ' + (matched?'#d5cfc3':'#dc2626') + ';border-radius:6px;font-size:13px;font-weight:700">'
+    + '<option value="">オイル名を指定してください</option>' + productOptionsHtml(p.productId) + '</select>';
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">'
+      + '<span style="background:#7b2fa0;color:#fff;padding:3px 10px;border-radius:99px;font-weight:700">② 確認・修正</span>'
+      + '<span>発注番号 <b>' + esc(p.orderNo||'—') + '</b></span><span>／</span><span>発注日 <b>' + esc(p.orderDate||'—') + '</b></span>'
+      + (p.urgent ? '<span style="background:#fff3e0;color:#8a4b0b;border:1px solid #f0cfa0;padding:3px 10px;border-radius:99px;font-weight:700">🚚 最速発送（急ぎ）</span>' : '')
+    + '</div>'
+    + '<div style="background:#faf7fc;border:1px solid #e6d6f0;border-radius:10px;padding:1rem 1.1rem">'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+        + '<span style="background:#f4eef8;color:#5a1f7a;border:1px solid #ddc9ea;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">発注元＝バサラ</span>'
+        + '<span style="background:#eef4f9;color:#1f4a6d;border:1px solid #b9d0e3;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">後払い（月末まとめ請求）</span>'
+        + '<span style="background:#eaf3de;color:#3b6d11;border:1px solid #c9d3b4;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">同梱：納品書</span>'
+      + '</div>'
+      + '<div style="font-size:13px;font-weight:700;color:#5a1f7a;margin-bottom:6px">お届け先（＝お客様。その場で直せます）</div>'
+      + '<div class="g2" style="margin-bottom:6px">' + bFld('お届け先のお名前','basaraParsed.to.name',p.to.name,1) + bFld('電話番号','basaraParsed.to.tel',p.to.tel,1) + '</div>'
+      + '<div class="g2" style="margin-bottom:6px">' + bFld('住所','basaraParsed.to.addr',p.to.addr,1) + bFld('郵便番号','basaraParsed.to.zip',p.to.zip,1) + '</div>'
+      + '<div style="font-size:13px;font-weight:700;color:#5a1f7a;margin:14px 0 6px">商品明細（農園名は無視して照合）</div>'
+      + '<div style="display:grid;grid-template-columns:2fr 74px;gap:8px;align-items:end">'
+        + '<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>' + prodSelect
+          + (matched ? '<div style="color:#3b6d11;font-size:11px;font-weight:700;margin-top:3px">✓ 自動一致（元の表記：' + esc(p.productLine||'') + '）</div>' : '<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ はっきり分からないので、オイル名を選んでください（元の表記：' + esc(p.productLine||'') + '）</div>') + '</div>'
+        + '<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="1" value="' + (p.bottles||1) + '" oninput="basaraParsed.bottles=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;text-align:center;color:#2b2a26"></div>'
+      + '</div>'
+      + '<div class="g2" style="margin-top:12px">' + bFld('包装紙','basaraParsed.wrap',p.wrap,1) + bFld('熨斗','basaraParsed.noshi',p.noshi,1) + '</div>'
+      + '<div style="background:#fdf3f7;border:1.5px solid #f0b6cf;border-radius:8px;padding:10px 12px;margin-top:14px">'
+        + '<div style="font-size:13px;font-weight:700;color:#993556;margin-bottom:6px">🏷 納品書の差出人（お客様に見える送り主）＝[依頼人名]</div>'
+        + '<div class="g2" style="margin-bottom:6px">' + bFld('差出人名','basaraParsed.from.name',p.from.name,1) + bFld('電話','basaraParsed.from.tel',p.from.tel,1) + '</div>'
+        + '<div class="g2">' + bFld('差出人住所','basaraParsed.from.addr',p.from.addr,1) + bFld('郵便番号','basaraParsed.from.zip',p.from.zip,1) + '</div>'
+        + '<div style="font-size:11.5px;color:#993556;margin-top:4px">※ オリーブオイルストーリーズではなく、この名前で納品書を作ります</div>'
+      + '</div>'
+    + '</div>'
+    + '<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
+      + '<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">内容を確認しましたか？</div>'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="basara-confirm-chk" onchange="document.getElementById(\'basara-go-btn\').disabled=!this.checked" style="width:18px;height:18px"> お届け先・商品・差出人が、メールの内容と合っていることを確認しました</label>'
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+        + '<button id="basara-go-btn" class="btn btn-green" disabled onclick="applyBasaraToOrderForm()">確認して受注登録画面へ進む ▶</button>'
+        + '<button class="btn btn-gray" onclick="cancelBasaraImport()">キャンセル</button>'
+      + '</div>'
+    + '</div>';
+}
+function cancelBasaraImport(){
+  basaraParsed = null;
+  var el = document.getElementById('basara-preview');
+  if(el){ el.style.display='none'; el.innerHTML=''; }
+  var pa = document.getElementById('basara-paste'); if(pa) pa.value = '';
+}
+function applyBasaraToOrderForm(){
+  var p = basaraParsed;
+  if(!p) return;
+  if(!p.productId){ alert('商品（オイル名）が選ばれていません。プルダウンから選んでから進んでください。'); return; }
+
+  var dup = orders.find(function(o){
+    return o.source==='basara'
+      && String(o.basaraOrderNo||'')===String(p.orderNo||'')
+      && String(o.basaraOrderDate||'')===String(p.orderDate||'')
+      && (o.recipientName||'')===(p.to.name||'');
+  });
+  if(dup){
+    if(!confirm('⚠️ この注文（' + (p.to.name||'') + '様／発注日 ' + (p.orderDate||'—') + '／発注番号 ' + (p.orderNo||'—') + '）は、すでに取り込み済みかもしれません。\nもう一度取り込みますか？\n「OK」＝取り込む　／　「キャンセル」＝やめる')) return;
+  }
+
+  basaraImportMeta = { orderNo: p.orderNo||'', orderDate: p.orderDate||'' };
+
+  var memoParts = ['バサラ（楽天）取込'];
+  if(p.orderNo) memoParts.push('発注番号 ' + p.orderNo);
+  if(p.orderDate) memoParts.push('発注日 ' + p.orderDate);
+  if(p.urgent) memoParts.push('🚚最速発送（なるはや）');
+  if(p.wrap && !/無し|なし/.test(p.wrap)) memoParts.push('包装紙 ' + p.wrap);
+  if(p.noshi && !/無し|なし/.test(p.noshi)) memoParts.push('熨斗 ' + p.noshi);
+  var memoText = memoParts.join(' ／ ');
+
+  var clientEl = document.getElementById('o-client');
+  clientEl.value = 'バサラ';
+  if(clientEl.dataset) clientEl.dataset.custId = '';
+  document.getElementById('o-ctype').value = 'wholesale2';
+  if(typeof onCtypeChange==='function') onCtypeChange();
+  document.getElementById('o-payment-mode').value = 'postpay';
+  if(document.getElementById('prepay-warn')) document.getElementById('prepay-warn').style.display='none';
+  if(document.getElementById('o-zip')) document.getElementById('o-zip').value = p.to.zip||'';
+  if(document.getElementById('o-addr')) document.getElementById('o-addr').value = p.to.addr||'';
+  if(document.getElementById('o-tel')) document.getElementById('o-tel').value = p.to.tel||'';
+  if(document.getElementById('o-memo')) document.getElementById('o-memo').value = memoText;
+  var recType = document.getElementById('o-record-type'); if(recType){ recType.value='pending'; if(typeof onRecordTypeChange==='function') onRecordTypeChange(); }
+
+  document.getElementById('recipients').innerHTML = '';
+  addRecipient();
+  var cards = document.querySelectorAll('.recipient-card');
+  var card = cards[cards.length-1];
+  var indRadio = card.querySelector('[data-role=rtypeInd]');
+  if(indRadio){ indRadio.checked = true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(card.id); }
+  rtSetVal(card,'personName', p.to.name);
+  rtSetVal(card,'zip', p.to.zip);
+  rtSetVal(card,'addr', p.to.addr);
+  rtSetVal(card,'tel', p.to.tel);
+  rtSetVal(card,'note', memoText);
+  if(p.urgent){ var leadSel = card.querySelector('[data-role=lead]'); if(leadSel){ leadSel.value='urgent'; if(typeof toggleCardLeadDate==='function') toggleCardLeadDate(card.id); } }
+
+  if(typeof toggleRecipientOverride==='function'){
+    var ovPanel = card.querySelector('[data-role=overridePanel]');
+    if(ovPanel && ovPanel.style.display==='none') toggleRecipientOverride(card.id);
+  }
+  rtSetVal(card,'senderName', p.from.name);
+  rtSetVal(card,'senderZipOv', p.from.zip);
+  rtSetVal(card,'senderTelOv', p.from.tel);
+  rtSetVal(card,'senderAddrOv', p.from.addr);
+
+  var linesWrap = card.querySelector('[data-role=lines]');
+  var lineRow = linesWrap ? linesWrap.children[0] : null;
+  if(lineRow){
+    var psel = lineRow.querySelector('[data-role=product]');
+    var bnum = lineRow.querySelector('[data-role=bottles]');
+    if(psel){ psel.value = p.productId; if(typeof onRecipientLineProductChange==='function') onRecipientLineProductChange(card.id, lineRow.id); }
+    if(bnum) bnum.value = p.bottles||1;
+  }
+  if(typeof renumberRecipients==='function') renumberRecipients();
+
+  document.querySelectorAll('.enc-doc').forEach(function(cb){ cb.checked = (cb.value==='納品書' && !cb.getAttribute('data-doc')); });
+
+  cancelBasaraImport();
+  showPanel('order', document.getElementById('tab-order'));
+  showSyncStatus('📧 バサラのメールから受注登録画面に反映しました。内容を確認して「登録」を押してください');
+  var po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
+}
+
 
 // ── GAS 保存（必ず「今ある受注を全部」送る）────────────────────────────
 // ── ① 注文の安全保存（最新取り直し＋変更分だけマージ）──────────────
