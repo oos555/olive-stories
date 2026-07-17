@@ -977,6 +977,8 @@ const CUSTOMER_TYPE_LABEL = {
   general:'定価', wholesale1:'卸①（仲卸価格）', wholesale2:'卸②（一般卸価格）',
   rt:'RT（ホテル）', defectprice:'不良在庫特価'
 };
+/* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（倉庫D・受注A共通の約束）*/
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','不良在庫特価':'defectprice'})[v] || v; }
 const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
 
 // boxQty ＝ 1箱に入っている本数（発注書シートで「箱数→本数」換算に使われます）
@@ -1176,7 +1178,10 @@ function loadInitialData(retry){
       if(incomingCustomers && (incomingCustomers.length>0 || customers.length===0)) customers = incomingCustomers;
     }
     if(oOk){
-      if(incomingOrders.length>0 || orders.length===0) orders = incomingOrders;
+      if(incomingOrders.length>0 || orders.length===0){
+        orders = incomingOrders;
+        orders.forEach(function(o){ o.customerType = normCtype(o.customerType); }); // シートは日本語ラベル保存のため英語コードへ翻訳
+      }
     }
     updCustomerSelects();
     renderStockStrip();
@@ -1342,6 +1347,16 @@ function onCtypeChange(){
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
   const pam = document.getElementById('o-include-pamphlet');
   if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
+  // ゆかさん要望③④：RTを選んだら 発送区分＝日程指定・同梱書類＝RT発注伝票＋納品書 を自動セット（手で変更可）
+  if(sel.value==='rt'){
+    document.querySelectorAll('.recipient-card [data-role=lead]').forEach(function(ls){
+      if(ls.value==='normal'){ ls.value='scheduled'; ls.dispatchEvent(new Event('change')); }
+    });
+    var encList = document.querySelectorAll('.enc-doc');
+    encList.forEach(function(cb){ cb.checked = (cb.getAttribute('data-doc')==='rtset'); });
+    var rtCb = document.querySelector('.enc-doc[data-doc=rtset]');
+    if(rtCb && typeof onEnclosedDocToggle==='function') onEnclosedDocToggle(rtCb);
+  }
   const warnEl = document.getElementById('ctype-mismatch-warn');
   const custId = document.getElementById('o-client').dataset.custId;
   if(custId){
@@ -2969,7 +2984,9 @@ function buildSlipHtml(o){
   const encDoc = o.enclosedDoc || '納品書兼請求書';
   const pamph = (o.includePamphlet !== false);
   var _isGiftSlip = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
-  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(_isGiftSlip?'<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#a32d2d">🎁 ギフトのため、金額の入った書類は入れないでください</div>':'')+'</div>';
+  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(o.customerType==='rt'
+    ? '<div style="margin-top:6px;background:#eef4f9;border:2px solid #1f4a6d;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#1f4a6d">🏨 RTのため、ギフトでも金額の入った書類（'+esc(encDoc)+'）を必ず入れてください</div>'
+    : (_isGiftSlip?'<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#a32d2d">🎁 ギフトのため、金額の入った書類は入れないでください</div>':''))+'</div>';
   html += '<div class="slip-section-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
   html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input-'+o.id+'" value="'+(o.shipNote||'').replace(/"/g,'&quot;')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"><button class="btn-sm" onclick="saveShipNote(\''+o.id+'\')">保存</button></div>';
   if(o.shipNote) html += '<div class="alert-bar alert-warn"><strong>📦 出荷時の備考：</strong>'+o.shipNote+'</div>';
@@ -3845,6 +3862,7 @@ function applyBasaraToOrderForm(){
   addRecipient();
   var cards = document.querySelectorAll('.recipient-card');
   var card = cards[cards.length-1];
+  if(typeof setRecipientAddrMode==='function') setRecipientAddrMode(card.id, false); // ゆかさん報告⑤の修正：「発注者と同じ」のままだと届け先名がバサラに化けるため、必ず「別の住所」に切り替える
   var indRadio = card.querySelector('[data-role=rtypeInd]');
   if(indRadio){ indRadio.checked = true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(card.id); }
   rtSetVal(card,'personName', p.to.name);

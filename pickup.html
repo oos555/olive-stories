@@ -306,19 +306,55 @@ async function gateUnlock(){
 }
 gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
+/* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','不良在庫特価':'defectprice'})[v] || v; }
 const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
+// ── 日付はすべて日本時間（JST, UTC+9）を基準に解釈する ──
+// どんな形式（'2026-07-31' / '2026/7/31' / '2026-07-31T15:00:00.000Z'）が来ても、
+// 日本時間で「何年何月何日」かを取り出す。読めない場合は null。
+function toJstDate(v){
+  if(!v) return null;
+  var s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    var m = s.split('-');
+    return new Date(Number(m[0]), Number(m[1])-1, Number(m[2]));
+  }
+  var d = new Date(s.indexOf('/')>=0 && s.indexOf('T')<0 ? s.replace(/-/g,'/') : s);
+  if(isNaN(d.getTime())) return null;
+  if(/Z$|[+\-]\d{2}:?\d{2}$/.test(s)){
+    // タイムゾーン付きの機械形式 → 端末の設定に関係なく日本時間(+9時間)に固定変換
+    var j = new Date(d.getTime() + 9*60*60*1000);
+    return new Date(j.getUTCFullYear(), j.getUTCMonth(), j.getUTCDate());
+  }
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+// 日本時間での YYYY-MM-DD 文字列を作る
+function isoDayJst(dateObj){
+  var j = new Date(dateObj.getTime() + 9*60*60*1000);
+  return j.toISOString().slice(0,10);
+}
+// 日本時間での「今日」の YYYY-MM-DD
+function todayIsoJst(){
+  return isoDayJst(new Date());
+}
 function computeDueDateISO(o){
-  if(o.leadType==='scheduled') return o.leadDate || '';
+  if(o.leadType==='scheduled'){
+    var sd = toJstDate(o.leadDate);
+    if(!sd) return '';
+    var mm = ('0'+(sd.getMonth()+1)).slice(-2), dd = ('0'+sd.getDate()).slice(-2);
+    return sd.getFullYear()+'-'+mm+'-'+dd;
+  }
   const days = o.leadType==='urgent' ? 1 : (o.leadType==='normal' ? 3 : null);
   if(days===null) return '';
   const base = o.registeredAt ? new Date(o.registeredAt) : new Date();
-  base.setDate(base.getDate()+days);
-  return base.toISOString().slice(0,10);
+  if(isNaN(base.getTime())) return '';
+  base.setTime(base.getTime() + days*24*60*60*1000);
+  return isoDayJst(base);
 }
-function formatDateJp(iso){
-  if(!iso) return '';
-  const d = new Date(iso+'T00:00:00');
+function formatDateJp(v){
+  var d = toJstDate(v);
+  if(!d) return v ? String(v) : '';
   return (d.getMonth()+1)+'月'+d.getDate()+'日';
 }
 function leadLabelWithDate(o){
@@ -335,18 +371,15 @@ function isOverdue(o){
   if(o.status!=='pending') return false;
   const due = computeDueDateISO(o);
   if(!due) return false;
-  const todayISO = new Date().toISOString().slice(0,10);
+  const todayISO = todayIsoJst();
   return due < todayISO;
 }
 const LEAD_BADGE_CLASS = {normal:'b-normal', urgent:'b-urgent', defect:'b-defect', caution:'b-caution', scheduled:'b-normal'};
 // ── 見張り一覧用：出荷依頼日（登録日）・お届け希望日を M/D で。梱包完了は当日中だけ表示 ──
 function fmtMD(v){
   if(!v) return '';
-  var s = String(v).trim();
-  var d;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) d = new Date(s+'T00:00:00');
-  else d = new Date(s.indexOf('/')>=0 ? s.replace(/-/g,'/') : s);
-  if(isNaN(d.getTime())) return s;
+  var d = toJstDate(v);
+  if(!d) return String(v);
   return (d.getMonth()+1)+'/'+d.getDate();
 }
 function todayJpKey(){ return new Date().toLocaleString('ja-JP').trim().split(' ')[0]; } // 出荷日時と同じ生成経路で日付部分を作る
@@ -667,6 +700,7 @@ async function openOrderInPage(id){
   if(cached && Array.isArray(cached.lines) && cached.lines.length){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
     currentOrder = cached; noshiPrinted = false;
+    if(currentOrder) currentOrder.customerType = normCtype(currentOrder.customerType);
     if(currentOrder.status === 'shipped' || currentOrder.orderStatus === 'shipped') renderAlreadyShipped(); else renderOrder();
     return;
   }
@@ -682,6 +716,7 @@ async function loadSingleOrder(id){
       return;
     }
     currentOrder = data.order;
+    if(currentOrder) currentOrder.customerType = normCtype(currentOrder.customerType);
     noshiPrinted = false;
     await fetchWarehouseNotes();
     if(currentOrder.orderStatus === 'shipped'){
@@ -826,12 +861,14 @@ async function loadOrderList(){
   // ② そのあと裏で最新を取りに行き、届いたら差し替える
   try{
     const [res, ] = await Promise.all([fetch(GAS_URL + '?action=loadAll'), fetchWarehouseNotes()]);
+    /* 区分の翻訳は下の orders 代入後に行う */
     const data = await res.json();
     if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
       if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>'; }
       return;
     }
     // 出荷待ち（出荷依頼書が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
+    data.data.orders.forEach(function(o){ o.customerType = normCtype(o.customerType); });
     allOrders = data.data.orders.filter(function(o){
       if(o.notified!==true) return false;
       if(o.status==='pending') return true;
@@ -872,7 +909,7 @@ function renderList(){
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">4. そろったら「✅ 梱包完了にする」を押す</div>'
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：この注文は出荷待ち一覧から消えます（作業おわりの記録になります）。実際の発送は下の「いつ発送？」の期日内でOK。当日でなくてかまいません。</div>'
     + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は6営業日以内（定休日・祝日・お休みは数えません）／🚨急ぎは翌日／🗓 日付指定はその日に。</div>'
-    + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：納品書＋RT端末の伝票の2点を<b>必ず</b>同梱してください。</div>'
+    + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：<b>① RT発注伝票（端末の伝票）＋ ② 納品書</b>の2点を<b>必ず</b>同梱してください。</div>'
     + '</div></details>';
   if(overdue){
     html += '<div class="alert-danger no-print">⏰ 出荷期限を過ぎているものが'+overdue+'件あります。優先して確認してください。</div>';
@@ -1053,9 +1090,9 @@ function renderOrder(){
   const _norm = function(s){ return String(s||'').replace(/[\s　]/g,''); };
   const isGiftOrder = (o.lines||[]).some(function(l){ return l.giftType==='gift' || l.giftType==='simple'; });
   const recipientDiffers = !!_norm(o.recipientName) && !!_norm(o.client) && _norm(o.recipientName)!==_norm(o.client);
-  const isGiftToOther = isGiftOrder && recipientDiffers;
+  const isGiftToOther = isGiftOrder && recipientDiffers && !isRt; // RTはギフトでも金額入り書類が必須（ゆかさん報告⑦）
   const encDoc = o.enclosedDoc || '納品書兼請求書';
-  const includePamphlet = (o.includePamphlet !== false);
+  const includePamphlet = (o.includePamphlet !== false) && !isRt; // RTはパンフレット不要（ゆかさん報告⑧）
   html += '<div class="sec-title no-print">📦 同梱するもの（入れたらチェック）</div>';
   html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:-4px 0 8px">ぜんぶチェックが入ると、下の「梱包完了」が押せます。</div>';
   if(isGiftToOther){
@@ -1074,10 +1111,16 @@ function renderOrder(){
   } else {
     html += '<div class="rt-docs no-print">';
     if(isRt){
+      if(isGiftOrder){
+        html += '<div class="note-box no-print" style="background:#eef4f9;border:2px solid #1f4a6d;color:#1f4a6d">'
+          + '<div style="font-size:15px;font-weight:700">🏨 RT（ホテル・レストラン）の注文です</div>'
+          + '<div style="font-size:13.5px;font-weight:500;line-height:1.6;margin-top:3px">ギフトでも、金額の入った書類を<b>必ず</b>入れてください（RTのお約束です）。</div></div>';
+      }
       html += '<div class="rt-docs-t">🖨 印刷して入れる書類（2枚）</div>'
-        + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 納品書を印刷する</button>'
-        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">納品書を入れた</label>'
-        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">RT端末の伝票を入れた</label>';
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">① RT発注伝票（端末の伝票）を入れた</label>'
+        + '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
+        + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 ② 納品書を印刷する</button>'
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">② 納品書を入れた</label></div>';
     } else if(encDoc && encDoc!=='なし'){
       var _docs = String(encDoc).split(' ＋ ');
       var _list = [];
