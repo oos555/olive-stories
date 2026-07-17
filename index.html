@@ -3032,6 +3032,19 @@ function notifyLineShort(listArg){
   if(gift) parts.push('🎁ギフト'+gift+'件');
   if(parts.length) text += '（'+parts.join('・')+'）';
   text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
+  // ゆかさん要望⑩：LINEと同時にメール通知（宛先はスプレッドシート「設定」シートで管理）。
+  // keepalive付きなので、直後にLINEへ画面が移っても送信は完了する。失敗してもLINEは止めない。
+  try{
+    var mailLines = list.map(function(o){
+      var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
+      return '・'+(o.recipientName||o.client)+'（'+o.num+'）'+lead;
+    }).join('\n');
+    fetch(GAS_URL, {
+      method:'POST', keepalive:true,
+      body: JSON.stringify({ action:'sendShipNotifyMail', subject: text.split('\n')[0], body: '出荷依頼を送りました。\n'+mailLines+'\n\n倉庫アプリで確認 → '+pickupUrl }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    }).catch(function(){});
+  }catch(e){}
   navigator.clipboard.writeText(text).catch(function(){});
   location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
 }
