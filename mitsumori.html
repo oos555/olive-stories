@@ -890,6 +890,8 @@ function priceCodeForInvoice(custType, effTypes){
   }
   return PRICE_CODE.general;
 }
+/* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
 // 標準価格表ヘッダー右上に載せる会社の一言情報
 // ※「生産時期」は農園・商品ごとに変わり得るため、ひとまず一般的な文言を入れています。
 //   実際の収穫時期の表記に変更したい場合は、この harvestNote を書き換えてください。
@@ -2628,8 +2630,8 @@ async function registerOrderFromQuote(rid){
     }
     const freshOrders = fresh.data.orders;
     const ymd = now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
-    const todays = freshOrders.filter(function(o){ return (o.num||'').indexOf('OS-'+ymd)===0; }).length;
-    order.num = 'OS-'+ymd+'-'+String(todays+1).padStart(3,'0');
+    const todays = freshOrders.filter(function(o){ return (o.num||'').indexOf('-'+ymd+'-')>=0; }).length;
+    order.num = orderNumCode(r.customerType)+'-'+ymd+'-'+String(todays+1).padStart(3,'0');
     const merged = freshOrders.concat([order]);
     const saveRes = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: merged }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     const saveData = await saveRes.json();

@@ -1949,10 +1949,12 @@ function toggleCardTimeOther(cardId){
 }
 // ── 注文番号自動採番 ────────────────────────────────────────────
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
-function nextOrderNum(offset){
+/* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
+function nextOrderNum(offset, ctype){
   const ymd = todayYmd();
-  const todays = orders.filter(o=>(o.num||'').indexOf('OS-'+ymd)===0).length;
-  return 'OS-'+ymd+'-'+String(todays+1+offset).padStart(3,'0');
+  const todays = orders.filter(o=>(o.num||'').indexOf('-'+ymd+'-')>=0).length;
+  return orderNumCode(ctype)+'-'+ymd+'-'+String(todays+1+offset).padStart(3,'0');
 }
 function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
 
@@ -2026,7 +2028,7 @@ function buildOrdersFromForm(){
     list.push({
       enclosedDoc: enclosedDoc, includePamphlet: includePamphlet,
       id: generateOrderId(),
-      num: nextOrderNum(list.length),
+      num: nextOrderNum(list.length, ctype),
       client: client, custId: custId, customerType: ctype, saveCustomer: saveCustomer,
       paymentMode: paymentMode, paymentConfirmed: paymentMode==='paid',
       recipientName: r.name, isCompany: r.isCompany, companyName: r.companyName, deptName: r.deptName,
@@ -3119,7 +3121,7 @@ function importCSV(){
     const isGiftWrap = !!(g.giftWrap && g.giftWrap.trim());
     if(isGiftWrap) validLines.forEach(function(l){ l.giftType='gift'; });
     const o = {
-      id: generateOrderId(), num: 'OS-'+todayYmd()+'-'+String(orders.filter(x=>(x.num||'').indexOf('OS-'+todayYmd())===0).length+1).padStart(3,'0'),
+      id: generateOrderId(), num: orderNumCode('general')+'-'+todayYmd()+'-'+String(orders.filter(x=>(x.num||'').indexOf('-'+todayYmd()+'-')>=0).length+1).padStart(3,'0'),
       storesOrderNum: g.storesOrderNum,
       client: g.client, zip: g.zip, addr: g.addr, tel: g.tel,
       buyerName: g.buyerName||'', buyerEmail: g.buyerEmail||'',

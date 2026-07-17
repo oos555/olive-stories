@@ -56,6 +56,17 @@
   .giftbox input { width:24px; height:24px; flex-shrink:0; accent-color:#6b7a3a; }
   .giftbox .gt { font-size:14px; font-weight:700; }
   .giftbox.disabled { opacity:.55; cursor:default; }
+  /* ── お届け日 ── */
+  .dlv-opt { display:block; background:#fff; border:1.5px solid #e0d9cb; border-radius:11px; padding:11px 13px; margin-bottom:9px; cursor:pointer; }
+  .dlv-opt.on { border:2px solid #6b7a3a; padding:10.5px 12.5px; }
+  .dlv-head { display:flex; align-items:center; gap:10px; }
+  .dlv-opt input[type=radio] { width:22px; height:22px; flex-shrink:0; accent-color:#6b7a3a; margin:0; }
+  .dlv-tt { font-size:14px; font-weight:700; color:#2b2a26; }
+  .dlv-sub { font-size:12.5px; color:#55622e; margin:7px 0 0 32px; line-height:1.7; }
+  .dlv-sub b { font-size:16px; color:#2b2a26; }
+  .dlv-date { font-size:16px; font-weight:700; padding:9px 10px; border:1.5px solid #d5cfc3; border-radius:8px; background:#fff; color:#2b2a26; }
+  .dlv-note { font-size:11.5px; color:#6f6a60; margin-top:6px; line-height:1.6; }
+  .dlv-block { background:#fdecec; border:1px solid #e3a4a4; color:#a02b2b; border-radius:9px; padding:9px 11px; margin-top:8px; font-size:12.5px; font-weight:700; line-height:1.7; display:none; }
   .giftwarn { background:#faf3e4; border:1px solid #eeddb8; color:#8a640f; border-radius:9px;
     padding:9px 11px; font-size:12px; line-height:1.6; margin-bottom:9px; }
 
@@ -137,6 +148,23 @@
       <div class="sect-t">手提げ紙袋をご一緒に</div>
       <div class="sect-s">お持ち運び・贈り物に。ご希望の枚数をご入力ください。</div>
       <div id="bags"></div>
+    </div>
+
+    <!-- お届け日 -->
+    <div class="sect">
+      <div class="sect-t">お届け日</div>
+      <label class="dlv-opt on" id="dlv-opt-auto">
+        <div class="dlv-head"><input type="radio" name="dlv" value="auto" checked onchange="dlvChanged()"><span class="dlv-tt">おまかせ（早めにお届け）</span></div>
+        <div class="dlv-sub">ご注文から <b id="dlv-promise">—</b> までにお届けします</div>
+      </label>
+      <label class="dlv-opt" id="dlv-opt-pick">
+        <div class="dlv-head"><input type="radio" name="dlv" value="pick" onchange="dlvChanged()"><span class="dlv-tt">お届け日を指定する</span></div>
+        <div class="dlv-sub" id="dlv-pickbody" style="display:none">
+          <input type="date" id="dlv-date" class="dlv-date" onchange="dlvDateChanged()">
+          <div class="dlv-note" id="dlv-min-note"></div>
+          <div class="dlv-block" id="dlv-block"></div>
+        </div>
+      </label>
     </div>
 
     <div class="sect" style="border-top:1px dashed #d8d0c2">
@@ -224,11 +252,14 @@ var ORDER_NUM = PAYLOAD.orderNum || genOrderNum();
 var ORDER_ID = 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
 var LAST_TOTAL = 0, LAST_FEE = 0;
 
+/* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
 function genOrderNum(){
   var d = new Date();
   var ymd = '' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
   var r = String(Math.floor(1000 + Math.random()*9000));
-  return ymd + '-' + r;
+  var c = (PAYLOAD && PAYLOAD.customer) ? (PAYLOAD.customer.type || 'general') : 'general';
+  return orderNumCode(c) + '-' + ymd + '-' + r;
 }
 function yen(n){ return '¥' + Math.round(n).toLocaleString(); }
 function toInt(s){ var v = parseInt(String(s==null?'':s).replace(/[^0-9]/g,''),10); return isNaN(v)?0:v; }
@@ -407,9 +438,99 @@ function recalc(){
   document.getElementById('v-total').textContent = yen(LAST_TOTAL);
 }
 
+/* ── お届け日（日本時間基準）──
+   おまかせ＝ご注文から1週間以内にお届け。長期休暇（特別休業）が重なる日数ぶん自動で後ろへずれる。
+   指定＝7日後から選択可。倉庫が休みの翌日には届かないため、
+   「休暇期間を1日うしろにずらした期間」がお選びいただけない到着日になる
+   （例：倉庫休み8/11〜17 → 選べない到着日8/12〜18。8/10出荷→8/11着は可）。
+   休暇データはGAS「特別休業」シート（見積Mのお休みカレンダーで管理）。通信できない時は下の標準設定で動く。 */
+var DLV_FALLBACK_HOLIDAYS = [
+  { id:'sh_natsu',    name:'夏休み',   sMM:8,  sDD:11, eMM:8, eDD:17 },
+  { id:'sh_nenmatsu', name:'年末年始', sMM:12, sDD:28, eMM:1, eDD:4  }
+];
+var dlvHolidays = DLV_FALLBACK_HOLIDAYS.slice();
+function dlvAddDays(d, n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+function dlvToday(){ var j = new Date(Date.now() + 9*60*60*1000); return new Date(j.getUTCFullYear(), j.getUTCMonth(), j.getUTCDate()); }
+function dlvInHoliday(date, h){
+  var v = (date.getMonth()+1)*100 + date.getDate();
+  var s = (Number(h.sMM)||0)*100 + (Number(h.sDD)||0);
+  var e = (Number(h.eMM)||0)*100 + (Number(h.eDD)||0);
+  if(!s || !e) return false;
+  return (s <= e) ? (v >= s && v <= e) : (v >= s || v <= e);
+}
+function dlvIsVacation(date){ for(var i=0;i<dlvHolidays.length;i++){ if(dlvInHoliday(date, dlvHolidays[i])) return dlvHolidays[i]; } return null; }
+function dlvIsArrivalBlocked(date){ return dlvIsVacation(dlvAddDays(date,-1)); }
+function dlvPromiseDate(){
+  var d = dlvToday(), need = 7, guard = 0;
+  while(need > 0 && guard < 400){ d = dlvAddDays(d,1); guard++; if(!dlvIsArrivalBlocked(d)) need--; }
+  return d;
+}
+function dlvMinPick(){ return dlvAddDays(dlvToday(), 7); }
+function dlvFmt(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日（'+['日','月','火','水','木','金','土'][d.getDay()]+'）'; }
+function dlvISO(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function dlvBlockedRangeText(date){
+  var s = date, e = date, g = 0;
+  while(g<60 && dlvIsArrivalBlocked(dlvAddDays(s,-1))){ s = dlvAddDays(s,-1); g++; }
+  g = 0;
+  while(g<60 && dlvIsArrivalBlocked(dlvAddDays(e,1))){ e = dlvAddDays(e,1); g++; }
+  return dlvFmt(s)+'〜'+dlvFmt(e);
+}
+function dlvRender(){
+  var p = document.getElementById('dlv-promise');
+  if(p) p.textContent = dlvFmt(dlvPromiseDate());
+  var inp = document.getElementById('dlv-date');
+  if(inp) inp.min = dlvISO(dlvMinPick());
+  var mn = document.getElementById('dlv-min-note');
+  if(mn) mn.textContent = dlvFmt(dlvMinPick())+' 以降の日をお選びいただけます';
+}
+function dlvLoadHolidays(){
+  fetch(GAS_URL + '?action=loadHolidays').then(function(r){ return r.json(); }).then(function(d){
+    if(d && d.status==='ok' && Array.isArray(d.holidays) && d.holidays.length){
+      dlvHolidays = d.holidays;
+      dlvRender();
+      var inp = document.getElementById('dlv-date');
+      if(inp && inp.value) dlvDateChanged();
+    }
+  }).catch(function(){});
+}
+function dlvMode(){ var r = document.querySelector('input[name=dlv]:checked'); return r ? r.value : 'auto'; }
+function dlvChanged(){
+  var pick = dlvMode()==='pick';
+  document.getElementById('dlv-pickbody').style.display = pick ? 'block' : 'none';
+  document.getElementById('dlv-opt-auto').className = 'dlv-opt' + (pick ? '' : ' on');
+  document.getElementById('dlv-opt-pick').className = 'dlv-opt' + (pick ? ' on' : '');
+  if(pick) dlvRender();
+}
+function dlvShowBlock(msg){ var b = document.getElementById('dlv-block'); b.innerHTML = msg; b.style.display = 'block'; }
+function dlvHideBlock(){ document.getElementById('dlv-block').style.display = 'none'; }
+function dlvParse(v){ if(!/^\d{4}-\d{2}-\d{2}$/.test(v||'')) return null; var m = v.split('-'); return new Date(Number(m[0]), Number(m[1])-1, Number(m[2])); }
+function dlvDateChanged(){
+  dlvHideBlock();
+  var inp = document.getElementById('dlv-date');
+  var d = dlvParse(inp.value);
+  if(!d) return;
+  if(d < dlvMinPick()){
+    dlvShowBlock('おそれいりますが、'+dlvFmt(dlvMinPick())+' 以降の日をお選びください。');
+    inp.value = ''; return;
+  }
+  var v = dlvIsArrivalBlocked(d);
+  if(v){
+    dlvShowBlock('この日は【'+(v.name||'お休み')+'】のためお届けができません（'+dlvBlockedRangeText(d)+'）。<br>おそれいりますが、別の日をお選びください。');
+    inp.value = ''; return;
+  }
+}
+function dlvValidateForPay(){
+  if(dlvMode() !== 'pick') return true;
+  var d = dlvParse(document.getElementById('dlv-date').value);
+  if(!d){ dlvShowBlock('お届け日をお選びください。'); return false; }
+  if(d < dlvMinPick() || dlvIsArrivalBlocked(d)){ dlvDateChanged(); return false; }
+  return true;
+}
+
 /* ── 画面遷移 ── */
 function goPay(){
   if(LAST_TOTAL<=0){ alert('ご注文になる商品を1つ以上お選びください。'); return; }
+  if(!dlvValidateForPay()){ alert('お届け日をご確認ください。'); return; }
   var pre = buildOrder(false);
   if(pre.lines.length){ saveOrderMerged(pre).catch(function(){}); }
   document.getElementById('pay-amount').textContent = yen(LAST_TOTAL);
@@ -465,7 +586,9 @@ function buildOrder(claimed){
     companyName: c.isCompany ? c.name : '', deptName:'', positionName:'',
     personName: c.isCompany ? '' : c.name,
     zip: c.zip||'', addr: c.addr||'', tel: c.tel||'', useRecycle:false,
-    leadType:'normal', leadDate:'', delivTime:'',
+    leadType: (function(){ var d = (dlvMode()==='pick') ? dlvParse(document.getElementById('dlv-date').value) : null; return d ? 'scheduled' : 'normal'; })(),
+    leadDate: (function(){ var d = (dlvMode()==='pick') ? dlvParse(document.getElementById('dlv-date').value) : null; return d ? dlvISO(d) : ''; })(),
+    delivTime:'',
     note: noteMsg, noshi:null, giftWrap: gift,
     senderName: SELF_SENDER.name, senderTel:'', senderZip: SELF_SENDER.zip, senderAddr: SELF_SENDER.addr,
     lines: lines,
@@ -564,6 +687,8 @@ function resetBtn(){
 }
 
 render();
+dlvRender();
+dlvLoadHolidays();
 </script>
 </body>
 </html>
