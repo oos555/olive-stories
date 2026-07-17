@@ -57,6 +57,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .tbl-wrap{background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
 table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 #profit-heatmap-table,#rate-sim-panel table{min-width:0}
+/* ★2026-07-17 直接入力の枠はみ出し修正＋「直接入れる」と「500ml換算」を横一列に固定 */
+#sim-extras-row{grid-template-columns:1fr 1fr!important}
+#sim-extras-row>div{min-width:0}
+#sim-direct .sim-direct-row{min-width:0}
+#sim-direct-input{min-width:0}
+/* ★2026-07-17 段階の表：いま調整中の段（選択段）を強調 */
+#sim-tier-tbody tr.sim-sel-row{background:#eef6ff}
+#sim-tier-tbody tr.sim-sel-row td:first-child{color:#2f6690;font-weight:800}
+/* ★2026-07-17 ヒートマップの各段マス（クリック可） */
+#profit-heatmap-table td.hm-cell{cursor:pointer}
+#profit-heatmap-table td.hm-cell:hover{filter:brightness(.95)}
+#profit-heatmap-table td.hm-cell.hm-sel{outline:2px solid #2f6690;outline-offset:-2px}
 .sim-row-hl{outline:2px solid #7b2fa0;outline-offset:-2px}
 .cost-empty{border-color:#d6a94a !important;background:#fffaf0}
 .sim-row-hl td{background:#faf5ff}
@@ -230,7 +242,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="card">
       <div class="sec">🎨 区分別 利益ひと目比較 ＋ 📐 掛け率シミュレーション</div>
-      <div class="info-box">左の表は、今の価格マスタの金額から利益率を色で表しています。<strong style="color:#b91c1c">35%未満は赤</strong>（濃いほど危険・0%以下は赤字）、35〜40%は黄色、<strong style="color:#1e40af">40%以上は青</strong>です。<br><strong>左の表で卸②のマスを押すと</strong>、右のシミュレーションにその商品が出ます。バーを動かすと卸②価格・利益率・うちの儲け・販売店の儲けが変わり、「卸②に使う」で価格マスタに反映されます（即座に保存）。<strong style="color:#1e40af">青（もう利益が出ている）</strong>のマスを押したときは、価格を変える前に確認が出ます。<br><span style="font-size:11px;color:#6b675e">※利益率＝（売値−原価）÷売値。掛け率は売値÷原価。関係は「利益率＝1−（1÷掛け率）」。消費税は考慮していません。</span></div>
+      <div class="info-box">左の表は、今の価格マスタの金額から利益率を色で表しています。<strong style="color:#b91c1c">35%未満は赤</strong>（濃いほど危険・0%以下は赤字）、35〜40%は黄色、<strong style="color:#1e40af">40%以上は青</strong>です。<br><strong>左の表で調整したい段（定価・卸①・卸②・RT・卸バサラスター）のマスを押すと</strong>、右のシミュレーションにその段が出ます。バーや直接入力で価格・利益率・うちの儲け・販売店の儲けが変わり、「◯◯に使う」で価格マスタに反映されます（即座に保存）。<strong style="color:#b91c1c">定価・卸①・RTを変えるときは、必ず確認が出ます</strong>（基本の価格のため）。卸②・卸バサラスターは軽い確認です。<br><span style="font-size:11px;color:#6b675e">※利益率＝（売値−原価）÷売値。掛け率は売値÷原価。関係は「利益率＝1−（1÷掛け率）」。消費税は考慮していません。</span></div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
         <div style="flex:1 1 420px;min-width:320px">
           <table id="profit-heatmap-table" style="font-size:12px;border-collapse:collapse"></table>
@@ -238,7 +250,7 @@ tr:last-child td{border-bottom:none}
         </div>
         <div id="sim-column" style="flex:1 1 300px;min-width:280px">
         <div id="rate-sim-panel" style="border:1.5px solid #cfc6b8;border-radius:10px;background:#fcfbf8;padding:12px">
-          <div style="font-size:14px;font-weight:700;margin-bottom:8px">📐 卸②シミュレーション</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px">📐 <span id="sim-tier-title">卸②</span>シミュレーション</div>
           <div id="sim-picker-wrap" style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #b9b09c;border-radius:9px;padding:5px 8px;margin-bottom:6px">
             <span style="font-size:12px;color:#8a5a12;font-weight:700;white-space:nowrap">商品を選ぶ ▼</span>
             <select id="sim-picker" onchange="onSimPickerChange()" style="flex:1;border:none;font-size:15px;font-weight:700;color:#2b2a26;background:transparent;padding:6px 4px;outline:none"></select>
@@ -259,8 +271,8 @@ tr:last-child td{border-bottom:none}
             </div>
             <div id="sim-sub" style="font-size:12px;color:#57534e;margin:5px 0 10px"></div>
             <div style="display:flex;align-items:center;gap:10px">
-              <span style="font-size:12px;color:#57534e;white-space:nowrap">卸②掛け率</span>
-              <input type="range" id="sim-rate" min="1.1" max="2.5" step="0.01" value="1.5" style="flex:1" oninput="onSimSlide()">
+              <span style="font-size:12px;color:#57534e;white-space:nowrap">掛け率</span>
+              <input type="range" id="sim-rate" min="1.1" max="3.5" step="0.01" value="1.5" style="flex:1" oninput="onSimSlide()">
               <span id="sim-ratev" style="font-size:16px;font-weight:700;min-width:52px;text-align:right">×1.50</span>
             </div>
             <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:12px">
@@ -270,26 +282,7 @@ tr:last-child td{border-bottom:none}
                 <th style="text-align:right;padding:5px 4px;font-weight:600;border-bottom:1px solid #e2ddd2">うちの儲け</th>
                 <th style="text-align:right;padding:5px 4px;font-weight:600;border-bottom:1px solid #e2ddd2">販売店の儲け</th>
               </tr></thead>
-              <tbody>
-                <tr>
-                  <td style="padding:6px 4px;color:#57534e">定価</td>
-                  <td id="t-g-price" style="padding:6px 4px;text-align:right;font-weight:600"></td>
-                  <td id="t-g-ours" style="padding:6px 4px;text-align:right"></td>
-                  <td id="t-g-theirs" style="padding:6px 4px;text-align:right;color:#8a857c"></td>
-                </tr>
-                <tr style="background:#f2f5eb">
-                  <td style="padding:6px 4px;font-weight:700;color:#3b6d11">卸①<br><span style="font-size:10px;font-weight:400;color:#57534e">目安</span></td>
-                  <td id="t-w1-price" style="padding:6px 4px;text-align:right;font-weight:600"></td>
-                  <td id="t-w1-ours" style="padding:6px 4px;text-align:right"></td>
-                  <td id="t-w1-theirs" style="padding:6px 4px;text-align:right"></td>
-                </tr>
-                <tr style="background:#fff7e6">
-                  <td style="padding:6px 4px;font-weight:700;color:#b45309">卸②<br><span style="font-size:10px;font-weight:400;color:#8a5a0b">調整中</span></td>
-                  <td id="t-w2-price" style="padding:6px 4px;text-align:right;font-weight:700;font-size:14px"></td>
-                  <td id="t-w2-ours" style="padding:6px 4px;text-align:right;font-weight:700"></td>
-                  <td id="t-w2-theirs" style="padding:6px 4px;text-align:right;font-weight:700"></td>
-                </tr>
-              </tbody>
+              <tbody id="sim-tier-tbody"></tbody>
             </table>
             <div id="sim-marginline" style="font-size:12px;text-align:right;margin-top:5px"></div>
             <button class="btn btn-green" style="width:100%;margin-top:10px" id="sim-apply-btn">この金額を卸②に使う</button>
@@ -297,8 +290,8 @@ tr:last-child td{border-bottom:none}
         </div>
         <div id="sim-extras-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
         <div id="sim-direct" style="display:none;border:1.5px solid #d9cdb8;border-radius:10px;background:#fffdf7;padding:12px">
-          <div style="font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:7px">✏️ 卸②の金額を直接入れる</div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div id="sim-direct-head" style="font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:7px">✏️ 卸②の金額を直接入れる</div>
+          <div class="sim-direct-row" style="display:flex;align-items:center;gap:8px">
             <span style="font-size:17px;font-weight:700">¥</span>
             <input type="text" id="sim-direct-input" inputmode="numeric" pattern="[0-9]*" oninput="onSimDirectInput()" style="flex:1;height:44px;border:1.5px solid #b9b09c;border-radius:9px;text-align:center;font-size:20px;font-weight:800;color:#2b2a26;background:#fff">
             <span id="sim-direct-pct" style="font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;white-space:nowrap"></span>
@@ -311,7 +304,7 @@ tr:last-child td{border-bottom:none}
           <div id="p5-size" style="font-size:11px;color:#6b7280;margin-bottom:8px"></div>
           <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eef1f4"><span style="color:#57534e">定価</span><span id="p5-g" style="font-weight:700"></span></div>
           <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eef1f4"><span style="color:#3b6d11;font-weight:700">卸①</span><span id="p5-w1" style="font-weight:700"></span></div>
-          <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span style="color:#b45309;font-weight:700">卸②</span><span id="p5-w2" style="font-weight:800"></span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span id="p5-sel-name" style="color:#b45309;font-weight:700">卸②</span><span id="p5-w2" style="font-weight:800"></span></div>
         </div>
         </div>
         </div>
@@ -1010,21 +1003,23 @@ function profitColor(rate){
 function renderProfitHeatmap(){
   const tbl = document.getElementById('profit-heatmap-table');
   if(!tbl) return;
-  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価</th><th style="padding:6px 6px;text-align:right">卸①</th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②</th><th style="padding:6px 6px;text-align:right">RT</th></tr></thead><tbody>';
+  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価</th><th style="padding:6px 6px;text-align:right">卸①</th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②</th><th style="padding:6px 6px;text-align:right">RT</th><th style="padding:6px 6px;text-align:right;background:#eef7ef">卸バサラスター</th></tr></thead><tbody>';
   allCostSkus().forEach(function(p){
     const cost = getCostForSku(p.sku);
     if(!cost) return;
     const priceRec = priceRecForSku(p.sku);
     html += '<tr data-sku="'+esc(p.sku)+'"><td style="padding:5px 8px;font-weight:600;word-break:break-word">'+esc(p.name)+'</td>';
     html += '<td style="padding:5px 6px;text-align:right;color:#57534e">¥'+cost.toLocaleString()+'</td>';
-    ['priceGeneral','priceWholesale1','priceWholesale2','priceRT'].forEach(function(key){
+    ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara'].forEach(function(key){
       const price = parseFloat(priceRec[key])||0;
       if(!price){ html += '<td style="padding:5px 6px;text-align:right;color:#9ca3af">-</td>'; return; }
       const profit = price - cost;
       const rate = price > 0 ? profit / price : 0;
       const col = profitColor(rate);
-      const isW2 = (key === 'priceWholesale2');
-      const clickAttr = isW2 ? ' onclick="heatmapW2Click(\''+p.sku+'\')" title="押すと右で卸②を調整できます" style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600;cursor:pointer;outline:1px solid rgba(0,0,0,.06)"' : ' style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600"';
+      const tierKey = HM_KEY_TO_TIER[key];
+      const tierLabel = simTierByKey(tierKey).label;
+      const selCls = (p.sku===currentSimSku && tierKey===currentSimTier) ? ' hm-sel' : '';
+      const clickAttr = ' class="hm-cell'+selCls+'" onclick="heatmapCellClick(\''+p.sku+'\',\''+tierKey+'\')" title="押すと右で'+tierLabel+'を調整できます" style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600;outline:1px solid rgba(0,0,0,.06)"';
       html += '<td'+clickAttr+'>¥'+price.toLocaleString()+'<br><span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
     });
     html += '</tr>';
@@ -1059,28 +1054,35 @@ function marginTextColor(pct){
 }
 
 // ── 掛け率シミュレーション（右にドッキングする1枚パネル） ──
-let currentSimSku = null;       // いま右に出している商品
-let currentSimMl = 500;         // その商品の内容量（500ml換算に使う）
-let currentW2Price = 0;         // いまの卸②価格（適用ボタン用）
-let simGuardPendingSku = null;  // 青マスを押して確認待ちの商品
+// ★2026-07-17 5段階（定価・卸①・卸②・RT・卸バサラスター）どれでも調整できるように一般化
+const SIM_TIERS = [
+  { tier:'general',    label:'定価',           field:'priceGeneral',    strong:true  },
+  { tier:'wholesale1', label:'卸①',           field:'priceWholesale1', strong:true  },
+  { tier:'wholesale2', label:'卸②',           field:'priceWholesale2', strong:false },
+  { tier:'rt',         label:'RT',             field:'priceRT',         strong:true  },
+  { tier:'basara',     label:'卸バサラスター', field:'priceBasara',     strong:false }
+];
+function simTierByKey(t){ return SIM_TIERS.find(function(x){ return x.tier===t; }) || SIM_TIERS[2]; }
+const HM_KEY_TO_TIER = { priceGeneral:'general', priceWholesale1:'wholesale1', priceWholesale2:'wholesale2', priceRT:'rt', priceBasara:'basara' };
 
-// ヒートマップの卸②マスを押したとき
-function heatmapW2Click(sku){
+let currentSimSku = null;       // いま右に出している商品
+let currentSimTier = 'wholesale2'; // いま調整している段階
+let currentSimMl = 500;         // その商品の内容量（500ml換算に使う）
+let currentTierPrice = 0;       // いま調整中の段階の価格（適用ボタン用）
+let currentW2Price = 0;         // （後方互換のため残す）
+let simGuardPendingSku = null;  // （旧・青マス確認。現在は未使用）
+
+// ヒートマップのマスを押したとき（どの段階でも）
+function heatmapCellClick(sku, tier){
   const cost = getCostForSku(sku);
   const rec = priceRecForSku(sku);
-  const p2 = parseFloat(rec.priceWholesale2) || 0;
-  if(!cost || !p2) return; // 卸②が無い商品は対象外
-  const rate = (p2 - cost) / p2;
-  if(rate >= 0.40){ // 青・薄青＝もう利益が出ている → 確認を出す
-    simGuardPendingSku = sku;
-    const g = document.getElementById('sim-guard'); if(g) g.style.display = 'block';
-    const e = document.getElementById('sim-empty'); if(e) e.style.display = 'none';
-    const c = document.getElementById('sim-content'); if(c) c.style.display = 'none';
-    setSimExtras(false);
-    return;
-  }
-  loadSimPanel(sku);
+  const t = simTierByKey(tier);
+  const price = parseFloat(rec[t.field]) || 0;
+  if(!cost || !price) return; // 原価またはその段階の価格が無い商品は対象外
+  loadSimPanel(sku, tier);
 }
+// 後方互換：卸②マスやプルダウンからの呼び出し
+function heatmapW2Click(sku){ heatmapCellClick(sku, 'wholesale2'); }
 function simGuardProceed(){
   const g = document.getElementById('sim-guard'); if(g) g.style.display = 'none';
   if(simGuardPendingSku) loadSimPanel(simGuardPendingSku);
@@ -1117,14 +1119,17 @@ function highlightHeatmapRow(sku){
   if(row){ row.classList.add('sim-row-hl'); try{ row.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){} }
 }
 
-// 選んだ商品を右パネルに読み込む（定価・卸①は固定、卸②はバーで動く）
-function loadSimPanel(sku){
+// 選んだ商品×段階を右パネルに読み込む（どの段階でもバーで動かせる）
+function loadSimPanel(sku, tier){
   const p = allCostSkus().find(function(x){ return x.sku === sku; });
   const cost = getCostForSku(sku);
   const rec = priceRecForSku(sku);
-  const p2 = parseFloat(rec.priceWholesale2) || 0;
-  if(!p || !cost || !p2) return;
+  if(tier==null) tier = currentSimTier || 'wholesale2';
+  const T = simTierByKey(tier);
+  const cur = parseFloat(rec[T.field]) || 0;
+  if(!p || !cost || !cur) return;
   currentSimSku = sku;
+  currentSimTier = tier;
   currentSimMl = p.ml || 500;
   { var _sp = document.getElementById('sim-picker'); if(_sp) _sp.value = sku; }
   highlightHeatmapRow(sku);
@@ -1133,33 +1138,25 @@ function loadSimPanel(sku){
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'block';
   setSimExtras(true);
 
+  // タイトル・直接入力の見出し・500mlの段名・適用ボタンを、選んだ段階に合わせる
+  const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.label;
+  const dh = document.getElementById('sim-direct-head'); if(dh) dh.textContent = '✏️ ' + T.label + 'の金額を直接入れる';
+  const pn = document.getElementById('p5-sel-name'); if(pn) pn.textContent = T.label;
+  const bl = 'この金額を' + T.label + 'に使う';
+  var _b1 = document.getElementById('sim-apply-btn'); if(_b1) _b1.textContent = bl;
+  var _b2 = document.getElementById('sim-direct-apply'); if(_b2) _b2.textContent = bl;
+
   document.getElementById('sim-name').textContent = p.name;
-  const nowPct = (p2 - cost) / p2 * 100;
+  const nowPct = (cur - cost) / cur * 100;
   const nb = document.getElementById('sim-nowbadge');
   const c = profitColor(nowPct / 100);
   nb.textContent = '今 ' + nowPct.toFixed(1) + '%';
   nb.style.background = c.bg; nb.style.color = c.fg;
 
-  const curRate = cost > 0 ? p2 / cost : 1.5;
-  document.getElementById('sim-sub').textContent = '原価 ¥' + cost.toLocaleString() + ' ／ 今の卸② ¥' + p2.toLocaleString() + '（×' + curRate.toFixed(2) + '）';
+  const curRate = cost > 0 ? cur / cost : 1.5;
+  document.getElementById('sim-sub').textContent = '原価 ¥' + cost.toLocaleString() + ' ／ 今の' + T.label + ' ¥' + cur.toLocaleString() + '（×' + curRate.toFixed(2) + '）';
 
-  // 定価・卸①（固定の目安）＋利益率
-  const g = parseFloat(rec.priceGeneral) || 0;
-  const w1 = parseFloat(rec.priceWholesale1) || 0;
-  document.getElementById('t-g-price').innerHTML = g ? ('¥' + g.toLocaleString() + pctSpan((g - cost) / g * 100)) : '-';
-  document.getElementById('t-g-ours').textContent = g ? '¥' + (g - cost).toLocaleString() : '-';
-  document.getElementById('t-g-theirs').textContent = g ? '¥0' : '-';
-  if(w1){
-    document.getElementById('t-w1-price').innerHTML = '¥' + w1.toLocaleString() + pctSpan((w1 - cost) / w1 * 100);
-    document.getElementById('t-w1-ours').textContent = '¥' + (w1 - cost).toLocaleString();
-    document.getElementById('t-w1-theirs').textContent = g ? '¥' + (g - w1).toLocaleString() : '-';
-  } else {
-    document.getElementById('t-w1-price').textContent = '-';
-    document.getElementById('t-w1-ours').textContent = '-';
-    document.getElementById('t-w1-theirs').textContent = '-';
-  }
-
-  const start = Math.min(2.5, Math.max(1.1, Math.round(curRate * 100) / 100));
+  const start = Math.min(3.5, Math.max(1.1, Math.round(curRate * 100) / 100));
   document.getElementById('sim-rate').value = start;
   onSimSlide();
 }
@@ -1178,42 +1175,67 @@ function onSimSlide(){
   const cost = getCostForSku(currentSimSku);
   const rate = parseFloat(document.getElementById('sim-rate').value) || 1.5;
   document.getElementById('sim-ratev').textContent = '×' + rate.toFixed(2);
-  renderW2(Math.round(cost * rate), 'slider');
+  renderTier(Math.round(cost * rate), 'slider');
 }
 
-// 卸②の金額を直接打ち込んだとき
+// 金額を直接打ち込んだとき
 function onSimDirectInput(){
   if(!currentSimSku) return;
   const el = document.getElementById('sim-direct-input');
   const digits = (el.value || '').replace(/[^0-9]/g, '');
   el.value = digits;
   const price = digits === '' ? 0 : parseInt(digits, 10);
-  if(price > 0) renderW2(price, 'direct');
+  if(price > 0) renderTier(price, 'direct');
 }
 
-// 卸②価格を1か所で描画（バー・直接入力の共通ルート）
-function renderW2(price, from){
-  const cost = getCostForSku(currentSimSku);
-  const rec = priceRecForSku(currentSimSku);
-  const g = parseFloat(rec.priceGeneral) || 0;
-  const w1 = parseFloat(rec.priceWholesale1) || 0;
+// 選んだ段階の価格を描画（バー・直接入力の共通ルート）＝5段の表を作り直す
+function renderTier(price, from){
+  const sku = currentSimSku, tier = currentSimTier;
+  const cost = getCostForSku(sku);
+  const rec = priceRecForSku(sku);
+  const T = simTierByKey(tier);
+  const master = {
+    general:    parseFloat(rec.priceGeneral)    || 0,
+    wholesale1: parseFloat(rec.priceWholesale1) || 0,
+    wholesale2: parseFloat(rec.priceWholesale2) || 0,
+    rt:         parseFloat(rec.priceRT)         || 0,
+    basara:     parseFloat(rec.priceBasara)     || 0
+  };
+  currentTierPrice = price;
+  currentW2Price = price; // 後方互換
+  const gLive = (tier === 'general') ? price : master.general; // 販売店の儲け計算に使う定価
+
+  // 5段（定価・卸①・卸②・RT・卸バサラスター）の表を作り直す。選択中の段は調整中の価格。
+  let html = '';
+  SIM_TIERS.forEach(function(row){
+    const isSel = row.tier === tier;
+    const val = isSel ? price : master[row.tier];
+    const has = val > 0;
+    const m = has ? (val - cost) / val * 100 : 0;
+    const ours = has ? (val - cost) : null;
+    let theirs;
+    if(row.tier === 'general') theirs = has ? 0 : null;          // 定価の販売店儲けは0
+    else theirs = (gLive > 0 && has) ? (gLive - val) : null;      // 販売店の儲け＝定価−その段の価格
+    const nameCell = row.label + (isSel ? '<br><span style="font-size:10px;font-weight:400;color:#8a5a0b">調整中</span>' : '');
+    const priceCell = has ? ('¥' + val.toLocaleString() + pctSpan(m)) : '-';
+    const oursCell = (ours != null) ? ('¥' + ours.toLocaleString()) : '-';
+    let theirsCell = '-', theirsColor = '#57534e';
+    if(theirs != null){ theirsCell = '¥' + theirs.toLocaleString(); theirsColor = theirs < 0 ? '#b91c1c' : '#2b2a26'; }
+    html += '<tr' + (isSel ? ' class="sim-sel-row"' : '') + '>' +
+      '<td style="padding:6px 4px;font-weight:' + (isSel ? '800' : '600') + '">' + nameCell + '</td>' +
+      '<td style="padding:6px 4px;text-align:right;font-weight:' + (isSel ? '800' : '600') + (isSel ? ';font-size:14px' : '') + '">' + priceCell + '</td>' +
+      '<td style="padding:6px 4px;text-align:right;font-weight:' + (isSel ? '700' : '400') + '">' + oursCell + '</td>' +
+      '<td style="padding:6px 4px;text-align:right;color:' + theirsColor + '">' + theirsCell + '</td></tr>';
+  });
+  const tb = document.getElementById('sim-tier-tbody'); if(tb) tb.innerHTML = html;
+
   const margin = price > 0 ? (price - cost) / price * 100 : 0;
-  const ours = price - cost;
-  const theirs = g > 0 ? g - price : null;
-  currentW2Price = price;
-
-  document.getElementById('t-w2-price').innerHTML = '¥' + price.toLocaleString() + pctSpan(margin);
-  document.getElementById('t-w2-ours').textContent = '¥' + ours.toLocaleString();
-  const tt = document.getElementById('t-w2-theirs');
-  if(theirs === null){ tt.textContent = '-'; tt.style.color = '#2b2a26'; }
-  else { tt.textContent = '¥' + theirs.toLocaleString(); tt.style.color = theirs < 0 ? '#b91c1c' : '#2b2a26'; }
-
-  document.getElementById('sim-marginline').innerHTML = '卸②の利益率 <strong style="color:' + marginTextColor(margin) + '">' + margin.toFixed(1) + '%</strong>';
+  document.getElementById('sim-marginline').innerHTML = T.label + 'の利益率 <strong style="color:' + marginTextColor(margin) + '">' + margin.toFixed(1) + '%</strong>';
 
   // バーと直接入力を相互に同期（いま操作している方は上書きしない）
   if(from !== 'slider'){
     const rate = cost > 0 ? price / cost : 1.5;
-    const cl = Math.min(2.5, Math.max(1.1, rate));
+    const cl = Math.min(3.5, Math.max(1.1, rate));
     document.getElementById('sim-rate').value = cl.toFixed(2);
     document.getElementById('sim-ratev').textContent = '×' + cl.toFixed(2);
   }
@@ -1222,9 +1244,9 @@ function renderW2(price, from){
   const dp = document.getElementById('sim-direct-pct');
   if(dp){ const pc = profitColor(margin / 100); dp.textContent = margin.toFixed(1) + '%'; dp.style.background = pc.bg; dp.style.color = pc.fg; }
 
-  renderPer500(g, w1, price);
+  renderPer500(master.general, master.wholesale1, price);
 
-  const apply = function(){ applyRateToWholesale2(currentSimSku, price); };
+  const apply = function(){ applyRateToTier(currentSimSku, currentSimTier, price); };
   const b1 = document.getElementById('sim-apply-btn'); if(b1) b1.onclick = apply;
   const b2 = document.getElementById('sim-direct-apply'); if(b2) b2.onclick = apply;
 }
@@ -1314,8 +1336,17 @@ function renderRateSimAllTable(){
   html += '</tbody>';
   tbl.innerHTML = html;
 }
-async function applyRateToWholesale2(sku, price){
-  if(!confirm('この商品の「卸②」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）')) return;
+async function applyRateToTier(sku, tier, price){
+  const T = simTierByKey(tier);
+  let ok;
+  if(T.strong){
+    // 定価・卸①・RT は基本の価格 → 強い確認
+    ok = confirm('⚠️ 「'+T.label+'」は基本の価格です。\nコロコロ変えるものではありません。\n\n本当に ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタが更新され、即座に保存されます）');
+  } else {
+    // 卸②・卸バサラスター は軽い確認
+    ok = confirm('この商品の「'+T.label+'」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）');
+  }
+  if(!ok) return;
   showSyncStatus('保存しています...');
   try{
     // 保存直前に最新の価格マスタを取り直す（請求Cなど他アプリでの更新を上書きしないため）
@@ -1325,10 +1356,11 @@ async function applyRateToWholesale2(sku, price){
     const freshMaster = freshData.data.priceMaster || [];
     let rec = freshMaster.find(x=>x.sku===sku);
     if(!rec){
-      rec = {sku:sku, productName:sku, priceGeneral:DEFAULT_PRICES[sku]?DEFAULT_PRICES[sku].priceGeneral:0, priceWholesale1:0, priceWholesale2:0, priceRT:0, priceDefect:0};
+      const dp = DEFAULT_PRICES[sku] || {};
+      rec = {sku:sku, productName:sku, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0};
       freshMaster.push(rec);
     }
-    rec.priceWholesale2 = price;
+    rec[T.field] = price;
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
@@ -1337,7 +1369,7 @@ async function applyRateToWholesale2(sku, price){
     const data = await res.json();
     if(data.status==='ok'){
       priceMaster = freshMaster;
-      showSyncStatus('✅ 卸②価格に反映しました');
+      showSyncStatus('✅ '+T.label+'価格に反映しました');
       renderProfitHeatmap();
       renderRateSimulation();
     } else {
@@ -1347,6 +1379,8 @@ async function applyRateToWholesale2(sku, price){
     showSyncStatus('⚠️ 通信エラーが発生しました', true);
   }
 }
+// 後方互換（「全商品まとめ」表など、卸②に反映する既存の呼び出し用）
+async function applyRateToWholesale2(sku, price){ return applyRateToTier(sku, 'wholesale2', price); }
 function renderNovelloNotes(){
   const area = document.getElementById('novello-note-area');
   if(!area) return;
