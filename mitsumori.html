@@ -50,6 +50,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
 @media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
+/* 商品と数量の入力エリアだけ、上下の余白を詰める */
+#q-items-area .fg{margin-bottom:0}
+#q-items-area .g4{gap:8px}
+.q-item-grid{display:grid;grid-template-columns:2fr .8fr .8fr 1.3fr auto;gap:8px;align-items:end}
+@media(max-width:640px){.q-item-grid{grid-template-columns:1fr 1fr}}
 .btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
 .btn-primary{background:#2563eb;color:#fff;border:none;font-weight:700;font-size:14px}
 .btn-primary:hover{background:#1d4ed8}
@@ -136,6 +141,10 @@ th.center,td.center{text-align:center}
 .sp-remove-btn{font-size:11px;color:#b91c1c;background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:600}
 .card-step-label{font-size:11px;font-weight:700;color:#55622e;margin-bottom:8px;letter-spacing:.03em}
 .field-preview{font-size:10.5px;color:#2b2a26;background:#f9f8f5;border-radius:4px;padding:4px 8px;margin-top:4px;line-height:1.6}
+/* 追加情報チェック欄：.fg input{width:100%} がチェックボックスに当たって崩れるのを防ぐ */
+.chk-row label{display:flex;align-items:flex-start;gap:8px;cursor:pointer}
+.chk-row input[type=checkbox]{width:18px !important;height:18px;flex:0 0 auto;padding:0 !important;border:none !important;margin-top:1px}
+.chk-row .chk-body{flex:1 1 auto;min-width:0;text-align:left}
 .field-override-toggle{font-size:10.5px;color:#185fa5;margin-top:4px;cursor:pointer;text-decoration:underline}
 .field-override-box{margin-top:6px;display:none}
 .field-override-box.open{display:block}
@@ -330,6 +339,7 @@ th.center,td.center{text-align:center}
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:10px;padding:16px;border:2px solid #d5cfc3;border-radius:12px;background:#fff;cursor:pointer;font-size:16px;font-weight:800;color:#2b2a26" id="q-doctype-label-quote"><input type="radio" name="q-doctype" value="quote" checked onchange="onDocTypeChange()" style="width:20px;height:20px">📄 見積書・価格表<span style="font-size:11.5px;font-weight:400;color:#57534e">これから金額を提示する方</span></label>
       <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:10px;padding:16px;border:2px solid #d5cfc3;border-radius:12px;background:#fff;cursor:pointer;font-size:16px;font-weight:800;color:#2b2a26" id="q-doctype-label-invoice"><input type="radio" name="q-doctype" value="invoice" onchange="onDocTypeChange()" style="width:20px;height:20px">🧾 請求書<span style="font-size:11.5px;font-weight:400;color:#57534e">金額が決まっている方（そのまま請求）</span></label>
+      <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:10px;padding:16px;border:2px solid #d5cfc3;border-radius:12px;background:#fff;cursor:pointer;font-size:16px;font-weight:800;color:#2b2a26" id="q-doctype-label-both"><input type="radio" name="q-doctype" value="both" onchange="onDocTypeChange()" style="width:20px;height:20px">📄🧾 見積書 兼 請求書<span style="font-size:11.5px;font-weight:400;color:#57534e">1枚で見積とご請求を両方すませる方</span></label>
     </div>
   </div>
 
@@ -447,9 +457,9 @@ th.center,td.center{text-align:center}
       <div style="margin-top:10px"><a href="#" onclick="event.preventDefault();showIndividualQuoteForm()" style="font-size:13px;font-weight:700;color:#185fa5;text-decoration:underline">📄🧾 特定の商品・数量の見積書・請求書を作る →</a><div style="font-size:11px;color:#57534e;margin-top:2px">金額が決まっている方への請求書も、ここから作れます。</div></div>
     </div>
 
-    <!-- 個別見積書フォーム（イレギュラー） -->
-    <div class="card" id="q-items-card" style="display:none">
-      <div class="sec" style="margin-top:0">📝 見積もる商品と数量（イレギュラー）</div>
+    <!-- 個別見積書フォーム -->
+    <div class="card" id="q-items-card" style="display:none;padding:12px 1.25rem;margin-bottom:8px">
+      <div class="sec" style="margin-top:0;margin-bottom:6px">📝 見積もる商品と数量</div>
       <div id="q-items-area"></div>
       <button class="btn-sm" onclick="addQuoteItemRow()">＋ 商品を追加</button>
     </div>
@@ -472,7 +482,7 @@ th.center,td.center{text-align:center}
         <div id="q-fields-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;background:#f9f8f5;min-height:36px"></div>
       </div>
       <div id="q-invoice-fields" style="display:none;border:1px solid #d5cfc3;border-radius:8px;padding:12px;background:#f9f8f5;margin-bottom:10px">
-        <div style="font-size:12.5px;font-weight:700;color:#1e3a8a;margin-bottom:6px">🧾 請求書の設定（一番上で「請求書」を選んでいます）</div>
+        <div style="font-size:12.5px;font-weight:700;color:#1e3a8a;margin-bottom:6px">🧾 請求書の設定（「請求書」「見積書 兼 請求書」のとき使います）</div>
         <div class="g2">
           <div class="fg"><label>請求日</label><input type="text" id="q-invoice-date"></div>
           <div class="fg"><label>お支払期限（標準：発行から30日）</label><input type="text" id="q-invoice-due"></div>
@@ -873,16 +883,22 @@ function currentDocType(){
   const el = document.querySelector('input[name="q-doctype"]:checked');
   return el ? el.value : 'quote';
 }
+// 「請求書」または「見積書 兼 請求書」＝請求書の設定（請求日・支払期限・振込先）を使う書類
+function isInvoiceLikeType(t){ return t==='invoice' || t==='both'; }
 function onDocTypeChange(){
-  const isInv = currentDocType()==='invoice';
+  const t = currentDocType();
+  const isInv = isInvoiceLikeType(t);
   const box = document.getElementById('q-invoice-fields');
   if(box) box.style.display = isInv ? 'block' : 'none';
   const btn = document.getElementById('q-generate-btn');
-  if(btn) btn.textContent = isInv ? '請求書を作成する' : '見積書を作成する';
-  const lq = document.getElementById('q-doctype-label-quote');
-  const li = document.getElementById('q-doctype-label-invoice');
-  if(lq) { lq.style.borderColor = isInv ? '#d5cfc3' : '#2563eb'; lq.style.background = isInv ? '#fff' : '#eff6ff'; }
-  if(li) { li.style.borderColor = isInv ? '#2563eb' : '#d5cfc3'; li.style.background = isInv ? '#eff6ff' : '#fff'; }
+  if(btn) btn.textContent = (t==='invoice') ? '請求書を作成する' : (t==='both' ? '見積書 兼 請求書を作成する' : '見積書を作成する');
+  const labels = { quote:'q-doctype-label-quote', invoice:'q-doctype-label-invoice', both:'q-doctype-label-both' };
+  Object.keys(labels).forEach(function(k){
+    const el = document.getElementById(labels[k]); if(!el) return;
+    const on = (k===t);
+    el.style.borderColor = on ? '#2563eb' : '#d5cfc3';
+    el.style.background = on ? '#eff6ff' : '#fff';
+  });
   if(isInv) initInvoiceFields();
   // すでにお客様を選んで進んでいる場合は、選び直した書類に合わせて画面を出し直す
   const cid = (document.getElementById('q-customer')||{}).value;
@@ -1079,7 +1095,7 @@ function backToQuoteFromSpecial(){
   showPanel('quote', quoteBtn || null);
 }
 function skipCustomerForGeneral(){
-  if(currentDocType()==='invoice'){ alert('🧾請求書は、お客様を選んで（または登録して）作成してください。\n宛名の無い請求書は作れません。'); return; }
+  if(isInvoiceLikeType(currentDocType())){ alert('🧾請求書（見積書 兼 請求書を含む）は、お客様を選んで（または登録して）作成してください。\n宛名の無い請求書は作れません。'); return; }
   document.getElementById('q-customer').value = '';
   window.generalNoCustomerMode = true;
   window.quoteShownSkus = null;
@@ -1217,8 +1233,8 @@ function onQuoteCustomerChange(){
   const badge = '<span class="no-print" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px;background:'+badgeInfo.bg+';color:'+badgeInfo.color+';border:1px solid '+badgeInfo.border+'">'+badgeInfo.label+'（社内用）</span>';
   info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'+badge+'<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+'</div>';
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
-  if(currentDocType()==='invoice'){
-    // 🧾請求書モード：数量が必要なので、価格表を飛ばして商品・数量の入力へ直行
+  if(isInvoiceLikeType(currentDocType())){
+    // 🧾請求書・📄🧾見積書兼請求書モード：数量が必要なので、価格表を飛ばして商品・数量の入力へ直行
     document.getElementById('q-whitelist-card').style.display = 'none';
     showIndividualQuoteForm();
   } else if(isPartialGate(gateType)){
@@ -1244,7 +1260,7 @@ function renderPastQuoteSuggestion(c){
   cardEl.style.display = '';
   listEl.innerHTML = past.map(function(r){
     const dateStr = (r.issuedAt||'').slice(0,10);
-    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='invoice' ? '🧾 請求書' : '📝 見積書');
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='invoice' ? '🧾 請求書' : (r.kind==='both' ? '📄🧾 見積書 兼 請求書' : '📝 見積書'));
     let detail = '';
     if(r.kind==='pricelist'){
       detail = '担当：'+esc(r.contactPerson||'-')+'／'+((r.products||[]).length)+'品目';
@@ -1326,6 +1342,21 @@ function prefillFromPastQuote(quoteId){
       }
       if(bottlesInp) bottlesInp.value = it.bottles||0;
       if(boxesInp) boxesInp.value = it.boxes||0;
+      // サンプル区分の復元
+      if(it.sampleKind){
+        const kindSel = row.querySelector('[data-q-kind]');
+        if(kindSel){
+          kindSel.value = (it.sampleKind==='free') ? 'free' : 'paid';
+          onQuoteItemKindChange(row.id);
+          if(skuSel && it.sku){ skuSel.value = it.sku; } // 選択肢が増えた後に入れ直す
+          if(it.sampleKind==='paid'){
+            const baseSel = row.querySelector('[data-q-pricebase]');
+            const priceInp = row.querySelector('[data-q-paidprice]');
+            if(baseSel) baseSel.value = it.sampleBase || 'custom';
+            if(priceInp) priceInp.value = it.unitPrice || 0;
+          }
+        }
+      }
     });
     checkContactPersonReady();
     if(missingSkus.length){
@@ -1371,8 +1402,8 @@ function onWhitelistCheckboxToggle(cb){
 }
 // ── 備考プリセット（RT定型文／一般定型文／自由入力） ────────────────────────
 const REMARKS_PRESETS = {
-  rt: 'この度はご検討いただきありがとうございます。ご不明な点がございましたら、お気軽にお問い合わせください。',
-  general: 'この度はご検討いただきありがとうございます。季節限定品は在庫状況により変動する場合がございます。'
+  rt: 'いつもお引き立ていただきありがとうございます。ご不明な点がございましたら、お気軽にお問い合わせください。',
+  general: 'この度はご検討いただきありがとうございます。どうぞよろしくお願いいたします。'
 };
 function currentGateForPreset(){
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
@@ -1382,7 +1413,7 @@ function onRemarksPresetChange(kind){
   const presetSel = document.getElementById(kind+'-remarks-preset');
   const textarea = document.getElementById(kind+'-remarks');
   const val = presetSel.value;
-  if(val==='custom') return; // 自由入力を選んだ場合は既存の内容をそのまま残す
+  if(val==='custom'){ textarea.value = ''; return; } // 自由入力を選んだら白紙にする
   textarea.value = REMARKS_PRESETS[val] || '';
 }
 function showPriceListForm(){
@@ -1541,7 +1572,9 @@ function renderQuoteFieldsCheckboxes(containerId, c, docType){
   const baseOptions = docType==='pricelist'
     ? []
     : [{key:'origin', label:'原産地', defaultOn:false}, {key:'container', label:'容器', defaultOn:false}];
-  const extraOptions = (EXTRA_FIELDS||[]).map(function(f){ return {key:'extra:'+f, label:f, defaultOn:false}; });
+  const extraOptions = (EXTRA_FIELDS||[])
+    .filter(function(f){ const n=String(f).trim().toLowerCase(); return n!=='active' && n!=='アクティブ'; }) // 内部管理用の列は見積の追加情報に出さない
+    .map(function(f){ return {key:'extra:'+f, label:f, defaultOn:false}; });
   const allOptions = baseOptions.concat(extraOptions);
   const enabledArr = (c && Array.isArray(c.quoteFields)) ? c.quoteFields : null;
   const enabledSet = enabledArr ? new Set(enabledArr) : null;
@@ -1555,13 +1588,13 @@ function renderQuoteFieldsCheckboxes(containerId, c, docType){
     const previewText = opt.key==='certificates' ? certificatesPreviewText(products) : fieldPreviewText(products, opt.key);
     const safeId = containerId+'_'+opt.key.replace(/[^a-zA-Z0-9]/g,'_');
     return '<div class="chk-row" style="flex:1 1 100%;min-width:100%;box-sizing:border-box;border:1px solid '+(on?'#16a34a':'#d5cfc3')+';border-radius:6px;padding:6px 10px;margin-bottom:6px;background:'+(on?'#f0fdf4':'#fff')+'">'
-      + '<label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer">'
-      + '<input type="checkbox" data-quote-field="'+esc(opt.key)+'" '+(on?'checked':'')+' onchange="updateFieldCheckboxLabel(this)" style="margin-top:2px">'
-      + '<span style="flex:1"><strong style="font-size:12px">'+esc(opt.label)+'</strong>'
+      + '<label>'
+      + '<input type="checkbox" data-quote-field="'+esc(opt.key)+'" '+(on?'checked':'')+' onchange="updateFieldCheckboxLabel(this)">'
+      + '<div class="chk-body"><strong style="font-size:13px">'+esc(opt.label)+'</strong>'
       + '<div class="field-preview">'+esc(previewText)+'</div>'
       + '<span class="field-override-toggle" onclick="event.preventDefault();toggleFieldOverride(\''+safeId+'\')">✏️ 今回だけ内容を書き換える</span>'
       + '<div class="field-override-box" id="ovbox_'+safeId+'"><textarea data-field-override="'+esc(opt.key)+'" placeholder="今回だけ使う内容を入力してください（保存されている定型文自体は変わりません）"></textarea></div>'
-      + '</span></label></div>';
+      + '</div></label></div>';
   }).join('');
   document.getElementById(containerId).innerHTML = html;
 }
@@ -1682,25 +1715,76 @@ function effectiveWhitelistSkus(c, allowedList){
   if(Array.isArray(c.whitelist)) return c.whitelist;
   return allowedList.filter(function(p){ return !isEquipmentProduct(p); }).map(function(p){ return p.sku; });
 }
+// 商品プルダウンの選択肢を作る（サンプル区分のときはRT限定商品も選べる）
+function quoteItemOptionList(c, includeSampleOnly){
+  const allowedList = quoteAllowedProducts(c);
+  // 「イレギュラー見積り」は一品ずつ選ぶための例外的な入口なので、備品のデフォルトOFFはここには適用しない。
+  // お客様に対して明示的に保存されたホワイトリスト（見せない商品）だけを反映する。
+  let finalList = Array.isArray(c.whitelist) ? allowedList.filter(p=>c.whitelist.indexOf(p.sku)>=0) : allowedList;
+  if(includeSampleOnly && c.type!=='rt'){
+    // サンプル（無償・有償）はRT限定の単品制限を回避できる（既存ルール）
+    const have = new Set(finalList.map(p=>p.sku));
+    PRODUCTS.filter(function(p){ return isProductActive(p) && !have.has(p.sku) && (p.noWholesale || p.sku==='ORG100' || p.sku==='MEM100' || p.sku==='CHF100'); })
+            .forEach(function(p){ finalList = finalList.concat([p]); });
+  }
+  return finalList;
+}
 function addQuoteItemRow(){
   const cid = document.getElementById('q-customer').value;
   const c = customers.find(x=>x.id===cid); if(!c){ alert('お客様を選択してください'); return; }
   const area = document.getElementById('q-items-area');
   const rowId = 'qr'+Date.now()+Math.random().toString(36).slice(2,6);
-  const allowedList = quoteAllowedProducts(c);
-  // 「イレギュラー見積り」は一品ずつ選ぶための例外的な入口なので、備品のデフォルトOFFはここには適用しない。
-  // お客様に対して明示的に保存されたホワイトリスト（見せない商品）だけを反映する。
-  const finalList = Array.isArray(c.whitelist) ? allowedList.filter(p=>c.whitelist.indexOf(p.sku)>=0) : allowedList;
-  const opts = finalList.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
+  const opts = quoteItemOptionList(c, false).map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
   const row = document.createElement('div');
-  row.className = 'g4';
   row.id = rowId;
-  row.style.marginBottom = '8px';
-  row.innerHTML = '<div class="fg"><label>商品</label><select data-q-sku>'+opts+'</select></div>'+
+  row.style.marginBottom = '4px';
+  row.innerHTML = '<div class="q-item-grid">'+
+    '<div class="fg"><label>商品</label><select data-q-sku onchange="onQuoteItemSkuChange(\''+rowId+'\')">'+opts+'</select></div>'+
     '<div class="fg"><label>本数</label><input type="number" data-q-bottles min="0" value="0"></div>'+
     '<div class="fg"><label>箱数</label><input type="number" data-q-boxes min="0" value="0"></div>'+
-    '<div class="fg" style="justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\''+rowId+'\').remove()">削除</button></div>';
+    '<div class="fg"><label>区分</label><select data-q-kind onchange="onQuoteItemKindChange(\''+rowId+'\')"><option value="normal">通常</option><option value="free">無償サンプル</option><option value="paid">有償サンプル</option></select></div>'+
+    '<div class="fg" style="justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\''+rowId+'\').remove()">削除</button></div>'+
+    '</div>'+
+    '<div data-q-freenote style="display:none;font-size:11.5px;font-weight:700;color:#0f5040;background:#e3efe9;border-radius:6px;padding:4px 10px;margin:2px 0 6px">この行は無償サンプル：単価0円で書類に載ります</div>'+
+    '<div data-q-paidbox style="display:none;background:#fffbeb;border:1px solid #f0c96a;border-radius:8px;padding:6px 10px;margin:2px 0 6px">'+
+      '<span style="font-size:12px;font-weight:700;color:#78350f">有償サンプルの単価：</span> '+
+      '<select data-q-pricebase onchange="onQuotePriceBaseChange(\''+rowId+'\')" style="width:auto;padding:5px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px">'+
+        '<option value="general">定価（TK）から</option><option value="wholesale1">卸①（OS1）から</option><option value="wholesale2">卸②（OS2）から</option><option value="rt">RTから</option><option value="custom">自由入力</option>'+
+      '</select> '+
+      '<input type="number" data-q-paidprice min="0" value="0" style="width:110px;padding:5px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:14px;font-weight:700;text-align:right"> 円'+
+      '<span style="font-size:11px;color:#78350f">（金額はいつでも手で直せます）</span>'+
+    '</div>';
   area.appendChild(row);
+}
+// 区分を切り替えたとき：商品の選択肢と単価欄を出し分ける
+function onQuoteItemKindChange(rowId){
+  const row = document.getElementById(rowId); if(!row) return;
+  const cid = document.getElementById('q-customer').value;
+  const c = customers.find(x=>x.id===cid); if(!c) return;
+  const kind = row.querySelector('[data-q-kind]').value;
+  const skuSel = row.querySelector('[data-q-sku]');
+  const keep = skuSel.value;
+  const list = quoteItemOptionList(c, kind!=='normal');
+  skuSel.innerHTML = list.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
+  if(list.some(p=>p.sku===keep)){ skuSel.value = keep; }
+  row.querySelector('[data-q-freenote]').style.display = (kind==='free') ? 'block' : 'none';
+  row.querySelector('[data-q-paidbox]').style.display = (kind==='paid') ? 'block' : 'none';
+  if(kind==='paid') onQuotePriceBaseChange(rowId);
+}
+// 有償サンプル：単価のもとを選んだら、その段の金額を自動で入れる（自由入力は触らない）
+function onQuotePriceBaseChange(rowId){
+  const row = document.getElementById(rowId); if(!row) return;
+  const base = row.querySelector('[data-q-pricebase]').value;
+  if(base==='custom') return;
+  const sku = row.querySelector('[data-q-sku]').value;
+  const v = priceForSku(sku, base) || 0;
+  row.querySelector('[data-q-paidprice]').value = v;
+}
+// 商品を変えたとき：有償サンプルなら単価を選んだ段で入れ直す
+function onQuoteItemSkuChange(rowId){
+  const row = document.getElementById(rowId); if(!row) return;
+  const kind = (row.querySelector('[data-q-kind]')||{}).value;
+  if(kind==='paid') onQuotePriceBaseChange(rowId);
 }
 function formatContactName(raw){
   const s = (raw||'').trim();
@@ -1718,6 +1802,7 @@ function generateQuoteDoc(){
   const items = [];
   let totalBoxes = 0;
   const effTypes = []; // 各明細の実効区分（請求番号の暗号判定に使う）
+  let paidSampleMissing = false;
   Array.from(rows).forEach(function(r){
     const sku = r.querySelector('[data-q-sku]').value;
     const bottles = parseInt(r.querySelector('[data-q-bottles]').value)||0;
@@ -1726,14 +1811,28 @@ function generateQuoteDoc(){
     const p = findProductBySku(sku); if(!p) return;
     const boxQty = p.boxQty||1;
     const totalQty = bottles + boxes*boxQty;
-    const effType = effectiveCustomerType(c.type, boxes);
-    effTypes.push(effType);
-    const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
-    const upgraded = (c.type==='wholesale1' && effType!==c.type); // 「数量割引適用」は卸①→卸②の箱数昇格だけ
-    items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
+    const kindEl = r.querySelector('[data-q-kind]');
+    const rowKind = kindEl ? kindEl.value : 'normal';
+    if(rowKind==='free'){
+      // 無償サンプル：0円。暗号（お客様区分の判定）には混ぜない
+      items.push({ sku, name: p.name+'（無償サンプル）', bottles, boxes, qty: totalQty, unitPrice: 0, amount: 0, taxRate: tax, sampleKind:'free' });
+    } else if(rowKind==='paid'){
+      // 有償サンプル：選んだ段 or 自由入力の単価。暗号には混ぜない
+      const up = parseInt((r.querySelector('[data-q-paidprice]')||{}).value)||0;
+      if(up<=0){ paidSampleMissing = true; return; }
+      const base = (r.querySelector('[data-q-pricebase]')||{}).value || 'custom';
+      items.push({ sku, name: p.name+'（有償サンプル）', bottles, boxes, qty: totalQty, unitPrice: up, amount: up*totalQty, taxRate: tax, sampleKind:'paid', sampleBase: base });
+    } else {
+      const effType = effectiveCustomerType(c.type, boxes);
+      effTypes.push(effType);
+      const unitPrice = priceForSku(sku, effType);
+      const upgraded = (c.type==='wholesale1' && effType!==c.type); // 「数量割引適用」は卸①→卸②の箱数昇格だけ
+      items.push({ sku, name: p.name+(upgraded?'（数量割引適用）':''), bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
+    }
     if(boxes>0) totalBoxes += boxes;
   });
+  if(paidSampleMissing){ alert('有償サンプルの単価が0円の行があります。単価を入れてください。'); return; }
   if(!items.length){ alert('数量を入力してください'); return; }
   const subject = document.getElementById('q-subject').value || 'オリーブオイル 御見積り';
   const remarks = document.getElementById('q-remarks').value;
@@ -1759,10 +1858,16 @@ function generateQuoteDoc(){
     deliveryAddr: deliveryAddr, deliveryTel: deliveryTel, deliveryWish: deliveryWish,
     remarks: remarks, internalMemo: internalMemo, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'quote'
   };
-  if(docType==='invoice'){
+  // 見積番号（暗号-YYYYMMDD-4桁）：暗号は請求書と同じ自動判定（お客様の区分＋6箱昇格の実際の適用）
+  record.priceCode = priceCodeForInvoice(c.type, effTypes);
+  record.estimateNo = record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+  if(isInvoiceLikeType(docType)){
     initInvoiceFields(); // 空欄なら今日＋30日を入れる
-    record.kind = 'invoice';
-    if(record.subject === 'オリーブオイル 御見積り') record.subject = 'オリーブオイル 御請求'; // 件名が初期値のままなら請求用に置き換え
+    record.kind = docType; // 'invoice'（請求書）または 'both'（見積書 兼 請求書）
+    if(record.subject === 'オリーブオイル 御見積り'){
+      // 件名が初期値のままなら、書類の種類に合わせて置き換え
+      record.subject = (docType==='both') ? 'オリーブオイル 御見積 兼 御請求書' : 'オリーブオイル 御請求書';
+    }
     record.invoiceDateStr = document.getElementById('q-invoice-date').value || fmtDateJa(today);
     record.dueStr = document.getElementById('q-invoice-due').value || '';
     record.bankIndex = parseInt(document.getElementById('q-invoice-bank').value) || 0;
@@ -1771,7 +1876,7 @@ function generateQuoteDoc(){
   }
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
-  const doc = (record.kind==='invoice') ? buildInvoiceDocHtml(record, c) : buildQuoteDocHtml(record, c);
+  const doc = (record.kind==='invoice' || record.kind==='both') ? buildInvoiceDocHtml(record, c) : buildQuoteDocHtml(record, c);
   showQuoteDoc(doc, record);
 }
 function saveQuoteHistoryToGAS(){
@@ -1786,7 +1891,7 @@ function saveQuoteHistoryToGAS(){
 }
 function showQuoteDoc(doc, record){
   setPrintOrientation(record && record.kind==='pricelist');
-  const isInvoice = record && record.kind==='invoice';
+  const isInvoice = record && (record.kind==='invoice' || record.kind==='both');
   const area = document.getElementById('quote-doc-area');
   area.innerHTML = '';
   const wrap = document.createElement('div');
@@ -1796,7 +1901,7 @@ function showQuoteDoc(doc, record){
   const printBtn = document.createElement('button');
   printBtn.className = 'btn btn-primary no-print';
   printBtn.style.marginTop = '10px';
-  printBtn.textContent = isInvoice ? '🖨 この請求書を印刷する' : '🖨 この見積書を印刷する';
+  printBtn.textContent = (record && record.kind==='both') ? '🖨 この見積書 兼 請求書を印刷する' : (isInvoice ? '🖨 この請求書を印刷する' : '🖨 この見積書を印刷する');
   printBtn.onclick = function(){ window.print(); };
   const pdfBtn = document.createElement('button');
   pdfBtn.className = 'btn btn-green no-print';
@@ -1842,7 +1947,7 @@ function buildQuoteDocHtml(record, c){
   html += '</div>';
   html += '<div style="text-align:right;font-size:11px;line-height:1.7">';
   html += '<div style="color:#b91c1c;font-weight:700;font-size:12px">'+esc(PRICELIST_INFO.tagline)+'・農園内保管タンク中村指定商品</div>';
-  html += '<div>'+esc(PRICELIST_INFO.harvestNote)+'</div>';
+  if(record.estimateNo) html += '<div>見積番号：'+esc(record.estimateNo)+'</div>';
   html += '<div>発行日：'+dateStr+'</div>';
   html += '<div>有効期限：'+esc(record.expiryStr)+'</div>';
   html += '</div></div>';
@@ -1911,8 +2016,11 @@ function buildInvoiceDocHtml(record, c){
   const warehouseTax = Math.round(warehouseFee * 0.10);
   const total = subtotal + totalTax + warehouseFee + warehouseTax;
   const bank = BANK_ACCOUNTS[record.bankIndex] || BANK_ACCOUNTS[0];
+  const isBoth = (record.kind==='both'); // 📄🧾 見積書 兼 請求書
   let html = '<div class="invoice-doc">';
-  html += '<div class="invoice-doc-title">御 請 求 書</div>';
+  html += isBoth
+    ? '<div class="invoice-doc-title" style="letter-spacing:.08em">御見積 兼 御請求書</div>'
+    : '<div class="invoice-doc-title">御 請 求 書</div>';
   html += '<div class="invoice-doc-top">';
   html += '<div><div style="font-size:15px;font-weight:700">'+esc(record.customerName)+' 御中</div>';
   if(record.contactPerson) html += '<div style="margin-top:2px;font-size:13px">'+esc(formatContactName(record.contactPerson))+'</div>';
@@ -1923,12 +2031,15 @@ function buildInvoiceDocHtml(record, c){
   html += '<div>請求日：'+esc(record.invoiceDateStr||'')+'</div>';
   html += '<div>請求番号：'+esc(record.invoiceNo||'')+'</div>';
   if(record.dueStr) html += '<div style="font-weight:700">お支払期限：'+esc(record.dueStr)+'</div>';
+  if(isBoth && record.expiryStr) html += '<div>お見積の有効期限：'+esc(record.expiryStr)+'</div>';
   html += '<div style="margin-top:8px;font-weight:700">'+esc(COMPANY_INFO.name)+'</div>';
   html += '<div>〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
   html += '<div>登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
   html += '</div></div>';
-  html += '<div style="margin-bottom:10px;font-size:13px">下記の通りご請求申し上げます。</div>';
-  html += '<div class="invoice-doc-summary"><table><tr><th>件名</th><th style="width:30%">ご請求金額（税込）</th></tr>';
+  html += isBoth
+    ? '<div style="margin-bottom:10px;font-size:13px">下記の通り御見積り申し上げます。本書は請求書を兼ねております。</div>'
+    : '<div style="margin-bottom:10px;font-size:13px">下記の通りご請求申し上げます。</div>';
+  html += '<div class="invoice-doc-summary"><table><tr><th>件名</th><th style="width:30%">'+(isBoth?'御見積・ご請求金額（税込）':'ご請求金額（税込）')+'</th></tr>';
   html += '<tr><td>'+esc(record.subject)+'</td><td style="font-size:20px;font-weight:700">¥'+total.toLocaleString()+'</td></tr></table></div>';
   html += '<table class="invoice-doc-table"><thead><tr><th style="width:5%">No.</th><th>商品</th><th style="width:15%">数量</th><th style="width:15%">単価（税抜）</th><th style="width:8%">税率</th><th style="width:15%">金額</th></tr></thead><tbody>';
   record.items.forEach(function(it, i){
@@ -1961,6 +2072,7 @@ function buildInvoiceDocHtml(record, c){
   }
   html += '<div class="invoice-doc-note" style="margin-top:8px">';
   html += '※印は軽減税率対象商品です。<br>';
+  if(isBoth) html += '※本見積の有効期限は発行日より2ヶ月とさせていただきます。<br>';
   html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
   html += '</div>';
   html += '</div>';
@@ -2045,7 +2157,7 @@ function buildPriceListDocHtml(record, c){
   html += '<div class="pricelist-company-info">';
   html += '<div class="name">'+esc(COMPANY_INFO.name)+'</div>';
   html += '<div style="color:#b91c1c;font-weight:700">'+esc(PRICELIST_INFO.tagline)+'・農園内保管タンク中村指定商品</div>';
-  html += '<div>'+esc(PRICELIST_INFO.harvestNote)+'</div>';
+
   html += '<div>'+esc(COMPANY_INFO.email)+'</div>';
   html += '</div>';
   html += '</div>';
@@ -2138,7 +2250,7 @@ function buildPriceListDocHtml(record, c){
 }
 function downloadQuotePdf(record){
   const el = document.querySelector('#quote-doc-area .invoice-doc');
-  if(!el){ alert((record&&record.kind==='invoice')?'請求書が表示されていません':'見積書が表示されていません'); return; }
+  if(!el){ alert((record&&(record.kind==='invoice'||record.kind==='both'))?'請求書が表示されていません':'見積書が表示されていません'); return; }
   showSyncStatus('PDFを作成しています...');
   html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
     const img = canvas.toDataURL('image/png');
@@ -2158,7 +2270,7 @@ function downloadQuotePdf(record){
       heightLeft -= (pdfH - 20);
     }
     const dateStr = new Date().toISOString().slice(0,10);
-    const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : '見積書');
+    const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : (record.kind==='both' ? '見積書兼請求書' : '見積書'));
     pdf.save(kindStr+'_'+record.customerName+'_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
@@ -2236,7 +2348,7 @@ function renderQuoteHistory(){
   if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
   listEl.innerHTML = sorted.map(function(r){
     const dateStr = (r.issuedAt||'').slice(0,10);
-    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : (r.kind==='invoice' ? '🧾 請求書' : '📝 見積書'));
+    const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : (r.kind==='invoice' ? '🧾 請求書' : (r.kind==='both' ? '📄🧾 見積書 兼 請求書' : '📝 見積書')));
     const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
     const state = effectiveFollowUpState(r, now);
     const issued = new Date(r.issuedAt);
@@ -2277,8 +2389,10 @@ function renderQuoteHistory(){
         ordRegHtml = '<div style="margin:4px 0 10px"><button class="btn-sm" style="font-weight:700;border-color:#185fa5;color:#185fa5" onclick="openOrderRegPanel(\''+r.id+'\')">📦 受注Aに登録（発送に進む）</button><div id="ordreg_'+r.id+'" style="display:none"></div></div>';
       }
     }
-    return '<div class="qhist-row">'
-      + '<div class="hist-info"><strong>'+esc(r.customerName)+'</strong> '+badge+'<br><span style="font-size:11px;color:#2b2a26">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
+    const doneStyle = r.orderRegistered ? ' style="opacity:.55;background:#f3f2ee"' : '';
+    const doneBadge = r.orderRegistered ? ' <span class="badge" style="background:#e5e5e0;color:#44403c">✅受注A登録済み</span>' : '';
+    return '<div class="qhist-row"'+doneStyle+'>'
+      + '<div class="hist-info"><strong>'+esc(r.customerName)+'</strong> '+badge+doneBadge+'<br><span style="font-size:11px;color:#2b2a26">'+kindStr+'／発行日：'+dateStr+'／担当：'+esc(r.contactPerson||'')+'</span></div>'
       + actionsHtml
       + '</div>'
       + ordRegHtml;
@@ -2287,7 +2401,7 @@ function renderQuoteHistory(){
 function viewQuoteHistoryItem(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
   const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
-  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : (r.kind==='invoice' ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)));
+  const doc = r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : ((r.kind==='invoice'||r.kind==='both') ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)));
   showQuoteDocGeneric(doc, r);
 }
 
@@ -2304,7 +2418,7 @@ function openOrderRegPanel(rid){
   const addr = r.deliveryAddr || c.addr || '';
   const tel = r.deliveryTel || c.tel || '';
   const zip = (r.deliveryAddr && c.addr && r.deliveryAddr!==c.addr) ? '' : (c.zip || ''); // 登録住所のままなら郵便番号も引き継ぐ
-  const encl = (r.kind==='invoice')
+  const encl = (r.kind==='invoice' || r.kind==='both')
     ? '請求書発行済み（'+(r.invoiceNo||'')+'）。同梱は納品書のみ。'
     : '納品書兼請求書を同梱。';
   let html = '<div style="border:2px solid #185fa5;border-radius:10px;padding:12px;background:#eff6ff;margin-top:6px">';
@@ -2352,7 +2466,7 @@ function mProductNameForLots(arr){
 }
 async function registerOrderFromQuote(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
-  if(r.orderRegistered){ showSyncStatus('この'+(r.kind==='invoice'?'請求':'見積')+'はすでに受注A登録済みです'); return; }
+  if(r.orderRegistered){ showSyncStatus('この'+((r.kind==='invoice'||r.kind==='both')?'請求':'見積')+'はすでに受注A登録済みです'); return; }
   const goBtn = document.getElementById('oreg-go-'+rid);
   const msgEl = document.getElementById('oreg-msg-'+rid);
   if(goBtn && goBtn.disabled) return; // 二重押し防止
@@ -2366,7 +2480,7 @@ async function registerOrderFromQuote(rid){
       lines.push({ productId: p.id, productName: p.name, boxQty: p.boxQty||1, giftType:'', bottles: it.bottles||0, boxes: it.boxes||0, memo:'' });
     });
     if(!lines.length){ setMsg('商品の情報が見つかりませんでした', true); if(goBtn){goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する';} return; }
-    const encl = (r.kind==='invoice')
+    const encl = (r.kind==='invoice' || r.kind==='both')
       ? '請求書発行済み（'+(r.invoiceNo||'')+'）・同梱は納品書のみ'
       : '納品書兼請求書を同梱';
     const userNote = (document.getElementById('oreg-note-'+rid)||{}).value || '';
