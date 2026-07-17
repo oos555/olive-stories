@@ -816,6 +816,23 @@ const PAYMENT_TERMS_DAYS = 30;
 // 振込先の自動選択：RT（＋安定した大企業）→三井住友［0］、それ以外の卸・個人→三菱UFJ［1］
 function defaultBankIndexForGate(gateType){ return gateType==='rt' ? 0 : 1; }
 function fmtDateJa(d){ return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'; }
+// ── 価格区分の暗号（請求番号の日付の前に入れる。お客様には意味不明・社内では一目で分かる） ──
+// TK＝定価／OS1＝卸①／OS2＝卸②／OS12＝卸①②ミックス（6箱昇格などで混在）／BA＝バサラ／RT＝RT／FT＝不良特価／IT＝イレギュラー特価
+const PRICE_CODE = { general:'TK', wholesale1:'OS1', wholesale2:'OS2', mix12:'OS12', basara:'BA', rt:'RT', defect:'FT', irregular:'IT' };
+// 請求書の暗号を決める：お客様区分＋明細の実効区分（卸①のお客様でも6箱昇格で卸②が混ざればOS12）
+function priceCodeForInvoice(custType, effTypes){
+  if(custType==='rt') return PRICE_CODE.rt;
+  if(custType==='general') return PRICE_CODE.general;
+  if(custType==='defectprice') return PRICE_CODE.defect;
+  if(custType==='wholesale2' || custType==='hub') return PRICE_CODE.wholesale2; // 貢献ハブは卸②価格なのでOS2扱い
+  if(custType==='wholesale1'){
+    const has1 = effTypes.indexOf('wholesale1')>=0, has2 = effTypes.indexOf('wholesale2')>=0;
+    if(has1 && has2) return PRICE_CODE.mix12;
+    if(has2) return PRICE_CODE.wholesale2;
+    return PRICE_CODE.wholesale1;
+  }
+  return PRICE_CODE.general;
+}
 // 標準価格表ヘッダー右上に載せる会社の一言情報
 // ※「生産時期」は農園・商品ごとに変わり得るため、ひとまず一般的な文言を入れています。
 //   実際の収穫時期の表記に変更したい場合は、この harvestNote を書き換えてください。
@@ -1671,6 +1688,7 @@ function generateQuoteDoc(){
   if(!rows.length){ alert('見積もる商品を1件以上追加してください'); return; }
   const items = [];
   let totalBoxes = 0;
+  const effTypes = []; // 各明細の実効区分（請求番号の暗号判定に使う）
   Array.from(rows).forEach(function(r){
     const sku = r.querySelector('[data-q-sku]').value;
     const bottles = parseInt(r.querySelector('[data-q-bottles]').value)||0;
@@ -1680,6 +1698,7 @@ function generateQuoteDoc(){
     const boxQty = p.boxQty||1;
     const totalQty = bottles + boxes*boxQty;
     const effType = effectiveCustomerType(c.type, boxes);
+    effTypes.push(effType);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
     const upgraded = (c.type==='wholesale1' && effType!==c.type); // 「数量割引適用」は卸①→卸②の箱数昇格だけ。貢献ハブには付けない
@@ -1718,7 +1737,8 @@ function generateQuoteDoc(){
     record.invoiceDateStr = document.getElementById('q-invoice-date').value || fmtDateJa(today);
     record.dueStr = document.getElementById('q-invoice-due').value || '';
     record.bankIndex = parseInt(document.getElementById('q-invoice-bank').value) || 0;
-    record.invoiceNo = 'INV-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+    record.priceCode = priceCodeForInvoice(c.type, effTypes);
+    record.invoiceNo = 'INV-' + record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
   }
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
