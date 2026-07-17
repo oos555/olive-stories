@@ -186,6 +186,10 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .bd-actrow .bd-status{margin:0}
 .bd-actrow .bd-act.del{margin-left:auto}
 .bd-more{margin:2px 0 4px;font-size:12.5px;font-weight:800;color:#6d675c;background:#f4f0ea;border:1px solid #e3ddd2;border-radius:999px;padding:6px 13px;cursor:pointer}
+/* ★2026-07-17 追加：伝言に「✎編集」ボタン／長い伝言は3行にたたむ */
+.bd-act.edit{border-color:#e0cba0;background:#fdf6e6;color:#8a5a12}
+.bd-body.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bd-readmore{margin-top:6px;font-size:12.5px;font-weight:800;color:#0f6e56;background:#eef6f2;border:1px solid #cfe4da;border-radius:999px;padding:4px 12px;cursor:pointer}
 .sc-optrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
 .sc-red{font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;color:#dc2626;font-weight:700}
 .sc-red input{width:15px;height:15px}
@@ -277,7 +281,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
     <div class="bd-head" style="display:flex;align-items:center;gap:10px">
       <div>
         <div class="bd-brand">ひろみ ⇄ ゆか 伝言板</div>
-        <div class="bd-sub">夜・長め・説明がいる連絡はここへ</div>
+        <div class="bd-sub">早朝、夜間、長い説明がいる連絡、お休みの日の急がない案件などに利用しましょう</div>
       </div>
       <button class="bd-dismiss" id="bd-dismiss" onclick="bdDismissGlow()">🔕 光を消す</button>
     </div>
@@ -390,6 +394,7 @@ async function post(body){
 const BD_ME = 'h';
 let boardItems = [];
 let bdExpanded = {};        // 返信を開いている投稿id
+let bdBodyOpen = {};        // ★2026-07-17 本文（3行たたみ）を開いている投稿id
 let bdPendingImg = '', bdPendingLink = '', bdPendingLinkLabel = '', bdPendingPlan = '';
 
 function bdEsc(v){ return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -447,9 +452,12 @@ function bdRepliesOnly(it){
 function bdPostHTML(it){
   let att='';
   if(it.img)  att += '<div class="bd-thumb" onclick="bdZoom(\''+it.id+'\')"><img src="'+it.img+'" alt="写真"></div>';
-  let body = '<div class="bd-body">'+bdEsc(it.text);
+  const bopen = !!bdBodyOpen[it.id];   // ★2026-07-17 長い本文を開いているか
+  let body = '<div class="bd-body'+(bopen?'':' clamp')+'" id="bdbody-'+it.id+'" data-id="'+it.id+'">'+bdEsc(it.text);
   if(it.link) body += '<br>→ <a href="'+bdEsc(it.link)+'" target="_blank" rel="noopener">'+bdEsc(it.linkLabel||'🔗 リンク')+'</a>';
   body += '</div>';
+  // 3行を超える長い伝言だけ「続きを読む」を出す（短い伝言では非表示のまま）
+  body += '<button class="bd-readmore" id="bdmore-'+it.id+'" style="display:'+(bopen?'inline-block':'none')+'" onclick="bdToggleBody(\''+it.id+'\')">'+(bopen?'△ とじる':'▽ 続きを読む')+'</button>';
   const glow = bdIsGlowing(it);
   const n = (it.replies||[]).length;
   const seenR = bdSeen();
@@ -460,12 +468,13 @@ function bdPostHTML(it){
     ? '<button class="bd-act" onclick="bdReopen(\''+it.id+'\')">↩ 戻す</button>'
     : '<button class="bd-act done-btn" onclick="bdComplete(\''+it.id+'\')">✅ 完了</button>';
   const replyBtn = '<button class="bd-act reply" onclick="bdToggleReplies(\''+it.id+'\')">💬 返信 '+n+' '+(open?'▲':'')+(newReply && !open ? '<span class="bd-newdot">●</span>' : '')+'</button>';
+  const editBtn = '<button class="bd-act edit" title="この伝言を書き直す" onclick="bdEdit(\''+it.id+'\')">✎ 編集</button>';
   const delBtn = '<button class="bd-act del" title="完全に削除（ゆかちゃん側からも消えます）" onclick="bdDelete(\''+it.id+'\')">🗑 削除</button>';
   const isIncoming = (it.from==='y' && it.status!=='done');
   return '<div class="bd-post from-'+(it.from||'h')+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
     '<div class="bd-ptop">'+bdBadge(it.from||'h')+(isIncoming && glow?'<span class="bd-new">●新着</span>':'')+'<span class="bd-time">'+bdEsc(it.time||'')+'</span></div>'+
     body+att+
-    '<div class="bd-actrow">'+bdStatusPill(it)+doneBtn+replyBtn+delBtn+'</div>'+
+    '<div class="bd-actrow">'+bdStatusPill(it)+doneBtn+editBtn+replyBtn+delBtn+'</div>'+
     (open ? bdRepliesOnly(it) : '')+
     '</div>';
 }
@@ -491,6 +500,31 @@ function renderBoard(){
   const incoming = boardItems.filter(function(x){ return x.status!=='done' && x.from==='y'; }).length;
   updateBoardTab(anyGlow, incoming);
   const dm = document.getElementById('bd-dismiss'); if(dm) dm.style.display = anyGlow ? 'inline-block' : 'none';
+  bdSyncReadmore();  // ★2026-07-17 3行を超える伝言だけ「続きを読む」を出す
+}
+/* ★2026-07-17 描画後に本文の高さを見て、3行に収まらない伝言だけ「▽続きを読む」を表示 */
+function bdSyncReadmore(){
+  ['bd-feed','bd-donefeed'].forEach(function(fid){
+    const host = document.getElementById(fid); if(!host) return;
+    host.querySelectorAll('.bd-body.clamp').forEach(function(el){
+      const btn = document.getElementById('bdmore-'+el.dataset.id); if(!btn) return;
+      btn.style.display = (el.scrollHeight - el.clientHeight > 2) ? 'inline-block' : 'none';
+    });
+  });
+}
+/* ★2026-07-17 長い本文を開く／とじる */
+function bdToggleBody(id){ bdBodyOpen[id] = !bdBodyOpen[id]; renderBoard(); }
+/* ★2026-07-17 伝言の本文を書き直す（保存は既存の returns/完了と同じしくみ） */
+async function bdEdit(id){
+  const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
+  const v = prompt('伝言を書き直す', it.text);
+  if(v===null) return;
+  const nv = v.trim();
+  if(!nv) return;
+  it.text = nv;
+  renderBoard();
+  await bdSaveItem(it);
+  showSyncStatus('✅ 伝言を直しました');
 }
 function bdToggleAll(){ bdShowAll = !bdShowAll; renderBoard(); }
 /* 「🔕 光を消す」：今光っているものを全部「見た」ことにして光を止める（完了にはしない） */
