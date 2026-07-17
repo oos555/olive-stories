@@ -2525,16 +2525,66 @@ function convertToShipping(id){
   gotoSlip(id);
 }
 
+/* ── 発送日時の表示（日本時間）。3形式（機械形式Z・日本語形式・素の日付）すべて読める ── */
+function fmtShipTime(v){
+  if(!v) return '';
+  var s = String(v).trim();
+  if(/Z$|[+\-]\d{2}:?\d{2}$/.test(s)){
+    var d0 = new Date(s);
+    if(!isNaN(d0.getTime())){
+      var j = new Date(d0.getTime() + 9*60*60*1000);
+      return (j.getUTCMonth()+1)+'/'+j.getUTCDate()+' '+j.getUTCHours()+':'+('0'+j.getUTCMinutes()).slice(-2);
+    }
+  }
+  var d = new Date(s.replace(/-/g,'/'));
+  if(isNaN(d.getTime())) return s;
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+('0'+d.getMinutes()).slice(-2);
+}
+function shipDayKeyJst(v){
+  if(!v) return '';
+  var s = String(v).trim();
+  var d;
+  if(/Z$|[+\-]\d{2}:?\d{2}$/.test(s)){ d = new Date(s); if(!isNaN(d.getTime())){ var j = new Date(d.getTime()+9*60*60*1000); return j.toISOString().slice(0,10); } }
+  d = new Date(s.replace(/-/g,'/'));
+  if(isNaN(d.getTime())) return '';
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+function todayKeyJst(){ var j = new Date(Date.now()+9*60*60*1000); return j.toISOString().slice(0,10); }
 function updateSummary(){
-  const today = new Date().toISOString().slice(0,10);
-  const thisMonth = new Date().toISOString().slice(0,7);
-  document.getElementById('sum-today').textContent = orders.filter(o=>(o.registeredAt||'').slice(0,10)===today).length+'件';
+  const today = todayKeyJst();
+  const thisMonth = today.slice(0,7);
+  document.getElementById('sum-today').textContent = orders.filter(o=>shipDayKeyJst(o.registeredAt)===today).length+'件';
   document.getElementById('sum-pending').textContent = orders.filter(o=>o.status==='pending').length+'件';
-  document.getElementById('sum-shipped').textContent = orders.filter(o=>o.status==='shipped' && (o.shippedAt||'').slice(0,10)===today).length+'件';
-  document.getElementById('sum-month').textContent = orders.filter(o=>(o.registeredAt||'').slice(0,7)===thisMonth).length+'件';
+  document.getElementById('sum-shipped').textContent = orders.filter(o=>o.status==='shipped' && shipDayKeyJst(o.shippedAt)===today).length+'件';
+  document.getElementById('sum-month').textContent = orders.filter(o=>shipDayKeyJst(o.registeredAt).slice(0,7)===thisMonth).length+'件';
 }
 
 // ── 受注一覧 ────────────────────────────────────────────
+/* 追跡番号の保存：必ず最新の注文一覧を取り直してから該当注文だけ書き換える（丸ごと上書き事故の防止） */
+async function saveTracking(id){
+  var inp = document.getElementById('track-'+id);
+  if(!inp) return;
+  var val = (inp.value||'').trim();
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAll');
+    const data = await res.json();
+    if(!(data && data.status==='ok' && data.data && Array.isArray(data.data.orders))){ alert('通信に失敗しました。もう一度お試しください。'); return; }
+    const all = data.data.orders;
+    const target = all.find(function(o){ return o.id===id; });
+    if(!target){ alert('受注が見つかりませんでした'); return; }
+    target.trackingNo = val;
+    const saveRes = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: all }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const saveData = await saveRes.json();
+    if(saveData && saveData.status==='ok'){
+      const local = orders.find(function(o){ return o.id===id; });
+      if(local) local.trackingNo = val;
+      showSyncStatus(val ? '✅ 追跡番号を保存しました' : '追跡番号を空にしました');
+      renderList();
+    } else {
+      alert('保存に失敗しました。もう一度お試しください。');
+    }
+  }catch(e){ alert('通信エラーが発生しました：'+e.message); }
+}
 function renderList(){
   const filter = document.getElementById('list-filter').value;
   const ctypeFilter = document.getElementById('list-ctype').value;
@@ -2576,15 +2626,29 @@ function renderList(){
       : '<div style="font-size:12px;color:#7c2d12;background:#fff4ed;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;margin-top:2px">💰 入金を確認の上、出荷依頼書へ進んでください</div>');
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
+    const whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+    const whBadge = o.status==='pending' ? (o.notified
+      ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
+      : '<span class="pill" style="background:#fdf0d5;color:#7a5b1a;border:1px solid #e8c87a">📮 倉庫にまだ送っていません</span>') : '';
+    const shippedInfo = (o.status==='shipped' && o.shippedAt) ? '　<b style="color:#2b2a26">発送：'+esc(fmtShipTime(o.shippedAt))+'</b>' : '';
+    const trackRow = o.status==='shipped'
+      ? '<div class="no-print" style="display:flex;align-items:center;gap:8px;border-top:1px dashed #d8d0c2;margin-top:6px;padding-top:7px">'
+        + '<span style="font-size:12.5px;font-weight:700;color:#55524a">🚚 追跡番号</span>'
+        + '<input type="text" id="track-'+o.id+'" value="'+esc(o.trackingNo||'')+'" placeholder="伝票の番号" style="font-size:14px;font-weight:700;padding:6px 8px;border:1.5px solid #d5cfc3;border-radius:7px;width:170px;color:#2b2a26">'
+        + '<button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff;font-weight:700" onclick="saveTracking(\''+o.id+'\')">保存</button>'
+        + (o.trackingNo ? '<span style="color:#16a34a;font-weight:700;font-size:12px">✓ 保存済み</span>' : '')
+        + '</div>'
+      : '';
     return '<div class="order-card'+basaraCls+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
       payMsg+
+      trackRow+
       '<div class="oc-actions no-print">'+
         (o.source==='basara' && !basaraAcked(o.id) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : '')+
         (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
@@ -2942,7 +3006,7 @@ function notifyLineShort(listArg){
   }
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
-  list.forEach(function(o){ o.notified = true; });
+  list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
   syncOrdersToGAS(list);                       // ① 通知済みにした注文だけを最新にマージ
   const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷依頼：'+list.length+'件';
