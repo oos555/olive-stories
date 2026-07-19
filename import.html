@@ -157,7 +157,20 @@ tr:last-child td{border-bottom:none}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:14px;font-weight:800">農園：</span>
         <select id="yn-farm" onchange="ynRenderCards()" style="font-size:14px;padding:6px 10px;border:1px solid #d8cfc4;border-radius:8px"></select>
-        <button class="btn btn-primary" style="margin-left:auto" onclick="ynNewNote()">＋ 新しい輸入を登録</button>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" onclick="ynToggleImportPanel()">📥 Claudeのデータを取り込む</button>
+          <button class="btn btn-primary" onclick="ynNewNote()">＋ 新しい輸入を登録</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="yn-import-panel" style="display:none">
+      <div class="sec">📥 Claudeのデータを取り込む</div>
+      <div style="font-size:12px;color:#57534e;line-height:1.8;margin-bottom:8px">チャットでClaudeが作った<strong>「取り込みコード」を、そのまま全部</strong>下の枠に貼り付けて、青いボタンを押してください。<strong>⏳仮のカード</strong>ができます（この時点では原価データに何も影響しません）。数字を目で確認してから、保存・確定してください。</div>
+      <textarea id="yn-import-code" style="width:100%;min-height:130px;padding:8px 10px;border:1px solid #d8cfc4;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.5" placeholder='ここに取り込みコードを貼り付け（{ で始まって } で終わる文字のかたまりです）'></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" style="background:#2563eb;color:#fff" onclick="ynImportFromCode()">この内容で ⏳仮カードを作る</button>
+        <button class="btn-sm" onclick="ynToggleImportPanel()">閉じる</button>
+        <span id="yn-import-err" style="font-size:12px;color:#dc2626;font-weight:700"></span>
       </div>
     </div>
     <div class="card">
@@ -2075,6 +2088,73 @@ function ynRenderBadges(){
   wrap.innerHTML = html;
 }
 
+/* ── ★2026-07-19 📥 Claudeのデータを取り込む（取り込みコード → ⏳仮カード） ── */
+function ynToggleImportPanel(){
+  const el = document.getElementById('yn-import-panel');
+  if(!el) return;
+  const opening = (el.style.display==='none' || !el.style.display);
+  el.style.display = opening ? 'block' : 'none';
+  const err = document.getElementById('yn-import-err'); if(err) err.textContent='';
+  if(opening){ const ta=document.getElementById('yn-import-code'); if(ta) ta.focus(); }
+}
+function ynImportFromCode(){
+  const err = document.getElementById('yn-import-err');
+  const ta = document.getElementById('yn-import-code');
+  const raw = ta ? (ta.value||'') : '';
+  function fail(msg){ if(err) err.textContent = '⚠️ ' + msg; }
+  let obj = null;
+  try{
+    const m = raw.match(/\{[\s\S]*\}/);
+    if(!m) throw new Error('no-json');
+    obj = JSON.parse(m[0]);
+  }catch(e){ fail('読み取れませんでした。コードを欠けなく、そのまま全部貼り付けてください（{ から } まで）'); return; }
+  if(!obj || typeof obj!=='object'){ fail('読み取れませんでした'); return; }
+  if(!obj.yearMonth){ fail('このコードには輸入年月（yearMonth）が入っていません。Claudeに作り直してもらってください'); return; }
+  if(!Array.isArray(obj.lines) || !obj.lines.length){ fail('このコードには商品明細（lines）が入っていません。Claudeに作り直してもらってください'); return; }
+  const farm = obj.farm || ynVal('yn-farm');
+  const exp = obj.exp || {};
+  function S(v){ return v==null ? '' : String(v); }
+  ynOldViewId = null;
+  ynCurrent = {
+    id:'note_'+Date.now(), kind:'note', farm:farm, status:'draft',
+    yearMonth:S(obj.yearMonth), exchangeRate:S(obj.exchangeRate),
+    invoiceNo:S(obj.invoiceNo), shipInvoiceNo:S(obj.shipInvoiceNo), blNo:S(obj.blNo),
+    lines: obj.lines.map(function(l){ return { sku:S(l.sku), eur:S(l.eur), qty:S(l.qty), g:S(l.g), ml:S(l.ml) }; }),
+    exp:{ airEur:S(exp.airEur), airDiscEur:S(exp.airDiscEur), airDiscMemo:S(exp.airDiscMemo),
+          taxImport:S(exp.taxImport), taxCustoms:S(exp.taxCustoms), taxOther:S(exp.taxOther),
+          sagawaAirport:S(exp.sagawaAirport), sagawaTransport:S(exp.sagawaTransport), warehouse:S(exp.warehouse),
+          otherJp:S(exp.otherJp), otherJpMemo:S(exp.otherJpMemo) },
+    adjEur:S(obj.adjEur), adjMemo:S(obj.adjMemo),
+    notes:S(obj.notes), pastOnly: obj.past===true ? true : undefined,
+    importedFromCode:true, createdAt:new Date().toISOString()
+  };
+  ynDirty = true; // まだ保存していない
+  const sel = document.getElementById('yn-farm');
+  if(sel){
+    const has = Array.from(sel.options).some(function(o){ return o.value===farm; });
+    if(!has){ const o=document.createElement('option'); o.value=farm; o.textContent=ynFarmLabel(farm); sel.appendChild(o); }
+    sel.value = farm;
+  }
+  ynToggleImportPanel();
+  if(ta) ta.value='';
+  ynRenderDetail(); ynRenderCards();
+  showSyncStatus('📥 取り込みました（⏳仮・まだ保存していません）。数字を確認して保存してください');
+}
+/* 過去の輸入を記録として確定する（今の原価データには一切触らない） */
+async function ynFixPast(){
+  if(!ynCurrent) return;
+  ynSync();
+  if(!ynCurrent.yearMonth){ alert('輸入年月を入れてください（例 2026-05）'); return; }
+  if(!confirm('この回を「過去記録」として確定しますか？\n\n・今の原価データには一切触りません\n・くらべる表や、これからの成績表の材料になります')) return;
+  ynCurrent.status = 'fixed';
+  ynCurrent.pastOnly = true;
+  ynCurrent.fixedAt = new Date().toISOString();
+  showSyncStatus('保存しています...');
+  const r = await ynPersist(ynCurrent);
+  if(r.ok){ ynDirty=false; showSyncStatus('✅ 過去記録として確定しました（原価データは変更していません）'); ynAllFromBatches(); ynRenderDetail(); ynRenderCards(); }
+  else { showSyncStatus('⚠️ '+r.msg, true); }
+}
+
 /* ── ノートを開く・新規 ── */
 function ynNewNote(){
   const farm = ynVal('yn-farm');
@@ -2161,7 +2241,7 @@ function ynRenderDetail(){
   let html = '<div class="card" style="margin-top:12px">';
   html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
     + '<span style="font-size:15px;font-weight:800">'+esc(ynFarmLabel(n.farm))+'　'+esc(n.yearMonth||'（年月未入力）')+'</span>'
-    + (fixed? '<span style="font-size:11px;background:#e1efe3;color:#166534;border:1px solid #4ade80;border-radius:99px;padding:3px 12px;font-weight:700">✅ 確定済み</span>'
+    + (fixed? '<span style="font-size:11px;background:#e1efe3;color:#166534;border:1px solid #4ade80;border-radius:99px;padding:3px 12px;font-weight:700">✅ 確定済み'+(n.pastOnly?'・過去記録（原価未反映）':'')+'</span>'
             : '<span style="font-size:11px;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:99px;padding:3px 12px;font-weight:700">⏳ 仮（参考原価）</span>')
     + '<span id="yn-dirty" style="font-size:12px;color:#dc2626"></span></div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">'
@@ -2230,7 +2310,8 @@ function ynRenderDetail(){
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">'
     + '<button class="btn btn-green" onclick="ynSave(false)">💾 保存する（'+(fixed?'確定のまま':'⏳仮のまま')+'）</button>'
     + (fixed? '<button class="btn-sm" onclick="ynUnfix()">⏳仮に戻す</button>'
-            : '<button class="btn" style="background:#2563eb;color:#fff" onclick="ynFix()">✅ 確定する → 原価データに反映</button>')
+            : '<button class="btn" style="background:#2563eb;color:#fff" onclick="ynFix()">✅ 確定する → 原価データに反映</button>'
+              + '<button class="btn-sm" onclick="ynFixPast()" title="今の原価データには一切触りません">🗄 過去記録として確定（原価は触らない）</button>')
     + '<button class="btn-sm" style="color:#b91c1c;margin-left:auto" onclick="ynDelete()">🗑 このノートを消す</button>'
     + '</div>';
   html += '</div>';
