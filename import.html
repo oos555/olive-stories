@@ -167,6 +167,11 @@ tr:last-child td{border-bottom:none}
       <div style="font-size:10.5px;color:#8a867c;margin-top:8px;line-height:1.7">※「佐川」には空港倉庫（引取）の分も含めています。「調整・値引き」は経費合計には入れず、商品ごとの原価に€の割合で配分しています。</div>
     </div>
     <div class="card">
+      <div class="sec">🏷️ 今の原価バッジ（いま、どの回の原価をつかっている？）</div>
+      <div style="font-size:11.5px;color:#57534e;margin-bottom:10px;line-height:1.7">商品ごとに、「🔒原価データ」に入っている今の原価が<strong>どの輸入回のものか</strong>を自動で照合しています。在庫Bで旧ロットが0本になったら、新しい回のカードを開いて「✅ 確定する」を押すと切り替わります。</div>
+      <div id="yn-badge-wrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px"></div>
+    </div>
+    <div class="card">
       <div class="sec">🗂 カード（書類リンク・メモ・数字の入力はこちらから）</div>
       <div id="yn-cards" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
     </div>
@@ -1020,6 +1025,7 @@ async function loadCostDataFromGAS(){
       renderProfitHeatmap();
       renderRateSimulation();
       renderNovelloNotes();
+      if(typeof ynRenderBadges==='function') ynRenderBadges();
     }
   }catch(err){}
 }
@@ -1040,6 +1046,7 @@ async function loadStockAndPriceRef(){
       currentLots = data.data.lots || data.data.stock || data.data.stockLots || currentLots || [];
       renderProfitHeatmap();
       renderRateSimulation();
+      if(typeof ynRenderBadges==='function') ynRenderBadges();
     }
   }catch(err){}
 }
@@ -1930,6 +1937,93 @@ function ynRenderCompare(){
     html += '</tr>';
   });
   html += '</tbody></table>';
+  wrap.innerHTML = html;
+  if(typeof ynRenderBadges==='function') ynRenderBadges();
+}
+
+/* ── ★2026-07-19 今の原価バッジ（いま、どの回の原価をつかっている？） ── */
+function ynOldLotQty(sku){
+  const pid = SKU_TO_PID[sku];
+  if(!pid || !currentLots || !currentLots.length) return null;
+  let found = false, q = 0;
+  currentLots.forEach(function(l){
+    if(!l || String(l.pid)!==String(pid)) return;
+    const st = String(l.status||'').toLowerCase();
+    if(st==='old' || st==='旧' || st==='旧ロット' || l.isOld===true || l.oldLot===true){
+      found = true; q += (parseFloat(l.stock)||0);
+    }
+  });
+  return found ? q : null; // 在庫Bに旧ロットの行が見つからないときは表示しない
+}
+function ynRenderBadges(){
+  const wrap = document.getElementById('yn-badge-wrap');
+  if(!wrap) return;
+  const farm = ynVal('yn-farm');
+  const cols = ynCompareCols(farm);
+  // くらべる表と同じ順番で、SKUのある商品だけ（原価データはSKUで管理されているため）
+  const skus = []; const seen = {};
+  (FARM_PRODUCTS[farm]||[]).forEach(function(p){
+    if(!p.sku || seen[p.sku]) return;
+    if(cols.some(function(c){ return c.costBySku[p.sku]!=null; })){ seen[p.sku]=1; skus.push(p.sku); }
+  });
+  cols.forEach(function(c){
+    Object.keys(c.costBySku).forEach(function(k){
+      if(String(k).indexOf('name:')===0 || seen[k]) return;
+      seen[k]=1; skus.push(k);
+    });
+  });
+  if(!skus.length){
+    wrap.innerHTML = '<div style="font-size:12px;color:#8a867c;padding:6px;grid-column:1/-1">この農園には、まだ原価を照合できる輸入記録がありません。</div>';
+    return;
+  }
+  let html = '';
+  skus.forEach(function(sku){
+    const name = ynCostRowLabel(sku, farm);
+    // 最新の（＝一番左の）この商品の原価がある回
+    let newest = null, match = null;
+    cols.forEach(function(c){
+      if(c.costBySku[sku]==null) return;
+      if(!newest) newest = c;
+    });
+    const rec = costData ? costData[sku] : null;
+    const cur = (rec && rec.cost!=null && rec.cost!=='') ? Math.round(parseFloat(rec.cost)||0) : null;
+    if(cur!=null){
+      cols.forEach(function(c){
+        if(match || c.costBySku[sku]==null) return;
+        if(Math.round(c.costBySku[sku])===cur) match = c;
+      });
+    }
+    let bg, border, badgeLine, subLines = [];
+    if(cur==null){
+      bg='#f7f5f0'; border='#d8cfc4';
+      badgeLine = '<span style="font-weight:800;color:#8a867c">原価データ未設定</span>';
+      if(newest) subLines.push('最新の回：'+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+'　'+ynFmt(newest.costBySku[sku]));
+    } else if(match && newest && match.id===newest.id){
+      bg='#f0f7ee'; border='#b7d3ac';
+      badgeLine = '<span style="font-weight:800;color:#166534">✅ '+esc(fmtYm(match.ym))+' に切り替え済み</span>';
+    } else if(match){
+      bg='#fffbeb'; border='#f59e0b';
+      badgeLine = '<span style="font-weight:800;color:#78350f">⏳ '+esc(fmtYm(match.ym))+' のまま</span>';
+      if(newest && newest.id!==match.id){
+        subLines.push('最新 '+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+' '+ynFmt(newest.costBySku[sku])+' が待機中');
+      }
+      const oldQ = ynOldLotQty(sku);
+      if(oldQ!=null){
+        if(oldQ<=0) subLines.push('<span style="color:#b91c1c;font-weight:800">🔔 旧ロットが0本 → 切り替えどきです</span>');
+        else subLines.push('旧ロット残 <strong>'+oldQ.toLocaleString()+'本</strong>（売り切ったら切り替え）');
+      }
+    } else {
+      bg='#eef4fb'; border='#bdd7ec';
+      badgeLine = '<span style="font-weight:800;color:#2c5578">✍ 手動の原価（どの回とも一致せず）</span>';
+      if(newest) subLines.push('最新の回：'+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+'　'+ynFmt(newest.costBySku[sku]));
+    }
+    html += '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:9px 11px">'
+      + '<div style="font-size:12.5px;font-weight:700;margin-bottom:4px">'+esc(name)+'</div>'
+      + '<div style="font-size:12px">'+badgeLine+'</div>'
+      + (cur!=null ? '<div style="font-size:12px;margin-top:3px">今の原価 <strong style="font-size:13.5px">'+ynFmt(cur)+'</strong></div>' : '')
+      + subLines.map(function(s){ return '<div style="font-size:11px;color:#57534e;margin-top:3px;line-height:1.6">'+s+'</div>'; }).join('')
+      + '</div>';
+  });
   wrap.innerHTML = html;
 }
 
