@@ -387,6 +387,7 @@ tr:last-child td{border-bottom:none}
           <div id="p5-rows"></div>
         </div>
         </div>
+        <div id="price-undo-area" style="margin-top:12px"></div>
         </div>
       </div>
     </div>
@@ -1566,6 +1567,56 @@ function showPriceGasBanner(fieldLabels){
   el.innerHTML = '⚠️ <strong>' + fieldLabels.join('・') + '</strong> の金額は、保存してもサーバー(GAS)側に残らない形になっているようです（読み直すと消えます）。<br>この画面を開いている間は入れた金額を覚えていて表示し続けますが、<strong>画面を閉じると消えます</strong>。次のチャットでClaudeに「GASの価格マスタの保存部分を見たい」と伝えてください（GASコードの修正が必要です）。';
 }
 const priceGasMissingFields = {}; // {label:1} 自己点検で「残らなかった」欄
+
+// ── ↩ 元に戻す（2026-07-19 追加）──────────────────────────────
+// 価格を反映するたびに「変える前の金額」を覚えておき、ワンタップで戻せるようにする。
+// 履歴はこのページを開いている間だけ（閉じると消える。金額そのものは保存済みのまま）。
+var priceUndoHistory = []; // {sku, name, tier, label, field, oldPrice, newPrice}
+function currentShownTierPrice(sku, field){
+  if(priceLocalEdits[sku] && priceLocalEdits[sku][field] != null) return parseFloat(priceLocalEdits[sku][field])||0;
+  var rec = priceRecForSku(sku);
+  return parseFloat(rec[field])||0;
+}
+function priceYenLabel(v){ return v>0 ? ('¥'+v.toLocaleString()) : '未設定'; }
+function renderPriceUndo(){
+  var area = document.getElementById('price-undo-area');
+  if(!area) return;
+  if(!priceUndoHistory.length){ area.innerHTML=''; return; }
+  var h = priceUndoHistory[0];
+  var html = '<div style="border:1.5px solid #97C459;border-radius:10px;background:#f2f8ea;padding:11px 12px">'+
+    '<div style="font-size:13.5px;font-weight:800;color:#27500A">反映しました：'+esc(h.name)+' の '+esc(h.label)+'</div>'+
+    '<div style="font-size:14px;color:#3B6D11;margin-top:2px">'+priceYenLabel(h.oldPrice)+' → <strong style="font-size:16px">'+priceYenLabel(h.newPrice)+'</strong></div>'+
+    '<button class="btn" style="margin-top:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700" onclick="revertPriceChange(0)">↩ 元に戻す（'+priceYenLabel(h.oldPrice)+' に戻して保存）</button>'+
+    '</div>';
+  if(priceUndoHistory.length > 1){
+    html += '<div style="font-size:12.5px;font-weight:700;color:#57534e;margin:10px 0 4px">このページで反映した履歴</div><table style="width:100%;border-collapse:collapse;font-size:13px">';
+    priceUndoHistory.forEach(function(x, i){
+      if(i===0) return;
+      html += '<tr style="border-top:1px solid #e7e2d6"><td style="padding:6px 4px">'+esc(x.name)+' ／ '+esc(x.label)+'</td>'+
+        '<td style="padding:6px 4px;text-align:right;color:#57534e">'+priceYenLabel(x.oldPrice)+' → '+priceYenLabel(x.newPrice)+'</td>'+
+        '<td style="padding:6px 4px;text-align:right"><button class="btn-sm" onclick="revertPriceChange('+i+')">元に戻す</button></td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '<div style="font-size:11px;color:#8a857c;margin-top:6px">戻すと、前の金額でサーバーにも保存し直します（履歴はこのページを開いている間だけ残ります）。</div>';
+  area.innerHTML = html;
+}
+function revertPriceChange(idx){
+  var h = priceUndoHistory[idx];
+  if(!h) return;
+  var msg = h.oldPrice>0
+    ? ('「'+h.name+'」の'+h.label+'を ¥'+h.oldPrice.toLocaleString()+' に戻して保存します。よろしいですか？')
+    : ('「'+h.name+'」の'+h.label+'を反映前の状態（未設定）に戻して保存します。よろしいですか？');
+  if(!confirm(msg)) return;
+  priceUndoHistory.splice(idx, 1);
+  showSyncStatus('元に戻しています...');
+  priceLocalEdits[h.sku] = priceLocalEdits[h.sku] || {};
+  priceLocalEdits[h.sku][h.field] = h.oldPrice;
+  var T = simTierByKey(h.tier);
+  priceSaveChain = priceSaveChain.then(function(){ return applyRateToTierNow(h.sku, T, h.oldPrice); });
+  renderPriceUndo();
+}
+
 async function applyRateToTier(sku, tier, price){
   const T = simTierByKey(tier);
   let ok;
@@ -1577,6 +1628,14 @@ async function applyRateToTier(sku, tier, price){
     ok = confirm('この商品の「'+T.label+'」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）');
   }
   if(!ok) return;
+  // ↩ 元に戻す用：変える前の金額をこのタイミングで記録（ページを開いている間だけ）
+  var beforePrice = currentShownTierPrice(sku, T.field);
+  if(Math.round(beforePrice) !== Math.round(price)){
+    var pInfo = allCostSkus().find(function(x){ return x.sku === sku; });
+    priceUndoHistory.unshift({ sku:sku, name:(pInfo && pInfo.name) || sku, tier:tier, label:T.label, field:T.field, oldPrice:beforePrice, newPrice:price });
+    if(priceUndoHistory.length > 20) priceUndoHistory.length = 20;
+    renderPriceUndo();
+  }
   showSyncStatus('保存しています...');
   // 控え帳に先に書く（順番待ちの間も画面から消えないように）
   priceLocalEdits[sku] = priceLocalEdits[sku] || {};

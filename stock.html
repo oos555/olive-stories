@@ -330,7 +330,7 @@ tr:last-child td{border-bottom:none}
         <th rowspan="2">管理番号</th>
         <th rowspan="2" style="color:#15803d;background:#eef6ee">販売可能数 <span class="help-ic" onclick="showHelp('avail')">ⓘ</span></th>
         <th rowspan="2">実在庫 <span class="help-ic" onclick="showHelp('stock')">ⓘ</span></th>
-        <th rowspan="2" style="color:#b45309">旧ロット <span class="help-ic" onclick="showHelp('old')">ⓘ</span></th>
+        <th rowspan="2" style="color:#b45309">旧ロット（A4） <span class="help-ic" onclick="showHelp('old')">ⓘ</span></th>
         <th colspan="3" style="text-align:center;background:#fceceb;color:#dc2626">不良 <span class="help-ic" onclick="showHelp('defect')">ⓘ</span></th>
         <th rowspan="2" style="color:#92400e">取置 <span class="help-ic" onclick="showHelp('hold')">ⓘ</span></th>
         <th rowspan="2" style="border-left:1px solid #e2ddd2">廃棄 <span class="help-ic" onclick="showHelp('discard')">ⓘ</span></th>
@@ -353,6 +353,22 @@ tr:last-child td{border-bottom:none}
     <div style="font-size:13px;color:#2b2a26;line-height:1.7">ロットごとの数直し・新しいロットの登録は<br><strong>「ロット管理」タブ</strong>にまとめました。</div>
     <button class="btn-primary btn" style="margin-top:10px;background:#6b7a3a" onclick="(function(){var lb=document.querySelectorAll('.tab-row .tab')[1];if(lb)showPanel('lot',lb);})()">ロット管理タブを開く →</button>
   </div>
+
+  <!-- 2026-07-19 一括入れ替え（1回だけ使う臨時ツール）：ゆかさんの棚卸し表の数字で在庫を全部入れ替える -->
+  <details id="bulk-replace-box" style="margin-top:14px;border:1px solid #d9d4c8;border-radius:10px;background:#fff;overflow:hidden">
+    <summary style="cursor:pointer;padding:12px 14px;font-size:14px;font-weight:800;color:#fff;background:#6b7a3a;list-style:none">📥 在庫一括入れ替え（2026-07-19 棚卸し・1回だけ使う臨時ボタン）（タップで開く）</summary>
+    <div style="padding:14px">
+      <div style="font-size:13.5px;color:#2b2a26;line-height:1.9">
+        押すと、次のことが<strong>1回で</strong>行われます：<br>
+        ① 今の<strong>実在庫・旧ロット・不良・輸入予定を全部消す</strong><br>
+        ② ゆかさんの棚卸し表（2026-07-19）の数字を入れ直す<br>
+        ③ A4ロットは<strong>旧ロット</strong>として登録（賞味期限つき）<br>
+        <span style="color:#8a5a12">※ 取り置き・予約はそのまま残ります。0本の行は登録しません。オルガニック250mlは表の通り−12で入ります。</span>
+      </div>
+      <div id="bulk-replace-check" style="font-size:13px;color:#dc2626;font-weight:700;margin-top:8px"></div>
+      <button class="btn" style="margin-top:10px;width:100%;background:#2563eb;color:#fff;font-weight:800;font-size:15px;padding:12px" onclick="doBulkReplace()">この表の数字で入れ替える（確認が2回出ます）</button>
+    </div>
+  </details>
 </div>
 
 <!-- ロット管理 -->
@@ -810,6 +826,97 @@ function saveAllDataToGAS(){
 function addLog(type, text){
   invLogs.unshift({ id: nextId(), ts: new Date().toISOString(), type: type, text: text });
   if(invLogs.length>300) invLogs.length = 300;
+}
+
+// ── 2026-07-19 在庫一括入れ替え（ゆかさんの棚卸し表・1回だけ使う臨時ツール） ──
+// st:'new'=正規 / 'old'=旧ロット。0本の行は入れない。ORG250は表の通り−12。
+var OOS_BULK_ROWS = [
+  {sku:'ORG100', lot:'A5', exp:'2027.11', qty:526, st:'new'},
+  {sku:'ORG250', lot:'A5', exp:'2027.11', qty:-12, st:'new'},
+  {sku:'ORG500', lot:'A5', exp:'2027.11', qty:11,  st:'new'},
+  {sku:'ORG750', lot:'A5', exp:'2027.11', qty:12,  st:'new'},
+  {sku:'ORG2L',  lot:'A5', exp:'2027.11', qty:36,  st:'new'},
+  {sku:'ORG5L',  lot:'A5', exp:'2027.11', qty:14,  st:'new'},
+  {sku:'MEM100', lot:'A5', exp:'2027.11', qty:521, st:'new'},
+  {sku:'MEM250', lot:'A5', exp:'2027.11', qty:109, st:'new'},
+  {sku:'MEM500', lot:'A5', exp:'2027.11', qty:63,  st:'new'},
+  {sku:'MEM2L',  lot:'A5', exp:'2027.11', qty:48,  st:'new'},
+  {sku:'MEM5L',  lot:'A5', exp:'2027.11', qty:8,   st:'new'},
+  {sku:'CHF100', lot:'A5', exp:'2027.11', qty:520, st:'new'},
+  {sku:'CHF250', lot:'A5', exp:'2027.11', qty:44,  st:'new'},
+  {sku:'PRI100', lot:'A5', exp:'2027.11', qty:20,  st:'new'},
+  {sku:'PRI250', lot:'A5', exp:'2027.11', qty:61,  st:'new'},
+  {sku:'PRI500', lot:'A5', exp:'2027.11', qty:202, st:'new'},
+  {sku:'PRI3L',  lot:'A5', exp:'2027.11', qty:3,   st:'new'},
+  {sku:'ZAI250', lot:'A5', exp:'2027.11', qty:8,   st:'new'},
+  {sku:'ZAI500', lot:'A5', exp:'2027.11', qty:1,   st:'new'},
+  {sku:'AGR100', lot:'A5', exp:'2027.11', qty:186, st:'new'},
+  {sku:'AGR250', lot:'A5', exp:'2027.11', qty:167, st:'new'},
+  {sku:'AGR3L',  lot:'A5', exp:'2027.11', qty:12,  st:'new'},
+  {sku:'TGR100', lot:'A5', exp:'2027.11', qty:57,  st:'new'},
+  {sku:'ORG500', lot:'A4', exp:'2026.12', qty:39,  st:'old'},
+  {sku:'MEM500', lot:'A4', exp:'2026.12', qty:22,  st:'old'},
+  {sku:'MEM2L',  lot:'A4', exp:'2026.12', qty:3,   st:'old'},
+  {sku:'CHF250', lot:'A4', exp:'2026.7',  qty:2,   st:'old'},
+  {sku:'CHF250', lot:'A4', exp:'2026.12', qty:2,   st:'old'},
+  {sku:'CHF2L',  lot:'A4', exp:'2026.12', qty:2,   st:'old'},
+  {sku:'BOX-CUP', lot:'-', exp:'', qty:155, st:'new'},
+  {sku:'BOX-YS3', lot:'-', exp:'', qty:220, st:'new'},
+  {sku:'BAG001',  lot:'-', exp:'', qty:18,  st:'new'},
+  {sku:'BAG002',  lot:'-', exp:'', qty:58,  st:'new'},
+  {sku:'MISC001', lot:'-', exp:'', qty:67,  st:'new'},
+  {sku:'MISC002', lot:'-', exp:'', qty:56,  st:'new'},
+  {sku:'MISC003', lot:'-', exp:'', qty:23,  st:'new'},
+  {sku:'CAS5L',   lot:'-', exp:'', qty:8,   st:'new'}
+];
+function doBulkReplace(){
+  var checkEl = document.getElementById('bulk-replace-check');
+  if(checkEl) checkEl.textContent = '';
+  // ① 商品マスタに全SKUがあるか先に確認（無ければ何もしない）
+  var missing = [];
+  OOS_BULK_ROWS.forEach(function(r){ if(!findProductBySku(r.sku)) missing.push(r.sku); });
+  if(missing.length){
+    var msg = '先に商品マスタシートに次の商品を追加してください：' + missing.join('、') + '（追加したらこのページを開き直して、もう一度押してください）';
+    if(checkEl) checkEl.textContent = '⚠️ ' + msg;
+    alert('まだ実行していません。\n\n' + msg);
+    return;
+  }
+  if(!gasSyncEnabled){ alert('サーバー同期がOFFのため実行できません。'); return; }
+  // ② 2段階確認
+  if(!confirm('今の在庫（実在庫・旧ロット・不良・輸入予定）を全部消して、ゆかさんの棚卸し表（2026-07-19）の数字に入れ替えます。\n取り置き・予約はそのまま残ります。\n\n実行しますか？')) return;
+  if(!confirm('もう一度確認です。この操作は元に戻せません。\n本当に実行しますか？')) return;
+  // ③ 新しいロット一覧を組み立てる
+  var ts = Date.now();
+  var newLots = OOS_BULK_ROWS.map(function(r, i){
+    var p = findProductBySku(r.sku);
+    return { id:'BR'+ts+'-'+i, pid:parseInt(p.id), lotCode:r.lot, expiry:r.exp, stock:r.qty, status:r.st, note:'2026-07-19 棚卸し一括入れ替え' };
+  });
+  // ④ 丸ごと置き換えて保存（不良・不良取り置きも空にする。通常保存のマージは使わない）
+  lots = newLots; defects = []; defectHolds = [];
+  function withPN(x){ var p = findProduct(x.pid); return Object.assign({}, x, {productName: p ? p.name : ''}); }
+  var payload = { lots: lots.map(withPN), defects: [], defectHolds: [], defectCategories: defectCategories };
+  var btn = document.querySelector('#bulk-replace-box button');
+  if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
+  fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.status==='ok'){
+        snapshotStockBaseline();
+        addLog('bulk', '棚卸し一括入れ替え（2026-07-19・'+newLots.length+'ロット）');
+        renderInvTable(); renderLotList(); renderDefectGroups(); renderDefectHistory();
+        if(typeof renderCatSummary==='function') renderCatSummary();
+        showSyncStatus('✅ 一括入れ替えを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+        alert('✅ 入れ替えが終わりました。\n在庫一覧で数字を確認してください。');
+        if(btn){ btn.textContent = '✅ 入れ替え済み（2026-07-19）'; }
+      } else {
+        alert('⚠️ 保存エラー：' + ((d&&d.message)||'不明なエラー') + '\nサーバーには保存されていません。ページを開き直してください（元の在庫に戻ります）。');
+        if(btn){ btn.disabled = false; btn.textContent = 'この表の数字で入れ替える（確認が2回出ます）'; }
+      }
+    })
+    .catch(function(){
+      alert('⚠️ 接続エラー（オフライン？）。ページを開き直して、もう一度試してください。');
+      if(btn){ btn.disabled = false; btn.textContent = 'この表の数字で入れ替える（確認が2回出ます）'; }
+    });
 }
 
 // ── 取り置き（holds）はアプリAの「取り置き中の注文」から組み立てる ──────────
