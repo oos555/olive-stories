@@ -133,13 +133,27 @@ tr:last-child td{border-bottom:none}
 
 <div id="unlocked-view" style="display:none">
   <div class="tab-row">
-    <button class="tab active" onclick="showPanel('new',this)">輸入を記録する</button>
-    <button class="tab" onclick="showPanel('history',this)">輸入履歴・年次比較</button>
+    <button class="tab active" onclick="showPanel('note',this)">📦 輸入ノート</button>
+    <button class="tab" onclick="showPanel('new',this)" style="display:none">輸入を記録する</button>
+    <button class="tab" onclick="showPanel('history',this)" style="display:none">輸入履歴・年次比較</button>
     <button class="tab" onclick="showPanel('cost',this)" style="color:#b91c1c">🔒原価データ</button>
   </div>
 
   <!-- 新規輸入記録 -->
-  <div id="panel-new" class="panel active">
+  <div id="panel-note" class="panel active">
+    <div class="info-box">📦 <strong>輸入ノート</strong>：輸入のたびにカードが1枚増えていきます。カードを開くと、書類の数字を入れる場所（⏳仮 → ✅確定）。<strong>確定して中村様がOKを押した瞬間だけ</strong>、原価データに反映されます。<a href="genka-manual.html" target="_blank" style="color:#6b7a3a;font-weight:700">❓ 原価のしくみ（説明書）</a></div>
+    <div id="yn-gas-banner" style="display:none;background:#fdf0d8;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:12px;color:#78350f;margin-bottom:10px"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-size:14px;font-weight:800">農園：</span>
+        <select id="yn-farm" onchange="ynRenderCards()" style="font-size:14px;padding:6px 10px;border:1px solid #d8cfc4;border-radius:8px"></select>
+        <button class="btn btn-primary" style="margin-left:auto" onclick="ynNewNote()">＋ 新しい輸入を登録</button>
+      </div>
+      <div id="yn-cards" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
+    </div>
+    <div id="yn-detail" style="display:none"></div>
+  </div>
+  <div id="panel-new" class="panel">
     <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、「🔒原価データ」タブにも自動反映されます</strong>。</div>
     <div class="card" style="background:#fef3c7;border-color:#f59e0b">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#78350f">
@@ -557,6 +571,7 @@ async function autoUnlock(pw){
       if(typeof loadStockAndPriceRef === 'function') loadStockAndPriceRef();
       loadCostDataFromGAS();
       initializeProductsE();
+      if(typeof ynInitPanel==='function') ynInitPanel();
     } else {
       // パスワードが違う（古い/誤った鍵）→ 画面（ガワ）も見せず、鍵を消してロック画面へ戻す
       oosClearUnlock('secret');
@@ -583,13 +598,14 @@ function showPanel(name, btn){
   if(currentActive && currentActive.id==='panel-cost' && name!=='cost' && costDataDirty){
     if(!confirm('原価データの変更を保存していませんが、大丈夫ですか？\n（「キャンセル」を押すと、原価データの画面のままになります）')) return;
     costDataDirty = false;
-    document.getElementById('cost-dirty-indicator').textContent = '';
+    { var _cdi2 = document.getElementById('cost-dirty-indicator'); if(_cdi2) _cdi2.textContent = ''; }
   }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='history') renderHistory();
+  if(name==='note') ynInitPanel();
   if(name==='cost'){ renderCostProductTable(); renderProfitHeatmap(); renderRateSimulation(); renderNovelloNotes(); }
 }
 
@@ -1592,6 +1608,365 @@ function esc(s){ return (s==null?'':String(s)); }
 window.addEventListener('beforeunload', function(e){
   if(dirty || costDataDirty){ e.preventDefault(); e.returnValue = ''; }
 });
+
+/* ══════ ★2026-07-19 輸入ノート（輸入記録・輸入履歴・年次比較を1つに統合） ══════
+   保存先：既存の saveImportBatch / getImportData（輸入記録と同じ入れ物）。
+   ノートは kind:'note' 付きのバッチとして保存する。旧記録(kindなし)もカードとして読み出し表示。
+   確定時のみ、計算した1本あたり原価を costData に合成して saveCostData（既存アクション）で保存。
+   GASが新項目を保存できるかは保存後の読み直しで自己点検し、欠けるならバナーで知らせる。 */
+let ynNotes = [];            // kind:'note' のバッチ
+let ynCurrent = null;        // 開いているノート
+let ynDirty = false;
+
+function ynAllFromBatches(){
+  ynNotes = (importBatches||[]).filter(function(b){ return b && b.kind==='note'; });
+}
+function ynFarms(){
+  const seen = {}; const list = [];
+  Object.keys(FARM_LABEL||{}).forEach(function(k){ if(!seen[k]){seen[k]=1; list.push(k);} });
+  (importBatches||[]).forEach(function(b){ if(b && b.farm && !seen[b.farm]){ seen[b.farm]=1; list.push(b.farm); } });
+  return list;
+}
+function ynFarmLabel(f){ return (FARM_LABEL && FARM_LABEL[f]) || f; }
+function ynInitPanel(){
+  const sel = document.getElementById('yn-farm');
+  if(!sel) return;
+  ynAllFromBatches();
+  if(!sel.options.length){
+    ynFarms().forEach(function(f){
+      const o = document.createElement('option'); o.value=f; o.textContent=ynFarmLabel(f); sel.appendChild(o);
+    });
+  }
+  ynRenderCards();
+}
+function ynFmt(n){ return '¥'+Math.round(n).toLocaleString(); }
+function ynNum(id){ const el=document.getElementById(id); return el? (parseFloat(el.value)||0) : 0; }
+function ynVal(id){ const el=document.getElementById(id); return el? el.value : ''; }
+
+/* ── カードの帯（＝年次比較） ── */
+function ynRenderCards(){
+  const wrap = document.getElementById('yn-cards');
+  if(!wrap) return;
+  const farm = ynVal('yn-farm');
+  ynAllFromBatches();
+  const notes = ynNotes.filter(function(n){ return n.farm===farm; });
+  const olds = (importBatches||[]).filter(function(b){ return b && b.kind!=='note' && b.farm===farm; });
+  const cards = notes.map(function(n){ return {t:'note', ym:n.yearMonth||'', o:n}; })
+    .concat(olds.map(function(b){ return {t:'old', ym:b.yearMonth||'', o:b}; }));
+  cards.sort(function(a,b){ return String(a.ym).localeCompare(String(b.ym)); });
+  let prevRate = null;
+  let html = '';
+  cards.forEach(function(c){
+    const o = c.o;
+    const rate = parseFloat(o.exchangeRate)||0;
+    let rateHint = '';
+    if(prevRate && rate){ const d = rate - prevRate; if(Math.abs(d)>=0.005) rateHint = ' <span style="font-size:10px;color:'+(d>0?'#991b1b':'#166534')+'">'+(d>0?'🔺+':'🔻')+d.toFixed(2)+'</span>'; }
+    if(rate) prevRate = rate;
+    const isNote = (c.t==='note');
+    const fixed = isNote ? (o.status==='fixed') : true;
+    const badge = isNote ? (fixed? '<span style="font-size:10px;background:#e1efe3;color:#166534;border-radius:99px;padding:2px 8px;font-weight:700">✅ 確定</span>'
+                                  : '<span style="font-size:10px;background:#fef3c7;color:#78350f;border-radius:99px;padding:2px 8px;font-weight:700">⏳ 仮</span>')
+                         : '<span style="font-size:10px;background:#eeece6;color:#57534e;border-radius:99px;padding:2px 8px;font-weight:700">旧記録</span>';
+    const lines = isNote ? (o.lines||[]) : (o.items||[]);
+    const bottles = lines.reduce(function(t,l){ return t + (parseFloat(l.qty!=null?l.qty:l.bottles)||0); }, 0);
+    const eurTotal = isNote ? lines.reduce(function(t,l){ return t + (parseFloat(l.eur)||0)*(parseFloat(l.qty)||0); }, 0) : 0;
+    const open = isNote ? ("ynOpenNote('"+o.id+"')") : ("ynOpenOld('"+o.id+"')");
+    const cur = (ynCurrent && ynCurrent.id===o.id);
+    html += '<div style="min-width:168px;background:'+(cur?'#fffdf6':'#fff')+';border:'+(cur?'2px solid #f59e0b':'1px solid #e8e2d8')+';border-radius:10px;padding:10px;cursor:pointer" onclick="'+open+'">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800">'+esc(c.ym||'年月未入力')+'</span>'+badge+'</div>'
+      + '<div style="font-size:11.5px;color:#57534e;margin-top:6px;line-height:1.7">'
+      + (rate? ('1€＝'+rate+'円'+rateHint+'<br>') : '')
+      + (eurTotal? ('€'+Math.round(eurTotal).toLocaleString()+'・') : '') + bottles.toLocaleString()+'本'
+      + '</div></div>';
+  });
+  if(!html) html = '<div style="font-size:12px;color:#8a867c;padding:10px">この農園の記録はまだありません。「＋ 新しい輸入を登録」からどうぞ。</div>';
+  wrap.innerHTML = html;
+}
+function ynOpenOld(id){
+  const b = (importBatches||[]).find(function(x){ return x.id===id; });
+  if(!b) return;
+  alert('これは旧「輸入を記録する」で作った記録です（読み取り専用）。\n\n農園：'+ynFarmLabel(b.farm)+'\n輸入年月：'+(b.yearMonth||'')+'\n1€＝'+(b.exchangeRate||'?')+'円\n商品数：'+((b.items||[]).length)+'\n\n新しい形で管理したい場合は「＋ 新しい輸入を登録」で作り直してください（数字は見ながら写せます）。');
+}
+
+/* ── ノートを開く・新規 ── */
+function ynNewNote(){
+  const farm = ynVal('yn-farm');
+  ynCurrent = { id:'note_'+Date.now(), kind:'note', farm:farm, status:'draft', yearMonth:'', exchangeRate:'',
+    invoiceNo:'', shipInvoiceNo:'', blNo:'',
+    lines:[], exp:{ airEur:'', airDiscEur:'', airDiscMemo:'', taxImport:'', taxCustoms:'', taxOther:'', sagawaAirport:'', sagawaTransport:'', warehouse:'', otherJp:'', otherJpMemo:'' },
+    adjEur:'', adjMemo:'', notes:'', createdAt:new Date().toISOString() };
+  ynAddLine(); ynAddLine(); ynAddLine();
+  ynRenderDetail(); ynRenderCards();
+}
+function ynOpenNote(id){
+  ynAllFromBatches();
+  const n = ynNotes.find(function(x){ return x.id===id; });
+  if(!n) return;
+  ynCurrent = JSON.parse(JSON.stringify(n));
+  if(!ynCurrent.exp) ynCurrent.exp = {};
+  if(!ynCurrent.lines) ynCurrent.lines = [];
+  ynRenderDetail(); ynRenderCards();
+}
+function ynAddLine(){
+  if(!ynCurrent) return;
+  ynCurrent.lines.push({ sku:'', eur:'', qty:'', g:'', ml:'' });
+  if(document.getElementById('yn-detail') && document.getElementById('yn-detail').style.display!=='none') ynRenderDetail();
+}
+function ynProductOptions(sel){
+  let list = [];
+  if(OOS_PRODUCTS && OOS_PRODUCTS.length){ list = OOS_PRODUCTS.filter(isProductActiveE).map(function(p){ return {sku:p.sku, name:p.name}; }); }
+  else { list = allCostSkus(); }
+  let html = '<option value="">— 商品 —</option>';
+  list.forEach(function(p){ html += '<option value="'+esc(p.sku)+'"'+(p.sku===sel?' selected':'')+'>'+esc(p.name)+'</option>'; });
+  return html;
+}
+function ynPrevNote(){
+  if(!ynCurrent) return null;
+  const list = ynNotes.filter(function(n){ return n.farm===ynCurrent.farm && n.id!==ynCurrent.id && String(n.yearMonth||'') < String(ynCurrent.yearMonth||'9999'); });
+  list.sort(function(a,b){ return String(b.yearMonth||'').localeCompare(String(a.yearMonth||'')); });
+  return list[0] || null;
+}
+
+/* ── 計算（説明書と同じ式） ── */
+function ynCalc(n){
+  const R = parseFloat(n.exchangeRate)||0;
+  const e = n.exp||{};
+  const airEur = (parseFloat(e.airEur)||0) - (parseFloat(e.airDiscEur)||0);
+  const airJpy = airEur * R;
+  const taxTotal = (parseFloat(e.taxImport)||0) + (parseFloat(e.taxCustoms)||0) + (parseFloat(e.taxOther)||0);
+  const domestic = (parseFloat(e.sagawaAirport)||0) + (parseFloat(e.sagawaTransport)||0) + (parseFloat(e.warehouse)||0) + (parseFloat(e.otherJp)||0);
+  const adjJpy = (parseFloat(n.adjEur)||0) * R; // マイナスで入力
+  let totalG=0, totalMl=0, eurQty=0;
+  (n.lines||[]).forEach(function(l){
+    const q = parseFloat(l.qty)||0;
+    totalG += q * (parseFloat(l.g)||0);
+    totalMl += q * (parseFloat(l.ml)||0);
+    eurQty += q * (parseFloat(l.eur)||0);
+  });
+  const perG = totalG>0 ? airJpy/totalG : 0;
+  const perMl = totalMl>0 ? domestic/totalMl : 0;
+  const out = { R:R, airJpy:airJpy, taxTotal:taxTotal, domestic:domestic, adjJpy:adjJpy, totalG:totalG, totalMl:totalMl, eurQty:eurQty, perG:perG, perMl:perMl, lines:[] };
+  (n.lines||[]).forEach(function(l){
+    const q = parseFloat(l.qty)||0, eur = parseFloat(l.eur)||0, g = parseFloat(l.g)||0, ml = parseFloat(l.ml)||0;
+    if(q<=0 || eur<=0){ out.lines.push({sku:l.sku, skip:true, qty:q}); return; }
+    const share = eurQty>0 ? (eur*q)/eurQty : 0;
+    const cost = eur*R + g*out.perG + (q>0? taxTotal*share/q : 0) + ml*out.perMl + (q>0? adjJpy*share/q : 0);
+    out.lines.push({sku:l.sku, skip:false, qty:q, cost:Math.round(cost)});
+  });
+  return out;
+}
+
+/* ── 詳細画面 ── */
+function ynField(label, id, val, w, ph){
+  return '<div><div style="font-size:11px;color:#57534e">'+label+'</div><input id="'+id+'" value="'+esc(val==null?'':val)+'"'+(ph?(' placeholder="'+ph+'"'):'')+' oninput="ynSync()" style="width:'+(w||'100%')+';padding:5px 7px;border:1px solid #d8cfc4;border-radius:6px;font-size:13px;font-weight:700"></div>';
+}
+function ynRenderDetail(){
+  const box = document.getElementById('yn-detail');
+  if(!box || !ynCurrent){ if(box) box.style.display='none'; return; }
+  const n = ynCurrent;
+  const fixed = n.status==='fixed';
+  const prev = ynPrevNote();
+  const prevBySku = {};
+  if(prev) (prev.lines||[]).forEach(function(l){ prevBySku[l.sku]=l; });
+  const c = ynCalc(n);
+  let html = '<div class="card" style="margin-top:12px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span style="font-size:15px;font-weight:800">'+esc(ynFarmLabel(n.farm))+'　'+esc(n.yearMonth||'（年月未入力）')+'</span>'
+    + (fixed? '<span style="font-size:11px;background:#e1efe3;color:#166534;border:1px solid #4ade80;border-radius:99px;padding:3px 12px;font-weight:700">✅ 確定済み</span>'
+            : '<span style="font-size:11px;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:99px;padding:3px 12px;font-weight:700">⏳ 仮（参考原価）</span>')
+    + '<span id="yn-dirty" style="font-size:12px;color:#dc2626"></span></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">'
+    + ynField('輸入年月（例 2026-05）','yn-ym',n.yearMonth)
+    + ynField('為替レート（1€＝円）','yn-rate',n.exchangeRate)
+    + ynField('商品インボイスNo','yn-inv',n.invoiceNo)
+    + ynField('輸送インボイスNo','yn-shipinv',n.shipInvoiceNo)
+    + ynField('BL番号','yn-bl',n.blNo) + '</div>';
+
+  /* 経費 */
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-bottom:10px">';
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">✈️ 空輸（€）→ 重さで配る</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+    + ynField('空輸費（€）','yn-air',n.exp.airEur)
+    + ynField('値引き（€）','yn-airdisc',n.exp.airDiscEur)
+    + '</div>' + ynField('値引きの理由メモ','yn-airdiscmemo',n.exp.airDiscMemo,'100%','例：ラベル破損の補償')
+    + '<div style="font-size:11px;color:#57534e;margin-top:4px">＝ '+ynFmt(c.airJpy)+'（1gあたり ¥'+(c.perG?c.perG.toFixed(3):'—')+'）</div></div>';
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">🏛 税金（円）→ €金額で配る</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'
+    + ynField('輸入消費税','yn-taximp',n.exp.taxImport)
+    + ynField('関税','yn-taxcus',n.exp.taxCustoms,'100%','通常0')
+    + ynField('その他','yn-taxoth',n.exp.taxOther)
+    + '</div><div style="font-size:11px;color:#57534e;margin-top:4px">合計 '+ynFmt(c.taxTotal)+'</div></div>';
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">🚚 国内経費（円）→ mlで配る</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+    + ynField('佐川（空港倉庫）','yn-sagawaair',n.exp.sagawaAirport)
+    + ynField('佐川（輸送）','yn-sagawatr',n.exp.sagawaTransport)
+    + ynField('倉庫','yn-wh',n.exp.warehouse)
+    + ynField('その他（円）','yn-otherjp',n.exp.otherJp)
+    + '</div>' + ynField('メモ（折半など）','yn-otherjpmemo',n.exp.otherJpMemo,'100%','例：mozaicatoと折半')
+    + '<div style="font-size:11px;color:#57534e;margin-top:4px">合計 '+ynFmt(c.domestic)+'（1mlあたり ¥'+(c.perMl?c.perMl.toFixed(2):'—')+'）</div></div>';
+  html += '<div style="background:#fdf6ec;border:1px solid #e8d9bc;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#78350f;margin-bottom:6px">➖ 調整・値引き（€・マイナスで入力）→ €金額で配る</div>'
+    + '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px">'
+    + ynField('金額（€）','yn-adj',n.adjEur,'100%','例：-1486')
+    + ynField('理由メモ（必ず書く）','yn-adjmemo',n.adjMemo,'100%','例：オリオサント様補償 25万円+税')
+    + '</div><div style="font-size:11px;color:#57534e;margin-top:4px">＝ '+ynFmt(c.adjJpy)+'</div></div>';
+  html += '</div>';
+
+  /* 明細 */
+  html += '<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:4px">🫒 商品明細（0本のまま残すと「今回は見送り」の記録になります）</div>';
+  html += '<div style="overflow-x:auto"><table style="min-width:680px;font-size:12px"><thead><tr>'
+    + '<th>商品</th><th style="text-align:right">€単価<br><span style="font-weight:400;font-size:9px">🟡前回</span></th><th style="text-align:right">本数<br><span style="font-weight:400;font-size:9px">🟡前回</span></th><th style="text-align:right">1本の重さg<br><span style="font-weight:400;font-size:9px">パッキングリスト</span></th><th style="text-align:right">ml</th><th style="text-align:right;background:#eef7ef">本当の原価</th></tr></thead><tbody>';
+  (n.lines||[]).forEach(function(l, i){
+    const p = prevBySku[l.sku];
+    const cl = c.lines[i]||{};
+    const q = parseFloat(l.qty)||0;
+    html += '<tr>'
+      + '<td style="min-width:170px"><select onchange="ynLineSku('+i+',this.value)" style="width:100%;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-size:12px">'+ynProductOptions(l.sku)+'</select></td>'
+      + '<td style="text-align:right"><input value="'+esc(l.eur)+'" oninput="ynLine('+i+',\'eur\',this.value)" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700">'+(p&&p.eur?('<div style="font-size:10px;color:#57534e">🟡'+p.eur+'</div>'):'')+'</td>'
+      + '<td style="text-align:right"><input value="'+esc(l.qty)+'" oninput="ynLine('+i+',\'qty\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700">'+(p&&p.qty?('<div style="font-size:10px;color:#57534e">🟡'+p.qty+'</div>'):'')+'</td>'
+      + '<td style="text-align:right"><input value="'+esc(l.g)+'" oninput="ynLine('+i+',\'g\',this.value)" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
+      + '<td style="text-align:right"><input value="'+esc(l.ml)+'" oninput="ynLine('+i+',\'ml\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
+      + '<td style="text-align:right;background:#eef7ef;font-weight:800" id="yn-cost-'+i+'">'+(cl.skip? (q<=0?'<span style="font-size:10px;background:#f0ede6;border-radius:4px;padding:1px 6px;color:#8a867c">見送り</span>':'—') : ynFmt(cl.cost))+'</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<button class="btn-sm" onclick="ynAddLine()" style="margin-top:6px">＋ 行を追加</button>';
+
+  /* 集計とボタン */
+  html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12px">'
+    + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">総重量 <strong id="yn-s-g">'+(c.totalG?((c.totalG/1000).toFixed(1)+' kg'):'—')+'</strong></div>'
+    + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">総量 <strong id="yn-s-ml">'+(c.totalMl?c.totalMl.toLocaleString()+' ml':'—')+'</strong></div>'
+    + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">商品計 <strong id="yn-s-eur">€'+Math.round(c.eurQty).toLocaleString()+'</strong></div>'
+    + '</div>';
+  html += ynField('この輸入のメモ','yn-notes',n.notes);
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">'
+    + '<button class="btn btn-green" onclick="ynSave(false)">💾 保存する（'+(fixed?'確定のまま':'⏳仮のまま')+'）</button>'
+    + (fixed? '<button class="btn-sm" onclick="ynUnfix()">⏳仮に戻す</button>'
+            : '<button class="btn" style="background:#2563eb;color:#fff" onclick="ynFix()">✅ 確定する → 原価データに反映</button>')
+    + '<button class="btn-sm" style="color:#b91c1c;margin-left:auto" onclick="ynDelete()">🗑 このノートを消す</button>'
+    + '</div>';
+  html += '</div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+function ynLineSku(i, sku){
+  if(!ynCurrent) return; ynCurrent.lines[i].sku = sku;
+  const name = (function(){ const p=(OOS_PRODUCTS||[]).find(function(x){return x.sku===sku;}); return p? p.name : sku; })();
+  const ml = mlFromName_(name||'');
+  if(ml && !parseFloat(ynCurrent.lines[i].ml)) ynCurrent.lines[i].ml = ml;
+  ynMarkDirty(); ynRenderDetail();
+}
+function ynLine(i, key, v){ if(!ynCurrent) return; ynCurrent.lines[i][key] = v; ynMarkDirty(); ynRecalcInline(); }
+function ynSync(){
+  if(!ynCurrent) return;
+  ynCurrent.yearMonth = ynVal('yn-ym'); ynCurrent.exchangeRate = ynVal('yn-rate');
+  ynCurrent.invoiceNo = ynVal('yn-inv'); ynCurrent.shipInvoiceNo = ynVal('yn-shipinv'); ynCurrent.blNo = ynVal('yn-bl');
+  ynCurrent.exp.airEur = ynVal('yn-air'); ynCurrent.exp.airDiscEur = ynVal('yn-airdisc'); ynCurrent.exp.airDiscMemo = ynVal('yn-airdiscmemo');
+  ynCurrent.exp.taxImport = ynVal('yn-taximp'); ynCurrent.exp.taxCustoms = ynVal('yn-taxcus'); ynCurrent.exp.taxOther = ynVal('yn-taxoth');
+  ynCurrent.exp.sagawaAirport = ynVal('yn-sagawaair'); ynCurrent.exp.sagawaTransport = ynVal('yn-sagawatr'); ynCurrent.exp.warehouse = ynVal('yn-wh');
+  ynCurrent.exp.otherJp = ynVal('yn-otherjp'); ynCurrent.exp.otherJpMemo = ynVal('yn-otherjpmemo');
+  ynCurrent.adjEur = ynVal('yn-adj'); ynCurrent.adjMemo = ynVal('yn-adjmemo'); ynCurrent.notes = ynVal('yn-notes');
+  ynMarkDirty(); ynRecalcInline();
+}
+function ynRecalcInline(){
+  if(!ynCurrent) return;
+  const c = ynCalc(ynCurrent);
+  c.lines.forEach(function(cl, i){
+    const el = document.getElementById('yn-cost-'+i);
+    if(!el) return;
+    const q = parseFloat((ynCurrent.lines[i]||{}).qty)||0;
+    el.innerHTML = cl.skip ? (q<=0?'<span style="font-size:10px;background:#f0ede6;border-radius:4px;padding:1px 6px;color:#8a867c">見送り</span>':'—') : ynFmt(cl.cost);
+  });
+  const g=document.getElementById('yn-s-g'); if(g) g.textContent = c.totalG?((c.totalG/1000).toFixed(1)+' kg'):'—';
+  const m=document.getElementById('yn-s-ml'); if(m) m.textContent = c.totalMl?c.totalMl.toLocaleString()+' ml':'—';
+  const e=document.getElementById('yn-s-eur'); if(e) e.textContent = '€'+Math.round(c.eurQty).toLocaleString();
+}
+function ynMarkDirty(){ ynDirty = true; const el=document.getElementById('yn-dirty'); if(el) el.textContent='● 未保存'; }
+
+/* ── 保存（既存アクションを使用・上書きは消してから保存） ── */
+async function ynPersist(note){
+  const exists = (importBatches||[]).some(function(b){ return b.id===note.id; });
+  try{
+    if(exists){
+      await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'deleteImportBatch', password: password, id: note.id }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    }
+    const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveImportBatch', password: password, batch: note }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const data = await res.json();
+    if(data.status!=='ok') return { ok:false, msg:(data.message||'保存に失敗しました') };
+    // 読み直して自己点検（新しい項目がGASを往復できているか）
+    const res2 = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getImportData', password: password }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const data2 = await res2.json();
+    if(data2.status==='ok'){
+      importBatches = data2.data.batches || [];
+      const back = importBatches.find(function(b){ return b.id===note.id; });
+      const roundtrip = !!(back && back.kind==='note' && back.exp && back.lines);
+      const banner = document.getElementById('yn-gas-banner');
+      if(banner){
+        if(roundtrip){ banner.style.display='none'; }
+        else {
+          banner.style.display='block';
+          banner.innerHTML = '⚠️ 保存はできましたが、<strong>GASが輸入ノートの新しい項目を覚えられない形</strong>のようです（読み直すと項目が欠けます）。中村様のGASの保存部分を確認する必要があります。次のチャットで「GASの保存部分を見たい」と伝えてください。';
+        }
+      }
+      return { ok:true, roundtrip:roundtrip };
+    }
+    return { ok:true, roundtrip:null };
+  }catch(err){ return { ok:false, msg:'通信エラーが発生しました' }; }
+}
+async function ynSave(silent){
+  if(!ynCurrent) return;
+  ynSync();
+  if(!ynCurrent.yearMonth){ alert('輸入年月を入れてください（例 2026-05）'); return; }
+  showSyncStatus('保存しています...');
+  const r = await ynPersist(ynCurrent);
+  if(r.ok){ ynDirty=false; const el=document.getElementById('yn-dirty'); if(el) el.textContent=''; showSyncStatus('✅ 保存しました'); ynAllFromBatches(); ynRenderCards(); }
+  else { showSyncStatus('⚠️ '+r.msg, true); }
+}
+async function ynFix(){
+  if(!ynCurrent) return;
+  ynSync();
+  const c = ynCalc(ynCurrent);
+  const targets = c.lines.filter(function(l){ return !l.skip && l.sku; });
+  if(!targets.length){ alert('原価を計算できる行（商品・€単価・本数入り）がありません'); return; }
+  let msg = 'この原価を原価データに反映しますか？\n（上の利益比較が、この数字で塗り替わります）\n\n';
+  targets.forEach(function(l){ msg += '・'+l.sku+'：'+ynFmt(l.cost)+'\n'; });
+  if(!confirm(msg)) return;
+  targets.forEach(function(l){
+    const cur = costData[l.sku] || {};
+    costData[l.sku] = { cost: l.cost, memo: cur.memo || '' };
+  });
+  showSyncStatus('原価データに反映しています...');
+  try{
+    const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: novelloNotes }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const data = await res.json();
+    if(data.status!=='ok'){ showSyncStatus('⚠️ 原価データの保存に失敗：'+(data.message||''), true); return; }
+  }catch(e){ showSyncStatus('⚠️ 通信エラーが発生しました', true); return; }
+  ynCurrent.status = 'fixed';
+  ynCurrent.fixedAt = new Date().toISOString();
+  const r = await ynPersist(ynCurrent);
+  if(r.ok){ ynDirty=false; showSyncStatus('✅ 確定して原価データに反映しました'); renderProfitHeatmap(); renderRateSimulation(); ynAllFromBatches(); ynRenderDetail(); ynRenderCards(); }
+  else { showSyncStatus('⚠️ '+r.msg, true); }
+}
+async function ynUnfix(){
+  if(!ynCurrent) return;
+  if(!confirm('⏳仮に戻しますか？（原価データはこの操作では変わりません）')) return;
+  ynCurrent.status = 'draft';
+  const r = await ynPersist(ynCurrent);
+  if(r.ok){ showSyncStatus('⏳ 仮に戻しました'); ynAllFromBatches(); ynRenderDetail(); ynRenderCards(); }
+}
+async function ynDelete(){
+  if(!ynCurrent) return;
+  if(!confirm('このノートを消しますか？（原価データは消えません）')) return;
+  try{
+    await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'deleteImportBatch', password: password, id: ynCurrent.id }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+  }catch(e){}
+  ynCurrent = null; ynDirty=false;
+  const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getImportData', password: password }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+  try{ const d = await res.json(); if(d.status==='ok') importBatches = d.data.batches||[]; }catch(e){}
+  document.getElementById('yn-detail').style.display='none';
+  ynAllFromBatches(); ynRenderCards();
+  showSyncStatus('🗑 消しました');
+}
+
 </script>
 </body>
 </html>
