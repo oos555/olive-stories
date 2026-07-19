@@ -90,6 +90,16 @@ table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 #profit-heatmap-table thead th{position:sticky;top:0;z-index:5;box-shadow:0 2px 0 #d8cfc4}
 #sim-column{position:sticky;top:8px;align-self:flex-start}
 @media(max-width:820px){#sim-column{position:static}}
+/* ★2026-07-19 くらべる表（輸入回のならべ比較・左が最新） */
+#yn-compare-wrap{overflow:auto;max-height:72vh;border:1px solid #e8e2d8;border-radius:10px;background:#fff}
+#yn-compare-table{border-collapse:separate;border-spacing:0;min-width:0;width:auto;font-size:12px}
+#yn-compare-table th,#yn-compare-table td{white-space:nowrap;padding:6px 12px;border-bottom:1px solid #f0ebe2}
+#yn-compare-table thead th{position:sticky;top:0;z-index:6;background:#f5f0e8;box-shadow:0 2px 0 #d8cfc4;text-align:right}
+#yn-compare-table th.yn-c-item,#yn-compare-table td.yn-c-item{position:sticky;left:0;z-index:4;background:#fff;box-shadow:2px 0 0 #e8e2d8;text-align:left;font-weight:700;min-width:150px}
+#yn-compare-table thead th.yn-c-item{z-index:8;background:#f5f0e8}
+#yn-compare-table td.yn-c-num{text-align:right;font-weight:700;font-size:13px}
+#yn-compare-table tr:hover td{background:#fbf8f3}
+#yn-compare-table tr:hover td.yn-c-item{background:#fbf8f3}
 th{font-size:11px;font-weight:700;color:#2b2a26;padding:8px 10px;text-align:left;border-bottom:1px solid #e8e2d8;background:#f5f0e8;white-space:nowrap}
 td{padding:8px 10px;border-bottom:1px solid #f0ebe2;vertical-align:middle}
 tr:hover td{background:#fbf8f3}
@@ -144,11 +154,20 @@ tr:last-child td{border-bottom:none}
     <div class="info-box">📦 <strong>輸入ノート</strong>：輸入のたびにカードが1枚増えていきます。カードを開くと、書類の数字を入れる場所（⏳仮 → ✅確定）。<strong>確定して中村様がOKを押した瞬間だけ</strong>、原価データに反映されます。<a href="genka-manual.html" target="_blank" style="color:#6b7a3a;font-weight:700">❓ 原価のしくみ（説明書）</a></div>
     <div id="yn-gas-banner" style="display:none;background:#fdf0d8;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:12px;color:#78350f;margin-bottom:10px"></div>
     <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:14px;font-weight:800">農園：</span>
         <select id="yn-farm" onchange="ynRenderCards()" style="font-size:14px;padding:6px 10px;border:1px solid #d8cfc4;border-radius:8px"></select>
         <button class="btn btn-primary" style="margin-left:auto" onclick="ynNewNote()">＋ 新しい輸入を登録</button>
       </div>
+    </div>
+    <div class="card">
+      <div class="sec">📊 くらべる表（左が最新・右へ行くほど昔）</div>
+      <div style="font-size:11.5px;color:#57534e;margin-bottom:8px;line-height:1.7">🔺<span style="color:#b91c1c;font-weight:700">赤＝前の回より負担が増えた</span>／🔻<span style="color:#166534;font-weight:700">緑＝負担が減った</span>／―＝その回は扱いなし。数字はすべて輸入記録（旧記録＋輸入ノート）から自動計算です。手入力はありません。年月を押すと、その回のカードが開きます。</div>
+      <div id="yn-compare-wrap"></div>
+      <div style="font-size:10.5px;color:#8a867c;margin-top:8px;line-height:1.7">※「佐川」には空港倉庫（引取）の分も含めています。「調整・値引き」は経費合計には入れず、商品ごとの原価に€の割合で配分しています。</div>
+    </div>
+    <div class="card">
+      <div class="sec">🗂 カード（書類リンク・メモ・数字の入力はこちらから）</div>
       <div id="yn-cards" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
     </div>
     <div id="yn-detail" style="display:none"></div>
@@ -1640,6 +1659,11 @@ function ynInitPanel(){
   ynRenderCards();
 }
 function ynFmt(n){ return '¥'+Math.round(n).toLocaleString(); }
+/* ★2026-07-19 「2026-04-30T15:00:00.000Z」のような日付も「2026-04」に整えて表示する */
+function fmtYm(v){
+  const m = String(v==null?'':v).match(/^(\d{4})-(\d{2})/);
+  return m ? (m[1]+'-'+m[2]) : String(v==null?'':v);
+}
 function ynNum(id){ const el=document.getElementById(id); return el? (parseFloat(el.value)||0) : 0; }
 function ynVal(id){ const el=document.getElementById(id); return el? el.value : ''; }
 
@@ -1671,9 +1695,9 @@ function ynRenderCards(){
     const bottles = lines.reduce(function(t,l){ return t + (parseFloat(l.qty!=null?l.qty:l.bottles)||0); }, 0);
     const eurTotal = isNote ? lines.reduce(function(t,l){ return t + (parseFloat(l.eur)||0)*(parseFloat(l.qty)||0); }, 0) : 0;
     const open = isNote ? ("ynOpenNote('"+o.id+"')") : ("ynOpenOld('"+o.id+"')");
-    const cur = (ynCurrent && ynCurrent.id===o.id);
+    const cur = (ynCurrent && ynCurrent.id===o.id) || (ynOldViewId===o.id);
     html += '<div style="min-width:168px;background:'+(cur?'#fffdf6':'#fff')+';border:'+(cur?'2px solid #f59e0b':'1px solid #e8e2d8')+';border-radius:10px;padding:10px;cursor:pointer" onclick="'+open+'">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800">'+esc(c.ym||'年月未入力')+'</span>'+badge+'</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800">'+esc(fmtYm(c.ym)||'年月未入力')+'</span>'+badge+'</div>'
       + '<div style="font-size:11.5px;color:#57534e;margin-top:6px;line-height:1.7">'
       + (rate? ('1€＝'+rate+'円'+rateHint+'<br>') : '')
       + (eurTotal? ('€'+Math.round(eurTotal).toLocaleString()+'・') : '') + bottles.toLocaleString()+'本'
@@ -1681,16 +1705,238 @@ function ynRenderCards(){
   });
   if(!html) html = '<div style="font-size:12px;color:#8a867c;padding:10px">この農園の記録はまだありません。「＋ 新しい輸入を登録」からどうぞ。</div>';
   wrap.innerHTML = html;
+  if(typeof ynRenderCompare==='function') ynRenderCompare();
 }
+/* ★2026-07-19 旧記録カード：ポップアップをやめて、開いたら中身が表で見えるようにした（読み取り専用） */
+let ynOldViewId = null;
 function ynOpenOld(id){
   const b = (importBatches||[]).find(function(x){ return x.id===id; });
   if(!b) return;
-  alert('これは旧「輸入を記録する」で作った記録です（読み取り専用）。\n\n農園：'+ynFarmLabel(b.farm)+'\n輸入年月：'+(b.yearMonth||'')+'\n1€＝'+(b.exchangeRate||'?')+'円\n商品数：'+((b.items||[]).length)+'\n\n新しい形で管理したい場合は「＋ 新しい輸入を登録」で作り直してください（数字は見ながら写せます）。');
+  if(ynDirty && !confirm('編集中のノートに保存していない変更があります。閉じてよいですか？')) return;
+  ynDirty = false; ynCurrent = null; ynOldViewId = id;
+  ynRenderOldDetail(b);
+  ynRenderCards();
+}
+function ynCloseOld(){
+  ynOldViewId = null;
+  const box = document.getElementById('yn-detail');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+  ynRenderCards();
+}
+function ynRenderOldDetail(b){
+  const box = document.getElementById('yn-detail');
+  if(!box) return;
+  const items = (b.items||[]).filter(function(it){ return (parseFloat(it.bottles)||0)>0 || (parseFloat(it.priceEur)||0)>0; });
+  const bottles = items.reduce(function(t,it){ return t + (parseFloat(it.bottles)||0); }, 0);
+  function chip(label, val){ return '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px;font-size:12px">'+label+' <strong>'+val+'</strong></div>'; }
+  let html = '<div class="card" style="margin-top:12px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span style="font-size:15px;font-weight:800">'+esc(ynFarmLabel(b.farm))+'　'+esc(fmtYm(b.yearMonth)||'年月未入力')+'</span>'
+    + '<span style="font-size:11px;background:#eeece6;color:#57534e;border:1px solid #d8cfc4;border-radius:99px;padding:3px 12px;font-weight:700">旧記録（読み取り専用）</span>'
+    + '<button class="btn-sm" style="margin-left:auto" onclick="ynCloseOld()">✕ 閉じる</button></div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+    + chip('1€＝', (b.exchangeRate||'—')+'円')
+    + chip('国際輸送', ynFmt(b.shippingCost||0))
+    + chip('税金', ynFmt(b.customsTax||0))
+    + chip('空港倉庫', ynFmt(b.airportFee||0))
+    + chip('佐川', ynFmt(b.sagawaShipping||0))
+    + chip('倉庫', ynFmt(b.warehouseFee||0))
+    + chip('経費合計', ynFmt(b.totalOverhead||0))
+    + chip('総量', ((b.totalMl||0)/1000).toFixed(1)+'L・'+bottles.toLocaleString()+'本')
+    + chip('1mlあたり経費', '¥'+(b.overheadPerMl||0).toFixed(2))
+    + '</div>';
+  html += '<div style="overflow-x:auto"><table style="min-width:560px;font-size:12px"><thead><tr>'
+    + '<th>商品</th><th style="text-align:right">€単価</th><th style="text-align:right">本数</th><th style="text-align:right">箱数</th><th style="text-align:right;background:#eef7ef">1本の原価</th></tr></thead><tbody>';
+  items.forEach(function(it){
+    html += '<tr><td>'+esc(it.productName||it.sku||'')+'</td>'
+      + '<td style="text-align:right">'+((parseFloat(it.priceEur)||0)>0? ('€'+it.priceEur) : '—')+'</td>'
+      + '<td style="text-align:right;font-weight:700">'+(parseFloat(it.bottles)||0).toLocaleString()+'本</td>'
+      + '<td style="text-align:right">'+((parseFloat(it.boxes)||0)>0? it.boxes+'箱' : '—')+'</td>'
+      + '<td style="text-align:right;background:#eef7ef;font-weight:800">'+((parseFloat(it.costPerUnit)||0)>0? ynFmt(it.costPerUnit) : '—')+'</td></tr>';
+  });
+  if(!items.length) html += '<tr><td colspan="5" style="color:#8a867c">商品明細がありません。</td></tr>';
+  html += '</tbody></table></div>';
+  if(b.notes) html += '<div style="background:#f7f3ed;border-radius:8px;padding:9px 12px;font-size:12px;margin-top:10px"><strong>📝 メモ：</strong>'+esc(b.notes).replace(/\n/g,'<br>')+'</div>';
+  if(b.nextTimeNotes) html += '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:9px 12px;font-size:12px;color:#78350f;margin-top:8px"><strong>📌 次回への申し送り：</strong>'+esc(b.nextTimeNotes).replace(/\n/g,'<br>')+'</div>';
+  const links = [];
+  if(b.packingListUrl) links.push('<a href="'+esc(b.packingListUrl)+'" target="_blank" class="btn-sm" style="text-decoration:none">📄 パッキングリストを開く</a>');
+  if(b.invoiceUrl) links.push('<a href="'+esc(b.invoiceUrl)+'" target="_blank" class="btn-sm" style="text-decoration:none">📄 インボイスを開く</a>');
+  if(links.length) html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+links.join('')+'</div>';
+  html += '<div style="font-size:11px;color:#8a867c;margin-top:10px">これは旧「輸入を記録する」で作った記録です。書き直したい場合は「＋ 新しい輸入を登録」で新しいノートを作ってください（数字は見ながら写せます）。</div>';
+  html += '</div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
+/* ── ★2026-07-19 くらべる表（輸入回のならべ比較・左が最新・全部表示） ── */
+function ynCompareCols(farm){
+  ynAllFromBatches();
+  const cols = [];
+  ynNotes.filter(function(n){ return n.farm===farm; }).forEach(function(n){
+    const c = ynCalc(n);
+    const costBySku = {};
+    c.lines.forEach(function(l){ if(!l.skip && l.sku) costBySku[l.sku] = l.cost; });
+    const bottles = (n.lines||[]).reduce(function(t,l){ return t + (parseFloat(l.qty)||0); }, 0);
+    const overhead = c.airJpy + c.taxTotal + c.domestic;
+    cols.push({ id:n.id, type:'note', status:n.status, ym:n.yearMonth||'',
+      rate: parseFloat(n.exchangeRate)||0,
+      oilEur: c.eurQty,
+      ship: c.airJpy,
+      tax: c.taxTotal,
+      sagawa: (parseFloat((n.exp||{}).sagawaAirport)||0) + (parseFloat((n.exp||{}).sagawaTransport)||0),
+      wh: parseFloat((n.exp||{}).warehouse)||0,
+      otherJp: parseFloat((n.exp||{}).otherJp)||0,
+      adjJpy: c.adjJpy,
+      overhead: overhead,
+      bottles: bottles,
+      perMl: c.totalMl>0 ? overhead/c.totalMl : 0,
+      costBySku: costBySku });
+  });
+  (importBatches||[]).filter(function(b){ return b && b.kind!=='note' && b.farm===farm; }).forEach(function(b){
+    const costBySku = {}; let oilEur=0, bottles=0;
+    (b.items||[]).forEach(function(it){
+      const q = parseFloat(it.bottles)||0;
+      oilEur += (parseFloat(it.priceEur)||0) * q;
+      bottles += q;
+      if((parseFloat(it.costPerUnit)||0)>0){
+        const key = it.sku || ('name:'+(it.productName||''));
+        costBySku[key] = parseFloat(it.costPerUnit)||0;
+      }
+    });
+    const totalMl = parseFloat(b.totalMl)||0;
+    cols.push({ id:b.id, type:'old', ym:b.yearMonth||'',
+      rate: parseFloat(b.exchangeRate)||0,
+      oilEur: oilEur,
+      ship: parseFloat(b.shippingCost)||0,
+      tax: parseFloat(b.customsTax)||0,
+      sagawa: (parseFloat(b.sagawaShipping)||0) + (parseFloat(b.airportFee)||0),
+      wh: parseFloat(b.warehouseFee)||0,
+      otherJp: 0,
+      adjJpy: 0,
+      overhead: parseFloat(b.totalOverhead)||0,
+      bottles: bottles,
+      perMl: totalMl>0 ? (parseFloat(b.totalOverhead)||0)/totalMl : (parseFloat(b.overheadPerMl)||0),
+      costBySku: costBySku });
+  });
+  cols.sort(function(a,b){ return String(b.ym).localeCompare(String(a.ym)); }); // 左端＝最新
+  return cols;
+}
+function ynCellVal(v, kind){
+  if(kind==='rate') return v ? v.toFixed(2) : null;
+  if(kind==='eur') return v ? '€'+Math.round(v).toLocaleString() : null;
+  if(kind==='count') return v ? v.toLocaleString()+'本' : null;
+  if(kind==='perml') return v ? '¥'+v.toFixed(2) : null;
+  return (v!=null && Math.abs(v)>=0.5) ? ((v<0?'−':'')+'¥'+Math.round(Math.abs(v)).toLocaleString()) : null;
+}
+function ynDeltaHtml(cur, prevVal, kind){
+  const d = (cur||0) - (prevVal||0);
+  const eps = (kind==='rate'||kind==='perml') ? 0.005 : 0.5;
+  if(Math.abs(d) < eps) return '';
+  const up = d>0;
+  const color = kind==='count' ? '#8a867c' : (up ? '#b91c1c' : '#166534');
+  let txt;
+  if(kind==='rate') txt = Math.abs(d).toFixed(2);
+  else if(kind==='perml') txt = '¥'+Math.abs(d).toFixed(2);
+  else if(kind==='eur') txt = '€'+Math.round(Math.abs(d)).toLocaleString();
+  else if(kind==='count') txt = Math.round(Math.abs(d)).toLocaleString()+'本';
+  else txt = '¥'+Math.round(Math.abs(d)).toLocaleString();
+  return '<div style="font-size:10px;color:'+color+';font-weight:700">'+(up?'🔺+':'🔻−')+txt+'</div>';
+}
+function ynCostRowLabel(key, farm){
+  if(String(key).indexOf('name:')===0) return String(key).slice(5);
+  const p = (OOS_PRODUCTS||[]).find(function(x){ return x.sku===key; });
+  if(p && p.name) return p.name;
+  let label = null;
+  Object.keys(FARM_PRODUCTS).forEach(function(f){
+    (FARM_PRODUCTS[f]||[]).forEach(function(x){ if(!label && x.sku===key) label = x.label; });
+  });
+  return label || key;
+}
+function ynRenderCompare(){
+  const wrap = document.getElementById('yn-compare-wrap');
+  if(!wrap) return;
+  const farm = ynVal('yn-farm');
+  const cols = ynCompareCols(farm);
+  if(!cols.length){
+    wrap.innerHTML = '<div style="font-size:12px;color:#8a867c;padding:12px">この農園の記録がまだないので、くらべる表もまだ空です。</div>';
+    return;
+  }
+  const dash = '<span style="color:#b9b4a8">―</span>';
+  const expRows = [
+    {key:'rate',    label:'レート（1€＝円）',      kind:'rate'},
+    {key:'oilEur',  label:'オイル代（€）',          kind:'eur'},
+    {key:'ship',    label:'送料（空輸・円）',       kind:'money'},
+    {key:'tax',     label:'税金（円）',             kind:'money'},
+    {key:'sagawa',  label:'佐川（円）',             kind:'money'},
+    {key:'wh',      label:'倉庫（円）',             kind:'money'},
+    {key:'otherJp', label:'その他国内（円）',       kind:'money', optional:true},
+    {key:'adjJpy',  label:'調整・値引き（円）',     kind:'money', optional:true},
+    {key:'overhead',label:'経費合計（円）',         kind:'money', strong:true},
+    {key:'bottles', label:'本数',                  kind:'count'},
+    {key:'perMl',   label:'1mlあたり経費（円）',    kind:'perml', strong:true}
+  ].filter(function(r){ return !r.optional || cols.some(function(c){ return Math.abs(c[r.key]||0) >= 0.5; }); });
+
+  let html = '<table id="yn-compare-table"><thead><tr><th class="yn-c-item">項目</th>';
+  cols.forEach(function(c){
+    const badge = c.type==='note'
+      ? (c.status==='fixed'
+        ? '<span style="font-size:9px;background:#e1efe3;color:#166534;border-radius:99px;padding:1px 7px;font-weight:700">✅確定</span>'
+        : '<span style="font-size:9px;background:#fef3c7;color:#78350f;border-radius:99px;padding:1px 7px;font-weight:700">⏳仮</span>')
+      : '<span style="font-size:9px;background:#eeece6;color:#57534e;border-radius:99px;padding:1px 7px;font-weight:700">旧記録</span>';
+    const open = c.type==='note' ? ("ynOpenNote('"+c.id+"')") : ("ynOpenOld('"+c.id+"')");
+    html += '<th style="cursor:pointer" onclick="'+open+'" title="この回のカードを開く"><span style="font-size:12.5px;font-weight:800">'+esc(fmtYm(c.ym)||'年月未入力')+'</span><div style="margin-top:2px">'+badge+'</div></th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  html += '<tr><td class="yn-c-item" style="background:#e6efdc;color:#3f4f1e;font-size:12.5px">💸 経費のくらべ</td><td colspan="'+cols.length+'" style="background:#e6efdc"></td></tr>';
+  expRows.forEach(function(r){
+    const strongBg = r.strong ? 'background:#f5f9ee;' : '';
+    html += '<tr><td class="yn-c-item" style="'+(r.strong?'background:#f5f9ee;':'')+'font-weight:'+(r.strong?'800':'700')+'">'+r.label+'</td>';
+    cols.forEach(function(c, i){
+      const v = c[r.key]||0;
+      const val = ynCellVal(v, r.kind);
+      let delta = '';
+      const older = cols[i+1];
+      if(val!=null && older && ynCellVal(older[r.key]||0, r.kind)!=null){
+        delta = ynDeltaHtml(v, older[r.key]||0, r.kind);
+      }
+      html += '<td class="yn-c-num" style="'+strongBg+'">'+(val!=null ? val+delta : dash)+'</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '<tr><td class="yn-c-item" style="background:#ece3f3;color:#5b3b74;font-size:12.5px">🫒 1本あたりの本当の原価（円）</td><td colspan="'+cols.length+'" style="background:#ece3f3"></td></tr>';
+  const keys = []; const seen = {};
+  (FARM_PRODUCTS[farm]||[]).forEach(function(p){
+    const k = p.sku || ('name:'+p.label);
+    if(seen[k]) return;
+    if(cols.some(function(c){ return c.costBySku[k]!=null; })){ seen[k]=1; keys.push(k); }
+  });
+  cols.forEach(function(c){
+    Object.keys(c.costBySku).forEach(function(k){ if(!seen[k]){ seen[k]=1; keys.push(k); } });
+  });
+  if(!keys.length){
+    html += '<tr><td class="yn-c-item">（原価データなし）</td><td colspan="'+cols.length+'" style="color:#8a867c;font-size:11px">まだ原価を計算できる明細がありません。</td></tr>';
+  }
+  keys.forEach(function(k){
+    html += '<tr><td class="yn-c-item" style="font-weight:600">'+esc(ynCostRowLabel(k, farm))+'</td>';
+    cols.forEach(function(c, i){
+      const v = c.costBySku[k];
+      if(v==null){ html += '<td class="yn-c-num">'+dash+'</td>'; return; }
+      let pv = null;
+      for(let j=i+1; j<cols.length; j++){ if(cols[j].costBySku[k]!=null){ pv = cols[j].costBySku[k]; break; } }
+      html += '<td class="yn-c-num">¥'+Math.round(v).toLocaleString()+(pv!=null ? ynDeltaHtml(v, pv, 'money') : '')+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
 }
 
 /* ── ノートを開く・新規 ── */
 function ynNewNote(){
   const farm = ynVal('yn-farm');
+  ynOldViewId = null;
   ynCurrent = { id:'note_'+Date.now(), kind:'note', farm:farm, status:'draft', yearMonth:'', exchangeRate:'',
     invoiceNo:'', shipInvoiceNo:'', blNo:'',
     lines:[], exp:{ airEur:'', airDiscEur:'', airDiscMemo:'', taxImport:'', taxCustoms:'', taxOther:'', sagawaAirport:'', sagawaTransport:'', warehouse:'', otherJp:'', otherJpMemo:'' },
@@ -1702,6 +1948,7 @@ function ynOpenNote(id){
   ynAllFromBatches();
   const n = ynNotes.find(function(x){ return x.id===id; });
   if(!n) return;
+  ynOldViewId = null;
   ynCurrent = JSON.parse(JSON.stringify(n));
   if(!ynCurrent.exp) ynCurrent.exp = {};
   if(!ynCurrent.lines) ynCurrent.lines = [];
