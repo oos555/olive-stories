@@ -1569,35 +1569,27 @@ function renderStockEditPanel(){
   html += '<div class="sep-now">'+nowLine+'</div>';
   html += '<div class="sep-info">ここは、<b>倉庫からの報告以外で数を動かす場所</b>です。<br>倉庫さんの検品報告を反映するときは <b>「倉庫からの報告」タブ</b>へ。</div>';
 
-  // 状態を動かす（旧・不良をまとめて登録）
+  // 状態を動かす（案A：どこから→どこへでも）
+  var bucketOpts = function(includeNewFirst){
+    var order = includeNewFirst ? ['new','old','lv1','lv2','lv3'] : ['new','old','lv1','lv2','lv3'];
+    var MOVE_LABEL = {'new':'販売可能','old':'旧ロット','lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重'};
+    return order.map(function(b){
+      return '<option value="'+b+'" data-label="'+MOVE_LABEL[b]+'">'+MOVE_LABEL[b]+'</option>';
+    }).join('');
+  };
   html += '<div class="sep-sect">'+
-    '<div class="sep-sect-t">数を動かす</div>'+
-    '<div class="sep-row"><label style="color:#78350f">旧ロットへ移す</label><input id="sep-old" type="number" min="0" value="0" style="border-color:#d9a441"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#993c1d">不良にする・軽</label><input id="sep-lv1" type="number" min="0" value="0" style="border-color:#e0a58c"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#791f1f">不良にする・中</label><input id="sep-lv2" type="number" min="0" value="0" style="border-color:#e08585"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#501313">不良にする・重</label><input id="sep-lv3" type="number" min="0" value="0" style="border-color:#c07272"><span class="unit">本</span></div>'+
-    '<div class="sep-flow"><div class="sep-flow-t">数はどう動く？</div><div class="sep-flow-cards">'+
-      '<div class="sep-fc" style="border:1px solid #cfd9b6"><div style="font-size:11px;font-weight:700;color:#3f4a1f;margin-bottom:6px">旧・不良にする</div>'+
-        '<div style="margin-bottom:6px"><span class="cap" style="background:#dcfce7;color:#14532d">販売可能</span> → <span class="cap" style="background:#fef3c7;color:#78350f">旧</span><span class="cap" style="background:#fde7e7;color:#7f1d1d">不良</span></div>'+
-        '<div style="font-size:10px;color:#3f4a1f;line-height:1.5">実在庫は<b>そのまま</b>。販売可能が減るだけ。</div></div>'+
-      '<div class="sep-fc" style="border:1px solid #e0c3c3"><div style="font-size:11px;font-weight:700;color:#7f1d1d;margin-bottom:6px">廃棄する</div>'+
-        '<div style="margin-bottom:6px"><span class="cap" style="background:#eeece7;color:#57534e">実在庫</span> → 🗑</div>'+
-        '<div style="font-size:10px;color:#7f1d1d;line-height:1.5">実在庫<b>からも減る</b>（本当に無くなる）。</div></div>'+
-    '</div></div>'+
-    '<button class="sep-btn" onclick="sepSubmitStates()">✅ この内容で登録する</button>'+
-    '<div class="sep-note">ℹ️ 倉庫さんの検品報告は「倉庫からの報告」タブで確認します。</div>'+
-  '</div>';
-
-  // 元に戻す（旧・不良 → 販売可能）※間違えて入れた時
-  html += '<div class="sep-sect" style="background:#fffaf3;border-color:#f0c188">'+
-    '<div class="sep-sect-t" style="color:#92400e">↩ 元に戻す（間違えた時）</div>'+
-    '<div style="font-size:11px;color:#92400e;line-height:1.55;margin:-4px 0 10px">旧や不良に入れたのが間違いだった時、販売可能に戻します。<b>実在庫は変わりません。</b></div>'+
-    '<div class="sep-row"><label style="color:#78350f">旧 → 販売可能に戻す</label><input id="sep-ret-old" type="number" min="0" value="0" style="border-color:#d9a441"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#993c1d">不良・軽 → 販売可能</label><input id="sep-ret-lv1" type="number" min="0" value="0" style="border-color:#e0a58c"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#791f1f">不良・中 → 販売可能</label><input id="sep-ret-lv2" type="number" min="0" value="0" style="border-color:#e08585"><span class="unit">本</span></div>'+
-    '<div class="sep-row"><label style="color:#501313">不良・重 → 販売可能</label><input id="sep-ret-lv3" type="number" min="0" value="0" style="border-color:#c07272"><span class="unit">本</span></div>'+
-    '<button class="sep-btn" onclick="sepSubmitRestore()">↩ 販売可能に戻す</button>'+
-    '<div class="sep-note" style="color:#92400e">戻すと実在庫はそのまま。旧・不良の分が減って、販売可能が増えます。古い報告から順に戻します。</div>'+
+    '<div class="sep-sect-t">🔄 状態を動かす（まちがえた時も自由になおせます）</div>'+
+    '<div style="font-size:11.5px;color:#57534e;line-height:1.6;margin:-2px 0 10px">「販売可能・旧ロット・不良（軽中重）」の間で、どこからどこへでも動かせます。<br>例：旧→販売可能／不良・軽→不良・中／販売可能→旧　など。</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<div style="flex:1"><div style="font-size:11px;color:#57534e;margin-bottom:3px">動かす元（どこから）</div>'+
+        '<select id="sep-move-from" onchange="sepOnMoveChange()" style="width:100%;height:42px;border:1.5px solid #b9b09c;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 6px">'+bucketOpts()+'</select></div>'+
+      '<div style="font-size:20px;color:#8a857c;padding-top:16px">→</div>'+
+      '<div style="flex:1"><div style="font-size:11px;color:#57534e;margin-bottom:3px">動かす先（どこへ）</div>'+
+        '<select id="sep-move-to" onchange="sepOnMoveChange()" style="width:100%;height:42px;border:1.5px solid #b9b09c;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 6px">'+bucketOpts()+'</select></div>'+
+    '</div>'+
+    '<div class="sep-row"><label>何本？</label><input id="sep-move-qty" type="number" min="0" value="0"><span class="unit">本</span></div>'+
+    '<button class="sep-btn" onclick="sepDoMove()">この通りに動かす</button>'+
+    '<div id="sep-move-hint" class="sep-note">実在庫（倉庫にある総数）は変わりません。中の内訳だけが動きます。</div>'+
   '</div>';
 
   // 輸入
@@ -1635,7 +1627,87 @@ function renderStockEditPanel(){
   '</div>';
 
   box.innerHTML = html;
+  sepOnMoveChange();
   if(sepAdjustOpen && document.getElementById('sep-recon-preview')) sepReconPreview();
+}
+
+// ── 2026-07-19 案A：どの状態からどの状態へでも動かす（実在庫の合計は不変） ──
+// from/to は 'new'（販売可能）'old'（旧ロット）'lv1''lv2''lv3'（不良軽中重）
+// どんな移動も「①元→販売可能相当へ引き出す ②販売可能相当→先へ入れる」の2段で処理する。
+function sepStateCount(pid, bucket){
+  var n = computeStockNumbers(pid);
+  if(bucket==='new') return n.avail;      // 販売可能
+  if(bucket==='old') return n.oldStock;   // 旧ロット
+  if(bucket==='lv1') return n.defLight;
+  if(bucket==='lv2') return n.defMid;
+  if(bucket==='lv3') return n.defHeavy;
+  return 0;
+}
+var SEP_MOVE_LABEL = {'new':'販売可能','old':'旧ロット','lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重'};
+function sepBucketLabel(b){ return SEP_MOVE_LABEL[b] || SEP_BUCKET_LABEL[b] || b; }
+// 元(from)から qty 本を「販売可能相当」へ引き出す。実際に引き出せた本数を返す。
+function sepPullToAvail(pid, from, qty){
+  if(from==='new') return qty;                 // すでに販売可能
+  if(from==='old') return sepRestoreFromOld(pid, qty);
+  if(from==='lv1') return sepReturnDefect(pid, 'lv1', qty);
+  if(from==='lv2') return sepReturnDefect(pid, 'lv2', qty);
+  if(from==='lv3') return sepReturnDefect(pid, 'lv3', qty);
+  return 0;
+}
+// 「販売可能相当」から qty 本を先(to)へ入れる。
+function sepPushFromAvail(pid, to, qty){
+  var p = findProduct(pid);
+  if(to==='new') return qty;                   // 販売可能のまま
+  if(to==='old') return sepMoveToOld(pid, qty);
+  var lvSeal = {lv1:'軽', lv2:'中', lv3:'重'};
+  if(to==='lv1'||to==='lv2'||to==='lv3'){
+    defects.push({ id: nextId(), pid: parseInt(pid), productName:p.name, lotId:'', qty:qty, cat:'', note:'在庫Bで状態変更', status:'open', shippedQty:0, level:to, seal:lvSeal[to], reportedAt:new Date().toISOString(), source:'staff', reviewed:true });
+    return qty;
+  }
+  return 0;
+}
+function sepDoMove(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid); if(!p) return;
+  var from = (document.getElementById('sep-move-from')||{}).value;
+  var to   = (document.getElementById('sep-move-to')||{}).value;
+  var qty  = sepReadInt('sep-move-qty');
+  if(!from || !to){ alert('動かす元と先をえらんでください'); return; }
+  if(from===to){ alert('動かす元と先が同じです。ちがう先をえらんでください'); return; }
+  if(qty<=0){ alert('動かす本数を入れてください'); return; }
+  var have = sepStateCount(pid, from);
+  if(qty > have){
+    if(!confirm(sepBucketLabel(from)+'は今 '+have+'本です。それより多い'+qty+'本を指定しています。\nある分（'+have+'本）だけ動かしますか？')) return;
+    qty = have;
+  }
+  if(qty<=0){ alert(sepBucketLabel(from)+'に動かせる在庫がありません'); return; }
+  // ① 元 → 販売可能相当へ
+  var pulled = sepPullToAvail(pid, from, qty);
+  if(pulled<=0){ alert(sepBucketLabel(from)+'から動かせませんでした（残りをご確認ください）'); renderStockEditPanel(); return; }
+  // ② 販売可能相当 → 先へ
+  sepPushFromAvail(pid, to, pulled);
+  addLog('状態を動かす', p.name+'　'+sepBucketLabel(from)+' → '+sepBucketLabel(to)+' '+pulled+'本');
+  renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs();
+  scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'　'+sepBucketLabel(from)+' → '+sepBucketLabel(to)+' を'+pulled+'本 動かしました'+(pulled<qty?'（'+pulled+'本だけ）':''), pulled<qty);
+  renderStockEditPanel();
+}
+function sepOnMoveChange(){
+  var pid = sepPid; if(pid==null) return;
+  var fromSel = document.getElementById('sep-move-from');
+  var toSel = document.getElementById('sep-move-to');
+  var hint = document.getElementById('sep-move-hint');
+  if(!fromSel) return;
+  // 元の各選択肢に今の本数を出す
+  Array.prototype.forEach.call(fromSel.options, function(op){
+    if(op._base==null) op._base = op.getAttribute('data-label') || op.text.replace(/（今.*）$/,'');
+    op.text = op._base + '（今 '+sepStateCount(pid, op.value)+'本）';
+  });
+  if(hint){
+    var from = fromSel.value, to = toSel ? toSel.value : '';
+    if(from && to && from===to){ hint.textContent = '⚠️ 元と先が同じです'; hint.style.color = '#dc2626'; }
+    else { hint.textContent = '実在庫（倉庫にある総数）は変わりません。中の内訳だけが動きます。'; hint.style.color = '#9a958c'; }
+  }
 }
 
 // 旧・不良をまとめて登録
