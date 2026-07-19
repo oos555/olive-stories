@@ -743,6 +743,7 @@ function loadAllDataFromGAS(){
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderDefectHistory();
     renderHoldList(); renderPreList(); renderInvLogs(); renderCatOptions();
+    maybeAutoBulkReplace(); // 2026-07-19 未実行なら、ここで一度だけ入れ替えの確認を出す
     showSyncStatus('✅ 保存されたデータを読み込みました');
   }).catch(function(){ invLoading = false; renderInvTable(); showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
 }
@@ -869,27 +870,42 @@ var OOS_BULK_ROWS = [
   {sku:'MISC003', lot:'-', exp:'', qty:23,  st:'new'},
   {sku:'CAS5L',   lot:'-', exp:'', qty:8,   st:'new'}
 ];
-function doBulkReplace(){
-  var checkEl = document.getElementById('bulk-replace-check');
-  if(checkEl) checkEl.textContent = '';
-  // ① 商品マスタに全SKUがあるか先に確認（無ければ何もしない）
+// 2026-07-19 未実行なら、ページを開いたときに一度だけ確認して自動で入れ替える
+var OOS_BULK_DONE_KEY = 'oos_bulk_replace_20260719_done';
+function bulkMissingSkus(){
   var missing = [];
   OOS_BULK_ROWS.forEach(function(r){ if(!findProductBySku(r.sku)) missing.push(r.sku); });
-  if(missing.length){
-    var msg = '先に商品マスタシートに次の商品を追加してください：' + missing.join('、') + '（追加したらこのページを開き直して、もう一度押してください）';
-    if(checkEl) checkEl.textContent = '⚠️ ' + msg;
-    alert('まだ実行していません。\n\n' + msg);
-    return;
-  }
+  return missing;
+}
+function maybeAutoBulkReplace(){
+  try{ if(localStorage.getItem(OOS_BULK_DONE_KEY) === '1') return; }catch(e){}
+  if(!gasSyncEnabled) return;
+  var missing = bulkMissingSkus();
+  var note = missing.length
+    ? '\n\n（※ 商品マスタに無いため入れられない品：' + missing.join('、') + '。あとで商品を足してから直せます）'
+    : '';
+  var ok = confirm('【棚卸しの数字を入れます】\n\n今の在庫（実在庫・旧ロット・不良・輸入予定）をいったん全部ゼロにして、\nゆかさんの棚卸し表（2026-07-19）の数字に入れ替えます。\n取り置き・予約はそのまま残ります。' + note + '\n\n入れ替えますか？\n（キャンセルを押せば、今のまま何も変わりません）');
+  if(!ok) return; // 見送り。次に開いたときにまた確認する
+  doBulkReplace(true); // 2回目の確認は省いて実行
+}
+
+function doBulkReplace(skipConfirm){
+  var checkEl = document.getElementById('bulk-replace-check');
+  if(checkEl) checkEl.textContent = '';
+  var missing = bulkMissingSkus();
   if(!gasSyncEnabled){ alert('サーバー同期がOFFのため実行できません。'); return; }
-  // ② 2段階確認
-  if(!confirm('今の在庫（実在庫・旧ロット・不良・輸入予定）を全部消して、ゆかさんの棚卸し表（2026-07-19）の数字に入れ替えます。\n取り置き・予約はそのまま残ります。\n\n実行しますか？')) return;
-  if(!confirm('もう一度確認です。この操作は元に戻せません。\n本当に実行しますか？')) return;
-  // ③ 新しいロット一覧を組み立てる
+  // ② 2段階確認（自動実行のときは maybeAutoBulkReplace で確認済みなので省く）
+  if(!skipConfirm){
+    if(!confirm('今の在庫（実在庫・旧ロット・不良・輸入予定）を全部消して、ゆかさんの棚卸し表（2026-07-19）の数字に入れ替えます。\n取り置き・予約はそのまま残ります。\n\n実行しますか？')) return;
+    if(!confirm('もう一度確認です。この操作は元に戻せません。\n本当に実行しますか？')) return;
+  }
+  // ③ 新しいロット一覧を組み立てる（商品マスタに無いSKUは飛ばす）
   var ts = Date.now();
-  var newLots = OOS_BULK_ROWS.map(function(r, i){
+  var newLots = [];
+  OOS_BULK_ROWS.forEach(function(r, i){
     var p = findProductBySku(r.sku);
-    return { id:'BR'+ts+'-'+i, pid:parseInt(p.id), lotCode:r.lot, expiry:r.exp, stock:r.qty, status:r.st, note:'2026-07-19 棚卸し一括入れ替え' };
+    if(!p) return; // 商品マスタに無い品は入れられないので飛ばす
+    newLots.push({ id:'BR'+ts+'-'+i, pid:parseInt(p.id), lotCode:r.lot, expiry:r.exp, stock:r.qty, status:r.st, note:'2026-07-19 棚卸し一括入れ替え' });
   });
   // ④ 丸ごと置き換えて保存（不良・不良取り置きも空にする。通常保存のマージは使わない）
   lots = newLots; defects = []; defectHolds = [];
@@ -901,12 +917,13 @@ function doBulkReplace(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d && d.status==='ok'){
+        try{ localStorage.setItem(OOS_BULK_DONE_KEY, '1'); }catch(e){}
         snapshotStockBaseline();
         addLog('bulk', '棚卸し一括入れ替え（2026-07-19・'+newLots.length+'ロット）');
         renderInvTable(); renderLotList(); renderDefectGroups(); renderDefectHistory();
         if(typeof renderCatSummary==='function') renderCatSummary();
         showSyncStatus('✅ 一括入れ替えを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
-        alert('✅ 入れ替えが終わりました。\n在庫一覧で数字を確認してください。');
+        alert('✅ 入れ替えが終わりました。\n在庫一覧で数字を確認してください。' + (missing.length ? '\n\n（商品マスタに無いため入れられなかった品：'+missing.join('、')+'。商品を足せば、あとで直せます）' : ''));
         if(btn){ btn.textContent = '✅ 入れ替え済み（2026-07-19）'; }
       } else {
         alert('⚠️ 保存エラー：' + ((d&&d.message)||'不明なエラー') + '\nサーバーには保存されていません。ページを開き直してください（元の在庫に戻ります）。');
