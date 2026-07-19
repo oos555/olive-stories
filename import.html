@@ -279,6 +279,7 @@ tr:last-child td{border-bottom:none}
     <div class="info-box">🔒 ここは中村様専用のページです。原価・輸入コストの情報が含まれます。他の人に画面を見せないようご注意ください。<br>請求Cや見積書からは、この原価データを参照できません。</div>
     <div class="card">
       <div class="sec">🎨 区分別 利益ひと目比較 ＋ 📐 掛け率シミュレーション</div>
+      <div id="price-gas-banner" style="display:none;background:#fdf0d8;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:12px;color:#78350f;margin-bottom:10px"></div>
       <details class="hm-help">
         <summary>❓ この画面のつかい方（タップで開く）</summary>
         <div class="hm-help-body">
@@ -1043,6 +1044,7 @@ async function loadStockAndPriceRef(){
     const data = await res.json();
     if(data && data.status==='ok' && data.data){
       priceMaster = data.data.priceMaster || [];
+      if(typeof applyLocalPriceEdits==='function') applyLocalPriceEdits(priceMaster); // この画面で反映した金額は読み直しでも消さない
       currentLots = data.data.lots || data.data.stock || data.data.stockLots || currentLots || [];
       renderProfitHeatmap();
       renderRateSimulation();
@@ -1527,6 +1529,35 @@ function renderRateSimAllTable(){
   html += '</tbody>';
   tbl.innerHTML = html;
 }
+/* ★2026-07-19 「金額を入れると、前に入れた金額が消える」問題の修正。
+   原因は2つ：①保存のたびにサーバーから取り直すため、前の保存が終わる前に次の取り直しが
+   走ると古いデータで上書きしてしまう（追い越し）。②サーバー(GAS)側が新しい欄
+   （卸バサラスター・不良品用特価・特別提供価格など）を保存できない形だと、取り直すたびに消える。
+   対策：保存は1件ずつ順番に行い（追い越し禁止）、この画面で反映した金額は「控え帳」
+   (priceLocalEdits)に取っておき、保存・読み直しのたびに必ず上書きで復元する。
+   さらに保存後にサーバーから読み直して、本当に残ったかを自己点検し、残らない欄が
+   あれば黄色いバナーで知らせる（黙って消えるのが一番危険なため）。 */
+let priceSaveChain = Promise.resolve();   // 保存の順番待ち（追い越し禁止）
+const priceLocalEdits = {};               // この画面で反映した金額の控え帳 {sku:{field:price}}
+function applyLocalPriceEdits(master){
+  Object.keys(priceLocalEdits).forEach(function(s){
+    let r = master.find(function(x){ return x.sku===s; });
+    if(!r){
+      const dp = DEFAULT_PRICES[s] || {};
+      r = {sku:s, productName:s, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0};
+      master.push(r);
+    }
+    Object.keys(priceLocalEdits[s]).forEach(function(f){ r[f] = priceLocalEdits[s][f]; });
+  });
+  return master;
+}
+function showPriceGasBanner(fieldLabels){
+  const el = document.getElementById('price-gas-banner');
+  if(!el) return;
+  el.style.display = 'block';
+  el.innerHTML = '⚠️ <strong>' + fieldLabels.join('・') + '</strong> の金額は、保存してもサーバー(GAS)側に残らない形になっているようです（読み直すと消えます）。<br>この画面を開いている間は入れた金額を覚えていて表示し続けますが、<strong>画面を閉じると消えます</strong>。次のチャットでClaudeに「GASの価格マスタの保存部分を見たい」と伝えてください（GASコードの修正が必要です）。';
+}
+const priceGasMissingFields = {}; // {label:1} 自己点検で「残らなかった」欄
 async function applyRateToTier(sku, tier, price){
   const T = simTierByKey(tier);
   let ok;
@@ -1534,24 +1565,26 @@ async function applyRateToTier(sku, tier, price){
     // 定価・卸①・RT は基本の価格 → 強い確認
     ok = confirm('⚠️ 「'+T.label+'」は基本の価格です。\nコロコロ変えるものではありません。\n\n本当に ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタが更新され、即座に保存されます）');
   } else {
-    // 卸②・卸バサラスター は軽い確認
+    // 卸②・卸バサラスター・不良品用特価・特別提供価格 は軽い確認
     ok = confirm('この商品の「'+T.label+'」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）');
   }
   if(!ok) return;
   showSyncStatus('保存しています...');
+  // 控え帳に先に書く（順番待ちの間も画面から消えないように）
+  priceLocalEdits[sku] = priceLocalEdits[sku] || {};
+  priceLocalEdits[sku][T.field] = price;
+  priceSaveChain = priceSaveChain.then(function(){ return applyRateToTierNow(sku, T, price); });
+  return priceSaveChain;
+}
+async function applyRateToTierNow(sku, T, price){
   try{
     // 保存直前に最新の価格マスタを取り直す（請求Cなど他アプリでの更新を上書きしないため）
     const freshRes = await fetch(GAS_URL + '?action=loadAllData');
     const freshData = await freshRes.json();
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
-    let rec = freshMaster.find(x=>x.sku===sku);
-    if(!rec){
-      const dp = DEFAULT_PRICES[sku] || {};
-      rec = {sku:sku, productName:sku, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0};
-      freshMaster.push(rec);
-    }
-    rec[T.field] = price;
+    // 控え帳の金額をすべて上書きで復元（今回の金額もここで入る）
+    applyLocalPriceEdits(freshMaster);
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
@@ -1560,9 +1593,24 @@ async function applyRateToTier(sku, tier, price){
     const data = await res.json();
     if(data.status==='ok'){
       priceMaster = freshMaster;
-      showSyncStatus('✅ '+T.label+'価格に反映しました');
       renderProfitHeatmap();
       renderRateSimulation();
+      // ── 自己点検：サーバーから読み直して、本当に残ったか確かめる ──
+      try{
+        const chkRes = await fetch(GAS_URL + '?action=loadAllData');
+        const chk = await chkRes.json();
+        const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
+        const kept = !!(back && Math.round(parseFloat(back[T.field])||0) === Math.round(price));
+        if(kept){
+          showSyncStatus('✅ '+T.label+'に反映しました（サーバー保存も確認済み）');
+        } else {
+          priceGasMissingFields[T.label] = 1;
+          showPriceGasBanner(Object.keys(priceGasMissingFields));
+          showSyncStatus('⚠️ '+T.label+'はサーバーに残りませんでした（画面には表示を続けます）', true);
+        }
+      }catch(e){
+        showSyncStatus('✅ '+T.label+'に反映しました');
+      }
     } else {
       showSyncStatus('⚠️ 保存に失敗しました', true);
     }
