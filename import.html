@@ -175,14 +175,9 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="card">
       <div class="sec">📊 くらべる表（左が最新・右へ行くほど昔）</div>
-      <div style="font-size:11.5px;color:#57534e;margin-bottom:8px;line-height:1.7">🔺<span style="color:#b91c1c;font-weight:700">赤＝前の回より負担が増えた</span>／🔻<span style="color:#166534;font-weight:700">緑＝負担が減った</span>／―＝その回は扱いなし。数字はすべて輸入記録（旧記録＋輸入ノート）から自動計算です。手入力はありません。年月を押すと、その回のカードが開きます。</div>
+      <div style="font-size:11.5px;color:#57534e;margin-bottom:8px;line-height:1.7">🔺<span style="color:#b91c1c;font-weight:700">赤＝前の回より負担が増えた</span>／🔻<span style="color:#166534;font-weight:700">緑＝負担が減った</span>／―＝その回は扱いなし／<span style="background:#eaf2fe;border:3px solid #2563eb;border-radius:6px;padding:0 6px;color:#1d4ed8;font-weight:800">青い枠</span>＝<strong>いま「🔒原価データ」で使っている回</strong>。数字はすべて輸入記録（旧記録＋輸入ノート）から自動計算です。手入力はありません。年月を押すと、その回のカードが開きます。</div>
       <div id="yn-compare-wrap"></div>
-      <div style="font-size:10.5px;color:#8a867c;margin-top:8px;line-height:1.7">※「佐川」には空港倉庫（引取）の分も含めています。「調整・値引き」は経費合計には入れず、商品ごとの原価に€の割合で配分しています。</div>
-    </div>
-    <div class="card">
-      <div class="sec">🏷️ 今の原価バッジ（いま、どの回の原価をつかっている？）</div>
-      <div style="font-size:11.5px;color:#57534e;margin-bottom:10px;line-height:1.7">商品ごとに、「🔒原価データ」に入っている今の原価が<strong>どの輸入回のものか</strong>を自動で照合しています。在庫Bで旧ロットが0本になったら、新しい回のカードを開いて「✅ 確定する」を押すと切り替わります。</div>
-      <div id="yn-badge-wrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px"></div>
+      <div style="font-size:10.5px;color:#8a867c;margin-top:8px;line-height:1.7">※「佐川」には空港倉庫（引取）の分も含めています。「調整・値引き」は経費合計には入れず、商品ごとの原価に€の割合で配分しています。🔔「切り替えどき」が出たら、新しい回のカードを開いて「✅ 確定する」を押すと青い枠が新しい回に移ります。</div>
     </div>
     <div class="card">
       <div class="sec">🗂 カード（書類リンク・メモ・数字の入力はこちらから）</div>
@@ -1039,7 +1034,7 @@ async function loadCostDataFromGAS(){
       renderProfitHeatmap();
       renderRateSimulation();
       renderNovelloNotes();
-      if(typeof ynRenderBadges==='function') ynRenderBadges();
+      if(typeof ynRenderCompare==='function') ynRenderCompare(); // 青い枠（使用中の回）は原価データ読込後に決まる
     }
   }catch(err){}
 }
@@ -1061,7 +1056,7 @@ async function loadStockAndPriceRef(){
       currentLots = data.data.lots || data.data.stock || data.data.stockLots || currentLots || [];
       renderProfitHeatmap();
       renderRateSimulation();
-      if(typeof ynRenderBadges==='function') ynRenderBadges();
+      if(typeof ynRenderCompare==='function') ynRenderCompare(); // 🔔（旧ロット残）は在庫読込後に決まる
     }
   }catch(err){}
 }
@@ -1944,6 +1939,33 @@ function ynRenderCompare(){
     {key:'perMl',   label:'1mlあたり経費（円）',    kind:'perml', strong:true}
   ].filter(function(r){ return !r.optional || cols.some(function(c){ return Math.abs(c[r.key]||0) >= 0.5; }); });
 
+  /* ★2026-07-19 使用中の回の照合（旧・原価バッジ機能をくらべる表へ引っ越し）：
+     商品ごとに「🔒原価データ」の今の原価と一致する回を探し、そのマスを青い枠で示す */
+  const keys = []; const seen = {};
+  (FARM_PRODUCTS[farm]||[]).forEach(function(p){
+    const k = p.sku || ('name:'+p.label);
+    if(seen[k]) return;
+    if(cols.some(function(c){ return c.costBySku[k]!=null; })){ seen[k]=1; keys.push(k); }
+  });
+  cols.forEach(function(c){
+    Object.keys(c.costBySku).forEach(function(k){ if(!seen[k]){ seen[k]=1; keys.push(k); } });
+  });
+  const useBySku = {};    // sku → 使用中の回のid（'__manual__'＝どの回とも一致しない手動原価）
+  const newestBySku = {}; // sku → その商品の原価がある一番新しい（左端の）回のid
+  const colHasUse = {};   // 回のid → その回を使用中の商品が1つでもあるか
+  keys.forEach(function(k){
+    if(String(k).indexOf('name:')===0) return; // 原価データはSKUで管理のため、未登録品は照合できない
+    let newest = null, match = null;
+    cols.forEach(function(c){ if(c.costBySku[k]==null) return; if(!newest) newest = c; });
+    if(newest) newestBySku[k] = newest.id;
+    const rec = costData ? costData[k] : null;
+    const cur = (rec && rec.cost!=null && rec.cost!=='') ? Math.round(parseFloat(rec.cost)||0) : null;
+    if(cur==null) return; // 原価データ未設定
+    cols.forEach(function(c){ if(match || c.costBySku[k]==null) return; if(Math.round(c.costBySku[k])===cur) match = c; });
+    if(match){ useBySku[k] = match.id; colHasUse[match.id] = true; }
+    else { useBySku[k] = '__manual__'; }
+  });
+
   let html = '<table id="yn-compare-table"><thead><tr><th class="yn-c-item">項目</th>';
   cols.forEach(function(c){
     const badge = c.type==='note'
@@ -1952,7 +1974,8 @@ function ynRenderCompare(){
         : '<span style="font-size:9px;background:#fef3c7;color:#78350f;border-radius:99px;padding:1px 7px;font-weight:700">⏳仮</span>')
       : '<span style="font-size:9px;background:#eeece6;color:#57534e;border-radius:99px;padding:1px 7px;font-weight:700">旧記録</span>';
     const open = c.type==='note' ? ("ynOpenNote('"+c.id+"')") : ("ynOpenOld('"+c.id+"')");
-    html += '<th style="cursor:pointer" onclick="'+open+'" title="この回のカードを開く"><span style="font-size:12.5px;font-weight:800">'+esc(fmtYm(c.ym)||'年月未入力')+'</span><div style="margin-top:2px">'+badge+'</div></th>';
+    const usePill = colHasUse[c.id] ? ' <span style="font-size:9px;background:#eaf2fe;color:#1d4ed8;border:1px solid #2563eb;border-radius:99px;padding:1px 7px;font-weight:800">使用中</span>' : '';
+    html += '<th style="cursor:pointer" onclick="'+open+'" title="この回のカードを開く"><span style="font-size:12.5px;font-weight:800">'+esc(fmtYm(c.ym)||'年月未入力')+'</span><div style="margin-top:2px">'+badge+usePill+'</div></th>';
   });
   html += '</tr></thead><tbody>';
 
@@ -1974,35 +1997,43 @@ function ynRenderCompare(){
   });
 
   html += '<tr><td class="yn-c-item" style="background:#ece3f3;color:#5b3b74;font-size:12.5px">🫒 1本あたりの本当の原価（円）</td><td colspan="'+cols.length+'" style="background:#ece3f3"></td></tr>';
-  const keys = []; const seen = {};
-  (FARM_PRODUCTS[farm]||[]).forEach(function(p){
-    const k = p.sku || ('name:'+p.label);
-    if(seen[k]) return;
-    if(cols.some(function(c){ return c.costBySku[k]!=null; })){ seen[k]=1; keys.push(k); }
-  });
-  cols.forEach(function(c){
-    Object.keys(c.costBySku).forEach(function(k){ if(!seen[k]){ seen[k]=1; keys.push(k); } });
-  });
   if(!keys.length){
     html += '<tr><td class="yn-c-item">（原価データなし）</td><td colspan="'+cols.length+'" style="color:#8a867c;font-size:11px">まだ原価を計算できる明細がありません。</td></tr>';
   }
   keys.forEach(function(k){
-    html += '<tr><td class="yn-c-item" style="font-weight:600">'+esc(ynCostRowLabel(k, farm))+'</td>';
+    const useId = useBySku[k];
+    let labelExtra = '';
+    if(useId === '__manual__'){
+      labelExtra = '<div style="font-size:10px;color:#2c5578;font-weight:700;margin-top:2px">✍ 手動の原価（どの回とも一致せず）</div>';
+    } else if(useId && newestBySku[k] && useId !== newestBySku[k]){
+      const oldQ = ynOldLotQty(k);
+      if(oldQ!=null){
+        if(oldQ<=0) labelExtra = '<div style="font-size:10px;color:#b91c1c;font-weight:800;margin-top:2px">🔔 旧ロット0本 → 切り替えどき</div>';
+        else labelExtra = '<div style="font-size:10px;color:#57534e;margin-top:2px">旧ロット残 <strong>'+oldQ.toLocaleString()+'本</strong>（売り切ったら切り替え）</div>';
+      }
+    }
+    html += '<tr><td class="yn-c-item" style="font-weight:600">'+esc(ynCostRowLabel(k, farm))+labelExtra+'</td>';
     cols.forEach(function(c, i){
       const v = c.costBySku[k];
       if(v==null){ html += '<td class="yn-c-num">'+dash+'</td>'; return; }
       let pv = null;
       for(let j=i+1; j<cols.length; j++){ if(cols[j].costBySku[k]!=null){ pv = cols[j].costBySku[k]; break; } }
-      html += '<td class="yn-c-num">¥'+Math.round(v).toLocaleString()+(pv!=null ? ynDeltaHtml(v, pv, 'money') : '')+'</td>';
+      const inner = '¥'+Math.round(v).toLocaleString()+(pv!=null ? ynDeltaHtml(v, pv, 'money') : '');
+      if(useId === c.id){
+        html += '<td class="yn-c-num" style="padding:3px"><div title="いま原価データで使っている回" style="border:3px solid #2563eb;background:#eaf2fe;border-radius:8px;padding:4px 6px;font-weight:800;color:#1d4ed8">'+inner+'</div></td>';
+      } else if(useId && useId!=='__manual__' && c.id===newestBySku[k] && useId!==newestBySku[k]){
+        html += '<td class="yn-c-num">'+inner+'<div style="font-size:9.5px;color:#8a867c;font-weight:700">待機中</div></td>';
+      } else {
+        html += '<td class="yn-c-num">'+inner+'</td>';
+      }
     });
     html += '</tr>';
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
-  if(typeof ynRenderBadges==='function') ynRenderBadges();
 }
 
-/* ── ★2026-07-19 今の原価バッジ（いま、どの回の原価をつかっている？） ── */
+/* ── ★2026-07-19 旧ロット残の照合（在庫Bの旧ロット本数・くらべる表の🔔切り替えどき表示に使用） ── */
 function ynOldLotQty(sku){
   const pid = SKU_TO_PID[sku];
   if(!pid || !currentLots || !currentLots.length) return null;
@@ -2015,77 +2046,6 @@ function ynOldLotQty(sku){
     }
   });
   return found ? q : null; // 在庫Bに旧ロットの行が見つからないときは表示しない
-}
-function ynRenderBadges(){
-  const wrap = document.getElementById('yn-badge-wrap');
-  if(!wrap) return;
-  const farm = ynVal('yn-farm');
-  const cols = ynCompareCols(farm);
-  // くらべる表と同じ順番で、SKUのある商品だけ（原価データはSKUで管理されているため）
-  const skus = []; const seen = {};
-  (FARM_PRODUCTS[farm]||[]).forEach(function(p){
-    if(!p.sku || seen[p.sku]) return;
-    if(cols.some(function(c){ return c.costBySku[p.sku]!=null; })){ seen[p.sku]=1; skus.push(p.sku); }
-  });
-  cols.forEach(function(c){
-    Object.keys(c.costBySku).forEach(function(k){
-      if(String(k).indexOf('name:')===0 || seen[k]) return;
-      seen[k]=1; skus.push(k);
-    });
-  });
-  if(!skus.length){
-    wrap.innerHTML = '<div style="font-size:12px;color:#8a867c;padding:6px;grid-column:1/-1">この農園には、まだ原価を照合できる輸入記録がありません。</div>';
-    return;
-  }
-  let html = '';
-  skus.forEach(function(sku){
-    const name = ynCostRowLabel(sku, farm);
-    // 最新の（＝一番左の）この商品の原価がある回
-    let newest = null, match = null;
-    cols.forEach(function(c){
-      if(c.costBySku[sku]==null) return;
-      if(!newest) newest = c;
-    });
-    const rec = costData ? costData[sku] : null;
-    const cur = (rec && rec.cost!=null && rec.cost!=='') ? Math.round(parseFloat(rec.cost)||0) : null;
-    if(cur!=null){
-      cols.forEach(function(c){
-        if(match || c.costBySku[sku]==null) return;
-        if(Math.round(c.costBySku[sku])===cur) match = c;
-      });
-    }
-    let bg, border, badgeLine, subLines = [];
-    if(cur==null){
-      bg='#f7f5f0'; border='#d8cfc4';
-      badgeLine = '<span style="font-weight:800;color:#8a867c">原価データ未設定</span>';
-      if(newest) subLines.push('最新の回：'+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+'　'+ynFmt(newest.costBySku[sku]));
-    } else if(match && newest && match.id===newest.id){
-      bg='#f0f7ee'; border='#b7d3ac';
-      badgeLine = '<span style="font-weight:800;color:#166534">✅ '+esc(fmtYm(match.ym))+' に切り替え済み</span>';
-    } else if(match){
-      bg='#fffbeb'; border='#f59e0b';
-      badgeLine = '<span style="font-weight:800;color:#78350f">⏳ '+esc(fmtYm(match.ym))+' のまま</span>';
-      if(newest && newest.id!==match.id){
-        subLines.push('最新 '+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+' '+ynFmt(newest.costBySku[sku])+' が待機中');
-      }
-      const oldQ = ynOldLotQty(sku);
-      if(oldQ!=null){
-        if(oldQ<=0) subLines.push('<span style="color:#b91c1c;font-weight:800">🔔 旧ロットが0本 → 切り替えどきです</span>');
-        else subLines.push('旧ロット残 <strong>'+oldQ.toLocaleString()+'本</strong>（売り切ったら切り替え）');
-      }
-    } else {
-      bg='#eef4fb'; border='#bdd7ec';
-      badgeLine = '<span style="font-weight:800;color:#2c5578">✍ 手動の原価（どの回とも一致せず）</span>';
-      if(newest) subLines.push('最新の回：'+esc(fmtYm(newest.ym))+(newest.type==='note'&&newest.status!=='fixed'?'（⏳仮・未確定）':'')+'　'+ynFmt(newest.costBySku[sku]));
-    }
-    html += '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:9px 11px">'
-      + '<div style="font-size:12.5px;font-weight:700;margin-bottom:4px">'+esc(name)+'</div>'
-      + '<div style="font-size:12px">'+badgeLine+'</div>'
-      + (cur!=null ? '<div style="font-size:12px;margin-top:3px">今の原価 <strong style="font-size:13.5px">'+ynFmt(cur)+'</strong></div>' : '')
-      + subLines.map(function(s){ return '<div style="font-size:11px;color:#57534e;margin-top:3px;line-height:1.6">'+s+'</div>'; }).join('')
-      + '</div>';
-  });
-  wrap.innerHTML = html;
 }
 
 /* ── ★2026-07-19 📥 Claudeのデータを取り込む（取り込みコード → ⏳仮カード） ── */
