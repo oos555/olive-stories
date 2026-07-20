@@ -1002,6 +1002,17 @@ async function deleteBatch(id){
 // ── 原価データ（E内） ────────────────────────────────────────────
 let costData = {}; // { sku: {cost:数字, memo:''} }
 let provisionalCosts = {}; // ★2026-07-20 仮原価（別のしまい場所）：{ sku:{cost:数字, memo:''} }。本物の原価が無いときだけ使う。輸入ノートには一切触れない。
+// ★2026-07-20(修正) 仮原価をこの端末にも必ず控える。GASが仮原価をまだ保存できない形でも、別アプリへ移動して戻ったときに消えないようにする。
+const PROVISIONAL_COSTS_KEY = 'oos_provisional_costs_v1';
+function saveProvisionalCostsLocal(){
+  try{ localStorage.setItem(PROVISIONAL_COSTS_KEY, JSON.stringify(provisionalCosts||{})); }catch(e){}
+}
+function loadProvisionalCostsLocal(){
+  try{
+    const raw = localStorage.getItem(PROVISIONAL_COSTS_KEY);
+    if(raw){ const obj = JSON.parse(raw); if(obj && typeof obj==='object') provisionalCosts = obj; }
+  }catch(e){}
+}
 let novelloNotes = [];
 let costDataDirty = false;
 
@@ -1055,11 +1066,18 @@ async function loadCostDataFromGAS(){
 
 // ★2026-07-20 仮原価の読み込み（GASがまだ未対応でも、黙ってスキップして従来どおり動く）
 async function loadProvisionalCostsFromGAS(){
+  loadProvisionalCostsLocal(); // ★まずこの端末の控えを復元（GASが未対応でも仮原価が消えない）
+  renderCostProductTable();
+  renderProfitHeatmap();
+  renderRateSimulation();
   try{
     const res = await fetch(GAS_URL + '?action=loadProvisionalCosts&password=' + encodeURIComponent(password));
     const data = await res.json();
     if(data && data.status==='ok' && data.data && data.data.provisionalCosts){
-      provisionalCosts = data.data.provisionalCosts || {};
+      const fromGas = data.data.provisionalCosts || {};
+      // GASにある分は取り込みつつ、この端末で入れた分は必ず残す（端末優先＝入れた数字が戻らない）
+      provisionalCosts = Object.assign({}, fromGas, provisionalCosts);
+      saveProvisionalCostsLocal();
       renderCostProductTable();
       renderProfitHeatmap();
       renderRateSimulation();
@@ -1169,14 +1187,16 @@ async function saveProvisionalEntry(){
   var memo = document.getElementById('prov-entry-memo').value||'';
   if(v>0) provisionalCosts[provEntrySku] = { cost:v, memo:memo };
   else if(provisionalCosts[provEntrySku]) delete provisionalCosts[provEntrySku];
+  saveProvisionalCostsLocal(); // ★まずこの端末に確実に保存（別アプリへ移動して戻っても消えない）
   showSyncStatus('仮原価を保存しています...');
   try{
     var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     var data = await res.json();
     if(data && data.status==='ok') showSyncStatus('✅ 仮原価を保存しました');
-    else showSyncStatus('⚠️ 保存に失敗：'+((data&&data.message)||''), true);
-  }catch(e){ showSyncStatus('⚠️ 通信エラー（仮原価）', true); }
+    else showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）');
+  }catch(e){ showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）'); }
   closeProvisionalEntry();
+  renderCostProductTable();
   renderProfitHeatmap();
   renderRateSimulation();
 }
