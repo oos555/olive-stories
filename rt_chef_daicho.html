@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTシェフ台帳</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#faf7f2;color:#2b2a26;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;font-size:16px;line-height:1.65;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 12px 60px;}
+  .apphead{background:#c9a9a6;color:#fff;padding:14px 18px;}
+  .apphead h1{font-family:"Zen Maru Gothic",sans-serif;font-weight:700;font-size:21px;margin:0;}
+  .apphead .sub{font-size:12px;opacity:.95;}
+  .apphead .sync{font-size:11px;opacity:.95;margin-top:2px;}
+
+  .lock{max-width:420px;margin:0 auto;padding:44px 22px;text-align:center;}
+  .lock h2{font-family:"Zen Maru Gothic",sans-serif;font-size:19px;}
+  .lock input{width:100%;max-width:260px;font-size:20px;text-align:center;letter-spacing:3px;padding:13px;border:2px solid #b9b09c;border-radius:12px;margin:14px 0;}
+  .lock button{background:#c2761f;color:#fff;border:none;border-radius:12px;padding:13px 28px;font-size:17px;font-weight:700;}
+  .lock .err{color:#dc2626;font-weight:700;font-size:14px;min-height:20px;}
+
+  .nav{display:flex;gap:7px;margin:14px 0;flex-wrap:wrap;}
+  .nav button{background:#fff;border:1.5px solid #ddd4c7;color:#2b2a26;font-weight:700;padding:10px 16px;border-radius:999px;cursor:pointer;font-size:15px;}
+  .nav button.on{background:#6b7a3a;color:#fff;border-color:#6b7a3a;}
+  .view{display:none;}
+  .view.on{display:block;}
+
+  .switch{display:flex;gap:8px;margin:6px 0 12px;flex-wrap:wrap;align-items:center;}
+  .switch .lbl{font-size:14px;font-weight:700;color:#6b6a63;}
+  .switch button{background:#fff;border:1.5px solid #ddd4c7;color:#2b2a26;font-weight:700;padding:8px 15px;border-radius:999px;cursor:pointer;font-size:14px;}
+  .switch button.on{background:#a3b18a;color:#fff;border-color:#a3b18a;}
+  .search{width:100%;padding:11px 14px;font-size:16px;border:1.5px solid #b9b09c;border-radius:12px;margin-bottom:14px;}
+
+  .card{background:#fff;border:1px solid #ece5da;border-radius:14px;padding:15px 16px;margin-bottom:13px;}
+  .card h3{font-family:"Zen Maru Gothic",sans-serif;font-size:18px;margin:0 0 2px;}
+  .genre-pill{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+  .g-鉄板焼{background:#f6e2cc;color:#8a4b12;} .g-イタリアン{background:#e5eecf;color:#4d5a24;}
+  .g-中華{background:#f6d9d9;color:#8a2b2b;} .g-物販{background:#d7e6ec;color:#2b5566;} .g-フレンチ{background:#e6dcf0;color:#5a3b7a;}
+  .kv{display:flex;flex-wrap:wrap;gap:6px 20px;margin:8px 0;font-size:14.5px;}
+  .kv b{color:#2b2a26;}
+  .lineage{background:#f7f4ee;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:14px;}
+  .lineage .arrow{color:#a99;font-weight:700;}
+  .oils{margin-top:8px;}
+  .oil{display:inline-block;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;margin:3px 4px 0 0;}
+  .oil.now{background:#dff3ea;color:#0f6e56;}
+  .oil.past{background:#efe9e0;color:#8a7a58;}
+  .oil-lbl{font-size:12px;color:#8a857a;font-weight:700;margin-right:4px;}
+  .bars{margin-top:10px;}
+  .bar-row{display:flex;align-items:center;gap:9px;margin:5px 0;}
+  .bar-row .nm{width:150px;font-size:13px;font-weight:700;flex-shrink:0;}
+  .bar-row .bar{height:20px;background:#6b7a3a;border-radius:5px;min-width:3px;}
+  .bar-row .q{font-size:13px;font-weight:700;white-space:nowrap;}
+  .tip{font-size:13px;color:#57534e;background:#eef4e6;border:1.5px solid #b7cf93;border-radius:10px;padding:9px 12px;margin-top:10px;}
+  .tip b{color:#3b6d11;}
+  .mini{font-size:12px;color:#8a857a;}
+  .monthrow{display:flex;align-items:flex-end;gap:5px;height:90px;margin-top:8px;}
+  .monthrow .mb{flex:1;background:#a3b18a;border-radius:4px 4px 0 0;min-height:3px;position:relative;}
+  .monthrow .mb span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:11px;color:#6b6a63;}
+
+  /* しらべる窓 */
+  .askbox{background:#fff;border:1px solid #ece5da;border-radius:14px;padding:15px;margin-bottom:14px;}
+  .askbox textarea{width:100%;border:2px solid #b9b09c;border-radius:12px;padding:12px;font-size:16px;min-height:60px;font-family:inherit;color:#2b2a26;}
+  .askbox .go{background:#2563eb;color:#fff;border:none;border-radius:11px;padding:12px 22px;font-size:16px;font-weight:700;margin-top:9px;}
+  .askbox .examples{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .askbox .ex{background:#f0f4ea;border:1px solid #cddcb6;color:#4d5a24;font-size:12.5px;font-weight:700;border-radius:999px;padding:6px 11px;cursor:pointer;}
+  .answer{background:#f7f9f3;border:1.5px solid #b7cf93;border-radius:12px;padding:14px;margin-top:6px;}
+  .answer .a-title{font-weight:700;font-size:16px;color:#2b2a26;margin-bottom:8px;}
+  .evi{font-size:12px;color:#8a857a;margin-top:10px;}
+
+  /* 名刺 */
+  .shoot{background:#fff;border:2px dashed #b9b09c;border-radius:16px;padding:24px 16px;text-align:center;margin-bottom:14px;}
+  .shoot .cam{font-size:44px;}
+  .shoot .big{display:block;background:#2563eb;color:#fff;border:none;border-radius:13px;padding:16px;font-size:18px;font-weight:700;width:100%;margin-top:12px;cursor:pointer;}
+  .shoot input[type=file]{display:none;}
+  .hint{background:#f0f4ea;border-radius:11px;padding:11px 13px;font-size:13px;color:#4d5a24;line-height:1.75;}
+  .review{background:#fff;border:1.5px solid #6b7a3a;border-radius:14px;padding:14px;margin-bottom:14px;}
+  .review .thumb{width:100%;max-height:160px;object-fit:contain;background:#f1ece3;border-radius:10px;margin-bottom:12px;}
+  .fld{margin-bottom:9px;}
+  .fld label{font-size:12px;color:#6b6a63;font-weight:700;display:block;margin-bottom:3px;}
+  .fld input,.fld select{width:100%;padding:10px;font-size:16px;border:1.5px solid #cfc7b6;border-radius:9px;color:#2b2a26;font-weight:700;background:#fff;}
+  .saverow{display:flex;gap:9px;margin-top:6px;}
+  .saverow .save{flex:1.6;background:#16a34a;color:#fff;border:none;border-radius:11px;padding:14px;font-size:17px;font-weight:700;}
+  .saverow .cancel{flex:1;background:#eee;color:#555;border:none;border-radius:11px;padding:14px;font-size:15px;font-weight:700;}
+
+  .pcard{background:#fff;border:1px solid #ece5da;border-radius:13px;padding:13px 15px;margin-bottom:11px;}
+  .pcard .nm{font-size:17px;font-weight:700;}
+  .pcard .role{font-size:13px;color:#8a857a;font-weight:700;}
+  .pcard .row2{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:6px;font-size:14px;}
+  .pcard .tagfac{display:inline-block;background:#e5eecf;color:#4d5a24;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-top:6px;}
+  .pcard .del{float:right;background:none;border:none;color:#c0bbb0;font-size:13px;cursor:pointer;}
+  .empty{text-align:center;color:#8a857a;padding:24px;font-weight:700;font-size:14px;}
+  .stagenote{background:#fff4e6;border:1.5px solid #e5b877;color:#7a4a10;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:13px;line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="apphead">
+  <h1>🍽️ RTシェフ台帳</h1>
+  <div class="sub">施設 ⇄ シェフ ⇄ ジャンルで追う／自由に調べる／名刺から人物カード</div>
+  <div class="sync" id="sync"></div>
+</div>
+
+<!-- ロック -->
+<div id="lock-view" class="lock">
+  <h2>🔒 社長専用</h2>
+  <div style="font-size:14px;color:#6b6a63;">社長専用の合鍵を入れてください</div>
+  <input id="pw" type="password" inputmode="text" placeholder="合鍵" autocomplete="off">
+  <div class="err" id="pwerr"></div>
+  <button onclick="tryUnlock()">開く</button>
+</div>
+
+<!-- 本体 -->
+<div id="main-view" class="wrap" style="display:none;">
+  <div class="nav">
+    <button class="on" id="n-daicho" onclick="nav('daicho')">🏨 台帳</button>
+    <button id="n-ask" onclick="nav('ask')">🔎 しらべる</button>
+    <button id="n-meishi" onclick="nav('meishi')">📇 名刺を入れる</button>
+    <button id="n-people" onclick="nav('people')">👥 人物カード（<span id="pcount">0</span>）</button>
+  </div>
+
+  <!-- 台帳 -->
+  <div class="view on" id="v-daicho">
+    <div class="switch">
+      <span class="lbl">追い方：</span>
+      <button class="on" id="sw-fac" onclick="setMode('fac')">🏨 施設で</button>
+      <button id="sw-chef" onclick="setMode('chef')">👨‍🍳 シェフで</button>
+      <button id="sw-genre" onclick="setMode('genre')">🍳 ジャンルで</button>
+    </div>
+    <input class="search" id="q" placeholder="🔎 施設名・シェフ名・オイル名で絞る（例：野口、ラグーナ、オルガニック）" oninput="renderDaicho()">
+    <div id="list"></div>
+  </div>
+
+  <!-- しらべる -->
+  <div class="view" id="v-ask">
+    <div class="askbox">
+      <div style="font-weight:700;margin-bottom:7px;">知りたいことを、言葉で打ってください</div>
+      <textarea id="ask" placeholder="例）RT全体で一番売れてるオイルは？　イタリアンで一番売れてるのは？　オルガニックを一番買ってる施設は？"></textarea>
+      <button class="go" onclick="doAsk()">調べる</button>
+      <div class="examples" id="ask-ex"></div>
+    </div>
+    <div id="answer"></div>
+  </div>
+
+  <!-- 名刺を入れる -->
+  <div class="view" id="v-meishi">
+    <div class="stagenote">今は「撮る→写真を保存→項目は手で入れる」形です。名刺の<b>自動読み取り（AI）</b>は次の段階で足します。撮った写真と入れた内容は、この端末に保存されます。</div>
+    <div id="shoot-box" class="shoot">
+      <div class="cam">📇</div>
+      <div style="font-weight:700;margin-top:6px;">名刺を撮って取り込む</div>
+      <label class="big" for="cam">📷 カメラで名刺を撮る／写真を選ぶ</label>
+      <input id="cam" type="file" accept="image/*" capture="environment" onchange="onShot(event)">
+      <div class="hint" style="margin-top:14px;">・何枚でも続けて入れられます。<br>・区分（シェフ／購買／EC／本部／ショップ）で分けられます。<br>・施設を選ぶと、その施設の人としてひもづきます。</div>
+    </div>
+    <div id="review" class="review" style="display:none;">
+      <img id="thumb" class="thumb" alt="撮った名刺">
+      <div style="font-weight:700;margin-bottom:8px;">内容を入れて「保存」してください</div>
+      <div class="fld"><label>お名前</label><input id="f-name" placeholder="例）野口 太郎"></div>
+      <div class="fld"><label>役職</label><input id="f-role" placeholder="例）料理長"></div>
+      <div class="fld"><label>部署</label><input id="f-dept" placeholder="例）イタリアンレストラン／購買部"></div>
+      <div class="fld"><label>施設</label>
+        <select id="f-fac"></select>
+      </div>
+      <div class="fld"><label>電話</label><input id="f-tel" placeholder="例）0740-34-8000"></div>
+      <div class="fld"><label>メール</label><input id="f-mail" placeholder="例）xxx@rt-group.jp"></div>
+      <div class="fld"><label>区分</label>
+        <select id="f-type"><option>シェフ（料理長）</option><option>購買担当</option><option>EC担当</option><option>本部</option><option>ショップ担当</option><option>その他</option></select>
+      </div>
+      <div class="saverow">
+        <button class="cancel" onclick="cancelReview()">やめる</button>
+        <button class="save" onclick="savePerson()">この内容で保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 人物カード -->
+  <div class="view" id="v-people">
+    <input class="search" id="pq" placeholder="🔎 人物カードを絞る（名前・施設・区分）" oninput="renderPeople()">
+    <div id="peoplebox"></div>
+  </div>
+</div>
+
+<script>
+/* ===== RTシェフ台帳 初期データ（伝票＋Dropbox資料から読み取り・2026-07-20時点） ===== */
+var FAC = {
+  'サンクチュアリコート日光':   {genre:'鉄板焼',   cur:'不明', staff:'—', lineage:[], pastOils:['オルガニック','メメジック']},
+  'サンクチュアリコート琵琶湖': {genre:'イタリアン', cur:'野口シェフ', staff:'開業準備室 鈴木さん', lineage:['（新設・野口シェフが開業）'], pastOils:['オルガニック','プリモフルット','ザイトゥーン','アグルミ']},
+  'サンクチュアリコート高山':   {genre:'イタリアン', cur:'穴見シェフ', staff:'岡崎さん', lineage:['穴見シェフ（前・エクシブ有馬離宮）'], pastOils:['オルガニック','プリモフルット','トゥリリエ']},
+  '横浜ベイコート倶楽部':       {genre:'中華', cur:'小林シェフ（大悟）', staff:'酒井さん', lineage:['小林シェフ（中華）','大塚シェフ（イタリアン）'], pastOils:['アルモニア','アイバリック','オルガニック','唐辛子オイル']},
+  'ラグーナベイコート倶楽部':   {genre:'イタリアン', cur:'奥村シェフ', staff:'—', lineage:['奥村シェフ（現）','野口シェフ（前→琵琶湖へ異動）'], pastOils:['オルガニック','トゥリリエ','プリモフルット','ザイトゥーン','唐辛子オイル','アイバリック','シンフォニア','アグルミ']},
+  'グランドエクシブ鳴門':       {genre:'イタリアン', cur:'和田シェフ', staff:'—', lineage:['和田シェフ（サンクチュアリ・ヴィラ）'], pastOils:[]},
+  'エクシブ箱根離宮':           {genre:'物販', cur:'下橋シェフ', staff:'—', lineage:['下橋シェフ（佐藤シェフの紹介）'], pastOils:['オルガニック']}
+};
+var CHEF_CAREER = {
+  '野口シェフ':  [{fac:'ラグーナベイコート倶楽部', when:'〜2025'}, {fac:'サンクチュアリコート琵琶湖', when:'2025〜（開業）'}],
+  '奥村シェフ':  [{fac:'（鳥羽時代・小川料理長に師事）', when:'前'}, {fac:'ラグーナベイコート倶楽部', when:'現・野口シェフの後任'}],
+  '穴見シェフ':  [{fac:'エクシブ有馬離宮', when:'前'}, {fac:'サンクチュアリコート高山', when:'現（2024/3開業）'}],
+  '小林シェフ（大悟）': [{fac:'横浜ベイコート倶楽部（中華）', when:'現'}],
+  '和田シェフ':  [{fac:'グランドエクシブ鳴門', when:'現'}],
+  '下橋シェフ':  [{fac:'エクシブ箱根離宮', when:'現'}]
+};
+/* 販売実績（伝票から・実際に届いた本数）[施設, 商品, 数量, 単位, 納品日] */
+var SALES = [
+  ['サンクチュアリコート日光','オルガニック250ml',30,'本','2026-02-12'],
+  ['サンクチュアリコート日光','メメジック250ml',30,'本','2026-02-12'],
+  ['サンクチュアリコート日光','オルガニック500ml',12,'本','2026-02-27'],
+  ['サンクチュアリコート日光','メメジック500ml',12,'本','2026-02-27'],
+  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-02-20'],
+  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-03-25'],
+  ['サンクチュアリコート高山','オルガニック500ml',12,'本','2026-04-07'],
+  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-04-07'],
+  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-04-07'],
+  ['サンクチュアリコート高山','オルガニック100ml',48,'本','2026-05-12'],
+  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-05-12'],
+  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-05-12'],
+  ['サンクチュアリコート高山','メメジック2L',6,'缶','2026-05-12'],
+  ['サンクチュアリコート高山','olive NOVA',20,'セット','2026-05-16'],
+  ['サンクチュアリコート高山','your story',20,'セット','2026-05-19'],
+  ['サンクチュアリコート高山','メメジック100ml',24,'本','2026-05-19'],
+  ['横浜ベイコート倶楽部','アルモニア500ml',12,'本','2026-03-18'],
+  ['ラグーナベイコート倶楽部','オルガニック500ml',12,'本','2026-04-11'],
+  ['グランドエクシブ鳴門','調合オイル5L',20,'本','2026-04-18'],
+  ['グランドエクシブ鳴門','カップオイル(メメジック)13g',120,'個','2026-05-09'],
+  ['エクシブ箱根離宮','オルガニック100ml',24,'本','2026-04-03']
+];
+/* 名刺サンプル（重要メモの担当者リストより・実データ。中村様が名刺を撮って足していく） */
+var PEOPLE_SEED = [
+  {name:'野口シェフ', role:'料理長', dept:'イタリアンレストラン', fac:'サンクチュアリコート琵琶湖', tel:'0740-34-8000', mail:'', type:'シェフ（料理長）', photo:''},
+  {name:'金井 智恵', role:'主事', dept:'購買部 購買三課', fac:'本部（購買部）', tel:'052-307-3721', mail:'chie.kanai@rt-group.jp', type:'購買担当', photo:''},
+  {name:'稲辺 有希子', role:'主事', dept:'購買部 購買三課', fac:'本部（購買部）', tel:'052-307-3721', mail:'yukiko.inabe@rt-group.jp', type:'購買担当', photo:''},
+  {name:'林 杏香（旧姓：森）', role:'', dept:'ビューティ部 EC営業課', fac:'本部（EC営業課）', tel:'052-310-3360', mail:'kyoka.mori@rt-group.jp', type:'EC担当', photo:''},
+  {name:'小川 友加子', role:'', dept:'ショップ・ブライダル部', fac:'本部（ショップ）', tel:'052-310-1288', mail:'yukako.ogawa@rt-group.jp', type:'ショップ担当', photo:''},
+  {name:'高垣 吉正シェフ', role:'料理飲料部', dept:'料理飲料部', fac:'本部', tel:'', mail:'', type:'本部', photo:''}
+];
+/* 施設の選択肢（名刺の施設欄用） */
+var FAC_OPTIONS = Object.keys(FAC).concat(['本部（購買部）','本部（EC営業課）','本部（ショップ）','本部','その他']);
+
+</script>
+<script>
+/* ===== RTシェフ台帳 ロジック ===== */
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+var SECRET_KEY = 'oos_unlock_secret';
+var ATELIER_OK = 'oos_atelier_ok';
+var PEOPLE_KEY = 'oos_rt_people_v1';
+var password = '';
+var PEOPLE = [];
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function setSync(m){ var e=document.getElementById('sync'); if(e) e.textContent=m||''; }
+
+/* ---- 合鍵（他の社長専用アプリと共通・アプリに文字は書かない） ---- */
+function savedSecret(){ try{ var v=JSON.parse(localStorage.getItem(SECRET_KEY)||'null'); return (v&&v.p)? v.p:null; }catch(e){ return null; } }
+function storeSecret(pw){ try{ localStorage.setItem(SECRET_KEY, JSON.stringify({p:pw})); localStorage.setItem(ATELIER_OK,'1'); }catch(e){} }
+function pingUnlock(pw, cb){
+  // 既存の社長専用アプリと同じ判定：getImportDataにパスワードを送りstatusで判定
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'getImportData',password:pw})})
+    .then(function(r){return r.json();})
+    .then(function(d){ cb(d && d.status==='ok'); })
+    .catch(function(){ cb(null); }); // 通信不良はnull（判定不能）
+}
+function boot(){
+  loadPeople();
+  var s=savedSecret();
+  if(s){ // 今日すでに社長専用を開けている
+    password=s; openMain();
+    pingUnlock(s, function(ok){ if(ok===false){ /* 鍵が変わっていたら閉じる */ lockAgain('合鍵が変わっています。入れ直してください'); } });
+  }
+}
+function tryUnlock(){
+  var pw=document.getElementById('pw').value.trim(); if(!pw) return;
+  document.getElementById('pwerr').textContent='確認中…';
+  pingUnlock(pw, function(ok){
+    if(ok){ password=pw; storeSecret(pw); openMain(); }
+    else if(ok===false){ document.getElementById('pwerr').textContent='合鍵が違うようです'; }
+    else { // 通信不能：この端末で以前開けていれば通す。そうでなければ待つ
+      document.getElementById('pwerr').textContent='通信できません。電波の良い所でもう一度お試しください';
+    }
+  });
+}
+function lockAgain(msg){
+  document.getElementById('main-view').style.display='none';
+  document.getElementById('lock-view').style.display='block';
+  document.getElementById('pwerr').textContent=msg||'';
+  try{ localStorage.removeItem(SECRET_KEY); }catch(e){}
+}
+function openMain(){
+  document.getElementById('lock-view').style.display='none';
+  document.getElementById('main-view').style.display='block';
+  fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
+}
+
+/* ---- ナビ ---- */
+function nav(w){
+  ['daicho','ask','meishi','people'].forEach(function(x){
+    document.getElementById('n-'+x).classList.toggle('on', x===w);
+    document.getElementById('v-'+x).classList.toggle('on', x===w);
+  });
+  if(w==='people') renderPeople();
+}
+
+/* ---- 集計ヘルパ ---- */
+function nowOils(fac){ var s={}; SALES.forEach(function(r){ if(r[0]===fac) s[r[1]]=(s[r[1]]||0)+r[2]; }); return s; }
+function facTotal(fac){ var n=0; SALES.forEach(function(r){ if(r[0]===fac && r[3]==='本') n+=r[2]; }); return n; }
+function prodTotalAll(){ var s={}; SALES.forEach(function(r){ s[r[1]]=(s[r[1]]||0)+r[2]; }); return s; }
+function prodTotalByGenre(genre){ var s={}; SALES.forEach(function(r){ if(FAC[r[0]] && FAC[r[0]].genre===genre) s[r[1]]=(s[r[1]]||0)+r[2]; }); return s; }
+function facMonthly(fac){
+  var m={}; SALES.forEach(function(r){ if(r[0]===fac && r[3]==='本'){ var k=r[4].slice(0,7); m[k]=(m[k]||0)+r[2]; } });
+  return m;
+}
+
+function barsHtml(obj, unitHint){
+  var arr=Object.keys(obj).map(function(k){return {k:k,n:obj[k]};}).sort(function(a,b){return b.n-a.n;});
+  if(!arr.length) return '<div class="mini">データはまだありません。</div>';
+  var mx=arr[0].n;
+  return '<div class="bars">'+arr.map(function(x){
+    var w=Math.max(4,Math.round(x.n/mx*340));
+    return '<div class="bar-row"><div class="nm">'+esc(x.k)+'</div><div class="bar" style="width:'+w+'px"></div><div class="q">'+x.n+'</div></div>';
+  }).join('')+'</div>';
+}
+function oilsHtml(fac){
+  var now=nowOils(fac); var nowKeys=Object.keys(now);
+  var past=(FAC[fac].pastOils||[]);
+  var pastOnly=past.filter(function(p){ return !nowKeys.some(function(k){return k.indexOf(p)>=0;}); });
+  var h='<div class="oils"><span class="oil-lbl">いま:</span>';
+  h+= nowKeys.length? nowKeys.map(function(k){return '<span class="oil now">'+esc(k)+' '+now[k]+'</span>';}).join('') : '<span class="mini">なし</span>';
+  h+='</div>';
+  if(pastOnly.length){ h+='<div class="oils"><span class="oil-lbl">昔つかってた:</span>'+pastOnly.map(function(p){return '<span class="oil past">'+esc(p)+'</span>';}).join('')+'</div>'; }
+  return h;
+}
+function monthHtml(fac){
+  var m=facMonthly(fac); var keys=Object.keys(m).sort(); if(!keys.length) return '';
+  var mx=Math.max.apply(null,keys.map(function(k){return m[k];}))||1;
+  return '<div class="mini" style="margin-top:12px;">月ごとの購入（本もの・本数）</div><div class="monthrow">'+
+    keys.map(function(k){ var lbl=(+k.slice(5,7))+'月'; return '<div class="mb" style="height:'+Math.max(3,Math.round(m[k]/mx*80))+'px"><span>'+lbl+'</span></div>'; }).join('')+'</div>';
+}
+
+/* ---- 台帳（施設/シェフ/ジャンル） ---- */
+var curMode='fac';
+function setMode(m){ curMode=m;
+  document.getElementById('sw-fac').classList.toggle('on',m==='fac');
+  document.getElementById('sw-chef').classList.toggle('on',m==='chef');
+  document.getElementById('sw-genre').classList.toggle('on',m==='genre');
+  renderDaicho();
+}
+function match(q,s){ return !q || (s||'').indexOf(q)>=0; }
+function renderDaicho(){
+  var q=document.getElementById('q').value.trim();
+  var box=document.getElementById('list'); var html='';
+  if(curMode==='fac'){
+    Object.keys(FAC).sort(function(a,b){return facTotal(b)-facTotal(a);}).forEach(function(f){
+      var d=FAC[f];
+      var hay=f+' '+d.cur+' '+d.lineage.join(' ')+' '+(d.pastOils||[]).join(' ')+' '+Object.keys(nowOils(f)).join(' ');
+      if(!match(q,hay)) return;
+      html+='<div class="card"><h3>'+esc(f)+'<span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></h3>'+
+        '<div class="kv"><span>現シェフ：<b>'+esc(d.cur)+'</b></span><span>担当者：<b>'+esc(d.staff)+'</b></span></div>'+
+        (d.lineage.length?'<div class="lineage">歴代：'+d.lineage.map(esc).join(' <span class="arrow">←</span> ')+'</div>':'')+
+        oilsHtml(f)+barsHtml(nowOils(f))+monthHtml(f)+
+        '<div class="tip">次の一手：'+nextTip(f)+'</div></div>';
+    });
+  } else if(curMode==='chef'){
+    Object.keys(CHEF_CAREER).forEach(function(chef){
+      var car=CHEF_CAREER[chef]; var curFac=car[car.length-1].fac;
+      if(!match(q, chef+' '+car.map(function(c){return c.fac;}).join(' '))) return;
+      html+='<div class="card"><h3>👨‍🍳 '+esc(chef)+'</h3>'+
+        '<div class="lineage">経歴：'+car.map(function(c){return esc(c.fac)+'<span class="mini">（'+esc(c.when)+'）</span>';}).join(' <span class="arrow">→</span> ')+'</div>'+
+        (FAC[curFac]?'<div class="kv"><span>今の施設：<b>'+esc(curFac)+'</b></span><span>ジャンル：<b>'+esc(FAC[curFac].genre)+'</b></span></div>'+barsHtml(nowOils(curFac)):'')+
+        '<div class="tip">'+chefTip(chef)+'</div></div>';
+    });
+  } else {
+    var genres={}; Object.keys(FAC).forEach(function(f){ (genres[FAC[f].genre]=genres[FAC[f].genre]||[]).push(f); });
+    Object.keys(genres).forEach(function(g){
+      if(!match(q,g+' '+genres[g].join(' '))) return;
+      html+='<div class="card"><h3>🍳 '+esc(g)+'<span class="genre-pill g-'+g+'">'+esc(g)+'</span></h3>'+
+        '<div class="kv"><span>施設：<b>'+esc(genres[g].join('、'))+'</b></span></div>'+
+        '<div class="kv"><span>シェフ：<b>'+esc(genres[g].map(function(f){return FAC[f].cur;}).join('、'))+'</b></span></div>'+
+        barsHtml(prodTotalByGenre(g))+
+        '<div class="tip">'+esc(g)+'のシェフたちは上の銘柄をよく使います。新しい'+esc(g)+'のシェフにはここから提案すると当たりやすい。</div></div>';
+    });
+  }
+  box.innerHTML = html||'<div class="empty">見つかりませんでした。</div>';
+}
+function nextTip(f){
+  var now=nowOils(f);
+  if(f==='ラグーナベイコート倶楽部') return '前シェフ野口さんは<b>琵琶湖</b>へ。新任<b>奥村シェフ</b>に、昔ラグーナで使っていた銘柄（トゥリリエ・ザイトゥーン等）を改めて案内する余地あり。';
+  if(f==='サンクチュアリコート琵琶湖') return '<b>野口シェフ</b>は引き続きのお付き合い。ラグーナ時代の好み（トゥリリエ等）を琵琶湖でも提案できる。';
+  if(FAC[f].cur==='不明') return 'この施設のシェフ名が未記録。分かれば名刺や台帳に足すと案内先として活きる。';
+  var top=Object.keys(now).sort(function(a,b){return now[b]-now[a];})[0];
+  return 'いま<b>'+esc(top||'—')+'</b>をよく購入。旧ロットの案内先候補。';
+}
+function chefTip(chef){
+  if(chef==='野口シェフ') return '<b>ラグーナ→琵琶湖</b>へ異動。琵琶湖で引き続き購入中。前任地ラグーナの後任（奥村シェフ）へ同じ銘柄を横展開できる。';
+  if(chef==='奥村シェフ') return '野口シェフの後任。<b>前任者が使っていた銘柄</b>を引き継ぎ提案するとスムーズ。';
+  return 'このシェフの購入傾向から、次の取り置き・案内を考えられる。';
+}
+
+/* ---- しらべる窓（アプリ単体で動くかしこい検索） ---- */
+var EXAMPLES=['RT全体で一番売れてるオイルは？','イタリアンで一番売れてるのは？','鉄板で何が売れてる？','オルガニックを一番買ってる施設は？','高山は何を買ってる？'];
+// 単位マップ（商品→単位）
+var UNIT={}; SALES.forEach(function(r){ UNIT[r[1]]=r[3]; });
+// ブランド（サイズ違いをまとめる用）
+var BRANDS=['オルガニック','メメジック','アルモニア','シェフズブレンド','トゥリリエ','アイバリック','プリモフルット','ザイトゥーン','アグルミ','シンフォニア','唐辛子オイル','オリウム','ザクロソース','調合オイル','カップオイル','olive NOVA','your story'];
+function renderExamples(){
+  document.getElementById('ask-ex').innerHTML = EXAMPLES.map(function(e){return '<span class="ex" onclick="askEx(this)">'+esc(e)+'</span>';}).join('');
+}
+function askEx(el){ document.getElementById('ask').value=el.textContent; doAsk(); }
+// obj: {name: number}  unitOf: name→unit（省略時はUNIT参照）
+function rankTable(obj, unitOf){
+  var arr=Object.keys(obj).map(function(k){return {k:k,n:obj[k],u:(unitOf?unitOf(k):(UNIT[k]||''))};}).sort(function(a,b){return b.n-a.n;});
+  if(!arr.length) return {top:null, html:'<div class="mini">該当データがありません。</div>'};
+  var mx=arr[0].n;
+  var units={}; arr.forEach(function(x){ if(x.u) units[x.u]=1; });
+  var mixed=Object.keys(units).length>1;
+  var html='<div class="bars">'+arr.map(function(x){var w=Math.max(4,Math.round(x.n/mx*320));return '<div class="bar-row"><div class="nm">'+esc(x.k)+'</div><div class="bar" style="width:'+w+'px"></div><div class="q">'+x.n+(x.u?' '+esc(x.u):'')+'</div></div>';}).join('')+'</div>';
+  if(mixed) html+='<div class="mini" style="margin-top:6px;color:#b45309;">※本・缶・個・セットは単位が違います。単位ごとに見てください（単純比較にご注意）。</div>';
+  return {top:arr[0], html:html, mixed:mixed};
+}
+var GENRES=['鉄板焼','イタリアン','中華','物販','フレンチ'];
+function prodBrand(p){ var b=BRANDS.find(function(x){return p.indexOf(x)>=0;}); return b||p; }
+function askFacing(q){ return q.indexOf('施設')>=0||q.indexOf('どこ')>=0||q.indexOf('ホテル')>=0||q.indexOf('だれ')>=0||q.indexOf('誰')>=0; }
+function doAsk(){
+  var qraw=document.getElementById('ask').value.trim(); if(!qraw){ return; }
+  var q=qraw.replace(/\s/g,'');
+  var evi='この答えは、下の数字（伝票の実データ）から出しています。数え違いがないか下の表で確かめられます。';
+  var title='', body='';
+
+  var g = GENRES.find(function(g){ return q.indexOf(g)>=0 || (g==='鉄板焼'&&q.indexOf('鉄板')>=0); });
+  var fac = Object.keys(FAC).find(function(f){ return q.indexOf(f)>=0 || q.indexOf(f.replace('サンクチュアリコート','').replace('ベイコート倶楽部','').replace('グランドエクシブ','').replace('エクシブ',''))>=0; });
+  // ブランド優先（サイズ違いをまとめる）、無ければ個別SKU
+  var brand = BRANDS.find(function(bd){ return q.indexOf(bd)>=0; });
+  var prodNames=[]; SALES.forEach(function(r){ if(prodNames.indexOf(r[1])<0) prodNames.push(r[1]); });
+  var sku = prodNames.find(function(p){ return q.indexOf(p)>=0; });
+  var target = brand || sku; // 探している商品（ブランド or SKU）
+  function hitProd(pName){ return brand? (prodBrand(pName)===brand) : (pName===sku); }
+
+  if(target && askFacing(q)){
+    // 「○○を一番買ってる施設は？」→施設べつ（本もの合算＋缶等は別注記）
+    var byFac={}; SALES.forEach(function(x){ if(hitProd(x[1])) byFac[x[0]]=(byFac[x[0]]||0)+x[2]; });
+    var r=rankTable(byFac, function(){return '';});
+    title=esc(target)+'を買っている施設';
+    body=(r.top?'<div class="a-title">🏆 一番は「'+esc(r.top.k)+'」（'+r.top.n+'）</div>':'')+
+      '<div class="mini" style="margin-bottom:6px;">※'+esc(target)+'のサイズ違いを合算しています。</div>'+r.html;
+  } else if(fac){
+    var r2=rankTable(nowOils(fac));
+    title=fac+'が買っているもの';
+    body=(r2.top?'<div class="a-title">🏆 一番は「'+esc(r2.top.k)+'」（'+r2.top.n+' '+esc(UNIT[r2.top.k]||'')+'）</div>':'')+
+      '現シェフ：<b>'+esc(FAC[fac].cur)+'</b>／ジャンル：'+esc(FAC[fac].genre)+r2.html;
+  } else if(g){
+    var r3=rankTable(prodTotalByGenre(g));
+    title=g+'で売れているもの';
+    body=(r3.top?'<div class="a-title">🏆 '+esc(g)+'で一番は「'+esc(r3.top.k)+'」（'+r3.top.n+' '+esc(UNIT[r3.top.k]||'')+'）</div>':'')+
+      '<div class="mini" style="margin-bottom:6px;">対象施設：'+esc(Object.keys(FAC).filter(function(f){return FAC[f].genre===g;}).join('、')||'なし')+'</div>'+r3.html;
+  } else if(target){
+    var byFac2={}; SALES.forEach(function(x){ if(hitProd(x[1])) byFac2[x[0]]=(byFac2[x[0]]||0)+x[2]; });
+    var r4=rankTable(byFac2, function(){return '';});
+    title=esc(target)+'の状況（施設べつ）';
+    body=(r4.top?'<div class="a-title">🏆 一番買っているのは「'+esc(r4.top.k)+'」（'+r4.top.n+'）</div>':'')+r4.html;
+  } else {
+    var r5=rankTable(prodTotalAll());
+    if(askFacing(q)){
+      var byF={}; SALES.forEach(function(x){ if(x[3]==='本') byF[x[0]]=(byF[x[0]]||0)+x[2]; });
+      var r6=rankTable(byF, function(){return '本';});
+      title='RT全体：施設べつの購入（本もの）';
+      body=(r6.top?'<div class="a-title">🏆 一番買っている施設は「'+esc(r6.top.k)+'」（'+r6.top.n+'本）</div>':'')+r6.html;
+    } else {
+      title='RT全体で売れているオイル';
+      body=(r5.top?'<div class="a-title">🏆 一番は「'+esc(r5.top.k)+'」（'+r5.top.n+' '+esc(UNIT[r5.top.k]||'')+'）</div>':'')+r5.html;
+    }
+  }
+  document.getElementById('answer').innerHTML=
+    '<div class="answer"><div style="font-weight:700;color:#4d5a24;margin-bottom:4px;">🔎 '+esc(qraw)+'</div>'+
+    '<div style="font-size:15px;font-weight:700;margin-bottom:6px;">'+esc(title)+'</div>'+body+
+    '<div class="evi">📊 '+evi+'</div></div>';
+}
+
+/* ---- 名刺 ---- */
+function fillFacOptions(){
+  var sel=document.getElementById('f-fac'); if(!sel) return;
+  sel.innerHTML = FAC_OPTIONS.map(function(f){return '<option>'+esc(f)+'</option>';}).join('');
+}
+var shotDataUrl='';
+function onShot(ev){
+  var file=ev.target.files && ev.target.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){ shotDataUrl=e.target.result;
+    document.getElementById('thumb').src=shotDataUrl;
+    document.getElementById('shoot-box').style.display='none';
+    document.getElementById('review').style.display='block';
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+  reader.readAsDataURL(file);
+}
+function cancelReview(){
+  shotDataUrl='';
+  document.getElementById('review').style.display='none';
+  document.getElementById('shoot-box').style.display='block';
+  document.getElementById('cam').value='';
+  ['f-name','f-role','f-dept','f-tel','f-mail'].forEach(function(id){document.getElementById(id).value='';});
+}
+function savePerson(){
+  var name=document.getElementById('f-name').value.trim();
+  if(!name){ alert('お名前を入れてください。'); return; }
+  PEOPLE.push({ name:name, role:v('f-role'), dept:v('f-dept'), fac:v('f-fac'), tel:v('f-tel'), mail:v('f-mail'), type:v('f-type'), photo:shotDataUrl||'' });
+  storePeople();
+  document.getElementById('pcount').textContent=PEOPLE.length;
+  cancelReview(); nav('people');
+}
+function v(id){ return document.getElementById(id).value; }
+function delPerson(i){ if(!confirm('この人物カードを消しますか？')) return; PEOPLE.splice(i,1); storePeople(); document.getElementById('pcount').textContent=PEOPLE.length; renderPeople(); }
+
+function loadPeople(){
+  var stored=null;
+  try{ stored=JSON.parse(localStorage.getItem(PEOPLE_KEY)||'null'); }catch(e){}
+  PEOPLE = stored || PEOPLE_SEED.slice();
+  var pc=document.getElementById('pcount'); if(pc) pc.textContent=PEOPLE.length;
+}
+function storePeople(){ try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); }catch(e){} }
+function renderPeople(){
+  var box=document.getElementById('peoplebox'); if(!box) return;
+  var q=(document.getElementById('pq').value||'').trim();
+  var list=PEOPLE.map(function(p,i){return {p:p,i:i};}).filter(function(o){ return match(q, o.p.name+' '+o.p.fac+' '+o.p.type+' '+o.p.dept+' '+o.p.role); });
+  if(!list.length){ box.innerHTML='<div class="empty">まだ名刺がありません。<br>「📇 名刺を入れる」から撮ってください。</div>'; return; }
+  box.innerHTML=list.map(function(o){ var p=o.p;
+    return '<div class="pcard"><button class="del" onclick="delPerson('+o.i+')">削除</button>'+
+      '<div class="nm">'+esc(p.name)+' <span class="role">'+esc(p.role||'')+'</span></div>'+
+      '<div class="row2"><span>区分：<b>'+esc(p.type)+'</b></span><span>部署：<b>'+esc(p.dept||'—')+'</b></span></div>'+
+      '<div class="row2"><span>☎ '+esc(p.tel||'—')+'</span><span>✉ '+esc(p.mail||'—')+'</span></div>'+
+      '<span class="tagfac">🏨 '+esc(p.fac)+'</span></div>';
+  }).join('');
+}
+
+document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
+boot();
+
+</script>
+</body>
+</html>
