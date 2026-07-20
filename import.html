@@ -57,8 +57,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .tbl-wrap{background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
 table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 #profit-heatmap-table,#rate-sim-panel table{min-width:0}
-/* ★2026-07-17 直接入力の枠はみ出し修正＋「直接入れる」と「500ml換算」を横一列に固定 */
-#sim-extras-row{grid-template-columns:1fr 1fr!important}
+/* ★2026-07-17 直接入力の枠はみ出し修正／★2026-07-20 「直接入れる」と「500ml換算」を縦積みに変更（右列だと枠が狭く見づらいため） */
+#sim-extras-row{grid-template-columns:1fr!important}
 #sim-extras-row>div{min-width:0}
 #sim-direct .sim-direct-row{min-width:0}
 #sim-direct-input{min-width:0}
@@ -287,7 +287,7 @@ tr:last-child td{border-bottom:none}
     <div class="info-box">🔒 ここは中村様専用のページです。原価・輸入コストの情報が含まれます。他の人に画面を見せないようご注意ください。<br>請求Cや見積書からは、この原価データを参照できません。</div>
     <div class="card">
       <div class="sec">🎨 区分別 利益ひと目比較 ＋ 📐 掛け率シミュレーション</div>
-      <div id="price-gas-banner" style="display:none;background:#fdf0d8;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;font-size:12px;color:#78350f;margin-bottom:10px"></div>
+      <div id="price-gas-banner" style="display:none;background:#eef4fb;border:1px solid #b5d4f4;border-radius:8px;padding:8px 12px;font-size:12px;color:#0c447c;margin-bottom:10px;line-height:1.7"></div>
       <details class="hm-help">
         <summary>❓ この画面のつかい方（タップで開く）</summary>
         <div class="hm-help-body">
@@ -331,7 +331,7 @@ tr:last-child td{border-bottom:none}
           <table id="profit-heatmap-table" style="font-size:12px;border-collapse:collapse"></table>
           <div style="font-size:11px;color:#6b675e;margin-top:6px">※ 色：赤＝35%未満(危険)／黄＝35〜40%／薄青＝40〜50%／青＝50%以上</div>
         </div>
-        <div id="sim-column" style="flex:1 1 300px;min-width:280px">
+        <div id="sim-column" style="flex:1 1 340px;min-width:320px">
         <div id="prov-entry" style="display:none;border:2px solid #e0a020;border-radius:10px;background:#fffdf5;padding:12px;margin-bottom:10px">
           <div style="font-size:14px;font-weight:800;color:#8a5a12;margin-bottom:6px">⏳ 仮原価を入れる</div>
           <div id="prov-entry-name" style="font-size:14px;font-weight:800;margin-bottom:8px"></div>
@@ -389,7 +389,7 @@ tr:last-child td{border-bottom:none}
         </div>
         <div id="sim-extras-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
         <div id="sim-direct" style="display:none;border:1.5px solid #d9cdb8;border-radius:10px;background:#fffdf7;padding:12px">
-          <div id="sim-direct-head" style="font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:7px">✏️ 卸②の金額を直接入れる</div>
+          <div id="sim-direct-head" style="font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:7px">✏️ 金額を直接入れて修正する</div>
           <div id="sim-direct-who" style="background:#fff6e6;border:2px solid #e0a020;border-radius:9px;padding:6px 10px;font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:8px;line-height:1.5"></div>
           <div class="sim-direct-row" style="display:flex;align-items:center;gap:8px">
             <span style="font-size:17px;font-weight:700">¥</span>
@@ -1440,7 +1440,7 @@ function loadSimPanel(sku, tier){
 
   // タイトル・直接入力の見出し・500mlの段名・適用ボタンを、選んだ段階に合わせる
   const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.label;
-  const dh = document.getElementById('sim-direct-head'); if(dh) dh.textContent = '✏️ ' + T.label + 'の金額を直接入れる';
+  const dh = document.getElementById('sim-direct-head'); if(dh) dh.textContent = '✏️ 金額を直接入れて修正する';
   // ★2026-07-20 いま何をいじっているかを常に大きく表示（入れ間違い防止）
   { var _whoHtml = '🖐 いま調整中： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>';
     var _eb = document.getElementById('sim-editbanner'); if(_eb) _eb.innerHTML = _whoHtml;
@@ -1709,7 +1709,7 @@ function showPriceGasBanner(fieldLabels){
   const el = document.getElementById('price-gas-banner');
   if(!el) return;
   el.style.display = 'block';
-  el.innerHTML = '⚠️ <strong>' + fieldLabels.join('・') + '</strong> の金額は、保存してもサーバー(GAS)側に残らない形になっているようです（読み直すと消えます）。<br>この画面を開いている間は入れた金額を覚えていて表示し続けますが、<strong>画面を閉じると消えます</strong>。次のチャットでClaudeに「GASの価格マスタの保存部分を見たい」と伝えてください（GASコードの修正が必要です）。';
+  el.innerHTML = 'ℹ️ <strong>' + fieldLabels.join('・') + '</strong> は、いまのサーバー(GAS)では保存できない欄です。ただし<strong>この端末には保存したので消えません</strong>（別のアプリへ移動して戻っても残ります）。パソコンとスマホなど<strong>別の端末でも同じ数字を見たいとき</strong>だけ、GASの追加が必要です。ご希望のときに教えてください。';
 }
 const priceGasMissingFields = {}; // {label:1} 自己点検で「残らなかった」欄
 
@@ -1820,7 +1820,7 @@ async function applyRateToTierNow(sku, T, price){
         } else {
           priceGasMissingFields[T.label] = 1;
           showPriceGasBanner(Object.keys(priceGasMissingFields));
-          showSyncStatus('⚠️ '+T.label+'はサーバーに残りませんでした（画面には表示を続けます）', true);
+          showSyncStatus('✅ '+T.label+'をこの端末に保存しました（移動して戻っても消えません）');
         }
       }catch(e){
         showSyncStatus('✅ '+T.label+'に反映しました');
