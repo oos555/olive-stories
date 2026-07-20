@@ -332,6 +332,20 @@ tr:last-child td{border-bottom:none}
           <div style="font-size:11px;color:#6b675e;margin-top:6px">※ 色：赤＝35%未満(危険)／黄＝35〜40%／薄青＝40〜50%／青＝50%以上</div>
         </div>
         <div id="sim-column" style="flex:1 1 300px;min-width:280px">
+        <div id="prov-entry" style="display:none;border:2px solid #e0a020;border-radius:10px;background:#fffdf5;padding:12px;margin-bottom:10px">
+          <div style="font-size:14px;font-weight:800;color:#8a5a12;margin-bottom:6px">⏳ 仮原価を入れる</div>
+          <div id="prov-entry-name" style="font-size:14px;font-weight:800;margin-bottom:8px"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:17px;font-weight:700">¥</span>
+            <input type="text" id="prov-entry-input" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="flex:1;height:44px;border:1.5px solid #e0a020;border-radius:9px;text-align:center;font-size:20px;font-weight:800;color:#8a5a12;background:#fff">
+          </div>
+          <input type="text" id="prov-entry-memo" placeholder="メモ（例：手荷物で持ち帰り分）" style="width:100%;margin-top:8px;padding:7px 9px;border:1px solid #d8cfc4;border-radius:8px;font-size:13px">
+          <div style="font-size:11px;color:#8a5a12;margin-top:7px;line-height:1.6">※ これは<strong>仮の原価</strong>です。別のしまい場所に保存し、輸入ノートには触れません。あとで正式に輸入して本物の原価が出たら、自動で本物に切り替わります。</div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-green" style="flex:1" onclick="saveProvisionalEntry()">仮原価を保存する</button>
+            <button class="btn" style="background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700" onclick="closeProvisionalEntry()">閉じる</button>
+          </div>
+        </div>
         <div id="rate-sim-panel" style="border:1.5px solid #cfc6b8;border-radius:10px;background:#fcfbf8;padding:12px">
           <div style="font-size:14px;font-weight:700;margin-bottom:8px">📐 <span id="sim-tier-title">卸②</span>シミュレーション</div>
           <div id="sim-picker-wrap" style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #b9b09c;border-radius:9px;padding:5px 8px;margin-bottom:6px">
@@ -348,6 +362,7 @@ tr:last-child td{border-bottom:none}
           </div>
           <div id="sim-empty" style="font-size:12px;color:#8a857c;padding:22px 4px;text-align:center;line-height:1.7">← 左の表で卸②のマスを押してください</div>
           <div id="sim-content" style="display:none">
+            <div id="sim-editbanner" style="background:#fff6e6;border:2px solid #e0a020;border-radius:10px;padding:8px 11px;font-size:14px;font-weight:800;color:#8a5a12;margin-bottom:9px;line-height:1.55"></div>
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
               <span id="sim-name" style="font-size:15px;font-weight:700"></span>
               <span id="sim-nowbadge" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px"></span>
@@ -375,6 +390,7 @@ tr:last-child td{border-bottom:none}
         <div id="sim-extras-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
         <div id="sim-direct" style="display:none;border:1.5px solid #d9cdb8;border-radius:10px;background:#fffdf7;padding:12px">
           <div id="sim-direct-head" style="font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:7px">✏️ 卸②の金額を直接入れる</div>
+          <div id="sim-direct-who" style="background:#fff6e6;border:2px solid #e0a020;border-radius:9px;padding:6px 10px;font-size:13px;font-weight:800;color:#8a5a12;margin-bottom:8px;line-height:1.5"></div>
           <div class="sim-direct-row" style="display:flex;align-items:center;gap:8px">
             <span style="font-size:17px;font-weight:700">¥</span>
             <input type="text" id="sim-direct-input" inputmode="numeric" pattern="[0-9]*" oninput="onSimDirectInput()" style="flex:1;height:44px;border:1.5px solid #b9b09c;border-radius:9px;text-align:center;font-size:20px;font-weight:800;color:#2b2a26;background:#fff">
@@ -985,6 +1001,7 @@ async function deleteBatch(id){
 
 // ── 原価データ（E内） ────────────────────────────────────────────
 let costData = {}; // { sku: {cost:数字, memo:''} }
+let provisionalCosts = {}; // ★2026-07-20 仮原価（別のしまい場所）：{ sku:{cost:数字, memo:''} }。本物の原価が無いときだけ使う。輸入ノートには一切触れない。
 let novelloNotes = [];
 let costDataDirty = false;
 
@@ -1033,6 +1050,21 @@ async function loadCostDataFromGAS(){
       if(typeof ynRenderCompare==='function') ynRenderCompare(); // 青い枠（使用中の回）は原価データ読込後に決まる
     }
   }catch(err){}
+  loadProvisionalCostsFromGAS(); // ★2026-07-20 仮原価も読み込む（別口・失敗しても既存には影響しない）
+}
+
+// ★2026-07-20 仮原価の読み込み（GASがまだ未対応でも、黙ってスキップして従来どおり動く）
+async function loadProvisionalCostsFromGAS(){
+  try{
+    const res = await fetch(GAS_URL + '?action=loadProvisionalCosts&password=' + encodeURIComponent(password));
+    const data = await res.json();
+    if(data && data.status==='ok' && data.data && data.data.provisionalCosts){
+      provisionalCosts = data.data.provisionalCosts || {};
+      renderCostProductTable();
+      renderProfitHeatmap();
+      renderRateSimulation();
+    }
+  }catch(err){}
 }
 
 // ── 在庫と価格マスタ（見積・請求Cと共通）を読み込む ──
@@ -1075,11 +1107,29 @@ function renderCostProductTable(){
   html += '</tr></thead><tbody>';
   allCostSkus().forEach(function(p){
     const rec = costData[p.sku] || {};
-    const isEmpty = !(rec.cost !== undefined && rec.cost !== '');
+    const isEmpty = !(rec.cost !== undefined && rec.cost !== '' && (parseFloat(rec.cost)||0) > 0);
     const cost = isEmpty ? '' : rec.cost;
     const memo = rec.memo || '';
-    html += '<tr><td style="padding:6px 10px">'+esc(p.name)+' <span style="font-size:11px;color:#3a4a5c;font-family:monospace;font-weight:600;margin-left:6px;padding:1px 5px;background:#eef1f5;border-radius:4px">'+esc(p.sku)+'</span>'+(isEmpty?' <span style="font-size:10px;color:#a05a10;font-weight:700;background:#fdf0d8;border-radius:4px;padding:1px 6px;margin-left:6px">未入力</span>':'')+'</td>';
-    html += '<td style="padding:6px 10px;text-align:right"><input type="number" data-cost-sku="'+p.sku+'" value="'+cost+'" class="price-input'+(isEmpty?' cost-empty':'')+'" disabled onchange="markCostDirty()"></td>';
+    const nameBadge = isEmpty
+      ? (isProvisionalCost(p.sku)
+          ? ' <span style="font-size:10px;color:#a05a10;font-weight:800;background:#fdf0d8;border-radius:4px;padding:1px 6px;margin-left:6px">⏳仮</span>'
+          : ' <span style="font-size:10px;color:#a05a10;font-weight:700;background:#fdf0d8;border-radius:4px;padding:1px 6px;margin-left:6px">未入力</span>')
+      : '';
+    html += '<tr><td style="padding:6px 10px">'+esc(p.name)+' <span style="font-size:11px;color:#3a4a5c;font-family:monospace;font-weight:600;margin-left:6px;padding:1px 5px;background:#eef1f5;border-radius:4px">'+esc(p.sku)+'</span>'+nameBadge+'</td>';
+    if(isEmpty){
+      // ★2026-07-20 本物の原価がまだ無い商品は、ここに「仮原価」を手入力できる（別のしまい場所に保存・輸入ノートは無傷）
+      const pvRec = provisionalCosts[p.sku] || {};
+      const pvCost = (pvRec.cost===''||pvRec.cost==null) ? '' : pvRec.cost;
+      html += '<td style="padding:6px 10px;text-align:right">'
+        + '<div style="display:flex;align-items:center;justify-content:flex-end;gap:5px">'
+        + '<span style="font-size:15px;font-weight:700">¥</span>'
+        + '<input type="number" data-prov-sku="'+p.sku+'" value="'+pvCost+'" class="price-input" style="border-color:#e0a020;background:#fffdf5;color:#8a5a12;font-weight:800" disabled onchange="markCostDirty()">'
+        + '</div>'
+        + '<div style="font-size:10px;color:#a05a10;font-weight:700;text-align:right;margin-top:2px">⏳ 仮原価（手入力）</div>'
+        + '</td>';
+    } else {
+      html += '<td style="padding:6px 10px;text-align:right"><input type="number" data-cost-sku="'+p.sku+'" value="'+cost+'" class="price-input" disabled onchange="markCostDirty()"></td>';
+    }
     html += '<td style="padding:6px 10px"><input type="text" data-cost-memo="'+p.sku+'" value="'+esc(memo)+'" style="width:100%;padding:4px 6px;border:1px solid #d8cfc4;border-radius:4px;font-size:12px" disabled onchange="markCostDirty()"></td></tr>';
   });
   html += '</tbody></table>';
@@ -1094,11 +1144,60 @@ function onRateSlotChange(idx, val){
   rateSlots[idx] = parseFloat(val)||0;
   renderRateSimulation();
 }
+// ★2026-07-20 仮原価の入力ボックス（右カラム）――既存の「マスを押す→右に出る」流儀のまま
+let provEntrySku = null;
+function provProductName(sku){
+  if(typeof OOS_PRODUCTS!=='undefined' && OOS_PRODUCTS.length){ var q=OOS_PRODUCTS.find(function(x){return x.sku===sku;}); if(q) return q.name||sku; }
+  var p = (typeof allCostSkus==='function') ? allCostSkus().find(function(x){return x.sku===sku;}) : null;
+  return p ? (p.name||sku) : sku;
+}
+function openProvisionalEntry(sku){
+  provEntrySku = sku;
+  var box=document.getElementById('prov-entry'); if(!box) return;
+  var pv = provisionalCosts[sku] || {};
+  var nm=document.getElementById('prov-entry-name'); if(nm) nm.textContent = provProductName(sku) + '（' + sku + '）';
+  var inp=document.getElementById('prov-entry-input'); if(inp) inp.value = (pv.cost===''||pv.cost==null)?'':pv.cost;
+  var mm=document.getElementById('prov-entry-memo'); if(mm) mm.value = pv.memo||'';
+  box.style.display='block';
+  try{ box.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(e){}
+}
+function closeProvisionalEntry(){ var b=document.getElementById('prov-entry'); if(b) b.style.display='none'; provEntrySku=null; }
+async function saveProvisionalEntry(){
+  if(!provEntrySku) return;
+  var raw=(document.getElementById('prov-entry-input').value||'').replace(/[^0-9]/g,'');
+  var v = parseFloat(raw)||0;
+  var memo = document.getElementById('prov-entry-memo').value||'';
+  if(v>0) provisionalCosts[provEntrySku] = { cost:v, memo:memo };
+  else if(provisionalCosts[provEntrySku]) delete provisionalCosts[provEntrySku];
+  showSyncStatus('仮原価を保存しています...');
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    var data = await res.json();
+    if(data && data.status==='ok') showSyncStatus('✅ 仮原価を保存しました');
+    else showSyncStatus('⚠️ 保存に失敗：'+((data&&data.message)||''), true);
+  }catch(e){ showSyncStatus('⚠️ 通信エラー（仮原価）', true); }
+  closeProvisionalEntry();
+  renderProfitHeatmap();
+  renderRateSimulation();
+}
+
 function getCostForSku(sku){
   const rec = costData[sku];
-  if(rec && rec.cost !== undefined && rec.cost !== '') return parseFloat(rec.cost)||0;
+  if(rec && rec.cost !== undefined && rec.cost !== '' && (parseFloat(rec.cost)||0) > 0) return parseFloat(rec.cost)||0;
+  // ★2026-07-20 本物の原価が無いときは、仮原価があればそれを使う（あくまで仮）
+  const pv = provisionalCosts[sku];
+  if(pv && pv.cost !== undefined && pv.cost !== '' && (parseFloat(pv.cost)||0) > 0) return parseFloat(pv.cost)||0;
   return 0;
 }
+// いま表示している原価が「仮原価」かどうか（本物が無く、仮だけがある状態）
+function isProvisionalCost(sku){
+  const rec = costData[sku];
+  const realOk = rec && rec.cost !== undefined && rec.cost !== '' && (parseFloat(rec.cost)||0) > 0;
+  if(realOk) return false;
+  const pv = provisionalCosts[sku];
+  return !!(pv && (parseFloat(pv.cost)||0) > 0);
+}
+function getProvisionalMemo(sku){ const pv = provisionalCosts[sku]; return pv ? (pv.memo||'') : ''; }
 function getOpenPriceForSku(sku){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
   if(!p) return 0;
@@ -1150,7 +1249,7 @@ function renderProfitHeatmap(){
       html += '<tr data-sku="'+esc(p.sku)+'"><td style="padding:5px 8px;font-weight:600;word-break:break-word">'+esc(p.name)+'<div style="font-size:13px;font-family:monospace;font-weight:700;color:#2b3a4c;background:#e6ecf3;display:inline-block;padding:2px 8px;border-radius:5px;margin-top:3px;letter-spacing:.5px">'+esc(p.sku)+'</div></td>';
       if(!cost){
         // 原価が未入力の商品：隠さずに⚠️印で表示（金額は薄く表示のみ・色分けと調整は原価を入れてから）
-        html += '<td style="padding:5px 6px;text-align:right"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span></td>';
+        html += '<td onclick="openProvisionalEntry(\''+p.sku+'\')" title="押すと仮原価を入れられます" style="padding:5px 6px;text-align:right;cursor:pointer"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span><div style="font-size:9px;color:#a05a10;font-weight:700;margin-top:2px">＋仮原価を入れる</div></td>';
         ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
           const price = parseFloat(priceRec[key])||0;
           html += '<td style="padding:5px 6px;text-align:right;color:#9ca3af">'+(price? '¥'+price.toLocaleString() : '-')+'</td>';
@@ -1158,7 +1257,12 @@ function renderProfitHeatmap(){
         html += '</tr>';
         return;
       }
-      html += '<td style="padding:5px 6px;text-align:right;color:#57534e">¥'+cost.toLocaleString()+'</td>';
+      if(isProvisionalCost(p.sku)){
+        html += '<td onclick="openProvisionalEntry(\''+p.sku+'\')" title="押すと仮原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<br><span style="font-size:9.5px;font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 5px">⏳仮</span></td>';
+      } else {
+        html += '<td style="padding:5px 6px;text-align:right;color:#57534e">¥'+cost.toLocaleString()+'</td>';
+      }
+      const _openTK = parseFloat(priceRec['priceGeneral'])||0; // ◯掛け計算用の定価
       ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
         const price = parseFloat(priceRec[key])||0;
         const emptySettable = (key!=='priceGeneral'); // 定価以外（卸①〜特別提供価格）は、空(未設定)なら＋設定として表示し、押して設定できる
@@ -1177,7 +1281,8 @@ function renderProfitHeatmap(){
         const tierLabel = simTierByKey(tierKey).label;
         const selCls = (p.sku===currentSimSku && tierKey===currentSimTier) ? ' hm-sel' : '';
         const clickAttr = ' class="hm-cell'+selCls+'" data-tier="'+tierKey+'" onclick="heatmapCellClick(\''+p.sku+'\',\''+tierKey+'\')" title="押すと右で'+tierLabel+'を調整できます" style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600;outline:1px solid rgba(0,0,0,.06)"';
-        html += '<td'+clickAttr+'>¥'+price.toLocaleString()+'<br><span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
+        var _kakeHM = (key!=='priceGeneral' && _openTK>0) ? '<span style="font-size:10px;font-weight:800;color:#7a4d0c">'+(price/_openTK*10).toFixed(1)+'掛</span> ／ ' : '';
+        html += '<td'+clickAttr+'>¥'+price.toLocaleString()+'<br>'+_kakeHM+'<span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
       });
       html += '</tr>';
     });
@@ -1316,6 +1421,10 @@ function loadSimPanel(sku, tier){
   // タイトル・直接入力の見出し・500mlの段名・適用ボタンを、選んだ段階に合わせる
   const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.label;
   const dh = document.getElementById('sim-direct-head'); if(dh) dh.textContent = '✏️ ' + T.label + 'の金額を直接入れる';
+  // ★2026-07-20 いま何をいじっているかを常に大きく表示（入れ間違い防止）
+  { var _whoHtml = '🖐 いま調整中： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>';
+    var _eb = document.getElementById('sim-editbanner'); if(_eb) _eb.innerHTML = _whoHtml;
+    var _dw = document.getElementById('sim-direct-who'); if(_dw) _dw.innerHTML = '✏️ ここで直すのは： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>'; }
   const pn = document.getElementById('p5-sel-name'); if(pn) pn.textContent = T.label;
   const bl = 'この金額を' + T.label + 'に使う';
   var _b1 = document.getElementById('sim-apply-btn'); if(_b1) _b1.textContent = bl;
@@ -1337,6 +1446,7 @@ function loadSimPanel(sku, tier){
   document.getElementById('sim-sub').textContent = wasUnset
     ? ('原価 ¥' + cost.toLocaleString() + ' ／ ' + T.label + 'はまだ未設定です（卸②の金額を出発点に調整を始めます）')
     : ('原価 ¥' + cost.toLocaleString() + ' ／ 今の' + T.label + ' ¥' + cur.toLocaleString() + '（×' + curRate.toFixed(2) + '）');
+  if(isProvisionalCost(currentSimSku)){ var _ss=document.getElementById('sim-sub'); if(_ss){ _ss.innerHTML = '<span style="font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 6px">⏳仮原価</span> ' + _ss.textContent; } }
 
   const start = Math.min(3.5, Math.max(1.1, Math.round(curRate * 100) / 100));
   document.getElementById('sim-rate').value = start;
@@ -1402,7 +1512,8 @@ function renderTier(price, from){
     if(row.tier === 'general') theirs = has ? 0 : null;          // 定価の販売店儲けは0
     else theirs = (gLive > 0 && has) ? (gLive - val) : null;      // 販売店の儲け＝定価−その段の価格
     const nameCell = row.label + (isSel ? '<br><span style="font-size:10px;font-weight:400;color:#8a5a0b">調整中</span>' : '');
-    const priceCell = has ? ('¥' + val.toLocaleString() + pctSpan(m)) : '-';
+    const kakeCell = (row.tier !== 'general' && gLive > 0 && has) ? (' <span style="font-size:11px;font-weight:800;color:#7a4d0c">' + (val/gLive*10).toFixed(1) + '掛</span> ／') : '';
+    const priceCell = has ? ('¥' + val.toLocaleString() + kakeCell + pctSpan(m)) : '-';
     const oursCell = (ours != null) ? ('¥' + ours.toLocaleString()) : '-';
     let theirsCell = '-', theirsColor = '#57534e';
     if(theirs != null){ theirsCell = '¥' + theirs.toLocaleString(); theirsColor = theirs < 0 ? '#b91c1c' : '#2b2a26'; }
@@ -1774,6 +1885,14 @@ async function saveCostDataToGAS(){
     const memoInp = document.querySelector('[data-cost-memo="'+sku+'"]');
     costData[sku] = { cost: parseFloat(inp.value)||0, memo: memoInp?memoInp.value:'' };
   });
+  // ★2026-07-20 仮原価も集める（別のしまい場所へ。本物の原価・輸入ノートには触れない）
+  document.querySelectorAll('[data-prov-sku]').forEach(function(inp){
+    const sku = inp.getAttribute('data-prov-sku');
+    const memoInp = document.querySelector('[data-cost-memo="'+sku+'"]');
+    const v = parseFloat(inp.value)||0;
+    if(v > 0) provisionalCosts[sku] = { cost: v, memo: memoInp?memoInp.value:'' };
+    else if(provisionalCosts[sku]) delete provisionalCosts[sku];
+  });
   document.querySelectorAll('[data-nv-idx]').forEach(function(inp){
     const idx = parseInt(inp.getAttribute('data-nv-idx'));
     const key = inp.getAttribute('data-nv');
@@ -1788,9 +1907,12 @@ async function saveCostDataToGAS(){
     });
     const data = await res.json();
     if(data.status==='ok'){
+      // ★2026-07-20 仮原価も別口で保存（失敗しても本物の保存は成立している）
+      try{ await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }), headers:{'Content-Type':'text/plain;charset=utf-8'} }); }catch(e){}
       costDataDirty = false;
       { var _cdi = document.getElementById('cost-dirty-indicator'); if(_cdi) _cdi.textContent = ''; }
       showSyncStatus('✅ 保存しました');
+      renderCostProductTable();
       renderProfitHeatmap();
       renderRateSimulation();
     } else { showSyncStatus('⚠️ 保存に失敗しました：'+(data.message||''), true); }
