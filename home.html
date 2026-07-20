@@ -364,12 +364,33 @@
      ・前回取れた内容は端末に控え、次に開いたとき先に出す（体感が速い）      */
   const ALERTS_CACHE_KEY = 'oos_alerts_cache_v1';
   let alertGardenOpen = false;
+  // 見本（?demo=1 で開いたときだけ表示。中身は例。実際はGASの頭脳ができたら本物の数字が入る）
+  const DEMO_ALERTS = {
+    now:  [{href:'index.html', label:'バサラ：読めなかった注文', count:2},
+           {href:'index.html', label:'在庫0で止まった注文', count:1},
+           {href:'index.html', label:'ギフト依頼で保留', count:1}],
+    soon: [{href:'pickup.html', label:'送り状No.未入力の発送待ち', count:3},
+           {href:'index.html', label:'取り置き期限がまもなく', count:2},
+           {href:'billing.html', label:'月次卸請求（月末）', count:1}],
+    watch:[{href:'hiromi.html', label:'ゆか未対応の投稿', count:2},
+           {href:'stock.html', label:'倉庫からの報告・伝言板の新着', count:1}]
+  };
   function alertEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function alertsFromCache(){
     try{ const raw = localStorage.getItem(ALERTS_CACHE_KEY); if(raw){ const o=JSON.parse(raw); if(o && o.data) return o.data; } }catch(e){}
     return null;
   }
   function initAlerts(){
+    if(location.search.indexOf('demo') >= 0){
+      var t = document.querySelector('.ab-title');
+      if(t){
+        var b = document.createElement('span'); b.textContent = '見本'; b.setAttribute('aria-label','見本表示');
+        b.style.cssText = 'font-size:11px;font-weight:700;color:#8a6d3f;background:#fff6db;border:1px solid #f0dfa0;border-radius:99px;padding:1px 8px;margin-left:6px;';
+        t.appendChild(b);
+      }
+      renderAlerts(DEMO_ALERTS); // 見本の数字でお庭を出す（GASが無くても見える）
+      return;
+    }
     const cached = alertsFromCache();
     if(cached) renderAlerts(cached); // まず前回の内容をすぐ出す
     loadAlerts();                    // そのあと最新を取りに行く
