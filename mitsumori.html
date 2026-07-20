@@ -206,9 +206,16 @@ th.center,td.center{text-align:center}
 /* ── 2026-07-17 シンプル化：押せないボタンは必ず灰色に見せる（「押しても無反応」事故の防止） ── */
 .btn:disabled,.btn[disabled]{background:#d3d1c7 !important;color:#888780 !important;border-color:#d3d1c7 !important;cursor:not-allowed;opacity:1}
 #q-guide-bar{background:#fef3c7;border:1px solid #f0c96a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:15px;font-weight:800;color:#78350f}
-.qc-btn{flex:1;min-width:150px;padding:13px 8px;font-size:14px;font-weight:800;border:1.5px solid #6b7a3a;border-radius:10px;background:#fff;color:#3b5323;cursor:pointer;line-height:1.4;text-align:center}
+.qc-btn{flex:1;min-width:90px;padding:9px 8px;font-size:13.5px;font-weight:700;border:1.5px solid #6b7a3a;border-radius:9px;background:#fff;color:#3b5323;cursor:pointer;line-height:1.35;text-align:center;white-space:nowrap}
 .qc-btn:hover{background:#f5f8ec}
-.qc-btn small{display:block;font-size:11px;font-weight:600;color:#57534e;margin-top:2px}
+.qc-btn small{display:none}
+.qs-rt-btn{width:100%;padding:11px 12px;font-size:14px;font-weight:800;border:1.5px solid #b9b2a3;border-radius:10px;background:#fff;color:#2b2a26;cursor:pointer;text-align:left}
+.qs-rt-btn.on{background:#dbeafe;border-color:#185fa5;color:#12406e}
+.qs-rt-btn:disabled{opacity:.4;cursor:not-allowed}
+.qs-chip{padding:9px 13px;font-size:14px;font-weight:700;border:1.5px solid #b9b2a3;border-radius:9px;background:#fff;color:#2b2a26;cursor:pointer}
+.qs-chip.on{background:#e3efe9;border-color:#0f6e56;color:#0f5040}
+.qs-chip.qs-sp.on{background:#fdf3df;border-color:#b08018;color:#8a5a12}
+.qs-chip:disabled{opacity:.4;cursor:not-allowed}
 .gen-lock-note{border-radius:8px;padding:10px 12px;font-size:15px;font-weight:800;margin-bottom:10px;background:#fcebeb;border:1px solid #f09595;color:#791f1f}
 .gen-lock-note.ready{background:#f0fdf4;border-color:#16a34a;color:#14532d}
 .subtract-count{display:inline-block;background:#dcfce7;border:2px solid #16a34a;color:#14532d;font-weight:800;border-radius:10px;padding:6px 16px;font-size:22px;line-height:1}
@@ -436,15 +443,38 @@ th.center,td.center{text-align:center}
     </div>
   </div>
 
+  <!-- 値段の列の組み合わせ選択（2026-07-20）：見積書・価格表に出す“値段の列”だけを動かす。請求書の単価・手数料・引き算などは変えない。 -->
+  <div class="card" id="q-spectiers-card" style="border:2px solid #d5cfc3;display:none">
+    <div style="font-size:14px;font-weight:800;color:#2b2a26;margin-bottom:2px">この見積もりに出す“値段の列”</div>
+    <div style="font-size:12px;color:#57534e;margin-bottom:10px">定価（オープン価格）は<b>いつも出ます</b>。ほかに出したい値段を選んでください。<b>選ばなければ今まで通り</b>です。</div>
+    <button type="button" id="qs-rt" class="qs-rt-btn" onclick="qsRtToggle()">🏨 RT（ホテル・レストラン）　<span style="font-size:12px;font-weight:400;color:#57534e">／ これは単独です</span></button>
+    <div id="qs-rt-note" style="display:none;font-size:12px;color:#185fa5;margin:5px 2px 0">🔒 RTを選んだので、ほかの値段は選べません（RTは単独）。</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 2px 10px;color:#8a857c;font-size:12px"><span style="flex:1;height:1px;background:#e0dccf"></span>または、下から自由に組み合わせ<span style="flex:1;height:1px;background:#e0dccf"></span></div>
+    <div style="font-size:11.5px;color:#57534e;margin:0 2px 5px">つうじょうの値段</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <button type="button" class="qs-chip" data-t="wholesale1" onclick="qsTierToggle('wholesale1')">卸①</button>
+      <button type="button" class="qs-chip" data-t="wholesale2" onclick="qsTierToggle('wholesale2')">卸②</button>
+      <button type="button" class="qs-chip" data-t="basara" onclick="qsTierToggle('basara')">卸バサラスター</button>
+    </div>
+    <div style="font-size:11.5px;color:#57534e;margin:0 2px 5px">とくべつな値段 <span style="color:#b08018">（お客様に出すときは注意）</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <button type="button" class="qs-chip qs-sp" data-t="oldlot" onclick="qsTierToggle('oldlot')">旧ロット</button>
+      <button type="button" class="qs-chip qs-sp" data-t="defect" onclick="qsTierToggle('defect')">不良品用特価</button>
+      <button type="button" class="qs-chip qs-sp" data-t="special" onclick="qsTierToggle('special')">特別提供価格</button>
+    </div>
+    <div id="qs-preview" style="margin-top:12px;font-size:13px;color:#2b2a26"></div>
+    <button type="button" class="btn-sm" style="margin-top:10px;font-weight:700" onclick="qsResetSelector()">↩ 今まで通りに戻す（選択をクリア）</button>
+  </div>
+
   <div id="q-after-gate" style="display:none">
     <div id="q-rt-gate-banner"></div>
 
     <div class="card">
       <div class="card-step-label">① お客様</div>
       <div id="q-cust-choice" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <button type="button" class="qc-btn" id="qc-skip-btn" style="display:none;border-color:#16a34a;color:#14532d" onclick="skipCustomerForGeneral()">🛍️ 登録なしで<br>固定価格表を作る</button>
-        <button type="button" class="qc-btn" id="qc-existing-btn" onclick="qcChooseExisting()">📇 登録済みから選ぶ</button>
-        <button type="button" class="qc-btn" id="qc-new-btn" onclick="qcChooseNew()">＋ 新しいお客様を登録<small>押すと登録フォームが開きます</small></button>
+        <button type="button" class="qc-btn" id="qc-skip-btn" style="display:none;border-color:#16a34a;color:#14532d" onclick="skipCustomerForGeneral()">🛍️ 登録なし</button>
+        <button type="button" class="qc-btn" id="qc-existing-btn" onclick="qcChooseExisting()">📇 えらぶ</button>
+        <button type="button" class="qc-btn" id="qc-new-btn" onclick="qcChooseNew()">＋ 新規</button>
       </div>
       <div class="fg" id="q-customer-select-wrap" style="display:none"><label>提出先（お客様）を選択</label>
         <input type="text" id="q-customer-search" placeholder="🔍 会社名・担当者名で検索" oninput="renderQuoteCustomerSelect()" style="margin-bottom:6px">
@@ -1146,7 +1176,7 @@ function effectiveCustomerType(customerType, boxes){
 function priceForSku(sku, customerType){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
   if(!p) return 0;
-  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect', hub:'priceWholesale2' };
+  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect', hub:'priceWholesale2', basara:'priceBasara', oldlot:'priceOldLot', defect:'priceDefect', special:'priceSpecial' };
   const key = map[customerType] || 'priceGeneral';
   return parseFloat(p[key])||0;
 }
@@ -1240,6 +1270,8 @@ function resetRtGate(){
   const card = document.getElementById('q-rt-gate-card');
   if(card) card.dataset.gateType = '';
   const kubunCard = document.getElementById('q-kubun-card'); if(kubunCard) kubunCard.style.display = 'none';
+  const specTiersCard = document.getElementById('q-spectiers-card'); if(specTiersCard) specTiersCard.style.display = 'none';
+  if(typeof qsResetSelector==='function') qsResetSelector();
   const kubunSw = document.getElementById('q-kubun-switch'); if(kubunSw) kubunSw.style.display = 'none';
   // お客様を選ぶまでは、後続（区分バッジ・商品入力など）は隠しておく
   const after = document.getElementById('q-after-gate'); if(after) after.style.display = 'none';
@@ -1323,10 +1355,45 @@ function renderKubunBadge(gateType){
   const card = document.getElementById('q-kubun-card'); if(card) card.style.display = '';
   const badge = document.getElementById('q-kubun-badge');
   if(badge){ badge.textContent = info.label; badge.style.background = info.bg; badge.style.color = info.color; }
+  const sc = document.getElementById('q-spectiers-card'); if(sc){ sc.style.display = ''; if(typeof qsRenderPreview==='function') qsRenderPreview(); }
 }
 function toggleKubunSwitch(){
   const p = document.getElementById('q-kubun-switch');
   if(p) p.style.display = (p.style.display==='none') ? '' : 'none';
+}
+// ── 「値段の列」の組み合わせ選択（見積書・価格表の“出す列”だけを動かす。請求書の単価・手数料・引き算は不変）──
+window.QSpecTiers = window.QSpecTiers || null;
+var QS_LABELS = {wholesale1:'卸①',wholesale2:'卸②',basara:'卸バサラスター',rt:'RT',oldlot:'旧ロット',defect:'不良品用特価',special:'特別提供価格'};
+var QS_ORDER = ['wholesale1','wholesale2','basara','oldlot','defect','special'];
+function qsSelectedChips(){ return Array.prototype.slice.call(document.querySelectorAll('#q-spectiers-card .qs-chip')).filter(function(b){return b.dataset.on==='1';}).map(function(b){return b.dataset.t;}); }
+function qsRtOn(){ var r=document.getElementById('qs-rt'); return !!(r && r.dataset.on==='1'); }
+function qsTierToggle(t){ var b=document.querySelector('#q-spectiers-card .qs-chip[data-t="'+t+'"]'); if(!b||b.disabled) return; b.dataset.on = (b.dataset.on==='1')?'0':'1'; qsSyncState(); }
+function qsRtToggle(){ var r=document.getElementById('qs-rt'); if(!r||r.disabled) return; r.dataset.on = (r.dataset.on==='1')?'0':'1'; qsSyncState(); }
+function qsSyncState(){
+  var rtOn=qsRtOn();
+  var chips=Array.prototype.slice.call(document.querySelectorAll('#q-spectiers-card .qs-chip'));
+  chips.forEach(function(c){ if(rtOn){ c.dataset.on='0'; c.disabled=true; } else { c.disabled=false; } });
+  var any=qsSelectedChips().length>0;
+  var r=document.getElementById('qs-rt'); if(r) r.disabled=any;
+  var note=document.getElementById('qs-rt-note'); if(note) note.style.display=rtOn?'block':'none';
+  chips.forEach(function(c){ c.classList.toggle('on', c.dataset.on==='1'); });
+  if(r) r.classList.toggle('on', rtOn);
+  var sel = rtOn ? ['rt'] : QS_ORDER.filter(function(t){ return qsSelectedChips().indexOf(t)>=0; });
+  window.QSpecTiers = sel.length ? sel : null;
+  qsRenderPreview();
+}
+function qsRenderPreview(){
+  var el=document.getElementById('qs-preview'); if(!el) return;
+  var t=window.QSpecTiers;
+  if(!t){ el.innerHTML='<span style="color:#57534e">→ 何も選んでいないので、<b>今まで通り</b>の値段で出ます（定価＋そのお客様の区分の値段）。</span>'; return; }
+  var names=['定価'].concat(t.map(function(x){return QS_LABELS[x];}));
+  el.innerHTML='<span style="font-weight:800;color:#2b2a26">この見積もりに出る値段の列：</span>'+names.join(' ／ ');
+}
+function qsResetSelector(){
+  var r=document.getElementById('qs-rt'); if(r){ r.dataset.on='0'; r.disabled=false; r.classList.remove('on'); }
+  Array.prototype.slice.call(document.querySelectorAll('#q-spectiers-card .qs-chip')).forEach(function(c){ c.dataset.on='0'; c.disabled=false; c.classList.remove('on'); });
+  window.QSpecTiers=null; qsRenderPreview();
+  var note=document.getElementById('qs-rt-note'); if(note) note.style.display='none';
 }
 // アラート付きで区分を変更する
 function askChangeKubun(gateType){
@@ -2305,6 +2372,20 @@ function showQuoteDoc(doc, record){
 //   （2枚目は恒久固定の buildInvoiceDocHtml をそのまま使う＝様式無傷）
 // ・賞味期限などは商品マスタに人が書いた値だけ。空欄は空欄のまま出す。
 // ══════════════════════════════════════════════════════════════════
+// 「値段の列」の組み合わせ選択（2026-07-20）：見積書・価格表に出す“追加の値段の列”をtypeで指定する。
+// window.QSpecTiers が配列のときだけ使う。nullなら従来どおり（区分から自動で1列）。
+function specTierColDef(type){
+  const m = {
+    wholesale1:{type:'wholesale1',label:'卸価格①'},
+    wholesale2:{type:'wholesale2',label:'卸価格②'},
+    rt:{type:'rt',label:'RT価格'},
+    basara:{type:'basara',label:'卸バサラスター'},
+    oldlot:{type:'oldlot',label:'旧ロット'},
+    defect:{type:'defect',label:'不良品用特価'},
+    special:{type:'special',label:'特別提供価格'}
+  };
+  return m[type] || null;
+}
 // 区分ごとの卸価格の列（オープン価格は全区分共通で必ず出す）
 function specPriceColForType(custType){
   const t = effectiveCustomerType(custType, 0); // hub→卸②の互換もここで吸収
@@ -2326,8 +2407,11 @@ function specCell(v, style){
   return '<td style="border:1px solid #a3b18a;padding:4px 3px;'+(style||'')+'">'+v+'</td>';
 }
 // 仕様表テーブル本体（分類列は廃止＝全商品オーガニックのため見出しで1回だけ表示。EU有機・分析表は値がある時だけ列を出す）
-function buildSpecTableHtml(specSkus, custType){
-  const wcol = specPriceColForType(custType);
+function buildSpecTableHtml(specSkus, custType, specTiers){
+  const useMulti = Array.isArray(specTiers);
+  const wcols = useMulti
+    ? specTiers.map(specTierColDef).filter(Boolean)
+    : (specPriceColForType(custType) ? [specPriceColForType(custType)] : []);
   const rows = specSkus.map(function(sku){
     const p = findProductBySku(sku); if(!p) return null;
     const ex = p.extras || {};
@@ -2342,7 +2426,7 @@ function buildSpecTableHtml(specSkus, custType){
   function th(label, w, extra){ return '<th style="border:1px solid #a3b18a;padding:4px 2px;'+(w?'width:'+w+';':'')+(extra||'')+'">'+label+'</th>'; }
   html += th('生産地','9%') + th('商品名','26%') + th('容量','9%') + th('1箱数','8%') + th('賞味期限','10%');
   html += th('オープン価格<br>（税抜）','13%');
-  if(wcol) html += th(wcol.label+'<br>（税抜）','12%','background:#dde5c8');
+  wcols.forEach(function(wcol){ html += th(wcol.label+'<br>（税抜）', useMulti ? '' : '12%','background:#dde5c8'); });
   html += th('容器','9%');
   if(hasEU)  html += th('EU<br>有機','6%');
   if(hasAna) html += th('分析表','6%');
@@ -2356,10 +2440,10 @@ function buildSpecTableHtml(specSkus, custType){
     html += specCell(r.p.boxQty ? String(r.p.boxQty) : '', 'text-align:center');
     html += specCell(esc(r.exp), 'text-align:center;font-weight:700'); // 空欄は空欄のまま（機械は補完しない）
     html += specCell(openPrice ? '¥'+openPrice.toLocaleString() : '－', 'text-align:right');
-    if(wcol){
+    wcols.forEach(function(wcol){
       const wp = priceForSku(r.p.sku, wcol.type);
       html += specCell(wp ? '¥'+wp.toLocaleString() : '－', 'text-align:right;font-weight:700;background:#f6f8ef');
-    }
+    });
     html += specCell(esc(r.p.container||''), 'text-align:center');
     if(hasEU)  html += specCell(esc(r.eu), 'text-align:center');
     if(hasAna) html += specCell(esc(r.ana), 'text-align:center');
@@ -2397,7 +2481,7 @@ function buildSpecSectionHtml(record, c){
   let html = buildDocHeaderHtml(record, c, 'quote');
   html += '<div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.12em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin:2px 0 12px">お見積書</div>';
   html += '<div style="margin-bottom:8px;font-size:13px">下記の通り御見積り申し上げます。</div>';
-  html += buildSpecTableHtml(record.specSkus, record.customerType);
+  html += buildSpecTableHtml(record.specSkus, record.customerType, record.specTiers);
   if(record.remarks){
     html += '<div style="margin-top:8px;font-size:11px;border:1px solid #d5cfc3;border-radius:6px;padding:6px 10px"><strong>備考</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
   }
@@ -2587,7 +2671,7 @@ function generateExtractQuoteDoc(){
     id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
-    specSkus: specSkus, exWithInvoice: extractWithInvoice,
+    specSkus: specSkus, specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null), exWithInvoice: extractWithInvoice,
     exFeeBase: feeGate ? warehouseFeeForGate() : 0,
     warehouseFee: extractWithInvoice ? bulkWarehouseFee : 0, gateType: gateType,
     shipMode: (document.getElementById('q-ship-mode')||{}).value || 'none',
@@ -2820,6 +2904,7 @@ function generatePriceListDoc(){
     id: 'pl'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson,
     products: list.map(p=>({sku:p.sku, name:p.name, group:p.group, boxQty:p.boxQty})),
+    specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null),
     selectedFields: fieldsConfig.selectedFields,
     fieldOverrides: fieldsConfig.overrides,
     remarks: remarks, internalMemo: internalMemo, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'pricelist'
@@ -2829,7 +2914,12 @@ function generatePriceListDoc(){
   const doc = buildPriceListDocHtml(record, c);
   showQuoteDoc(doc, record);
 }
-function priceListPriceColumns(customerType){
+function priceListPriceColumns(customerType, specTiers){
+  if(Array.isArray(specTiers)){
+    const cols = [{type:'general',label:'オープン価格'}];
+    specTiers.forEach(function(t){ const d = specTierColDef(t); if(d) cols.push({type:d.type, label:d.label}); });
+    return cols;
+  }
   if(customerType==='rt') return [{type:'general',label:'オープン価格'},{type:'rt',label:'卸価格'}];
   if(customerType==='wholesale1' || customerType==='wholesale2') return [{type:'general',label:'オープン価格'},{type:'wholesale1',label:'卸①'},{type:'wholesale2',label:'卸②'}];
   return [{type:'general',label:'オープン価格'}];
@@ -2837,7 +2927,7 @@ function priceListPriceColumns(customerType){
 function buildPriceListDocHtml(record, c){
   const today = new Date();
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
-  const priceCols = priceListPriceColumns(record.customerType);
+  const priceCols = priceListPriceColumns(record.customerType, record.specTiers);
   const selFields = record.selectedFields || [];
 
   let html = '<div class="invoice-doc pricelist-doc">';
