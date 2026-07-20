@@ -152,12 +152,13 @@ tr:last-child td{border-bottom:none}
 /* ★2026-07-17 価格マスタ：見出しを一番上で固定＋列に薄い色分け（見間違い防止・卸バサラスター列追加） */
 #panel-price .tbl-wrap{max-height:64vh}
 #panel-price thead th{position:sticky;top:0;z-index:6;background:#f3f1ea;box-shadow:0 2px 0 #d9d2c4}
-/* 縦（列）にうっすら交互の色（濃くしない）。列順：1状態 2商品名 3入数 4税率 5定価 6卸① 7卸② 8卸バサラスター 9RT 10不良 */
+/* 縦（列）にうっすら交互の色（濃くしない）。列順：1状態 2商品名 3入数 4税率 5定価 6卸① 7卸② 8卸バサラスター 9RT 10旧ロット 11不良 12特別提供 */
 #panel-price tbody td:nth-child(4){background:#faf8f3}
 #panel-price tbody td:nth-child(6){background:#f7f5ef}
 #panel-price tbody td:nth-child(8){background:#f3f6f2}
-#panel-price tbody td:nth-child(10){background:#f7f5ef}
+#panel-price tbody td:nth-child(10){background:#fdf6e3}
 #panel-price thead th:nth-child(8){background:#e9f0e7;color:#2f6d57}
+#panel-price thead th:nth-child(10){background:#fbf1dc;color:#8a5a12}
 /* group-header（colspan行）には色分けを効かせない */
 #panel-price tbody td.group-header{background:#eeece6!important}
 
@@ -358,6 +359,7 @@ tr:last-child td{border-bottom:none}
         <th>卸②（税抜） <span class="help-ic" onclick="alert('【卸②（税抜き）】\n卸①よりさらに安い特別価格です。2026年7月の決定により、卸①のお客様が同じ商品を6箱以上注文すると、その商品だけ自動でこの価格になります（頑張って買ってくれた人が得をする方式）。')">ⓘ</span></th>
         <th>卸バサラスター（税抜） <span class="help-ic" onclick="alert('【卸バサラスター（税抜き）】\n株式会社バサラスター様専用の卸価格です。扱わない商品は空（¥0）のままで大丈夫です。金額は「✏️編集する」で入力して保存できます。')">ⓘ</span></th>
         <th>RT・ホテル（税抜） <span class="help-ic" onclick="alert('【RT（税抜き）】\nホテル・レストラン向けの価格です。トルコ産オイル100mlの単品（バラ）卸など、RTのお客様だけに許可している商品があります。')">ⓘ</span></th>
+        <th>旧ロット（税抜） <span class="help-ic" onclick="alert('【旧ロット（QR・税抜き）】\n古いロット（旧在庫）を、通常より少しお安くお出しするときの価格です。金額は社長が輸入Eで決めます。未設定の商品は「－」と表示されます。')">ⓘ</span></th>
         <th>不良品用特価（税抜） <span class="help-ic" onclick="alert('【不良品用特価（税抜き）】\n不良在庫（ラベル汚れ・オイル漏れなど）として出荷する受注にだけ適用される、特別に安い価格です。')">ⓘ</span></th>
         <th>特別提供価格（税抜） <span class="help-ic" onclick="alert('【特別提供価格（税抜き）】\nイベントでの提供や、特別な事情のあるお客様のための、その都度決める特別価格です。設定は社長が輸入Eで行います。')">ⓘ</span></th>
       </tr></thead>
@@ -2469,8 +2471,9 @@ function renderPriceTable(){
     h += '<td><strong>'+esc(p.name)+'</strong> <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
     h += '<td>'+(p.boxQty||'-')+'</td>';
     h += '<td>'+(taxR===0.10?'10%':'8%')+'</td>';
-    ['General','Wholesale1','Wholesale2','Basara','RT','Defect'].forEach(function(kind){
+    ['General','Wholesale1','Wholesale2','Basara','RT','OldLot','Defect'].forEach(function(kind){
       const val = rec['price'+kind] || 0;
+      if(kind==='OldLot' && val<=0){ h += '<td style="text-align:right;color:#9ca3af">－</td>'; return; }
       h += '<td style="text-align:right">¥'+val.toLocaleString();
       if(p.boxQty && p.boxQty>1){
         h += '<div style="font-size:10px;color:#2b2a26;margin-top:2px">1箱：¥'+(val*p.boxQty).toLocaleString()+'</div>';
@@ -2499,11 +2502,11 @@ function renderPriceTable(){
     const activeItems = groups[g].filter(function(p){ return isProductActive(p); });
     groups[g].forEach(function(p){ if(!isProductActive(p)) retired.push(p); });
     if(!activeItems.length) return;
-    html += '<tr><td colspan="11" class="group-header">'+esc(g)+'</td></tr>';
+    html += '<tr><td colspan="12" class="group-header">'+esc(g)+'</td></tr>';
     activeItems.forEach(function(p){ html += buildRow(p, ''); });
   });
   if(retired.length){
-    html += '<tr class="retired-head-row"><td colspan="11" style="background:#f5f5f3;padding:0;border-top:2px solid #e5e1d8">'
+    html += '<tr class="retired-head-row"><td colspan="12" style="background:#f5f5f3;padding:0;border-top:2px solid #e5e1d8">'
       + '<button type="button" onclick="toggleRetiredProducts()" id="retired-toggle-btn" style="width:100%;text-align:left;background:none;border:none;padding:11px 14px;font-size:14px;font-weight:700;color:#78350f;cursor:pointer">▶ 外した商品（過去の商品）'+retired.length+'件（クリックで開く）</button>'
       + '</td></tr>';
     retired.forEach(function(p){ html += buildRow(p, 'retired-row'); });
