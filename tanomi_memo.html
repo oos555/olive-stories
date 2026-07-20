@@ -9,20 +9,15 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin:0; background:#f0ecf6; color:#2b2a26; font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif; font-size:16px; line-height:1.6; }
   .phone { max-width:440px; margin:0 auto; padding:0 0 32px; }
-  .head { background:#7a6ca8; color:#fff; padding:12px 16px; position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; }
+  .head { background:#7a6ca8; color:#fff; padding:12px 16px; position:sticky; top:0; z-index:10; }
   .head h1 { font-family:"Zen Maru Gothic",sans-serif; font-weight:700; font-size:18px; margin:0; }
   .head .sub { font-size:11px; opacity:.9; }
-  .sync { font-size:11px; opacity:.9; }
-  #lock { display:none; padding:40px 20px; text-align:center; }
-  #lock.on { display:block; }
-  #lock .box { background:#fff; border:1px solid #e5ded2; border-radius:16px; padding:26px 18px; max-width:340px; margin:20px auto; }
-  #lock h2 { font-family:"Zen Maru Gothic",sans-serif; font-size:19px; margin:0 0 6px; color:#4a3b7a; }
-  #lock p { font-size:13px; color:#6b6a63; margin:0 0 16px; }
-  #lock input { width:100%; font-size:20px; text-align:center; letter-spacing:2px; padding:13px; border:2px solid #b9b09c; border-radius:12px; }
-  #lock button { width:100%; margin-top:12px; background:#7a6ca8; color:#fff; border:none; border-radius:12px; padding:14px; font-size:17px; font-weight:700; }
-  #lock .err { color:#dc2626; font-size:13px; font-weight:700; min-height:18px; margin-top:8px; }
-  #app { display:none; }
-  #app.on { display:block; }
+  .head .sync { font-size:11px; margin-top:2px; opacity:.95; }
+  .lock { padding:40px 22px; text-align:center; }
+  .lock h2 { font-family:"Zen Maru Gothic",sans-serif; font-size:19px; }
+  .lock input { width:100%; max-width:260px; font-size:20px; text-align:center; letter-spacing:3px; padding:13px; border:2px solid #b9b09c; border-radius:12px; margin:14px 0; }
+  .lock button { background:#7a6ca8; color:#fff; border:none; border-radius:12px; padding:13px 28px; font-size:17px; font-weight:700; }
+  .lock .err { color:#dc2626; font-weight:700; font-size:14px; min-height:20px; }
   .seg { display:flex; background:#efeafa; margin:10px 12px 0; border-radius:11px; padding:4px; }
   .seg button { flex:1; border:none; background:transparent; color:#5a4b8a; font-weight:700; font-size:15px; padding:9px; border-radius:8px; }
   .seg button.on { background:#fff; color:#4a3b7a; box-shadow:0 1px 3px rgba(0,0,0,.1); }
@@ -53,33 +48,31 @@
   .sec.done-sec { color:#6b6a63; }
   .row.donelog { opacity:.55; border-left-color:#cfc7b6; }
   .row.donelog .task { text-decoration:line-through; }
-  .row.donelog .undo { flex-shrink:0; background:#efeafa; color:#5a4b8a; border:1px solid #cfc3ee; border-radius:9px; padding:6px 10px; font-size:12px; font-weight:700; }
+  .row .undo { flex-shrink:0; background:#eee; color:#555; border:none; border-radius:9px; padding:6px 10px; font-size:12px; font-weight:700; }
   .empty { text-align:center; color:#8a857a; padding:26px 10px; font-weight:700; font-size:14px; }
 </style>
 </head>
 <body>
 <div class="phone">
   <div class="head">
-    <div><h1>🗒️ 頼みごとメモ</h1><div class="sub">中村様専用 ／ 外出先でパッと残す</div></div>
-    <div class="sync" id="syncst"></div>
+    <h1>🗒️ 頼みごとメモ</h1>
+    <div class="sub">中村様専用 ／ スマホで入れて、パソコンでも見られます</div>
+    <div class="sync" id="sync"></div>
   </div>
 
-  <div id="lock" class="on">
-    <div class="box">
-      <h2>🔑 合鍵を入れてください</h2>
-      <p>中村様専用のメモです</p>
-      <input id="pw" type="password" inputmode="text" placeholder="あいことば" autocomplete="off">
-      <button onclick="unlock(false)">ひらく</button>
-      <div class="err" id="lockerr"></div>
-    </div>
+  <div id="lock-view" class="lock">
+    <h2>🔒 中村様専用</h2>
+    <div style="font-size:14px;color:#6b6a63;">社長専用の合鍵を入れてください</div>
+    <input id="pw" type="password" inputmode="text" placeholder="合鍵" autocomplete="off">
+    <div class="err" id="pwerr"></div>
+    <button onclick="tryUnlock()">開く</button>
   </div>
 
-  <div id="app">
+  <div id="main-view" style="display:none;">
     <div class="seg">
       <button class="on" id="seg-in" onclick="seg('in')">✏️ 入れる</button>
       <button id="seg-list" onclick="seg('list')">📋 一覧（<span id="opencount">0</span>）</button>
     </div>
-
     <div class="view on" id="view-in">
       <div class="lbl">いま頼んだことを、そのまま話してください</div>
       <textarea id="ta" placeholder="例）○○さんに、100mlギフトの箱、8月10日までに100個お願いした"></textarea>
@@ -88,104 +81,90 @@
         <button class="btn-mic" onclick="micStart()">🎤 声で入れる</button>
         <button class="btn-save" onclick="save()">記録する</button>
       </div>
-      <div class="hint">話した文から <b>日付</b> と <b>数</b> を自動で拾って締め切りにします。「急ぎ」「至急」と言えば自動で急ぎ扱い。うまく拾えなくても、<b>話した文はそのまま残ります</b>。スマホで入れたものは、パソコンでも見られます。</div>
+      <div class="hint">話した文から <b>日付</b> と <b>数</b> を自動で拾って締め切りにします。「急ぎ」「至急」と言えば自動で急ぎ扱い。うまく拾えなくても、<b>話した文はそのまま残ります</b>。</div>
     </div>
-
     <div class="view" id="view-list">
-      <div class="count">急ぎ→締め切りが近い順。1件が小さいので、たくさんでも見渡せます。</div>
+      <div class="count">急ぎ→締め切りが近い順にならびます。1件が小さいので、たくさんでも見渡せます。</div>
       <div id="listbox"></div>
     </div>
   </div>
 </div>
 
 <script>
+/* 合鍵の文字はこのファイルに書きません。入力された合鍵をGASに送り、GAS側で判定します。 */
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
-var SHEET = '頼みごとメモ';
-var GAS_PW = 'O3588';
-var CACHE = 'oos_tanomi_cache_v1';
+var SHEET_NAME = '頼みごとメモ';
+var CACHE_KEY  = 'oos_tanomi_cache_v1';
+var SECRET_KEY = 'oos_unlock_secret';   // 他の社長専用アプリと共通の合鍵置き場
+var ATELIER_OK = 'oos_atelier_ok';
 
-function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
-function alreadyUnlockedToday(){
-  try {
-    if(localStorage.getItem('oos_unlock_date')===todayStr() && localStorage.getItem('oos_atelier_ok')==='1') return true;
-    var s=localStorage.getItem('oos_unlock_secret'); if(s){ var o=JSON.parse(s); if(o && o.p===GAS_PW) return true; }
-  } catch(e){}
-  return false;
-}
-function markUnlocked(){
-  try {
-    localStorage.setItem('oos_unlock_date', todayStr());
-    localStorage.setItem('oos_atelier_ok','1');
-    localStorage.setItem('oos_unlock_secret', JSON.stringify({p:GAS_PW}));
-  } catch(e){}
-}
-function unlock(isAuto){
-  var err=document.getElementById('lockerr'); err.textContent='';
-  if(isAuto || document.getElementById('pw').value===GAS_PW){
-    if(!isAuto) markUnlocked();
-    document.getElementById('lock').classList.remove('on');
-    document.getElementById('app').classList.add('on');
-    boot();
-  } else {
-    err.textContent='あいことばが違います';
-    document.getElementById('pw').value='';
-  }
-}
+var password = '';
+var ITEMS = [];
 
-var ITEMS=[];
-function loadCache(){ try { ITEMS=JSON.parse(localStorage.getItem(CACHE)||'[]'); } catch(e){ ITEMS=[]; } }
-function saveCache(){ try { localStorage.setItem(CACHE, JSON.stringify(ITEMS)); } catch(e){} }
-function daysFromNow(d){ var t=new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()+d); return t.getTime(); }
-function ymdToTs(ymd){ if(!ymd) return null; var p=ymd.split('-'); var d=new Date(+p[0],+p[1]-1,+p[2]); d.setHours(0,0,0,0); return d.getTime(); }
-function daysLeft(ymd){ var ts=ymdToTs(ymd); if(ts==null) return null; return Math.round((ts-daysFromNow(0))/86400000); }
+function savedSecret(){ try{ var v=JSON.parse(localStorage.getItem(SECRET_KEY)||'null'); return (v&&v.p)? v.p : null; }catch(e){ return null; } }
+function storeSecret(pw){ try{ localStorage.setItem(SECRET_KEY, JSON.stringify({p:pw})); localStorage.setItem(ATELIER_OK,'1'); }catch(e){} }
 
-function autoUrgent(){ var v=document.getElementById('ta').value; if(/急ぎ|至急|大至急|いそぎ/.test(v)) document.getElementById('urgent').checked=true; }
-function pickDate(v){
-  var m=v.match(/(\d{1,2})月(\d{1,2})日/);
-  if(m){ var t=new Date(); var d=new Date(t.getFullYear(),+m[1]-1,+m[2]); d.setHours(0,0,0,0);
-    if(d.getTime()<daysFromNow(-120)) d.setFullYear(t.getFullYear()+1);
-    var ymd=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
-    return {label:m[1]+'月'+m[2]+'日', ymd:ymd}; }
-  return {label:'（日付は未指定）', ymd:''};
+function boot(){
+  renderFromCache();
+  var s = savedSecret();
+  if(s){ password=s; openMain(); syncLoad(); }
 }
-function pickTask(v){
-  var mq=v.match(/(\d+)\s*(個|枚|本|セット|ケース|缶)/);
-  var mn=v.match(/([^、。\s]{1,12}?)さん/);
-  var mNoun=v.match(/(箱|ボックス|シール|ラベル|デザイン|バナー|チラシ|パンフ|ポスター|カード|袋|POP|見積|資料|印刷)/);
-  var noun=mNoun?mNoun[0]:'';
-  var task=(noun||'頼みごと')+(mq?' '+mq[1]+mq[2]:'');
-  return { task:task, who: mn? mn[1]+'さん' : '（あとで直せます）' };
+function tryUnlock(){
+  var pw = document.getElementById('pw').value.trim();
+  if(!pw){ return; }
+  password = pw;
+  document.getElementById('pwerr').textContent = '確認中…';
+  syncLoad(function(ok){
+    if(ok){ storeSecret(pw); openMain(); }
+    else { document.getElementById('pwerr').textContent = '合鍵が違うようです'; }
+  });
+}
+function openMain(){
+  document.getElementById('lock-view').style.display='none';
+  document.getElementById('main-view').style.display='block';
+  renderList();
 }
 
-function setSync(t){ var e=document.getElementById('syncst'); if(e) e.textContent=t; }
-function gasGet(){ return fetch(GAS_URL+'?action=loadStickyMemos&sheetName='+encodeURIComponent(SHEET)+'&password='+encodeURIComponent(GAS_PW)).then(function(r){return r.json();}); }
-function gasSave(memo){ return fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'saveStickyMemo', sheetName:SHEET, password:GAS_PW, memo:memo }) }).then(function(r){return r.json();}); }
-function toMemo(x){ return { id:String(x.id), text:JSON.stringify({raw:x.raw,task:x.task,who:x.who,due:x.due,urgent:!!x.urgent}), reminderDate:x.dueYmd||'', tellSomeone:false, done:!!x.done, createdAt:x.createdAt||new Date().toISOString(), color:x.urgent?'urgent':'' }; }
+function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(ITEMS)); }catch(e){} }
+function renderFromCache(){ try{ var c=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); if(c.length){ ITEMS=c; } }catch(e){} }
+
+function gasPost(body, cb){
+  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ cb(null, d); })
+    .catch(function(e){ cb(e, null); });
+}
+function setSync(msg){ var el=document.getElementById('sync'); if(el) el.textContent = msg||''; }
+
+function syncLoad(done){
+  setSync('☁️ 読み込み中…');
+  gasPost({ action:'loadStickyMemos', sheetName:SHEET_NAME, password:password }, function(err, d){
+    if(err){ setSync('⚠️ オフライン（この端末の記録を表示中）'); if(done) done(true); return; }
+    if(d && (d.status==='ok' || d.memos || d.data)){
+      var memos = d.memos || (d.data && d.data.memos) || d.data || [];
+      ITEMS = memos.map(fromMemo).filter(Boolean);
+      saveCache(); renderList(); setSync('☁️ パソコンとも同期しています');
+      if(done) done(true);
+    } else {
+      setSync('');
+      if(done) done(false);
+    }
+  });
+}
+function syncSave(item, cb){
+  gasPost({ action:'saveStickyMemo', sheetName:SHEET_NAME, password:password, memo:toMemo(item) }, function(err, d){ if(cb) cb(err, d); });
+}
+function toMemo(x){
+  return { id:String(x.id),
+    text: JSON.stringify({ raw:x.raw, task:x.task, who:x.who, due:x.due, dueTs:x.dueTs, urgent:!!x.urgent }),
+    reminderDate: x.dueTs ? new Date(x.dueTs).toISOString() : '',
+    tellSomeone: x.who || '', done: !!x.done, createdAt: x.createdAt || new Date().toISOString() };
+}
 function fromMemo(m){
-  var p={}; try { p=JSON.parse(m.text||'{}'); } catch(e){ p={raw:m.text,task:m.text,who:'',due:'',urgent:false}; }
-  return { id:m.id, raw:p.raw||'', task:p.task||'頼みごと', who:p.who||'', due:p.due||'（日付は未指定）', dueYmd:m.reminderDate||'', urgent:(m.color==='urgent')||!!p.urgent, done:!!m.done, createdAt:m.createdAt||'' };
-}
-function extractMemos(res){
-  if(!res) return null;
-  // サーバーの返し方が違っても memos の配列を拾えるようにする
-  if(Array.isArray(res)) return res;
-  if(Array.isArray(res.memos)) return res.memos;
-  if(res.data){
-    if(Array.isArray(res.data)) return res.data;
-    if(Array.isArray(res.data.memos)) return res.data.memos;
-    if(Array.isArray(res.data.records)) return res.data.records;
-  }
-  if(Array.isArray(res.records)) return res.records;
-  if(Array.isArray(res.rows)) return res.rows;
-  return null;
-}
-function pullFromServer(){
-  setSync('同期中…');
-  gasGet().then(function(res){
-    var memos = extractMemos(res);
-    if(memos){ ITEMS = memos.map(fromMemo); saveCache(); renderList(); setSync('✓ パソコンとも同期'); }
-    else { setSync('ローカル表示（この端末の記録）'); }
-  }).catch(function(){ setSync('ローカル表示（この端末の記録）'); });
+  if(!m) return null;
+  var p={}; try{ p=JSON.parse(m.text||'{}'); }catch(e){ p={ raw:(m.text||''), task:'頼みごと', who:'', due:'', dueTs:null, urgent:false }; }
+  var doneVal=(m.done===true||m.done==='true'||m.done==='TRUE'||m.done===1);
+  return { id:String(m.id), raw:p.raw||'', task:p.task||'頼みごと', who:p.who||(m.tellSomeone||''), due:p.due||'', dueTs:p.dueTs||null, urgent:!!p.urgent, done:doneVal, createdAt:m.createdAt||'' };
 }
 
 function seg(which){
@@ -196,54 +175,70 @@ function seg(which){
   if(which==='list') renderList();
 }
 function micStart(){
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition; var ta=document.getElementById('ta');
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var ta = document.getElementById('ta');
   if(!SR){ ta.focus(); alert('この端末では音声ボタンが使えないようです。キーボードのマイクからでも入れられます。'); return; }
-  var r=new SR(); r.lang='ja-JP'; r.interimResults=false;
-  r.onresult=function(e){ ta.value=(ta.value?ta.value+' ':'')+e.results[0][0].transcript; autoUrgent(); };
-  r.onerror=function(){ ta.focus(); };
+  var r = new SR(); r.lang='ja-JP'; r.interimResults=false;
+  r.onresult = function(e){ ta.value=(ta.value?ta.value+' ':'')+e.results[0][0].transcript; autoUrgent(); };
+  r.onerror = function(){ ta.focus(); };
   try{ r.start(); }catch(e){ ta.focus(); }
 }
+function autoUrgent(){ var v=document.getElementById('ta').value; if(/急ぎ|至急|大至急|いそぎ/.test(v)) document.getElementById('urgent').checked=true; }
+
+function daysMs(d){ var t=new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate()+d); return t.getTime(); }
+function daysLeft(ts){ if(ts==null) return null; return Math.round((ts - daysMs(0))/86400000); }
+function pickDate(v){
+  var m=v.match(/(\d{1,2})月(\d{1,2})日/);
+  if(m){ var t=new Date(), mo=+m[1]-1, da=+m[2], y=t.getFullYear(); var d=new Date(y,mo,da); d.setHours(0,0,0,0);
+    if(d.getTime()<daysMs(-120)) d.setFullYear(y+1); return {label:m[1]+'月'+m[2]+'日', ts:d.getTime()}; }
+  return {label:'（日付は未指定）', ts:null};
+}
+function pickTask(v){
+  var mq=v.match(/(\d+)\s*(個|枚|本|セット|ケース|缶)/);
+  var mn=v.match(/([^、。\s]{1,12}?)さん/);
+  var mNoun=v.match(/(箱|ボックス|シール|ラベル|デザイン|バナー|チラシ|パンフ|ポスター|カード|袋|POP|見積|資料)/);
+  var noun = mNoun? mNoun[0] : '';
+  return { task:(noun||'頼みごと')+(mq? ' '+mq[1]+mq[2]:''), who: mn? mn[1]+'さん':'（あとで直せます）' };
+}
 function save(){
-  var ta=document.getElementById('ta'); var v=ta.value.trim();
+  var ta=document.getElementById('ta'), v=ta.value.trim();
   if(!v){ alert('話した内容を入れてから「記録する」を押してください。'); return; }
-  var d=pickDate(v); var t=pickTask(v);
-  var urgent=document.getElementById('urgent').checked||/急ぎ|至急|大至急|いそぎ/.test(v);
-  var item={ id:Date.now(), raw:v, task:t.task, who:t.who, due:d.label, dueYmd:d.ymd, urgent:urgent, done:false, createdAt:new Date().toISOString() };
+  var d=pickDate(v), t=pickTask(v);
+  var urgent=document.getElementById('urgent').checked || /急ぎ|至急|大至急|いそぎ/.test(v);
+  var item={ id:Date.now()+''+Math.floor(Math.random()*1000), raw:v, task:t.task, who:t.who, due:d.label, dueTs:d.ts, urgent:urgent, done:false, createdAt:new Date().toISOString() };
   ITEMS.push(item); saveCache();
   ta.value=''; document.getElementById('urgent').checked=false;
   seg('list');
-  setSync('保存中…');
-  gasSave(toMemo(item)).then(function(res){ setSync(res&&res.status==='ok'?'✓ 保存':'ローカルのみ'); }).catch(function(){ setSync('ローカルのみ（あとで同期）'); });
+  setSync('☁️ 保存中…');
+  syncSave(item, function(err){ if(err){ setSync('⚠️ あとで自動でパソコンにも保存されます'); } else { setSync('☁️ パソコンとも同期しています'); syncLoad(); } });
 }
-function setDone(id, val){
-  for(var i=0;i<ITEMS.length;i++){ if(String(ITEMS[i].id)===String(id)){ ITEMS[i].done=val; saveCache(); renderList();
-    setSync('保存中…'); gasSave(toMemo(ITEMS[i])).then(function(res){ setSync(res&&res.status==='ok'?'✓ 保存':'ローカルのみ'); }).catch(function(){ setSync('ローカルのみ'); });
-    break; } }
+function markDone(id){
+  for(var i=0;i<ITEMS.length;i++){ if(ITEMS[i].id===id){ ITEMS[i].done=true; saveCache(); syncSave(ITEMS[i], function(){ syncLoad(); }); break; } }
+  renderList();
 }
-
+function undoDone(id){
+  for(var i=0;i<ITEMS.length;i++){ if(ITEMS[i].id===id){ ITEMS[i].done=false; saveCache(); syncSave(ITEMS[i], function(){ syncLoad(); }); break; } }
+  renderList();
+}
 function esc(s){ return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
 function rowHtml(x){
-  var cls='green', pill=''; var dl=daysLeft(x.dueYmd);
-  if(dl==null){ pill='日付なし'; cls='green'; }
+  var cls='green', pill='', dl=daysLeft(x.dueTs);
+  if(dl==null){ pill='日付なし'; }
   else if(dl<0){ cls='red'; pill='⏰ '+Math.abs(dl)+'日すぎ'; }
   else if(dl<=7){ cls='yellow'; pill='あと'+dl+'日'; }
   else { cls='green'; pill='あと'+dl+'日'; }
   var rowcls='row '+(x.urgent?'urgent':cls);
-  var pillTxt=x.urgent?('🔥急ぎ'+(dl!=null?'・'+pill:'')):pill;
+  var pillTxt = x.urgent? ('🔥急ぎ'+(dl!=null?'・'+pill:'')) : pill;
   return '<div class="'+rowcls+'">'+
     '<span class="pill">'+pillTxt+'</span>'+
     '<div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div></div>'+
-    '<button class="done" onclick="setDone(\''+x.id+'\',true)">できた</button>'+
-    '</div>';
+    '<button class="done" onclick="markDone(\''+x.id+'\')">できた</button></div>';
 }
 function renderList(){
   var open=ITEMS.filter(function(x){return !x.done;});
   var done=ITEMS.filter(function(x){return x.done;});
-  document.getElementById('opencount').textContent=open.length;
-  open.sort(function(a,b){
-    if(a.urgent!==b.urgent) return a.urgent?-1:1;
-    var da=ymdToTs(a.dueYmd), db=ymdToTs(b.dueYmd); da=(da==null?Infinity:da); db=(db==null?Infinity:db); return da-db;
-  });
+  var oc=document.getElementById('opencount'); if(oc) oc.textContent=open.length;
+  open.sort(function(a,b){ if(a.urgent!==b.urgent) return a.urgent?-1:1; var da=a.dueTs==null?Infinity:a.dueTs, db=b.dueTs==null?Infinity:b.dueTs; return da-db; });
   var html='';
   if(!open.length){ html+='<div class="empty">いまは頼みごとはありません。<br>「✏️ 入れる」から追加できます。</div>'; }
   else { open.forEach(function(x){ html+=rowHtml(x); }); }
@@ -251,16 +246,15 @@ function renderList(){
     html+='<div class="sec done-sec">✓ できたもの（'+done.length+'）</div>';
     done.slice().reverse().forEach(function(x){
       html+='<div class="row donelog"><div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div></div>'+
-            '<button class="undo" onclick="setDone(\''+x.id+'\',false)">もどす</button></div>';
+        '<button class="undo" onclick="undoDone(\''+x.id+'\')">戻す</button></div>';
     });
   }
-  document.getElementById('listbox').innerHTML=html;
+  var lb=document.getElementById('listbox'); if(lb) lb.innerHTML=html;
 }
 
-function boot(){ loadCache(); renderList(); pullFromServer(); }
 document.getElementById('ta').addEventListener('input', autoUrgent);
-document.getElementById('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') unlock(false); });
-if(alreadyUnlockedToday()){ unlock(true); }
+document.getElementById('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryUnlock(); });
+boot();
 </script>
 </body>
 </html>
