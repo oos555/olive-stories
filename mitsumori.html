@@ -562,7 +562,7 @@ th.center,td.center{text-align:center}
       </div>
       <div id="pl-generate-warn" class="gen-lock-note"></div>
       <button class="btn btn-primary" id="pl-generate-btn" onclick="generatePriceListDoc()">価格表を作成する</button>
-      <div style="margin-top:10px"><a href="#" onclick="event.preventDefault();showIndividualQuoteForm()" style="font-size:13px;font-weight:700;color:#185fa5;text-decoration:underline">📄🧾 特定の商品・数量の見積書・請求書を作る →</a><div style="font-size:11px;color:#57534e;margin-top:2px">金額が決まっている方への請求書も、ここから作れます。</div></div>
+      
     </div>
 
     <!-- 個別見積書フォーム -->
@@ -1275,6 +1275,7 @@ function resetRtGate(){
   const after = document.getElementById('q-after-gate'); if(after) after.style.display = 'none';
   const banner = document.getElementById('q-rt-gate-banner'); if(banner) banner.innerHTML = '';
   window.quoteShownSkus = null;
+  window.QStockShow = false; window.QStockValues = {};
   window.generalNoCustomerMode = false;
   const searchEl = document.getElementById('q-customer-search'); if(searchEl) searchEl.value = '';
   const dq = document.querySelector('input[name="q-doctype"][value="quote"]'); if(dq){ dq.checked = true; }
@@ -1883,7 +1884,7 @@ function renderQuotePickTable(c){
   var html = '';
   var rtDisabled = !rtOn && Array.isArray(window.QSpecTiers) && window.QSpecTiers.some(function(t){ return t!=='general' && t!=='rt'; });
   html += '<button type="button" id="qt-rt" class="qs-rt-btn'+(rtOn?' on':'')+'"'+(rtDisabled?' disabled':'')+' style="margin-bottom:10px" onclick="qtRtClick()">🏨 RT（ホテル・レストラン）で作る　<span style="font-size:12px;font-weight:400;color:#57534e">／ '+(rtDisabled?'卸・特価を外すと選べます':'押すと確認・単独')+'</span></button>';
-  html += '<div style="display:flex;gap:8px;margin-bottom:8px"><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(true)">全部入れる</button><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(false)">全部外す</button></div>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(true)">全部入れる</button><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(false)">全部外す</button><label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" '+(window.QStockShow?'checked':'')+' onchange="qtToggleStock(this)" style="width:16px;height:16px">在庫欄を乗せる（数はこちらで記入）</label></div>';
   html += '<div style="overflow-x:auto;border:1px solid #d9d2c4;border-radius:8px">';
   html += '<table style="border-collapse:collapse;font-size:12.5px;min-width:560px;width:100%">';
   html += '<thead><tr style="background:#f3f4ee">';
@@ -1898,10 +1899,16 @@ function renderQuotePickTable(c){
     html += '<th onclick="'+(disabled?'':'qtToggleCol(\''+col.k+'\')')+'" style="'+st+'">'+col.l+' '+(on?'<span style="font-size:11px">✓</span>':'<span style="font-size:12px;color:#b9b2a3">＋</span>')+'</th>';
   });
   if(rtOn){ html += '<th style="padding:7px 6px;text-align:right;white-space:nowrap;color:#12406e;background:#dbeafe;font-weight:800;border-left:1px solid #e7e2d6">RT ✓</th>'; }
+  if(window.QStockShow){ html += '<th style="padding:7px 6px;text-align:center;width:74px;border-left:1px solid #e7e2d6;color:#2b2a26;font-weight:800">在庫（記入）</th>'; }
   html += '</tr></thead><tbody>';
-  var nCols = 3 + cols.length + (rtOn?1:0);
+  var nCols = 3 + cols.length + (rtOn?1:0) + (window.QStockShow?1:0);
   order.forEach(function(g){
-    html += '<tr><td colspan="'+nCols+'" style="background:#eef0e5;color:#3a4220;font-weight:700;padding:5px 8px;font-size:12px">'+esc(g)+'</td></tr>';
+    var grpSkus = groups[g].map(function(p){return p.sku;});
+    var grpAllOn = grpSkus.length>0 && grpSkus.every(function(s){return shown.has(s);});
+    html += '<tr><td colspan="'+nCols+'" style="background:#eef0e5;color:#3a4220;font-weight:700;padding:5px 8px;font-size:12px">'
+      + '<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">'
+      + '<input type="checkbox" '+(grpAllOn?'checked':'')+' onchange="qtToggleGroupCb(this)" data-grp-skus="'+grpSkus.join(',')+'" style="width:16px;height:16px">'
+      + '<span>'+esc(g)+'</span></label></td></tr>';
     groups[g].forEach(function(p){
       var on = shown.has(p.sku);
       html += '<tr style="'+(on?'':'opacity:.42;')+'border-top:1px solid #efece3">';
@@ -1914,6 +1921,7 @@ function renderQuotePickTable(c){
         html += '<td style="padding:7px 6px;text-align:right;border-left:1px solid #f0ece2;'+(act?'font-weight:700;color:#2b2a26;background:#f6f8ef;':'')+'">'+qtYen(v, !act)+'</td>';
       });
       if(rtOn){ html += '<td style="padding:7px 6px;text-align:right;font-weight:700;background:#eff5fc;border-left:1px solid #f0ece2">'+qtYen(priceForSku(p.sku,'rt'),false)+'</td>'; }
+      if(window.QStockShow){ var __sv=(window.QStockValues&&window.QStockValues[p.sku]!=null)?window.QStockValues[p.sku]:''; html += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" inputmode="numeric" value="'+esc(String(__sv))+'" onchange="qtStockInput(\''+esc(p.sku)+'\',this.value)" style="width:58px;text-align:center;padding:4px;font-size:13px;font-weight:700;border:1px solid #b9b2a3;border-radius:6px"></td>'; }
       html += '</tr>';
     });
   });
@@ -1924,7 +1932,12 @@ function renderQuotePickTable(c){
 function qtToggleCol(k){ if(typeof qsTierToggle==='function') qsTierToggle(k); var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
 function qtRtClick(){ if(typeof qsRtToggle==='function') qsRtToggle(); var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
 function qtToggleRow(sku,on){ var s=new Set(window.quoteShownSkus||[]); if(on) s.add(sku); else s.delete(sku); window.quoteShownSkus=Array.from(s); var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
+function qtToggleGroupCb(cb){ var skus=(cb.getAttribute('data-grp-skus')||'').split(',').filter(Boolean); var s=new Set(window.quoteShownSkus||[]); if(cb.checked){ skus.forEach(function(x){s.add(x);}); } else { skus.forEach(function(x){s.delete(x);}); } window.quoteShownSkus=Array.from(s); var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
 function qtAllRows(on){ var c=currentQuoteC(); if(!c) return; var allowed=quoteAllowedProducts(c); window.quoteShownSkus = on ? allowed.map(function(p){return p.sku;}) : []; renderQuotePickTable(c); }
+window.QStockShow = window.QStockShow||false;
+window.QStockValues = window.QStockValues||{};
+function qtToggleStock(cb){ window.QStockShow = cb.checked; var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
+function qtStockInput(sku,val){ window.QStockValues = window.QStockValues||{}; if(String(val).trim()==='') { delete window.QStockValues[sku]; } else { window.QStockValues[sku]=String(val).trim(); } }
 // ── 見積・価格表に載せる項目チェックボックス ────────────────────────────────
 // お客様に対して現在選べる商品一覧（ホワイトリスト適用後）を返す共通ヘルパー
 function relevantProductsForCustomer(c){
@@ -2486,7 +2499,7 @@ function specCell(v, style){
   return '<td style="border:1px solid #a3b18a;padding:4px 3px;'+(style||'')+'">'+v+'</td>';
 }
 // 仕様表テーブル本体（分類列は廃止＝全商品オーガニックのため見出しで1回だけ表示。EU有機・分析表は値がある時だけ列を出す）
-function buildSpecTableHtml(specSkus, custType, specTiers){
+function buildSpecTableHtml(specSkus, custType, specTiers, stock){
   const useMulti = Array.isArray(specTiers);
   const SPEC_CANON = ['general','wholesale1','wholesale2','basara','rt','oldlot','defect','special'];
   let priceCols;
@@ -2515,6 +2528,7 @@ function buildSpecTableHtml(specSkus, custType, specTiers){
     var isOpen = (col.type==='general');
     html += th(col.label+'<br>（税抜）', isOpen ? '13%' : (useMulti ? '' : '12%'), isOpen ? '' : 'background:#dde5c8');
   });
+  if(stock && stock.show) html += th('在庫','8%');
   html += th('容器','9%');
   if(hasEU)  html += th('EU<br>有機','6%');
   if(hasAna) html += th('分析表','6%');
@@ -2531,6 +2545,7 @@ function buildSpecTableHtml(specSkus, custType, specTiers){
       var isOpen = (col.type==='general');
       html += specCell(v ? '¥'+v.toLocaleString() : '－', isOpen ? 'text-align:right' : 'text-align:right;font-weight:700;background:#f6f8ef');
     });
+    if(stock && stock.show){ var __sv=(stock.values && stock.values[r.p.sku]!=null)? stock.values[r.p.sku] : ''; html += specCell(esc(String(__sv)), 'text-align:center;font-weight:700'); }
     html += specCell(esc(r.p.container||''), 'text-align:center');
     if(hasEU)  html += specCell(esc(r.eu), 'text-align:center');
     if(hasAna) html += specCell(esc(r.ana), 'text-align:center');
@@ -2568,7 +2583,7 @@ function buildSpecSectionHtml(record, c){
   let html = buildDocHeaderHtml(record, c, 'quote');
   html += '<div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.12em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin:2px 0 12px">お見積書</div>';
   html += '<div style="margin-bottom:8px;font-size:13px">下記の通り御見積り申し上げます。</div>';
-  html += buildSpecTableHtml(record.specSkus, record.customerType, record.specTiers);
+  html += buildSpecTableHtml(record.specSkus, record.customerType, record.specTiers, {show:record.stockShow, values:record.stockValues});
   if(record.remarks){
     html += '<div style="margin-top:8px;font-size:11px;border:1px solid #d5cfc3;border-radius:6px;padding:6px 10px"><strong>備考</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
   }
@@ -2758,7 +2773,7 @@ function generateExtractQuoteDoc(){
     id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
-    specSkus: specSkus, specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null), exWithInvoice: extractWithInvoice,
+    specSkus: specSkus, specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null), stockShow: !!window.QStockShow, stockValues: Object.assign({}, window.QStockValues||{}), exWithInvoice: extractWithInvoice,
     exFeeBase: feeGate ? warehouseFeeForGate() : 0,
     warehouseFee: extractWithInvoice ? bulkWarehouseFee : 0, gateType: gateType,
     shipMode: (document.getElementById('q-ship-mode')||{}).value || 'none',
