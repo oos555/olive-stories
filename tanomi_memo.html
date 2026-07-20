@@ -50,6 +50,16 @@
   .row.donelog .task { text-decoration:line-through; }
   .row .undo { flex-shrink:0; background:#eee; color:#555; border:none; border-radius:9px; padding:6px 10px; font-size:12px; font-weight:700; }
   .empty { text-align:center; color:#8a857a; padding:26px 10px; font-weight:700; font-size:14px; }
+  .row { cursor:pointer; }
+  .row .rawhint { font-size:11px; color:#9a93b0; font-weight:700; margin-top:2px; }
+  .row.open .rawhint { display:none; }
+  .row .detail { display:none; font-size:14px; color:#2b2a26; line-height:1.7; margin-top:7px; padding:9px 11px; background:#f6f3fb; border-radius:9px; white-space:pre-wrap; word-break:break-word; }
+  .row.open .detail { display:block; }
+  .row.open .task { white-space:normal; }
+  .oos-nav { background:#fff; border:1px solid #e8e2d8; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; border-radius:12px; box-shadow:0 4px 10px rgba(80,70,50,.06); margin:10px 12px 2px; }
+  .oos-nav a { color:#55622e; text-decoration:none; font-size:13px; padding:6px 10px; border:1px solid #e8e2d8; border-radius:6px; background:#fff; }
+  .oos-nav a.current { background:#55622e; color:#fff; border-color:#55622e; font-weight:700; }
+  .oos-nav a:hover:not(.current) { background:#eef0e5; }
 </style>
 </head>
 <body>
@@ -59,6 +69,17 @@
     <div class="sub">中村様専用 ／ スマホで入れて、パソコンでも見られます</div>
     <div class="sync" id="sync"></div>
   </div>
+
+  <nav class="oos-nav">
+    <a href="home.html">🏠 玄関</a>
+    <a href="import.html">✈️ 輸入 E</a>
+    <a href="documents.html">📂 書類 G</a>
+    <a href="marketing.html">📣 マーケ H</a>
+    <a href="hiromi.html">🗒️ ひろみ I</a>
+    <a href="eigyo.html">💼 営業 K</a>
+    <a href="rt_chef_daicho.html">🍽️ RTシェフ台帳</a>
+    <a class="current" href="tanomi_memo.html">🗒️ 頼みごとメモ</a>
+  </nav>
 
   <div id="lock-view" class="lock">
     <h2>🔒 中村様専用</h2>
@@ -146,13 +167,17 @@ function syncLoad(done){
       saveCache(); renderList(); setSync('☁️ パソコンとも同期しています');
       if(done) done(true);
     } else {
-      setSync('');
+      setSync('⚠️ サーバーからの返事：'+((d&&(d.message||d.error||d.status))||'中身が空でした'));
       if(done) done(false);
     }
   });
 }
 function syncSave(item, cb){
-  gasPost({ action:'saveStickyMemo', sheetName:SHEET_NAME, password:password, memo:toMemo(item) }, function(err, d){ if(cb) cb(err, d); });
+  gasPost({ action:'saveStickyMemo', sheetName:SHEET_NAME, password:password, memo:toMemo(item) }, function(err, d){
+    if(err){ if(cb) cb(err, d); return; }
+    if(d && d.status==='ok'){ if(cb) cb(null, d); return; }
+    if(cb) cb(new Error((d && (d.message||d.error||d.status)) || 'サーバーが保存を受け付けませんでした'), d);
+  });
 }
 function toMemo(x){
   return { id:String(x.id),
@@ -210,7 +235,7 @@ function save(){
   ta.value=''; document.getElementById('urgent').checked=false;
   seg('list');
   setSync('☁️ 保存中…');
-  syncSave(item, function(err){ if(err){ setSync('⚠️ あとで自動でパソコンにも保存されます'); } else { setSync('☁️ パソコンとも同期しています'); syncLoad(); } });
+  syncSave(item, function(err){ if(err){ setSync('⚠️ パソコンに保存できませんでした（原因：'+(err.message||'不明')+'）／この端末には残っています'); } else { setSync('☁️ パソコンとも同期しました'); syncLoad(); } });
 }
 function markDone(id){
   for(var i=0;i<ITEMS.length;i++){ if(ITEMS[i].id===id){ ITEMS[i].done=true; saveCache(); syncSave(ITEMS[i], function(){ syncLoad(); }); break; } }
@@ -221,6 +246,12 @@ function undoDone(id){
   renderList();
 }
 function esc(s){ return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function toggleDetail(id){
+  var d=document.getElementById('d-'+id);
+  if(!d) return;
+  var row=d.closest ? d.closest('.row') : (d.parentNode && d.parentNode.parentNode);
+  if(row && row.classList) row.classList.toggle('open');
+}
 function rowHtml(x){
   var cls='green', pill='', dl=daysLeft(x.dueTs);
   if(dl==null){ pill='日付なし'; }
@@ -229,10 +260,12 @@ function rowHtml(x){
   else { cls='green'; pill='あと'+dl+'日'; }
   var rowcls='row '+(x.urgent?'urgent':cls);
   var pillTxt = x.urgent? ('🔥急ぎ'+(dl!=null?'・'+pill:'')) : pill;
-  return '<div class="'+rowcls+'">'+
+  return '<div class="'+rowcls+'" onclick="toggleDetail(\''+x.id+'\')">'+
     '<span class="pill">'+pillTxt+'</span>'+
-    '<div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div></div>'+
-    '<button class="done" onclick="markDone(\''+x.id+'\')">できた</button></div>';
+    '<div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div>'+
+    '<div class="rawhint">👆 タップで話した全文</div>'+
+    '<div class="detail" id="d-'+x.id+'">'+esc(x.raw)+'</div></div>'+
+    '<button class="done" onclick="event.stopPropagation();markDone(\''+x.id+'\')">できた</button></div>';
 }
 function renderList(){
   var open=ITEMS.filter(function(x){return !x.done;});
