@@ -369,6 +369,7 @@ tr:last-child td{border-bottom:none}
             </table>
             <div id="sim-marginline" style="font-size:12px;text-align:right;margin-top:5px"></div>
             <button class="btn btn-green" style="width:100%;margin-top:10px" id="sim-apply-btn">この金額を卸②に使う</button>
+            <button class="btn" style="width:100%;margin-top:10px;background:#fff;border:2px solid #dc2626;color:#dc2626;font-weight:800;display:none" id="sim-clear-btn" onclick="clearSelectedTier()">🗑 この価格を消して＋設定に戻す</button>
           </div>
         </div>
         <div id="sim-extras-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
@@ -391,13 +392,6 @@ tr:last-child td{border-bottom:none}
         <div id="price-undo-area" style="margin-top:12px"></div>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="sec">📝 メモ</div>
-      <div class="info-box">この場所だけの自由メモです（行の追加・削除ができます）。<strong>価格や原価の計算には一切つながりません。</strong></div>
-      <div id="novello-note-area"></div>
-      <button class="btn-sm" onclick="addNovelloRow()">＋ 行を追加</button>
-      <button class="btn btn-green" style="margin-left:8px" onclick="saveCostDataToGAS()">保存する</button>
     </div>
   </div>
 </div>
@@ -1167,7 +1161,7 @@ function renderProfitHeatmap(){
       html += '<td style="padding:5px 6px;text-align:right;color:#57534e">¥'+cost.toLocaleString()+'</td>';
       ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
         const price = parseFloat(priceRec[key])||0;
-        const emptySettable = (key==='priceDefect' || key==='priceSpecial' || key==='priceBasara' || key==='priceOldLot'); // 不良品用特価・特別提供価格・卸バサラスターは未設定でも押して設定できる
+        const emptySettable = (key!=='priceGeneral'); // 定価以外（卸①〜特別提供価格）は、空(未設定)なら＋設定として表示し、押して設定できる
         if(!price && emptySettable){
           const tierKey0 = HM_KEY_TO_TIER[key];
           const tierLabel0 = simTierByKey(tierKey0).label;
@@ -1245,7 +1239,7 @@ function heatmapCellClick(sku, tier){
   const rec = priceRecForSku(sku);
   const t = simTierByKey(tier);
   const price = parseFloat(rec[t.field]) || 0;
-  const allowEmpty = (tier==='defect' || tier==='special' || tier==='basara' || tier==='oldlot'); // 不良品用特価・特別提供価格・卸バサラスター・旧ロットは未設定から新しく決められる
+  const allowEmpty = (tier!=='general'); // 定価以外（卸①〜特別提供価格）は、空(＋設定)でも押して設定できる
   if(!cost || (!price && !allowEmpty)) return; // 原価が無い商品は対象外
   loadSimPanel(sku, tier);
 }
@@ -1298,7 +1292,7 @@ function loadSimPanel(sku, tier){
   const wasUnset = !cur; // まだ金額が決まっていない（不良品用特価・特別提供価格の初回設定）
   if(!p || !cost) return;
   if(!cur){
-    if(tier!=='defect' && tier!=='special' && tier!=='basara' && tier!=='oldlot') return;
+    if(tier==='general') return; // 定価だけは空(＋設定)から設定パネルを開かない
     cur = parseFloat(rec.priceWholesale2) || Math.round(cost * 1.5); // 出発点：卸②、無ければ原価×1.5
   }
   currentSimSku = sku;
@@ -1316,6 +1310,8 @@ function loadSimPanel(sku, tier){
   const emptyEl = document.getElementById('sim-empty'); if(emptyEl) emptyEl.style.display = 'none';
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'block';
   setSimExtras(true);
+  // 「🗑 消して＋設定に戻す」ボタンは、定価以外で、いま金額が入っているマスのときだけ出す
+  { var _clrBtn = document.getElementById('sim-clear-btn'); if(_clrBtn){ _clrBtn.style.display = (tier!=='general' && !wasUnset) ? 'block' : 'none'; } }
 
   // タイトル・直接入力の見出し・500mlの段名・適用ボタンを、選んだ段階に合わせる
   const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.label;
@@ -1691,6 +1687,59 @@ async function applyRateToTierNow(sku, T, price){
 }
 // 後方互換（「全商品まとめ」表など、卸②に反映する既存の呼び出し用）
 async function applyRateToWholesale2(sku, price){ return applyRateToTier(sku, 'wholesale2', price); }
+
+// ── 🗑 選んだマスの価格を消して＋設定に戻す（2026-07-20 追加）────────────
+//   対象は卸①〜特別提供価格のみ（定価・原価は消せない）。1マスずつ、選んだマスだけ。
+//   既存の「↩ 元に戻す」履歴にそのまま積むので、間違えても ¥ 元の価格 に復活できる。
+function clearSelectedTier(){
+  if(!currentSimSku) return;
+  var sku = currentSimSku, tier = currentSimTier;
+  var T = simTierByKey(tier);
+  if(tier==='general'){ alert('定価は消せません。卸①〜特別提供価格を選ぶと消せます。'); return; }
+  var rec = priceRecForSku(sku);
+  var cur = parseFloat(rec[T.field]) || 0;
+  if(!cur){ return; } // すでに＋設定（空）なら何もしない
+  var pInfo = allCostSkus().find(function(x){ return x.sku===sku; });
+  var nm = (pInfo && pInfo.name) || sku;
+  if(!confirm('「'+nm+'」の '+T.label+' の価格 ¥'+cur.toLocaleString()+' を消して、\n＋設定（未設定）の状態に戻します。よろしいですか？\n\n※あとで「↩ 元に戻す」で ¥'+cur.toLocaleString()+' に戻せます。')) return;
+  // 「元に戻す」履歴に積む（oldPrice＝消す前の価格、newPrice＝0＝未設定）
+  priceUndoHistory.unshift({ sku:sku, name:nm, tier:tier, label:T.label, field:T.field, oldPrice:cur, newPrice:0 });
+  if(priceUndoHistory.length > 20) priceUndoHistory.length = 20;
+  renderPriceUndo();
+  showSyncStatus('消しています...');
+  // 控え帳を空にする（読み直しでも空を保つ）
+  priceLocalEdits[sku] = priceLocalEdits[sku] || {};
+  priceLocalEdits[sku][T.field] = '';
+  priceSaveChain = priceSaveChain.then(function(){ return clearTierPriceNow(sku, T); });
+  return priceSaveChain;
+}
+async function clearTierPriceNow(sku, T){
+  try{
+    // 保存直前に最新の価格マスタを取り直す（他アプリの更新を上書きしないため）＝既存の反映と同じ作法
+    const freshRes = await fetch(GAS_URL + '?action=loadAllData');
+    const freshData = await freshRes.json();
+    if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
+    const freshMaster = freshData.data.priceMaster || [];
+    applyLocalPriceEdits(freshMaster); // 控え帳（空にした分も含む）を反映
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'}
+    });
+    const data = await res.json();
+    if(data.status==='ok'){
+      priceMaster = freshMaster;
+      renderProfitHeatmap();
+      renderRateSimulation();
+      loadSimPanel(sku, T.tier); // ＋設定に戻ったマスを選択したまま表示（消すボタンは自動で隠れる）
+      showSyncStatus('✅ '+T.label+'を消して＋設定に戻しました');
+    } else {
+      showSyncStatus('⚠️ 保存に失敗しました', true);
+    }
+  }catch(err){
+    showSyncStatus('⚠️ 通信エラーが発生しました', true);
+  }
+}
 function renderNovelloNotes(){
   const area = document.getElementById('novello-note-area');
   if(!area) return;
