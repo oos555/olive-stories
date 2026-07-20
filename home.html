@@ -136,6 +136,42 @@
   }
   .app.warehouse:hover{background:#e3e3dd;}
 
+  /* ── アラートのお庭（玄関の集約表示） ── */
+  .alert-bar{margin:0 0 22px;}
+  .alert-bar-btn{width:100%;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 16px;
+    box-shadow:0 6px 18px rgba(85,98,46,.08);cursor:pointer;text-align:left;font:inherit;color:var(--ink);}
+  .alert-bar-btn:hover{border-color:var(--sage);}
+  .ab-title{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px;}
+  .ab-dot,.alert-dot{width:9px;height:9px;border-radius:50%;background:#d0342c;display:inline-block;
+    animation:oosBlink 1.2s ease-in-out infinite;}
+  @keyframes oosBlink{0%,100%{opacity:1}50%{opacity:.3}}
+  @media (prefers-reduced-motion:reduce){ .ab-dot,.alert-dot{animation:none;} }
+  .ab-seg{display:flex;align-items:baseline;gap:5px;font-size:13px;color:var(--rose-ink);}
+  .ab-seg b{font-size:22px;font-weight:700;}
+  .ab-seg-now b{color:#c0392b;}
+  .ab-seg-soon b{color:#bf7d0a;}
+  .ab-seg-watch b{color:#55622e;}
+  .ab-div{width:1px;height:22px;background:var(--line);}
+  .ab-open{margin-left:auto;font-size:13px;font-weight:700;color:#2c5578;white-space:nowrap;}
+  .alert-garden{margin-top:10px;display:flex;flex-direction:column;gap:10px;}
+  .bed{border-radius:12px;padding:11px 13px;border:1px solid var(--line);}
+  .bed-head{font-size:13px;font-weight:700;margin-bottom:8px;}
+  .bed-now{background:#fdeeee;border-color:#f0c9c6;} .bed-now .bed-head{color:#a3312a;}
+  .bed-soon{background:#fdf6e6;border-color:#ecdca6;} .bed-soon .bed-head{color:#9a6a12;}
+  .bed-watch{background:#eef4ec;border-color:#cfe0cb;} .bed-watch .bed-head{color:#3f6a3a;}
+  .grow{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:6px;
+    text-decoration:none;color:var(--ink);}
+  .grow:last-child{margin-bottom:0;}
+  .grow:hover{border-color:#b9b09c;}
+  .grow-label{font-size:14px;}
+  .grow-right{display:flex;align-items:center;gap:9px;}
+  .grow-count{font-size:12px;font-weight:700;background:#f1efe8;border-radius:99px;padding:2px 9px;color:#5f5e5a;white-space:nowrap;}
+  .grow-go{font-size:12px;font-weight:700;color:#2c5578;white-space:nowrap;}
+  .bed-foot{font-size:11.5px;color:#8a857c;text-align:right;padding-top:2px;}
+  .app.lit{border-color:#e2b4af;background:#fffaf9;}
+
   footer{
     text-align:center; margin-top:34px;
     font-size:11.5px; color:var(--ink); opacity:.65; letter-spacing:.1em;
@@ -218,6 +254,20 @@
     </svg>
   </div>
   <p class="greeting" id="greeting">こんにちは。今日はどちらから始めますか？</p>
+
+  <!-- ── アラートの帯（未対応があるときだけ出る）── -->
+  <div id="alert-bar" class="alert-bar" style="display:none">
+    <button class="alert-bar-btn" onclick="toggleGarden()" id="alert-bar-btn" aria-expanded="false">
+      <span class="ab-title"><span class="ab-dot" aria-hidden="true"></span>やること</span>
+      <span class="ab-seg ab-seg-now">今すぐ <b id="ab-now">0</b> 件</span>
+      <span class="ab-div" aria-hidden="true"></span>
+      <span class="ab-seg ab-seg-soon">近いうちに <b id="ab-soon">0</b> 件</span>
+      <span class="ab-div" aria-hidden="true"></span>
+      <span class="ab-seg ab-seg-watch">見てね <b id="ab-watch">0</b> 件</span>
+      <span class="ab-open">お庭をひらく <span id="ab-caret">▼</span></span>
+    </button>
+    <div id="alert-garden" class="alert-garden" style="display:none"></div>
+  </div>
 
   <div class="boxes">
 
@@ -307,6 +357,88 @@
 
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 
+  /* ── アラートのお庭（玄関の集約表示）─────────────────────────
+     ・玄関が開いたら loadAlerts で「今すぐ／近いうちに／見てね」を取りに行く
+     ・GAS がまだ ?action=loadAlerts を持っていないときは、そっと今まで通り
+       （帯は出さない・アプリも光らせない）に倒れる＝玄関は壊れない
+     ・前回取れた内容は端末に控え、次に開いたとき先に出す（体感が速い）      */
+  const ALERTS_CACHE_KEY = 'oos_alerts_cache_v1';
+  let alertGardenOpen = false;
+  function alertEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function alertsFromCache(){
+    try{ const raw = localStorage.getItem(ALERTS_CACHE_KEY); if(raw){ const o=JSON.parse(raw); if(o && o.data) return o.data; } }catch(e){}
+    return null;
+  }
+  function initAlerts(){
+    const cached = alertsFromCache();
+    if(cached) renderAlerts(cached); // まず前回の内容をすぐ出す
+    loadAlerts();                    // そのあと最新を取りに行く
+  }
+  async function loadAlerts(){
+    try{
+      const res = await fetch(GAS_URL + '?action=loadAlerts');
+      const data = await res.json();
+      if(data && data.status==='ok' && data.data){
+        try{ localStorage.setItem(ALERTS_CACHE_KEY, JSON.stringify({data:data.data, at:new Date().toISOString()})); }catch(e){}
+        renderAlerts(data.data);
+      }
+    }catch(e){ /* GASがまだ頭脳を持っていない時は、そっと今まで通り */ }
+  }
+  function alertBucketCount(list){ let n=0; (list||[]).forEach(function(x){ n += (parseInt(x.count,10)||1); }); return n; }
+  function renderAlerts(d){
+    d = d || {};
+    const now = d.now||[], soon = d.soon||[], watch = d.watch||[];
+    const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
+    const total = cNow + cSoon + cWatch;
+    // アプリの点は毎回リセットしてから付け直す
+    document.querySelectorAll('.app.lit').forEach(function(a){ a.classList.remove('lit'); });
+    document.querySelectorAll('.app .alert-dot').forEach(function(x){ x.remove(); });
+    const bar = document.getElementById('alert-bar');
+    renderGarden(now, soon, watch);
+    if(!bar) return;
+    if(total <= 0){ bar.style.display='none'; return; }
+    bar.style.display='block';
+    document.getElementById('ab-now').textContent = cNow;
+    document.getElementById('ab-soon').textContent = cSoon;
+    document.getElementById('ab-watch').textContent = cWatch;
+    // 未対応のあるアプリのピルを光らせる（帯の数字と二段構えで、どのアプリか一目で分かる）
+    const litHrefs = {};
+    now.concat(soon).concat(watch).forEach(function(x){ if(x && x.href) litHrefs[x.href]=true; });
+    Object.keys(litHrefs).forEach(function(href){
+      document.querySelectorAll('.app[href="'+href+'"]').forEach(function(a){
+        a.classList.add('lit');
+        const rg = a.querySelector('.right-group');
+        if(rg && !rg.querySelector('.alert-dot')){
+          const dot = document.createElement('span');
+          dot.className = 'alert-dot'; dot.setAttribute('aria-label','未対応あり');
+          rg.insertBefore(dot, rg.firstChild);
+        }
+      });
+    });
+  }
+  function alertGardenBed(title, items, cls){
+    if(!items || !items.length) return '';
+    var rows = items.map(function(x){
+      var cnt = (parseInt(x.count,10)||1);
+      return '<a class="grow" href="'+alertEsc(x.href||'#')+'"><span class="grow-label">'+alertEsc(x.label||'')+'</span>'+
+             '<span class="grow-right"><span class="grow-count">'+cnt+'件</span><span class="grow-go">開く →</span></span></a>';
+    }).join('');
+    return '<div class="bed '+cls+'"><div class="bed-head">'+title+'</div>'+rows+'</div>';
+  }
+  function renderGarden(now, soon, watch){
+    var g = document.getElementById('alert-garden'); if(!g) return;
+    g.innerHTML = alertGardenBed('今すぐ（止まっている）', now, 'bed-now')
+      + alertGardenBed('近いうちに', soon, 'bed-soon')
+      + alertGardenBed('見てね', watch, 'bed-watch')
+      + '<div class="bed-foot">同じ内容を毎朝 LINE と office@ にもお届けします</div>';
+  }
+  function toggleGarden(){
+    alertGardenOpen = !alertGardenOpen;
+    var g = document.getElementById('alert-garden'); if(g) g.style.display = alertGardenOpen ? 'block' : 'none';
+    var ca = document.getElementById('ab-caret'); if(ca) ca.textContent = alertGardenOpen ? '▲' : '▼';
+    var btn = document.getElementById('alert-bar-btn'); if(btn) btn.setAttribute('aria-expanded', alertGardenOpen ? 'true' : 'false');
+  }
+
   // 社長専用グループの鍵：一度合えば、この端末ではずっと信用する（日付では区切らない）
   function oosSavedPw(group){
     try{
@@ -338,6 +470,7 @@
     try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
     if(ok){
       document.getElementById('main-wrap').classList.add('gate-open');
+      initAlerts();
     } else {
       document.getElementById('gate-overlay').classList.add('show');
       setTimeout(()=>document.getElementById('gate-pw-input').focus(), 50);
@@ -363,6 +496,7 @@
         try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
         document.getElementById('gate-overlay').classList.remove('show');
         document.getElementById('main-wrap').classList.add('gate-open');
+        initAlerts();
       } else {
         errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
       }
