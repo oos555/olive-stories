@@ -1679,7 +1679,21 @@ function renderRateSimAllTable(){
    あれば黄色いバナーで知らせる（黙って消えるのが一番危険なため）。 */
 let priceSaveChain = Promise.resolve();   // 保存の順番待ち（追い越し禁止）
 const priceLocalEdits = {};               // この画面で反映した金額の控え帳 {sku:{field:price}}
+// ★2026-07-20(修正) 価格の控え帳もこの端末に必ず残す。GASが新しい価格欄（旧ロット・卸バサラ・不良品・特別提供など）を保存できない形でも、別アプリへ移動して戻って消えないようにする。
+const PRICE_LOCAL_EDITS_KEY = 'oos_price_local_edits_v1';
+function savePriceLocalEdits(){
+  try{ localStorage.setItem(PRICE_LOCAL_EDITS_KEY, JSON.stringify(priceLocalEdits||{})); }catch(e){}
+}
+function loadPriceLocalEdits(){
+  try{
+    const raw = localStorage.getItem(PRICE_LOCAL_EDITS_KEY);
+    if(raw){ const obj = JSON.parse(raw); if(obj && typeof obj==='object'){
+      Object.keys(obj).forEach(function(s){ priceLocalEdits[s] = Object.assign({}, obj[s]||{}, priceLocalEdits[s]||{}); }); // 端末の控えを土台に、今の画面の編集を優先
+    } }
+  }catch(e){}
+}
 function applyLocalPriceEdits(master){
+  loadPriceLocalEdits(); // ★まずこの端末の控えを読み直す（再読込でも入れた価格が消えない）
   Object.keys(priceLocalEdits).forEach(function(s){
     let r = master.find(function(x){ return x.sku===s; });
     if(!r){
@@ -1743,6 +1757,7 @@ function revertPriceChange(idx){
   showSyncStatus('元に戻しています...');
   priceLocalEdits[h.sku] = priceLocalEdits[h.sku] || {};
   priceLocalEdits[h.sku][h.field] = h.oldPrice;
+  savePriceLocalEdits(); // ★この端末にも即控える
   var T = simTierByKey(h.tier);
   priceSaveChain = priceSaveChain.then(function(){ return applyRateToTierNow(h.sku, T, h.oldPrice); });
   renderPriceUndo();
@@ -1771,6 +1786,7 @@ async function applyRateToTier(sku, tier, price){
   // 控え帳に先に書く（順番待ちの間も画面から消えないように）
   priceLocalEdits[sku] = priceLocalEdits[sku] || {};
   priceLocalEdits[sku][T.field] = price;
+  savePriceLocalEdits(); // ★この端末にも即控える（移動して戻っても消えない）
   priceSaveChain = priceSaveChain.then(function(){ return applyRateToTierNow(sku, T, price); });
   return priceSaveChain;
 }
@@ -1841,6 +1857,7 @@ function clearSelectedTier(){
   // 控え帳を空にする（読み直しでも空を保つ）
   priceLocalEdits[sku] = priceLocalEdits[sku] || {};
   priceLocalEdits[sku][T.field] = '';
+  savePriceLocalEdits(); // ★この端末にも即控える（消した状態も残す）
   priceSaveChain = priceSaveChain.then(function(){ return clearTierPriceNow(sku, T); });
   return priceSaveChain;
 }
