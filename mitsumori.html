@@ -587,7 +587,8 @@ th.center,td.center{text-align:center}
 
     <!-- 個別見積書フォーム -->
     <div class="card" id="q-items-card" style="display:none;padding:12px 1.25rem;margin-bottom:8px;border:3px solid #6b7a3a;background:#fdfcf7">
-      <div class="sec" style="margin-top:0;margin-bottom:6px;font-size:17px;background:#6b7a3a;color:#fff;border-radius:8px;padding:8px 14px;margin-left:-6px;margin-right:-6px">📝 見積もる商品と数量（ここがメイン）</div>
+      <div class="sec" style="margin-top:0;margin-bottom:6px;font-size:17px;background:#6b7a3a;color:#fff;border-radius:8px;padding:8px 14px;margin-left:-6px;margin-right:-6px">🧾 請求書・お見積書（金額を出す）はここで商品を選んでください</div>
+      <div style="font-size:12px;color:#57534e;margin:2px 2px 8px">実際にご注文いただいた商品と本数・箱数を入れる場所です。（価格表だけを作るときは、ここは使わず上の一覧で選びます）</div>
       <div id="q-items-area"></div>
       <button class="btn-sm" onclick="addQuoteItemRow()">＋ 商品を追加</button>
     </div>
@@ -1972,12 +1973,12 @@ function qtStockInput2(sku,grp,val){ qStockSet(sku,grp,val); }
 function qtExtraCells(grp, isHeader, sku, rtOn){
   if(!qGrpActive(grp, rtOn)) return '';
   var meta = {reg:'正規',oldlot:'旧ロット',defect:'不良品',special:'特別提供'}[grp];
-  var expOn = window.QExpShow && (grp==='reg'||grp==='oldlot');
+  var expOn = window.QExpShow && (grp==='reg'||grp==='oldlot'||grp==='special'||grp==='defect');
   var stkOn = window.QStockShow;
   var out='';
   if(isHeader){
-    if(expOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#9a5512;background:#fdeede;font-weight:800;font-size:10.5px">🗓️'+meta+'<br>賞味期限</th>';
-    if(stkOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#7a5b12;background:#fff4d6;font-weight:800;font-size:10.5px">'+meta+'<br>在庫</th>';
+    if(expOn) out += '<th style="position:sticky;top:0;z-index:5;padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#9a5512;background:#fdeede;font-weight:800;font-size:10.5px">🗓️'+meta+'<br>賞味期限</th>';
+    if(stkOn) out += '<th style="position:sticky;top:0;z-index:5;padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#7a5b12;background:#fff4d6;font-weight:800;font-size:10.5px">'+meta+'<br>在庫</th>';
   } else {
     if(expOn){ var ev=qExpGet(sku,grp); if(!ev && grp==='reg') ev=defaultRegExpiryForSku(sku); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" value="'+esc(String(ev))+'" onchange="qtExpInput(\''+esc(sku)+'\',\''+grp+'\',this.value)" placeholder="例2027年3月" style="width:86px;text-align:center;padding:4px;font-size:12px;font-weight:700;border:1px solid #d9a441;border-radius:6px;background:#fffaf0"></td>'; }
     if(stkOn){ var sv=qStockGet(sku,grp); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" inputmode="numeric" value="'+esc(String(sv))+'" onchange="qtStockInput2(\''+esc(sku)+'\',\''+grp+'\',this.value)" style="width:56px;text-align:center;padding:4px;font-size:13px;font-weight:700;border:1px solid #b9b2a3;border-radius:6px"></td>'; }
@@ -1988,7 +1989,7 @@ function qtExtraCount(rtOn){
   var n=0;
   ['reg','oldlot','defect','special'].forEach(function(grp){
     if(!qGrpActive(grp, rtOn)) return;
-    if(window.QExpShow && (grp==='reg'||grp==='oldlot')) n++;
+    if(window.QExpShow && (grp==='reg'||grp==='oldlot'||grp==='special'||grp==='defect')) n++;
     if(window.QStockShow) n++;
   });
   return n;
@@ -2010,11 +2011,12 @@ function renderQuotePickTable(c){
   html += '<div style="overflow-x:auto;border:1px solid #d9d2c4;border-radius:8px">';
   html += '<table style="border-collapse:collapse;font-size:12.5px;min-width:560px;width:100%">';
   html += '<thead><tr style="background:#f3f4ee">';
-  html += '<th style="padding:7px 8px;width:26px"></th><th style="padding:7px 8px;text-align:left">商品名</th><th style="padding:7px 6px;width:52px;text-align:center;color:#57534e;font-weight:700">容量</th>';
+  var STICKY='position:sticky;top:0;z-index:5;background:#f3f4ee;';
+  html += '<th style="'+STICKY+'padding:7px 8px;width:26px"></th><th style="'+STICKY+'padding:7px 8px;text-align:left">商品名</th><th style="'+STICKY+'padding:7px 6px;width:52px;text-align:center;color:#57534e;font-weight:700">容量</th>';
   cols.forEach(function(col){
     var on = qtActive(col.k);
     var disabled = rtOn && col.k!=='general';
-    var st = 'padding:7px 6px;text-align:right;white-space:nowrap;border-left:1px solid #e7e2d6;font-weight:800;';
+    var st = STICKY+'padding:7px 6px;text-align:right;white-space:nowrap;border-left:1px solid #e7e2d6;font-weight:800;';
     if(disabled){ st += 'opacity:.35;cursor:not-allowed;color:#8a857c;'; }
     else if(on){ st += 'cursor:pointer;color:#0f5040;background:#e3efe9;'; }
     else { st += 'cursor:pointer;color:#9a958b;'; }
@@ -2653,10 +2655,20 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
     priceCols = [{type:'general', label:'オープン価格'}];
     var __one = specPriceColForType(custType); if(__one) priceCols.push(__one);
   }
-  const rows = (specSkus||[]).map(function(sku){
+  // 状態ラベル（商品名に付ける）と、赤文字にするか
+  var STATE_LABEL = { oldlot:'旧ロット', special:'特別提供品', defect:'一部不良あり商品' };
+  function isRedState(st){ return st==='oldlot' || st==='special' || st==='defect'; }
+  const rows = (specSkus||[]).map(function(item){
+    // item は「SKU文字列」（＝正規）か、「{sku,state,exp,unitPrice,note}」のどちらでも受ける（後方互換）
+    var sku = (typeof item==='object' && item) ? item.sku : item;
+    var st  = (typeof item==='object' && item && item.state) ? item.state : 'reg';
     const p = findProductBySku(sku); if(!p) return null;
     const ex = p.extras || {};
-    return { p:p, cap:String(ex['容量']||'').trim(),
+    return { p:p, state:st,
+             ovExp:(typeof item==='object'&&item&&item.exp!=null)?String(item.exp):null,      // 行ごとの賞味期限（手入力）
+             ovPrice:(typeof item==='object'&&item&&item.unitPrice!=null&&item.unitPrice!=='')?item.unitPrice:null, // 行ごとの1本単価（手入力）
+             note:(typeof item==='object'&&item&&item.note)?String(item.note):'',
+             cap:String(ex['容量']||'').trim(),
              exp:String(ex['賞味期限']||'').trim(), eu:String(ex['EU有機']||'').trim(), ana:String(ex['分析表']||'').trim() };
   }).filter(Boolean);
   // EU有機・分析表は、1つでも値があれば列を出す。無ければ列ごと消す（マストは容量・賞味期限・容器）
@@ -2675,27 +2687,44 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
   if(hasEU)  html += th('EU<br>有機','6%');
   if(hasAna) html += th('分析表','6%');
   html += '</tr></thead><tbody>';
+  var anyNote = rows.some(function(r){ return r.note; });
   rows.forEach(function(r, ri){
-    html += '<tr>';
-    html += specCell(String(ri+1), 'text-align:center;font-weight:700'); // No.（電話案内用の商品番号）
-    html += specCell(esc(r.p.origin||''), 'text-align:center');
-    html += specCell('<span style="font-weight:700">'+esc(specDisplayName(r.p.name, r.cap))+'</span>');
-    html += specCell(esc(r.cap), 'text-align:center');
-    html += specCell(r.p.boxQty ? String(r.p.boxQty)+'本' : '', 'text-align:center');
-    html += specCell(esc(expRegBS(r.p.sku)), 'text-align:center;font-weight:700'); // 賞味期限（正規）＝入力値優先→無ければマスタ
+    var red = isRedState(r.state);
+    var rowStyle = red ? 'color:#a3141b;' : '';
+    // 商品名（状態ラベルを付ける）
+    var nm = specDisplayName(r.p.name, r.cap);
+    if(STATE_LABEL[r.state]) nm = nm + '（' + STATE_LABEL[r.state] + '）';
+    // 賞味期限：行の手入力があれば優先、無ければ正規の既定
+    var expShown = (r.ovExp!=null && r.ovExp!=='') ? r.ovExp : expRegBS(r.p.sku);
+    html += '<tr style="'+rowStyle+'">';
+    html += specCell(String(ri+1), 'text-align:center;font-weight:700;'+rowStyle); // No.
+    html += specCell(esc(r.p.origin||''), 'text-align:center;'+rowStyle);
+    html += specCell('<span style="font-weight:700">'+esc(nm)+'</span>', rowStyle);
+    html += specCell(esc(r.cap), 'text-align:center;'+rowStyle);
+    html += specCell(r.p.boxQty ? String(r.p.boxQty)+'本' : '', 'text-align:center;'+rowStyle);
+    html += specCell(esc(expShown), 'text-align:center;font-weight:700;'+rowStyle);
     priceCols.forEach(function(col){
-      var v = priceForSku(r.p.sku, col.type);
       var isOpen = (col.type==='general');
-      html += specCell(v ? '¥'+v.toLocaleString()+'<span style="font-size:8px">／本</span>' : '－', isOpen ? 'text-align:right' : 'text-align:right;font-weight:700;background:#f6f8ef');
+      // 状態つき行（赤）は、行の手入力単価があればそれを、無ければその区分の価格を出す
+      var v;
+      if(red && r.ovPrice!=null && r.ovPrice!=='') v = parseInt(r.ovPrice,10)||0;
+      else v = priceForSku(r.p.sku, col.type);
+      html += specCell(v ? '¥'+v.toLocaleString()+'<span style="font-size:8px">／本</span>' : '－', (isOpen ? 'text-align:right;' : 'text-align:right;font-weight:700;background:#f6f8ef;')+rowStyle);
     });
-    if(stock && stock.show){ html += specCell(esc(stkRegBS(r.p.sku)), 'text-align:center;font-weight:700'); }
-    html += specCell(esc(r.p.container||''), 'text-align:center');
-    if(hasEU)  html += specCell(esc(r.eu), 'text-align:center');
-    if(hasAna) html += specCell(esc(r.ana), 'text-align:center');
+    if(stock && stock.show){ html += specCell(esc(stkRegBS(r.p.sku)), 'text-align:center;font-weight:700;'+rowStyle); }
+    html += specCell(esc(r.p.container||''), 'text-align:center;'+rowStyle);
+    if(hasEU)  html += specCell(esc(r.eu), 'text-align:center;'+rowStyle);
+    if(hasAna) html += specCell(esc(r.ana), 'text-align:center;'+rowStyle);
     html += '</tr>';
   });
   html += '</tbody></table>';
   html += '<div style="font-size:8.5px;color:#57534e;margin-top:4px;line-height:1.6">※ 価格は1本あたり（税抜）です。1箱の本数は参考です。箱でのご注文は箱単位で承ります。</div>';
+  // 備考（各行のnoteを、番号付きで表の下にまとめる）
+  if(anyNote){
+    html += '<div style="font-size:8.5px;color:#a3141b;margin-top:3px;line-height:1.7">';
+    rows.forEach(function(r, ri){ if(r.note){ html += '※ '+(ri+1)+'番（'+esc(STATE_LABEL[r.state]||'')+'）の状態：'+esc(r.note)+'<br>'; } });
+    html += '</div>';
+  }
   return html;
 }
 // 見積書・請求書で共通の上段（宛名＋低温/オーガニック見出し＋番号・日付＋会社情報＋社印＋ロゴ）。mode='quote'|'invoice'
@@ -3204,61 +3233,54 @@ function buildPriceListDocHtml(record, c){
 
   html += '<table class="pricelist-table" style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr>';
   if(showBunrui) html += '<th rowspan="2">分類</th>';
-  html += '<th rowspan="2">生産地</th><th rowspan="2">商品名</th><th rowspan="2">容量</th><th rowspan="2">1箱数</th>';
-  html += '<th rowspan="2">区分</th><th rowspan="2">単価<br>（税抜）</th><th rowspan="2">賞味期限</th>';
+  html += '<th rowspan="2" style="width:5%">No.</th>';
+  html += '<th rowspan="2">生産地</th><th rowspan="2">商品名</th><th rowspan="2">容量</th><th rowspan="2">1箱の本数<br><span style="font-weight:400;font-size:9px">（参考）</span></th>';
+  html += '<th rowspan="2">1本あたり<br>（税抜）</th><th rowspan="2">賞味期限</th>';
   if(showStk) html += '<th rowspan="2">在庫</th>';
   html += '<th rowspan="2">容器</th><th colspan="3">公的証明書（EU）</th>';
   html += '</tr><tr><th>オーガニック</th><th>コンタミネーション</th><th>分析表</th></tr></thead><tbody>';
 
+  var plRowNo = 0; // 全体通し番号（No.列・電話案内用）
+  var PL_STATE_LABEL = { oldlot:'旧ロット', special:'特別提供品', defect:'一部不良あり商品' };
   groupOrder.forEach(function(g){
     const rows = groups[g];
     const origin = GROUP_ORIGIN[g] || '-';
     const cert = GROUP_CERT[g] || {organic:'-',contamination:'-',analysis:'-'};
     const bunrui = (record.bunruiLabel && record.bunruiLabel[g]) || 'エキストラバージンオリーブオイル';
-    const perProdTiers = rows.map(tierRowsFor);
-    const groupRowCount = perProdTiers.reduce(function(a,t){return a+Math.max(1,t.length);},0);
-    const displayNames = rows.map(function(p){ return NAME_OVERRIDE[p.sku] || p.name.replace(/\s*\d+\s*(ml|L)\b.*$/i,'').trim(); });
-    var firstOfNameIdx = {};
-    var i2=0;
-    while(i2<rows.length){ var j2=i2; while(j2+1<rows.length && displayNames[j2+1]===displayNames[i2]) j2++; var rr=0; for(var k=i2;k<=j2;k++) rr+=Math.max(1,perProdTiers[k].length); firstOfNameIdx[i2]=rr; i2=j2+1; }
-    var firstInGroup = true;
 
-    rows.forEach(function(p, idx){
-      var trs = perProdTiers[idx]; if(!trs.length) trs=['general'];
+    rows.forEach(function(p){
+      var trs = tierRowsFor(p); if(!trs.length) trs=['general'];
       var capacity = CAPACITY_OVERRIDE[p.sku] || (p.name.match(/\d+\s*(ml|L)/i)||[''])[0] || '-';
       var container = containerForSku(p.sku);
       var boxQty = p.boxQty ? (p.boxQty+'本') : '-';
-      trs.forEach(function(t, ti){
-        var g2=grpOf(t);
-        var bg = g2==='oldlot'?' style="background:#fffaf0"':g2==='special'?' style="background:#f4f9fd"':g2==='defect'?' style="background:#f6f2ec"':'';
-        html += '<tr'+bg+'>';
-        if(firstInGroup){
-          if(showBunrui) html += '<td rowspan="'+groupRowCount+'">'+esc(bunrui)+'</td>';
-          html += '<td rowspan="'+groupRowCount+'">'+esc(origin)+'</td>';
-        }
-        if(ti===0 && Object.prototype.hasOwnProperty.call(firstOfNameIdx, idx)){
-          html += '<td rowspan="'+firstOfNameIdx[idx]+'" style="font-weight:700">'+esc(displayNames[idx]||p.name)+'</td>';
-        }
-        if(ti===0){
-          html += '<td rowspan="'+trs.length+'">'+esc(capacity)+'</td>';
-          html += '<td rowspan="'+trs.length+'">'+esc(boxQty)+'</td>';
-        }
+      var rawName = NAME_OVERRIDE[p.sku] || p.name;
+      var fullName = (typeof specDisplayName==='function') ? specDisplayName(rawName, capacity) : rawName; // 商品名から容量表記を外す（容量は別列にあるため）
+
+      trs.forEach(function(t){
+        var g2 = grpOf(t);
+        var isRed = (g2==='oldlot'||g2==='special'||g2==='defect');
+        var col = isRed ? 'color:#a3141b;' : 'color:#2b2a26;';   // 行まるごと：通常品=黒／状態品=赤。この表は黒と赤の2色だけ。
+        var nameCell = esc(fullName) + (PL_STATE_LABEL[g2] ? '<br><span style="'+col+'">（'+PL_STATE_LABEL[g2]+'）</span>' : '');
         var price = priceForSku(p.sku, t);
-        var kc = g2==='oldlot'?'#8a5a12':g2==='special'?'#12406e':g2==='defect'?'#7a4a2a':'#1f4a2c';
-        html += '<td style="font-weight:700;color:'+kc+'">'+esc(TIER_LABEL[t]||t)+'</td>';
-        html += '<td style="font-weight:800">'+(price>0?'¥'+price.toLocaleString():'－')+'</td>';
-        html += '<td style="color:#9a5512;font-weight:700">'+(showExp?esc(expOf(p.sku,t)||'－'):'－')+'</td>';
-        if(showStk){ var sv=stkOf(p.sku, g2); html += '<td style="font-weight:800;color:#14532d">'+(sv?esc(sv):MARU)+'</td>'; }
-        if(ti===0){ html += '<td rowspan="'+trs.length+'">'+esc(container)+'</td>'; }
-        if(firstInGroup){
-          html += '<td rowspan="'+groupRowCount+'">'+esc(cert.organic)+'</td><td rowspan="'+groupRowCount+'">'+esc(cert.contamination)+'</td><td rowspan="'+groupRowCount+'">'+esc(cert.analysis)+'</td>';
-          firstInGroup=false;
-        }
+        plRowNo++;
+        html += '<tr>';
+        if(showBunrui) html += '<td style="'+col+'">'+esc(bunrui)+'</td>';
+        html += '<td style="text-align:center;font-weight:700;'+col+'">'+plRowNo+'</td>';
+        html += '<td style="text-align:center;'+col+'">'+esc(origin)+'</td>';
+        html += '<td style="font-weight:700;'+col+'">'+nameCell+'</td>';
+        html += '<td style="text-align:center;'+col+'">'+esc(capacity)+'</td>';
+        html += '<td style="text-align:center;'+col+'">'+esc(boxQty)+'</td>';
+        html += '<td style="font-weight:800;text-align:right;'+col+'">'+(price>0?'¥'+price.toLocaleString()+'<span style="font-size:9px">／本</span>':'－')+'</td>';
+        html += '<td style="text-align:center;font-weight:700;'+col+'">'+(showExp?esc(expOf(p.sku,t)||'－'):'－')+'</td>';
+        if(showStk){ var sv=stkOf(p.sku, g2); html += '<td style="text-align:center;font-weight:800;'+col+'">'+(sv?esc(sv):'◎')+'</td>'; }
+        html += '<td style="text-align:center;'+col+'">'+esc(container)+'</td>';
+        html += '<td style="text-align:center;'+col+'">'+esc(cert.organic)+'</td><td style="text-align:center;'+col+'">'+esc(cert.contamination)+'</td><td style="text-align:center;'+col+'">'+esc(cert.analysis)+'</td>';
         html += '</tr>';
       });
     });
   });
   html += '</tbody></table>';
+  html += '<div style="font-size:10px;color:#57534e;margin:5px 2px 0;line-height:1.6">※ 価格は1本あたり（税抜）です。1箱の本数は参考です。箱でのご注文は箱単位で承ります。</div>';
 
   if(showStk) html += '<div style="font-size:10.5px;color:#3b6d11;margin:6px 2px 0">'+MARU+'＝在庫たくさん（ご安心ください）。数字は「残りわずか」の目安です。</div>';
 
