@@ -391,6 +391,17 @@ th.center,td.center{text-align:center}
 <div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
 <div id="q-guide-bar">👉 いまやること：書類と入口を選ぶ（タップ1回ずつ）<span style="float:right;font-weight:700;font-size:12px;color:#a16207;background:#fff;border:1px solid #f0c96a;border-radius:99px;padding:1px 10px">版 7/18</span></div>
 
+  <!-- ② 前に作った見積もりを、名前で呼び戻す（後日、そこから請求書を作る） -->
+  <div class="card" id="q-recall-card" style="border:1px solid #e8d9a8;background:#fffdf7">
+    <div class="sec" style="margin-top:0;font-size:15px;color:#8a6d1f">🔎 前に作った見積もりを呼び戻す（後日、そこから請求書を作れます）</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="q-recall-name" placeholder="お客様の名前（例：高垣）" oninput="renderRecallResults()" style="flex:1;min-width:180px">
+      <button type="button" class="btn" style="background:#6b7a3a;color:#fff;font-weight:800" onclick="renderRecallResults()">名前でさがす</button>
+    </div>
+    <div style="font-size:11.5px;color:#8a6d1f;margin-top:6px">※ 管理番号が分かれば番号でもOK。分からなくても名前だけで大丈夫です。</div>
+    <div id="q-recall-results" style="margin-top:10px"></div>
+  </div>
+
   <!-- ステップ0：書類の種類（最初に選ぶ） -->
   <div class="card" id="q-doctype-card" style="border:2px solid #2563eb">
     <div class="sec" style="margin-top:0;font-size:16px">まず選ぶ：どの書類を作りますか？</div>
@@ -1595,9 +1606,8 @@ function onQuoteCustomerChange(){
   const cpEl = document.getElementById('q-contact-person-shared');
   if(cpEl){
     delete cpEl.dataset.touched;
-    // 会社名があるお客様は担当者名だけ（無ければ空）／会社名の無い個人客は名前を入れる
-    const company = c ? (c.companyName!==undefined ? c.companyName : c.name) : '';
-    if(c){ cpEl.value = c.contactPerson || (company ? '' : (c.name || '')); }
+    // お客様を選んだら、常に名前を提出先ご担当者名に入れる（担当者名があればそれを優先、無ければお客様名）。違えば手で書き換えOK。
+    if(c){ cpEl.value = c.contactPerson || c.name || ''; }
     else { cpEl.value = ''; }
   }
   // お届け先情報：登録済みの住所・電話を自動で入れる（違う場所に送るときだけ書き換える運用）
@@ -1748,6 +1758,97 @@ function prefillFromPastQuote(quoteId){
     setTimeout(function(){ document.getElementById('q-items-card').scrollIntoView({behavior:'smooth'}); }, 100);
     showSyncStatus('✅ 前回の内容を復元しました（単価は最新版で計算されます）');
   }
+}
+// ①②共通：保存済みの見積もりの中身を、作成フォームに「見積書 兼 請求書（both）」として引き継ぐ。
+// 「同じものをシンプルに」：商品の並び・容量込みの商品名・生産地・賞味期限はそのまま。数量と無償/特価だけ入れ直す。
+function startInvoiceFromQuote(quoteId){
+  var past = quoteHistory.find(function(x){ return x.id===quoteId; });
+  if(!past){ alert('その見積もりが見つかりませんでした'); return; }
+  var c = customers.find(function(x){ return x.id===past.customerId; });
+  if(!c){ alert('お客様の情報が見つかりませんでした'); return; }
+  var r = document.querySelector('input[name="q-doctype"][value="both"]');
+  if(r){ r.checked = true; if(typeof onDocTypeChange==='function') onDocTypeChange(); }
+  var hidden = document.getElementById('q-customer');
+  if(hidden){
+    if(!Array.from(hidden.options).some(function(o){ return o.value===past.customerId; })){
+      var op=document.createElement('option'); op.value=past.customerId; op.textContent=(c.name||''); hidden.appendChild(op);
+    }
+    hidden.value = past.customerId; if(typeof onQuoteCustomerChange==='function') onQuoteCustomerChange();
+  }
+  var cp = document.getElementById('q-contact-person-shared'); if(cp) cp.value = past.contactPerson || (c.contactPerson || c.name || '');
+  var rm = document.getElementById('q-remarks'); if(rm && past.remarks) rm.value = past.remarks;
+  setTimeout(function(){
+    restoreItemsFromQuoteRecord(past);
+    if(typeof checkContactPersonReady==='function') checkContactPersonReady();
+    var area = document.getElementById('quote-doc-area'); if(area) area.innerHTML='';
+    var f = document.getElementById('q-items-card') || document.getElementById('q-generate-card');
+    if(f) f.scrollIntoView({behavior:'smooth', block:'start'});
+    showSyncStatus('✅ この見積もりの内容を引き継ぎました。実際に注文が来た本数を入れて「見積書 兼 請求書を作成する」を押してください。');
+  }, 250);
+}
+// 見積もりに載っていた商品を、作成フォームの品目欄に並べ直す（並び・商品はそのまま。数量はitemsから）
+function restoreItemsFromQuoteRecord(past){
+  var area = document.getElementById('q-items-area');
+  if(!area) return;
+  area.innerHTML = '';
+  var bySku = {};
+  (past.items||[]).forEach(function(it){ if(it && it.sku) bySku[it.sku] = it; });
+  var skus = [];
+  (past.specSkus||[]).forEach(function(s){ var k=(typeof s==='object'&&s)?s.sku:s; if(k && skus.indexOf(k)<0) skus.push(k); });
+  (past.items||[]).forEach(function(it){ if(it && it.sku && skus.indexOf(it.sku)<0) skus.push(it.sku); });
+  if(!skus.length){ addQuoteItemRow(); return; }
+  skus.forEach(function(sku){
+    addQuoteItemRow();
+    var rows = area.children; var row = rows[rows.length-1]; if(!row) return;
+    var skuSel = row.querySelector('[data-q-sku]');
+    var hasSku = skuSel && Array.from(skuSel.options).some(function(o){ return o.value===sku; });
+    if(!hasSku){ row.remove(); return; }
+    skuSel.value = sku;
+    var it = bySku[sku];
+    var bottlesInp = row.querySelector('[data-q-bottles]');
+    var boxesInp = row.querySelector('[data-q-boxes]');
+    if(bottlesInp) bottlesInp.value = it ? (it.bottles||0) : 0;
+    if(boxesInp) boxesInp.value = it ? (it.boxes||0) : 0;
+    if(it && it.sampleKind){
+      var kindSel = row.querySelector('[data-q-kind]');
+      if(kindSel){
+        kindSel.value = (it.sampleKind==='free') ? 'free' : 'paid';
+        if(typeof onQuoteItemKindChange==='function') onQuoteItemKindChange(row.id);
+        skuSel.value = sku;
+        if(it.sampleKind==='paid'){
+          var baseSel = row.querySelector('[data-q-pricebase]');
+          var priceInp = row.querySelector('[data-q-paidprice]');
+          if(baseSel) baseSel.value = it.sampleBase || 'custom';
+          if(priceInp) priceInp.value = it.unitPrice || 0;
+        }
+      }
+    }
+  });
+}
+// ② 名前（または管理番号）で、保存済みの見積もりをさがして一覧を出す
+function renderRecallResults(){
+  var box = document.getElementById('q-recall-results');
+  if(!box) return;
+  var q = ((document.getElementById('q-recall-name')||{}).value || '').trim();
+  if(!q){ box.innerHTML=''; return; }
+  var qLower = q.toLowerCase();
+  var hits = (quoteHistory||[]).filter(function(r){
+    var name = String(r.customerName||'') + ' ' + String(r.contactPerson||'') + ' ' + String(r.companyName||'');
+    var no = String(r.invoiceNo||'') + ' ' + String(r.estimateNo||'');
+    return name.toLowerCase().indexOf(qLower)>=0 || no.toLowerCase().indexOf(qLower)>=0;
+  }).slice().sort(function(a,b){ return (b.issuedAt||'').localeCompare(a.issuedAt||''); }).slice(0,8);
+  if(!hits.length){ box.innerHTML = '<div style="font-size:12px;color:#8a6d1f">「'+esc(q)+'」に一致する見積もりは見つかりませんでした。</div>'; return; }
+  box.innerHTML = hits.map(function(r){
+    var dateStr = (r.issuedAt||'').slice(0,10);
+    var kindStr = r.kind==='pricelist' ? '📋 価格表' : (r.kind==='invoice' ? '🧾 請求書' : (r.kind==='both' ? '📄🧾 見積書 兼 請求書' : '📄 見積書'));
+    var no = r.invoiceNo || r.estimateNo || '';
+    var nItems = (r.items||[]).length || (r.specSkus||[]).length || (r.products||[]).length;
+    return '<div style="background:#fff;border:1px solid #e8d9a8;border-radius:6px;padding:9px 11px;margin-bottom:6px">'
+      + '<div style="font-size:12.5px"><b>'+esc(r.customerName||'-')+'</b>　'+kindStr+'　<span style="color:#57534e">'+esc(dateStr)+'発行</span></div>'
+      + '<div style="font-size:11px;color:#57534e;margin:3px 0 8px">'+nItems+'品目'+(no?'／管理番号 '+esc(no):'')+'</div>'
+      + '<button type="button" class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="startInvoiceFromQuote(\''+r.id+'\')">この内容から請求書を作る</button>'
+      + '</div>';
+  }).join('');
 }
 function renderWhitelistTable(c){
   const allowed = quoteAllowedProducts(c);
@@ -2585,6 +2686,18 @@ function showQuoteDoc(doc, record){
   pdfBtn.onclick = function(){ downloadQuotePdf(record); };
   wrap.appendChild(printBtn);
   wrap.appendChild(pdfBtn);
+  if(record && record.kind==='quote' && record.id){ // ① 見積書のときだけ：この見積もりで請求書を作る
+    const toInvoiceBtn = document.createElement('button');
+    toInvoiceBtn.className = 'btn no-print';
+    toInvoiceBtn.style.marginTop = '10px';
+    toInvoiceBtn.style.marginLeft = '8px';
+    toInvoiceBtn.style.background = '#2563eb';
+    toInvoiceBtn.style.color = '#fff';
+    toInvoiceBtn.style.fontWeight = '800';
+    toInvoiceBtn.textContent = '🧾 この見積もりで請求書を作る';
+    toInvoiceBtn.onclick = function(){ startInvoiceFromQuote(record.id); };
+    wrap.appendChild(toInvoiceBtn);
+  }
   if(!isInvoice){ // 注文URLは見積書・価格表のときだけ（請求書は金額確定済みのため不要）
     const orderBtn = document.createElement('button');
     orderBtn.className = 'btn no-print';
@@ -2669,21 +2782,33 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
              ovPrice:(typeof item==='object'&&item&&item.unitPrice!=null&&item.unitPrice!=='')?item.unitPrice:null, // 行ごとの1本単価（手入力）
              note:(typeof item==='object'&&item&&item.note)?String(item.note):'',
              cap:String(ex['容量']||'').trim(),
+             // 生産地・容器は価格表と同じ確実な出どころから取る（商品マスタのorigin/container欄が空/取り違えでも崩れない）
+             origin:(GROUP_ORIGIN[p.group] || String(ex['生産地']||p.origin||'').trim() || ''),
+             container:((typeof containerForSku==='function') ? containerForSku(sku) : String(ex['容器']||p.container||'').trim()),
              exp:String(ex['賞味期限']||'').trim(), eu:String(ex['EU有機']||'').trim(), ana:String(ex['分析表']||'').trim() };
   }).filter(Boolean);
-  // EU有機・分析表は、1つでも値があれば列を出す。無ければ列ごと消す（マストは容量・賞味期限・容器）
+  // 中身が1つでもあれば列を出す。全部空なら列ごと消す（空列で「書き忘れ？」に見えるのを防ぐ）。
   const hasEU  = rows.some(function(r){ return r.eu !== ''; });
   const hasAna = rows.some(function(r){ return r.ana !== ''; });
+  const hasOrigin    = rows.some(function(r){ return String(r.origin||'').trim() !== ''; });
+  const hasCap       = rows.some(function(r){ return r.cap !== ''; });
+  const hasBox       = rows.some(function(r){ return !!r.p.boxQty; });
+  const hasContainer = rows.some(function(r){ return String(r.container||'').trim() !== ''; });
   let html = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:auto">';
   html += '<thead><tr style="background:#eef0e5;color:#3a4220">';
   function th(label, w, extra){ return '<th style="border:1px solid #a3b18a;padding:4px 2px;'+(w?'width:'+w+';':'')+(extra||'')+'">'+label+'</th>'; }
-  html += th('No.','4%') + th('生産地','9%') + th('商品名','24%') + th('容量','8%') + th('1箱の本数<br><span style="font-weight:400;font-size:8px">（参考）</span>','8%') + th('賞味期限','10%');
+  html += th('No.','4%');
+  if(hasOrigin) html += th('生産地','9%');
+  html += th('商品名','24%');
+  if(hasCap) html += th('容量','8%');
+  if(hasBox) html += th('1箱の本数<br><span style="font-weight:400;font-size:8px">（参考）</span>','8%');
+  html += th('賞味期限','10%');
   priceCols.forEach(function(col){
     var isOpen = (col.type==='general');
-    html += th(col.label+'<br>（1本あたり・税抜）', isOpen ? '13%' : (useMulti ? '' : '12%'), isOpen ? '' : 'background:#dde5c8');
+    html += th(col.label+'<br>（1本あたり・税抜）', isOpen ? '13%' : (useMulti ? '' : '12%'), '');
   });
   if(stock && stock.show) html += th('在庫','8%');
-  html += th('容器','9%');
+  if(hasContainer) html += th('容器','9%');
   if(hasEU)  html += th('EU<br>有機','6%');
   if(hasAna) html += th('分析表','6%');
   html += '</tr></thead><tbody>';
@@ -2698,10 +2823,10 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
     var expShown = (r.ovExp!=null && r.ovExp!=='') ? r.ovExp : expRegBS(r.p.sku);
     html += '<tr style="'+rowStyle+'">';
     html += specCell(String(ri+1), 'text-align:center;font-weight:700;'+rowStyle); // No.
-    html += specCell(esc(r.p.origin||''), 'text-align:center;'+rowStyle);
+    if(hasOrigin) html += specCell(esc(r.origin||''), 'text-align:center;'+rowStyle);
     html += specCell('<span style="font-weight:700">'+esc(nm)+'</span>', rowStyle);
-    html += specCell(esc(r.cap), 'text-align:center;'+rowStyle);
-    html += specCell(r.p.boxQty ? String(r.p.boxQty)+'本' : '', 'text-align:center;'+rowStyle);
+    if(hasCap) html += specCell(esc(r.cap), 'text-align:center;'+rowStyle);
+    if(hasBox) html += specCell(r.p.boxQty ? String(r.p.boxQty)+'本' : '', 'text-align:center;'+rowStyle);
     html += specCell(esc(expShown), 'text-align:center;font-weight:700;'+rowStyle);
     priceCols.forEach(function(col){
       var isOpen = (col.type==='general');
@@ -2709,10 +2834,10 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
       var v;
       if(red && r.ovPrice!=null && r.ovPrice!=='') v = parseInt(r.ovPrice,10)||0;
       else v = priceForSku(r.p.sku, col.type);
-      html += specCell(v ? '¥'+v.toLocaleString()+'<span style="font-size:8px">／本</span>' : '－', (isOpen ? 'text-align:right;' : 'text-align:right;font-weight:700;background:#f6f8ef;')+rowStyle);
+      html += specCell(v ? '¥'+v.toLocaleString()+'<span style="font-size:8px">／本</span>' : '－', (isOpen ? 'text-align:right;' : 'text-align:right;font-weight:700;')+rowStyle);
     });
     if(stock && stock.show){ html += specCell(esc(stkRegBS(r.p.sku)), 'text-align:center;font-weight:700;'+rowStyle); }
-    html += specCell(esc(r.p.container||''), 'text-align:center;'+rowStyle);
+    if(hasContainer) html += specCell(esc(r.container||''), 'text-align:center;'+rowStyle);
     if(hasEU)  html += specCell(esc(r.eu), 'text-align:center;'+rowStyle);
     if(hasAna) html += specCell(esc(r.ana), 'text-align:center;'+rowStyle);
     html += '</tr>';
@@ -2787,9 +2912,16 @@ function buildCompactInvoiceHtml(record, opts){
     html += '<div>請求日：'+esc(record.invoiceDateStr||'')+'　お支払期日：'+esc(record.dueStr||'')+'</div></div>';
   }
   html += '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f4f2ec">';
-  html += '<th style="border:1px solid #b7b2a6;padding:4px">品名</th><th style="border:1px solid #b7b2a6;padding:4px;width:16%">数量</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">単価（税抜）</th><th style="border:1px solid #b7b2a6;padding:4px;width:16%">金額（税抜）</th>';
+  html += '<th style="border:1px solid #b7b2a6;padding:4px">品名</th><th style="border:1px solid #b7b2a6;padding:4px;width:14%">賞味期限</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">数量</th><th style="border:1px solid #b7b2a6;padding:4px;width:14%">単価（税抜）</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">金額（税抜）</th>';
   html += '</tr></thead><tbody>';
   function td(v, style){ return '<td style="border:1px solid #b7b2a6;padding:4px;'+(style||'')+'">'+v+'</td>'; }
+  // 賞味期限：正規（定価/卸/RT）の既定を商品ごとに出す（「違うものが届いた」の照合用）
+  function invExp(sku){
+    var d=(typeof defaultRegExpiryForSku==='function')?defaultRegExpiryForSku(sku):'';
+    if(d) return d;
+    var pp=findProductBySku(sku);
+    return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']):'';
+  }
   record.items.forEach(function(it){
     const p = findProductBySku(it.sku);
     const boxQty = p ? (p.boxQty||1) : 1;
@@ -2798,30 +2930,30 @@ function buildCompactInvoiceHtml(record, opts){
     else if(it.boxes) qtyStr = it.boxes+'箱（'+(it.boxes*boxQty)+'本）';
     else qtyStr = it.bottles+'本';
     const taxMark = (it.taxRate===0.10 ? '' : ' ※');
-    html += '<tr>'+td(esc(it.name)+taxMark)+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
+    html += '<tr>'+td(esc(it.name)+taxMark)+td(esc(invExp(it.sku)||'－'),'text-align:center')+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
   });
   // 倉庫出荷手数料：卸・RTのご注文のとき必ず項目として載せる（無料でも金額を見せる）
   if(feeBase > 0){
     if(warehouseFee > 0){
-      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('1式','text-align:center')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+'</tr>';
+      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+'</tr>';
     } else {
       serviceTotal += feeBase;
-      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('1式','text-align:center')
+      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('1式','text-align:center')
         +td('<s style="color:#9a3412">¥'+feeBase.toLocaleString()+'</s>','text-align:right')
         +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
     }
   }
   // 送料：必ず項目として載せる
   if(record.shipMode==='manual' && shipFee > 0){
-    html += '<tr>'+td('送料')+td('1式','text-align:center')+td('¥'+shipFee.toLocaleString(),'text-align:right')+td('¥'+shipFee.toLocaleString(),'text-align:right')+'</tr>';
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+shipFee.toLocaleString(),'text-align:right')+td('¥'+shipFee.toLocaleString(),'text-align:right')+'</tr>';
   } else if(record.shipMode==='free'){
     const base = record.shipFee || 0;
     if(base > 0) serviceTotal += base;
-    html += '<tr>'+td('送料')+td('1式','text-align:center')
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')
       +td(base > 0 ? '<s style="color:#9a3412">¥'+base.toLocaleString()+'</s>' : '－','text-align:right')
       +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
   } else {
-    html += '<tr>'+td('送料')+td('1式','text-align:center')+td('－','text-align:right')+td('別途','text-align:right')+'</tr>';
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')+td('－','text-align:right')+td('別途','text-align:right')+'</tr>';
   }
   html += '</tbody></table>';
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px;gap:10px;flex-wrap:wrap">';
