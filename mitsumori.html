@@ -2665,27 +2665,28 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
   let html = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:auto">';
   html += '<thead><tr style="background:#eef0e5;color:#3a4220">';
   function th(label, w, extra){ return '<th style="border:1px solid #a3b18a;padding:4px 2px;'+(w?'width:'+w+';':'')+(extra||'')+'">'+label+'</th>'; }
-  html += th('生産地','9%') + th('商品名','26%') + th('容量','9%') + th('1箱数','8%') + th('賞味期限','10%');
+  html += th('No.','4%') + th('生産地','9%') + th('商品名','24%') + th('容量','8%') + th('1箱の本数<br><span style="font-weight:400;font-size:8px">（参考）</span>','8%') + th('賞味期限','10%');
   priceCols.forEach(function(col){
     var isOpen = (col.type==='general');
-    html += th(col.label+'<br>（税抜）', isOpen ? '13%' : (useMulti ? '' : '12%'), isOpen ? '' : 'background:#dde5c8');
+    html += th(col.label+'<br>（1本あたり・税抜）', isOpen ? '13%' : (useMulti ? '' : '12%'), isOpen ? '' : 'background:#dde5c8');
   });
   if(stock && stock.show) html += th('在庫','8%');
   html += th('容器','9%');
   if(hasEU)  html += th('EU<br>有機','6%');
   if(hasAna) html += th('分析表','6%');
   html += '</tr></thead><tbody>';
-  rows.forEach(function(r){
+  rows.forEach(function(r, ri){
     html += '<tr>';
+    html += specCell(String(ri+1), 'text-align:center;font-weight:700'); // No.（電話案内用の商品番号）
     html += specCell(esc(r.p.origin||''), 'text-align:center');
     html += specCell('<span style="font-weight:700">'+esc(specDisplayName(r.p.name, r.cap))+'</span>');
     html += specCell(esc(r.cap), 'text-align:center');
-    html += specCell(r.p.boxQty ? String(r.p.boxQty) : '', 'text-align:center');
+    html += specCell(r.p.boxQty ? String(r.p.boxQty)+'本' : '', 'text-align:center');
     html += specCell(esc(expRegBS(r.p.sku)), 'text-align:center;font-weight:700'); // 賞味期限（正規）＝入力値優先→無ければマスタ
     priceCols.forEach(function(col){
       var v = priceForSku(r.p.sku, col.type);
       var isOpen = (col.type==='general');
-      html += specCell(v ? '¥'+v.toLocaleString() : '－', isOpen ? 'text-align:right' : 'text-align:right;font-weight:700;background:#f6f8ef');
+      html += specCell(v ? '¥'+v.toLocaleString()+'<span style="font-size:8px">／本</span>' : '－', isOpen ? 'text-align:right' : 'text-align:right;font-weight:700;background:#f6f8ef');
     });
     if(stock && stock.show){ html += specCell(esc(stkRegBS(r.p.sku)), 'text-align:center;font-weight:700'); }
     html += specCell(esc(r.p.container||''), 'text-align:center');
@@ -2694,6 +2695,7 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
     html += '</tr>';
   });
   html += '</tbody></table>';
+  html += '<div style="font-size:8.5px;color:#57534e;margin-top:4px;line-height:1.6">※ 価格は1本あたり（税抜）です。1箱の本数は参考です。箱でのご注文は箱単位で承ります。</div>';
   return html;
 }
 // 見積書・請求書で共通の上段（宛名＋低温/オーガニック見出し＋番号・日付＋会社情報＋社印＋ロゴ）。mode='quote'|'invoice'
