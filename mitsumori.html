@@ -1878,6 +1878,11 @@ function qtYen(v,dim){ v=parseFloat(v)||0; if(v<=0) return '<span style="color:#
 window.QExpiryValues = window.QExpiryValues || {};
 window.QExpShow = window.QExpShow || false;
 function qGroupOf(type){ return (type==='oldlot'||type==='defect'||type==='special') ? type : 'reg'; }
+/* ★正規（定価/卸/バサラ）の賞味期限の既定値：生産地で決まる。中村様が各欄で上書きOK。旧ロット等は既定なし＝手入力。 */
+var REG_EXPIRY_TURKEY = '2027年11月'; /* トルコ産オイル */
+var REG_EXPIRY_ITALY  = '2026年10月'; /* イタリア産（プリモフルット・ザイトゥーン・アグルミ・その他）※中村様に要確認 */
+function defaultRegExpiry(group){ var o=(typeof GROUP_ORIGIN!=='undefined'&&GROUP_ORIGIN[group])?GROUP_ORIGIN[group]:''; if(o==='トルコ') return REG_EXPIRY_TURKEY; if(o==='イタリア') return REG_EXPIRY_ITALY; return ''; }
+function defaultRegExpiryForSku(sku){ var p=(typeof findProductBySku==='function')?findProductBySku(sku):null; return p?defaultRegExpiry(p.group):''; }
 function qGrpActive(grp, rtOn){
   if(grp==='reg') return !!rtOn || qtActive('general')||qtActive('wholesale1')||qtActive('wholesale2')||qtActive('basara');
   if(rtOn) return false;
@@ -1900,7 +1905,7 @@ function qtExtraCells(grp, isHeader, sku, rtOn){
     if(expOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#9a5512;background:#fdeede;font-weight:800;font-size:10.5px">🗓️'+meta+'<br>賞味期限</th>';
     if(stkOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#7a5b12;background:#fff4d6;font-weight:800;font-size:10.5px">'+meta+'<br>在庫</th>';
   } else {
-    if(expOn){ var ev=qExpGet(sku,grp); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" value="'+esc(String(ev))+'" onchange="qtExpInput(\''+esc(sku)+'\',\''+grp+'\',this.value)" placeholder="例2027年3月" style="width:86px;text-align:center;padding:4px;font-size:12px;font-weight:700;border:1px solid #d9a441;border-radius:6px;background:#fffaf0"></td>'; }
+    if(expOn){ var ev=qExpGet(sku,grp); if(!ev && grp==='reg') ev=defaultRegExpiryForSku(sku); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" value="'+esc(String(ev))+'" onchange="qtExpInput(\''+esc(sku)+'\',\''+grp+'\',this.value)" placeholder="例2027年3月" style="width:86px;text-align:center;padding:4px;font-size:12px;font-weight:700;border:1px solid #d9a441;border-radius:6px;background:#fffaf0"></td>'; }
     if(stkOn){ var sv=qStockGet(sku,grp); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" inputmode="numeric" value="'+esc(String(sv))+'" onchange="qtStockInput2(\''+esc(sku)+'\',\''+grp+'\',this.value)" style="width:56px;text-align:center;padding:4px;font-size:13px;font-weight:700;border:1px solid #b9b2a3;border-radius:6px"></td>'; }
   }
   return out;
@@ -2113,7 +2118,7 @@ function renderExtraFieldsForProduct(sku, selectedFields, overrides){
 function quoteReadiness(hasCustomer, person, generalNoCustomerMode){
   if(generalNoCustomerMode) return { ready:true,  reason:'' };
   if(!hasCustomer)          return { ready:false, reason:'※ 上で「お客様」を選ぶと押せます（一般は「登録なしで作る」でもOK）' };
-  if(!person)               return { ready:false, reason:'※ お客様の「担当者名」を入れると押せます' };
+  // 2026-07-21 担当者名は任意に（既存客で担当者名が空でも作れるように。空欄なら宛名は「会社名 御中」）
   return { ready:true, reason:'' };
 }
 // どの入口でも共通：2つの作成ボタン（価格表・見積書）の状態を同じ判定でそろえる
@@ -2551,7 +2556,7 @@ function specCell(v, style){
 function buildSpecTableHtml(specSkus, custType, specTiers, stock){
   const useMulti = Array.isArray(specTiers);
   function stkRegBS(sku){ if(!stock||!stock.values) return ''; var o=stock.values[sku]; if(o&&typeof o==='object') return o.reg!=null?String(o.reg):''; if(typeof o==='string') return o; return ''; }
-  function expRegBS(sku){ if(stock&&stock.expValues){ var o=stock.expValues[sku]; if(o&&typeof o==='object'&&o.reg!=null) return String(o.reg); } var pp=findProductBySku(sku); return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']):''; }
+  function expRegBS(sku){ if(stock&&stock.expValues){ var o=stock.expValues[sku]; if(o&&typeof o==='object'&&o.reg!=null) return String(o.reg); } var d=(typeof defaultRegExpiryForSku==='function')?defaultRegExpiryForSku(sku):''; if(d) return d; var pp=findProductBySku(sku); return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']):''; }
   const SPEC_CANON = ['general','wholesale1','wholesale2','basara','rt','oldlot','defect','special'];
   let priceCols;
   if(useMulti){
@@ -3094,10 +3099,11 @@ function buildPriceListDocHtml(record, c){
   function plExp(sku,grp){ var o=plExVals[sku]; if(o&&typeof o==='object') return o[grp]!=null?String(o[grp]):''; return ''; }
   var plGrpPresent={reg:false,oldlot:false,defect:false,special:false};
   priceCols.forEach(function(col){ plGrpPresent[plGroupOf(col.type)]=true; });
+  var plSkuGroup={}; (record.products||[]).forEach(function(pp){ plSkuGroup[pp.sku]=pp.group; });
   function plExpFor(grp){ return plShowExp && (grp==='reg'||grp==='oldlot'); }
   function plExtraCount(){ var n=0; ['reg','oldlot','defect','special'].forEach(function(grp){ if(!plGrpPresent[grp]) return; if(plExpFor(grp)) n++; if(plShowStk) n++; }); return n; }
   function plExtraHead(grp){ var out=''; if(plExpFor(grp)) out+='<th>賞味期限</th>'; if(plShowStk) out+='<th>在庫</th>'; return out; }
-  function plExtraCell(grp,sku){ var out=''; if(plExpFor(grp)){ var ev=plExp(sku,grp); out+='<td>'+esc(ev||'-')+'</td>'; } if(plShowStk){ var sv=plStk(sku,grp); out+='<td>'+esc(sv||'-')+'</td>'; } return out; }
+  function plExtraCell(grp,sku){ var out=''; if(plExpFor(grp)){ var ev=plExp(sku,grp); if(!ev && grp==='reg') ev=defaultRegExpiry(plSkuGroup[sku]); out+='<td>'+esc(ev||'-')+'</td>'; } if(plShowStk){ var sv=plStk(sku,grp); out+='<td>'+esc(sv||'-')+'</td>'; } return out; }
 
   let html = '<div class="invoice-doc pricelist-doc">';
   html += '<div class="invoice-doc-title">標 準 価 格 表</div>';
