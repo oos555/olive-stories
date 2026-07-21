@@ -477,11 +477,28 @@ th.center,td.center{text-align:center}
         <button type="button" class="qc-btn" id="qc-existing-btn" onclick="qcChooseExisting()">📇 えらぶ</button>
         <button type="button" class="qc-btn" id="qc-new-btn" onclick="qcChooseNew()">＋ 新規</button>
       </div>
-      <div class="fg" id="q-customer-select-wrap" style="display:none"><label>提出先（お客様）を選択</label>
-        <input type="text" id="q-customer-search" placeholder="🔍 会社名・担当者名で検索" oninput="renderQuoteCustomerSelect()" style="margin-bottom:6px">
-        <select id="q-customer" onchange="onQuoteCustomerChange()">
+      <div class="fg" id="q-customer-select-wrap" style="display:none"><label>提出先（お客様）を選ぶ</label>
+        <div style="font-size:12.5px;color:#2b2a26;font-weight:800;margin:2px 0 6px">🔍 入力して検索するのはこちら（会社名・担当者名・電話番号）</div>
+        <input type="text" id="q-customer-search" placeholder="会社名・担当者名・電話番号で検索" oninput="renderQuoteCustomerSelect()" style="margin-bottom:10px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:13px;font-weight:800;color:#2b2a26;margin-bottom:4px">🏢 会社名で選ぶ</div>
+            <select id="q-customer-by-company" onchange="pickQuoteCustomer(this.value)">
+              <option value="">会社名から選ぶ…</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:13px;font-weight:800;color:#2b2a26;margin-bottom:4px">🙍 ご担当者名で選ぶ <span style="font-size:11px;font-weight:600;color:#57534e">（個人のお客様もこちら）</span></div>
+            <select id="q-customer-by-person" onchange="pickQuoteCustomer(this.value)">
+              <option value="">ご担当者名から選ぶ…</option>
+            </select>
+          </div>
+        </div>
+        <!-- ↓ 本当のお客様の値はここ（隠し）。他の画面はすべてこの値を見ています。 -->
+        <select id="q-customer" onchange="onQuoteCustomerChange()" style="display:none">
           <option value="">お客様を選択...</option>
         </select>
+        <div id="q-customer-current" style="margin-top:8px"></div>
       </div>
       <div id="new-cust-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e2d8">
         <div id="nc-rt-hint" class="info-box" style="display:none;background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>会社名（施設名）</strong>と<strong>担当者名</strong>のどちらか一方が入っていれば登録できます。</div>
@@ -1250,8 +1267,7 @@ async function registerNewCustomer(){
       renderQuoteCustomerSelect();
       const selWrapEl = document.getElementById('q-customer-select-wrap');
       if(selWrapEl) selWrapEl.style.display = ''; // 登録した人が選択欄に「選択中」で見えるように開く
-      document.getElementById('q-customer').value = newCust.id;
-      onQuoteCustomerChange();
+      pickQuoteCustomer(newCust.id);
       if(contact && !document.getElementById('q-contact-person-shared').value){
         document.getElementById('q-contact-person-shared').value = contact;
         checkContactPersonReady();
@@ -1472,18 +1488,14 @@ function normalizeSearchText(s){
 function customerMatchesSearch(c, rawSearch){
   const tokens = String(rawSearch||'').split(/[\s\u3000]+/).map(normalizeSearchText).filter(function(x){ return x; });
   if(!tokens.length) return true;
-  const hay = normalizeSearchText((c.name||'') + ' ' + (c.contactPerson||'') + ' ' + (c.tel||''));
+  const hay = normalizeSearchText((c.name||'') + ' ' + (c.companyName||'') + ' ' + (c.contactPerson||'') + ' ' + (c.tel||''));
   return tokens.every(function(t){ return hay.indexOf(t)>=0; });
 }
 function renderQuoteCustomerSelect(){
-  const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
+  // ★2026-07-21 ⑦ お客様選択を「🏢会社名で選ぶ」「🙍ご担当者名で選ぶ」の2つに分割。
+  //   区分での絞り込みはやめ、いつでも全員から選べるようにした（選ぶと自動でその人の区分に切り替わります）。
   const search = (document.getElementById('q-customer-search') ? document.getElementById('q-customer-search').value : '');
-  let filtered = customers.filter(function(c){
-    if(gateType==='rt') return c.type==='rt';
-    if(gateType==='wholesale' || gateType==='partialWholesale') return c.type==='wholesale1' || c.type==='wholesale2' || c.type==='hub';
-    if(gateType==='general' || gateType==='partialGeneral') return c.type==='general';
-    return true;
-  });
+  let filtered = customers.slice();
   if(search){
     filtered = filtered.filter(function(c){ return customerMatchesSearch(c, search); });
   }
@@ -1500,16 +1512,61 @@ function renderQuoteCustomerSelect(){
     if(!au && bu) return 1;
     return (a.name||'').localeCompare(b.name||'', 'ja');
   });
-  const opts = ['<option value="">お客様を選択...</option>']
+  function companyLabel(c){ return (c.companyName!==undefined && c.companyName!==null) ? String(c.companyName) : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : (c.name||'')); }
+  function personLabel(c){ return (c.contactPerson && String(c.contactPerson).trim()) ? String(c.contactPerson) : (c.name||''); }
+  // 隠しの本体（全員）：他の画面はこの値を見ている
+  const allOpts = ['<option value="">お客様を選択...</option>']
     .concat(filtered.map(c=>'<option value="'+c.id+'">'+(lastUsed[c.id]?'⭐ ':'')+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
   const q = document.getElementById('q-customer');
-  const prev = q.value; q.innerHTML = opts.join(''); q.value = prev;
+  if(q){ const prev = q.value; q.innerHTML = allOpts.join(''); q.value = prev; }
+  // 🏢 会社名で選ぶ（会社名のあるお客様だけ）
+  const byC = document.getElementById('q-customer-by-company');
+  if(byC){
+    const withCompany = filtered.filter(function(c){ return companyLabel(c).trim(); });
+    const cOpts = ['<option value="">会社名から選ぶ…</option>']
+      .concat(withCompany.map(function(c){ const cl=companyLabel(c), ps=personLabel(c); return '<option value="'+c.id+'">'+(lastUsed[c.id]?'⭐ ':'')+esc(cl)+((ps&&ps!==cl)?'（'+esc(ps)+'）':'')+'</option>'; }));
+    byC.innerHTML = cOpts.join('');
+  }
+  // 🙍 ご担当者名で選ぶ（全員：個人のお客様もここに出る）
+  const byP = document.getElementById('q-customer-by-person');
+  if(byP){
+    const pOpts = ['<option value="">ご担当者名から選ぶ…</option>']
+      .concat(filtered.map(function(c){ const cl=companyLabel(c); return '<option value="'+c.id+'">'+(lastUsed[c.id]?'⭐ ':'')+esc(personLabel(c))+(cl?'（'+esc(cl)+'）':'')+'</option>'; }));
+    byP.innerHTML = pOpts.join('');
+  }
+  syncQuoteCustomerControls();
   const sp = document.getElementById('sp-customer');
   if(sp){
     const spOpts = ['<option value="">お客様を選択...</option>']
       .concat(customers.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'));
     const spPrev = sp.value; sp.innerHTML = spOpts.join(''); sp.value = spPrev;
   }
+}
+// 2つの選択（会社名/担当者名）と「選択中の表示」を、本体(#q-customer)の値にそろえる
+function syncQuoteCustomerControls(){
+  const q = document.getElementById('q-customer'); const cid = q ? q.value : '';
+  const byC = document.getElementById('q-customer-by-company'); if(byC) byC.value = cid;
+  const byP = document.getElementById('q-customer-by-person'); if(byP) byP.value = cid;
+  updateQuoteCurrentCustomer();
+}
+// 会社名/担当者名どちらの選択でも、ここを通して本体の値をセットし、区分などを更新する
+function pickQuoteCustomer(cid){
+  const q = document.getElementById('q-customer'); if(q) q.value = cid || '';
+  syncQuoteCustomerControls();
+  if(typeof onQuoteCustomerChange==='function') onQuoteCustomerChange();
+}
+// 「選択中のお客様」を大きく分かりやすく表示
+function updateQuoteCurrentCustomer(){
+  const el = document.getElementById('q-customer-current'); if(!el) return;
+  const cid = (document.getElementById('q-customer')||{}).value;
+  const c = customers.find(function(x){ return x.id===cid; });
+  if(!c){ el.innerHTML = ''; return; }
+  const person = (c.contactPerson||'');
+  el.innerHTML = '<div style="border:2px solid #6b7a3a;background:#f4f7ea;border-radius:8px;padding:8px 12px;font-size:13.5px;color:#2b2a26;font-weight:700">'
+    + '✅ 選択中のお客様：<span style="font-size:15px">'+esc(c.name)+'</span>'
+    + '（'+esc(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'
+    + (person?'<br><span style="font-size:12px;font-weight:600">ご担当者：'+esc(person)+'</span>':'')
+    + '</div>';
 }
 function onQuoteCustomerChange(){
   const cid = document.getElementById('q-customer').value;
@@ -1879,9 +1936,26 @@ window.QExpiryValues = window.QExpiryValues || {};
 window.QExpShow = window.QExpShow || false;
 function qGroupOf(type){ return (type==='oldlot'||type==='defect'||type==='special') ? type : 'reg'; }
 /* ★正規（定価/卸/バサラ）の賞味期限の既定値：生産地で決まる。中村様が各欄で上書きOK。旧ロット等は既定なし＝手入力。 */
-var REG_EXPIRY_TURKEY = '2027年11月'; /* トルコ産オイル */
-var REG_EXPIRY_ITALY  = '2026年10月'; /* イタリア産（プリモフルット・ザイトゥーン・アグルミ・その他）※中村様に要確認 */
-function defaultRegExpiry(group){ var o=(typeof GROUP_ORIGIN!=='undefined'&&GROUP_ORIGIN[group])?GROUP_ORIGIN[group]:''; if(o==='トルコ') return REG_EXPIRY_TURKEY; if(o==='イタリア') return REG_EXPIRY_ITALY; return ''; }
+var REG_EXPIRY_TURKEY = '2027年11月'; /* トルコ産オイル（オルガニック・メメジック・シェフズブレンド） */
+var REG_EXPIRY_ITALY  = '2026年10月'; /* イタリア産の旧・既定（下のグループ別マップが優先されるため、実質は下記マップで決まる） */
+/* ★2026-07-21 中村様確定：グループごとの賞味期限の既定値。ここが最優先。
+   ・プリモフルット／アグルミ／ザイトゥーン ＝ 2027年10月
+   ・その他オイル（唐辛子・アルモニア・カサアルバート等）＝ 空欄（中村様が各欄で後から手入力）
+   ※トルコ産（オルガニック等）は今回の対象外のため、これまで通り 2027年11月 のまま。
+     もしトルコ産も空欄にしたい場合は、下のマップに 'オルガニック':'', 'メメジック':'', 'シェフズブレンド':'' を足すだけ。 */
+var REG_EXPIRY_BY_GROUP = {
+  'プリモフルット':'2027年10月',
+  'アグルミ':'2027年10月',
+  'ザイトゥーン':'2027年10月',
+  'その他オイル':''
+};
+function defaultRegExpiry(group){
+  if(typeof REG_EXPIRY_BY_GROUP!=='undefined' && Object.prototype.hasOwnProperty.call(REG_EXPIRY_BY_GROUP, group)) return REG_EXPIRY_BY_GROUP[group];
+  var o=(typeof GROUP_ORIGIN!=='undefined'&&GROUP_ORIGIN[group])?GROUP_ORIGIN[group]:'';
+  if(o==='トルコ') return REG_EXPIRY_TURKEY;
+  if(o==='イタリア') return REG_EXPIRY_ITALY;
+  return '';
+}
 function defaultRegExpiryForSku(sku){ var p=(typeof findProductBySku==='function')?findProductBySku(sku):null; return p?defaultRegExpiry(p.group):''; }
 function qGrpActive(grp, rtOn){
   if(grp==='reg') return !!rtOn || qtActive('general')||qtActive('wholesale1')||qtActive('wholesale2')||qtActive('basara');
@@ -2482,11 +2556,19 @@ function showQuoteDoc(doc, record){
   area.innerHTML = '';
   const wrap = document.createElement('div');
   const inner = document.createElement('div');
-  inner.innerHTML = doc;
-  wrap.appendChild(inner.firstElementChild);
+  inner.innerHTML = doc || '';
+  while(inner.firstChild){ wrap.appendChild(inner.firstChild); }
+  // ★2026-07-21 ①「編集画面にもどる」ボタン（プレビューから商品入力へ戻れなかった不具合の対応）
+  const backBtn = document.createElement('button');
+  backBtn.className = 'btn-sm no-print';
+  backBtn.style.marginTop = '10px';
+  backBtn.textContent = '← 編集画面にもどる';
+  backBtn.onclick = function(){ area.innerHTML=''; const f=document.getElementById('q-items-card')||document.getElementById('q-generate-card'); if(f) f.scrollIntoView({behavior:'smooth', block:'start'}); };
+  wrap.appendChild(backBtn);
   const printBtn = document.createElement('button');
   printBtn.className = 'btn btn-primary no-print';
   printBtn.style.marginTop = '10px';
+  printBtn.style.marginLeft = '8px';
   printBtn.textContent = (record && record.kind==='both') ? '🖨 この見積書 兼 請求書を印刷する' : (isInvoice ? '🖨 この請求書を印刷する' : '🖨 この見積書を印刷する');
   printBtn.onclick = function(){ window.print(); };
   const pdfBtn = document.createElement('button');
@@ -2567,7 +2649,7 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
     priceCols = [{type:'general', label:'オープン価格'}];
     var __one = specPriceColForType(custType); if(__one) priceCols.push(__one);
   }
-  const rows = specSkus.map(function(sku){
+  const rows = (specSkus||[]).map(function(sku){
     const p = findProductBySku(sku); if(!p) return null;
     const ex = p.extras || {};
     return { p:p, cap:String(ex['容量']||'').trim(),
@@ -2857,6 +2939,7 @@ function generateExtractQuoteDoc(){
   showQuoteDoc(buildExtractDocHtml(record, c), record);
 }
 function buildQuoteDocHtml(record, c){
+  record = record || {}; if(!Array.isArray(record.items)) record.items = []; if(!Array.isArray(record.specSkus)) record.specSkus = record.specSkus || [];
   const today = new Date();
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
@@ -2938,6 +3021,7 @@ function buildQuoteDocHtml(record, c){
 
 // ── 請求書（見積書と同じ入力から、紙の種類だけ変えて発行） ────────────────
 function buildInvoiceDocHtml(record, c){
+  record = record || {}; if(!Array.isArray(record.items)) record.items = [];
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   record.items.forEach(function(it){
     if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
@@ -3376,7 +3460,7 @@ function renderQuoteHistory(){
       if(r.orderRegistered){
         ordRegHtml = '<div style="margin:4px 0 10px;padding:6px 10px;background:#f0fdf4;border:1px solid #16a34a;border-radius:6px;font-size:12px;color:#14532d;font-weight:700">✅ 受注A登録済み：'+esc(r.orderRegistered.num||'')+'（'+esc(String(r.orderRegistered.at||'').slice(0,10))+'）　<a href="index.html" style="color:#185fa5">受注Aを開く →</a></div>';
       } else {
-        ordRegHtml = '<div style="margin:4px 0 10px"><button class="btn-sm" style="font-weight:700;border-color:#185fa5;color:#185fa5" onclick="openOrderRegPanel(\''+r.id+'\')">📦 受注Aに登録（発送に進む）</button><div id="ordreg_'+r.id+'" style="display:none"></div></div>';
+        ordRegHtml = '<div style="margin:4px 0 10px"><button class="btn-sm" style="font-weight:700;border-color:#185fa5;color:#185fa5" onclick="startOrderReg(\''+r.id+'\')">📦 受注Aに登録（発送に進む）</button><div id="ordreg_'+r.id+'" style="display:none"></div></div>';
       }
     }
     const doneStyle = r.orderRegistered ? ' style="opacity:.55;background:#f3f2ee"' : '';
@@ -3390,9 +3474,34 @@ function renderQuoteHistory(){
 }
 function viewQuoteHistoryItem(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r) return;
-  const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType};
-  const doc = r.kind==='extract' ? buildExtractDocHtml(r, c) : (r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : (r.kind==='invoice' ? buildSpecInvoiceOnlyHtml(r, c) : (r.kind==='both' ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)))));
+  const c = customers.find(x=>x.id===r.customerId) || {name:r.customerName, type:r.customerType, customerType:r.customerType};
+  let doc = '';
+  try {
+    doc = r.kind==='extract' ? buildExtractDocHtml(r, c) : (r.kind==='pricelist' ? buildPriceListDocHtml(r, c) : (r.kind==='oilwholesale' ? buildOilWholesaleDocHtml(r) : (r.kind==='invoice' ? buildSpecInvoiceOnlyHtml(r, c) : (r.kind==='both' ? buildInvoiceDocHtml(r, c) : buildQuoteDocHtml(r, c)))));
+  } catch(err){
+    console.error('見積書の表示でエラー', err);
+    showQuoteDocError(r, err);
+    return true;
+  }
+  if(!doc || !String(doc).trim()){ showQuoteDocError(r, new Error('この履歴には表示できる中身がありませんでした（データが空です）。')); return true; }
   showQuoteDocGeneric(doc, r);
+  return true;
+}
+// 履歴の表示でつまずいたとき、真っ白にせず「なぜ出ないか」を画面に出す。
+function showQuoteDocError(record, err){
+  const area = document.getElementById('quote-doc-area') || document.getElementById('ow-doc-area');
+  if(!area) return;
+  const nm = (record && record.customerName) ? esc(record.customerName) : '';
+  const msg = (err && err.message) ? esc(err.message) : esc(String(err||''));
+  area.innerHTML = '<div class="no-print" style="border:2px solid #dc2626;background:#fef2f2;border-radius:10px;padding:14px 16px;margin-top:8px">'
+    + '<div style="font-size:14px;font-weight:800;color:#7f1d1d;margin-bottom:6px">⚠️ この見積書を表示できませんでした</div>'
+    + '<div style="font-size:12.5px;color:#2b2a26;line-height:1.7">お客様：<strong>'+nm+'</strong><br>'
+    + 'この履歴は古い形式などで、表示に必要な情報の一部が入っていない可能性があります。<br>'
+    + 'お手数ですが、同じ内容で新しく作り直していただくと確実に表示できます。</div>'
+    + '<div style="font-size:11px;color:#9a5512;margin-top:8px">（技術メモ：'+msg+'）</div>'
+    + '<div style="margin-top:10px"><button class="btn-sm" style="font-weight:700" onclick="document.getElementById(\'quote-doc-area\').innerHTML=\'\';var h=document.getElementById(\'quote-history-list\');if(h)h.scrollIntoView({behavior:\'smooth\'})">← 履歴にもどる</button></div>'
+    + '</div>';
+  area.scrollIntoView({behavior:'smooth'});
 }
 // 見積提出履歴を1件削除（必ず確認してから）。受注Aに登録済みの注文には影響しない。
 function deleteQuoteHistoryItem(rid){
@@ -3421,6 +3530,18 @@ function deleteQuoteHistoryItem(rid){
 // 安全策：①保存直前に最新の注文一覧を取り直してマージ（丸ごと上書き事故の防止）
 //         ②在庫はロット差分だけを最新データに反映（受注Aと同じ考え方）
 //         ③二重登録防止（登録済みならボタンが出ない＋処理中は再実行不可）
+// ★2026-07-21 ③ 受注Aへ進む前の2段確認：
+// ①まず見積書そのものを画面に出して中身を見せる → ②「本当に進みますか？」でOK → ③登録パネルを開く
+function startOrderReg(rid){
+  const r = quoteHistory.find(x=>x.id===rid); if(!r || r.orderRegistered) return;
+  viewQuoteHistoryItem(rid); // まず見積書を表示（真上に出ます）
+  const nm = r.customerName || '';
+  const ok = confirm('👆 上に表示された見積書の中身をご確認ください。\n\nこの内容で「受注A」に登録して発送に進みます。\n\nお客様：' + nm + '\n\n本当に進みますか？');
+  if(!ok) return;
+  openOrderRegPanel(rid);
+  const box = document.getElementById('ordreg_'+rid);
+  if(box) box.scrollIntoView({behavior:'smooth', block:'center'});
+}
 function openOrderRegPanel(rid){
   const r = quoteHistory.find(x=>x.id===rid); if(!r || r.orderRegistered) return;
   const box = document.getElementById('ordreg_'+rid); if(!box) return;
@@ -3632,13 +3753,23 @@ function showQuoteDocGeneric(doc, record){
   area.innerHTML = '';
   const wrap = document.createElement('div');
   const inner = document.createElement('div');
-  inner.innerHTML = doc;
-  wrap.appendChild(inner.firstElementChild);
+  inner.innerHTML = doc || '';
+  // firstElementChild だけを1つ足す作りだと、先頭が空白等のときに null になって真っ白になる。
+  // 全ての子ノードを移すことで、そのつまずきを無くす。
+  while(inner.firstChild){ wrap.appendChild(inner.firstChild); }
+  if(!wrap.querySelector('*') && !wrap.textContent.trim()){ showQuoteDocError(record, new Error('中身が空でした。')); return; }
+  const backBtn = document.createElement('button');
+  backBtn.className = 'btn-sm no-print';
+  backBtn.style.marginTop = '10px';
+  backBtn.textContent = '← 履歴にもどる';
+  backBtn.onclick = function(){ area.innerHTML=''; const h=document.getElementById('quote-history-list'); if(h) h.scrollIntoView({behavior:'smooth'}); };
   const printBtn = document.createElement('button');
   printBtn.className = 'btn btn-primary no-print';
   printBtn.style.marginTop = '10px';
+  printBtn.style.marginLeft = '8px';
   printBtn.textContent = '🖨 印刷する';
   printBtn.onclick = function(){ window.print(); };
+  wrap.appendChild(backBtn);
   wrap.appendChild(printBtn);
   area.appendChild(wrap);
   area.scrollIntoView({behavior:'smooth'});
