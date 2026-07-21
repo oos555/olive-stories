@@ -1278,7 +1278,7 @@ function resetRtGate(){
   const after = document.getElementById('q-after-gate'); if(after) after.style.display = 'none';
   const banner = document.getElementById('q-rt-gate-banner'); if(banner) banner.innerHTML = '';
   window.quoteShownSkus = null;
-  window.QStockShow = false; window.QStockValues = {};
+  window.QStockShow = false; window.QStockValues = {}; window.QExpiryValues = {}; window.QExpShow = false;
   window.generalNoCustomerMode = false;
   const searchEl = document.getElementById('q-customer-search'); if(searchEl) searchEl.value = '';
   const dq = document.querySelector('input[name="q-doctype"][value="quote"]'); if(dq){ dq.checked = true; }
@@ -1874,6 +1874,46 @@ function qtCols(){ return [
 ]; }
 function qtActive(k){ return Array.isArray(window.QSpecTiers) && window.QSpecTiers.indexOf(k)>=0; }
 function qtYen(v,dim){ v=parseFloat(v)||0; if(v<=0) return '<span style="color:#d0ccC2">－</span>'; return (dim?'<span style="color:#c4c0b6">¥'+v.toLocaleString()+'</span>':'¥'+v.toLocaleString()); }
+/* ★2026-07-21 区分ごとの在庫・賞味期限（正規=定価/卸/バサラ共有／旧ロット・不良品・特別提供は各自。賞味期限は正規と旧ロット） */
+window.QExpiryValues = window.QExpiryValues || {};
+window.QExpShow = window.QExpShow || false;
+function qGroupOf(type){ return (type==='oldlot'||type==='defect'||type==='special') ? type : 'reg'; }
+function qGrpActive(grp, rtOn){
+  if(grp==='reg') return !!rtOn || qtActive('general')||qtActive('wholesale1')||qtActive('wholesale2')||qtActive('basara');
+  if(rtOn) return false;
+  return qtActive(grp);
+}
+function qStockGet(sku,grp){ var o=window.QStockValues&&window.QStockValues[sku]; if(o&&typeof o==='object') return (o[grp]!=null?o[grp]:''); if(typeof o==='string'&&grp==='reg') return o; return ''; }
+function qStockSet(sku,grp,val){ window.QStockValues=window.QStockValues||{}; var o=window.QStockValues[sku]; if(o==null||typeof o!=='object'){ var prev=(typeof o==='string')?o:''; o={}; if(prev)o.reg=prev; } val=String(val).trim(); if(val==='')delete o[grp]; else o[grp]=val; if(Object.keys(o).length)window.QStockValues[sku]=o; else delete window.QStockValues[sku]; }
+function qExpGet(sku,grp){ var o=window.QExpiryValues&&window.QExpiryValues[sku]; return (o&&o[grp]!=null)?o[grp]:''; }
+function qExpSet(sku,grp,val){ window.QExpiryValues=window.QExpiryValues||{}; var o=window.QExpiryValues[sku]||{}; val=String(val).trim(); if(val==='')delete o[grp]; else o[grp]=val; if(Object.keys(o).length)window.QExpiryValues[sku]=o; else delete window.QExpiryValues[sku]; }
+function qtExpToggle(cb){ window.QExpShow=cb.checked; var c=currentQuoteC(); if(c) renderQuotePickTable(c); }
+function qtExpInput(sku,grp,val){ qExpSet(sku,grp,val); }
+function qtStockInput2(sku,grp,val){ qStockSet(sku,grp,val); }
+function qtExtraCells(grp, isHeader, sku, rtOn){
+  if(!qGrpActive(grp, rtOn)) return '';
+  var meta = {reg:'正規',oldlot:'旧ロット',defect:'不良品',special:'特別提供'}[grp];
+  var expOn = window.QExpShow && (grp==='reg'||grp==='oldlot');
+  var stkOn = window.QStockShow;
+  var out='';
+  if(isHeader){
+    if(expOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#9a5512;background:#fdeede;font-weight:800;font-size:10.5px">🗓️'+meta+'<br>賞味期限</th>';
+    if(stkOn) out += '<th style="padding:7px 6px;text-align:center;border-left:1px solid #e7e2d6;color:#7a5b12;background:#fff4d6;font-weight:800;font-size:10.5px">'+meta+'<br>在庫</th>';
+  } else {
+    if(expOn){ var ev=qExpGet(sku,grp); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" value="'+esc(String(ev))+'" onchange="qtExpInput(\''+esc(sku)+'\',\''+grp+'\',this.value)" placeholder="例2027年3月" style="width:86px;text-align:center;padding:4px;font-size:12px;font-weight:700;border:1px solid #d9a441;border-radius:6px;background:#fffaf0"></td>'; }
+    if(stkOn){ var sv=qStockGet(sku,grp); out += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" inputmode="numeric" value="'+esc(String(sv))+'" onchange="qtStockInput2(\''+esc(sku)+'\',\''+grp+'\',this.value)" style="width:56px;text-align:center;padding:4px;font-size:13px;font-weight:700;border:1px solid #b9b2a3;border-radius:6px"></td>'; }
+  }
+  return out;
+}
+function qtExtraCount(rtOn){
+  var n=0;
+  ['reg','oldlot','defect','special'].forEach(function(grp){
+    if(!qGrpActive(grp, rtOn)) return;
+    if(window.QExpShow && (grp==='reg'||grp==='oldlot')) n++;
+    if(window.QStockShow) n++;
+  });
+  return n;
+}
 function renderQuotePickTable(c){
   if(!c) return;
   if(!Array.isArray(window.QSpecTiers) || !window.QSpecTiers.length){ if(typeof qsResetSelector==='function') qsResetSelector(); }
@@ -1887,7 +1927,7 @@ function renderQuotePickTable(c){
   var html = '';
   var rtDisabled = !rtOn && Array.isArray(window.QSpecTiers) && window.QSpecTiers.some(function(t){ return t!=='general' && t!=='rt'; });
   html += '<button type="button" id="qt-rt" class="qs-rt-btn'+(rtOn?' on':'')+'"'+(rtDisabled?' disabled':'')+' style="margin-bottom:10px" onclick="qtRtClick()">🏨 RT（ホテル・レストラン）で作る　<span style="font-size:12px;font-weight:400;color:#57534e">／ '+(rtDisabled?'卸・特価を外すと選べます':'押すと確認・単独')+'</span></button>';
-  html += '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(true)">全部入れる</button><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(false)">全部外す</button><label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" '+(window.QStockShow?'checked':'')+' onchange="qtToggleStock(this)" style="width:16px;height:16px">在庫欄を乗せる（数はこちらで記入）</label></div>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(true)">全部入れる</button><button type="button" class="btn-sm" style="font-weight:700" onclick="qtAllRows(false)">全部外す</button><label style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#2b2a26;cursor:pointer"><input type="checkbox" '+(window.QStockShow?'checked':'')+' onchange="qtToggleStock(this)" style="width:16px;height:16px">在庫欄を乗せる（区分ごと）</label>'+'<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#9a5512;cursor:pointer"><input type="checkbox" '+(window.QExpShow?'checked':'')+' onchange="qtExpToggle(this)" style="width:16px;height:16px">🗓️ 賞味期限を記入</label></div>';
   html += '<div style="overflow-x:auto;border:1px solid #d9d2c4;border-radius:8px">';
   html += '<table style="border-collapse:collapse;font-size:12.5px;min-width:560px;width:100%">';
   html += '<thead><tr style="background:#f3f4ee">';
@@ -1900,11 +1940,14 @@ function renderQuotePickTable(c){
     else if(on){ st += 'cursor:pointer;color:#0f5040;background:#e3efe9;'; }
     else { st += 'cursor:pointer;color:#9a958b;'; }
     html += '<th onclick="'+(disabled?'':'qtToggleCol(\''+col.k+'\')')+'" style="'+st+'">'+col.l+' '+(on?'<span style="font-size:11px">✓</span>':'<span style="font-size:12px;color:#b9b2a3">＋</span>')+'</th>';
+    if(!rtOn && col.k==='basara'){ html += qtExtraCells('reg', true, null, rtOn); }
+    if(col.k==='oldlot'){ html += qtExtraCells('oldlot', true, null, rtOn); }
+    if(col.k==='defect'){ html += qtExtraCells('defect', true, null, rtOn); }
+    if(col.k==='special'){ html += qtExtraCells('special', true, null, rtOn); }
   });
-  if(rtOn){ html += '<th style="padding:7px 6px;text-align:right;white-space:nowrap;color:#12406e;background:#dbeafe;font-weight:800;border-left:1px solid #e7e2d6">RT ✓</th>'; }
-  if(window.QStockShow){ html += '<th style="padding:7px 6px;text-align:center;width:74px;border-left:1px solid #e7e2d6;color:#2b2a26;font-weight:800">在庫（記入）</th>'; }
+  if(rtOn){ html += '<th style="padding:7px 6px;text-align:right;white-space:nowrap;color:#12406e;background:#dbeafe;font-weight:800;border-left:1px solid #e7e2d6">RT ✓</th>'; html += qtExtraCells('reg', true, null, rtOn); }
   html += '</tr></thead><tbody>';
-  var nCols = 3 + cols.length + (rtOn?1:0) + (window.QStockShow?1:0);
+  var nCols = 3 + cols.length + (rtOn?1:0) + qtExtraCount(rtOn);
   order.forEach(function(g){
     var grpSkus = groups[g].map(function(p){return p.sku;});
     var grpAllOn = grpSkus.length>0 && grpSkus.every(function(s){return shown.has(s);});
@@ -1922,9 +1965,12 @@ function renderQuotePickTable(c){
         var act = qtActive(col.k) && !(rtOn && col.k!=='general');
         var v = priceForSku(p.sku, col.k);
         html += '<td style="padding:7px 6px;text-align:right;border-left:1px solid #f0ece2;'+(act?'font-weight:700;color:#2b2a26;background:#f6f8ef;':'')+'">'+qtYen(v, !act)+'</td>';
+        if(!rtOn && col.k==='basara'){ html += qtExtraCells('reg', false, p.sku, rtOn); }
+        if(col.k==='oldlot'){ html += qtExtraCells('oldlot', false, p.sku, rtOn); }
+        if(col.k==='defect'){ html += qtExtraCells('defect', false, p.sku, rtOn); }
+        if(col.k==='special'){ html += qtExtraCells('special', false, p.sku, rtOn); }
       });
-      if(rtOn){ html += '<td style="padding:7px 6px;text-align:right;font-weight:700;background:#eff5fc;border-left:1px solid #f0ece2">'+qtYen(priceForSku(p.sku,'rt'),false)+'</td>'; }
-      if(window.QStockShow){ var __sv=(window.QStockValues&&window.QStockValues[p.sku]!=null)?window.QStockValues[p.sku]:''; html += '<td style="padding:5px 6px;text-align:center;border-left:1px solid #f0ece2"><input type="text" inputmode="numeric" value="'+esc(String(__sv))+'" onchange="qtStockInput(\''+esc(p.sku)+'\',this.value)" style="width:58px;text-align:center;padding:4px;font-size:13px;font-weight:700;border:1px solid #b9b2a3;border-radius:6px"></td>'; }
+      if(rtOn){ html += '<td style="padding:7px 6px;text-align:right;font-weight:700;background:#eff5fc;border-left:1px solid #f0ece2">'+qtYen(priceForSku(p.sku,'rt'),false)+'</td>'; html += qtExtraCells('reg', false, p.sku, rtOn); }
       html += '</tr>';
     });
   });
@@ -2504,6 +2550,8 @@ function specCell(v, style){
 // 仕様表テーブル本体（分類列は廃止＝全商品オーガニックのため見出しで1回だけ表示。EU有機・分析表は値がある時だけ列を出す）
 function buildSpecTableHtml(specSkus, custType, specTiers, stock){
   const useMulti = Array.isArray(specTiers);
+  function stkRegBS(sku){ if(!stock||!stock.values) return ''; var o=stock.values[sku]; if(o&&typeof o==='object') return o.reg!=null?String(o.reg):''; if(typeof o==='string') return o; return ''; }
+  function expRegBS(sku){ if(stock&&stock.expValues){ var o=stock.expValues[sku]; if(o&&typeof o==='object'&&o.reg!=null) return String(o.reg); } var pp=findProductBySku(sku); return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']):''; }
   const SPEC_CANON = ['general','wholesale1','wholesale2','basara','rt','oldlot','defect','special'];
   let priceCols;
   if(useMulti){
@@ -2542,13 +2590,13 @@ function buildSpecTableHtml(specSkus, custType, specTiers, stock){
     html += specCell('<span style="font-weight:700">'+esc(specDisplayName(r.p.name, r.cap))+'</span>');
     html += specCell(esc(r.cap), 'text-align:center');
     html += specCell(r.p.boxQty ? String(r.p.boxQty) : '', 'text-align:center');
-    html += specCell(esc(r.exp), 'text-align:center;font-weight:700'); // 空欄は空欄のまま（機械は補完しない）
+    html += specCell(esc(expRegBS(r.p.sku)), 'text-align:center;font-weight:700'); // 賞味期限（正規）＝入力値優先→無ければマスタ
     priceCols.forEach(function(col){
       var v = priceForSku(r.p.sku, col.type);
       var isOpen = (col.type==='general');
       html += specCell(v ? '¥'+v.toLocaleString() : '－', isOpen ? 'text-align:right' : 'text-align:right;font-weight:700;background:#f6f8ef');
     });
-    if(stock && stock.show){ var __sv=(stock.values && stock.values[r.p.sku]!=null)? stock.values[r.p.sku] : ''; html += specCell(esc(String(__sv)), 'text-align:center;font-weight:700'); }
+    if(stock && stock.show){ html += specCell(esc(stkRegBS(r.p.sku)), 'text-align:center;font-weight:700'); }
     html += specCell(esc(r.p.container||''), 'text-align:center');
     if(hasEU)  html += specCell(esc(r.eu), 'text-align:center');
     if(hasAna) html += specCell(esc(r.ana), 'text-align:center');
@@ -2586,7 +2634,7 @@ function buildSpecSectionHtml(record, c){
   let html = buildDocHeaderHtml(record, c, 'quote');
   html += '<div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.12em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin:2px 0 12px">お見積書</div>';
   html += '<div style="margin-bottom:8px;font-size:13px">下記の通り御見積り申し上げます。</div>';
-  html += buildSpecTableHtml(record.specSkus, record.customerType, record.specTiers, {show:record.stockShow, values:record.stockValues});
+  html += buildSpecTableHtml(record.specSkus, record.customerType, record.specTiers, {show:record.stockShow, values:record.stockValues, expShow:record.expiryShow, expValues:record.expiryValues});
   if(record.remarks){
     html += '<div style="margin-top:8px;font-size:11px;border:1px solid #d5cfc3;border-radius:6px;padding:6px 10px"><strong>備考</strong><br>'+esc(record.remarks).replace(/\n/g,'<br>')+'</div>';
   }
@@ -2776,7 +2824,7 @@ function generateExtractQuoteDoc(){
     id: 'q'+Date.now(), customerId: c.id, customerName: c.name, companyName: (c.companyName!==undefined ? c.companyName : ((c.name && c.contactPerson && c.name===c.contactPerson) ? '' : c.name)), customerType: c.type,
     contactPerson: contactPerson, subject: subject,
     items: items.map(it=>({sku:it.sku,name:it.name,bottles:it.bottles,boxes:it.boxes,qty:it.qty,unitPrice:it.unitPrice,amount:it.amount,taxRate:it.taxRate})),
-    specSkus: specSkus, specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null), stockShow: !!window.QStockShow, stockValues: Object.assign({}, window.QStockValues||{}), exWithInvoice: extractWithInvoice,
+    specSkus: specSkus, specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null), stockShow: !!window.QStockShow, stockValues: JSON.parse(JSON.stringify(window.QStockValues||{})), expiryShow: !!window.QExpShow, expiryValues: JSON.parse(JSON.stringify(window.QExpiryValues||{})), exWithInvoice: extractWithInvoice,
     exFeeBase: feeGate ? warehouseFeeForGate() : 0,
     warehouseFee: extractWithInvoice ? bulkWarehouseFee : 0, gateType: gateType,
     shipMode: (document.getElementById('q-ship-mode')||{}).value || 'none',
@@ -3010,6 +3058,7 @@ function generatePriceListDoc(){
     contactPerson: contactPerson,
     products: list.map(p=>({sku:p.sku, name:p.name, group:p.group, boxQty:p.boxQty})),
     specTiers: (window.QSpecTiers ? window.QSpecTiers.slice() : null),
+    stockShow: !!window.QStockShow, stockValues: JSON.parse(JSON.stringify(window.QStockValues||{})), expiryShow: !!window.QExpShow, expiryValues: JSON.parse(JSON.stringify(window.QExpiryValues||{})),
     selectedFields: fieldsConfig.selectedFields,
     fieldOverrides: fieldsConfig.overrides,
     remarks: remarks, internalMemo: internalMemo, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'pricelist'
@@ -3035,6 +3084,20 @@ function buildPriceListDocHtml(record, c){
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
   const priceCols = priceListPriceColumns(record.customerType, record.specTiers);
   const selFields = record.selectedFields || [];
+  /* ★区分ごとの賞味期限・在庫（正規=定価/卸/バサラ／旧ロット・不良品・特別提供は各自。賞味期限は正規と旧ロットのみ） */
+  const plShowStk = !!record.stockShow;
+  const plShowExp = !!record.expiryShow;
+  const plStVals = record.stockValues || {};
+  const plExVals = record.expiryValues || {};
+  function plGroupOf(type){ return (type==='oldlot'||type==='defect'||type==='special') ? type : 'reg'; }
+  function plStk(sku,grp){ var o=plStVals[sku]; if(o&&typeof o==='object') return o[grp]!=null?String(o[grp]):''; if(typeof o==='string'&&grp==='reg') return o; return ''; }
+  function plExp(sku,grp){ var o=plExVals[sku]; if(o&&typeof o==='object') return o[grp]!=null?String(o[grp]):''; return ''; }
+  var plGrpPresent={reg:false,oldlot:false,defect:false,special:false};
+  priceCols.forEach(function(col){ plGrpPresent[plGroupOf(col.type)]=true; });
+  function plExpFor(grp){ return plShowExp && (grp==='reg'||grp==='oldlot'); }
+  function plExtraCount(){ var n=0; ['reg','oldlot','defect','special'].forEach(function(grp){ if(!plGrpPresent[grp]) return; if(plExpFor(grp)) n++; if(plShowStk) n++; }); return n; }
+  function plExtraHead(grp){ var out=''; if(plExpFor(grp)) out+='<th>賞味期限</th>'; if(plShowStk) out+='<th>在庫</th>'; return out; }
+  function plExtraCell(grp,sku){ var out=''; if(plExpFor(grp)){ var ev=plExp(sku,grp); out+='<td>'+esc(ev||'-')+'</td>'; } if(plShowStk){ var sv=plStk(sku,grp); out+='<td>'+esc(sv||'-')+'</td>'; } return out; }
 
   let html = '<div class="invoice-doc pricelist-doc">';
   html += '<div class="invoice-doc-title">標 準 価 格 表</div>';
@@ -3061,12 +3124,13 @@ function buildPriceListDocHtml(record, c){
 
   html += '<table class="pricelist-table"><thead>';
   html += '<tr>';
-  html += '<th rowspan="2">分類</th><th rowspan="2">生産地</th><th rowspan="2">商品名</th><th rowspan="2">容量</th><th rowspan="2">1箱数</th><th rowspan="2">賞味期限</th>';
-  html += '<th colspan="'+priceCols.length+'">単価（1本あたり・税抜）</th>';
+  html += '<th rowspan="2">分類</th><th rowspan="2">生産地</th><th rowspan="2">商品名</th><th rowspan="2">容量</th><th rowspan="2">1箱数</th>'+(plShowExp?'':'<th rowspan="2">賞味期限</th>');
+  html += '<th colspan="'+(priceCols.length + plExtraCount())+'">単価（1本あたり・税抜）</th>';
   html += '<th rowspan="2">容器</th>';
   html += '<th colspan="3">公的証明書（EU）</th>';
   html += '</tr><tr>';
-  priceCols.forEach(function(col){ html += '<th>'+esc(col.label)+'</th>'; });
+  var plRegHeadDone=false;
+  priceCols.forEach(function(col){ html += '<th>'+esc(col.label)+'</th>'; var g=plGroupOf(col.type); if(g==='reg'){ if(!plRegHeadDone){ plRegHeadDone=true; html+=plExtraHead('reg'); } } else { html+=plExtraHead(g); } });
   html += '<th>オーガニック</th><th>コンタミネーション</th><th>分析表</th>';
   html += '</tr></thead><tbody>';
 
@@ -3107,10 +3171,13 @@ function buildPriceListDocHtml(record, c){
       }
       html += '<td>'+esc(capacity)+'</td>';
       html += '<td>'+esc(boxQty)+'</td>';
-      html += '<td>'+esc(shelfLife)+'</td>';
+      if(!plShowExp) html += '<td>'+esc(shelfLife)+'</td>';
+      var plRegCellDone=false;
       priceCols.forEach(function(col){
         const unitPrice = priceForSku(p.sku, col.type);
         html += '<td>¥'+unitPrice.toLocaleString()+'</td>';
+        var g=plGroupOf(col.type);
+        if(g==='reg'){ if(!plRegCellDone){ plRegCellDone=true; html+=plExtraCell('reg',p.sku); } } else { html+=plExtraCell(g,p.sku); }
       });
       html += '<td>'+esc(container)+'</td>';
       if(idx===0){
