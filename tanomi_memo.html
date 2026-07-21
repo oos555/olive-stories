@@ -195,17 +195,40 @@ function gasPost(body, cb){
 }
 function setSync(msg){ var el=document.getElementById('sync'); if(el) el.textContent = msg||''; }
 
+function itemsById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null) m[String(x.id)]=x; }); return m; }
+function rePush(list, i){
+  if(i>=list.length){ setSync('☁️ この端末のメモは安全です（パソコンにも保存を試みました）'); return; }
+  syncSave(list[i], function(){ rePush(list, i+1); });
+}
 function syncLoad(done){
   setSync('☁️ 読み込み中…');
   gasPost({ action:'loadStickyMemos', sheetName:SHEET_NAME, password:password }, function(err, d){
     if(err){ setSync('⚠️ オフライン（この端末の記録を表示中）'); if(done) done(true); return; }
     if(d && (d.status==='ok' || d.memos || d.data)){
-      var memos = d.memos || (d.data && d.data.memos) || d.data || [];
-      ITEMS = memos.map(fromMemo).filter(Boolean);
-      saveCache(); renderList(); setSync('☁️ パソコンとも同期しています');
+      var raw = d.memos || (d.data && d.data.memos) || d.data || [];
+      var server = raw.map(fromMemo).filter(Boolean);
+      /* === 安全マージ（データ消失バグ修正 2026-07-21）===
+         サーバーが空・少なく返ってきても、この端末に入っているメモは絶対に消さない。
+         ・サーバーにあるものはそのまま採用（他の端末で押した「できた」も反映される）
+         ・サーバーにまだ無い＝この端末だけのメモは残し、こっそりパソコンに送り直す（自動で治す） */
+      var serverMap = itemsById(server);
+      var merged = server.slice();
+      var unsynced = [];
+      ITEMS.forEach(function(local){
+        if(!local || local.id==null) return;
+        if(!serverMap[String(local.id)]){ merged.push(local); unsynced.push(local); }
+      });
+      ITEMS = merged; saveCache(); renderList();
+      if(unsynced.length){
+        setSync('☁️ 未同期の'+unsynced.length+'件をパソコンに送っています…');
+        rePush(unsynced, 0);
+      } else {
+        setSync('☁️ パソコンとも同期しています');
+      }
       if(done) done(true);
     } else {
-      setSync('⚠️ サーバーからの返事：'+((d&&(d.message||d.error||d.status))||'中身が空でした'));
+      /* サーバーが「ok」以外を返したときも、この端末のメモには一切手を触れない */
+      setSync('⚠️ サーバーからの返事：'+((d&&(d.message||d.error||d.status))||'中身が空でした')+'（この端末の記録は残しています）');
       if(done) done(false);
     }
   });
