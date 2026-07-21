@@ -1012,6 +1012,17 @@ function priceCodeForInvoice(custType, effTypes){
   }
   return PRICE_CODE.general;
 }
+// ③区分＋MIX（2026-07-21 中村様③案）：無償/特価/旧ロット/不良が混ざっていたら頭の暗号に「-MIX」を足す
+function caseHasSpecialMix(items, specSkus){
+  var has=false;
+  (items||[]).forEach(function(it){ if(it && (it.sampleKind==='free'||it.sampleKind==='tokka'||it.sampleKind==='paid')) has=true; });
+  (specSkus||[]).forEach(function(s){ if(s && typeof s==='object' && (s.state==='oldlot'||s.state==='special'||s.state==='defect')) has=true; });
+  return has;
+}
+function priceCodeMix(custType, effTypes, hasMix){
+  var base = priceCodeForInvoice(custType, effTypes);
+  return hasMix ? (base + '-MIX') : base;
+}
 /* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
 function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
 // 標準価格表ヘッダー右上に載せる会社の一言情報
@@ -1364,6 +1375,7 @@ function qcChooseExisting(){
   setQuoteGuide('一覧からお客様を選ぶ（🔍で名前の検索もできます）');
 }
 function qcChooseNew(){
+  window.__carryManageNo = null; // 新規のお客様＝新しい案件（引き継ぎ番号をリセット）
   const wrap = document.getElementById('q-customer-select-wrap');
   if(wrap) wrap.style.display = 'none';
   const form = document.getElementById('new-cust-form');
@@ -1563,6 +1575,7 @@ function syncQuoteCustomerControls(){
 }
 // 会社名/担当者名どちらの選択でも、ここを通して本体の値をセットし、区分などを更新する
 function pickQuoteCustomer(cid){
+  window.__carryManageNo = null; // 手動で選び直し＝新しい案件（引き継ぎ番号をリセット）
   const q = document.getElementById('q-customer'); if(q) q.value = cid || '';
   syncQuoteCustomerControls();
   if(typeof onQuoteCustomerChange==='function') onQuoteCustomerChange();
@@ -1759,6 +1772,11 @@ function prefillFromPastQuote(quoteId){
     showSyncStatus('✅ 前回の内容を復元しました（単価は最新版で計算されます）');
   }
 }
+// 1案件＝1管理番号。①②で引き継いだ番号があればそれを使い、無ければ新規発番。見積書と請求書で必ず同じ番号になる。
+function caseManageNo(priceCode, today){
+  if(window.__carryManageNo){ return window.__carryManageNo; }
+  return priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+}
 // ①②共通：保存済みの見積もりの中身を、作成フォームに「見積書 兼 請求書（both）」として引き継ぐ。
 // 「同じものをシンプルに」：商品の並び・容量込みの商品名・生産地・賞味期限はそのまま。数量と無償/特価だけ入れ直す。
 function startInvoiceFromQuote(quoteId){
@@ -1766,6 +1784,8 @@ function startInvoiceFromQuote(quoteId){
   if(!past){ alert('その見積もりが見つかりませんでした'); return; }
   var c = customers.find(function(x){ return x.id===past.customerId; });
   if(!c){ alert('お客様の情報が見つかりませんでした'); return; }
+  // 案件の管理番号を引き継ぐ（同じ番号で請求書を作る＝「呼び戻した」案件になる）
+  window.__carryManageNo = past.estimateNo || past.invoiceNo || past.manageNo || null;
   var r = document.querySelector('input[name="q-doctype"][value="both"]');
   if(r){ r.checked = true; if(typeof onDocTypeChange==='function') onDocTypeChange(); }
   var hidden = document.getElementById('q-customer');
@@ -2626,8 +2646,8 @@ function generateQuoteDoc(){
     remarks: remarks, internalMemo: internalMemo, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'quote'
   };
   // 見積番号（暗号-YYYYMMDD-4桁）：暗号は請求書と同じ自動判定（お客様の区分＋6箱昇格の実際の適用）
-  record.priceCode = priceCodeForInvoice(c.type, effTypes);
-  record.estimateNo = record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+  record.priceCode = priceCodeMix(c.type, effTypes, caseHasSpecialMix(record.items, record.specSkus));
+  record.estimateNo = caseManageNo(record.priceCode, today);
   if(isInvoiceLikeType(docType)){
     initInvoiceFields(); // 空欄なら今日＋30日を入れる
     record.kind = docType; // 'invoice'（請求書）または 'both'（見積書 兼 請求書）
@@ -2638,8 +2658,8 @@ function generateQuoteDoc(){
     record.invoiceDateStr = document.getElementById('q-invoice-date').value || fmtDateJa(today);
     record.dueStr = document.getElementById('q-invoice-due').value || dueDateFromInvoiceDate(record.invoiceDateStr);
     record.bankIndex = parseInt(document.getElementById('q-invoice-bank').value) || 0;
-    record.priceCode = priceCodeForInvoice(c.type, effTypes);
-    record.invoiceNo = 'INV-' + record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+    record.priceCode = priceCodeMix(c.type, effTypes, caseHasSpecialMix(record.items, record.specSkus));
+    record.invoiceNo = record.estimateNo; // 1案件1番号：見積書と同じ管理番号
   }
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
@@ -2911,16 +2931,22 @@ function buildCompactInvoiceHtml(record, opts){
     html += '<div>管理番号：'+esc(record.invoiceNo||'')+'</div>';
     html += '<div>請求日：'+esc(record.invoiceDateStr||'')+'　お支払期日：'+esc(record.dueStr||'')+'</div></div>';
   }
-  html += '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f4f2ec">';
-  html += '<th style="border:1px solid #b7b2a6;padding:4px">品名</th><th style="border:1px solid #b7b2a6;padding:4px;width:14%">賞味期限</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">数量</th><th style="border:1px solid #b7b2a6;padding:4px;width:14%">単価（税抜）</th><th style="border:1px solid #b7b2a6;padding:4px;width:15%">金額（税抜）</th>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;color:#1a1a18">';
+  html += '<thead><tr style="background:#f4f2ec;color:#1a1a18">';
+  html += '<th style="border:1px solid #8a857c;padding:6px;font-weight:800">品名</th><th style="border:1px solid #8a857c;padding:6px;width:11%;font-weight:800">生産地</th><th style="border:1px solid #8a857c;padding:6px;width:13%;font-weight:800">賞味期限</th><th style="border:1px solid #8a857c;padding:6px;width:14%;font-weight:800">数量</th><th style="border:1px solid #8a857c;padding:6px;width:13%;font-weight:800">単価（税抜）</th><th style="border:1px solid #8a857c;padding:6px;width:14%;font-weight:800">金額（税抜）</th>';
   html += '</tr></thead><tbody>';
-  function td(v, style){ return '<td style="border:1px solid #b7b2a6;padding:4px;'+(style||'')+'">'+v+'</td>'; }
+  function td(v, style){ return '<td style="border:1px solid #8a857c;padding:6px;color:#1a1a18;font-weight:700;'+(style||'')+'">'+v+'</td>'; }
   // 賞味期限：正規（定価/卸/RT）の既定を商品ごとに出す（「違うものが届いた」の照合用）
   function invExp(sku){
     var d=(typeof defaultRegExpiryForSku==='function')?defaultRegExpiryForSku(sku):'';
     if(d) return d;
     var pp=findProductBySku(sku);
     return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']):'';
+  }
+  // 生産地：見積書と同じ産地一覧から（国名は変わらない情報。照合用）
+  function invOrigin(sku){
+    var pp=findProductBySku(sku); if(!pp) return '';
+    return GROUP_ORIGIN[pp.group] || (pp.extras&&pp.extras['生産地']) || pp.origin || '';
   }
   record.items.forEach(function(it){
     const p = findProductBySku(it.sku);
@@ -2930,35 +2956,35 @@ function buildCompactInvoiceHtml(record, opts){
     else if(it.boxes) qtyStr = it.boxes+'箱（'+(it.boxes*boxQty)+'本）';
     else qtyStr = it.bottles+'本';
     const taxMark = (it.taxRate===0.10 ? '' : ' ※');
-    html += '<tr>'+td(esc(it.name)+taxMark)+td(esc(invExp(it.sku)||'－'),'text-align:center')+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
+    html += '<tr>'+td(esc(it.name)+taxMark)+td(esc(invOrigin(it.sku)||'－'),'text-align:center')+td(esc(invExp(it.sku)||'－'),'text-align:center')+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
   });
   // 倉庫出荷手数料：卸・RTのご注文のとき必ず項目として載せる（無料でも金額を見せる）
   if(feeBase > 0){
     if(warehouseFee > 0){
-      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+'</tr>';
+      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+td('¥'+warehouseFee.toLocaleString(),'text-align:right')+'</tr>';
     } else {
       serviceTotal += feeBase;
-      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('1式','text-align:center')
+      html += '<tr>'+td('倉庫ピックアップ手数料（卸でケース割れ時）')+td('－','text-align:center')+td('－','text-align:center')+td('1式','text-align:center')
         +td('<s style="color:#9a3412">¥'+feeBase.toLocaleString()+'</s>','text-align:right')
         +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
     }
   }
   // 送料：必ず項目として載せる
   if(record.shipMode==='manual' && shipFee > 0){
-    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+shipFee.toLocaleString(),'text-align:right')+td('¥'+shipFee.toLocaleString(),'text-align:right')+'</tr>';
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('－','text-align:center')+td('1式','text-align:center')+td('¥'+shipFee.toLocaleString(),'text-align:right')+td('¥'+shipFee.toLocaleString(),'text-align:right')+'</tr>';
   } else if(record.shipMode==='free'){
     const base = record.shipFee || 0;
     if(base > 0) serviceTotal += base;
-    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('－','text-align:center')+td('1式','text-align:center')
       +td(base > 0 ? '<s style="color:#9a3412">¥'+base.toLocaleString()+'</s>' : '－','text-align:right')
       +td('<span style="font-size:9.5px;color:#0f5040">当社サービス　</span><span style="font-weight:700">¥0</span>','text-align:right')+'</tr>';
   } else {
-    html += '<tr>'+td('送料')+td('－','text-align:center')+td('1式','text-align:center')+td('－','text-align:right')+td('別途','text-align:right')+'</tr>';
+    html += '<tr>'+td('送料')+td('－','text-align:center')+td('－','text-align:center')+td('1式','text-align:center')+td('－','text-align:right')+td('別途','text-align:right')+'</tr>';
   }
   html += '</tbody></table>';
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px;gap:10px;flex-wrap:wrap">';
   html += '<div></div>';
-  html += '<table style="border-collapse:collapse;font-size:11px;min-width:46%">';
+  html += '<table style="border-collapse:collapse;font-size:12.5px;min-width:46%;color:#1a1a18;font-weight:700">';
   if(subtotalTax8){
     html += '<tr><td style="padding:2px 6px">8%対象（軽減税率※・税抜）</td><td style="padding:2px 6px;text-align:right">¥'+subtotalTax8.toLocaleString()+'</td></tr>';
     html += '<tr><td style="padding:2px 6px">消費税（8%）</td><td style="padding:2px 6px;text-align:right">¥'+taxAmount8.toLocaleString()+'</td></tr>';
@@ -2967,7 +2993,7 @@ function buildCompactInvoiceHtml(record, opts){
     html += '<tr><td style="padding:2px 6px">10%対象（税抜）</td><td style="padding:2px 6px;text-align:right">¥'+(subtotalTax10+warehouseFee+shipFee).toLocaleString()+'</td></tr>';
     html += '<tr><td style="padding:2px 6px">消費税（10%）</td><td style="padding:2px 6px;text-align:right">¥'+(taxAmount10+warehouseTax+shipTax).toLocaleString()+'</td></tr>';
   }
-  html += '<tr style="font-weight:700;font-size:13px;border-top:2px solid #1a1a18"><td style="padding:4px 6px">ご請求合計（税込）</td><td style="padding:4px 6px;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
+  html += '<tr style="font-weight:800;font-size:15px;border-top:2px solid #1a1a18"><td style="padding:5px 6px;color:#1a1a18">ご請求合計（税込）</td><td style="padding:5px 6px;text-align:right;color:#1a1a18">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
   const bank = BANK_ACCOUNTS[record.bankIndex] || BANK_ACCOUNTS[0];
   html += '<div style="border:1px solid #b7b2a6;border-radius:4px;padding:6px 10px;margin-top:8px;font-size:10.5px;line-height:1.7">';
@@ -3088,14 +3114,14 @@ function generateExtractQuoteDoc(){
     issuedDateStr: today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日',
     expiryStr: expiryStr, kind: 'extract'
   };
-  record.priceCode = priceCodeForInvoice(c.type, effTypes);
-  record.estimateNo = record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+  record.priceCode = priceCodeMix(c.type, effTypes, caseHasSpecialMix(record.items, record.specSkus));
+  record.estimateNo = caseManageNo(record.priceCode, today);
   if(extractWithInvoice){
     initInvoiceFields(); // 空欄なら今日＋30日を入れる
     record.invoiceDateStr = document.getElementById('q-invoice-date').value || fmtDateJa(today);
     record.dueStr = document.getElementById('q-invoice-due').value || dueDateFromInvoiceDate(record.invoiceDateStr);
     record.bankIndex = parseInt(document.getElementById('q-invoice-bank').value) || 0;
-    record.invoiceNo = 'INV-' + record.priceCode + '-' + today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2) + '-' + String(Date.now()).slice(-4);
+    record.invoiceNo = record.estimateNo; // 1案件1番号：見積書と同じ管理番号
   }
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
@@ -3315,6 +3341,10 @@ function generatePriceListDoc(){
     fieldOverrides: fieldsConfig.overrides,
     remarks: remarks, internalMemo: internalMemo, issuedAt: today.toISOString(), expiryStr: expiryStr, kind: 'pricelist'
   };
+  // 価格表にも管理番号を出す（③区分＋MIX：旧ロット・特価・不良の列が入っていれば -MIX）
+  var plMix = Array.isArray(record.specTiers) && record.specTiers.some(function(t){ return t==='oldlot'||t==='special'||t==='defect'; });
+  record.priceCode = priceCodeMix(c.type, [], plMix);
+  record.estimateNo = caseManageNo(record.priceCode, today);
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
   const doc = buildPriceListDocHtml(record, c);
@@ -3497,7 +3527,7 @@ function downloadQuotePdf(record){
     }
     const dateStr = new Date().toISOString().slice(0,10);
     const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : (record.kind==='both' ? '見積書兼請求書' : '見積書'));
-    pdf.save(kindStr+'_'+record.customerName+'_'+dateStr+'.pdf');
+    pdf.save(kindStr+'_'+record.customerName+'様_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
     showSyncStatus('⚠️ PDF作成に失敗しました', true);
