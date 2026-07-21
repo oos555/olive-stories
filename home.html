@@ -172,6 +172,20 @@
   .bed-foot{font-size:11.5px;color:#8a857c;text-align:right;padding-top:2px;}
   .app.lit{border-color:#e2b4af;background:#fffaf9;}
 
+  /* ── しずかなお庭（アラートが無い時・いつも玄関に置いておく） ── */
+  .garden-quiet{
+    text-align:center;
+    background:linear-gradient(180deg,#fbf9f3 0%, #f4f7ee 100%);
+    border:1px solid #dfe4d2; border-radius:18px; padding:20px 20px 18px;
+    box-shadow:0 6px 18px rgba(85,98,46,.06);
+  }
+  .garden-quiet .art{width:60px; height:52px; margin:0 auto 8px; display:block;}
+  .garden-quiet .t1{
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;
+    font-weight:700; font-size:15.5px; color:var(--sage-ink); margin-bottom:5px; letter-spacing:.04em;
+  }
+  .garden-quiet .t2{font-size:13px; color:#5f6a4a; line-height:1.8;}
+
   footer{
     text-align:center; margin-top:34px;
     font-size:11.5px; color:var(--ink); opacity:.65; letter-spacing:.1em;
@@ -255,9 +269,29 @@
   </div>
   <p class="greeting" id="greeting">こんにちは。今日はどちらから始めますか？</p>
 
-  <!-- ── アラートの帯（未対応があるときだけ出る）── -->
-  <div id="alert-bar" class="alert-bar" style="display:none">
-    <button class="alert-bar-btn" onclick="toggleGarden()" id="alert-bar-btn" aria-expanded="false">
+  <!-- ── アラートガーデン（いつも玄関に置いておく）──
+       ・やることが無い時 → しずかなお庭（#alert-quiet）をそっと表示（消えない）
+       ・やることが有る時 → やることの帯（#alert-bar-btn）＋花壇（#alert-garden）に切り替わる -->
+  <div id="alert-bar" class="alert-bar">
+
+    <!-- 何もない時：しずかなお庭（いつもここに居る） -->
+    <div id="alert-quiet" class="garden-quiet" role="status">
+      <svg class="art" viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="32" cy="16" r="10" fill="#f3e7bd" opacity=".75"/>
+        <path d="M10 46 Q32 41 54 46" stroke="#c7cdae" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <path d="M26 46 V30" stroke="#7d8c53" stroke-width="2" stroke-linecap="round"/>
+        <path d="M26 36 C18 34 13 36 12 27 C21 27 25 30 26 36 Z" fill="#a3b18a"/>
+        <path d="M38 46 V28" stroke="#7d8c53" stroke-width="2" stroke-linecap="round"/>
+        <path d="M38 33 C46 30 51 32 52 23 C43 23 39 26 38 33 Z" fill="#8a9a6f"/>
+      </svg>
+      <div class="txt">
+        <div class="t1">アラートガーデン</div>
+        <div class="t2">今のところ アラートはありません。おつかれさまです。</div>
+      </div>
+    </div>
+
+    <!-- やることがある時：帯＋花壇（初期は隠しておく） -->
+    <button class="alert-bar-btn" onclick="toggleGarden()" id="alert-bar-btn" aria-expanded="false" style="display:none">
       <span class="ab-title"><span class="ab-dot" aria-hidden="true"></span>やること</span>
       <span class="ab-seg ab-seg-now">今すぐ <b id="ab-now">0</b> 件</span>
       <span class="ab-div" aria-hidden="true"></span>
@@ -417,8 +451,21 @@
     const bar = document.getElementById('alert-bar');
     renderGarden(now, soon, watch);
     if(!bar) return;
-    if(total <= 0){ bar.style.display='none'; return; }
-    bar.style.display='block';
+    const quiet = document.getElementById('alert-quiet');
+    const barBtn = document.getElementById('alert-bar-btn');
+    const gardenEl = document.getElementById('alert-garden');
+    bar.style.display='block'; // 帯そのものは消さない（お庭はいつも玄関に居る）
+    if(total <= 0){
+      // やることが無い時：しずかなお庭を出して、やることの帯・花壇は隠す
+      if(quiet) quiet.style.display='block';
+      if(barBtn) barBtn.style.display='none';
+      if(gardenEl) gardenEl.style.display='none';
+      alertGardenOpen = false;
+      return;
+    }
+    // やることがある時：しずかなお庭を隠して、やることの帯を出す
+    if(quiet) quiet.style.display='none';
+    if(barBtn) barBtn.style.display='flex';
     document.getElementById('ab-now').textContent = cNow;
     document.getElementById('ab-soon').textContent = cSoon;
     document.getElementById('ab-watch').textContent = cWatch;
