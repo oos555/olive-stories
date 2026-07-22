@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>統合マスタ N ｜ オリーブオイル・ストーリーズ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&display=swap');
+*{box-sizing:border-box}
+body{margin:0;background:#faf7f2;color:#2b2a26;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;font-size:15px;line-height:1.6}
+.container{max-width:900px;margin:0 auto;padding:14px}
+
+/* ── アプリ見出し（工房＝ゴールド系） ── */
+.app-header{background:#b08d57;color:#fff;border-radius:12px 12px 0 0;padding:14px 18px;display:flex;align-items:center;gap:9px}
+.app-header .em{font-size:22px}
+.app-header .ttl{font-family:"Zen Maru Gothic";font-weight:900;font-size:20px}
+.app-header .sub{margin-left:auto;font-size:12px;opacity:.92;font-weight:700}
+
+/* ── 共通ナビ（他アプリと同じ形） ── */
+.oos-nav{background:#fff;border:1px solid #e8e2d8;border-top:none;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;border-radius:0 0 12px 12px;margin-bottom:1rem}
+.oos-nav a{color:#55622e;text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid #e8e2d8;border-radius:6px;background:#fff}
+.oos-nav a.current{background:#8a6d3f;color:#fff;border-color:#8a6d3f;font-weight:700}
+.oos-nav a:hover:not(.current){background:#f2ede2}
+.oos-nav a.nav-gray{background:#efefeb;border-color:#d6d6ce;color:#2b2a26}
+.oos-nav a.nav-blue{background:#e3eef8;border-color:#bdd7ec;color:#2c5578}
+.oos-nav a.nav-gray:hover:not(.current){background:#e3e3dd}
+.oos-nav a.nav-blue:hover:not(.current){background:#d2e3f2}
+.oos-nav a.nav-lock{position:relative;padding-right:22px}
+.oos-nav a.nav-lock::after{content:'🔒';position:absolute;top:2px;right:5px;font-size:9px;line-height:1}
+
+/* ── このアプリは何をする？パネル ── */
+.whatis{background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:hidden;margin-bottom:1rem}
+.whatis>summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;font-weight:700;color:#2b2a26;background:#f4eede}
+.whatis>summary::-webkit-details-marker{display:none}
+.whatis .chev{font-size:12.5px;font-weight:700;color:#8a6d3f;white-space:nowrap}
+.whatis .chev::after{content:"タップでひらく ▼"}
+.whatis[open] .chev::after{content:"とじる ▲"}
+.whatis .wbody{border-top:1px solid #e8e2d8;background:#faf9f6;padding:14px 16px 16px;font-size:13.5px;color:#43402a;line-height:1.75}
+.whatis .wbody b{color:#6d5527}
+.wflow{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin:10px 0 4px}
+.wnode{flex:1;min-width:118px;background:#f6f1e6;border:1px solid #e4d8be;border-radius:9px;padding:9px 11px;text-align:center;font-size:12px;font-weight:700;color:#6d5527}
+.warr{display:flex;align-items:center;justify-content:center;color:#c3a86f;font-size:18px;font-weight:900}
+@media(max-width:560px){.wflow{flex-direction:column}.warr{transform:rotate(90deg)}.wnode{min-width:0}}
+
+/* ── タブ ── */
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tab{flex:1;min-width:80px;text-align:center;background:#f1efe8;border:1.5px solid #e0dacb;border-radius:10px;padding:10px 6px;font-weight:800;font-size:14px;color:#6b6559;cursor:pointer;user-select:none}
+.tab.on{background:#8a6d3f;border-color:#8a6d3f;color:#fff}
+.tab.todo.on{background:#c2761f;border-color:#c2761f}
+.tab .cnt{display:inline-block;min-width:18px;background:#dc2626;color:#fff;font-size:11px;border-radius:99px;padding:0 5px;margin-left:4px;font-weight:900}
+.tab.on .cnt{background:#fff;color:#c2761f}
+.panel{display:none}
+.panel.on{display:block}
+
+.loadnote{background:#fff8e6;border:1px solid #f0e2b8;border-radius:8px;padding:9px 12px;font-size:13px;color:#6b5a12;margin-bottom:12px}
+.listnote{font-size:12.5px;color:#6b6559;background:#f5f3ec;border-radius:8px;padding:9px 11px;margin-bottom:12px;line-height:1.6}
+
+/* ── 要整備 ── */
+.todohead{font-family:"Zen Maru Gothic";font-weight:900;font-size:16px;color:#8a5a1c;margin:2px 0 4px}
+.todosub{font-size:12.5px;color:#7a6a4a;margin-bottom:14px;line-height:1.75}
+.todo-item{display:flex;align-items:center;gap:10px;background:#fffdf5;border:1.5px solid #e7d7a8;border-radius:11px;padding:13px;margin-bottom:10px}
+.todo-item .ti-body{flex:1;min-width:0}
+.todo-item .ti-name{font-weight:900;font-size:16px;color:#2b2a26}
+.todo-item .ti-sub{font-size:12px;color:#8a7f6a;margin-top:3px}
+.needfix{background:#fff4e5;color:#b45309;font-weight:800;font-size:11px;border-radius:6px;padding:2px 8px;display:inline-block;margin-top:5px}
+.ti-btn{flex-shrink:0;background:#6b7a3a;color:#fff;font-weight:900;border:none;border-radius:9px;padding:12px 16px;font-size:14px;font-family:"Zen Maru Gothic";cursor:pointer}
+.ti-btn:active{background:#55622e}
+.empty{text-align:center;padding:30px 12px;color:#6b8a4a;font-weight:800;font-size:16px;background:#f6f8ef;border:1px dashed #cdd8b6;border-radius:12px}
+.empty small{display:block;color:#9a9484;font-weight:600;font-size:12.5px;margin-top:8px;line-height:1.7}
+
+/* ── 一覧テーブル ── */
+.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
+.tbl thead th{background:#f0ead8;color:#6d5527;font-weight:800;font-size:12px;padding:9px 8px;text-align:left;border-bottom:2px solid #e4d8be}
+.grp{background:#eeece6;color:#5a5a52;font-weight:800;font-size:12px;letter-spacing:.03em;padding:7px 10px}
+.tbl td{padding:10px 8px;border-bottom:1px solid #f0ece3;vertical-align:top}
+.pname{font-weight:800;font-size:15px}
+.psub{font-size:11px;color:#7a7466;margin-top:2px}
+.sku{font-family:monospace;font-size:11px;color:#4c5a25;background:#eef1e6;padding:1px 5px;border-radius:4px;font-weight:700}
+.rtonly{background:#e8eef7;color:#3a5578;font-weight:700;font-size:10.5px;border-radius:5px;padding:1px 6px}
+.num{text-align:right;white-space:nowrap}
+.price-main{font-weight:900;font-size:16px}
+.price-sub{font-size:12px;color:#6b6559;margin-top:1px}
+.dash{color:#b4ab99}
+.stk{font-weight:900;font-size:17px;color:#16a34a}
+.stk0{color:#b4ab99}
+.stk-tap{display:inline-block;font-size:11px;color:#6b7a3a;font-weight:700;border:1px solid #cdd8b6;border-radius:6px;padding:1px 6px;margin-top:4px;cursor:pointer;background:#fff}
+.lotbox{margin-top:6px;background:#f6f8ef;border:1px solid #dde5cc;border-radius:8px;padding:7px 9px;font-size:12px;text-align:left}
+.lotbox.hidden{display:none}
+.lotrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+.lotrow b{color:#166534}
+
+/* ── 整えるフォーム（モーダル） ── */
+.mask{display:none;position:fixed;inset:0;background:rgba(40,38,34,.45);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow:auto}
+.mask.on{display:flex}
+.modal{background:#faf7f2;border-radius:14px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.mhead{background:#b08d57;color:#fff;padding:13px 16px;font-family:"Zen Maru Gothic";font-weight:900;font-size:16px}
+.mbody{padding:15px}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:12.5px;font-weight:800;color:#57534e;margin-bottom:4px}
+.inp{width:100%;background:#fff;border:1.5px solid #ddd6c8;border-radius:9px;padding:11px 12px;font-size:16px;font-weight:800;color:#2b2a26}
+.inp.ro{background:#eef1e6;color:#4c5a25}
+.row2{display:flex;gap:9px}.row2>.fg{flex:1}
+.hint{font-size:11px;color:#8a7f6a;margin-top:3px}
+.seclabel{font-weight:900;font-size:13.5px;margin:15px 0 6px;font-family:"Zen Maru Gothic"}
+.seclabel.money{color:#8a4a4a}.seclabel.stock{color:#4c5a25}
+.pricebox{background:#f3f5ec;border:1px solid #d7deca;border-radius:9px;padding:11px 12px;font-size:14px}
+.pricebox b{font-size:16px}
+.savebtn{display:block;width:100%;text-align:center;background:#2563eb;color:#fff;font-weight:900;border:none;border-radius:10px;padding:14px;font-size:16px;font-family:"Zen Maru Gothic";cursor:pointer;margin-top:8px}
+.deferbox{background:#fff8e6;border:1px solid #f0e2b8;border-radius:9px;padding:10px 12px;font-size:12.5px;color:#6b5a12;margin-top:10px;line-height:1.7}
+.cancelbtn{display:block;width:100%;text-align:center;background:#8a8172;color:#fff;font-weight:800;border:none;border-radius:10px;padding:12px;font-size:14px;cursor:pointer;margin-top:10px}
+
+.foot{font-size:12px;color:#8a7f6a;margin:18px 0 6px;line-height:1.9;text-align:center}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="app-header">
+    <span class="em">📒</span>
+    <span class="ttl">統合マスタ N</span>
+    <span class="sub">名簿・価格・在庫を1画面で</span>
+  </div>
+
+  <nav class="oos-nav">
+    <a href="home.html">🏠 玄関</a>
+    <a href="index.html">🫒 受注・出荷 A</a>
+    <a href="stock.html">📦 在庫 B</a>
+    <a href="billing.html">🧾 売上 C</a>
+    <a class="current" href="master.html">📒 統合マスタ N</a>
+    <a href="mitsumori.html">📝 見積・価格 M</a>
+    <a href="sales.html">💌 お便り作戦室 F</a>
+    <a href="labels.html">🏷️ ラベル図鑑 L</a>
+    <a class="nav-lock" href="import.html">✈️ 輸入 E</a>
+    <a class="nav-blue" href="yuka.html">📮 ゆかメモ J</a>
+    <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
+  </nav>
+
+  <details class="whatis">
+    <summary><span>📒 このアプリ「統合マスタ N」は何をする場所？</span><span class="chev"></span></summary>
+    <div class="wbody">
+      商品の<b>名前・品番（SKU）・箱入数・在庫・賞味期限</b>を、1画面でまとめて見る場所です。<br>
+      価格は<b>輸入E（🔒中村様だけ）で決めたもの</b>を、ここでは<b>表示するだけ</b>。原価はここには出しません。<b>倉庫Dには価格も原価も出しません。</b>
+      <div class="wflow">
+        <div class="wnode">🔒 輸入Eで<br>生む＋値付け</div>
+        <div class="warr">▶</div>
+        <div class="wnode">📒 ここで<br>整える（お金以外）</div>
+        <div class="warr">▶</div>
+        <div class="wnode">📦 名簿・価格・<br>在庫へ自動</div>
+      </div>
+      <div style="margin-top:8px">🔔「要整備」＝輸入Eで生まれたばかりで、まだ整っていない商品。整えるとここから消えて、名簿・価格・在庫に入ります。</div>
+    </div>
+  </details>
+
+  <div class="tabs">
+    <div class="tab todo on" id="tab-todo" onclick="showTab('todo',this)">🔔 要整備<span class="cnt" id="todo-cnt" style="display:none">0</span></div>
+    <div class="tab" id="tab-meibo" onclick="showTab('meibo',this)">📒 名簿</div>
+    <div class="tab" id="tab-price" onclick="showTab('price',this)">💴 価格</div>
+    <div class="tab" id="tab-stock" onclick="showTab('stock',this)">📦 在庫</div>
+  </div>
+
+  <div class="loadnote" id="loadnote">📡 最新の商品・価格・在庫を読み込んでいます…</div>
+
+  <!-- 要整備 -->
+  <div class="panel on" id="panel-todo">
+    <div class="todohead">🔔 整備がまだの商品</div>
+    <div class="todosub">
+      輸入Eで生まれた商品で、まだ整っていないものが並びます。「整える」で品番・在庫などを入れて登録します。<br>
+      <b>※ 輸入Eで新しい商品を「生む」入口と、ここへ流し込む仕組みは、次の工程でつなぎます。</b>今は「名簿・価格・在庫」の3つの一覧をまとめて見られます。
+    </div>
+    <div id="todo-list"></div>
+    <div class="empty" id="todo-empty">✅ 整備が必要な商品はありません
+      <small>新しい商品を輸入Eで登録すると、ここに並びます（次の工程で有効になります）</small>
+    </div>
+  </div>
+
+  <!-- 名簿 -->
+  <div class="panel" id="panel-meibo">
+    <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数」の一覧です。</div>
+    <table class="tbl"><thead><tr><th>商品</th><th>品番</th><th class="num">箱入数</th></tr></thead>
+      <tbody id="meibo-body"><tr><td colspan="3" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 価格 -->
+  <div class="panel" id="panel-price">
+    <div class="listnote">💴 価格は<b>輸入Eで決めた分の表示だけ</b>（ここでは変えません）。<b>原価は出ません。</b>変えたいときは輸入Eへ。</div>
+    <table class="tbl"><thead><tr><th>商品</th><th class="num">定価</th><th class="num">卸①</th><th class="num">卸②</th></tr></thead>
+      <tbody id="price-body"><tr><td colspan="4" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 在庫 -->
+  <div class="panel" id="panel-stock">
+    <div class="listnote">📦 在庫はロット別（賞味期限違い）。数字の下の「賞味別に見る」で内わけが開きます。<br>※ 細かい販売可能数・不良・取置は<b>在庫B</b>で見てください。ここは正規ロットのまとめです。</div>
+    <table class="tbl"><thead><tr><th>商品</th><th>品番</th><th class="num">在庫（正規）</th></tr></thead>
+      <tbody id="stock-body"><tr><td colspan="3" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    トップ＝やることリスト（要整備）／ 3タブ＝全部の一覧。<br>
+    <b>お金（原価＋価格）＝輸入E（🔒） ／ お金以外（品番・在庫・賞味期限）＝この統合マスタ。</b>
+  </div>
+</div>
+
+<!-- 整えるフォーム -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <div class="mhead" id="m-title">📝 整える</div>
+    <div class="mbody">
+      <div class="fg"><label>商品名（輸入Eで生まれた商品）</label><div class="inp ro" id="m-name">—</div></div>
+      <div class="row2">
+        <div class="fg"><label>品番（自動でつきます）</label><div class="inp ro" id="m-sku">—</div><div class="hint">オイル＝グループ略号＋容量／備品＝連番（BH01…）</div></div>
+        <div class="fg"><label>1箱の本数</label><input class="inp" id="m-box" value="1" inputmode="numeric"></div>
+      </div>
+      <div class="fg"><label>容量・区分</label><input class="inp" id="m-kind" placeholder="例：備品（ギフトボックス）"></div>
+
+      <div class="seclabel money">💴 価格（輸入Eで設定済み・ここでは変えない）</div>
+      <div class="pricebox" id="m-pricebox">定価 <b>—</b>（税込）／ 卸① <span class="dash">—</span> ／ 卸② <span class="dash">—</span>
+        <div class="hint" style="margin-top:5px">← 変えたいときは輸入Eへ。</div>
+      </div>
+
+      <div class="seclabel stock">📦 在庫（最初の数）</div>
+      <div class="row2">
+        <div class="fg"><label>数</label><input class="inp" id="m-qty" value="0" inputmode="numeric"></div>
+        <div class="fg"><label>賞味期限（例：2027.11／備品は空欄）</label><input class="inp" id="m-exp" placeholder="2027.11"></div>
+      </div>
+
+      <button class="savebtn" onclick="doRegister()">登録する</button>
+      <div class="deferbox">
+        🛠 <b>この「登録（名簿・価格・在庫への振り分け）」は、次の工程で有効になります。</b><br>
+        すごく大事なデータなので、書き込みは輸入E側の「備品登録」とあわせて、慎重につなぎます。今は入力の見た目の確認までです。
+      </div>
+      <button class="cancelbtn" onclick="closeForm()">やめる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   統合マスタ N（master.html） 2026-07-22 新規
+   ────────────────────────────────────────────────────────────────
+   ■ この版でやること：
+     ・名簿／価格／在庫を1画面で「見る」（読み取りだけ・既存データに影響なし）
+     ・要整備リスト＋整えるフォームの「見た目」まで
+   ■ この版でやらないこと（次の工程）：
+     ・整える→登録での GAS 書き込み（名簿・価格・在庫への振り分け）
+       → 輸入Eの「備品登録」＋GAS配線とあわせて実装する
+   ■ データの読み取り元（他アプリと共通・GETのみ）：
+     GET ?action=loadProducts  → {status:'ok', products:[...], extraFields:[...]}
+     GET ?action=loadAllData   → {status:'ok', data:{priceMaster:[...], lots:[...]}}
+     lots: {id, pid, lotCode, expiry, stock, status('new'正規/'old'旧/'supply'備品), ...}
+   ════════════════════════════════════════════════════════════════ */
+'use strict';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+var PRODUCTS_CACHE_KEY = 'oos_products_cache_v1';
+
+var PRODUCTS = [];
+var EXTRA_FIELDS = [];
+var priceMaster = [];
+var lots = [];
+var loadedProducts = false;
+var loadedAll = false;
+
+/* ── 小道具 ── */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function yen(n){ if(n==null||n===''||isNaN(+n)||+n===0) return null; return '¥'+Number(n).toLocaleString('ja-JP'); }
+function isProductActive(p){ return !p || p.active !== false; }
+function isSet(p){ return !!(p && (p.isSet===true || (p.components && p.components.length))); }
+
+/* 要整備の判定：あいまいな推測はしない。輸入E側が付ける明示フラグだけで判定（誤検知でデータを汚さないため）。 */
+function needsSetup(p){
+  if(!p) return false;
+  var v = p['要整備'] || p['未整備'] || p['整備'] || p.pending || p.setup || p.status;
+  var s = String(v==null?'':v).trim();
+  return v===true || s==='要' || s==='未' || s==='要整備' || s==='未整備' || s==='pending';
+}
+
+/* 価格：SKUで価格マスタから引く（無ければ null＝「—」表示。ここでは原価も初期値も持たない） */
+function priceFor(sku){
+  for(var i=0;i<priceMaster.length;i++){ if(priceMaster[i] && priceMaster[i].sku===sku) return priceMaster[i]; }
+  return null;
+}
+function isNoWholesale(p){ return !!(p && p.noWholesale); }
+
+/* 在庫：商品id(=pid)でロットを引く。正規(new)ロットだけを在庫として集計・内訳表示。 */
+function lotsForProduct(p){
+  var pid = String(p.id);
+  return lots.filter(function(l){ return l && String(l.pid)===pid; });
+}
+function newLotsSorted(p){
+  return lotsForProduct(p)
+    .filter(function(l){ return l.status==='new'; })
+    .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); }); /* 先入れ先出し：古い賞味が先 */
+}
+function stockNewTotal(p){
+  return newLotsSorted(p).reduce(function(a,l){ return a + (parseInt(l.stock,10)||0); }, 0);
+}
+
+function groupOrder(){
+  /* PRODUCTS に現れた順でグループを並べる（元の並びを尊重） */
+  var seen = {}; var order = [];
+  PRODUCTS.forEach(function(p){ var g=p.group||'その他'; if(!seen[g]){ seen[g]=1; order.push(g); } });
+  return order;
+}
+
+/* ── タブ切替 ── */
+function showTab(t, el){
+  ['todo','meibo','price','stock'].forEach(function(k){
+    var pn=document.getElementById('panel-'+k); if(pn) pn.classList.remove('on');
+    var tb=document.getElementById('tab-'+k); if(tb) tb.classList.remove('on');
+  });
+  var p=document.getElementById('panel-'+t); if(p) p.classList.add('on');
+  if(el) el.classList.add('on');
+}
+function toggleLot(id){ var e=document.getElementById(id); if(e) e.classList.toggle('hidden'); }
+
+/* ── 描画：要整備 ── */
+function renderTodo(){
+  var items = PRODUCTS.filter(isProductActive).filter(needsSetup);
+  var list = document.getElementById('todo-list');
+  var empty = document.getElementById('todo-empty');
+  var cnt = document.getElementById('todo-cnt');
+  if(!items.length){
+    list.innerHTML=''; empty.style.display='block';
+    cnt.style.display='none'; cnt.textContent='0';
+    return;
+  }
+  empty.style.display='none';
+  cnt.style.display='inline-block'; cnt.textContent=items.length;
+  list.innerHTML = items.map(function(p){
+    var pr = priceFor(p.sku); var teika = pr ? yen(pr.priceGeneral) : null;
+    return '<div class="todo-item">'
+      + '<div class="ti-body">'
+      +   '<div class="ti-name">'+esc(p.name||p.sku)+'</div>'
+      +   '<div class="ti-sub">品番：'+esc(p.sku||'—')+ (teika?(' ／ 定価'+teika):'') +'</div>'
+      +   '<span class="needfix">要整備</span>'
+      + '</div>'
+      + '<button class="ti-btn" onclick="openForm(\''+esc(p.sku)+'\')">整える →</button>'
+      + '</div>';
+  }).join('');
+}
+
+/* ── 描画：名簿 ── */
+function renderMeibo(){
+  var body=document.getElementById('meibo-body');
+  var rows='';
+  groupOrder().forEach(function(g){
+    var ps=PRODUCTS.filter(function(p){ return isProductActive(p) && (p.group||'その他')===g; });
+    if(!ps.length) return;
+    rows+='<tr><td class="grp" colspan="3">'+esc(g)+'</td></tr>';
+    ps.forEach(function(p){
+      rows+='<tr>'
+        +'<td><div class="pname">'+esc(p.name||p.sku)+'</div>'
+        + (isSet(p)?'<div class="psub">セット商品</div>':'')
+        + (isNoWholesale(p)?'<div style="margin-top:3px"><span class="rtonly">RT限定・卸なし</span></div>':'')
+        +'</td>'
+        +'<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'
+        +'<td class="num">'+(p.boxQty?esc(p.boxQty)+'本':'<span class="dash">—</span>')+'</td>'
+        +'</tr>';
+    });
+  });
+  body.innerHTML = rows || '<tr><td colspan="3" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+}
+
+/* ── 描画：価格 ── */
+function renderPrice(){
+  var body=document.getElementById('price-body');
+  var rows='';
+  groupOrder().forEach(function(g){
+    var ps=PRODUCTS.filter(function(p){ return isProductActive(p) && (p.group||'その他')===g; });
+    if(!ps.length) return;
+    rows+='<tr><td class="grp" colspan="4">'+esc(g)+'</td></tr>';
+    ps.forEach(function(p){
+      var pr=priceFor(p.sku);
+      var teika = pr ? yen(pr.priceGeneral) : null;
+      var w1 = (pr && !isNoWholesale(p)) ? yen(pr.priceWholesale1) : null;
+      var w2 = (pr && !isNoWholesale(p)) ? yen(pr.priceWholesale2) : null;
+      rows+='<tr>'
+        +'<td><div class="pname">'+esc(p.name||p.sku)+'</div><div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span></div></td>'
+        +'<td class="num">'+(teika?'<span class="price-main">'+teika+'</span>':'<span class="dash">—</span>')+'</td>'
+        +'<td class="num">'+(w1?w1:'<span class="dash">—</span>')+'</td>'
+        +'<td class="num">'+(w2?w2:'<span class="dash">—</span>')+'</td>'
+        +'</tr>';
+    });
+  });
+  body.innerHTML = rows || '<tr><td colspan="4" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+}
+
+/* ── 描画：在庫 ── */
+function renderStock(){
+  var body=document.getElementById('stock-body');
+  var rows='';
+  groupOrder().forEach(function(g){
+    var ps=PRODUCTS.filter(function(p){ return isProductActive(p) && (p.group||'その他')===g && !isSet(p); });
+    if(!ps.length) return;
+    rows+='<tr><td class="grp" colspan="3">'+esc(g)+'</td></tr>';
+    ps.forEach(function(p){
+      var nls=newLotsSorted(p);
+      var total=stockNewTotal(p);
+      var lotId='lot-'+esc(p.sku||p.id);
+      var cell;
+      if(total>0){
+        cell='<span class="stk">'+total+'</span>';
+        if(nls.length){
+          cell+='<br><span class="stk-tap" onclick="toggleLot(\''+lotId+'\')">賞味別に見る ▾</span>'
+            +'<div id="'+lotId+'" class="lotbox hidden">'
+            + nls.map(function(l){ return '<div class="lotrow"><span>賞味 '+esc(l.expiry||'（未設定）')+'</span><b>'+(parseInt(l.stock,10)||0)+'本</b></div>'; }).join('')
+            +'</div>';
+        }
+      } else {
+        cell='<span class="stk stk0">0</span>';
+      }
+      rows+='<tr>'
+        +'<td><div class="pname">'+esc(p.name||p.sku)+'</div></td>'
+        +'<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'
+        +'<td class="num">'+cell+'</td>'
+        +'</tr>';
+    });
+  });
+  body.innerHTML = rows || '<tr><td colspan="3" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+}
+
+function renderAll(){ renderTodo(); renderMeibo(); renderPrice(); renderStock(); }
+
+/* ── 整えるフォーム（この版では登録＝GAS書き込みはしない） ── */
+function openForm(sku){
+  var p=null;
+  for(var i=0;i<PRODUCTS.length;i++){ if(PRODUCTS[i].sku===sku){ p=PRODUCTS[i]; break; } }
+  if(!p){ alert('商品が見つかりませんでした。'); return; }
+  document.getElementById('m-title').textContent='📝 '+(p.name||p.sku)+' を整える';
+  document.getElementById('m-name').textContent=p.name||p.sku;
+  document.getElementById('m-sku').textContent=p.sku||'（自動）';
+  document.getElementById('m-box').value=p.boxQty||1;
+  document.getElementById('m-kind').value=p.group||'';
+  var pr=priceFor(p.sku);
+  var teika = pr ? (yen(pr.priceGeneral)||'—') : '—';
+  var w1 = (pr && !isNoWholesale(p) && yen(pr.priceWholesale1)) ? yen(pr.priceWholesale1) : '<span class="dash">—</span>';
+  var w2 = (pr && !isNoWholesale(p) && yen(pr.priceWholesale2)) ? yen(pr.priceWholesale2) : '<span class="dash">—</span>';
+  document.getElementById('m-pricebox').innerHTML='定価 <b>'+teika+'</b>（税込）／ 卸① '+w1+' ／ 卸② '+w2
+    +'<div class="hint" style="margin-top:5px">← 変えたいときは輸入Eへ。</div>';
+  document.getElementById('mask').classList.add('on');
+}
+function closeForm(){ document.getElementById('mask').classList.remove('on'); }
+function doRegister(){
+  /* この版では書き込みしない。次の工程（輸入E備品登録＋GAS配線）で有効化する。 */
+  alert('この「登録（振り分け）」は、次の工程で有効になります。\n\nすごく大事なデータなので、名簿・価格・在庫への書き込みは、輸入E側の「備品登録」とあわせて慎重につなぎます。\n今は入力の見た目の確認までです。');
+}
+
+/* ── データ読み込み（GETのみ・既存データに影響なし） ── */
+function loadCache(){
+  try{
+    var raw=localStorage.getItem(PRODUCTS_CACHE_KEY);
+    if(!raw) return;
+    var o=JSON.parse(raw);
+    if(o && Array.isArray(o.products) && o.products.length){ PRODUCTS=o.products; EXTRA_FIELDS=o.extraFields||[]; }
+  }catch(e){}
+}
+function loadProducts(){
+  return fetch(GAS_URL+'?action=loadProducts').then(function(r){return r.json();}).then(function(d){
+    if(d && d.status==='ok' && Array.isArray(d.products) && d.products.length){
+      PRODUCTS=d.products; EXTRA_FIELDS=d.extraFields||[];
+      try{ localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify({products:PRODUCTS, extraFields:EXTRA_FIELDS, cachedAt:new Date().toISOString()})); }catch(e){}
+      loadedProducts=true;
+    }
+  });
+}
+function loadAll(){
+  return fetch(GAS_URL+'?action=loadAllData').then(function(r){return r.json();}).then(function(d){
+    if(d && d.status==='ok' && d.data){
+      priceMaster=d.data.priceMaster||[];
+      lots=d.data.lots||[];
+      loadedAll=true;
+    }
+  });
+}
+function updateLoadNote(){
+  var el=document.getElementById('loadnote');
+  if(!el) return;
+  if(loadedProducts && loadedAll){ el.style.display='none'; }
+  else if(loadedProducts || loadedAll){ el.textContent='📡 引き続き読み込み中…（一部は表示できています）'; }
+  else { el.textContent='📡 まだ読み込めていません。通信を確認して、ページを再読み込み（Cmd+Shift+R / Ctrl+Shift+R）してみてください。'; }
+}
+
+function init(){
+  loadCache();
+  renderAll();
+  Promise.all([
+    loadProducts().catch(function(){}),
+    loadAll().catch(function(){})
+  ]).then(function(){
+    renderAll();
+    updateLoadNote();
+  });
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
