@@ -446,11 +446,14 @@
       </div>
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;background:#fffdfb;border:1px solid #eddfe2;border-radius:11px;padding:11px 13px;margin:2px 0 12px;font-size:14.5px;color:#2b2a26;font-weight:700;cursor:pointer"><input type="checkbox" id="wrap-paper" onchange="recalc()" style="width:18px;height:18px"> 🎁 包装紙で包む（＋¥110・税込）</label>
+
     <!-- 合計（トータル・一番下） -->
     <div class="total">
       <div class="row"><span class="lbl">小計（税抜）</span><span class="amt" id="subtotal">¥0</span></div>
       <div class="row"><span class="lbl" id="ship-lbl">送料（税込）</span><span class="amt2" id="shipfee" style="font-size:16px">¥880</span></div>
       <div class="row giftfeerow" id="giftfeerow" style="display:none"><span class="lbl">ギフト代</span><span class="amt2" id="giftfee" style="font-size:16px">¥0</span></div>
+      <div class="row" id="wrapfeerow" style="display:none"><span class="lbl">包装紙</span><span class="amt2" id="wrapfee" style="font-size:16px">¥110</span></div>
       <div class="row" style="border-top:1px solid #d7deca;margin-top:6px;padding-top:8px"><span class="lbl" style="font-weight:900;font-size:15px">お支払い（税込・送料込み）</span><span class="amt" id="grand">¥0</span></div>
       <div class="note">消費税（オイル8%）・送料込みの金額です。送料はお届け先の都道府県で自動（北海道¥1,100／鹿児島県¥1,595／沖縄県¥1,980／その他¥880・税込）。</div>
     </div>
@@ -514,6 +517,7 @@ var CONFIG = {
   PAYPAY_LINK: 'https://qr.paypay.ne.jp/p2p01_aPWdl3m46f41ovWh',  // ※このQRは2026/8/5まで有効。恒久リンク／コードに要差し替え
   BANK_HTML:   '三菱UFJ銀行　新座志木支店（296）　普通 1300801<br>ナカムラ ヒロミ',
   GIFT_FEE:    330,                                               // ギフト代（税込・フラット）
+  WRAP_FEE:    110,                                               // 包装紙（税込・別オプション）
   SHIP: { hokkaido:1100, kagoshima:1595, okinawa:1980, other:880 }, // 送料（税込・都道府県別／ヤマト運輸＝県単位）※鹿児島1450＋税=1595・沖縄1800＋税=1980・北海道/その他は税込
   SELF_SENDER: { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' },
   SET_SKU:     { 'your story':'SET_YS', 'olive NOVA':'SET_NOVA' } // ギフトセットの記録用コード（仮・正式コードは後で）
@@ -599,6 +603,7 @@ function shipInfo(){
   if(/沖縄/.test(s))   return { fee:CONFIG.SHIP.okinawa, name:'沖縄県' };
   return { fee:CONFIG.SHIP.other, name:'全国' };
 }
+function wrapOn(){ var c=document.getElementById('wrap-paper'); return !!(c && c.checked); }
 function recalc(){
   var subExcl=0, tax=0, hasLoose=false;
   oilLines().forEach(function(l){
@@ -617,16 +622,19 @@ function recalc(){
   });
   var gift = giftifyOn();
   var giftFee = gift ? CONFIG.GIFT_FEE : 0;
+  var wrapFee = wrapOn() ? CONFIG.WRAP_FEE : 0;
   var si = shipInfo(); var ship = si.fee;
   var fee = feeFor((PAYLOAD.customer&&PAYLOAD.customer.type)||'general', hasLoose);
   LAST_FEE = fee;
-  LAST_TOTAL = subExcl + tax + fee + giftFee + ship; /* 税込・お支払い額（送料込み） */
+  LAST_TOTAL = subExcl + tax + fee + giftFee + wrapFee + ship; /* 税込・お支払い額（送料込み） */
   var el;
   if(el=document.getElementById('subtotal')) el.textContent=fmt(subExcl);
   if(el=document.getElementById('shipfee'))  el.textContent=fmt(ship);
   if(el=document.getElementById('ship-lbl')) el.textContent='送料（'+si.name+'・税込）';
   if(el=document.getElementById('giftfee'))  el.textContent=fmt(giftFee);
   var gfr=document.getElementById('giftfeerow'); if(gfr) gfr.style.display=gift?'flex':'none';
+  if(el=document.getElementById('wrapfee')) el.textContent=fmt(wrapFee);
+  var wfr=document.getElementById('wrapfeerow'); if(wfr) wfr.style.display=wrapOn()?'flex':'none';
   if(el=document.getElementById('grand'))    el.textContent=fmt(LAST_TOTAL);
   if(el=document.getElementById('payamt'))   el.textContent=fmt(LAST_TOTAL);
   if(el=document.getElementById('payamt2'))  el.textContent=fmt(LAST_TOTAL);
@@ -709,6 +717,7 @@ function formVal(id){ var e=document.getElementById(id); return e?String(e.value
 function buildOrder(claimed, method, ref){
   var c=PAYLOAD.customer||{};
   var gy=giftifyOn();
+  var wp=wrapOn();
   var buyer=formVal('f-name')||c.name||'';
   var email=formVal('f-email');
   var name, addr, tel, zipv, senderNm;
@@ -717,7 +726,7 @@ function buildOrder(claimed, method, ref){
   var lines=collectLines();
   var iso=new Date().toISOString();
   var _si=shipInfo();
-  var extra = '／送料 '+yen(_si.fee)+'(税込・'+_si.name+')' + (method?('／お支払い：'+method+(ref?('（'+ref+'）'):'')):'') + (email?('／メール：'+email):'') + (gy?('／ギフト・お届け先＝お相手（差出人：'+senderNm+'）'):'');
+  var extra = '／送料 '+yen(_si.fee)+'(税込・'+_si.name+')' + (method?('／お支払い：'+method+(ref?('（'+ref+'）'):'')):'') + (email?('／メール：'+email):'') + (gy?('／ギフト・お届け先＝お相手（差出人：'+senderNm+'）'):'') + (wp?'／包装紙(+¥110)':'');
   var noteMsg = (claimed
       ? '【アプリ注文】お客様が「入金済み」でご依頼。入金確認の上、出荷依頼書へ進んでください。お支払い総額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
       : '【アプリ注文】入金前です。お客様がお支払い手続き中。入金確認後に発送してください。お支払い予定額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
@@ -732,7 +741,7 @@ function buildOrder(claimed, method, ref){
     personName:(!gy&&c.isCompany)?'':name,
     zip:zipv, addr:addr, tel:tel, customerEmail:email, useRecycle:false,
     leadType:'normal', leadDate:'', delivTime:'',
-    note:noteMsg, noshi:null, giftWrap:gy,
+    note:noteMsg, noshi:null, giftWrap:gy, wrapPaper:wp, wrapFee:(wp?CONFIG.WRAP_FEE:0),
     senderName:senderNm, senderTel:'', senderZip:CONFIG.SELF_SENDER.zip, senderAddr:CONFIG.SELF_SENDER.addr,
     lines:lines,
     isDefectSale:false, notified:false, holdUntilDate:'', expectedDate:'',
