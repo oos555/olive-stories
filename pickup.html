@@ -43,6 +43,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .qty-box{background:#dcfce7;color:#14532d}
 .qty-loose{background:#fdecd8;color:#8a5a1c}
 .qty-total{background:#6b7a3a;color:#fff}
+.item .pname-pick{font-weight:900;font-size:20px;line-height:1.25}
+.chk-line{display:flex;gap:14px;align-items:baseline;margin-top:8px;flex-wrap:wrap}
+.chk-line .chk-lb{font-size:11px;font-weight:700;margin-right:4px}
+.chk-line .exp-lb{color:#8a7a58}
+.chk-line .bc-lb{color:#6a7480}
+.chk-line .exp-v{font-size:22px;font-weight:900;color:#b25b00;letter-spacing:.02em}
+.chk-line .bc-v{font-size:22px;font-weight:900;color:#1e4f86;letter-spacing:.02em}
+.row3{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+.qty-one{font-size:17px;font-weight:900;padding:7px 15px;border-radius:9px;background:#6b7a3a;color:#fff}
+.qty-one .sub{font-weight:700;font-size:14px;opacity:.9}
+.gift-badge-item{font-weight:900;font-size:14px;border-radius:8px;padding:5px 13px;background:#fbe3ee;color:#a3286a;border:1.5px solid #e59cc2}
+.sample-badge-item{font-weight:900;font-size:13px;border-radius:8px;padding:5px 12px;background:#fef3c7;color:#8a5a1c;border:1.5px solid #f3d9a8}
 .lead-band{border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:center}
 .lead-band .lb-title{font-size:17px;font-weight:700}
 .lead-band .lb-sub{font-size:15px;font-weight:700;margin-top:2px}
@@ -448,6 +460,25 @@ let PRODUCTS = [
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
+function lineBarcode4(l, p){
+  var jan = (p && (p.jan || p.barcode)) || (l && (l.jan || l.barcode)) || '';
+  jan = String(jan).replace(/[^0-9]/g,'');
+  return jan.length>=4 ? jan.slice(-4) : (jan || '―');
+}
+function lineExpiry(l){
+  /* 在庫(stock.html)の該当ロット（正規・先入れ先出し）の賞味期限を表示する予定。
+     stock.html連携までは「―」。注文に expiry があれば使う。 */
+  return (l && l.expiry) ? String(l.expiry) : '―';
+}
+function giftBadgeItemHtml(giftType){
+  if(giftType==='gift' || giftType==='simple'){
+    return '<span class="gift-badge-item">🎁 '+esc(GIFT_TYPE_LABEL[giftType]||'ギフト')+'</span>';
+  }
+  if(giftType==='sample_free' || giftType==='sample_paid'){
+    return '<span class="sample-badge-item">'+esc(GIFT_TYPE_LABEL[giftType]||'サンプル')+'</span>';
+  }
+  return '';
+}
 
 // ── 商品マスタ：GASからの読み込み（キャッシュ先手・GAS裏取り・フォールバック）────
 let EXTRA_FIELDS = [];
@@ -1069,15 +1100,21 @@ function renderOrder(){
     const boxQty = l.boxQty || (p && p.boxQty) || 1;
     const boxes = l.boxes||0, loose = l.bottles||0;
     const total = loose + boxes*boxQty;
-    let qty = '<div class="qty-row">';
-    if(boxes) qty += '<span class="qty-pill qty-box">箱 '+boxes+'箱</span>';
-    if(loose) qty += '<span class="qty-pill qty-loose">バラ '+loose+'本</span>';
-    qty += '<span class="qty-pill qty-total">合計 '+total+'本</span></div>';
+    let sub2=[];
+    if(boxes) sub2.push('箱'+boxes+'箱');
+    if(loose) sub2.push('バラ'+loose+'本');
+    var subTxt = sub2.length ? '（'+sub2.join('・')+'）' : '';
+    var chk = '<div class="chk-line">'+
+      '<span><span class="chk-lb exp-lb">📅 賞味期限</span><span class="exp-v">'+esc(lineExpiry(l))+'</span></span>'+
+      '<span><span class="chk-lb bc-lb">🔖 末尾</span><span class="bc-v">'+esc(lineBarcode4(l,p))+'</span></span>'+
+      '</div>';
+    var row3 = '<div class="row3"><span class="qty-one">合計'+total+'本<span class="sub">'+subTxt+'</span></span>'+giftBadgeItemHtml(l.giftType)+'</div>';
     html += '<div class="item" id="item-'+i+'">'+
       '<input type="checkbox" class="pack-check pick-cb no-print" onchange="this.closest(\'.item\').classList.toggle(\'checked\',this.checked);updateCompleteBtn()">'+
       '<div class="info">'+
-        '<div class="pname">'+esc(l.productName)+' <span style="font-size:12px;font-weight:400;color:#57534e">['+esc(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+']</span></div>'+
-        qty+
+        '<div class="pname pname-pick">'+esc(l.productName)+'</div>'+
+        chk+
+        row3+
         (l.memo ? '<div class="pmemo">📝 '+esc(l.memo)+'</div>' : '')+
       '</div>'+
     '</div>';
