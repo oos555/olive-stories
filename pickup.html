@@ -735,8 +735,13 @@ async function fetchWarehouseNotes(){
   try{
     const res = await fetch(GAS_URL + '?action=loadAllData');
     const data = await res.json();
-    if(data.status==='ok' && data.data && Array.isArray(data.data.warehouseNotes)){
-      warehouseNotes = data.data.warehouseNotes;
+    if(data.status==='ok' && data.data){
+      if(Array.isArray(data.data.warehouseNotes)) warehouseNotes = data.data.warehouseNotes;
+      if(Array.isArray(data.data.lots)){
+        var map = {};
+        data.data.lots.forEach(function(l){ var pid=parseInt(l.pid); if(isNaN(pid)) return; if(!map[pid]) map[pid]=[]; map[pid].push({ expiry:l.expiry, status:l.status, stock:parseInt(l.stock)||0 }); });
+        LOTS_BY_PID = map; LOTS_LOADED = true;
+      }
     }
   }catch(e){ /* メモが読み込めなくても他の機能は使えるようにする */ }
 }
@@ -759,13 +764,13 @@ async function saveWarehouseNotes(){
 async function openOrderInPage(id){
   // ページごと開き直さず、手元のデータですぐ表示（速度改善）。URLは同期させておく。
   try{ history.replaceState(null,'','pickup.html?id='+encodeURIComponent(id)); }catch(e){}
-  await ensureLotsLoaded();
   const cached = (allOrders||[]).find(function(o){ return String(o.id)===String(id); });
   if(cached && Array.isArray(cached.lines) && cached.lines.length){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
     currentOrder = cached; noshiPrinted = false;
     if(currentOrder) currentOrder.customerType = normCtype(currentOrder.customerType);
     if(currentOrder.status === 'shipped' || currentOrder.orderStatus === 'shipped') renderAlreadyShipped(); else renderOrder();
+    if(!LOTS_LOADED) ensureLotsLoaded().then(function(){ if(currentOrder && String(currentOrder.id)===String(id) && !(currentOrder.status==='shipped'||currentOrder.orderStatus==='shipped')) renderOrder(); });
     return;
   }
   await loadSingleOrder(id);  // 手元にlinesが無いときだけ従来どおり1件だけ取得
@@ -783,7 +788,6 @@ async function loadSingleOrder(id){
     if(currentOrder) currentOrder.customerType = normCtype(currentOrder.customerType);
     noshiPrinted = false;
     await fetchWarehouseNotes();
-    await ensureLotsLoaded();
     if(currentOrder.orderStatus === 'shipped'){
       renderAlreadyShipped();
     } else {
