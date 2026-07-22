@@ -460,15 +460,47 @@ let PRODUCTS = [
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
-function lineBarcode4(l, p){
+var LOTS_BY_PID = {}; var LOTS_LOADED = false;
+async function ensureLotsLoaded(){
+  if(LOTS_LOADED) return;
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const data = await res.json();
+    if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
+      var map = {};
+      data.data.lots.forEach(function(l){
+        var pid = parseInt(l.pid); if(isNaN(pid)) return;
+        if(!map[pid]) map[pid] = [];
+        map[pid].push({ expiry:l.expiry, status:l.status, stock:parseInt(l.stock)||0 });
+      });
+      LOTS_BY_PID = map; LOTS_LOADED = true;
+    }
+  }catch(e){}
+}
+function resolveProduct(l){
+  if(l==null) return null;
+  var p = (l.productId!=null) ? findProduct(l.productId) : null;
+  if(p) return p;
+  var key = String(l.productId!=null ? l.productId : (l.sku||''));
+  return PRODUCTS.find(function(x){ return String(x.sku)===key; }) || null;
+}
+function lineBarcode4(l){
+  var p = resolveProduct(l);
   var jan = (p && (p.jan || p.barcode)) || (l && (l.jan || l.barcode)) || '';
   jan = String(jan).replace(/[^0-9]/g,'');
   return jan.length>=4 ? jan.slice(-4) : (jan || '―');
 }
 function lineExpiry(l){
-  /* 在庫(stock.html)の該当ロット（正規・先入れ先出し）の賞味期限を表示する予定。
-     stock.html連携までは「―」。注文に expiry があれば使う。 */
-  return (l && l.expiry) ? String(l.expiry) : '―';
+  /* 在庫(stock.html)の正規(new)ロットのうち、賞味期限がいちばん古いもの（先入れ先出し）を表示。無ければ「―」。 */
+  var p = resolveProduct(l);
+  var pid = p ? p.id : null;
+  if(pid==null || !LOTS_BY_PID[pid]) return '―';
+  var arr = LOTS_BY_PID[pid];
+  var cand = arr.filter(function(x){ return x.status==='new' && x.expiry && x.stock>0; });
+  if(!cand.length) cand = arr.filter(function(x){ return x.status==='new' && x.expiry; });
+  if(!cand.length) return '―';
+  cand = cand.slice().sort(function(a,b){ return String(a.expiry).localeCompare(String(b.expiry)); });
+  return String(cand[0].expiry);
 }
 function giftBadgeItemHtml(giftType){
   if(giftType==='gift' || giftType==='simple'){
@@ -727,6 +759,7 @@ async function saveWarehouseNotes(){
 async function openOrderInPage(id){
   // ページごと開き直さず、手元のデータですぐ表示（速度改善）。URLは同期させておく。
   try{ history.replaceState(null,'','pickup.html?id='+encodeURIComponent(id)); }catch(e){}
+  await ensureLotsLoaded();
   const cached = (allOrders||[]).find(function(o){ return String(o.id)===String(id); });
   if(cached && Array.isArray(cached.lines) && cached.lines.length){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
@@ -750,6 +783,7 @@ async function loadSingleOrder(id){
     if(currentOrder) currentOrder.customerType = normCtype(currentOrder.customerType);
     noshiPrinted = false;
     await fetchWarehouseNotes();
+    await ensureLotsLoaded();
     if(currentOrder.orderStatus === 'shipped'){
       renderAlreadyShipped();
     } else {
@@ -1106,7 +1140,7 @@ function renderOrder(){
     var subTxt = sub2.length ? '（'+sub2.join('・')+'）' : '';
     var chk = '<div class="chk-line">'+
       '<span><span class="chk-lb exp-lb">📅 賞味期限</span><span class="exp-v">'+esc(lineExpiry(l))+'</span></span>'+
-      '<span><span class="chk-lb bc-lb">🔖 末尾</span><span class="bc-v">'+esc(lineBarcode4(l,p))+'</span></span>'+
+      '<span><span class="chk-lb bc-lb">🔖 末尾</span><span class="bc-v">'+esc(lineBarcode4(l))+'</span></span>'+
       '</div>';
     var row3 = '<div class="row3"><span class="qty-one">合計'+total+'本<span class="sub">'+subTxt+'</span></span>'+giftBadgeItemHtml(l.giftType)+'</div>';
     html += '<div class="item" id="item-'+i+'">'+
