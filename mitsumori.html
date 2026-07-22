@@ -51,6 +51,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
 @media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
 /* 商品と数量の入力エリアだけ、上下の余白を詰める */
+/* かんたんモード：トグル＋整理＋パソコンで細い1列（2026-07-22 第1段） */
+#q-mode-toggle{display:flex;gap:6px;margin-bottom:12px}
+#q-mode-toggle button{flex:1;text-align:center;border-radius:9px;padding:10px;font-weight:800;font-size:13.5px;border:2px solid #cdd8b6;background:#fff;color:#57603a;cursor:pointer;font-family:inherit}
+#q-mode-toggle button.mode-on{background:#0f5040;border-color:#0f5040;color:#fff}
+#panel-quote.kantan-on{max-width:560px;margin-left:auto;margin-right:auto}
+#panel-quote.kantan-on > .info-box,
+#panel-quote.kantan-on #q-guide-bar,
+#panel-quote.kantan-on #q-recall-card,
+#panel-quote.kantan-on #q-rt-gate-banner{display:none !important}
 #q-items-area .fg{margin-bottom:0}
 #q-items-area .g4{gap:8px}
 .q-item-grid{display:grid;grid-template-columns:2fr .8fr .8fr 1.3fr auto;gap:8px;align-items:end}
@@ -387,7 +396,11 @@ th.center,td.center{text-align:center}
 
 
 <!-- 見積書 -->
-<div id="panel-quote" class="panel active">
+<div id="panel-quote" class="panel active kantan-on">
+<div id="q-mode-toggle">
+  <button type="button" id="q-mode-kantan" class="mode-on" onclick="setQuoteMode('kantan')">🛒 かんたん</button>
+  <button type="button" id="q-mode-full" onclick="setQuoteMode('full')">⚙️ いつもの（詳しい）</button>
+</div>
 <div class="info-box">お客様の種類を選ぶと、必要な登録内容と表示できる商品が自動で決まります。<br>💡 卸①のお客様は、同じ商品を<strong>6箱以上</strong>お選びいただくと、その商品だけ自動的に卸②価格になります（2026年7月決定）。</div>
 <div id="q-guide-bar">👉 いまやること：書類と入口を選ぶ（タップ1回ずつ）<span style="float:right;font-weight:700;font-size:12px;color:#a16207;background:#fff;border:1px solid #f0c96a;border-radius:99px;padding:1px 10px">版 7/18</span></div>
 
@@ -536,8 +549,9 @@ th.center,td.center{text-align:center}
           <div class="fg"><label>電話番号</label><input type="text" id="nc-tel" placeholder="0312345678"></div>
         </div>
         <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="nc-email" placeholder="example@example.com"></div>
+        <div class="fg"><label>💬 連絡方法メモ（社内用・お客様には出ません）</label><input type="text" id="nc-contact-method" placeholder="LINE / メール / メッセンジャーのリンクやメアドを貼る"></div>
         <div class="fg"><label>担当者名（会社名が無いときは、ここだけでOK）</label><input type="text" id="nc-contact" placeholder="例：山口 玲子" oninput="autofillSharedFromNc()"><div style="font-size:11.5px;color:#0f5040;margin-top:3px">↓ ここに入れた名前は、下の「提出先ご担当者名」に自動で入ります（違うときは書き換えOK）</div></div>
-        <div class="fg"><label>メモ（任意）</label><input type="text" id="nc-note" placeholder="紹介経緯など"></div>
+        <div class="fg"><label>💬 ひとことメモ（社内用・任意）</label><input type="text" id="nc-note" placeholder="例：秋に考えたいとのこと／◯◯様をご紹介いただけるかも"></div>
         <button class="btn btn-green" onclick="registerNewCustomer()">このお客様を登録して選択する</button>
       </div>
       <div class="fg" style="margin-top:12px" id="q-contact-person-wrap"><label>提出先ご担当者名（自動で「様」が付きます・違えば書き換えOK）</label><input type="text" id="q-contact-person-shared" placeholder="例：山口 玲子" oninput="onSharedPersonInput()"></div>
@@ -600,6 +614,13 @@ th.center,td.center{text-align:center}
     <div class="card" id="q-items-card" style="display:none;padding:12px 1.25rem;margin-bottom:8px;border:3px solid #6b7a3a;background:#fdfcf7">
       <div class="sec" style="margin-top:0;margin-bottom:6px;font-size:17px;background:#6b7a3a;color:#fff;border-radius:8px;padding:8px 14px;margin-left:-6px;margin-right:-6px">🧾 請求書・お見積書（金額を出す）はここで商品を選んでください</div>
       <div style="font-size:12px;color:#57534e;margin:2px 2px 8px">実際にご注文いただいた商品と本数・箱数を入れる場所です。（価格表だけを作るときは、ここは使わず上の一覧で選びます）</div>
+      <div id="q-kantan-card" style="margin-bottom:10px;background:#f4f7ea;border:2px solid #6b7a3a;border-radius:10px;padding:11px 12px">
+        <div style="font-weight:800;color:#3f4a1f;font-size:14px;margin-bottom:3px">🛒 かんたん：商品をチェックで選ぶ</div>
+        <div style="font-size:11.5px;color:#57603a;margin-bottom:8px">この人の値段で表示中。ほしい商品にチェック＋箱数を入れて、下のボタンを押すと明細に入ります。</div>
+        <div id="q-kantan-list"></div>
+        <button class="btn btn-primary" onclick="applyKantanToItems()" style="margin-top:8px">✓ チェックした商品を明細に入れる ↓</button>
+      </div>
+      <div style="font-size:11.5px;color:#57534e;font-weight:700;margin:4px 2px">📋 明細（ここで本数・箱数・特価などを細かく直せます）</div>
       <div id="q-items-area"></div>
       <button class="btn-sm" onclick="addQuoteItemRow()">＋ 商品を追加</button>
     </div>
@@ -1271,6 +1292,7 @@ async function registerNewCustomer(){
     email: document.getElementById('nc-email') ? document.getElementById('nc-email').value.trim() : '',
     contactPerson: contact,
     note: document.getElementById('nc-note').value.trim(),
+    contactMethod: (document.getElementById('nc-contact-method')||{value:''}).value.trim(),
     createdAt: new Date().toISOString(),
     whitelist: null,
     rtExceptions: []
@@ -1579,6 +1601,7 @@ function pickQuoteCustomer(cid){
   const q = document.getElementById('q-customer'); if(q) q.value = cid || '';
   syncQuoteCustomerControls();
   if(typeof onQuoteCustomerChange==='function') onQuoteCustomerChange();
+  if(typeof renderKantanChecklist==='function') renderKantanChecklist();
 }
 // 「選択中のお客様」を大きく分かりやすく表示
 function updateQuoteCurrentCustomer(){
@@ -1641,7 +1664,9 @@ function onQuoteCustomerChange(){
   }
   const badgeInfo = GATE_LABELS[c.type==='rt'?'rt':(c.type==='wholesale1'||c.type==='wholesale2'||c.type==='hub'?'wholesale':'general')];
   const badge = '<span class="no-print" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px;background:'+badgeInfo.bg+';color:'+badgeInfo.color+';border:1px solid '+badgeInfo.border+'">'+badgeInfo.label+'（社内用）</span>';
-  info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'+badge+'<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+'</div>';
+  var memoLine = '';
+  if(c.contactMethod || c.note){ memoLine = '<div class="no-print" style="margin-top:6px;background:#fffbeb;border:1px solid #f0c96a;border-radius:6px;padding:6px 9px;font-size:12px;color:#78350f"><b>💬 社内メモ</b>（お客様には出ません）'+(c.contactMethod?'<br>連絡：'+esc(c.contactMethod):'')+(c.note?'<br>'+esc(c.note):'')+'</div>'; }
+  info.innerHTML = '<div class="info-box"><strong>'+esc(c.name)+'</strong>（区分：'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）'+badge+'<br>〒'+esc(c.zip||'')+' '+esc(c.addr||'')+'　TEL：'+esc(c.tel||'')+(c.email?'　Mail：'+esc(c.email):'')+memoLine+'</div>';
   const gateType = document.getElementById('q-rt-gate-card').dataset.gateType;
   if(isInvoiceLikeType(currentDocType())){
     // 🧾請求書・📄🧾見積書兼請求書モード：数量が必要なので、価格表を飛ばして商品・数量の入力へ直行
@@ -2408,6 +2433,63 @@ function quoteItemOptionList(c, includeSampleOnly){
             .forEach(function(p){ finalList = finalList.concat([p]); });
   }
   return finalList;
+}
+// ── かんたん/いつもの 表示モード（2026-07-22 第1段：整理＋パソコンで細い1列） ──
+function setQuoteMode(m){
+  var p=document.getElementById('panel-quote'); if(!p) return;
+  var k=document.getElementById('q-mode-kantan'), f=document.getElementById('q-mode-full');
+  if(m==='full'){ p.classList.remove('kantan-on'); if(f)f.classList.add('mode-on'); if(k)k.classList.remove('mode-on'); }
+  else { p.classList.add('kantan-on'); if(k)k.classList.add('mode-on'); if(f)f.classList.remove('mode-on'); }
+  try{ localStorage.setItem('oos_quote_mode', m); }catch(e){}
+}
+// ── かんたん見積：チェックリストで選ぶ → 既存の明細(q-items-area)に入れる（2026-07-22） ──
+function renderKantanChecklist(){
+  var host = document.getElementById('q-kantan-list'); if(!host) return;
+  var cid = (document.getElementById('q-customer')||{}).value;
+  var c = customers.find(function(x){ return x.id===cid; });
+  if(!c){ host.innerHTML=''; return; }
+  var list = (typeof quoteItemOptionList==='function') ? quoteItemOptionList(c, false) : [];
+  var eff = (typeof effectiveCustomerType==='function') ? effectiveCustomerType(c.type, 0) : c.type;
+  host.innerHTML = list.map(function(p){
+    var price = (typeof priceForSku==='function') ? (priceForSku(p.sku, eff)||0) : 0;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 3px;border-bottom:1px solid #e6ead9">'
+      +'<input type="checkbox" class="kantan-cb" data-sku="'+esc(p.sku)+'" style="width:20px;height:20px;flex-shrink:0">'
+      +'<span style="flex:1;font-weight:700;min-width:0">'+esc(p.name)+'</span>'
+      +'<span style="color:#0f5040;font-weight:800;font-size:13px;white-space:nowrap">¥'+Number(price).toLocaleString()+'</span>'
+      +'<input type="number" class="kantan-box" data-sku="'+esc(p.sku)+'" min="0" value="0" style="width:46px;text-align:center;padding:5px 2px;border:1px solid #cdd8b6;border-radius:6px;flex-shrink:0" title="箱数">'
+      +'<span style="font-size:11px;color:#7a7466;flex-shrink:0">箱</span>'
+      +'</label>';
+  }).join('');
+}
+function applyKantanToItems(){
+  var cid=(document.getElementById('q-customer')||{}).value;
+  var c=customers.find(function(x){return x.id===cid;});
+  if(!c){ alert('先にお客様を選んでください'); return; }
+  var checks=document.querySelectorAll('#q-kantan-list .kantan-cb');
+  var picked=[];
+  Array.prototype.forEach.call(checks,function(cb){
+    if(cb.checked){
+      var sku=cb.dataset.sku;
+      var boxInp=document.querySelector('#q-kantan-list .kantan-box[data-sku="'+sku+'"]');
+      var boxes=boxInp?(parseInt(boxInp.value,10)||0):0;
+      picked.push({sku:sku, boxes:boxes});
+    }
+  });
+  if(!picked.length){ alert('商品にチェックを入れてください'); return; }
+  var area=document.getElementById('q-items-area'); if(!area) return;
+  area.innerHTML='';
+  picked.forEach(function(pi){
+    addQuoteItemRow();
+    var rows=area.children; var row=rows[rows.length-1]; if(!row) return;
+    var skuSel=row.querySelector('[data-q-sku]');
+    var has=skuSel && Array.prototype.some.call(skuSel.options,function(o){return o.value===pi.sku;});
+    if(!has){ row.remove(); return; }
+    skuSel.value=pi.sku;
+    var boxesInp=row.querySelector('[data-q-boxes]');
+    if(boxesInp) boxesInp.value=pi.boxes;
+  });
+  var gen=document.getElementById('q-generate-card'); if(gen && gen.style.display==='none') gen.style.display='';
+  if(area.scrollIntoView) area.scrollIntoView({behavior:'smooth'});
 }
 function addQuoteItemRow(){
   const cid = document.getElementById('q-customer').value;
