@@ -308,7 +308,7 @@ gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
 function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','不良在庫特価':'defectprice'})[v] || v; }
-const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
+const LEAD_LABEL = {normal:'通常（1週間以内にお届け）', urgent:'🚨急ぎ（翌営業日までに発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
 // ── 日付はすべて日本時間（JST, UTC+9）を基準に解釈する ──
 // どんな形式（'2026-07-31' / '2026/7/31' / '2026-07-31T15:00:00.000Z'）が来ても、
@@ -360,8 +360,8 @@ function formatDateJp(v){
 function leadLabelWithDate(o){
   const due = computeDueDateISO(o);
   const dueStr = due ? formatDateJp(due)+'までに出荷' : '';
-  if(o.leadType==='urgent') return '🚨急ぎ'+(dueStr?'（'+dueStr+'）':'（明日まで）');
-  if(o.leadType==='normal') return '通常'+(dueStr?'（'+dueStr+'）':'（3日以内）');
+  if(o.leadType==='urgent') return '🚨急ぎ（翌営業日までに発送）';
+  if(o.leadType==='normal') return '通常（1週間以内にお届け）';
   if(o.leadType==='defect') return '🔵不良在庫出荷';
   if(o.leadType==='caution') return '🟡特別注意';
   if(o.leadType==='scheduled') return '🗓 '+(due?formatDateJp(due)+'までに出荷':'日程未指定');
@@ -552,7 +552,7 @@ function buildInvoiceHtml(o){
   html += '</div>';
   html += '<div style="font-size:11px">';
   html += '<div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
-  html += '<div style="color:#57534e;font-size:9.5px;margin:1px 0">※土日祝日はお休みをいただいております</div>';
+  html += '<div style="color:#57534e;font-size:9.5px;margin:1px 0">※水・土・日・祝日はお休みをいただいております</div>';
   html += COMPANY_WEBSITE+'　E-mail: '+COMPANY_EMAIL;
   html += '</div>';
   html += '</div>';
@@ -908,7 +908,7 @@ function renderList(){
     + '<div style="color:#6b7a3a;text-align:center;font-weight:700;font-size:16px;margin:3px 0">↓</div>'
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-weight:700;font-size:14px;line-height:1.6">4. そろったら「✅ 梱包完了にする」を押す</div>'
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：この注文は出荷待ち一覧から消えます（作業おわりの記録になります）。実際の発送は下の「いつ発送？」の期日内でOK。当日でなくてかまいません。</div>'
-    + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は6営業日以内（定休日・祝日・お休みは数えません）／🚨急ぎは翌日／🗓 日付指定はその日に。</div>'
+    + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は出荷依頼書が届いた日を1日目として1週間以内にお客様のお手元に届くように発送／🚨急ぎは翌営業日までに発送／🗓 日付指定はその日に。</div>'
     + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：<b>① RT発注伝票（端末の伝票）＋ ② 納品書</b>の2点を<b>必ず</b>同梱してください。</div>'
     + '</div></details>';
   if(overdue){
@@ -998,7 +998,7 @@ function leadBandHtml(o){
   const isRt = o.customerType === 'rt';
   const amNote = isRt ? '<div class="lb-sub" style="font-weight:600;margin-top:6px;font-size:13px;line-height:1.5">🕐 できるだけ午前中着でお願いします<br><span style="font-size:12px">（難しい時は午後着でもOKです）</span></div>' : '';
   if(o.leadType==='urgent'){
-    return '<div class="lead-band lb-urgent"><div class="lb-title">⚡ 急ぎ</div><div class="lb-sub">明日、出荷してください</div>'+amNote+'</div>';
+    return '<div class="lead-band lb-urgent"><div class="lb-title">⚡ 急ぎ</div><div class="lb-sub">翌営業日までに発送してください</div>'+amNote+'</div>';
   }
   if(o.leadType==='scheduled'){
     const d = o.leadDate ? formatDateJp(o.leadDate) : '日程未指定';
@@ -1010,7 +1010,7 @@ function leadBandHtml(o){
   if(o.leadType==='caution'){
     return '<div class="lead-band lb-caution"><div class="lb-title">🟡 特別注意</div>'+amNote+'</div>';
   }
-  return '<div class="lead-band lb-normal"><div class="lb-title">📦 通常</div><div class="lb-sub">6営業日以内に発送（定休日・祝日・お休みは数えません）</div>'+amNote+'</div>';
+  return '<div class="lead-band lb-normal"><div class="lb-title">📦 通常</div><div class="lb-sub">出荷依頼書が届いた日を1日目として数え、1週間以内にお客様のお手元に届くように発送してください</div>'+amNote+'</div>';
 }
 function customerTypePillHtml(o){
   if(o.customerType==='rt') return '<span class="ctype-pill ctype-rt">🏨 卸（ホテル・RT）</span>';
@@ -1042,6 +1042,7 @@ function renderOrder(){
   if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
   html += '</div>';
   html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(recipientLabel(o))+'</span></div>';
+  if(hasGift && o.senderName) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(o.senderName)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
@@ -1150,6 +1151,9 @@ function renderOrder(){
     }
   }
   html += '<div class="actions no-print">';
+  html += '<div class="sec-title">🚚 追跡番号（発送したら入力）</div>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
+  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 12px;line-height:1.6">伝票の番号を入れて保存すると、受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。<b>まだ番号が出ていなければ空のままでOK</b>です。</div>';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
   html += '<div class="complete-note">荷造りが終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送は、上の色帯の期日内でOK（当日でなくてかまいません）。</div>';
   html += '</div>';
@@ -1611,6 +1615,26 @@ async function submitDefect(){
   }
 }
 
+async function mergeSaveTracking(val){
+  if(!currentOrder) return false;
+  const res = await fetch(GAS_URL + '?action=loadAll');
+  const data = await res.json();
+  if(data.status!=='ok' || !data.data || !Array.isArray(data.data.orders)) return false;
+  const allOrders = data.data.orders;
+  const target = allOrders.find(o=>o.id===currentOrder.id);
+  if(!target) return false;
+  target.trackingNo = val;
+  const saveRes = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: allOrders }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+  const saveData = await saveRes.json();
+  if(saveData.status==='ok'){ currentOrder.trackingNo = val; return true; }
+  return false;
+}
+async function saveTracking(){
+  if(!currentOrder) return;
+  const el=document.getElementById('tracking-input'); const val=el?String(el.value||'').trim():'';
+  try{ const ok=await mergeSaveTracking(val); if(ok){ showToastSimple(val?'✅ 追跡番号を保存しました':'追跡番号を空にしました'); } else { alert('保存に失敗しました'); } }
+  catch(err){ alert('通信エラーが発生しました：'+err.message); }
+}
 async function saveShipNote(){
   if(!currentOrder) return;
   const val = document.getElementById('ship-note-input').value;
@@ -1653,6 +1677,8 @@ async function completeOrder(){
     return;
   }
   if(!confirm('梱包がすべて完了しましたか？\n「梱包完了」にすると、この注文は出荷待ち一覧から消えます。')) return;
+  const _tEl = document.getElementById('tracking-input');
+  if(_tEl){ try{ await mergeSaveTracking(String(_tEl.value||'').trim()); }catch(e){} }
   const btn = document.getElementById('complete-btn');
   btn.disabled = true;
   btn.textContent = '処理中...';
