@@ -89,6 +89,14 @@ body{margin:0;background:#faf7f2;color:#2b2a26;font-family:"Hiragino Kaku Gothic
 .lotrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
 .lotrow b{color:#166534}
 
+/* ── 価格タブ：8列を横スクロールで ── */
+.price-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+.pricetbl{min-width:660px}
+.pricetbl th{font-size:11.5px;padding:8px 6px;white-space:nowrap}
+.pricetbl td{font-size:12.5px;padding:9px 6px}
+.pricetbl .price-main{font-size:15px}
+.pricetbl .num{white-space:nowrap}
+
 /* ── 整えるフォーム（モーダル） ── */
 .mask{display:none;position:fixed;inset:0;background:rgba(40,38,34,.45);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow:auto}
 .mask.on{display:flex}
@@ -183,10 +191,22 @@ body{margin:0;background:#faf7f2;color:#2b2a26;font-family:"Hiragino Kaku Gothic
 
   <!-- 価格 -->
   <div class="panel" id="panel-price">
-    <div class="listnote">💴 価格は<b>輸入Eで決めた分の表示だけ</b>（ここでは変えません）。<b>原価は出ません。</b>変えたいときは輸入Eへ。</div>
-    <table class="tbl"><thead><tr><th>商品</th><th class="num">定価</th><th class="num">卸①</th><th class="num">卸②</th></tr></thead>
-      <tbody id="price-body"><tr><td colspan="4" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
+    <div class="listnote">💴 価格は<b>輸入Eで決めた分をそのまま映しているだけ</b>（ここでは変えません）。<b>原価も利益率も出しません。</b>変えたいときは輸入Eへ。<br><span style="font-size:11.5px">※ 横に長いときは表を<b>左右にスクロール</b>できます。「—」＝輸入Eでまだ金額を決めていない欄。</span></div>
+    <div class="price-scroll">
+    <table class="tbl pricetbl"><thead><tr>
+      <th>商品</th>
+      <th class="num">定価</th>
+      <th class="num">卸①</th>
+      <th class="num" style="background:#eef4fb">卸②</th>
+      <th class="num">RT</th>
+      <th class="num" style="background:#eef7ef">バサラ</th>
+      <th class="num" style="background:#fdf6e3;color:#8a5a12">旧ロット</th>
+      <th class="num" style="background:#fdeeee">不良特価</th>
+      <th class="num" style="background:#fdf3df">特別価格</th>
+    </tr></thead>
+      <tbody id="price-body"><tr><td colspan="9" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
     </table>
+    </div>
   </div>
 
   <!-- 在庫 -->
@@ -363,28 +383,41 @@ function renderMeibo(){
   body.innerHTML = rows || '<tr><td colspan="3" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
 }
 
-/* ── 描画：価格 ── */
+/* ── 描画：価格 ──
+   輸入E（原価データ）の価格をそのまま映すだけ＝窓口。原価も利益率(%)も出さない。
+   金額が入っていない欄（0/空）は「—」。値の有無だけで判定する完全ミラー。 */
+function priceCell(v, extraStyle){
+  var y = yen(v); /* 0・空・数字でない → null（＝—） */
+  var st = extraStyle ? (' style="'+extraStyle+'"') : '';
+  return '<td class="num"'+st+'>'+(y ? y : '<span class="dash">—</span>')+'</td>';
+}
 function renderPrice(){
   var body=document.getElementById('price-body');
   var rows='';
   groupOrder().forEach(function(g){
     var ps=PRODUCTS.filter(function(p){ return isProductActive(p) && (p.group||'その他')===g; });
     if(!ps.length) return;
-    rows+='<tr><td class="grp" colspan="4">'+esc(g)+'</td></tr>';
+    rows+='<tr><td class="grp" colspan="9">'+esc(g)+'</td></tr>';
     ps.forEach(function(p){
       var pr=priceFor(p.sku);
       var teika = pr ? yen(pr.priceGeneral) : null;
-      var w1 = (pr && !isNoWholesale(p)) ? yen(pr.priceWholesale1) : null;
-      var w2 = (pr && !isNoWholesale(p)) ? yen(pr.priceWholesale2) : null;
       rows+='<tr>'
-        +'<td><div class="pname">'+esc(p.name||p.sku)+'</div><div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span></div></td>'
+        +'<td><div class="pname">'+esc(p.name||p.sku)+'</div>'
+        +   '<div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span>'
+        +   (isNoWholesale(p)?' <span class="rtonly">RT限定・卸なし</span>':'')
+        +   '</div></td>'
         +'<td class="num">'+(teika?'<span class="price-main">'+teika+'</span>':'<span class="dash">—</span>')+'</td>'
-        +'<td class="num">'+(w1?w1:'<span class="dash">—</span>')+'</td>'
-        +'<td class="num">'+(w2?w2:'<span class="dash">—</span>')+'</td>'
+        + priceCell(pr && pr.priceWholesale1)
+        + priceCell(pr && pr.priceWholesale2, 'background:#f7fafd')
+        + priceCell(pr && pr.priceRT)
+        + priceCell(pr && pr.priceBasara, 'background:#f6faf6')
+        + priceCell(pr && pr.priceOldLot, 'background:#fdfaf0')
+        + priceCell(pr && pr.priceDefect, 'background:#fdf6f6')
+        + priceCell(pr && pr.priceSpecial, 'background:#fdf9f0')
         +'</tr>';
     });
   });
-  body.innerHTML = rows || '<tr><td colspan="4" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+  body.innerHTML = rows || '<tr><td colspan="9" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
 }
 
 /* ── 描画：在庫 ── */
