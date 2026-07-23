@@ -230,6 +230,11 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .bd-lastreply .who{font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:11.5px;color:#fff;border-radius:6px;padding:2px 8px;white-space:nowrap;margin-top:1px}
 .bd-lastreply .who.h{background:#e07aac}.bd-lastreply .who.y{background:#2f6690}
 .bd-lastreply .tx{flex:1;font-size:14px;white-space:pre-wrap;word-break:break-word;color:#4a453d}
+/* ★2026-07-23 追加：伝言板をたためるように（ふだんは閉じておき、やることを先に見せる） */
+.bd-head{cursor:pointer;user-select:none}
+.bd-foldbtn{background:rgba(255,255,255,.94);color:#8a3a5e;border:none;border-radius:999px;padding:8px 15px;font-family:'Zen Maru Gothic',sans-serif;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
+.bd-headsum{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:900;border-radius:999px;padding:4px 12px;background:rgba(255,255,255,.92);color:#8a3a5e}
+.bd-wrap.folded .bd-head{border-radius:14px}
 .sc-optrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
 .sc-red{font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;color:#dc2626;font-weight:700}
 .sc-red input{width:15px;height:15px}
@@ -346,13 +351,18 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 
   <!-- ② 伝言板（最新1件だけ表示・コンパクト） -->
   <div class="bd-wrap" style="margin-top:14px">
-    <div class="bd-head" style="display:flex;align-items:center;gap:10px">
+    <div class="bd-head" id="bd-head" style="display:flex;align-items:center;gap:10px" onclick="bdToggleFold()">
       <div>
         <div class="bd-brand">ひろみ ⇄ ゆか 伝言板</div>
         <div class="bd-sub">早朝、夜間、長い説明がいる連絡、お休みの日の急がない案件などに利用しましょう</div>
+        <div class="bd-headsum" id="bd-headsum" style="display:none"></div>
       </div>
-      <button class="bd-dismiss" id="bd-dismiss" onclick="bdDismissGlow()">🔕 光を消す</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <button class="bd-dismiss" id="bd-dismiss" onclick="event.stopPropagation();bdDismissGlow()">🔕 光を消す</button>
+        <button class="bd-foldbtn" id="bd-foldbtn" onclick="event.stopPropagation();bdToggleFold()">▽ ひらく</button>
+      </div>
     </div>
+    <div id="bd-panel" style="display:none">
     <div class="bd-composer">
       <textarea id="bd-newtext" placeholder="ゆかちゃんへの用件を書く（自由に・長くてもOK）"></textarea>
       <div class="bd-tools">
@@ -371,6 +381,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
       <span class="bd-retention">🗓 3日間だけ残ります</span>
     </div>
     <div class="bd-feed" id="bd-donefeed" style="display:none;max-height:none"></div>
+    </div><!-- /bd-panel -->
   </div>
 
   <!-- ③ やること -->
@@ -456,6 +467,7 @@ function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group
 function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
 
 document.addEventListener('DOMContentLoaded', function(){
+  bdApplyFold();
   const saved = oosSavedPw('secret');
   if(saved){ autoUnlock(saved); }
 });
@@ -604,6 +616,37 @@ function bdPostHTML(it){
     (open ? bdRepliesOnly(it) : '')+
     '</div>';
 }
+/* ★2026-07-23 追加：伝言板の開け閉め。ふだんは閉じておく（＝やることがすぐ見える）
+   閉じていても、見出しに「あなたの返事まち◯件」が赤く出るので見落としません     */
+let bdFolded = (localStorage.getItem('oos_bd_folded') !== 'open');
+function bdToggleFold(){
+  bdFolded = !bdFolded;
+  localStorage.setItem('oos_bd_folded', bdFolded ? 'closed' : 'open');
+  bdApplyFold();
+}
+function bdApplyFold(){
+  const p = document.getElementById('bd-panel');
+  const b = document.getElementById('bd-foldbtn');
+  const w = document.querySelector('.bd-wrap');
+  if(p) p.style.display = bdFolded ? 'none' : 'block';
+  if(w) w.classList.toggle('folded', bdFolded);
+  if(b) b.textContent = bdFolded ? '▽ ひらく' : '△ とじる';
+  bdUpdateHeadSum();
+}
+function bdUpdateHeadSum(){
+  const el = document.getElementById('bd-headsum'); if(!el) return;
+  if(!bdFolded){ el.style.display='none'; return; }
+  const open = boardItems.filter(function(x){ return x.status!=='done'; });
+  const need = open.filter(function(x){ const s=bdState(x); return s==='todo'||s==='yreply'; }).length;
+  el.style.display = 'inline-block';
+  if(need){
+    el.textContent = '🔴 あなたの返事まち '+need+'件（やりとり中 '+open.length+'件）';
+    el.style.background = '#dc2626'; el.style.color = '#fff';
+  }else{
+    el.textContent = open.length ? '✅ 返事まちなし（やりとり中 '+open.length+'件）' : '✅ 未対応の伝言はありません';
+    el.style.background = 'rgba(255,255,255,.92)'; el.style.color = '#8a3a5e';
+  }
+}
 function renderBoard(){
   let open = boardItems.filter(function(x){return x.status!=='done';});
   // 新しい順（新着が一番上）
@@ -627,6 +670,7 @@ function renderBoard(){
   updateBoardTab(anyGlow, incoming);
   const dm = document.getElementById('bd-dismiss'); if(dm) dm.style.display = anyGlow ? 'inline-block' : 'none';
   bdSyncReadmore();  // ★2026-07-17 3行を超える伝言だけ「続きを読む」を出す
+  bdApplyFold();     // ★2026-07-23 開け閉めの状態と見出しの件数を反映
 }
 /* ★2026-07-17 描画後に本文の高さを見て、3行に収まらない伝言だけ「▽続きを読む」を表示 */
 function bdSyncReadmore(){
