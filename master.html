@@ -398,7 +398,7 @@ tr:last-child td{border-bottom:none}
 </details>
 </div>
 
-<div class="ver-mark">版 7/23 v15</div>
+<div class="ver-mark">版 7/23 v16</div>
 <div id="newprod-alert"></div>
 
 <div class="tab-row">
@@ -2598,6 +2598,19 @@ var MB_KINDS = [
   { code:'BAG',  label:'🛍 紙袋' },
   { code:'MISC', label:'🧰 その他の備品' }
 ];
+/* ★2026-07-23 【品番が先に決まっている商品】
+   ラベル図鑑・注文ページに、すでにこの品番で登録してあるもの。
+   自動で番号をつけると写真とつながらなくなるので、ここから選ぶ。
+   （中村様は打ちません。選ぶだけです）
+   一度名簿に入れたら、この一覧からは自動で消えます。 */
+var MB_FIXED = [
+  { sku:'BOX-SEAL', name:'ギフトボックス（シールのみ・お包みなし）', group:'備品', boxQty:1 },
+  { sku:'BOX-WRAP', name:'包装紙で巻いたギフトボックス',             group:'備品', boxQty:1 }
+];
+function mbFixedLeft(){
+  var used = mbUsedSkus();
+  return MB_FIXED.filter(function(f){ return !used[f.sku.toUpperCase()]; });
+}
 function mbUsedSkus(){
   var used = {};
   (PRODUCTS||[]).forEach(function(p){ if(p && p.sku) used[String(p.sku).trim().toUpperCase()] = true; });
@@ -2624,7 +2637,21 @@ function mbKindChanged(){
   var k = document.getElementById('mp-kind');
   var s = document.getElementById('mp-sku');
   if(!k || !s) return;
-  s.value = mbNextSku(k.value);
+  var v = k.value || '';
+  if(v.indexOf('FIXED:') === 0){
+    // 品番が先に決まっている商品（ラベル図鑑に登録済み）→ 名前と区分も一緒に入れる
+    var sku = v.slice(6);
+    var f = MB_FIXED.filter(function(x){ return x.sku === sku; })[0];
+    s.value = sku;
+    if(f){
+      var n = document.getElementById('mp-name'); if(n && !n.value) n.value = f.name;
+      var b = document.getElementById('mp-box');  if(b && !b.value) b.value = f.boxQty;
+      var g = document.getElementById('mp-group');
+      if(g){ for(var i=0;i<g.options.length;i++){ if(g.options[i].value === f.group){ g.selectedIndex = i; break; } } }
+    }
+    return;
+  }
+  s.value = mbNextSku(v);
 }
 
 function meiboEditRowHtml(p, sp){
@@ -2640,7 +2667,14 @@ function meiboEditRowHtml(p, sp){
     '<div class="mp-grid">'+
       (isNew && !meiboNewSkuPrefill
         ? '<div class="mp-fg"><label>種類　※品番はこれで自動でつきます</label><select id="mp-kind" onchange="mbKindChanged()"><option value="">（選ぶ）</option>'+
-            MB_KINDS.map(function(k){ return '<option value="'+k.code+'">'+esc(k.label)+'</option>'; }).join('')+
+            (mbFixedLeft().length
+              ? '<optgroup label="── 品番が決まっている商品（写真も登録済み）──">'+
+                  mbFixedLeft().map(function(f){ return '<option value="FIXED:'+esc(f.sku)+'">🎁 '+esc(f.name)+'（'+esc(f.sku)+'）</option>'; }).join('')+
+                '</optgroup>'
+              : '')+
+            '<optgroup label="── 新しくつくる（番号は自動）──">'+
+              MB_KINDS.map(function(k){ return '<option value="'+k.code+'">'+esc(k.label)+'</option>'; }).join('')+
+            '</optgroup>'+
           '</select></div>'
         : '')+
       '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>'+
@@ -2674,7 +2708,12 @@ async function meiboSaveRow(){
     var used = mbUsedSkus();
     if(used[sku.toUpperCase()]){
       var k = document.getElementById('mp-kind');
-      var again = mbNextSku(k ? k.value : '');
+      var kv = k ? k.value : '';
+      if(kv.indexOf('FIXED:') === 0){
+        alert('「'+sku+'」はすでに名簿にあります。同じ商品を2つ作ることはできません。\nやめる を押して、一覧からその商品を直してください。');
+        return;
+      }
+      var again = mbNextSku(kv);
       document.getElementById('mp-sku').value = again;
       alert('その品番はすでに使われていたので、'+again+' に付け直しました。\nもう一度「この内容で保存する」を押してください。');
       return;
