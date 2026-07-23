@@ -1102,37 +1102,77 @@ function allCostSkus(){
   return list;
 }
 
-/* ★2026-07-23 原価がまだ入っていない商品を数える（名簿に増えた商品に気づくため） */
+/* ★2026-07-23 原価がまだ入っていない商品を数える。
+   仮原価（⏳）を入れてある商品は「入れた」ものとして数えない。 */
 function costMissingList(){
   if(!(typeof OOS_PRODUCTS !== 'undefined' && OOS_PRODUCTS && OOS_PRODUCTS.length)) return [];
   return OOS_PRODUCTS.filter(isProductActiveE).filter(function(p){
     if(!p.sku) return false;
     var rec = costData[p.sku];
-    var v = rec ? parseFloat(rec.cost) : 0;
-    return !(v > 0);
+    if(rec && (parseFloat(rec.cost)||0) > 0) return false;          // 本物の原価が入っている
+    var pv = provisionalCosts[p.sku];
+    if(pv && (parseFloat(pv.cost)||0) > 0) return false;            // 仮原価が入っている
+    return true;
   });
 }
+
+/* 「✓ 確認しました」で消せるようにする（統合マスタの🔔と同じ考え方）。
+   一度見た品番はこの端末が覚えていて、次に本当に新しい商品が来たときだけまた赤く出る。 */
+var COST_SEEN_KEY = 'oos_cost_seen_skus_v1';
+var costShowAll = false;
+function costSeenSet(){
+  try{
+    var a = JSON.parse(localStorage.getItem(COST_SEEN_KEY) || '[]');
+    var o = {}; (a||[]).forEach(function(s){ o[s] = true; }); return o;
+  }catch(e){ return {}; }
+}
+function costMarkAllSeen(){
+  var seen = costSeenSet();
+  costMissingList().forEach(function(p){ seen[p.sku] = true; });
+  try{ localStorage.setItem(COST_SEEN_KEY, JSON.stringify(Object.keys(seen))); }catch(e){}
+  costShowAll = false;
+  renderCostMissingAlert();
+  showSyncStatus('✅ お知らせを閉じました（原価がまだの商品は下に小さく出ています）');
+}
+function costOpenAgain(){ costShowAll = true; renderCostMissingAlert(); }
+
 function renderCostMissingAlert(){
   var el = document.getElementById('cost-missing-alert');
   if(!el) return;
   var miss = costMissingList();
-  if(!miss.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
-  var chips = miss.map(function(p){
-    var pv = provisionalCosts[p.sku];
-    var karidone = pv && (parseFloat(pv.cost)||0) > 0;
+  if(!miss.length){ el.style.display = 'none'; el.innerHTML = ''; costShowAll = false; return; }
+
+  var seen = costSeenSet();
+  var fresh = costShowAll ? miss : miss.filter(function(p){ return !seen[p.sku]; });
+
+  if(!fresh.length){
+    // すでに確認したぶん → 赤くせず、静かに件数だけ
+    el.innerHTML =
+      '<div style="background:#f4f1ea;border:1px solid #d8cfc4;border-radius:8px;padding:7px 11px;margin-bottom:10px;'+
+      'font-size:12.5px;color:#7a746a;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+        '<span>原価がまだの商品：<strong style="color:#57534e">'+miss.length+'件</strong></span>'+
+        '<button class="btn" style="background:#fff;border:1px solid #b9b09c;color:#57534e;font-size:12px;padding:3px 10px" onclick="costOpenAgain()">見る</button>'+
+      '</div>';
+    el.style.display = 'block';
+    return;
+  }
+
+  var chips = fresh.map(function(p){
     return '<span style="display:inline-block;background:#fff;border:1.5px solid #e5a0a0;border-radius:999px;'+
            'padding:4px 11px;margin:3px 5px 3px 0;font-size:13px;font-weight:800;color:#a32d2d">'+
            esc(p.name||p.sku)+
            ' <span style="font-family:monospace;font-size:11.5px;color:#3a4a5c;background:#eef1f5;border-radius:4px;padding:1px 5px">'+esc(p.sku)+'</span>'+
-           (karidone ? ' <span style="font-size:10.5px;color:#a05a10">⏳仮のみ</span>' : '')+
            '</span>';
   }).join('');
   el.innerHTML =
     '<div style="background:#fcebeb;border:2px solid #dc2626;border-radius:10px;padding:12px 14px;margin-bottom:12px;line-height:1.85">'+
-      '<div style="font-size:15px;font-weight:800;color:#a32d2d;margin-bottom:4px">🔔 原価データに商品が増えています。登録してください（'+miss.length+'件）</div>'+
+      '<div style="font-size:15px;font-weight:800;color:#a32d2d;margin-bottom:4px">🔔 原価データに商品が増えています。登録してください（'+fresh.length+'件）</div>'+
       '<div style="font-size:12.5px;color:#7a2b2b;margin-bottom:7px">統合マスタの名簿で作られた商品です。<strong>原価を入れないと、利益比較にも見積書にも正しく出ません。</strong></div>'+
       '<div>'+chips+'</div>'+
-      '<div style="font-size:12px;color:#7a2b2b;margin-top:7px">入れ方：下の「区分別 利益ひと目比較」でその商品の<strong>原価のマス</strong>を押すと、右側で入力できます。</div>'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px">'+
+        '<button class="btn" style="background:#fff;border:2px solid #a32d2d;color:#a32d2d;font-weight:800" onclick="costMarkAllSeen()">✓ 確認しました（このお知らせを閉じる）</button>'+
+        '<span style="font-size:12px;color:#7a2b2b">入れ方：下の表でその商品の<strong>原価のマス</strong>を押すと、右側で入力できます。</span>'+
+      '</div>'+
     '</div>';
   el.style.display = 'block';
 }
