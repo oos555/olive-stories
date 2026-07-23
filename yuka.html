@@ -222,6 +222,11 @@ input[type=text]{padding:7px 10px;border:1px solid #cfd8e0;border-radius:8px;fon
 .bd-rthumb img{display:block;width:100%;height:auto}
 .bd-photobtn{border-color:#c9b48c!important;background:#fdf6e6!important;color:#8a5a12!important}
 .bd-lastreply .mini{width:34px;height:34px;object-fit:cover;border-radius:7px;border:1px solid #ded7cb;flex-shrink:0}
+
+/* ★2026-07-23 追加：送れていないものを、送った本人にはっきり見せる */
+.bd-unsent{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#fdeaea;border:2px solid #dc2626;color:#b23b3b;font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:13.5px;border-radius:10px;padding:8px 12px;margin:0 0 9px}
+.bd-unsent button{border:none;background:#dc2626;color:#fff;border-radius:999px;padding:6px 15px;font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:12.5px;cursor:pointer;margin-left:auto}
+.bd-post.unsent{border-color:#dc2626}
 </style>
 </head>
 <body>
@@ -548,8 +553,11 @@ function bdPostHTML(it){
       (lr.from==='h'?'ひろみ':'ゆか')+'</span><span class="tx">'+bdEsc(lr.text || (lr.img?'（写真）':''))+'</span>'+
       (lr.img ? '<img class="mini" src="'+lr.img+'" alt="写真">' : '')+'</div>';
   }
-  return '<div class="bd-post from-'+(it.from||'h')+' st-'+bdState(it)+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
-    bdStateBar(it)+
+  const unsentBar = bdUnsent[it.id]
+    ? '<div class="bd-unsent">⚠️ まだ送れていません（ひろみさんには届いていません）<button onclick="bdRetrySend(\''+it.id+'\')">↻ もう一度送る</button></div>'
+    : '';
+  return '<div class="bd-post from-'+(it.from||'h')+' st-'+bdState(it)+(it.status==='done'?' done':'')+(glow?' glow':'')+(bdUnsent[it.id]?' unsent':'')+'">'+
+    unsentBar+bdStateBar(it)+
     '<div class="bd-ptop">'+bdBadge(it.from||'h')+'<span class="bd-time">'+bdEsc(it.time||'')+'</span></div>'+
     body+att+lastPrev+
     '<div class="bd-actrow">'+doneBtn+editBtn+replyBtn+delBtn+'</div>'+
@@ -661,11 +669,32 @@ async function loadBoardFromGAS(){
 }
 function bdGenId(){ return 'b'+Date.now()+Math.floor(Math.random()*1000); }
 function bdNowLabel(){ const d=new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
-async function bdSaveItem(it){ try{ await post({ action:'saveBoardItem', password: password, item: it }); }catch(err){ showSyncStatus('⚠️ 伝言板の保存に失敗しました', true); } }
+/* ★2026-07-23 変更：送れたか送れなかったかを、はっきり返す＆画面に残す */
+let bdUnsent = {};   // 送信できなかった伝言のid
+async function bdSaveItem(it){
+  try{
+    await post({ action:'saveBoardItem', password: password, item: it });
+    delete bdUnsent[it.id];
+    return true;
+  }catch(err){
+    bdUnsent[it.id] = true;
+    showSyncStatus('⚠️ 送れませんでした。相手にはまだ届いていません', true);
+    try{ renderBoard(); }catch(e){}
+    return false;
+  }
+}
+/* 送れなかったものを、もう一度送る */
+async function bdRetrySend(id){
+  const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
+  showSyncStatus('送りなおしています…');
+  const ok = await bdSaveItem(it);
+  renderBoard();
+  if(ok) showSyncStatus('✅ 送れました');
+}
 
 async function bdAdd(){
   const t = document.getElementById('bd-newtext').value.trim();
-  if(!t){ return; }
+  if(!t && !bdPendingImg){ return; }   // ★2026-07-23 写真だけでも出せます
   const it = {
     id: bdGenId(), from: BD_ME, text: t, time: bdNowLabel(),
     img: bdPendingImg||'', link: bdPendingLink||'', linkLabel: bdPendingLinkLabel||'',
@@ -676,8 +705,10 @@ async function bdAdd(){
   document.getElementById('bd-newtext').value='';
   bdClearPending();
   renderBoard();
-  await bdSaveItem(it);
-  showSyncStatus('✅ 伝言板にはりだしました');
+  const hadImg = !!it.img;
+  const ok = await bdSaveItem(it);
+  renderBoard();
+  if(ok) showSyncStatus(hadImg ? '✅ 写真つきで、はりだしました' : '✅ 伝言板にはりだしました');
 }
 async function bdComplete(id){
   const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
@@ -732,8 +763,11 @@ async function bdAddReply(id){
   it.replies.push({ from: BD_ME, text: t, img: im, at: new Date().toISOString() });
   delete bdReplyImg[id];
   bdExpanded[id] = true;
+  bdShowReplyPending(id);
   renderBoard();
-  await bdSaveItem(it);
+  const ok = await bdSaveItem(it);
+  renderBoard();
+  if(ok) showSyncStatus(im ? '✅ 写真つきで、返信を送りました' : '✅ 返信を送りました');
 }
 function bdSetPlan(){
   const d = prompt('いつやる予定？（例：7/17 や 明日 など自由に）', bdPendingPlan||'');
