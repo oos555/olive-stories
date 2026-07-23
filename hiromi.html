@@ -295,6 +295,10 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .bd-unsent{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#fdeaea;border:2px solid #dc2626;color:#b23b3b;font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:13.5px;border-radius:10px;padding:8px 12px;margin:0 0 9px}
 .bd-unsent button{border:none;background:#dc2626;color:#fff;border-radius:999px;padding:6px 15px;font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:12.5px;cursor:pointer;margin-left:auto}
 .bd-post.unsent{border-color:#dc2626}
+
+/* ★2026-07-23 追加：写真の大きさ表示 */
+.bd-imgsize{font-size:11.5px;font-weight:800;color:#6b6558;background:#f4f0ea;border-radius:999px;padding:2px 9px}
+.bd-imgsize.warn{background:#fdeaea;color:#b23b3b}
 </style>
 </head>
 <body>
@@ -773,7 +777,9 @@ function bdNowLabel(){ const d=new Date(); return ('0'+d.getHours()).slice(-2)+'
 let bdUnsent = {};   // 送信できなかった伝言のid
 async function bdSaveItem(it){
   try{
-    await post({ action:'saveBoardItem', password: password, item: it });
+    const r = await post({ action:'saveBoardItem', password: password, item: it });
+    // ★2026-07-23 GASが「失敗」と返した場合も失敗として扱う（今までは成功扱いだった）
+    if(r && r.status && r.status !== 'ok') throw new Error(r.message || 'save error');
     delete bdUnsent[it.id];
     return true;
   }catch(err){
@@ -782,6 +788,42 @@ async function bdSaveItem(it){
     try{ renderBoard(); }catch(e){}
     return false;
   }
+}
+
+/* ★2026-07-23 追加：写真は容量が大きく、保存側（スプレッドシート1マス5万字まで）で
+   落ちることがある。そこで「送ったあとサーバーに本当に入ったか」を見に行って確かめる。 */
+const BD_IMG_MAX_CHARS = 28000;   // これ以下に収まるまで写真を小さくする
+function bdImgKB(u){ return Math.round((u||'').length*0.73/1024); }
+async function bdResizeToFit(file){
+  const steps = [[560,.5],[480,.45],[420,.4],[360,.35],[300,.3],[240,.28]];
+  let u = '';
+  for(let i=0;i<steps.length;i++){
+    u = await bdResizeImage(file, steps[i][0], steps[i][1]);
+    if(u.length <= BD_IMG_MAX_CHARS) return u;
+  }
+  return u;
+}
+/* サーバーを読み直して、伝言と写真が本当に入ったか確かめる
+   返り値： 'ok' / 'noimg'（本文は入ったが写真が消えた） / 'none'（伝言ごと入っていない） / null（確認できず） */
+async function bdVerify(id, wantImg, wantReplies){
+  try{
+    const data = await post({ action:'loadBoard', password: password });
+    if(!data || data.status !== 'ok') return null;
+    const items = (data.data && data.data.items) || [];
+    const srv = items.find(function(x){ return x.id === id; });
+    if(!srv) return 'none';
+    if(wantReplies != null){
+      const rs = srv.replies || [];
+      if(rs.length < wantReplies) return 'none';
+      if(wantImg && !(rs[rs.length-1] && rs[rs.length-1].img)) return 'noimg';
+      return 'ok';
+    }
+    if(wantImg && !srv.img) return 'noimg';
+    return 'ok';
+  }catch(e){ return null; }
+}
+function bdImgFailMsg(){
+  showSyncStatus('⚠️ 写真が保存できませんでした。もう少し小さい写真でお試しください', true);
 }
 /* 送れなかったものを、もう一度送る */
 async function bdRetrySend(id){
@@ -807,8 +849,14 @@ async function bdAdd(){
   renderBoard();
   const hadImg = !!it.img;
   const ok = await bdSaveItem(it);
+  if(ok){
+    const v = await bdVerify(it.id, hadImg, null);
+    if(v === 'none'){ bdUnsent[it.id] = true; }
+    else if(v === 'noimg'){ bdUnsent[it.id] = true; bdImgFailMsg(); }
+    else if(v === 'ok'){ showSyncStatus(hadImg ? '✅ 写真つきで、はりだしました（相手に届きました）' : '✅ 伝言板にはりだしました'); }
+    else { showSyncStatus(hadImg ? '✅ 写真つきで、はりだしました' : '✅ 伝言板にはりだしました'); }
+  }
   renderBoard();
-  if(ok) showSyncStatus(hadImg ? '✅ 写真つきで、はりだしました' : '✅ 伝言板にはりだしました');
 }
 async function bdComplete(id){
   const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
@@ -839,14 +887,14 @@ let bdReplyImg = {};   // 投稿idごとの「これから送る写真」
 function bdReplyPickImage(id){ const el=document.getElementById('bd-rfile-'+id); if(el) el.click(); }
 function bdReplyOnFile(input, id){
   const f = input.files[0]; if(!f) return;
-  bdResizeImage(f, 560, 0.5).then(function(u){ bdReplyImg[id] = u; bdShowReplyPending(id); });
+  bdResizeToFit(f).then(function(u){ bdReplyImg[id] = u; bdShowReplyPending(id); });
   input.value='';
 }
 function bdClearReplyImg(id){ delete bdReplyImg[id]; bdShowReplyPending(id); }
 function bdShowReplyPending(id){
   const el = document.getElementById('bd-rpend-'+id); if(!el) return;
   if(!bdReplyImg[id]){ el.style.display='none'; el.innerHTML=''; return; }
-  el.innerHTML = '<img src="'+bdReplyImg[id]+'" alt="写真"><span>この写真をつけて送ります</span>'+
+  el.innerHTML = '<img src="'+bdReplyImg[id]+'" alt="写真"><span>この写真をつけて送ります（'+bdImgKB(bdReplyImg[id])+'KB）</span>'+
     '<button class="x" title="写真を取り消す" onclick="bdClearReplyImg(\''+id+'\')">✕</button>';
   el.style.display='flex';
 }
@@ -871,8 +919,14 @@ async function bdAddReply(id){
   bdShowReplyPending(id);
   renderBoard();
   const ok = await bdSaveItem(it);
+  if(ok){
+    const v = await bdVerify(it.id, !!im, it.replies.length);
+    if(v === 'none'){ bdUnsent[it.id] = true; }
+    else if(v === 'noimg'){ bdUnsent[it.id] = true; bdImgFailMsg(); }
+    else if(v === 'ok'){ showSyncStatus(im ? '✅ 写真つきで、返信を送りました（相手に届きました）' : '✅ 返信を送りました'); }
+    else { showSyncStatus(im ? '✅ 写真つきで、返信を送りました' : '✅ 返信を送りました'); }
+  }
   renderBoard();
-  if(ok) showSyncStatus(im ? '✅ 写真つきで、返信を送りました' : '✅ 返信を送りました');
 }
 function bdSetPlan(){
   const d = prompt('いつやる予定？（例：7/17 や 明日 など自由に）', bdPendingPlan||'');
@@ -883,7 +937,7 @@ function bdSetPlan(){
 function bdPickImage(){ document.getElementById('bd-file').click(); }
 function bdOnFile(input){
   const f = input.files[0]; if(!f) return;
-  bdResizeImage(f, 560, 0.5).then(function(u){ bdPendingImg = u; bdShowPending(); });
+  bdResizeToFit(f).then(function(u){ bdPendingImg = u; bdShowPending(); });
   input.value='';
 }
 function bdResizeImage(file, maxSize, quality){
@@ -914,7 +968,8 @@ function bdShowPending(){
   const el = document.getElementById('bd-pending');
   if(!bdPendingImg && !bdPendingLink && !bdPendingPlan){ el.style.display='none'; el.innerHTML=''; return; }
   let h='<span style="font-weight:700">つける：</span>';
-  if(bdPendingImg) h+='<img src="'+bdPendingImg+'" alt="写真">';
+  if(bdPendingImg){ const kb=bdImgKB(bdPendingImg);
+    h+='<img src="'+bdPendingImg+'" alt="写真"><span class="bd-imgsize'+(bdPendingImg.length>BD_IMG_MAX_CHARS?' warn':'')+'">写真 '+kb+'KB</span>'; }
   if(bdPendingLink) h+='<span style="color:#0f6e56;font-weight:700">'+bdEsc(bdPendingLinkLabel||'🔗 リンク')+'</span>';
   if(bdPendingPlan) h+='<span style="color:#2f6690;font-weight:700">📅 '+bdEsc(bdPendingPlan)+'</span>';
   h+='<button class="bd-chip" style="margin-left:auto" onclick="bdClearPending()">✕ 取り消す</button>';
