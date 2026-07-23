@@ -2607,13 +2607,14 @@ async function meiboSaveRow(){
   st.textContent = '保存中...';
   try{
     var res = await fetch(GAS_URL, { method:'POST',
-      body: JSON.stringify({ action:'saveProduct', product: prod }),
+      body: JSON.stringify({ action:'saveOneProduct', product: prod }),
       headers: {'Content-Type':'text/plain;charset=utf-8'} });
     var data = await res.json();
     if(data && data.status==='ok'){
       var idx = PRODUCTS.findIndex(function(x){ return x.sku===sku; });
       if(idx>=0) PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], prod);
-      else PRODUCTS.push(Object.assign({ id: Date.now() }, prod));
+      else PRODUCTS.push(Object.assign({ id: (data.id || null) }, prod)); // idはGASが採番したものを使う
+      refreshAllProductSelects(); // 新商品をロット登録の選択肢にも出す
       saveProductsToCache(PRODUCTS, EXTRA_FIELDS);
       meiboEditingSku = null; meiboAddingNew = false;
       showSyncStatus(data.added ? '✅ 新しい商品を商品マスタに追加しました' : '✅ 商品マスタに保存しました');
