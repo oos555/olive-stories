@@ -3222,7 +3222,7 @@ function notifyLineShort(listArg){
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
   list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
-  syncOrdersToGAS(list);                       // ① 通知済みにした注文だけを最新にマージ
+  var saving = syncOrdersToGAS(list);          // ① 通知済みにした注文だけを最新にマージ（★終わるまで待つ）
   const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷依頼：'+list.length+'件';
   const parts = [];
@@ -3244,7 +3244,22 @@ function notifyLineShort(listArg){
     }).catch(function(){});
   }catch(e){}
   navigator.clipboard.writeText(text).catch(function(){});
-  location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
+
+  /* ★2026-07-23 修正：以前はここですぐLINEへ画面が飛んでいたため、
+     「倉庫へ送りました」の記録が保存し終わる前に中断されていた。
+     （通知は届くのに、受注一覧では「まだ送っていません」のまま／
+       倉庫Dのピッキング画面にも出てこない、という不具合）
+     保存が終わるのを待ってからLINEを開く。
+     万一つながらない時のために、最長8秒で必ず先へ進む。 */
+  var btn = document.getElementById('line-notify-btn');
+  var btnHtml = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '保存しています…'; }
+  var goLine = function(){
+    if(btn){ btn.disabled = false; btn.innerHTML = btnHtml; }
+    location.href = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
+  };
+  var timeout = new Promise(function(res){ setTimeout(res, 8000); });
+  Promise.race([ Promise.resolve(saving).catch(function(){}), timeout ]).then(goLine);
 }
 
 // ── STORES CSV取込 ────────────────────────────────────────────
@@ -4120,7 +4135,7 @@ function applyBasaraToOrderForm(){
 //   changed … このクライアントが新規作成・変更した注文の配列。
 //             省略時は従来どおり手元まるごと保存（フォールバック）。
 function syncOrdersToGAS(changed){
-  if(!gasSyncEnabled) return;
+  if(!gasSyncEnabled) return Promise.resolve();
   const fallbackSave = function(arr){
     return fetch(GAS_URL, {
       method:'POST',
@@ -4130,13 +4145,12 @@ function syncOrdersToGAS(changed){
   };
   // 変更リストが渡されていない場合＝従来動作
   if(!Array.isArray(changed)){
-    fallbackSave(orders).then(function(d){
+    return fallbackSave(orders).then(function(d){
       if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
       else showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
     }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
-    return;
   }
-  fetch(GAS_URL + '?action=loadAll').then(function(r){ return r.json(); }).then(function(fresh){
+  return fetch(GAS_URL + '?action=loadAll').then(function(r){ return r.json(); }).then(function(fresh){
     var base;
     if(fresh && fresh.status==='ok' && fresh.data && Array.isArray(fresh.data.orders)){
       // 最新をベースに、自分の変更した注文だけを id で重ねる（新規は追加）
