@@ -278,6 +278,18 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
   .app{padding:.7rem}
   .bd-col-board,.bd-col-mine{display:block}
 }
+
+/* ★2026-07-23 追加：返信にも写真をつけられるように */
+.bd-replytools{display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap}
+.bd-rpend{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:#3d6b3d;background:#eef6ee;border:1px solid #cfe0cf;border-radius:9px;padding:5px 9px}
+.bd-rpend img{width:32px;height:32px;object-fit:cover;border-radius:6px;border:1px solid #cfe0cf}
+.bd-rpend .x{border:none;background:none;color:#8a857c;font-weight:900;cursor:pointer;font-size:13px}
+.bd-reply .rwrap{flex:1;min-width:0}
+.bd-rtext{display:inline-block;max-width:100%}
+.bd-rthumb{margin-top:6px;border:1.5px solid #e3ddd2;border-radius:10px;overflow:hidden;max-width:180px;cursor:pointer}
+.bd-rthumb img{display:block;width:100%;height:auto}
+.bd-photobtn{border-color:#c9b48c!important;background:#fdf6e6!important;color:#8a5a12!important}
+.bd-lastreply .mini{width:34px;height:34px;object-fit:cover;border-radius:7px;border:1px solid #ded7cb;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -366,7 +378,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
     <div class="bd-composer">
       <textarea id="bd-newtext" placeholder="ゆかちゃんへの用件を書く（自由に・長くてもOK）"></textarea>
       <div class="bd-tools">
-        <button class="bd-chip" onclick="bdPickImage()">📷 写真</button>
+        <button class="bd-chip" onclick="bdPickImage()">📷 写真をつける</button>
         <button class="bd-chip" onclick="bdAddLink()">🔗 リンク</button>
         <button class="bd-chip" id="bd-planbtn" onclick="bdSetPlan()">📅 予定日</button>
         <button class="bd-send" onclick="bdAdd()">はりだす</button>
@@ -565,6 +577,12 @@ function bdRepliesBlock(it){
       h += '<div class="bd-reply"><span class="bd-rmini '+(r.from==='h'?'h':'y')+'">'+(r.from==='h'?'ひろみ':'ゆか')+'</span><span class="bd-rtext">'+bdEsc(r.text)+'</span></div>';
     });
     h += '<div class="bd-replybox"><input id="bd-reply-'+it.id+'" placeholder="返信を書く…" onkeydown="if(event.key===\'Enter\')bdAddReply(\''+it.id+'\')"><button onclick="bdAddReply(\''+it.id+'\')">送る</button></div>';
+  /* ★2026-07-23 返信に写真をつける欄 */
+  h += '<div class="bd-replytools">'+
+       '<button class="bd-chip bd-photobtn" onclick="bdReplyPickImage(\''+it.id+'\')">📷 写真をつける</button>'+
+       '<input type="file" id="bd-rfile-'+it.id+'" accept="image/*" capture="environment" style="display:none" onchange="bdReplyOnFile(this,\''+it.id+'\')">'+
+       '<div class="bd-rpend" id="bd-rpend-'+it.id+'" style="display:none"></div>'+
+       '</div>';
     h += '</div>';
   }
   return h;
@@ -572,10 +590,19 @@ function bdRepliesBlock(it){
 /* 返信の中身だけ（開閉ボタンは下の一列に置く） */
 function bdRepliesOnly(it){
   let h = '<div class="bd-replies">';
-  (it.replies||[]).forEach(function(r){
-    h += '<div class="bd-reply"><span class="bd-rmini '+(r.from==='h'?'h':'y')+'">'+(r.from==='h'?'ひろみ':'ゆか')+'</span><span class="bd-rtext">'+bdEsc(r.text)+'</span></div>';
+  (it.replies||[]).forEach(function(r, ri){
+    h += '<div class="bd-reply"><span class="bd-rmini '+(r.from==='h'?'h':'y')+'">'+(r.from==='h'?'ひろみ':'ゆか')+'</span><div class="rwrap">'+
+         (r.text ? '<span class="bd-rtext">'+bdEsc(r.text)+'</span>' : '')+
+         (r.img ? '<div class="bd-rthumb" onclick="bdZoomReply(\''+it.id+'\','+ri+')"><img src="'+r.img+'" alt="写真"></div>' : '')+
+         '</div></div>';
   });
   h += '<div class="bd-replybox"><input id="bd-reply-'+it.id+'" placeholder="返信を書く…" onkeydown="if(event.key===\'Enter\')bdAddReply(\''+it.id+'\')"><button onclick="bdAddReply(\''+it.id+'\')">送る</button></div>';
+  /* ★2026-07-23 返信に写真をつける欄 */
+  h += '<div class="bd-replytools">'+
+       '<button class="bd-chip bd-photobtn" onclick="bdReplyPickImage(\''+it.id+'\')">📷 写真をつける</button>'+
+       '<input type="file" id="bd-rfile-'+it.id+'" accept="image/*" capture="environment" style="display:none" onchange="bdReplyOnFile(this,\''+it.id+'\')">'+
+       '<div class="bd-rpend" id="bd-rpend-'+it.id+'" style="display:none"></div>'+
+       '</div>';
   h += '</div>';
   return h;
 }
@@ -606,7 +633,8 @@ function bdPostHTML(it){
   if(n && !open){
     const lr = it.replies[n-1];
     lastPrev = '<div class="bd-lastreply"><span class="who '+(lr.from==='h'?'h':'y')+'">'+
-      (lr.from==='h'?'ひろみ':'ゆか')+'</span><span class="tx">'+bdEsc(lr.text)+'</span></div>';
+      (lr.from==='h'?'ひろみ':'ゆか')+'</span><span class="tx">'+bdEsc(lr.text || (lr.img?'（写真）':''))+'</span>'+
+      (lr.img ? '<img class="mini" src="'+lr.img+'" alt="写真">' : '')+'</div>';
   }
   return '<div class="bd-post from-'+(it.from||'h')+' st-'+bdState(it)+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
     bdStateBar(it)+
@@ -774,13 +802,39 @@ function bdToggleReplies(id){
   }
   renderBoard();
 }
+
+/* ★2026-07-23 追加：返信に写真をつける（新しい伝言と同じ縮小処理を使います） */
+let bdReplyImg = {};   // 投稿idごとの「これから送る写真」
+function bdReplyPickImage(id){ const el=document.getElementById('bd-rfile-'+id); if(el) el.click(); }
+function bdReplyOnFile(input, id){
+  const f = input.files[0]; if(!f) return;
+  bdResizeImage(f, 560, 0.5).then(function(u){ bdReplyImg[id] = u; bdShowReplyPending(id); });
+  input.value='';
+}
+function bdClearReplyImg(id){ delete bdReplyImg[id]; bdShowReplyPending(id); }
+function bdShowReplyPending(id){
+  const el = document.getElementById('bd-rpend-'+id); if(!el) return;
+  if(!bdReplyImg[id]){ el.style.display='none'; el.innerHTML=''; return; }
+  el.innerHTML = '<img src="'+bdReplyImg[id]+'" alt="写真"><span>この写真をつけて送ります</span>'+
+    '<button class="x" title="写真を取り消す" onclick="bdClearReplyImg(\''+id+'\')">✕</button>';
+  el.style.display='flex';
+}
+function bdZoomReply(id, i){
+  const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
+  const r = (it.replies||[])[i]; if(!r || !r.img) return;
+  const w = window.open('', '_blank');
+  if(w) w.document.write('<title>写真</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="'+r.img+'" style="max-width:100%;max-height:100vh"></body>');
+}
 async function bdAddReply(id){
   const inp = document.getElementById('bd-reply-'+id);
   if(!inp) return;
-  const t = inp.value.trim(); if(!t) return;
+  const t = inp.value.trim();
+  const im = bdReplyImg[id] || '';
+  if(!t && !im) return;                       // ★2026-07-23 写真だけでも送れます
   const it = boardItems.find(function(x){return x.id===id;}); if(!it) return;
   it.replies = it.replies || [];
-  it.replies.push({ from: BD_ME, text: t, at: new Date().toISOString() });
+  it.replies.push({ from: BD_ME, text: t, img: im, at: new Date().toISOString() });
+  delete bdReplyImg[id];
   const seen = bdSeen(); seen[id] = it.replies.length; bdSaveSeen(seen); // 自分の返信は既読
   bdExpanded[id] = true;
   renderBoard();
