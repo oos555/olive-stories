@@ -398,13 +398,13 @@ tr:last-child td{border-bottom:none}
 </details>
 </div>
 
-<div class="ver-mark">版 7/23 v16</div>
+<div class="ver-mark">版 7/23 v17</div>
 <div id="newprod-alert"></div>
 
 <div class="tab-row">
-  <button class="tab" onclick="showPanel('meibo',this)">📒 名簿</button>
-  <button class="tab" onclick="showPanel('price',this)">💴 価格リスト</button>
-  <button class="tab active" onclick="showPanel('inv',this)">📦 在庫リスト</button>
+  <button class="tab" onclick="showPanel('meibo',this)">📒 名簿（商品登録）</button>
+  <button class="tab" onclick="showPanel('price',this)">💴 価格リスト（閲覧のみ）</button>
+  <button class="tab active" onclick="showPanel('inv',this)">📦 在庫リスト（数編集）</button>
   <button class="tab" onclick="showPanel('lot',this)">🧊 ロット管理</button>
   <button class="tab" onclick="showPanel('report',this)">📮 倉庫からの報告<span id="report-badge"></span></button>
   <button class="tab" onclick="showPanel('hold',this)">👀 取り置き</button>
@@ -2633,6 +2633,27 @@ function mbNextSku(kind){
   } while(used[sku] && n < 10000);
   return sku;
 }
+/* ★2026-07-23 生産地・農園名・容器は「オイルだけ」の項目。
+   箱・紙袋・備品のときは出さない（うすい字の「トルコ」などが入っているように見えて
+   まぎらわしいため）。中身が空のまま保存されるので、シートにも何も入りません。 */
+function mbShowOilFields(v, isNew){
+  if(isNew) return false;                                   // 新規は種類を選ぶまで出さない
+  if(v.origin || v.farm || v.container) return true;        // すでに何か入っていれば必ず出す
+  var g = String(v.group||'');
+  var sku = String(v.sku||'').toUpperCase();
+  var nonOil = /備品|紙袋|その他/.test(g) || /^(BOX|BAG|MISC)/.test(sku);
+  return !nonOil;
+}
+function mbToggleOilFields(show){
+  var box = document.getElementById('mp-oilonly');
+  if(!box) return;
+  box.style.display = show ? 'contents' : 'none';
+  if(!show){
+    ['mp-origin','mp-farm','mp-container'].forEach(function(id){
+      var e = document.getElementById(id); if(e) e.value = '';
+    });
+  }
+}
 function mbKindChanged(){
   var k = document.getElementById('mp-kind');
   var s = document.getElementById('mp-sku');
@@ -2649,9 +2670,11 @@ function mbKindChanged(){
       var g = document.getElementById('mp-group');
       if(g){ for(var i=0;i<g.options.length;i++){ if(g.options[i].value === f.group){ g.selectedIndex = i; break; } } }
     }
+    mbToggleOilFields(false);   // 箱なので、生産地・農園名・容器は出さない
     return;
   }
   s.value = mbNextSku(v);
+  mbToggleOilFields(v === 'OIL');
 }
 
 function meiboEditRowHtml(p, sp){
@@ -2681,9 +2704,11 @@ function meiboEditRowHtml(p, sp){
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
       '<div class="mp-fg"><label>区分</label><select id="mp-group"><option value="">（選ぶ）</option>'+groups+'</select></div>'+
       fg('1箱の本数','mp-box',v.boxQty,'12')+
-      fg('生産地','mp-origin',v.origin,'トルコ')+
-      fg('農園名','mp-farm',v.farm,'ノヴァヴェラ農園')+
-      fg('容器','mp-container',v.container,'遮光瓶')+
+      '<div id="mp-oilonly" style="display:'+(mbShowOilFields(v, isNew)?'contents':'none')+'">'+
+        fg('生産地','mp-origin',v.origin,'トルコ')+
+        fg('農園名','mp-farm',v.farm,'ノヴァヴェラ農園')+
+        fg('容器','mp-container',v.container,'遮光瓶')+
+      '</div>'+
       '<div class="mp-fg"><label>そのほか</label><div class="mp-checks">'+
         '<label><input type="checkbox" id="mp-nw"'+(v.noWholesale?' checked':'')+'>RT限定（卸なし）</label>'+
         '<label><input type="checkbox" id="mp-active"'+(v.active?' checked':'')+'>取り扱い中</label>'+
