@@ -37,6 +37,7 @@
   .genre-pill{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:8px;vertical-align:middle;}
   .g-鉄板焼{background:#f6e2cc;color:#8a4b12;} .g-イタリアン{background:#e5eecf;color:#4d5a24;}
   .g-中華{background:#f6d9d9;color:#8a2b2b;} .g-物販{background:#d7e6ec;color:#2b5566;} .g-フレンチ{background:#e6dcf0;color:#5a3b7a;}
+  .g-洋食{background:#efe6d8;color:#6b5124;} .g-和食{background:#dfe9e2;color:#2f5443;}
   .kv{display:flex;flex-wrap:wrap;gap:6px 20px;margin:8px 0;font-size:14.5px;}
   .kv b{color:#2b2a26;}
   .lineage{background:#f7f4ee;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:14px;}
@@ -234,7 +235,7 @@
       <div class="mini" style="margin:6px 0 2px;">原本の写真をDropboxの「04_名刺」に残したいときはこちら（容量・アカウント不要）。</div>
       <a class="big" style="display:block;text-decoration:none;text-align:center;background:#c2761f;" href="https://www.dropbox.com/request/faeyuxa3v5dmsyd5dflv" target="_blank" rel="noopener">📤 名刺をアップロードする</a>
     </div>
-    <div class="stagenote">下の「人物カード」を作る機能はこの端末に保存されます。名刺の<b>自動読み取り（AI）</b>は次の段階で足します。撮った写真と入れた内容は、この端末に保存されます。</div>
+    <div class="stagenote">人物カードは<b>この端末の中だけ</b>に保存されます。機種変更やブラウザのデータ削除で消えてしまうので、ときどき下の「💾 書き出す」でバックアップを取ってください。名刺の<b>自動読み取り（AI）</b>は次の段階で足します。</div>
     <div id="shoot-box" class="shoot">
       <div class="cam">📇</div>
       <div style="font-weight:700;margin-top:6px;">名刺を撮って取り込む</div>
@@ -242,6 +243,20 @@
       <input id="cam" type="file" accept="image/*" capture="environment" onchange="onShot(event)">
       <div class="hint" style="margin-top:14px;">・何枚でも続けて入れられます。<br>・区分（シェフ／購買／EC／本部／ショップ）で分けられます。<br>・施設を選ぶと、その施設の人としてひもづきます。</div>
     </div>
+    <details class="shoot" style="border-color:#3a6b7a;padding:14px;text-align:left;">
+      <summary style="font-weight:700;font-size:15px;cursor:pointer;">📥 まとめて取り込む ／ 💾 バックアップ</summary>
+      <div class="mini" style="margin:8px 0;">・<b>取り込む</b>：Claudeが作ったデータを下に貼り付けてボタンを押すと、人物カードがまとめて増えます。同じ人は重複しません。<br>・<b>書き出す</b>：今のデータを下の枠に出します。全部コピーしてメールやメモに保存しておくと、機種変更やブラウザのデータ削除でも失いません。</div>
+      <textarea id="io" style="width:100%;height:110px;font-size:12px;border:1px solid #ddd;border-radius:8px;padding:8px;" placeholder="ここに貼り付け／ここに書き出されます"></textarea>
+      <div class="saverow" style="margin-top:8px;">
+        <button class="cancel" onclick="doExport()">💾 書き出す</button>
+        <button class="save" onclick="doImport()">📥 取り込む</button>
+      </div>
+      <div class="saverow" style="margin-top:8px;">
+        <button class="cancel" onclick="downloadBackup()" style="background:#e8eef6;color:#2b4a66;">⬇️ バックアップを保存</button>
+        <button class="cancel" onclick="copyForSheet()" style="background:#e5eecf;color:#3f4a1d;">📋 スプレッドシート用にコピー</button>
+      </div>
+      <div class="mini" style="margin-top:8px;">・<b>バックアップを保存</b>：日付入りのファイルとして端末に落ちます。そのままDropboxの「04_名刺」に入れておけば、何かあってもここから元に戻せます。<br>・<b>スプレッドシート用にコピー</b>：表の形でコピーされます。台帳のスプレッドシートに新しいシートを作って貼り付ければ、大元にも残ります。
+    </details>
     <div id="review" class="review" style="display:none;">
       <img id="thumb" class="thumb" alt="撮った名刺">
       <div style="font-weight:700;margin-bottom:8px;">内容を入れて「保存」してください</div>
@@ -254,8 +269,20 @@
       <div class="fld"><label>電話</label><input id="f-tel" placeholder="例）0740-34-8000"></div>
       <div class="fld"><label>メール</label><input id="f-mail" placeholder="例）xxx@rt-group.jp"></div>
       <div class="fld"><label>区分</label>
-        <select id="f-type"><option>シェフ（料理長）</option><option>購買担当</option><option>EC担当</option><option>本部</option><option>ショップ担当</option><option>その他</option></select>
+        <select id="f-type"><option>シェフ（料理長）</option><option>業務支配人</option><option>購買担当</option><option>EC担当</option><option>本部</option><option>ショップ担当</option><option>その他</option></select>
       </div>
+      <div class="fld"><label>登録日（名刺を台帳に入れた日）</label><input id="f-date" type="date"></div>
+      <div class="fld"><label>状態</label>
+        <select id="f-status"><option>現任</option><option>前任</option></select>
+      </div>
+      <div class="fld"><label>資格・認定（名前の下の小さい文字。複数は「、」で区切る）</label><input id="f-cert" placeholder="例）JSA認定ソムリエ、日本鉄板焼協会 認定加盟"></div>
+      <div class="fld"><label>これまでの経歴（前にいた施設・役職）</label><input id="f-career" placeholder="例）〜2024 ラグーナベイコート倶楽部 料理長"></div>
+      <div class="fld"><label>使っているオイル（他社ぶくめ・品種もあれば）</label><input id="f-oils" placeholder="例）Lorenzo（品種 Cerasuola）、Brisighella"></div>
+      <div class="fld" style="display:flex;align-items:center;gap:9px;padding:10px 2px;">
+        <input id="f-vip" type="checkbox" style="width:22px;height:22px;">
+        <label for="f-vip" style="margin:0;font-weight:700;">◎ 重要人物にする<span class="mini" style="font-weight:400;display:block;">購入実績とは別に、あなたの判断で付ける印です</span></label>
+      </div>
+      <div class="fld"><label>メモ</label><input id="f-note" placeholder="例）〇〇シェフの後任 ／ 2026年6月に名刺交換"></div>
       <div class="saverow">
         <button class="cancel" onclick="cancelReview()">やめる</button>
         <button class="save" onclick="savePerson()">この内容で保存</button>
@@ -265,7 +292,12 @@
 
   <!-- 人物カード -->
   <div class="view" id="v-people">
-    <input class="search" id="pq" placeholder="🔎 人物カードを絞る（名前・施設・区分）" oninput="renderPeople()">
+    <input class="search" id="pq" placeholder="🔎 施設名・お名前・役職で探す（例：琵琶湖、ラグーナ 副料理長、鳴門 資材）" oninput="renderPeople()">
+    <div style="margin:2px 0 10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="vipbtn" onclick="toggleVipOnly()" style="background:#fff;border:1.5px solid #e0b877;color:#8a5b12;border-radius:999px;padding:8px 15px;font-size:14px;font-weight:700;">◎ 重要人物だけ見る</button>
+      <button id="buybtn" onclick="toggleBuyOnly()" style="background:#fff;border:1.5px solid #9aad63;color:#4d5a24;border-radius:999px;padding:8px 15px;font-size:14px;font-weight:700;">🫒 よく買ってくれている先だけ</button>
+    </div>
+    <div class="mini" style="margin:-4px 0 10px;">◎はあなたの判断の印、🫒は伝票の実績から自動で付く印です。</div>
     <div id="peoplebox"></div>
   </div>
 </div>
@@ -273,20 +305,74 @@
 <script>
 /* ===== RTシェフ台帳 初期データ（伝票＋Dropbox資料から読み取り・2026-07-20時点） ===== */
 var FAC = {
-  'サンクチュアリコート日光':   {genre:'鉄板焼',   cur:'不明', staff:'—', lineage:[], pastOils:['オルガニック','メメジック']},
-  'サンクチュアリコート琵琶湖': {genre:'イタリアン', cur:'野口シェフ', staff:'開業準備室 鈴木さん', lineage:['（新設・野口シェフが開業）'], pastOils:['オルガニック','プリモフルット','ザイトゥーン','アグルミ']},
-  'サンクチュアリコート高山':   {genre:'イタリアン', cur:'穴見シェフ', staff:'岡崎さん', lineage:['穴見シェフ（前・エクシブ有馬離宮）'], pastOils:['オルガニック','プリモフルット','トゥリリエ']},
-  '横浜ベイコート倶楽部':       {genre:'中華', cur:'小林シェフ（大悟）', staff:'酒井さん', lineage:['小林シェフ（中華）','大塚シェフ（イタリアン）'], pastOils:['アルモニア','アイバリック','オルガニック','唐辛子オイル']},
-  'ラグーナベイコート倶楽部':   {genre:'イタリアン', cur:'奥村シェフ', staff:'—', lineage:['奥村シェフ（現）','野口シェフ（前→琵琶湖へ異動）'], pastOils:['オルガニック','トゥリリエ','プリモフルット','ザイトゥーン','唐辛子オイル','アイバリック','シンフォニア','アグルミ']},
-  'グランドエクシブ鳴門':       {genre:'イタリアン', cur:'和田シェフ', staff:'—', lineage:['和田シェフ（サンクチュアリ・ヴィラ）'], pastOils:[]},
-  'エクシブ箱根離宮':           {genre:'物販', cur:'下橋シェフ', staff:'—', lineage:['下橋シェフ（佐藤シェフの紹介）'], pastOils:['オルガニック']}
+  'サンクチュアリコート日光':   {genre:'鉄板焼',   cur:'不明', staff:'—', lineage:[], pastOils:['オルガニック','メメジック'], addr:'', tel:''},
+  'サンクチュアリコート琵琶湖': {genre:'イタリアン', cur:'野口シェフ', staff:'開業準備室 鈴木さん', lineage:['（新設・野口シェフが開業）'], pastOils:['オルガニック','プリモフルット','ザイトゥーン','アグルミ'], addr:'〒520-1223 滋賀県高島市安曇川町下小川1113', tel:'0740-34-8000（代表）／0740-34-8051（ブティック）　FAX 0740-34-8052'},
+  'サンクチュアリコート高山':   {genre:'イタリアン', cur:'穴見シェフ', staff:'岡崎さん', lineage:['穴見シェフ（前・エクシブ有馬離宮）'], pastOils:['オルガニック','プリモフルット','トゥリリエ'], addr:'', tel:''},
+  '横浜ベイコート倶楽部':       {genre:'中華', cur:'小林 大悟（中華 料理長）', staff:'酒井さん', lineage:['小林 大悟（中華・現／以前は鉄板焼）','大塚 浩介（イタリアン→ザ・カハラ・ホテル＆リゾート 横浜へ）'], pastOils:['アルモニア','アイバリック','オルガニック','唐辛子オイル'], addr:'〒220-0012 横浜市西区みなとみらい一丁目1番4号', tel:'045-522-0001（代表）　FAX 045-522-0079'},
+  'ラグーナベイコート倶楽部':   {genre:'イタリアン', cur:'奥村シェフ', staff:'—', lineage:['奥村シェフ（現）','野口シェフ（前→琵琶湖へ異動）'], pastOils:['オルガニック','トゥリリエ','プリモフルット','ザイトゥーン','唐辛子オイル','アイバリック','シンフォニア','アグルミ'], addr:'〒443-0014 愛知県蒲郡市海陽町2-9-1', tel:'0533-33-9111（代表）／0533-33-9141（ダイヤルイン）　FAX 0533-33-9151'},
+  'グランドエクシブ鳴門':       {genre:'イタリアン', cur:'和田シェフ', staff:'山根 真弘・石井 幸子（業務部門 資材管理）', lineage:['和田シェフ（サンクチュアリ・ヴィラ）'], pastOils:[], addr:'〒771-0376 徳島県鳴門市北灘町折野字上三津167-3', tel:'088-683-8111（代表）／088-683-8160（資材管理）　FAX 088-683-8162'},
+  '芦屋ベイコート倶楽部':       {genre:'鉄板焼', cur:'小椋 大助（時宜・鉄板焼）', staff:'山出 帆功人（業務支配人）', lineage:[], pastOils:[], addr:'〒659-0035 兵庫県芦屋市海洋町14番1号', tel:'0797-25-2222（代表）／0797-25-2183（業務）／0797-25-2347（時宜）　FAX 0797-25-2184'},
+  'エクシブ有馬離宮':           {genre:'イタリアン', cur:'小山 水喜人', staff:'—', lineage:['小山 水喜人（現）','穴見シェフ（前→サンクチュアリコート高山へ）'], pastOils:['オルガニック','プリモフルット','トゥリリエ'], addr:'〒651-1401 神戸市北区有馬町1661-11', tel:'078-907-4111（代表）　FAX 078-907-4112'},
+  'エクシブ箱根離宮':           {genre:'物販', cur:'下橋シェフ', staff:'箕浦 芳恵（ショップ アデッソ マネージャー）', lineage:['下橋 正樹（現・佐藤 信太シェフの紹介）'], pastOils:['オルガニック'], addr:'〒250-0404 神奈川県足柄下郡箱根町宮ノ下112-2', tel:'0460-85-0106　FAX 0460-85-0122'},
+  'ホテルトラスティ名古屋 栄':   {genre:'洋食', cur:'中村 靖博', staff:'—', lineage:[], pastOils:[], addr:'〒460-0003 名古屋市中区錦3-15-21', tel:'052-968-5111（代表）　FAX 052-958-7311'},
+  'ザ・カハラ・ホテル＆リゾート 横浜': {genre:'洋食', cur:'大塚 浩介', staff:'—', lineage:[], pastOils:[], addr:'〒220-0012 横浜市西区みなとみらい一丁目1番3号', tel:'045-522-0008（代表）／045-522-0082（直通）'},
+  'エクシブ京都 八瀬離宮':       {genre:'洋食', cur:'高木 吉郎（洋食料理長）', staff:'—', lineage:['高木 吉郎（現・副料理長から昇格）','小川 良彦（洋食厨房 料理長の名刺あり）'], pastOils:[], addr:'〒601-1254 京都市左京区八瀬野瀬町74-1', tel:'075-707-2888（代表）　FAX 075-707-2813'},
+  '東京ベイコート倶楽部':       {genre:'洋食', cur:'辻 智一（西洋料理 料理長）', staff:'山本 啓介（経理・資材管理 マネージャー）', lineage:[], pastOils:[], addr:'〒135-0063 東京都江東区有明3-1-15', tel:'03-6700-1111（代表）　FAX 03-6700-1001'},
+  'エクシブ湯河原離宮':         {genre:'イタリアン', cur:'中田 勉（リストランテ マレッタ 料理長）', staff:'—', lineage:[], pastOils:[], addr:'〒259-0314 神奈川県足柄下郡湯河原町宮上631-1', tel:'0465-60-2555（代表）／0465-60-2573　FAX 0465-60-2569'},
+  'グランドエクシブ軽井沢':     {genre:'洋食', cur:'佐藤 信太（洋食厨房 料理長）', staff:'矢野 友和（副総支配人）', lineage:[], pastOils:[], addr:'〒389-0115 長野県北佐久郡軽井沢町追分字東かじか沢23-1', tel:'0267-46-4432／0267-30-2998　FAX 0267-45-6293'},
+  'メイプルポイントゴルフクラブ レストラン': {genre:'洋食', cur:'吉野 信勝', staff:'高柳 智枝（本社側の担当）', lineage:[], pastOils:[], addr:'〒409-0114 山梨県上野原市鶴島3600', tel:'0554-62-6611　FAX 0554-62-6612'}
 };
+/* 本部・オフィス（施設台帳には出さないが、人物カードの見出しで住所を出す） */
+var OFFICE = {
+  '本部（購買部）':      {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル5F', tel:'052-310-0777（代表）　FAX 052-310-0778'},
+  '本部（施設購買管理課）':{addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル5F', tel:'052-307-3722　FAX 052-300-8610'},
+  '本部（料理飲料部）':   {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル5F', tel:'052-310-0770　FAX 052-310-0771'},
+  '本部（品質管理部）':   {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル', tel:'052-310-1260　FAX 052-310-1261'},
+  '本部（EC営業課）':    {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル', tel:'052-310-3360'},
+  '本部（ショップ）':     {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル', tel:'052-310-1288'},
+  '本部':               {addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル5F', tel:'052-310-0770'},
+  '本部（琵琶湖開業準備室）':{addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル3F', tel:'052-307-4105　FAX 052-307-4109'},
+  '本部（ホテル＆ゴルフ本部）':{addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル9F', tel:'052-310-3360　FAX 052-310-2260'},
+  'リゾートトラストゴルフ事業':{addr:'〒460-0008 名古屋市中区栄2-6-1 RT白川ビル9F', tel:'052-310-0781　FAX 052-310-0784'}
+};
+function placeInfo(f){ return FAC[f] || OFFICE[f] || null; }
+/* 施設の呼び名ゆれ（「琵琶湖」「RT 琵琶湖」でも引けるように） */
+var FAC_ALIAS = {
+  'サンクチュアリコート日光':'日光 SC日光 栃木',
+  'サンクチュアリコート琵琶湖':'琵琶湖 SC琵琶湖 高島 滋賀 サンクチュアリ',
+  'サンクチュアリコート高山':'高山 SC高山 岐阜 サンクチュアリ',
+  '横浜ベイコート倶楽部':'横浜 ベイコート 神奈川 みなとみらい 鉄板焼',
+  '東京ベイコート倶楽部':'東京 ベイコート 有明 江東 OZIO オッツィオ',
+  'エクシブ湯河原離宮':'湯河原 神奈川 エクシブ 離宮 マレッタ',
+  'グランドエクシブ軽井沢':'軽井沢 長野 エクシブ',
+  'メイプルポイントゴルフクラブ レストラン':'メイプル メイプルポイント ゴルフ 山梨 上野原',
+  '本部（ホテル＆ゴルフ本部）':'本部 ホテル ゴルフ EC 名古屋',
+  'リゾートトラストゴルフ事業':'ゴルフ事業 ゴルフ 本部 メイプル 名古屋',
+  'ラグーナベイコート倶楽部':'ラグーナ ベイコート 蒲郡 愛知 MAROCE マローチェ',
+  '芦屋ベイコート倶楽部':'芦屋 ベイコート 兵庫 時宜 鉄板焼',
+  'グランドエクシブ鳴門':'鳴門 徳島 エクシブ ルッチコーレ',
+  'エクシブ有馬離宮':'有馬 神戸 兵庫 エクシブ 離宮 マレッタ リストランテ',
+  'エクシブ箱根離宮':'箱根 神奈川 エクシブ 離宮',
+  '本部（購買部）':'本部 購買部 名古屋',
+  '本部（EC営業課）':'本部 EC 営業課',
+  '本部（ショップ）':'本部 ショップ ブライダル',
+  '本部':'本部 料理飲料部 名古屋',
+  '本部（施設購買管理課）':'本部 購買部 施設購買管理課 名古屋',
+  '本部（料理飲料部）':'本部 料理飲料部 名古屋 うちやま',
+  '本部（品質管理部）':'本部 品質管理部 管理審査課 名古屋',
+  '本部（琵琶湖開業準備室）':'本部 琵琶湖 開業準備室 名古屋 サンクチュアリ',
+  'ホテルトラスティ名古屋 栄':'トラスティ 名古屋 栄 trusty',
+  'ザ・カハラ・ホテル＆リゾート 横浜':'カハラ KAHALA 横浜 みなとみらい',
+  'エクシブ京都 八瀬離宮':'京都 八瀬 八瀬離宮 エクシブ 離宮'
+};
+function facAlias(f){ return FAC_ALIAS[f]||''; }
 var CHEF_CAREER = {
   '野口シェフ':  [{fac:'ラグーナベイコート倶楽部', when:'〜2025'}, {fac:'サンクチュアリコート琵琶湖', when:'2025〜（開業）'}],
   '奥村シェフ':  [{fac:'（鳥羽時代・小川料理長に師事）', when:'前'}, {fac:'ラグーナベイコート倶楽部', when:'現・野口シェフの後任'}],
   '穴見シェフ':  [{fac:'エクシブ有馬離宮', when:'前'}, {fac:'サンクチュアリコート高山', when:'現（2024/3開業）'}],
   '小林シェフ（大悟）': [{fac:'横浜ベイコート倶楽部（中華）', when:'現'}],
   '和田シェフ':  [{fac:'グランドエクシブ鳴門', when:'現'}],
+  '小山シェフ（水喜人）': [{fac:'エクシブ有馬離宮', when:'現・穴見シェフの後任'}],
   '下橋シェフ':  [{fac:'エクシブ箱根離宮', when:'現'}]
 };
 /* 販売実績（伝票から・実際に届いた本数）[施設, 商品, 数量, 単位, 納品日] */
@@ -315,15 +401,105 @@ var SALES = [
 ];
 /* 名刺サンプル（重要メモの担当者リストより・実データ。中村様が名刺を撮って足していく） */
 var PEOPLE_SEED = [
-  {name:'野口シェフ', role:'料理長', dept:'イタリアンレストラン', fac:'サンクチュアリコート琵琶湖', tel:'0740-34-8000', mail:'', type:'シェフ（料理長）', photo:''},
+  {name:'野口 将義', role:'料理長', dept:'イタリア料理', fac:'サンクチュアリコート琵琶湖', tel:'052-307-4105／携帯 090-1836-4379', mail:'masayoshi.noguchi@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2024-07-03', status:'現任', pred:'', succ:'', certs:[], career:'〜2024 ラグーナベイコート倶楽部 料理長（後任は奥村 洋隆さん）', vip:true, note:'名刺は2024年7月・琵琶湖開業準備室のもの'},
   {name:'金井 智恵', role:'主事', dept:'購買部 購買三課', fac:'本部（購買部）', tel:'052-307-3721', mail:'chie.kanai@rt-group.jp', type:'購買担当', photo:''},
   {name:'稲辺 有希子', role:'主事', dept:'購買部 購買三課', fac:'本部（購買部）', tel:'052-307-3721', mail:'yukiko.inabe@rt-group.jp', type:'購買担当', photo:''},
   {name:'林 杏香（旧姓：森）', role:'', dept:'ビューティ部 EC営業課', fac:'本部（EC営業課）', tel:'052-310-3360', mail:'kyoka.mori@rt-group.jp', type:'EC担当', photo:''},
   {name:'小川 友加子', role:'', dept:'ショップ・ブライダル部', fac:'本部（ショップ）', tel:'052-310-1288', mail:'yukako.ogawa@rt-group.jp', type:'ショップ担当', photo:''},
-  {name:'高垣 吉正シェフ', role:'料理飲料部', dept:'料理飲料部', fac:'本部', tel:'', mail:'', type:'本部', photo:''}
+  {name:'高垣 吉正', role:'業務改善プロジェクト リーダー', dept:'料理飲料部', fac:'本部（料理飲料部）', tel:'052-310-0770', mail:'yoshimasa.takagaki@rt-group.jp', type:'本部', photo:'', regDate:'2020-02-19', status:'現任', pred:'', succ:'', certs:[], career:'', vip:false, note:'中島 幸夫さん（料理飲料部 副部長）を頼りにしている。服部 聡江さん（品質管理部）とも仲が良い'},
+
+  /* ▼ 2026-07-23 スキャン取り込み（EPSON001）11名 ▼ */
+  {name:'奥村 洋隆', role:'料理長', dept:'メインダイニング MAROCE', fac:'ラグーナベイコート倶楽部', tel:'0533-33-9141', mail:'hirotaka.okumura@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2026-06', status:'現任', pred:'野口 将義', succ:'', certs:[], career:'ラグーナベイコート倶楽部 メインダイニング MAROCE 副料理長（〜2026）', vip:true, note:'施設は変わらずラグーナ。副料理長から料理長に昇格。2026年6月、昇格後に改めてお会いして名刺交換。手元の名刺は副料理長時代のもの'},
+  {name:'青木 俊道', role:'副料理長', dept:'メインダイニング MAROCE', fac:'ラグーナベイコート倶楽部', tel:'0533-33-9141', mail:'toshimichi.aoki@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2026-07-23', status:'現任', pred:'奥村 洋隆', succ:'', note:'奥村さんの昇格にともない副料理長を継承'},
+  {name:'岩根 嘉人', role:'マネージャー', dept:'料飲部門 メインダイニング MAROCE', fac:'ラグーナベイコート倶楽部', tel:'0533-33-9111', mail:'yoshihito.iwane@rt-group.jp', type:'その他', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', certs:['JSA認定ソムリエ'], vip:false, note:'ワインが分かる方はオリーブオイルの理解も早い。提案先として有力'},
+  {name:'前田 公美', role:'マネージャー', dept:'ブティック', fac:'サンクチュアリコート琵琶湖', tel:'0740-34-8051', mail:'hitomi.maeda@rt-group.jp', type:'ショップ担当', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:''},
+  {name:'山出 帆功人', role:'業務支配人', dept:'業務', fac:'芦屋ベイコート倶楽部', tel:'0797-25-2183', mail:'hokuto.yamade@rt-group.jp', type:'業務支配人', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:'購買担当ではなく上位職。料理長と並んで施設のいろいろな判断をする立場。提案は必ずここにも通す'},
+  {name:'小椋 大助', role:'料理長', dept:'時宜 鉄板焼', fac:'芦屋ベイコート倶楽部', tel:'0797-25-2347', mail:'daisuke.ogura@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', certs:['日本鉄板焼協会 認定加盟'], vip:true, note:''},
+  {name:'和田 真一', role:'料理長', dept:'イタリア料理 ルッチコーレ', fac:'グランドエクシブ鳴門', tel:'088-683-8111', mail:'shinichi.wada@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:''},
+  {name:'佐藤 英治', role:'チーフ', dept:'イタリア料理 ルッチコーレ', fac:'グランドエクシブ鳴門', tel:'088-683-8111', mail:'', type:'シェフ（料理長）', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:'名刺にメールアドレスの記載なし。和田料理長の下'},
+  {name:'山根 真弘', role:'チーフ', dept:'業務部門 資材管理', fac:'グランドエクシブ鳴門', tel:'088-683-8160', mail:'masahiro.yamane@rt-group.jp', type:'購買担当', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:'石井 幸子さんと2人体制（交代ではない）'},
+  {name:'石井 幸子', role:'チーフ', dept:'業務部門 資材管理', fac:'グランドエクシブ鳴門', tel:'088-683-8160', mail:'sachiko.ishii@rt-group.jp', type:'購買担当', photo:'', regDate:'2026-07-23', status:'現任', pred:'', succ:'', note:'山根 真弘さんと2人体制（交代ではない）'},
+  {name:'小山 水喜人', role:'料理長', dept:'イタリア料理 リストランテ マレッタ', fac:'エクシブ有馬離宮', tel:'078-907-4111', mail:'mikito.koyama@rt-group.jp', type:'シェフ（料理長）', photo:'', regDate:'2026-07-23', status:'現任', pred:'穴見 研二', succ:'', certs:[], vip:false, note:'穴見 研二シェフの後任。穴見シェフが有馬・高山で使っていた銘柄（オルガニック／プリモフルット／トゥリリエ）が提案の起点になる'},
+
+  /* ▼ 2026-07-23 スキャン取り込み（EPSON002〜004）本部・その他施設 ▼ */
+  {name:"内山 敏彦", role:"専務取締役 総料理長", dept:"料理飲料部", fac:"本部（料理飲料部）", tel:"052-310-0770", mail:"toshihiko.uchiyama@rt-group.jp", type:"本部", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:["2013年 フランス農事功労章オフィシエ 受勲"], vip:true, note:"RTの料理のトップ。「うちやま料理ものがたり」の顔。ここが動けば全施設に効く"},
+  {name:"中島 幸夫", role:"副部長", dept:"料理飲料部", fac:"本部（料理飲料部）", tel:"052-310-0770", mail:"yukio.nakajima@rt-group.jp", type:"本部", photo:'', regDate:"2024-07-08", status:'現任', pred:'', succ:'', certs:[], vip:true, career:"2020-02 本部 料理飲料部 主査", note:"元料理人（フレンチ）。高垣 吉正さんが頼りにしている人"},
+  {name:"泉田 康晴", role:"副部長", dept:"料理飲料部", fac:"本部（料理飲料部）", tel:"052-310-0770／携帯 080-2602-9576", mail:"yasuharu.izumita@rt-group.jp", type:"本部", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"城塚 良彦", role:"主事", dept:"料理飲料部", fac:"本部（料理飲料部）", tel:"052-310-0770／携帯 080-2602-9594", mail:"yoshihiko.shirotsuka@rt-group.jp", type:"本部", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:"しろつか よしひこ"},
+  {name:"川村 勝洋", role:"部長", dept:"購買部", fac:"本部（購買部）", tel:"052-310-0777（代表）", mail:"katsuhiro.kawamura@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:true, note:"購買部のトップ"},
+  {name:"橋詰 健史", role:"主査", dept:"購買部", fac:"本部（購買部）", tel:"052-310-0773（直通）", mail:"takeshi.hashizume@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:"はしづめ たけし"},
+  {name:"和田 健悟", role:"主事", dept:"購買部 購買三課", fac:"本部（購買部）", tel:"052-307-3721", mail:"kengo.wada@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"市川 寛俊", role:"主事", dept:"購買部 食材仕入課", fac:"本部（購買部）", tel:"052-310-0774（直通）", mail:"hirotoshi.ichikawa@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:true, note:"食材の仕入れ窓口。オリーブオイルはここが入口になりやすい"},
+  {name:"西村 雄司", role:"課長補佐", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-307-3722", mail:"yuji.nishimura@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"伊藤 禎高", role:"主事", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-307-3721", mail:"yoshitaka.ito@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"中川 勇", role:"主事", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-310-0773（直通）", mail:"yu.nakagawa@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"河野 未来", role:"主事", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-307-3722", mail:"miku.kono@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"三藤 比登賜", role:"主事", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-307-3722", mail:"hitoshi.mito@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:"みとう ひとし"},
+  {name:"日野 忠洋", role:"主事", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-307-3722", mail:"tadahiro.hino@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-01-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:"西日本第一（nishinihon_dai1@rt-group.jp）も併記"},
+  {name:"川口 徳人", role:"課長", dept:"品質管理部 管理・審査課", fac:"本部（品質管理部）", tel:"052-310-1260", mail:"norito.kawaguchi@rt-group.jp", type:"本部", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], vip:false, note:"品質管理の責任者。成分表や産地証明の相談先"},
+  {name:"里中 秀穂", role:"主事", dept:"品質管理部 管理・審査課", fac:"本部（品質管理部）", tel:"052-310-1260", mail:"hideho.satonaka@rt-group.jp", type:"本部", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"樫村 加奈子", role:"主事", dept:"品質管理部 管理・審査課", fac:"本部（品質管理部）", tel:"052-310-1260", mail:"kanako.kashimura@rt-group.jp", type:"本部", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"中村 康成", role:"マネージャー", dept:"開業準備室 料飲部門 イタリア料理", fac:"サンクチュアリコート琵琶湖", tel:"052-307-4105", mail:"yasunari.nakamura@rt-group.jp", type:"その他", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:["J.S.A.ソムリエ"], vip:true, note:"ワインが分かる方。琵琶湖の料飲マネージャーで、野口シェフと組む立場"},
+  {name:"鈴木 雅登", role:"マネージャー", dept:"開業準備室 業務部門 資材管理", fac:"サンクチュアリコート琵琶湖", tel:"052-307-4105", mail:"masato.suzuki@rt-group.jp", type:"業務支配人", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], career:"2020-02 本部 購買部 施設購買管理課 課長補佐", vip:true, note:"本部の購買を経てから現場へ。本部と現場の両方を知る人"},
+  {name:"中村 靖博", role:"料理長", dept:"厨房", fac:"ホテルトラスティ名古屋 栄", tel:"052-968-5111（代表）", mail:"yasuhiro_nakamura@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2020-04-08", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+  {name:"大塚 浩介", role:"料理長", dept:"洋食厨房", fac:"ザ・カハラ・ホテル＆リゾート 横浜", tel:"045-522-0082（直通）", mail:"kosuke.otsuka@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"横浜ベイコート倶楽部 イタリアン 料理長", oils:"Lorenzo（いちばん多い／品種は Cerasuola）、Bardi の Bio Siena、Tenuta Pennita（Correggiolo 70・Nostrana 30）、Brisighella", vip:true, note:"2022年10月24日に初めてお会いした。横浜ベイコート倶楽部の「大塚シェフ（イタリアン）」ご本人で、横浜での実績をそのまま持って移られた方"},
+  {name:"高木 吉郎", role:"洋食料理長", dept:"洋食厨房", fac:"エクシブ京都 八瀬離宮", tel:"075-707-2888（代表）", mail:"yoshihiro.takagi@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], vip:true, career:"エクシブ京都 八瀬離宮 洋食厨房 副料理長（前の肩書き）", note:"副料理長から洋食料理長に就任。八瀬離宮の洋食のトップ"},
+  {name:"穴見 研二", role:"料理長", dept:"洋食部門", fac:"サンクチュアリコート高山", tel:"0577-40-1000", mail:"kenji.anami@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"〜2024 エクシブ有馬離宮 料理長（後任は小山 水喜人さん）", vip:true, note:"2024年3月の高山開業にともない異動"},
+  {name:"宮崎 智帆", role:"チーフ", dept:"サービス部門", fac:"サンクチュアリコート高山", tel:"0577-40-1000", mail:"chiho.miyazaki@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:["J.S.A.ソムリエ"], vip:true, note:"ワインが分かる方。高山は購入本数が一番多い施設"},
+  {name:"上杉 勝典", role:"マネージャー", dept:"業務部門", fac:"エクシブ有馬離宮", tel:"078-907-4129", mail:"masanoriuesugi@rt-group.jp", type:"業務支配人", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], vip:true, note:"有馬離宮の業務側キーパーソン。小山シェフと並んで判断する立場"},
+  {name:"箕浦 芳恵", role:"マネージャー", dept:"ショップ アデッソ", fac:"エクシブ箱根離宮", tel:"0460-85-0106", mail:"yoshie.minoura@rt-group.jp", type:"ショップ担当", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], vip:false, note:""},
+
+  /* ▼ 2026-07-23 スキャン取り込み（EPSON005〜007） ▼ */
+  {name:"海野 充寿", role:"総支配人", dept:"", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9161", mail:"mitsuhisa.unno@rt-group.jp", type:"業務支配人", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"ラグーナの総支配人。施設の最終判断をする立場"},
+  {name:"原田 雄造", role:"マネージャー", dept:"イタリア料理部門 レストラン＆バーサービス課 メインダイニング MAROCE", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9141", mail:"yuzo.harada@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:["JSA認定ソムリエ"], career:"", vip:true, note:"ワインが分かる方。MAROCEのサービス責任者で、奥村料理長と組む立場"},
+  {name:"岩渕 淳二", role:"マネージャー", dept:"資材管理課", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9148", mail:"junji.iwabuchi@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-04-03", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"ラグーナの資材の窓口"},
+  {name:"樋口 晃司", role:"主任", dept:"資材管理課", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9014", mail:"koji.higuchi@rt-group.jp", type:"購買担当", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:"岩渕マネージャーの下"},
+  {name:"井上 大輔", role:"", dept:"営業部門", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9123", mail:"daisuke.inoue@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"浅井 新子", role:"キャプテン", dept:"ミドルエリア部門 ブティック＆ブライダル課", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9139", mail:"shinkoasai@rt-group.jp", type:"ショップ担当", photo:'', regDate:"2019-10-13", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"吉野 圭祐", role:"", dept:"プラニング", fac:"ラグーナベイコート倶楽部", tel:"0533-33-9125", mail:"keisuke.yoshino@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:"名刺の部署表記が読み取りにくく「プラニング」で仮置き"},
+  {name:"西 航", role:"副料理長", dept:"", fac:"芦屋ベイコート倶楽部", tel:"0797-25-2183", mail:"watarunishi@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"中尾 崇宏", role:"料理長", dept:"Lubano", fac:"芦屋ベイコート倶楽部", tel:"0797-25-2536", mail:"takahiro.nakao@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"芦屋のイタリアン Lubano の料理長。小椋シェフ（鉄板焼 時宜）と並ぶ立場"},
+  {name:"辻 智一", role:"総料理長", dept:"西洋料理", fac:"東京ベイコート倶楽部", tel:"03-6700-0210", mail:"toshikazu.tsuji@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2021-10-15", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"東京ベイコートの総料理長。これからRT全体の総料理長になっていく方。後任が入るので、後任にご挨拶予定（後任のお名前は未確認）"},
+  {name:"寺下 大二郎", role:"", dept:"料飲部", fac:"東京ベイコート倶楽部", tel:"03-6700-1039", mail:"daijiro.terashita@rt-group.jp", type:"その他", photo:'', regDate:"2021-10-15", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"豊田 浩章", role:"マネージャー", dept:"OZIO（リストランテ オッツィオ）", fac:"東京ベイコート倶楽部", tel:"03-6700-1210", mail:"hiroaki.toyoda@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"岡田 奨健", role:"副料理長補佐", dept:"OZIO（リストランテ オッツィオ）", fac:"東京ベイコート倶楽部", tel:"", mail:"shoken.okada@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"山本 啓介", role:"マネージャー", dept:"経理・資材管理", fac:"東京ベイコート倶楽部", tel:"03-6700-1010", mail:"keisuke.yamamoto@rt-group.jp", type:"業務支配人", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"東京ベイコートの資材の窓口"},
+  {name:"三島 優作", role:"", dept:"メンバーリレーションズオフィス", fac:"東京ベイコート倶楽部", tel:"03-6700-1111", mail:"yusaku.mishima@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"島﨑 萌子", role:"コンシェルジュ チーフ", dept:"メンバーリレーションズオフィス", fac:"東京ベイコート倶楽部", tel:"03-6700-1010", mail:"moeko.shimazaki@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:"コンシェルジュ窓口 bcc-concierge@resorttrust.co.jp"},
+  {name:"小林 大悟", role:"料理長", dept:"中華", fac:"横浜ベイコート倶楽部", tel:"045-522-0073", mail:"daigo.kobayashi@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"横浜ベイコート倶楽部 鉄板焼 料理長（手元の名刺はこの時期のもの）", vip:true, note:"台帳の「小林シェフ（大悟）」ご本人。今は中華の料理長"},
+  {name:"山西 由広", role:"チーフ", dept:"鉄板焼", fac:"横浜ベイコート倶楽部", tel:"045-522-0073", mail:"yoshihiro.yamanishi@rt-group.jp", type:"その他", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:["JSA認定ソムリエ"], career:"", vip:true, note:"ワインが分かる方"},
+  {name:"党 淑潔", role:"マネージャー", dept:"ワイン＆スピリッツ", fac:"横浜ベイコート倶楽部", tel:"045-522-0073", mail:"yoshiyuki.dou@rt-group.jp", type:"その他", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:["JSA認定ソムリエ"], career:"", vip:true, note:"横浜ベイコートのワインの責任者。お名前の読み方は未確認"},
+  {name:"秋本 成信", role:"", dept:"鉄板焼 濱", fac:"ザ・カハラ・ホテル＆リゾート 横浜", tel:"045-522-0080", mail:"shigenobu.akimoto@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"髙田 一哉", role:"ペストリー料理長", dept:"", fac:"ザ・カハラ・ホテル＆リゾート 横浜", tel:"045-522-0078", mail:"kazuya.takada@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"ラグーナベイコート倶楽部 メインダイニング MAROCE ペストリー", vip:false, note:"ラグーナから横浜へ。菓子の担当なのでオイルの用途が他のシェフと違う"},
+  {name:"下橋 正樹", role:"料理長", dept:"洋食厨房", fac:"エクシブ箱根離宮", tel:"0460-85-0111", mail:"masaki.shimohashi@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2023-06-16", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"台帳の「下橋シェフ」ご本人。佐藤シェフの紹介"},
+  {name:"越川 翔吾", role:"チーフ", dept:"イタリア料理 リストランテ ターナ／ダイニング＆ラウンジ ベラヴィスタ", fac:"エクシブ箱根離宮", tel:"0460-85-0124", mail:"shogo.koshikawa@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2023-06-16", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"小川 良彦", role:"料理長", dept:"洋食厨房", fac:"エクシブ京都 八瀬離宮", tel:"075-707-2888", mail:"yoshihiko.ogawa@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"「洋食厨房 料理長」の名刺。高木 吉郎さんが洋食料理長に就任されたため、現在の役割は要確認"},
+  {name:"山本 武志", role:"副料理長", dept:"洋食厨房", fac:"エクシブ湯河原離宮", tel:"0465-60-2555", mail:"takeshi.yamamoto@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:false, note:""},
+  {name:"實藤 友和", role:"課長", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-310-0773", mail:"tomokazu.sanefuji@rt-group.jp", type:"購買担当", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", vip:true, note:"施設購買管理課の課長。西村さん・鈴木さん（課長補佐）の上"},
+
+  /* ▼ 2026-07-23 スキャン取り込み（EPSON008〜009） ▼ */
+  {name:"中田 勉", role:"料理長", dept:"イタリア料理 リストランテ マレッタ", fac:"エクシブ湯河原離宮", tel:"0465-60-2573", mail:"tsutomu.nakada@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2023-06-16", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"湯河原離宮のイタリアンの料理長"},
+  {name:"相原 究", role:"主任", dept:"業務部門 資材管理", fac:"エクシブ箱根離宮", tel:"0460-85-0129", mail:"kiwamu.aihara@rt-group.jp", type:"購買担当", photo:'', regDate:"2023-06-16", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"箱根離宮の資材の窓口。2023年6月16日、本部で開いたオリーブオイルセミナーに参加された方（セミナー参加）"},
+  {name:"川合 彰", role:"総支配人", dept:"", fac:"東京ベイコート倶楽部", tel:"03-6700-1111", mail:"akira.kawai@rt-group.jp", type:"業務支配人", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"東京ベイコート倶楽部の総支配人。手書きの年月が読み取りにくく要確認"},
+  {name:"矢野 友和", role:"副総支配人", dept:"", fac:"グランドエクシブ軽井沢", tel:"0267-30-2998", mail:"tomokazu.yano@rt-group.jp", type:"業務支配人", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"軽井沢の副総支配人"},
+  {name:"佐藤 信太", role:"料理長（Executive Chef）", dept:"洋食厨房", fac:"グランドエクシブ軽井沢", tel:"0267-46-4432", mail:"shinta.sato@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:false, note:"箱根の下橋シェフとつながりのある「佐藤シェフ」ご本人。ただし自分の名前を冠したオリーブオイルを独自に作って販売し、それを使っておられるので、うちのオイルをご紹介する相手ではない"},
+  {name:"小島 加奈代", role:"チーフ", dept:"営業部門 プランニング", fac:"グランドエクシブ軽井沢", tel:"0267-46-3331", mail:"kanayo.kojima@rt-group.jp", type:"その他", photo:'', regDate:"", status:'現任', pred:'', succ:'', certs:["J.S.A.ソムリエ", "温泉ソムリエ"], career:"", oils:"", vip:true, note:"ワインが分かる方"},
+  {name:"吉野 信勝", role:"料理長", dept:"ホテルレストラン本部 レストラン＆フードサービス営業部／ゴルフレストラン第2エリア", fac:"メイプルポイントゴルフクラブ レストラン", tel:"0554-62-6611", mail:"nobukatsu.yoshino@rt-group.jp", type:"シェフ（料理長）", photo:'', regDate:"2023-05-02", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"ゴルフ場レストランの料理長。ホテルとは別の販路"},
+  {name:"高柳 智枝", role:"主事", dept:"運営サポート課", fac:"リゾートトラストゴルフ事業", tel:"052-310-0781", mail:"chie.takayanagi@rt-group.jp", type:"その他", photo:'', regDate:"2023-06-21", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"本社側でメイプルポイントを担当されている方"},
+  {name:"森 克樹", role:"部長", dept:"ホテル＆ゴルフ本部", fac:"本部（ホテル＆ゴルフ本部）", tel:"052-310-3360", mail:"katsuki.mori@rt-group.jp", type:"EC担当", photo:'', regDate:"2023-06-21", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"ECサイトのご担当。本部の部長職"},
+  {name:"水谷 智有記", role:"主事", dept:"ホテル＆ゴルフ本部 EC営業課", fac:"本部（ホテル＆ゴルフ本部）", tel:"052-310-3360／携帯 080-9480-4865", mail:"tomoyuki.mizutani@rt-group.jp", type:"EC担当", photo:'', regDate:"2023-06-21", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"ECサイトのご担当"},
+  {name:"宮田 祥二", role:"主事", dept:"購買部 購買1課", fac:"本部（購買部）", tel:"045-522-0032", mail:"shoji.miyata@rt-group.jp", type:"購買担当", photo:'', regDate:"2022-10-24", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"名刺の住所は横浜みなとみらい。平野さんと一緒に来られた"},
+  {name:"平野 祐二", role:"主事", dept:"購買部 購買1課", fac:"本部（購買部）", tel:"052-310-0774", mail:"yuji.hirano@rt-group.jp", type:"購買担当", photo:'', regDate:"2023-06-21", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:false, note:"宮田さんと一緒に来られた方"},
+  {name:"小鹿 聖史", role:"主事", dept:"購買部 購買1課", fac:"本部（購買部）", tel:"052-310-0774", mail:"seiji.ojika@rt-group.jp", type:"購買担当", photo:'', regDate:"2022-06-05", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:false, note:"名刺の手書きに担当らしき記載あり（読み取れず要確認）"},
+  {name:"嶋 裕之", role:"主事", dept:"購買部 購買一課", fac:"本部（購買部）", tel:"052-310-0774", mail:"hiroyuki.shima@rt-group.jp", type:"購買担当", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:false, note:""},
+  {name:"原 郁美", role:"主事", dept:"購買部 購買一課", fac:"本部（購買部）", tel:"052-310-0774", mail:"ikumi.hara@rt-group.jp", type:"購買担当", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:false, note:""},
+  {name:"大森 明", role:"課長", dept:"購買部 購買四課", fac:"本部（購買部）", tel:"052-310-0772", mail:"akira.omori@rt-group.jp", type:"購買担当", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"購買四課の課長"},
+  {name:"小林 泰介", role:"課長補佐", dept:"購買部 施設購買管理課", fac:"本部（施設購買管理課）", tel:"052-310-0773", mail:"taisuke.kobayashi@rt-group.jp", type:"購買担当", photo:'', regDate:"2020-02-19", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"2020年2月19日。眼鏡の方で、ずっと対応してくださっていた人"},
+  {name:"服部 聡江", role:"主事", dept:"品質管理部 管理・審査課", fac:"本部（品質管理部）", tel:"052-310-1260", mail:"satoe.hattori@rt-group.jp", type:"本部", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:[], career:"", oils:"", vip:true, note:"高垣 吉正さんと仲が良い。本部に行くといつも一緒に食事をしてくださる。本部でオリーブオイルを買ってくださっているお客様でもある"},
+  {name:"和泉 信悟", role:"主事", dept:"品質管理部 FBC管理課（Food & Beverage Costcontrol）", fac:"本部（品質管理部）", tel:"052-300-8637", mail:"shingo.izumi@rt-group.jp", type:"本部", photo:'', regDate:"2024-07-03", status:'現任', pred:'', succ:'', certs:["J.S.A認定シニアソムリエ", "C.P.A認定チーズプロフェッショナル"], career:"", oils:"", vip:true, note:"シニアソムリエ＋チーズプロフェッショナル。味の評価ができて、しかも原価管理の部署にいる方"}
 ];
 /* 施設の選択肢（名刺の施設欄用） */
-var FAC_OPTIONS = Object.keys(FAC).concat(['本部（購買部）','本部（EC営業課）','本部（ショップ）','本部','その他']);
+var FAC_OPTIONS = Object.keys(FAC).concat(['芦屋ベイコート倶楽部','エクシブ有馬離宮','本部（購買部）','本部（EC営業課）','本部（ショップ）','本部','その他']);
 
 </script>
 <script>
@@ -432,17 +608,31 @@ function setMode(m){ curMode=m;
   document.getElementById('sw-genre').classList.toggle('on',m==='genre');
   renderDaicho();
 }
-function match(q,s){ return !q || (s||'').indexOf(q)>=0; }
+function normQ(t){
+  return (t==null?'':String(t)).replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);})
+    .replace(/[\u3000]/g,' ').toLowerCase();
+}
+/* 「琵琶湖」「RT 琵琶湖」「琵琶湖 料理長」どれでも引けるように、
+   空白で区切った言葉を すべて含むもの を出す（RT・リゾートトラストは無視語） */
+var STOPW={'rt':1,'ｒｔ':1,'リゾートトラスト':1,'の':1};
+function match(q,s){
+  q=normQ(q).trim(); if(!q) return true;
+  var hay=normQ(s);
+  var words=q.split(/[\s、,]+/).filter(function(w){ return w && !STOPW[w]; });
+  if(!words.length) return true;
+  return words.every(function(w){ return hay.indexOf(w)>=0; });
+}
 function renderDaicho(){
   var q=document.getElementById('q').value.trim();
   var box=document.getElementById('list'); var html='';
   if(curMode==='fac'){
     Object.keys(FAC).sort(function(a,b){return facTotal(b)-facTotal(a);}).forEach(function(f){
       var d=FAC[f];
-      var hay=f+' '+d.cur+' '+d.lineage.join(' ')+' '+(d.pastOils||[]).join(' ')+' '+Object.keys(nowOils(f)).join(' ');
+      var hay=f+' '+facAlias(f)+' '+d.cur+' '+d.staff+' '+d.lineage.join(' ')+' '+(d.pastOils||[]).join(' ')+' '+Object.keys(nowOils(f)).join(' ')+' '+(d.addr||'')+' '+(d.tel||'');
       if(!match(q,hay)) return;
       html+='<div class="card"><h3>'+esc(f)+'<span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></h3>'+
         '<div class="kv"><span>現シェフ：<b>'+esc(d.cur)+'</b></span><span>担当者：<b>'+esc(d.staff)+'</b></span></div>'+
+        ((d.addr||d.tel)?'<div class="mini" style="margin:4px 0 2px;">'+(d.addr?'📍 '+esc(d.addr)+'<br>':'')+(d.tel?'☎ '+esc(d.tel):'')+'</div>':'')+
         (d.lineage.length?'<div class="lineage">歴代：'+d.lineage.map(esc).join(' <span class="arrow">←</span> ')+'</div>':'')+
         oilsHtml(f)+barsHtml(nowOils(f))+monthHtml(f)+
         '<div class="tip">次の一手：'+nextTip(f)+'</div></div>';
@@ -473,13 +663,17 @@ function nextTip(f){
   var now=nowOils(f);
   if(f==='ラグーナベイコート倶楽部') return '前シェフ野口さんは<b>琵琶湖</b>へ。新任<b>奥村シェフ</b>に、昔ラグーナで使っていた銘柄（トゥリリエ・ザイトゥーン等）を改めて案内する余地あり。';
   if(f==='サンクチュアリコート琵琶湖') return '<b>野口シェフ</b>は引き続きのお付き合い。ラグーナ時代の好み（トゥリリエ等）を琵琶湖でも提案できる。';
+  if(f==='エクシブ有馬離宮') return '前任<b>穴見シェフ</b>の後任が<b>小山 水喜人シェフ</b>。穴見シェフが有馬・高山で使っていた銘柄をそのまま引き継ぎ提案できる。';
   if(FAC[f].cur==='不明') return 'この施設のシェフ名が未記録。分かれば名刺や台帳に足すと案内先として活きる。';
+  if(!Object.keys(now).length) return 'まだ取引はないが名刺はある。<b>これから開ける先</b>。まずはサンプルの案内から。';
   var top=Object.keys(now).sort(function(a,b){return now[b]-now[a];})[0];
   return 'いま<b>'+esc(top||'—')+'</b>をよく購入。旧ロットの案内先候補。';
 }
 function chefTip(chef){
   if(chef==='野口シェフ') return '<b>ラグーナ→琵琶湖</b>へ異動。琵琶湖で引き続き購入中。前任地ラグーナの後任（奥村シェフ）へ同じ銘柄を横展開できる。';
   if(chef==='奥村シェフ') return '野口シェフの後任。<b>前任者が使っていた銘柄</b>を引き継ぎ提案するとスムーズ。';
+  if(chef==='穴見シェフ') return '<b>有馬離宮→高山</b>へ。有馬の後任は小山 水喜人シェフ。高山での使い方をそのまま有馬にも横展開できる。';
+  if(chef==='小山シェフ（水喜人）') return '穴見シェフの後任。<b>穴見シェフの銘柄</b>から入るのが自然。まだ取引がないので最初の一本を決める段階。';
   return 'このシェフの購入傾向から、次の取り置き・案内を考えられる。';
 }
 
@@ -584,38 +778,238 @@ function cancelReview(){
   document.getElementById('review').style.display='none';
   document.getElementById('shoot-box').style.display='block';
   document.getElementById('cam').value='';
-  ['f-name','f-role','f-dept','f-tel','f-mail'].forEach(function(id){document.getElementById(id).value='';});
+  ['f-name','f-role','f-dept','f-tel','f-mail','f-note','f-cert','f-career','f-oils'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
+  var vp=document.getElementById('f-vip'); if(vp) vp.checked=false;
+  var d=document.getElementById('f-date'); if(d) d.value=today();
+  var st=document.getElementById('f-status'); if(st) st.value='現任';
 }
+function today(){ var d=new Date(); function z(n){return (n<10?'0':'')+n;} return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
+function postKey(p){ return (p.fac||'')+'／'+(p.dept||'')+'／'+(p.role||''); }
+function splitCerts(t){ return (t||'').split(/[、,／\/]+/).map(function(x){return x.trim();}).filter(Boolean); }
+function toggleVip(i){ PEOPLE[i].vip=!PEOPLE[i].vip; storePeople(); renderPeople(); }
+
+/* 同じ施設・部署・役職に現任がいたら、交代かどうかを本人に確認して紐付ける */
+function checkSuccession(rec){
+  var k=postKey(rec);
+  var same=PEOPLE.filter(function(p){ return p!==rec && p.status!=='前任' && postKey(p)===k; });
+  if(!same.length) return;
+  var names=same.map(function(p){return p.name;}).join('、');
+  var ok=confirm('同じポスト（'+(rec.fac||'')+'／'+(rec.dept||'')+'／'+(rec.role||'')+'）に、すでに '+names+' さんがいます。\n\n【OK】＝役職が交代した（'+names+' さんを「前任」にします）\n【キャンセル】＝2人体制なので、そのまま両方を「現任」で残す');
+  if(!ok) return;
+  same.forEach(function(p){ p.status='前任'; p.succ=rec.name; });
+  rec.pred=names;
+}
+
 function savePerson(){
   var name=document.getElementById('f-name').value.trim();
   if(!name){ alert('お名前を入れてください。'); return; }
-  PEOPLE.push({ name:name, role:v('f-role'), dept:v('f-dept'), fac:v('f-fac'), tel:v('f-tel'), mail:v('f-mail'), type:v('f-type'), photo:shotDataUrl||'' });
+  var vipEl=document.getElementById('f-vip');
+  var rec={ name:name, role:v('f-role'), dept:v('f-dept'), fac:v('f-fac'), tel:v('f-tel'), mail:v('f-mail'),
+            type:v('f-type'), photo:shotDataUrl||'', regDate:v('f-date')||today(), status:v('f-status')||'現任',
+            pred:'', succ:'', certs:splitCerts(v('f-cert')), career:v('f-career'), oils:v('f-oils'), vip:!!(vipEl&&vipEl.checked), note:v('f-note') };
+  PEOPLE.push(rec);
+  if(rec.status==='現任') checkSuccession(rec);
   storePeople();
   document.getElementById('pcount').textContent=PEOPLE.length;
   cancelReview(); nav('people');
 }
-function v(id){ return document.getElementById(id).value; }
+function v(id){ var el=document.getElementById(id); return el? el.value : ''; }
 function delPerson(i){ if(!confirm('この人物カードを消しますか？')) return; PEOPLE.splice(i,1); storePeople(); document.getElementById('pcount').textContent=PEOPLE.length; renderPeople(); }
+function toggleStatus(i){
+  var p=PEOPLE[i];
+  p.status = (p.status==='前任') ? '現任' : '前任';
+  storePeople(); renderPeople();
+}
+
+/* 書き出し（バックアップ用） */
+function doExport(){
+  var el=document.getElementById('io');
+  el.value=JSON.stringify(PEOPLE.map(function(p){ var c={}; for(var k in p){ if(k!=='photo') c[k]=p[k]; } return c; }));
+  el.select();
+  alert('書き出しました。枠の中を全部コピーして、メールやメモに保存しておいてください。（写真は含みません）');
+}
+/* 表形式（スプレッドシート貼り付け用） */
+var SHEET_COLS=[['fac','施設・所属'],['name','お名前'],['role','役職'],['dept','部署'],['type','区分'],['status','状態'],['tel','電話'],['mail','メール'],['regDate','登録日'],['pred','前任'],['succ','後任'],['certs','資格・認定'],['career','これまでの経歴'],['oils','使っているオイル'],['vip','重要人物'],['note','メモ'],['addr','住所']];
+function peopleTSV(){
+  var head=SHEET_COLS.map(function(c){return c[1];}).join('\t');
+  var rows=PEOPLE.map(function(p){
+    var info=placeInfo(p.fac);
+    return SHEET_COLS.map(function(c){
+      var k=c[0], val;
+      if(k==='addr') val=(info&&info.addr)||'';
+      else if(k==='certs') val=(p.certs||[]).join('、');
+      else if(k==='vip') val=p.vip?'◎':'';
+      else val=p[k]||'';
+      return String(val).replace(/[\t\r\n]/g,' ');
+    }).join('\t');
+  });
+  return head+'\n'+rows.join('\n');
+}
+function copyText(t, okMsg){
+  var ta=document.getElementById('io'); if(ta){ ta.value=t; ta.focus(); ta.select(); }
+  var done=false;
+  try{ done=document.execCommand('copy'); }catch(e){}
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){},function(){});
+    done=true;
+  }
+  alert(done? okMsg : '枠の中に出しました。長押しして全部コピーしてください。');
+}
+function copyForSheet(){ copyText(peopleTSV(), '表の形でコピーしました。スプレッドシートに新しいシートを作って貼り付けてください。'); }
+function downloadBackup(){
+  var data={ savedAt:new Date().toISOString(), count:PEOPLE.length,
+             people:PEOPLE.map(function(p){ var c={}; for(var k in p){ if(k!=='photo') c[k]=p[k]; } return c; }) };
+  var blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='RT名刺台帳_'+today()+'.json';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+/* 送り先をひとまとめでコピー（ちょっとした発送用） */
+function copyAddress(i){
+  var p=PEOPLE[i], info=placeInfo(p.fac);
+  var t=[ (info&&info.addr)||'（住所は未登録）',
+          p.fac+(p.dept?' '+p.dept:''),
+          (p.role?p.role+'　':'')+p.name+' 様',
+          'TEL '+(p.tel||(info&&info.tel)||'—') ].join('\n');
+  copyText(t,'送り先をコピーしました。');
+}
+
+/* まとめて取り込み */
+function doImport(){
+  var txt=(document.getElementById('io').value||'').trim();
+  if(!txt){ alert('先に、取り込むデータを枠に貼り付けてください。'); return; }
+  var arr=null;
+  try{ arr=JSON.parse(txt); }catch(e){ alert('データの形が読み取れませんでした。貼り付け直してみてください。'); return; }
+  if(!arr || !arr.length){ alert('取り込めるデータがありませんでした。'); return; }
+  var added=0, skipped=0;
+  arr.forEach(function(x){
+    if(!x || !x.name) return;
+    var dup=PEOPLE.some(function(p){ return p.name===x.name && p.fac===x.fac; });
+    if(dup){ skipped++; return; }
+    PEOPLE.push({ name:x.name, role:x.role||'', dept:x.dept||'', fac:x.fac||'その他', tel:x.tel||'', mail:x.mail||'',
+                  type:x.type||'その他', photo:'', regDate:x.regDate||today(), status:x.status||'現任',
+                  pred:x.pred||'', succ:x.succ||'', certs:(x.certs||[]), career:x.career||'', oils:x.oils||'', vip:!!x.vip, note:x.note||'' });
+    added++;
+  });
+  storePeople();
+  document.getElementById('pcount').textContent=PEOPLE.length;
+  document.getElementById('io').value='';
+  alert(added+'件を取り込みました。'+(skipped?'（すでに入っていた '+skipped+' 件はとばしました）':''));
+  nav('people');
+}
 
 function loadPeople(){
   var stored=null;
   try{ stored=JSON.parse(localStorage.getItem(PEOPLE_KEY)||'null'); }catch(e){}
-  PEOPLE = stored || PEOPLE_SEED.slice();
+  PEOPLE = stored || [];
+  /* 初期データのうち、まだ入っていない人だけを足す（手入力したぶんは消えません） */
+  PEOPLE_SEED.forEach(function(sd){
+    var exists=PEOPLE.some(function(p){ return p.name===sd.name && p.fac===sd.fac; });
+    if(!exists) PEOPLE.push(JSON.parse(JSON.stringify(sd)));
+  });
+  /* 古い形式のデータに新しい項目を足す */
+  PEOPLE.forEach(function(p){
+    if(!p.status) p.status='現任';
+    if(p.regDate===undefined) p.regDate='';
+    if(p.pred===undefined) p.pred='';
+    if(p.succ===undefined) p.succ='';
+    if(p.note===undefined) p.note='';
+    if(!p.certs) p.certs=[];
+    if(p.vip===undefined) p.vip=false;
+    if(p.career===undefined) p.career='';
+    if(p.oils===undefined) p.oils='';
+  });
+  storePeople();
   var pc=document.getElementById('pcount'); if(pc) pc.textContent=PEOPLE.length;
 }
 function storePeople(){ try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); }catch(e){} }
 function renderPeople(){
   var box=document.getElementById('peoplebox'); if(!box) return;
   var q=(document.getElementById('pq').value||'').trim();
-  var list=PEOPLE.map(function(p,i){return {p:p,i:i};}).filter(function(o){ return match(q, o.p.name+' '+o.p.fac+' '+o.p.type+' '+o.p.dept+' '+o.p.role); });
-  if(!list.length){ box.innerHTML='<div class="empty">まだ名刺がありません。<br>「📇 名刺を入れる」から撮ってください。</div>'; return; }
+  var list=PEOPLE.map(function(p,i){return {p:p,i:i};}).filter(function(o){
+    var p=o.p;
+    var hay=p.name+' '+p.fac+' '+facAlias(p.fac)+' '+p.type+' '+p.dept+' '+p.role+' '+(p.status||'')+' '+(p.note||'')+' '+(p.mail||'')+' '+(p.tel||'')+' '+((p.certs||[]).join(' '))+' '+(p.career||'')+' '+(p.oils||'')+(p.vip?' 重要 重要人物 ◎':'')+((facTotal(p.fac)||0)>=48?' よく買ってくれている 上得意':'')+((facTotal(p.fac)||0)===0?' 未取引 まだ取引なし':'');
+    if(vipOnly && !p.vip) return false;
+    if(buyOnly && (facTotal(p.fac)||0)<48) return false;
+    return match(q, hay);
+  });
+  if(!list.length){ box.innerHTML='<div class="empty">見つかりませんでした。<br>施設名（例：琵琶湖、ラグーナ、鳴門、芦屋、有馬）や役職でも探せます。</div>'; return; }
+  /* 施設ごとにまとめ、その中は 現任 → 前任 の順 */
+  var order={'シェフ（料理長）':0,'業務支配人':1,'購買担当':2,'ショップ担当':3,'EC担当':4,'本部':5,'その他':6};
+  list.sort(function(a,b){
+    var fa=(a.p.fac||''), fb=(b.p.fac||'');
+    if(fa!==fb) return fa.localeCompare(fb,'ja');
+    var sa=(a.p.status==='前任')?1:0, sb=(b.p.status==='前任')?1:0;
+    if(sa!==sb) return sa-sb;
+    var va=a.p.vip?0:1, vb=b.p.vip?0:1;
+    if(va!==vb) return va-vb;
+    var ba=facTotal(a.p.fac)||0, bb=facTotal(b.p.fac)||0;
+    if(ba!==bb) return bb-ba;
+    return (order[a.p.type]===undefined?9:order[a.p.type])-(order[b.p.type]===undefined?9:order[b.p.type]);
+  });
+  var curFacHead='';
   box.innerHTML=list.map(function(o){ var p=o.p;
-    return '<div class="pcard"><button class="del" onclick="delPerson('+o.i+')">削除</button>'+
-      '<div class="nm">'+esc(p.name)+' <span class="role">'+esc(p.role||'')+'</span></div>'+
+    var head='';
+    if(p.fac!==curFacHead){
+      curFacHead=p.fac;
+      var info=placeInfo(p.fac);
+      head='<div style="margin:16px 0 8px;padding:8px 12px;background:#e5eecf;border-radius:10px;">'+
+        '<div style="font-weight:700;font-size:15px;color:#3f4a1d;">🏨 '+esc(p.fac)+'</div>'+
+        (info&&(info.addr||info.tel)? '<div class="mini" style="color:#5c6636;margin-top:3px;">'+(info.addr?esc(info.addr)+'<br>':'')+(info.tel?'☎ '+esc(info.tel):'')+'</div>':'')+
+        '</div>';
+    }
+    return head+buildPersonCard(p,o.i);
+  }).join('');
+}
+var vipOnly=false, buyOnly=false;
+function toggleBuyOnly(){
+  buyOnly=!buyOnly;
+  var b=document.getElementById('buybtn');
+  if(b){ b.textContent=buyOnly?'🫒 実績のある先だけ表示中（解除）':'🫒 よく買ってくれている先だけ';
+         b.style.background=buyOnly?'#eef3e0':'#fff'; }
+  renderPeople();
+}
+function toggleVipOnly(){
+  vipOnly=!vipOnly;
+  var b=document.getElementById('vipbtn');
+  if(b){ b.textContent=vipOnly?'◎ 重要人物だけ表示中（解除）':'◎ 重要人物だけ見る';
+         b.style.background=vipOnly?'#fff2d8':'#fff'; }
+  renderPeople();
+}
+function buildPersonCard(p,i){
+  var o={p:p,i:i};
+  return (function(o){ var p=o.p;
+    var isOld=(p.status==='前任');
+    var badge='<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;'+
+      (isOld?'background:#efe9e2;color:#8a7a66;':'background:#e5eecf;color:#4d5a24;')+'">'+(isOld?'前任':'現任')+'</span>';
+    var buy=facTotal(p.fac)||0;
+    var buyTag = (buy>=48)? '<span style="display:inline-block;background:#e5eecf;color:#3f4a1d;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">🫒 よく買ってくれている（'+buy+'本）</span>'
+               : (buy>0)? '<span style="display:inline-block;background:#f2f0ea;color:#6b6459;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">🫒 取引あり（'+buy+'本）</span>'
+               : (FAC[p.fac]? '<span style="display:inline-block;background:#faf3ea;color:#a08a6a;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">🫒 まだ取引なし</span>':'');
+    var certTags=(p.certs&&p.certs.length)?
+      '<div style="margin-top:2px;">'+p.certs.map(function(c){
+        return '<span style="display:inline-block;background:#fff6e5;border:1px solid #e0b877;color:#8a5b12;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">'+esc(c)+'</span>';
+      }).join('')+'</div>':'';
+    return '<div class="pcard"'+(isOld?' style="opacity:.72;"':(p.vip?' style="border:2px solid #e0b877;background:#fffdf7;"':''))+'>'+
+      '<button class="del" onclick="delPerson('+o.i+')">削除</button>'+
+      '<button class="del" style="color:#2b4a66;margin-right:12px;" onclick="copyAddress('+o.i+')">📋 送り先</button>'+
+      '<button class="del" style="color:#6b7a3a;margin-right:12px;" onclick="toggleStatus('+o.i+')">'+(isOld?'現任に戻す':'前任にする')+'</button>'+
+      '<button class="del" style="color:'+(p.vip?'#d9901a':'#c0bbb0')+';margin-right:12px;font-size:17px;" onclick="toggleVip('+o.i+')" title="重要人物">'+(p.vip?'◎':'○')+'</button>'+
+      '<div class="nm">'+(p.vip?'<span style="color:#d9901a;">◎</span> ':'')+esc(p.name)+' <span class="role">'+esc(p.role||'')+'</span>'+badge+'</div>'+
+      ((buyTag||certTags)? '<div style="margin-top:6px;">'+buyTag+'</div>':'')+
+      certTags+
       '<div class="row2"><span>区分：<b>'+esc(p.type)+'</b></span><span>部署：<b>'+esc(p.dept||'—')+'</b></span></div>'+
       '<div class="row2"><span>☎ '+esc(p.tel||'—')+'</span><span>✉ '+esc(p.mail||'—')+'</span></div>'+
+      '<div class="row2"><span>登録日：<b>'+esc(p.regDate||'—')+'</b></span>'+
+        (p.pred? '<span>前任：<b>'+esc(p.pred)+'</b></span>':'')+
+        (p.succ? '<span>後任：<b>'+esc(p.succ)+'</b></span>':'')+'</div>'+
+      (p.oils? '<div class="row2" style="color:#6b5124;background:#fdf8ee;border-radius:6px;padding:5px 8px;margin-top:6px;"><span>🧴 使っているオイル：<b>'+esc(p.oils)+'</b></span></div>':'')+
+      (p.career? '<div class="row2" style="color:#5c6636;"><span>これまで：<b>'+esc(p.career)+'</b></span></div>':'')+
+      (p.note? '<div class="row2" style="color:#7a7266;"><span>📝 '+esc(p.note)+'</span></div>':'')+
       '<span class="tagfac">🏨 '+esc(p.fac)+'</span></div>';
-  }).join('');
+  })(o);
 }
 
 document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
