@@ -154,7 +154,7 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .bd-send{margin-left:auto;background:#0f6e56;color:#fff;border:none;border-radius:11px;padding:9px 20px;font-size:15px;font-weight:800;font-family:'Zen Maru Gothic',sans-serif;cursor:pointer}
 .bd-pending{display:flex;align-items:center;gap:8px;font-size:12px;color:#4a453d;background:#eef6ee;border:1px solid #cfe0cf;border-radius:9px;padding:6px 9px;margin-top:9px;flex-wrap:wrap}
 .bd-pending img{width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #cfe0cf}
-.bd-feed{max-height:300px;overflow:auto;padding-right:2px}
+.bd-feed{padding-right:2px}
 .bd-post{background:#fff;border:1.5px solid #e3ddd2;border-radius:14px;padding:12px 13px;margin-bottom:12px;box-shadow:0 2px 10px rgba(80,70,50,.05);border-left:6px solid #e3ddd2}
 .bd-post.from-h{border-left-color:#e07aac}.bd-post.from-y{border-left-color:#2f6690}
 .bd-post.done{background:#eeece7;border-color:#ddd7cc;opacity:.9}
@@ -208,6 +208,28 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 .bd-act.edit{border-color:#e0cba0;background:#fdf6e6;color:#8a5a12}
 .bd-body.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .bd-readmore{margin-top:6px;font-size:12.5px;font-weight:800;color:#0f6e56;background:#eef6f2;border:1px solid #cfe4da;border-radius:999px;padding:4px 12px;cursor:pointer}
+/* ★2026-07-23 追加：①伝言板のスクロール枠をやめて全部見えるように ②状態（未対応／返信ずみ）を大きく色分け */
+.bd-feed{max-height:none!important;overflow:visible!important}
+.bd-post{border-left-width:8px}
+.bd-body{font-size:15.5px;line-height:1.6}
+.bd-body.clamp{-webkit-line-clamp:6}
+/* 状態バー（カードのいちばん上に出る大きな帯） */
+.bd-state{display:flex;align-items:center;gap:7px;font-family:'Zen Maru Gothic',sans-serif;font-size:14.5px;font-weight:900;border-radius:10px;padding:8px 12px;margin:0 0 10px}
+.bd-post.st-todo{border-left-color:#dc2626;background:#fffaf9}
+.bd-post.st-todo .bd-state{background:#fdeaea;color:#b23b3b}
+.bd-post.st-yreply{border-left-color:#e08a2f;background:#fffcf5}
+.bd-post.st-yreply .bd-state{background:#fdf0dd;color:#9c5a10}
+.bd-post.st-replied{border-left-color:#2f6690;background:#f9fcff}
+.bd-post.st-replied .bd-state{background:#e6eef5;color:#2a5a80}
+.bd-post.st-sent{border-left-color:#9b9484;background:#fdfcfa}
+.bd-post.st-sent .bd-state{background:#f1eee8;color:#6b6558}
+.bd-post.st-plan .bd-state{background:#eaf3ff;color:#2f6690}
+.bd-post.st-done .bd-state{background:#e5efe5;color:#3d6b3d}
+/* たたんでいるときに「最後の返信」を1つだけ見せる */
+.bd-lastreply{margin-top:9px;background:#f7f4ef;border:1px dashed #ded7cb;border-radius:11px;padding:8px 11px;display:flex;gap:8px;align-items:flex-start}
+.bd-lastreply .who{font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:11.5px;color:#fff;border-radius:6px;padding:2px 8px;white-space:nowrap;margin-top:1px}
+.bd-lastreply .who.h{background:#e07aac}.bd-lastreply .who.y{background:#2f6690}
+.bd-lastreply .tx{flex:1;font-size:14px;white-space:pre-wrap;word-break:break-word;color:#4a453d}
 .sc-optrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
 .sc-red{font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;color:#dc2626;font-weight:700}
 .sc-red input{width:15px;height:15px}
@@ -250,7 +272,6 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 @media(max-width:820px){
   .app{padding:.7rem}
   .bd-col-board,.bd-col-mine{display:block}
-  .bd-feed{max-height:260px}
 }
 </style>
 </head>
@@ -493,6 +514,31 @@ function bdStatusPill(it){
   if(it.status==='plan') return '<span class="bd-status bd-st-plan">📅 予定：'+bdEsc(it.plannedDate||'')+'</span>';
   return '<span class="bd-status bd-st-todo">🔴 未対応</span>';
 }
+/* ★2026-07-23 追加：返信のありなしまで見て「いまどうなっているか」を出す
+   done   … 完了
+   plan   … 予定あり
+   yreply … 最後の返信がゆかちゃん＝こちらが読んで動く番
+   replied… 最後の返信がひろみ＝返事ずみ、相手まち
+   todo   … ゆかからの伝言でまだ一度も返していない
+   sent   … ひろみが出した伝言でまだ返事がない            */
+function bdState(it){
+  if(it.status==='done') return 'done';
+  if(it.status==='plan') return 'plan';
+  const r = it.replies||[];
+  if(r.length){ return r[r.length-1].from==='h' ? 'replied' : 'yreply'; }
+  return (it.from==='y') ? 'todo' : 'sent';
+}
+function bdStateBar(it){
+  const s = bdState(it);
+  const label =
+    s==='done'    ? '✅ 完了しました' :
+    s==='plan'    ? '📅 予定：'+bdEsc(it.plannedDate||'') :
+    s==='yreply'  ? '🟠 ゆかちゃんから返事がきています（読んでください）' :
+    s==='replied' ? '💬 返信ずみ ─ ゆかちゃんの返事まち' :
+    s==='todo'    ? '🔴 未対応 ─ まだ返信していません' :
+                    '📤 送りました ─ ゆかちゃんの返事まち';
+  return '<div class="bd-state">'+label+'</div>';
+}
 function bdRepliesBlock(it){
   const n = (it.replies||[]).length;
   const seen = bdSeen();
@@ -543,10 +589,18 @@ function bdPostHTML(it){
   const editBtn = '<button class="bd-act edit" title="この伝言を書き直す" onclick="bdEdit(\''+it.id+'\')">✎ 編集</button>';
   const delBtn = '<button class="bd-act del" title="完全に削除（ゆかちゃん側からも消えます）" onclick="bdDelete(\''+it.id+'\')">🗑 削除</button>';
   const isIncoming = (it.from==='y' && it.status!=='done');
-  return '<div class="bd-post from-'+(it.from||'h')+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
+  // ★2026-07-23 たたんでいるときは「いちばん新しい返信」を1つだけ見せる
+  let lastPrev = '';
+  if(n && !open){
+    const lr = it.replies[n-1];
+    lastPrev = '<div class="bd-lastreply"><span class="who '+(lr.from==='h'?'h':'y')+'">'+
+      (lr.from==='h'?'ひろみ':'ゆか')+'</span><span class="tx">'+bdEsc(lr.text)+'</span></div>';
+  }
+  return '<div class="bd-post from-'+(it.from||'h')+' st-'+bdState(it)+(it.status==='done'?' done':'')+(glow?' glow':'')+'">'+
+    bdStateBar(it)+
     '<div class="bd-ptop">'+bdBadge(it.from||'h')+(isIncoming && glow?'<span class="bd-new">●新着</span>':'')+'<span class="bd-time">'+bdEsc(it.time||'')+'</span></div>'+
-    body+att+
-    '<div class="bd-actrow">'+bdStatusPill(it)+doneBtn+editBtn+replyBtn+delBtn+'</div>'+
+    body+att+lastPrev+
+    '<div class="bd-actrow">'+doneBtn+editBtn+replyBtn+delBtn+'</div>'+
     (open ? bdRepliesOnly(it) : '')+
     '</div>';
 }
