@@ -114,6 +114,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
     <a class="nav-blue" href="yuka.html">📮 ゆかメモ J</a>
     <a class="nav-gray" href="pickup.html">🚚 倉庫 D</a>
   </nav>
+<!-- ★2026-07-24 サーバーから何が返ってきたかを、はっきり出す（黙って真っ白にしない） -->
+<div id="lb-loadinfo" style="border-radius:10px;padding:10px 13px;margin:0 0 12px;font-size:13.5px;font-weight:700;line-height:1.7;background:#eef4fb;border:1px solid #b5d4f4;color:#0c447c">ラベル情報を読み込んでいます…</div>
 <div style="background:#fff6ea;border:1px solid #f0d9b5;border-radius:10px;padding:10px 13px;margin:0 0 14px;font-size:13.5px;font-weight:700;color:#7a4a12;line-height:1.7">🏷️ ラベル図鑑は <b>統合マスタ N の「🏷️ラベル図鑑」タブ</b> に引っ越しました。これからはそちらをお使いください（この画面もそのまま使えます）。 <a href="master.html" style="color:#6b7a3a">📒 統合マスタ N をひらく →</a></div>
 
 <details class="no-print" id="oos-whatis" style="background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:hidden;margin-bottom:1.25rem">
@@ -309,17 +311,57 @@ function showSyncStatus(msg,isError){
 }
 
 // ── ラベルデータの読み込み ────────────────────────────────────────────
-async function loadLabels(){
+/* ★2026-07-24 これまでは、読み込みに失敗しても・サーバーが0件を返しても、
+   何も言わずに真っ白な一覧を出していた（写真もバーコードも消えたように見える）。
+   これからは「何件読めたか」「なぜ出ないか」を必ず画面に出し、
+   読めなかったときは今出ている中身を消さない。 */
+function setLabelBanner(html, kind){
+  var el = document.getElementById('lb-loadinfo'); if(!el) return;
+  var style = {
+    ok:    'background:#eaf6ea;border:1px solid #bcdcbc;color:#1b5e20',
+    warn:  'background:#fff6ea;border:1px solid #f0d9b5;color:#7a4a12',
+    error: 'background:#fdecec;border:1px solid #f3c6c6;color:#7f1d1d',
+    load:  'background:#eef4fb;border:1px solid #b5d4f4;color:#0c447c'
+  }[kind||'load'];
+  el.setAttribute('style','border-radius:10px;padding:10px 13px;margin:0 0 12px;font-size:13.5px;font-weight:700;line-height:1.7;'+style);
+  el.innerHTML = html;
+}
+function labelCounts(obj){
+  var n = {rows:0, photo:0, barcode:0, note:0};
+  Object.keys(obj||{}).forEach(function(k){
+    var r = obj[k]; if(!r) return;
+    n.rows++;
+    if(r.front || r.back) n.photo++;
+    if(r.barcode) n.barcode++;
+    if(r.note) n.note++;
+  });
+  return n;
+}
+async function loadLabels(isRetry){
+  setLabelBanner('ラベル情報を読み込んでいます…','load');
   try{
     const res = await fetch(GAS_URL + '?action=loadAllData');
     const data = await res.json();
     if(data.status==='ok' && data.data && Array.isArray(data.data.productLabels)){
-      labels = {};
+      const next = {};
       data.data.productLabels.forEach(function(row){
-        if(row && row.sku) labels[row.sku] = row;
+        if(row && row.sku) next[row.sku] = row;
       });
+      const n = labelCounts(next);
+      if(n.rows === 0){
+        // サーバーは答えたが中身が0件。いま画面に出ている分は消さない。
+        setLabelBanner('⚠️ サーバーからラベル情報が <b>0件</b> で返ってきました。スプレッドシートのラベルのシートに中身が残っているか確認してください（残っていれば、シートの「版履歴」から戻せます）。 <button onclick="loadLabels()" style="margin-left:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700;padding:4px 12px;border-radius:8px;cursor:pointer">もう一度読み込む</button>','error');
+      } else {
+        labels = next;
+        setLabelBanner('✅ ラベル情報を <b>'+n.rows+'件</b> 読み込みました（写真あり '+n.photo+'件／バーコードあり '+n.barcode+'件／コメントあり '+n.note+'件）','ok');
+      }
+    } else {
+      setLabelBanner('⚠️ サーバーの返事にラベル情報が入っていませんでした。いま出ている中身は消していません。 <button onclick="loadLabels()" style="margin-left:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700;padding:4px 12px;border-radius:8px;cursor:pointer">もう一度読み込む</button>','error');
     }
-  }catch(e){ /* 読み込めなくても一覧は出す（未登録として表示） */ }
+  }catch(e){
+    if(!isRetry){ await new Promise(function(r){ setTimeout(r, 1500); }); return loadLabels(true); }
+    setLabelBanner('⚠️ ラベル情報を読み込めませんでした（通信が届かない・時間切れ）。<b>データが消えたわけではありません。</b> <button onclick="loadLabels()" style="margin-left:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700;padding:4px 12px;border-radius:8px;cursor:pointer">もう一度読み込む</button>','error');
+  }
   renderProductList();
 }
 
