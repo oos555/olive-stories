@@ -484,7 +484,7 @@
       <div class="row"><span class="lbl" id="ship-lbl">送料（税込）</span><span class="amt2" id="shipfee" style="font-size:16px">¥880</span></div>
       <div class="row giftfeerow" id="giftfeerow" style="display:none"><span class="lbl" id="giftfee-lbl">ギフトボックス（税込）</span><span class="amt2" id="giftfee" style="font-size:16px">¥0</span></div>
       <div class="row" style="border-top:1px solid #d7deca;margin-top:6px;padding-top:8px"><span class="lbl" style="font-weight:900;font-size:15px">お支払い（税込・送料込み）</span><span class="amt" id="grand">¥0</span></div>
-      <div class="note">消費税（オイル8%）・送料込みの金額です。送料はお届け先の都道府県で自動（北海道¥1,100／鹿児島県¥1,595／沖縄県¥1,980／その他¥880・税込）。</div>
+      <div class="note">消費税（オイル8%）・送料込みの金額です。送料はお届け先の都道府県で自動（北海道・沖縄県¥1,100／その他¥880・すべて税込）。</div>
     </div>
 
     <button class="cta" onclick="confirmOrder()">お支払いへ進む<span class="ctasub">（この内容で仮予約）</span></button>
@@ -552,7 +552,7 @@ var CONFIG = {
     seal: { sku:'BOX-SEAL', name:'ギフトボックス（シールのみ・お包みなし）', price:330 },
     wrap: { sku:'BOX-WRAP', name:'包装紙で巻いたギフトボックス',             price:440 }
   },
-  SHIP: { hokkaido:1100, kagoshima:1595, okinawa:1980, other:880 }, // 送料（税込・都道府県別／ヤマト運輸＝県単位）※鹿児島1450＋税=1595・沖縄1800＋税=1980・北海道/その他は税込
+  SHIP: { hokkaido:1100, okinawa:1100, other:880 }, // 送料（税込・都道府県別／ヤマト運輸＝県単位）※2026-07-24改定：北海道・沖縄県=1,100／その他=880（すべて税込・外税なし）。鹿児島県は「その他」に統合（旧1,595）
   SELF_SENDER: { name:'株式会社オリーブオイル・ストーリーズ', zip:'107-0062', addr:'東京都港区南青山2-2-15' },
   SET_SKU:     { 'your story':'SET_YS', 'olive NOVA':'SET_NOVA' } // ギフトセットの記録用コード（仮・正式コードは後で）
 };
@@ -636,10 +636,11 @@ function shipInfo(){
   var pref=(direct?DELIV_PREF.gift:(alt?DELIV_PREF.alt:DELIV_PREF.self))||'';
   var addr=direct?formVal('g-addr'):(alt?formVal('alt-addr'):formVal('f-addr'));
   var s=pref+' '+addr;
-  if(/北海道/.test(s)) return { fee:CONFIG.SHIP.hokkaido, name:'北海道' };
-  if(/鹿児島/.test(s)) return { fee:CONFIG.SHIP.kagoshima, name:'鹿児島県' };
-  if(/沖縄/.test(s))   return { fee:CONFIG.SHIP.okinawa, name:'沖縄県' };
-  return { fee:CONFIG.SHIP.other, name:'全国' };
+  if(/北海道/.test(s)) return { fee:CONFIG.SHIP.hokkaido, name:'北海道', zone:'北海道' };
+  if(/沖縄/.test(s))   return { fee:CONFIG.SHIP.okinawa,  name:'沖縄県', zone:'沖縄県' };
+  /* ★2026-07-24 A案：北海道・沖縄以外は画面に地域名を出さない（name を空にする）。
+     ただし記録（shippingZone）には「その他」と残すので、シートの列が空にはならない。 */
+  return { fee:CONFIG.SHIP.other, name:'', zone:'その他' };
 }
 function boxType(){ var r=document.querySelector('input[name="boxtype"]:checked'); return r?r.value:'wrap'; }
 function wrapOn(){ return giftifyOn() && boxType()==='wrap'; }
@@ -677,7 +678,7 @@ function recalc(){
   var el;
   if(el=document.getElementById('subtotal')) el.textContent=fmt(subExcl);
   if(el=document.getElementById('shipfee'))  el.textContent=fmt(ship);
-  if(el=document.getElementById('ship-lbl')) el.textContent='送料（'+si.name+'・税込）';
+  if(el=document.getElementById('ship-lbl')) el.textContent='送料（'+(si.name?si.name+'・':'')+'税込）';
   if(el=document.getElementById('giftfee'))  el.textContent=fmt(giftBoxFee);
   if(el=document.getElementById('giftfee-lbl')) el.textContent = gift ? (giftBox().name+'（税込）') : 'ギフトボックス（税込）';
   var gfr=document.getElementById('giftfeerow'); if(gfr) gfr.style.display=gift?'flex':'none';
@@ -805,7 +806,7 @@ function buildOrder(claimed, method, ref){
   var lines=collectLines();
   var iso=new Date().toISOString();
   var _si=shipInfo();
-  var extra = '／送料 '+yen(_si.fee)+'(税込・'+_si.name+')' + (method?('／お支払い：'+method+(ref?('（'+ref+'）'):'')):'') + (email?('／メール：'+email):'') + (gy?('／ギフト・お届け先＝お相手（差出人：'+senderNm+'）'):'') + (gy?('／ギフトボックス：'+gb.name+'('+yen(gb.price)+')'):'') + (gbd?('／ギフト内訳：'+gbd):'');
+  var extra = '／送料 '+yen(_si.fee)+'(税込'+(_si.name?'・'+_si.name:'')+')' + (method?('／お支払い：'+method+(ref?('（'+ref+'）'):'')):'') + (email?('／メール：'+email):'') + (gy?('／ギフト・お届け先＝お相手（差出人：'+senderNm+'）'):'') + (gy?('／ギフトボックス：'+gb.name+'('+yen(gb.price)+')'):'') + (gbd?('／ギフト内訳：'+gbd):'');
   var noteMsg = (claimed
       ? '【アプリ注文】お客様が「入金済み」でご依頼。入金確認の上、出荷依頼書へ進んでください。お支払い総額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
       : '【アプリ注文】入金前です。お客様がお支払い手続き中。入金確認後に発送してください。お支払い予定額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
@@ -826,7 +827,7 @@ function buildOrder(claimed, method, ref){
     isDefectSale:false, notified:false, holdUntilDate:'', expectedDate:'',
     status:'pending', source:'app', registeredAt:iso,
     appOrder:true, paymentClaimed:!!claimed, paymentClaimedAt:claimed?iso:'',
-    orderTotal:LAST_TOTAL, warehouseFee:LAST_FEE, shippingFee:_si.fee, shippingZone:_si.name
+    orderTotal:LAST_TOTAL, warehouseFee:LAST_FEE, shippingFee:_si.fee, shippingZone:(_si.zone||_si.name)
   };
 }
 
