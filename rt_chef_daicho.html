@@ -193,12 +193,52 @@
   <div class="nav">
     <button class="on" id="n-daicho" onclick="nav('daicho')">🏨 台帳</button>
     <button id="n-ask" onclick="nav('ask')">🔎 しらべる</button>
+    <button id="n-ugoki" onclick="nav('ugoki')">📈 うごき</button>
     <button id="n-denpyo" onclick="nav('denpyo')">📥 伝票を入れる</button>
     <button id="n-meishi" onclick="nav('meishi')">📇 名刺を入れる</button>
     <button id="n-people" onclick="nav('people')">👥 人物カード（<span id="pcount">0</span>）</button>
   </div>
 
   <!-- 台帳 -->
+
+<style>
+#oos-where{border:1px solid #d8d2c4;background:#fbfaf6;border-radius:10px;padding:0;margin:0 0 12px;overflow:hidden}
+#oos-where>summary{cursor:pointer;list-style:none;padding:10px 14px;font-weight:700;font-size:14px;color:#4a5a2a;background:#eef2e2;display:flex;justify-content:space-between;align-items:center}
+#oos-where>summary::-webkit-details-marker{display:none}
+#oos-where .wb{padding:12px 14px}
+#oos-where table{width:100%;border-collapse:collapse;font-size:13px}
+#oos-where td{padding:7px 10px;border:1px solid #ececec;vertical-align:top;line-height:1.55}
+#oos-where td.k{white-space:nowrap;font-weight:700;background:#fff;width:1%}
+#oos-where code{background:#fff;border:1px solid #e2ddd0;border-radius:4px;padding:1px 6px;font-size:12.5px}
+#oos-where a.dbx{display:inline-block;margin-top:8px;background:#0061fe;color:#fff;text-decoration:none;font-weight:700;font-size:13px;padding:8px 16px;border-radius:8px}
+#oos-where .yr{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#oos-where .yr span{font-size:12px;border-radius:6px;padding:4px 9px;border:1px solid #ddd}
+#oos-where .ok{background:#e8f3e2;border-color:#bcd7ad;color:#3d5a2a}
+#oos-where .ng{background:#fdeaea;border-color:#f0c2c2;color:#8a3a3a}
+</style>
+<details class="no-print" id="oos-where" open>
+  <summary><span>📁 過去の伝票・納品書はどこにある？（Dropboxの場所）</span><span>▾</span></summary>
+  <div class="wb">
+    <table><tbody>
+      <tr><td class="k">大もとの場所</td><td>Dropbox の<b>いちばん上の階層</b>にある <code>RTシェフ台帳データバンク</code> フォルダ<br><span style="font-size:12px;color:#777">※「OOS書類」の中ではありません。Dropboxを開いてすぐ見えるところです</span></td></tr>
+      <tr><td class="k">① 伝票の原本</td><td><code>01_伝票と納品書の原本</code> ／ 年ごとのフォルダ（2022年〜2026年）<br><b>全259枚</b>（2022年44／2023年65／2024年58／2025年51／2026年41）<br><span style="font-size:12px;color:#a33">⚠ フォルダの年＝納品年とは限りません。中の伝票の納品日を見てください</span></td></tr>
+      <tr><td class="k">② 読み取った表</td><td><code>02_台帳データ ／ 売上台帳マスター.csv</code><br>伝票を1行ずつ表にしたもの。ExcelでもGoogleスプレッドシートでも開けます</td></tr>
+      <tr><td class="k">③ 分析メモ</td><td><code>03_分析メモ</code>　気づき・まとめの置き場</td></tr>
+      <tr><td class="k">④ 名刺</td><td><code>04_名刺</code> ／ <code>バックアップ</code>　人物カードの復元用ファイル</td></tr>
+    </tbody></table>
+    <div style="margin-top:12px;font-weight:700;font-size:13px;color:#4a5a2a;">📊 いま台帳に入っている年（読み取り状況）</div>
+    <div class="yr">
+      <span class="ng">2022年 未取込</span>
+      <span class="ng">2023年 未取込</span>
+      <span class="ng">2024年 未取込</span>
+      <span class="ok">2025年 一部（3〜8月）</span>
+      <span class="ok">2026年 一部</span>
+    </div>
+    <div style="font-size:12px;color:#777;margin-top:6px;line-height:1.6">原本はDropboxに全部そろっています。上の「未取込」は<b>表に起こす作業がまだ</b>という意味です。ここが緑になるほど、下の「📈 うごき」の数字が本当の姿に近づきます。</div>
+    <a class="dbx" href="https://www.dropbox.com/home/RT%E3%82%B7%E3%82%A7%E3%83%95%E5%8F%B0%E5%B8%B3%E3%83%87%E3%83%BC%E3%82%BF%E3%83%90%E3%83%B3%E3%82%AF" target="_blank" rel="noopener">🔗 Dropboxのこのフォルダを開く</a>
+  </div>
+</details>
+
   <div class="view on" id="v-daicho">
     <div class="switch">
       <span class="lbl">追い方：</span>
@@ -222,6 +262,10 @@
   </div>
 
   <!-- 伝票を入れる（Dropboxへドロップイン） -->
+
+  <div class="view" id="v-ugoki">
+    <div id="ugoki-body"></div>
+  </div>
   <div class="view" id="v-denpyo">
     <div class="shoot" style="border-color:#6b7a3a;">
       <div class="cam">📥</div>
@@ -386,27 +430,100 @@ var CHEF_CAREER = {
 };
 /* 販売実績（伝票から・実際に届いた本数）[施設, 商品, 数量, 単位, 納品日] */
 var SALES = [
-  ['サンクチュアリコート日光','オルガニック250ml',30,'本','2026-02-12'],
-  ['サンクチュアリコート日光','メメジック250ml',30,'本','2026-02-12'],
-  ['サンクチュアリコート日光','オルガニック500ml',12,'本','2026-02-27'],
-  ['サンクチュアリコート日光','メメジック500ml',12,'本','2026-02-27'],
-  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-02-20'],
-  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-03-25'],
-  ['サンクチュアリコート高山','オルガニック500ml',12,'本','2026-04-07'],
-  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-04-07'],
-  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-04-07'],
-  ['サンクチュアリコート高山','オルガニック100ml',48,'本','2026-05-12'],
-  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-05-12'],
-  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-05-12'],
-  ['サンクチュアリコート高山','メメジック2L',6,'缶','2026-05-12'],
-  ['サンクチュアリコート高山','olive NOVA',20,'セット','2026-05-16'],
-  ['サンクチュアリコート高山','your story',20,'セット','2026-05-19'],
-  ['サンクチュアリコート高山','メメジック100ml',24,'本','2026-05-19'],
-  ['横浜ベイコート倶楽部','アルモニア500ml',12,'本','2026-03-18'],
-  ['ラグーナベイコート倶楽部','オルガニック500ml',12,'本','2026-04-11'],
-  ['グランドエクシブ鳴門','調合オイル5L',20,'本','2026-04-18'],
-  ['グランドエクシブ鳴門','カップオイル(メメジック)13g',120,'個','2026-05-09'],
-  ['エクシブ箱根離宮','オルガニック100ml',24,'本','2026-04-03']
+  ['サンクチュアリコート日光','オルガニック250ml',30,'本','2026-02-12',0],
+  ['サンクチュアリコート日光','メメジック250ml',30,'本','2026-02-12',0],
+  ['サンクチュアリコート日光','オルガニック500ml',12,'本','2026-02-27',0],
+  ['サンクチュアリコート日光','メメジック500ml',12,'本','2026-02-27',0],
+  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-02-20',0],
+  ['サンクチュアリコート琵琶湖','オルガニック100ml',24,'本','2026-03-25',0],
+  ['サンクチュアリコート高山','オルガニック500ml',12,'本','2026-04-07',0],
+  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-04-07',0],
+  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-04-07',0],
+  ['サンクチュアリコート高山','オルガニック100ml',48,'本','2026-05-12',0],
+  ['サンクチュアリコート高山','オルガニック2L',6,'缶','2026-05-12',0],
+  ['サンクチュアリコート高山','メメジック500ml',6,'本','2026-05-12',0],
+  ['サンクチュアリコート高山','メメジック2L',6,'缶','2026-05-12',0],
+  ['サンクチュアリコート高山','olive NOVA',20,'セット','2026-05-16',0],
+  ['サンクチュアリコート高山','your story',20,'セット','2026-05-19',0],
+  ['サンクチュアリコート高山','メメジック100ml',24,'本','2026-05-19',0],
+  ['横浜ベイコート倶楽部','アルモニア500ml',12,'本','2026-03-18',0],
+  ['ラグーナベイコート倶楽部','オルガニック500ml',12,'本','2026-04-11',0],
+  ['グランドエクシブ鳴門','調合オイル5L',20,'本','2026-04-18',0],
+  ['グランドエクシブ鳴門','カップオイル(メメジック)13g',120,'個','2026-05-09',0],
+  ['エクシブ箱根離宮','オルガニック100ml',24,'本','2026-04-03',0],
+  ['グランドエクシブ鳴門','メメジック250ml',15,'本','2025-03-04',48300],
+  ['サンクチュアリコート琵琶湖','アグルミ250ml',1,'本','2025-03-04',4960],
+  ['東京ベイコート倶楽部','プリモフルット250ml',12,'本','2025-03-10',55680],
+  ['サンクチュアリコート琵琶湖','アグルミ250ml',3,'本','2025-03-19',14880],
+  ['東京ベイコート倶楽部','シェフズブレンド250ml',15,'本','2025-03-20',48300],
+  ['サンクチュアリコート琵琶湖','プリモフルット250ml',30,'本','2025-03-21',139200],
+  ['サンクチュアリコート琵琶湖','ザイトゥーン250ml',30,'本','2025-03-21',141600],
+  ['サンクチュアリコート琵琶湖','アグルミ250ml',12,'本','2025-03-21',59520],
+  ['サンクチュアリコート琵琶湖','オルガニック500ml',24,'本','2025-03-21',165216],
+  ['リゾートトラスト（EC営業課）','オルガニック500ml',36,'本','2025-04-10',203760],
+  ['リゾートトラスト（EC営業課）','オルガニック250ml',40,'本','2025-04-10',128800],
+  ['リゾートトラスト（EC営業課）','オルガニック250ml',5,'本','2025-04-10',16100],
+  ['リゾートトラスト（EC営業課）','メメジック250ml',15,'本','2025-04-10',48300],
+  ['リゾートトラスト（EC営業課）','シェフズブレンド250ml',15,'本','2025-04-10',48300],
+  ['リゾートトラスト（EC営業課）','メメジック500ml',12,'本','2025-04-10',67920],
+  ['サンクチュアリコート高山','オルガニック100ml',150,'本','2025-04-10',288000],
+  ['サンクチュアリコート高山','メメジック100ml',150,'本','2025-04-10',288000],
+  ['芦屋ベイコート倶楽部','メメジック100ml',30,'本','2025-04-10',57600],
+  ['芦屋ベイコート倶楽部','メメジック100ml',18,'本','2025-04-10',34560],
+  ['芦屋ベイコート倶楽部','メメジック250ml',15,'本','2025-04-10',48300],
+  ['エクシブ蓼科','オルガニック500ml',12,'本','2025-04-10',67920],
+  ['グランドエクシブ鳴門','メメジック250ml',15,'本','2025-04-25',48300],
+  ['エクシブ京都八瀬離宮','カサアルバート5L',4,'本','2026-01-10',36400],
+  ['東京ベイコート倶楽部','オルガニック100ml',30,'本','2025-04-10',57600],
+  ['東京ベイコート倶楽部','メメジック100ml',30,'本','2025-04-10',57600],
+  ['エクシブ箱根離宮','オルガニック100ml',24,'本','2025-04-10',46080],
+  ['サンクチュアリコート琵琶湖','オルガニック100ml',90,'本','2025-04-10',172800],
+  ['横浜ベイコート倶楽部','オルガニック750ml',12,'缶','2025-04-10',79680],
+  ['芦屋ベイコート倶楽部','オルガニック100ml',150,'本','2025-04-10',288000],
+  ['芦屋ベイコート倶楽部','オルガニック250ml',20,'本','2025-04-10',64400],
+  ['芦屋ベイコート倶楽部','メメジック100ml',150,'本','2025-04-10',288000],
+  ['芦屋ベイコート倶楽部','メメジック250ml',20,'本','2025-04-10',64400],
+  ['芦屋ベイコート倶楽部','シェフズブレンド250ml',120,'本','2025-04-10',386400],
+  ['ローズルーム名古屋','オルガニック2L',2,'缶','2025-04-10',30500],
+  ['ローズルーム名古屋','シェフズブレンド2L',2,'缶','2025-04-10',30500],
+  ['ローズルーム名古屋','メメジック2L',2,'缶','2025-04-10',30500],
+  ['エクシブ箱根離宮','オルガニック2L',6,'缶','2025-04-10',91500],
+  ['グランドエクシブ鳴門','メメジック250ml',15,'本','2025-04-10',48300],
+  ['サンクチュアリコート高山','オルガニック500ml',12,'本','2025-04-10',67920],
+  ['サンクチュアリコート高山','オルガニック2L',12,'缶','2025-04-10',183000],
+  ['サンクチュアリコート高山','メメジック500ml',12,'本','2025-04-10',67920],
+  ['サンクチュアリコート高山','メメジック2L',6,'缶','2025-04-10',91500],
+  ['サンクチュアリコート琵琶湖','オルガニック500ml',24,'本','2025-04-10',135840],
+  ['芦屋ベイコート倶楽部','メメジック2L',12,'缶','2025-04-10',183000],
+  ['東京ベイコート倶楽部','オルガニック2L',18,'缶','2025-04-10',274500],
+  ['東京ベイコート倶楽部','オルガニック250ml',80,'本','2025-04-10',257600],
+  ['東京ベイコート倶楽部','メメジック250ml',80,'本','2025-04-10',257600],
+  ['東京ベイコート倶楽部','シェフズブレンド250ml',80,'本','2025-04-10',257600],
+  ['東京ベイコート倶楽部','シェフズブレンド2L',24,'缶','2025-04-10',366000],
+  ['東京ベイコート倶楽部','メメジック2L',24,'缶','2025-04-10',366000],
+  ['東京ベイコート倶楽部','アグルミ250ml',24,'本','2025-05-08',72000],
+  ['サンクチュアリコート高山','オルガニック100ml',100,'本','2025-05-15',192000],
+  ['サンクチュアリコート琵琶湖','アグルミ250ml',2,'本','2025-06-25',6000],
+  ['メイプルポイントゴルフクラブ','メメジック750ml',12,'缶','2025-07-01',79680],
+  ['サンクチュアリコート高山','オルガニック100ml',21,'本','2025-07-02',40320],
+  ['サンクチュアリコート高山','メメジック100ml',116,'本','2025-07-02',222720],
+  ['芦屋ベイコート倶楽部','オルガニック250ml',10,'本','2025-08-01',32200],
+  ['芦屋ベイコート倶楽部','オルガニック100ml',72,'本','2025-08-01',138240],
+  ['芦屋ベイコート倶楽部','オルガニック100ml',18,'本','2025-08-01',34560],
+  ['芦屋ベイコート倶楽部','メメジック100ml',72,'本','2025-08-01',138240],
+  ['芦屋ベイコート倶楽部','メメジック100ml',18,'本','2025-08-01',34560],
+  ['芦屋ベイコート倶楽部','メメジック250ml',10,'本','2025-08-01',32200],
+  ['芦屋ベイコート倶楽部','シェフズブレンド250ml',60,'本','2025-08-01',193200],
+  ['エクシブ蓼科','オルガニック500ml',12,'本','2025-08-01',67920],
+  ['サンクチュアリコート高山','オルガニック100ml',264,'本','2025-08-01',506880],
+  ['サンクチュアリコート高山','オルガニック100ml',18,'本','2025-08-01',34560],
+  ['サンクチュアリコート高山','メメジック100ml',192,'本','2025-08-01',368640],
+  ['サンクチュアリコート高山','メメジック100ml',18,'本','2025-08-01',34560],
+  ['サンクチュアリコート高山','オルガニック2L',24,'缶','2025-08-01',366000],
+  ['サンクチュアリコート高山','メメジック2L',12,'缶','2025-08-01',183000],
+  ['ラグーナベイコート倶楽部','オルガニック100ml',72,'本','2025-08-01',138240],
+  ['ラグーナベイコート倶楽部','オルガニック750ml',12,'缶','2025-08-01',79680],
+  ['ラグーナベイコート倶楽部','メメジック750ml',12,'缶','2025-08-01',79680],
 ];
 /* 名刺サンプル（重要メモの担当者リストより・実データ。中村様が名刺を撮って足していく） */
 var PEOPLE_SEED = [
@@ -566,11 +683,12 @@ function openMain(){
 
 /* ---- ナビ ---- */
 function nav(w){
-  ['daicho','ask','denpyo','meishi','people'].forEach(function(x){
+  ['daicho','ask','ugoki','denpyo','meishi','people'].forEach(function(x){
     document.getElementById('n-'+x).classList.toggle('on', x===w);
     document.getElementById('v-'+x).classList.toggle('on', x===w);
   });
   if(w==='people') renderPeople();
+  if(w==='ugoki') renderUgoki();
 }
 
 /* ---- 集計ヘルパ ---- */
@@ -934,6 +1052,65 @@ function loadPeople(){
   var pc=document.getElementById('pcount'); if(pc) pc.textContent=PEOPLE.length;
 }
 function storePeople(){ try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); }catch(e){} }
+
+/* ===== 📈 うごき（年・月・施設） ===== */
+function yen(n){ return '¥' + Number(n||0).toLocaleString('ja-JP'); }
+function ugokiBars(obj, fmt){
+  var arr=Object.keys(obj).sort();
+  if(!arr.length) return '<div class="mini">データはまだありません。</div>';
+  var mx=Math.max.apply(null, arr.map(function(k){return obj[k];}));
+  if(!mx) mx=1;
+  return '<div class="bars">'+arr.map(function(k){
+    var w=Math.max(4,Math.round(obj[k]/mx*300));
+    return '<div class="bar-row"><div class="nm">'+esc(k)+'</div><div class="bar" style="width:'+w+'px"></div><div class="q">'+(fmt?fmt(obj[k]):obj[k])+'</div></div>';
+  }).join('')+'</div>';
+}
+function ugokiBarsDesc(obj, fmt){
+  var arr=Object.keys(obj).map(function(k){return {k:k,n:obj[k]};}).sort(function(a,b){return b.n-a.n;});
+  if(!arr.length) return '<div class="mini">データはまだありません。</div>';
+  var mx=arr[0].n||1;
+  return '<div class="bars">'+arr.map(function(x){
+    var w=Math.max(4,Math.round(x.n/mx*300));
+    return '<div class="bar-row"><div class="nm">'+esc(x.k)+'</div><div class="bar" style="width:'+w+'px"></div><div class="q">'+(fmt?fmt(x.n):x.n)+'</div></div>';
+  }).join('')+'</div>';
+}
+function renderUgoki(){
+  var el=document.getElementById('ugoki-body'); if(!el) return;
+  var byYear={}, byMonth={}, byFac={}, byProd={};
+  SALES.forEach(function(r){
+    var y=String(r[4]).slice(0,4), mo=String(r[4]).slice(0,7), a=Number(r[5]||0);
+    byYear[y]=(byYear[y]||0)+a;
+    byMonth[mo]=(byMonth[mo]||0)+a;
+    byFac[r[0]]=(byFac[r[0]]||0)+a;
+    byProd[r[1]]=(byProd[r[1]]||0)+a;
+  });
+  Object.keys(byFac).forEach(function(k){ if(!byFac[k]) delete byFac[k]; });
+  Object.keys(byProd).forEach(function(k){ if(!byProd[k]) delete byProd[k]; });
+
+  var h='';
+  h+='<div class="card" style="background:#fff8e6;border-color:#f0e2b8">';
+  h+='<div style="font-weight:700;font-size:14px;color:#6b5a12">⚠️ この数字はまだ「途中」です</div>';
+  h+='<div class="mini" style="margin-top:6px;line-height:1.7">いま入っているのは <b>2025年3〜8月</b> と <b>2026年の一部</b>だけです。2022〜2024年と、2025年9月以降・2026年の大半は<b>まだ表に起こしていません</b>。<br>年ごとの本当の合計は、下の「読み取り済みの年まとめ」を見てください。</div>';
+  h+='</div>';
+
+  h+='<div class="card"><div class="h">📅 年ごと（いま台帳に入っている分・税抜）</div>'+ugokiBars(byYear, yen)+'</div>';
+  h+='<div class="card"><div class="h">🗓 月ごと（いま台帳に入っている分・税抜）</div>'+ugokiBars(byMonth, yen)+'</div>';
+  h+='<div class="card"><div class="h">🏨 施設ごと（いま台帳に入っている分・税抜）</div>'+ugokiBarsDesc(byFac, yen)+'</div>';
+  h+='<div class="card"><div class="h">🫒 商品ごと（いま台帳に入っている分・税抜）</div>'+ugokiBarsDesc(byProd, yen)+'</div>';
+
+  h+='<div class="card"><div class="h">📌 読み取り済みの年まとめ（伝票を全部読んで出した合計・税抜）</div>';
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px">';
+  h+='<tr><td style="padding:6px 8px;border:1px solid #eee;font-weight:700">2024年</td><td style="padding:6px 8px;border:1px solid #eee;text-align:right">¥4,090,954</td><td style="padding:6px 8px;border:1px solid #eee;font-size:12px;color:#777">58枚すべて読了</td></tr>';
+  h+='<tr><td style="padding:6px 8px;border:1px solid #eee;font-weight:700">2025年</td><td style="padding:6px 8px;border:1px solid #eee;text-align:right">¥12,680,000</td><td style="padding:6px 8px;border:1px solid #eee;font-size:12px;color:#777">51枚すべて読了</td></tr>';
+  h+='<tr><td style="padding:6px 8px;border:1px solid #eee;font-weight:700">2026年（7月まで）</td><td style="padding:6px 8px;border:1px solid #eee;text-align:right">¥4,650,000</td><td style="padding:6px 8px;border:1px solid #eee;font-size:12px;color:#777">41枚すべて読了</td></tr>';
+  h+='<tr><td style="padding:6px 8px;border:1px solid #eee;font-weight:700;color:#a33">2022・2023年</td><td style="padding:6px 8px;border:1px solid #eee;text-align:right;color:#a33">未読</td><td style="padding:6px 8px;border:1px solid #eee;font-size:12px;color:#a33">109枚（Dropboxに原本あり）</td></tr>';
+  h+='</table>';
+  h+='<div class="mini" style="margin-top:8px;line-height:1.7">この3年の形：<b>2024年 409万 → 2025年 1,268万 → 2026年7月まで465万</b>。<br>2025年に大きく伸びて、2026年は2024年の水準に戻りつつあります。</div>';
+  h+='</div>';
+
+  el.innerHTML=h;
+}
+
 function renderPeople(){
   var box=document.getElementById('peoplebox'); if(!box) return;
   var q=(document.getElementById('pq').value||'').trim();
