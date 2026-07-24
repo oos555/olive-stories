@@ -547,7 +547,8 @@ tr:last-child td{border-bottom:none}
       <div class="fg"><label>賞味期限（例：2027.11）</label><input type="text" id="l-exp" placeholder="2027.11"></div>
     </div>
     <div class="fg"><label>メモ（このロットに付きます。ロット一覧のメモ欄に出ます）</label><input type="text" id="l-note" placeholder="輸入便・備考など"></div>
-    <button class="btn-primary btn" onclick="addLot()">登録する</button>
+    <button class="btn-primary btn" id="lot-add-btn" onclick="addLot()" disabled style="opacity:.5">⏳ データを読み込み中です…</button>
+    <button class="btn-sm" onclick="cleanEmptyLots()" style="margin-left:10px">🧹 空っぽのロットを片づける</button>
     <div class="info-box" style="margin-top:10px;margin-bottom:0">登録した時点では<b>0本</b>です。<b>本数は下の②で入れてください。</b>／新しく作ったロットは<b>「最新ロット（販売可能に算入）」</b>になります。旧ロットにするときは、下のロット一覧の「🟡旧ロットに」ボタンから。</div>
   </div>
 
@@ -933,6 +934,9 @@ function productOptionsHtml(selected){
 
 // ── 状態 ────────────────────────────────────────────
 let lots = [];          // {id, pid, lotCode, expiry, stock, status, note, incoming}
+/* ★2026-07-24 この画面で足したロットのid。読み込みが遅れて届いたときに、
+   足したばかりのロットを消してしまわないため（登録した直後に消える不具合の対策）。 */
+var locallyAddedLotIds = {};
 let defects = [];       // {id, pid, lotId, qty, cat, note, status, shippedQty, processedAt}
 let defectHolds = [];   // {id, pid, client, qty, until, note}
 let holds = [];         // {id, pid, client, qty, date, orderId}（アプリAの取り置き注文から組み立てる）
@@ -1050,8 +1054,17 @@ function loadAllDataFromGAS(){
     const d = res[0], ord = res[1];
     if(d && d.status==='ok' && d.data){
       const data = d.data;
-      if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
-        stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
+      if(data.lots){
+        const prevLots = lots || [];
+        const fromServer = data.lots.map(function(l){ return { id:l.id, pid:(String(l.pid).indexOf('sku:')===0? l.pid : (parseInt(l.pid)||l.pid)), lotCode:l.lotCode, expiry:l.expiry,
+          stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
+        /* ★2026-07-24 読み込みが終わる前にこの画面で足したロットは、サーバーにまだ無い。
+           そのまま上書きすると、登録した直後に消えてしまうので、足した分を残す。 */
+        const serverIds = {}; fromServer.forEach(function(l){ serverIds[String(l.id)] = 1; });
+        const keep = prevLots.filter(function(l){ return l && locallyAddedLotIds[String(l.id)] && !serverIds[String(l.id)]; });
+        lots = fromServer.concat(keep);
+        if(keep.length){ scheduleAutoSave(); } // 足した分をあらためて保存する
+      }
       applyLocalLotNotes(lots); /* ★2026-07-24 サーバーにメモが無ければ、この端末の控えを書き戻す */
       if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
         cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'',
@@ -1070,6 +1083,7 @@ function loadAllDataFromGAS(){
     // 取り置きは注文（取り置き中）から組み立てる（GASのholdsには頼らない）
     holds = buildHoldsFromOrders();
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
+    { var _lab = document.getElementById('lot-add-btn'); if(_lab){ _lab.disabled = false; _lab.style.opacity = '1'; _lab.textContent = '登録する'; } } /* ★2026-07-24 */
     renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderNewProductAlert();
     renderHoldList(); renderPreList(); renderReportList(); renderInvLogs();
     /* ★2026-07-24 中村様のご指示で停止。
@@ -1079,7 +1093,9 @@ function loadAllDataFromGAS(){
        （どうしても実行したいときだけ、下の「📥 在庫一括入れ替え」の中のボタンから。確認は2回出ます） */
     // maybeAutoBulkReplace();
     showSyncStatus('✅ 保存されたデータを読み込みました');
-  }).catch(function(){ invLoading = false; renderInvTable(); showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
+  }).catch(function(){ invLoading = false; renderInvTable();
+    { var _lab2 = document.getElementById('lot-add-btn'); if(_lab2){ _lab2.disabled = false; _lab2.style.opacity = '1'; _lab2.textContent = '登録する'; } }
+    showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
 }
 
 let autoSaveTimer = null;
@@ -1762,9 +1778,45 @@ async function checkLotNoteSaved(id, want){
   }catch(e){}
 }
 
+/* ★2026-07-24 中身が何も無いロット（ロット無し・期限無し・メモ無し・在庫0）だけを消す。
+   押し間違いで増えてしまった空の行の掃除用。中身が1つでもあるロットには触らない。 */
+function cleanEmptyLots(){
+  const targets = (lots||[]).filter(function(l){
+    const code = String(l.lotCode||'').trim();
+    const isNoCode = (code === '' || code === '-');
+    return isNoCode && !String(l.expiry||'').trim() && !String(l.note||'').trim()
+        && !(parseInt(l.stock)||0) && !(parseInt(l.incoming)||0);
+  });
+  if(!targets.length){ alert('空っぽのロットはありませんでした。'); return; }
+  const names = targets.slice(0,10).map(function(l){ const p=findProduct(l.pid); return '・'+((p&&p.name)||'商品不明'); }).join('\n');
+  if(!confirm('中身が何も入っていないロットを '+targets.length+' 件みつけました。\n\n'+names+(targets.length>10?'\n…ほか':'')+'\n\nこれらを消します。よろしいですか？\n（賞味期限・メモ・在庫が1つでも入っているロットは消しません）')) return;
+  const ids = {}; targets.forEach(function(l){ ids[String(l.id)] = 1; });
+  lots = lots.filter(function(l){ return !ids[String(l.id)]; });
+  addLog('ロット整理', '空っぽのロットを'+targets.length+'件消しました');
+  renderLotList(); renderInvTable(); renderInvLogs();
+  scheduleAutoSave();
+  showSyncStatus('✅ 空っぽのロットを'+targets.length+'件消しました');
+}
+
 function addLot(){
+  /* ★2026-07-24 読み込みが終わる前に登録すると、あとから届いたデータに上書きされて消える。
+     読み込み中は登録させない。 */
+  if(invLoading){ alert('まだデータを読み込んでいます。\n数秒待って、画面に「✅ 保存されたデータを読み込みました」と出てから登録してください。'); return; }
   const pid = document.getElementById('l-product').value;
   if(!pid){ alert('商品を選択してください'); return; }
+  /* ★2026-07-24 中身が空のまま登録すると、空っぽの行だけが増えてしまう（すかすかの原因）。
+     ロット・賞味期限・メモが全部空のときは作らない。 */
+  const _lotV = (document.getElementById('l-lot').value||'').trim();
+  const _expV = (document.getElementById('l-exp').value||'').trim();
+  const _noteV = (document.getElementById('l-note').value||'').trim();
+  if(!_lotV && !_expV && !_noteV){
+    alert('ロット・賞味期限・メモがどれも空です。\n空っぽのロットは作れません（空の行が増える原因になります）。\n\nどれか1つは入れてください。');
+    return;
+  }
+  /* ★2026-07-24 連打で同じものが2つ3つできるのを防ぐ（2秒間は受け付けない） */
+  if(window.__lotAddBusy){ return; }
+  window.__lotAddBusy = true;
+  setTimeout(function(){ window.__lotAddBusy = false; }, 2000);
   /* ★2026-07-24 選んだ商品が見つからないまま登録すると、ロットが画面から消える。
      見つからないときは、その場で理由を出して止める（黙って消さない）。 */
   const prodSel = findProduct(pid);
@@ -1781,6 +1833,7 @@ function addLot(){
     note: document.getElementById('l-note').value
   };
   lots.push(lot);
+  locallyAddedLotIds[String(lot.id)] = 1; /* ★2026-07-24 この画面で足した印（読み込みで消されないように） */
   saveLotNoteLocal(lot.id, lot.note); /* ★2026-07-24 メモをこの端末にも控える */
   const p = findProduct(pid);
   addLog('ロット登録', p.name+'　'+lot.lotCode+'／'+(lot.expiry||'期限なし')+'　0本で作成（本数は②で入れてください）');
@@ -1790,6 +1843,8 @@ function addLot(){
   renderLotList(); renderInvTable(); renderInvLogs();
   onProdChange('f-product','f-lot',false); onProdChange('d-product','d-lot');
   scheduleAutoSave();
+  /* ★2026-07-24 登録できたことをはっきり伝える（反応が無いと思って連打しないため） */
+  showSyncStatus('✅ ロットを登録しました：'+(prodSel.name||'')+'　'+(lot.lotCode||'-')+'／'+(lot.expiry||'期限なし')+(lot.note?('／'+lot.note):''));
   setTimeout(function(){ checkLotNoteSaved(lot.id, lot.note); }, 4000); /* ★2026-07-24 メモが残ったか確認 */
 }
 
