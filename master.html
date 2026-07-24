@@ -254,6 +254,9 @@ tr:last-child td{border-bottom:none}
 .mp-fg label{font-size:12px;font-weight:700;color:#2b2a26}
 .mp-fg input[type=text],.mp-fg select{width:100%;padding:8px 10px;border:1px solid #6b7a3a;border-radius:6px;font-size:14px;font-weight:700;color:#2b2a26;background:#fff}
 .mp-fg input[readonly]{background:#f1efe8;border-color:#d5cfc3;color:#6d6a62}
+/* ★2026-07-24 「例：〜」のうすい字は、入っている中身と見分けがつくように、
+   はっきり薄いグレー＋太くしない（今まで値が入って動かせないように見えていたため） */
+.mp-fg input::placeholder{color:#b3ada1;font-weight:400;opacity:1}
 .mp-checks{display:flex;flex-direction:column;gap:5px;padding-top:3px}
 .mp-checks label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#2b2a26;cursor:pointer}
 .mp-checks input{width:19px;height:19px}
@@ -2569,7 +2572,7 @@ var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
 function meiboColCount(){ return meiboEditMode ? 9 : 8; }
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
-  if(!meiboEditMode){ meiboEditingSku = null; meiboAddingNew = false; }
+  if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
   var b=document.getElementById('meibo-edit-btn');
   if(b){ b.textContent = meiboEditMode ? '🔒 直すのをやめる（見るだけに戻す）' : '✏️ 名簿を触る（中身を直す）';
          b.className = meiboEditMode ? 'btn-sm meibo-onbtn' : 'btn-sm'; }
@@ -2577,10 +2580,11 @@ function toggleMeiboEdit(){
   var w=document.getElementById('meibo-edit-warn'); if(w) w.style.display = meiboEditMode?'':'none';
   renderMeibo();
 }
-function meiboStartEdit(sku){ meiboAddingNew=false; meiboEditingSku=sku; renderMeibo();
+function meiboStartEdit(sku){ meiboClearDraft(); meiboAddingNew=false; meiboEditingSku=sku; renderMeibo();
   setTimeout(function(){ var e=document.getElementById('mp-name'); if(e) e.focus(); },40); }
-function meiboCancelEdit(){ meiboEditingSku=null; meiboAddingNew=false; renderMeibo(); }
+function meiboCancelEdit(){ meiboClearDraft(); meiboEditingSku=null; meiboAddingNew=false; renderMeibo(); }
 function meiboStartNew(sku){
+  meiboClearDraft();
   meiboAddingNew = true; meiboEditingSku = '__new__';
   meiboNewSkuPrefill = sku || '';
   renderMeibo();
@@ -2645,14 +2649,19 @@ function mbShowOilFields(v, isNew){
   return !nonOil;
 }
 function mbToggleOilFields(show){
+  /* ★2026-07-24 種類で欄を消したり中身を空にしたりしない（どの種類でも自由に書けるようにするため）。
+     この関数は昔の呼び出しが残っていても何もしない。 */
   var box = document.getElementById('mp-oilonly');
-  if(!box) return;
-  box.style.display = show ? 'contents' : 'none';
-  if(!show){
-    ['mp-origin','mp-farm','mp-container'].forEach(function(id){
-      var e = document.getElementById(id); if(e) e.value = '';
-    });
-  }
+  if(box) box.style.display = 'contents';
+}
+/* ★2026-07-24 区分は一覧から選ぶだけでなく、新しい区分名を自分で書ける */
+function mbGroupChanged(){
+  var g = document.getElementById('mp-group');
+  var n = document.getElementById('mp-group-new');
+  if(!g || !n) return;
+  var isNewG = (g.value === '__NEW__');
+  n.style.display = isNewG ? '' : 'none';
+  if(isNewG) n.focus();
 }
 function mbKindChanged(){
   var k = document.getElementById('mp-kind');
@@ -2677,16 +2686,46 @@ function mbKindChanged(){
   mbToggleOilFields(v === 'OIL');
 }
 
+/* ★2026-07-24 書きかけの中身を覚えておく箱。
+   商品マスタ・ラベル図鑑などの読み込みが終わると画面を作り直すが、
+   そのときに書いた文字が消えないよう、いったん覚えて書き戻す。 */
+var meiboFormDraft = null;
+function meiboSnapshotForm(){
+  if(!document.getElementById('mp-name')){ return; }
+  function val(id){ var e=document.getElementById(id); return e ? e.value : ''; }
+  function chk(id){ var e=document.getElementById(id); return e ? !!e.checked : false; }
+  meiboFormDraft = {
+    sku: val('mp-sku'), kind: val('mp-kind'), name: val('mp-name'),
+    group: val('mp-group'), groupNew: val('mp-group-new'), boxQty: val('mp-box'),
+    origin: val('mp-origin'), farm: val('mp-farm'), container: val('mp-container'),
+    noWholesale: chk('mp-nw'), active: chk('mp-active')
+  };
+}
+function meiboClearDraft(){ meiboFormDraft = null; }
+function meiboRestoreForm(){
+  var d = meiboFormDraft; if(!d) return;
+  function set(id, v){ var e=document.getElementById(id); if(e && v!=null) e.value = v; }
+  var k = document.getElementById('mp-kind'); if(k && d.kind) k.value = d.kind;
+  set('mp-sku', d.sku); set('mp-name', d.name); set('mp-box', d.boxQty);
+  set('mp-origin', d.origin); set('mp-farm', d.farm); set('mp-container', d.container);
+  var g = document.getElementById('mp-group'); if(g && d.group) g.value = d.group;
+  set('mp-group-new', d.groupNew);
+  if(typeof mbGroupChanged === 'function') mbGroupChanged();
+  var nw = document.getElementById('mp-nw'); if(nw) nw.checked = d.noWholesale;
+  var ac = document.getElementById('mp-active'); if(ac) ac.checked = d.active;
+}
+
 function meiboEditRowHtml(p, sp){
   var isNew = meiboAddingNew;
   var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
                     origin:sp.origin||'', farm:sp.farm||'', container:(p.container||''),
                     noWholesale:!!p.noWholesale, active:(p.active!==false) };
-  function fg(label,id,val,ph){ return '<div class="mp-fg"><label>'+label+'</label><input type="text" id="'+id+'" value="'+esc(val)+'" placeholder="'+esc(ph||'')+'"></div>'; }
+  function fg(label,id,val,ph){ return '<div class="mp-fg"><label>'+label+'</label><input type="text" id="'+id+'" value="'+esc(val)+'" placeholder="'+esc(ph?('例：'+ph):'')+'"></div>'; }
   var groups = mGroupOrder().map(function(g){ return '<option value="'+esc(g)+'"'+(g===v.group?' selected':'')+'>'+esc(g)+'</option>'; }).join('');
   return '<div class="mp-editing">'+
     '<div class="mp-head">'+(isNew?'➕ 新しい商品をつくる':'✏️ '+esc(v.name||v.sku)+' を直す')+'</div>'+
+    '<div class="mp-note" style="margin:0 0 8px">品番（sku）だけ自動でつきます。ほかの欄はすべて自由に書けます（うすい字は「例」なので、そのまま上から書いてください）。</div>'+
     '<div class="mp-grid">'+
       (isNew && !meiboNewSkuPrefill
         ? '<div class="mp-fg"><label>種類　※品番はこれで自動でつきます</label><select id="mp-kind" onchange="mbKindChanged()"><option value="">（選ぶ）</option>'+
@@ -2702,9 +2741,11 @@ function meiboEditRowHtml(p, sp){
         : '')+
       '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>'+
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
-      '<div class="mp-fg"><label>区分</label><select id="mp-group"><option value="">（選ぶ）</option>'+groups+'</select></div>'+
+      '<div class="mp-fg"><label>区分</label><select id="mp-group" onchange="mbGroupChanged()"><option value="">（選ぶ）</option>'+groups+'<option value="__NEW__">＋ 新しい区分をつくる</option></select>'+
+        '<input type="text" id="mp-group-new" placeholder="例：レ・トレ・コロンネ農園" style="display:none;margin-top:6px"></div>'+
       fg('1箱の本数','mp-box',v.boxQty,'12')+
-      '<div id="mp-oilonly" style="display:'+(mbShowOilFields(v, isNew)?'contents':'none')+'">'+
+      /* ★2026-07-24 生産地・農園名・容器は種類にかかわらず常に出す（どんな商品でも自由に書けるように） */
+      '<div id="mp-oilonly" style="display:contents">'+
         fg('生産地','mp-origin',v.origin,'トルコ')+
         fg('農園名','mp-farm',v.farm,'ノヴァヴェラ農園')+
         fg('容器','mp-container',v.container,'遮光瓶')+
@@ -2746,10 +2787,12 @@ async function meiboSaveRow(){
   }
   if(!name){ alert('商品名を入れてください'); return; }
   var boxRaw = (document.getElementById('mp-box').value||'').trim();
+  var groupSel = document.getElementById('mp-group').value || '';
+  if(groupSel === '__NEW__'){ groupSel = (document.getElementById('mp-group-new').value||'').trim(); }
   var prod = {
     sku: sku,
     name: name,
-    group: document.getElementById('mp-group').value || 'その他',
+    group: groupSel || 'その他',
     boxQty: boxRaw==='' ? '' : (parseInt(boxRaw)||''),
     origin: (document.getElementById('mp-origin').value||'').trim(),
     '農園': (document.getElementById('mp-farm').value||'').trim(),
@@ -2769,7 +2812,7 @@ async function meiboSaveRow(){
       else PRODUCTS.push(Object.assign({ id: (data.id || null) }, prod)); // idはGASが採番したものを使う
       refreshAllProductSelects(); // 新商品をロット登録の選択肢にも出す
       saveProductsToCache(PRODUCTS, EXTRA_FIELDS);
-      meiboEditingSku = null; meiboAddingNew = false;
+      meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false;
       showSyncStatus(data.added ? '✅ 新しい商品を商品マスタに追加しました' : '✅ 商品マスタに保存しました');
       renderMeibo(); renderPrice(); renderInvTable();
       if(window.LB) LB.render();
@@ -2827,6 +2870,7 @@ function meiboLotCells(p, sp, jan){
 
 function renderMeibo(){
   var body=document.getElementById('meibo-body'); if(!body) return; var rows='';
+  meiboSnapshotForm(); /* ★2026-07-24 入力中に裏の読み込みが終わっても、書いた文字を消さない */
 
   mGroupOrder().forEach(function(g){ var ps=PRODUCTS.filter(function(p){return mIsActive(p)&&(p.group||'その他')===g;}); if(!ps.length)return;
     rows+='<tr><td class="grp" colspan="'+meiboColCount()+'">'+esc(g)+'</td></tr>';
@@ -2855,6 +2899,7 @@ function renderMeibo(){
       var tp = meiboAddingNew ? null : PRODUCTS.find(function(x){ return x.sku===meiboEditingSku; });
       var tsp = tp ? { origin:originOf(tp), farm:farmOf(tp) } : {};
       eb.innerHTML = meiboEditRowHtml(tp, tsp);
+      meiboRestoreForm(); /* ★2026-07-24 書きかけの文字を書き戻す */
     } else eb.innerHTML='';
   }
   var th=document.getElementById('meibo-edit-th'); if(th) th.style.display = meiboEditMode?'':'none';
