@@ -3146,6 +3146,10 @@ function lineCodeHtmlA(l){
     ? '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'-</span>'+esc(tail)+'</div>'
     : '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'</span></div>';
 }
+/* ★2026-07-25 送り主とお届け先の名前くらべ用。空白（半角・全角）と語尾の「様」を無視して比べる。 */
+function nameKeyA(s){
+  return String(s||'').replace(/[\s\u3000]/g,'').replace(/様$/,'');
+}
 function buildSlipHtml(o){
   const leadLabel = leadLabelWithDate(o);
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
@@ -3153,8 +3157,14 @@ function buildSlipHtml(o){
   let html = '<div class="slip">';
   html += '<div class="slip-title">出荷依頼書'+(hasGift?' <span style="color:#b45309">🎁ギフトあり</span>':' <span style="color:#2b2a26;font-size:14px">（ギフトなし）</span>')+'</div>';
   const _recip = (o.recipientName||o.client||'');
-  if(o.buyerName && _recip && o.buyerName !== _recip){
-    html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px"><div style="font-size:13.5px;font-weight:700;color:#8a5a1c">🎁 ギフト便（送り主とお届け先が別）</div><div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.7">送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong><br>お届け先 → <strong>'+esc(_recip)+' 様</strong> <span style="color:#9a7b3a;font-size:12px">（ご購入：'+esc(o.buyerName)+' 様）</span></div></div>';
+  /* ★2026-07-25 修正：以前は o.buyerName（STORES取込の注文にしか入らない項目）を見ていたため、
+     アプリで手入力した注文では送り主の枠が一度も出なかった（ゆかさん報告）。
+     送り主は senderName → buyerName → client の順に探し、お届け先と名前が違えば必ず出す。 */
+  const _sender = (o.senderName || o.buyerName || o.client || '');
+  if(_sender && _recip && nameKeyA(_sender) !== nameKeyA(_recip)){
+    const _buyerNote = (o.buyerName && nameKeyA(o.buyerName) !== nameKeyA(_recip))
+      ? ' <span style="color:#9a7b3a;font-size:12px">（ご購入：'+esc(o.buyerName)+' 様）</span>' : '';
+    html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px"><div style="font-size:13.5px;font-weight:700;color:#8a5a1c">📮 送り主とお届け先が別です</div><div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.7">送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong><br>お届け先 → <strong>'+esc(_recip)+' 様</strong>'+_buyerNote+'</div></div>';
   }
   if(wasHeld) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗄 取り置き商品（期限：'+o.holdUntilDate+'）</span></div>';
   if(wasReserved) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗓 予約商品（予定：'+o.expectedDate+'）</span></div>';

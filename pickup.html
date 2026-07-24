@@ -977,6 +977,11 @@ async function loadOrderList(){
   }
 }
 
+/* ★2026-07-25 送り主とお届け先の名前くらべ用。空白（半角・全角）と語尾の「様」を無視して比べる。
+   「山本 花子」と「山本花子」を別人と判定しないため。 */
+function nameKeyPD(s){
+  return String(s||'').replace(/[\s\u3000]/g,'').replace(/様$/,'');
+}
 function recipientLabel(o){
   if(o.isCompany){
     return [o.companyName, o.positionName, o.personName].filter(Boolean).join(' ') || o.client;
@@ -1143,8 +1148,11 @@ function renderOrder(){
   if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
   html += '</div>';
   html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(recipientLabel(o))+'</span></div>';
-  var _sender = o.senderName || o.client || '';
-  if(hasGift && _sender && String(_sender).trim() !== String(recipientLabel(o)).trim()) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(_sender)+'</span></div>';
+  /* ★2026-07-25 修正：以前は「ギフト種別がgiftのとき」だけ送り主を出していたため、
+     熨斗つきでも種別が違うと送り主が倉庫に伝わらなかった（ゆかさん報告）。
+     これからはギフト種別も熨斗の有無も問わず、お届け先と名前が違えば必ず出す。 */
+  var _sender = o.senderName || o.buyerName || o.client || '';
+  if(_sender && nameKeyPD(_sender) !== nameKeyPD(recipientLabel(o))) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(_sender)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
