@@ -1042,6 +1042,7 @@ function loadAllDataFromGAS(){
       const data = d.data;
       if(data.lots) lots = data.lots.map(function(l){ return { id:l.id, pid:parseInt(l.pid), lotCode:l.lotCode, expiry:l.expiry,
         stock:parseInt(l.stock)||0, status:l.status, note:l.note, incoming:parseInt(l.incoming)||0 }; });
+      applyLocalLotNotes(lots); /* ★2026-07-24 サーバーにメモが無ければ、この端末の控えを書き戻す */
       if(data.defects) defects = data.defects.map(function(x){ return { id:x.id, pid:parseInt(x.pid), lotId:x.lotId, qty:parseInt(x.qty)||0,
         cat:x.cat, note:x.note, status:x.status||'pending', shippedQty:parseInt(x.shippedQty)||0, processedAt:x.processedAt||'',
         level:x.level||'', seal:x.seal||'', reportedAt:x.reportedAt||'', source:x.source||'', reviewed:!!x.reviewed }; });
@@ -1619,6 +1620,7 @@ function saveEditLot(id){
   const p = findProduct(lot.pid);
   const before = (lot.lotCode||'-')+'／'+(lot.expiry||'期限なし');
   lot.lotCode = code; lot.expiry = exp; lot.note = note;
+  saveLotNoteLocal(lot.id, note); /* ★2026-07-24 メモをこの端末にも控える */
   addLog('ロットを直した', (p?p.name:'')+'　'+before+' → '+code+'／'+(exp||'期限なし'));
   editingLotId = null;
   renderLotList(); renderInvTable(); renderInvLogs();
@@ -1698,6 +1700,44 @@ function toggleOldStatus(lotId){
   renderLotList(); renderInvTable();
   scheduleAutoSave();
 }
+/* ★2026-07-24 ロットのメモが消える件の安全網。
+   GAS（ロットデータのシート）にメモの列が無いと、保存しても返ってこないため
+   開き直したときにメモだけ空になる。そこでメモはこの端末にも控えておき、
+   サーバーから戻ってきた分にメモが無ければ、控えを書き戻す。 */
+var OOS_LOT_NOTE_KEY = 'oos_lot_notes_v1';
+function loadLotNotesLocal(){
+  try{ return JSON.parse(localStorage.getItem(OOS_LOT_NOTE_KEY)||'{}') || {}; }catch(e){ return {}; }
+}
+function saveLotNoteLocal(id, note){
+  try{
+    var m = loadLotNotesLocal();
+    if(note) m[id] = note; else delete m[id];
+    localStorage.setItem(OOS_LOT_NOTE_KEY, JSON.stringify(m));
+  }catch(e){}
+}
+function applyLocalLotNotes(list){
+  var m = loadLotNotesLocal();
+  (list||[]).forEach(function(l){
+    if(l && !l.note && m[l.id]) l.note = m[l.id];
+  });
+  return list;
+}
+/* 保存のあと、サーバーにメモが残ったかを確かめて、残っていなければ理由を伝える */
+var lotNoteWarned = false;
+async function checkLotNoteSaved(id, want){
+  if(!want || lotNoteWarned) return;
+  try{
+    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const d = await res.json();
+    const rows = (d && d.data && d.data.lots) || [];
+    const back = rows.find(function(x){ return String(x.id) === String(id); });
+    if(back && String(back.note||'').trim() !== String(want).trim()){
+      lotNoteWarned = true;
+      showSyncStatus('⚠️ ロットのメモは、この端末には残りますがサーバーには保存できていません（ロットデータのシートにメモの列が無いためです）', true);
+    }
+  }catch(e){}
+}
+
 function addLot(){
   const pid = document.getElementById('l-product').value;
   if(!pid){ alert('商品を選択してください'); return; }
@@ -1710,6 +1750,7 @@ function addLot(){
     note: document.getElementById('l-note').value
   };
   lots.push(lot);
+  saveLotNoteLocal(lot.id, lot.note); /* ★2026-07-24 メモをこの端末にも控える */
   const p = findProduct(pid);
   addLog('ロット登録', p.name+'　'+lot.lotCode+'／'+(lot.expiry||'期限なし')+'　0本で作成（本数は②で入れてください）');
   document.getElementById('l-lot').value = '';
@@ -1718,6 +1759,7 @@ function addLot(){
   renderLotList(); renderInvTable(); renderInvLogs();
   onProdChange('f-product','f-lot',false); onProdChange('d-product','d-lot');
   scheduleAutoSave();
+  setTimeout(function(){ checkLotNoteSaved(lot.id, lot.note); }, 4000); /* ★2026-07-24 メモが残ったか確認 */
 }
 
 // ── 不良在庫 ────────────────────────────────────────────
