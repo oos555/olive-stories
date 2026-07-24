@@ -400,7 +400,7 @@ tr:last-child td{border-bottom:none}
 </details>
 </div>
 
-<div class="ver-mark">版 7/24 v18</div>
+<div class="ver-mark">版 7/25 v19</div>
 <div id="newprod-alert"></div>
 
 <div class="tab-row">
@@ -587,16 +587,17 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" id="meibo-edit-btn" onclick="toggleMeiboEdit()">✏️ 名簿を触る（中身を直す）</button>
     <button class="btn-sm" id="meibo-new-btn" style="display:none" onclick="meiboStartNew('')">➕ 新しい商品をつくる</button>
     <button class="btn-sm" onclick="cleanEmptyLots()">🧹 空っぽのロットを片づける</button>
+    <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
   <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b style="color:#8a5a12">ロット・賞味期限を直すときは、右の「✏️直す」から。</b><b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。</div>
   <div class="price-scroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#eaf3ff">表示する品番コード</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
-    <th style="background:#eef4fb">バーコード</th>
+    <th style="background:#eef4fb">バーコード</th><th style="background:#eef4fb">商品ページ</th>
     <th id="meibo-edit-th" style="display:none">操作</th>
   </tr></thead>
     <tbody id="meibo-body"><tr><td colspan="8" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
@@ -2694,14 +2695,38 @@ function getProductSpec(sku){
   return { origin:s.origin, farm:s.farm, lot:s.lot, expiry:s.expiry,
            barcode:meiboBarcode(sku), hitokoto:hitokotoFor(sku) };
 }
-// バーコード：🏷️ラベル図鑑に登録があればそれ、次にJANの表、次に商品マスタの jan
+/* ★2026-07-25 名簿が親。名簿の「バーコード」列を最優先で見る。
+   （順番：名簿の列 → jan列 → ラベル図鑑 → このファイル内の控え） */
+function meiboFieldOf(p, key){
+  if(!p) return '';
+  if(p[key] !== undefined && p[key] !== null && String(p[key]).trim() !== '') return String(p[key]).trim();
+  if(p.extras && p.extras[key] !== undefined && p.extras[key] !== null && String(p.extras[key]).trim() !== '') return String(p.extras[key]).trim();
+  return '';
+}
 function meiboBarcode(sku){
+  var p = PRODUCTS.find(function(x){ return x.sku===sku; });
+  var v = meiboFieldOf(p, 'バーコード');
+  if(v) return v;
+  if(p && p.jan) return String(p.jan);
   var rec = (window.LB && LB.get) ? LB.get(sku) : null;
   if(rec && rec.barcode) return String(rec.barcode);
   if(BUILTIN_JAN[sku]) return BUILTIN_JAN[sku];
-  var p = PRODUCTS.find(function(x){ return x.sku===sku; });
-  if(p && p.jan) return String(p.jan);
   return '';
+}
+/* 表示する品番コード＝品番＋バーコード下4桁。バーコードが無ければ品番だけ（ハイフンを出さない） */
+function displaySkuCode(sku){
+  if(!sku) return '';
+  var jan = meiboBarcode(sku);
+  var digits = String(jan||'').replace(/[^0-9A-Za-z]/g, '');
+  var tail = digits.length >= 4 ? digits.slice(-4) : '';
+  return tail ? (sku + '-' + tail) : String(sku);
+}
+function meiboPageUrl(p){ return meiboFieldOf(p, '商品ページ'); }
+function meiboPageCell(p){
+  var u = meiboPageUrl(p);
+  if(!u) return '<td>' + mDash() + '</td>';
+  var safe = /^https?:\/\//i.test(u) ? u : ('https://' + u);
+  return '<td><a href="' + esc(safe) + '" target="_blank" rel="noopener" style="color:#185fa5;font-weight:800;text-decoration:none">\ud83d\udd17 見る</a></td>';
 }
 // 名簿の「入力」ボタン → ラベル図鑑タブを開いて、その商品の登録画面を出す
 function meiboAddJan(sku){
@@ -2715,10 +2740,80 @@ function meiboAddJan(sku){
 function mDash(){ return '<span class="dash">—</span>'; }
 
 /* ══════════════════════════════════════════════════════════════════
+   📥 バーコードを名簿に取り込む（初回だけ押す）
+   ──────────────────────────────────────────────────────────────────
+   このファイルの中に控えてある BUILTIN_JAN を、名簿（商品マスタ）の
+   「バーコード」列に書き写します。名簿に入れば、倉庫D・受注Aにも
+   自動で届くようになります。
+   ・すでに名簿にバーコードが入っている商品は、さわりません（上書きしない）
+   ・何度押しても二重にはなりません
+   ══════════════════════════════════════════════════════════════════ */
+function meiboJanImportTargets(){
+  return PRODUCTS.filter(function(p){
+    return p && p.sku && BUILTIN_JAN[p.sku] && !meiboFieldOf(p, 'バーコード');
+  });
+}
+async function meiboImportBuiltinJan(){
+  var btn = document.getElementById('meibo-janimport-btn');
+  var list = meiboJanImportTargets();
+  if(!list.length){
+    alert('取り込むものはありませんでした。\n\n名簿のバーコードはすでに埋まっています（またはこのファイルに控えがありません）。');
+    return;
+  }
+  if(!confirm('名簿の「バーコード」列に、' + list.length + '件を書き込みます。\n\n' +
+              'すでに入っている商品はさわりません。\nよろしいですか？')) return;
+
+  if(btn){ btn.disabled = true; }
+  var ok = 0, ng = [];
+  for(var i=0; i<list.length; i++){
+    var p = list[i];
+    if(btn){ btn.textContent = '📥 取り込み中… ' + (i+1) + ' / ' + list.length; }
+    var prod = {
+      sku: p.sku,
+      name: p.name || '',
+      group: p.group || 'その他',
+      boxQty: (p.boxQty === undefined || p.boxQty === null) ? '' : p.boxQty,
+      origin: p.origin || '',
+      '農園': meiboFieldOf(p, '農園') || meiboFieldOf(p, '農園名'),
+      '出荷単位': shipUnitOf(p) || '',
+      container: p.container || '',
+      noWholesale: !!p.noWholesale,
+      active: (p.active !== false),
+      'バーコード': String(BUILTIN_JAN[p.sku])
+    };
+    try{
+      var res = await fetch(GAS_URL, { method:'POST',
+        body: JSON.stringify({ action:'saveOneProduct', product: prod }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'} });
+      var data = await res.json();
+      if(data && data.status === 'ok'){
+        ok++;
+        var idx = PRODUCTS.findIndex(function(x){ return x.sku === prod.sku; });
+        if(idx >= 0){
+          PRODUCTS[idx].extras = PRODUCTS[idx].extras || {};
+          PRODUCTS[idx].extras['バーコード'] = prod['バーコード'];
+        }
+      } else {
+        ng.push(p.sku + '（' + ((data && data.message) || '理由不明') + '）');
+      }
+    }catch(e){
+      ng.push(p.sku + '（通信エラー）');
+    }
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '📥 バーコードを名簿に取り込む（初回だけ）'; }
+  saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : []));
+  renderMeibo();
+  var msg = '✅ ' + ok + '件を名簿に書き込みました。';
+  if(ng.length) msg += '\n\n⚠️ 入らなかったもの（' + ng.length + '件）\n　・' + ng.join('\n　・');
+  msg += '\n\n※ 表のバーコード欄が空のままなら、シートに「バーコード」という列（見出し）がまだ無い可能性があります。';
+  alert(msg);
+}
+
+/* ══════════════════════════════════════════════════════════════════
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 10 : 9; } /* ★2026-07-24 出荷単位の列を足したので+1 */
+function meiboColCount(){ return meiboEditMode ? 12 : 11; } /* ★2026-07-25 表示する品番コード・商品ページの列を足したので+2 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -2914,9 +3009,10 @@ function meiboSaveLot(p, lotCode, expiry, lotNote){
 function meiboEditRowHtml(p, sp){
   var isNew = meiboAddingNew;
   var _ml = isNew ? null : meiboMainLot(p);   /* ★2026-07-24 いま使っているロット */
-  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', noWholesale:false, active:true }
+  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
                     origin:sp.origin||'', farm:sp.farm||'', container:(p.container||''), shipUnit:shipUnitOf(p),
+                    barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'),
                     lotCode:(_ml && _ml.lotCode && _ml.lotCode!=='-') ? _ml.lotCode : '',
                     expiry:(_ml && _ml.expiry) ? _ml.expiry : '',
                     lotNote:(_ml && _ml.note) ? _ml.note : '',
@@ -2950,6 +3046,9 @@ function meiboEditRowHtml(p, sp){
         '<input type="text" id="mp-group-new" placeholder="例：レ・トレ・コロンネ農園" style="display:none;margin-top:6px"></div>'+
       fg('1箱の本数','mp-box',v.boxQty,'12')+
       /* ★2026-07-24 生産地・農園名・容器は種類にかかわらず常に出す（どんな商品でも自由に書けるように） */
+      /* ★2026-07-25 バーコードと商品ページは名簿で直す（ラベル図鑑ではなく、ここが親） */
+      '<div class="mp-fg"><label style="color:#0c447c">バーコード（JAN）　※下4桁が「表示する品番コード」になります</label><input type="text" id="mp-barcode" value="'+esc(v.barcode)+'" placeholder="例：8681763395149" style="border-color:#85b7eb;background:#f7fbff;font-family:monospace"></div>'+
+      '<div class="mp-fg"><label style="color:#0c447c">商品ページ（HPのURL）　※写真はここで見ます</label><input type="text" id="mp-page" value="'+esc(v.pageUrl)+'" placeholder="例：https://oliveoilstories.net/products/org100" style="border-color:#85b7eb;background:#f7fbff"></div>'+
       '<div id="mp-oilonly" style="display:contents">'+
         fg('生産地','mp-origin',v.origin,'トルコ')+
         fg('農園名','mp-farm',v.farm,'ノヴァヴェラ農園')+
@@ -2965,24 +3064,32 @@ function meiboEditRowHtml(p, sp){
       '<button class="btn-sm" onclick="meiboCancelEdit()">やめる</button>'+
       '<span id="mp-status" class="mp-status"></span>'+
     '</div>'+
-    '<div class="mp-note">保存すると、スプレッドシートの「商品マスタ」に書き込まれます。<b>黄色い枠のロット・賞味期限・ロットのメモも、この「保存する」で一緒に保存されます</b>（在庫の本数は 📦在庫リスト の「✏️数を直す」、バーコードと一言コメントは 🏷️ラベル図鑑 で直します）。</div>'+
+    '<div class="mp-note">保存すると、スプレッドシートの「商品マスタ」に書き込まれます。<b>黄色い枠のロット・賞味期限・ロットのメモも、この「保存する」で一緒に保存されます</b>（在庫の本数は 📦在庫リスト の「✏️数を直す」で直します）。<b style="color:#0c447c">バーコードと商品ページは、この名簿が親です。ここで直したものが倉庫・受注にもそのまま出ます。</b></div>'+
     '</div>';
 }
 
 /* ★2026-07-24 出荷単位は商品マスタの「出荷単位」列に入ります。
    その列がまだシートに無いと、保存しても消えてしまうので、保存のたびに
    サーバーから読み直して、残ったかどうかを確かめてお知らせします。 */
-async function checkShipUnitSaved(sku, want){
-  if(!want) return;
+async function checkShipUnitSaved(sku, wantMap){
+  if(!wantMap) return;
+  var keys = Object.keys(wantMap).filter(function(k){ return String(wantMap[k]||'').trim() !== ''; });
+  if(!keys.length) return;
   try{
     const res = await fetch(GAS_URL + '?action=loadProducts');
     const data = await res.json();
     if(!(data && data.status==='ok' && Array.isArray(data.products))) return;
     const back = data.products.find(function(x){ return x.sku === sku; });
     const ex = (back && back.extras) || {};
-    const got = back ? String(back['出荷単位'] || ex['出荷単位'] || back.shipUnit || ex.shipUnit || '').trim() : '';
-    if(got !== String(want).trim()){
-      alert('⚠️ 「出荷単位」だけがスプレッドシートに残りませんでした。\n\n商品マスタのシートに「出荷単位」という列（見出し）がまだ無いためです。\nスプレッドシートの「商品マスタ」シートの1行目に、列の見出し「出荷単位」を1つ足してから、もう一度保存してください。\n\n（この画面には表示され続けますが、ほかの端末では見えません）');
+    var lost = keys.filter(function(k){
+      var got = back ? String(back[k] || ex[k] || '').trim() : '';
+      return got !== String(wantMap[k]).trim();
+    });
+    if(lost.length){
+      alert('⚠️ つぎの欄だけ、スプレッドシートに残りませんでした。\n\n　・' + lost.join('\n　・') +
+            '\n\nこの名前の列（見出し）が、まだシートに無いためです。\n' +
+            'スプレッドシートの「商品マスタ」シートの1行目のいちばん右に、上の名前を打ち足してから、もう一度保存してください。\n\n' +
+            '（この画面には表示され続けますが、ほかの端末やほかのアプリでは見えません）');
     }
   }catch(e){ /* 確認できなくても保存自体は済んでいるので、何も出さない */ }
 }
@@ -3023,6 +3130,8 @@ async function meiboSaveRow(){
     origin: (document.getElementById('mp-origin').value||'').trim(),
     '農園': (document.getElementById('mp-farm').value||'').trim(),
     '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
+    'バーコード': (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '').trim(),
+    '商品ページ': (document.getElementById('mp-page') ? document.getElementById('mp-page').value : '').trim(),
     container: (document.getElementById('mp-container').value||'').trim(),
     noWholesale: document.getElementById('mp-nw').checked,
     active: document.getElementById('mp-active').checked
@@ -3047,7 +3156,7 @@ async function meiboSaveRow(){
       renderMeibo(); renderPrice(); renderInvTable();
       if(window.LB) LB.render();
       renderNewProductAlert();
-      checkShipUnitSaved(sku, prod['出荷単位']); /* ★2026-07-24 出荷単位がシートに残ったか確かめる */
+      checkShipUnitSaved(sku, { '出荷単位':prod['出荷単位'], 'バーコード':prod['バーコード'], '商品ページ':prod['商品ページ'] }); /* ★2026-07-25 3列ぶん確かめる */
     } else {
       st.textContent = '⚠️ 保存できませんでした：'+((data&&data.message)||'');
     }
@@ -3113,6 +3222,8 @@ function renderMeibo(){
         '<td><div class="pname">'+esc(p.name||p.sku)+'</div>'+
           (mIsSet(p)?'<div class="psub">セット商品</div>':'')+
           (mIsNoWholesale(p)?'<div style="margin-top:3px"><span class="rtonly">RT限定・卸なし</span></div>':'')+'</td>'+
+        /* ★2026-07-25 表示する品番コード（品番＋バーコード下4桁）。自動で組み立てるので手入力はしません */
+        '<td style="background:#f7fbff"><span style="font-family:monospace;font-weight:800;font-size:13.5px;color:#0c447c;white-space:nowrap">'+esc(displaySkuCode(p.sku))+'</span></td>'+
         /* ★2026-07-24 出荷単位（例：1箱／20本）。名簿の編集画面で自由に書けます */
         '<td style="background:#fbf9f4">'+(shipUnitOf(p)?'<span class="spec">'+esc(shipUnitOf(p))+'</span>':mDash())+'</td>'+
         '<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'+
@@ -3120,6 +3231,7 @@ function renderMeibo(){
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
         '<td>'+(sp.farm?'<span class="spec">'+esc(sp.farm)+'</span>':mDash())+'</td>'+
         meiboLotCells(p, sp, jan)+
+        meiboPageCell(p)+   /* ★2026-07-25 商品ページ（HPへのリンク） */
         (meiboEditMode?'<td style="white-space:nowrap"><button class="btn-sm lot-edit" onclick="meiboStartEdit(\''+esc(p.sku)+'\')">✏️ 直す</button></td>':'')+
         '</tr>';
     });
