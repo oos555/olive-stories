@@ -842,7 +842,16 @@ let PRODUCTS = [
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
 
-function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
+/* ★2026-07-24 商品マスタの id 欄が空の商品があると、ここで商品を見つけられず、
+   ロットが画面から黙って消えていた。id が無いときは品番(sku)でも探す。 */
+function findProduct(pid){
+  if(pid === null || pid === undefined || pid === '' || pid === 'null' || pid === 'undefined') return null;
+  var byId = PRODUCTS.find(function(p){ return p.id != null && p.id == pid; });
+  if(byId) return byId;
+  var key = String(pid);
+  if(key.indexOf('sku:') === 0) key = key.slice(4);
+  return PRODUCTS.find(function(p){ return String(p.sku) === key; }) || null;
+}
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
 
 // ── 商品マスタ：GASからの読み込み（キャッシュ先手・GAS裏取り・フォールバック）────
@@ -915,7 +924,8 @@ function productOptionsHtml(selected){
   let html = '<option value="">商品を選択...</option>';
   Object.keys(groups).forEach(function(g){
     html += '<optgroup label="'+g+'">';
-    groups[g].forEach(p=>{ html += '<option value="'+p.id+'" '+(p.id==selected?'selected':'')+'>'+p.name+'</option>'; });
+    groups[g].forEach(p=>{ var pv = (p.id===null||p.id===undefined||p.id==='') ? ('sku:'+p.sku) : p.id; /* ★2026-07-24 idが空でも壊れないように */
+      html += '<option value="'+pv+'" '+(pv==selected?'selected':'')+'>'+p.name+'</option>'; });
     html += '</optgroup>';
   });
   return html;
@@ -1141,7 +1151,12 @@ function saveAllDataToGAS(){
     if(d && d.status==='ok'){
       // 保存できた分を基準線に更新（保存中に増えた編集は、現在の lots と基準線の差として次回に拾われる）
       baselineLots = sentLots; baselineDefects = sentDefects;
-      showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      /* ★2026-07-24 GASの安全装置が働いたときは、黙らずに知らせる */
+      if(d.skipped && d.skipped.length){
+        showSyncStatus('⚠️ 中身が空だったため上書きを見送りました：'+d.skipped.join('、')+'（データは無事です。画面を開き直してください）', true);
+      } else {
+        showSyncStatus('✅ 全データを保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      }
     } else {
       showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
     }
@@ -1234,7 +1249,7 @@ function doBulkReplace(skipConfirm){
   // ④ 丸ごと置き換えて保存（不良・不良取り置きも空にする。通常保存のマージは使わない）
   lots = newLots; defects = []; defectHolds = [];
   function withPN(x){ var p = findProduct(x.pid); return Object.assign({}, x, {productName: p ? p.name : ''}); }
-  var payload = { lots: lots.map(withPN), defects: [], defectHolds: [], defectCategories: defectCategories };
+  var payload = { lots: lots.map(withPN), defects: [], defectHolds: [], defectCategories: defectCategories, forceEmptyOk: true }; /* ★2026-07-24 ここは意図的に空にする操作なので、GASの安全装置を通す */
   var btn = document.querySelector('#bulk-replace-box button');
   if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
   fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
@@ -1656,7 +1671,16 @@ function renderLotList(){
   const oldAlerts = [];
   Object.keys(groups).forEach(function(pid){
     const p = findProduct(pid);
-    if(!p) return;
+    /* ★2026-07-24 商品が見つからないロットも、黙って隠さずに出す（消えたように見えないため） */
+    if(!p){
+      html += '<div class="lot-pcard" style="border-left:4px solid #dc2626"><div class="sec" style="margin-bottom:8px;color:#b91c1c">⚠️ 商品が見つからないロット（商品マスタの id 欄が空の可能性）</div>';
+      html += '<table class="lot-tbl"><thead><tr><th>ロット</th><th>賞味期限</th><th>状態</th><th>在庫数</th><th>メモ</th></tr></thead><tbody>';
+      groups[pid].forEach(function(l){
+        html += '<tr><td>'+esc(l.lotCode||'-')+'</td><td>'+esc(l.expiry||'-')+'</td><td>'+esc(l.status||'')+'</td><td>'+(l.stock||0)+'</td><td>'+esc(l.note||'')+'</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      return;
+    }
     html += '<div class="lot-pcard"><div class="sec" style="margin-bottom:8px">'+p.name+' <span class="sku-tag">'+(p.sku||'')+'</span></div>';
     html += '<table class="lot-tbl"><thead><tr><th>ロット</th><th>賞味期限</th><th>状態</th><th>在庫数</th><th>メモ</th><th>操作</th></tr></thead><tbody>';
     groups[pid].forEach(function(l){
@@ -1741,8 +1765,15 @@ async function checkLotNoteSaved(id, want){
 function addLot(){
   const pid = document.getElementById('l-product').value;
   if(!pid){ alert('商品を選択してください'); return; }
+  /* ★2026-07-24 選んだ商品が見つからないまま登録すると、ロットが画面から消える。
+     見つからないときは、その場で理由を出して止める（黙って消さない）。 */
+  const prodSel = findProduct(pid);
+  if(!prodSel){
+    alert('この商品を登録できません。\n商品マスタ（名簿）でこの商品の「id」の欄が空になっている可能性があります。\n\nスプレッドシートの「商品マスタ」シートで、この商品の id 欄に番号（ほかと重ならない数字）を入れてから、もう一度お試しください。');
+    return;
+  }
   const lot = {
-    id: nextId(), pid: parseInt(pid),
+    id: nextId(), pid: (prodSel.id != null && prodSel.id !== '') ? parseInt(prodSel.id) : ('sku:'+prodSel.sku),
     lotCode: document.getElementById('l-lot').value || '-',
     expiry: document.getElementById('l-exp').value,
     stock: 0,                 // 本数は②「今あるロットの数を直す」で入れる
@@ -2591,7 +2622,8 @@ function farmOf(p){
    列がまだ無いときは空欄のまま（アプリは壊れない）。 */
 function shipUnitOf(p){
   if(!p) return '';
-  var v = p['出荷単位'] || p.shipUnit || p.shippingUnit || '';
+  var ex = p.extras || {};
+  var v = p['出荷単位'] || ex['出荷単位'] || p.shipUnit || ex.shipUnit || '';
   return String(v||'').trim();
 }
 function getProductSpec(sku){
@@ -2869,7 +2901,6 @@ async function meiboSaveRow(){
     origin: (document.getElementById('mp-origin').value||'').trim(),
     '農園': (document.getElementById('mp-farm').value||'').trim(),
     '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
-    shipUnit: (document.getElementById('mp-unit').value||'').trim(),
     container: (document.getElementById('mp-container').value||'').trim(),
     noWholesale: document.getElementById('mp-nw').checked,
     active: document.getElementById('mp-active').checked
