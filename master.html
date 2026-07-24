@@ -392,8 +392,8 @@ tr:last-child td{border-bottom:none}
     </div>
 
     <div style="background:#fdecec;border:1px solid #f3c6c6;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#7f1d1d;line-height:1.7;margin-bottom:12px">
-      <b>⚠️ 開いたときに「棚卸しの数字に入れ替えますか？」と出たら、キャンセルを押してください。</b><br>
-      OKを押すと、今の在庫・ロットが全部消えて2026年7月19日の数字に戻ってしまいます。
+      <b>✅ 「棚卸しの数字に入れ替えますか？」は、開いたときに出なくなりました（2026-07-24）。</b><br>
+      あの確認でOKを押すと、在庫・ロット・賞味期限が2026年7月19日の数字に丸ごと戻ってしまうため、自動で出すのをやめました。実行したいときだけ「📥 在庫一括入れ替え」の中のボタンから（確認が2回出ます）。
     </div>
 
     <div style="margin-top:12px"><button type="button" onclick="var d=this.closest('details');if(d)d.removeAttribute('open');" style="background:#efece6;border:1px solid #ddd6ca;color:#4a463d;font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:8px;cursor:pointer">✕ 説明をとじる</button></div>
@@ -584,7 +584,7 @@ tr:last-child td{border-bottom:none}
   <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。</div>
   <div class="price-scroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
     <th style="background:#eef4fb">バーコード</th>
@@ -1061,7 +1061,12 @@ function loadAllDataFromGAS(){
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderNewProductAlert();
     renderHoldList(); renderPreList(); renderReportList(); renderInvLogs();
-    maybeAutoBulkReplace(); // 2026-07-19 未実行なら、ここで一度だけ入れ替えの確認を出す
+    /* ★2026-07-24 中村様のご指示で停止。
+       ここで「棚卸しの数字に入れ替えますか？」を毎回出していた。
+       OKを押すと在庫・ロット（＝賞味期限）が2026-07-19の数字に丸ごと戻るため、
+       開くたびに事故の危険があった。自動で出すのはやめる。
+       （どうしても実行したいときだけ、下の「📥 在庫一括入れ替え」の中のボタンから。確認は2回出ます） */
+    // maybeAutoBulkReplace();
     showSyncStatus('✅ 保存されたデータを読み込みました');
   }).catch(function(){ invLoading = false; renderInvTable(); showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
 }
@@ -2540,6 +2545,13 @@ function farmOf(p){
   if(p && p['農園'] && String(p['農園']).trim()) return String(p['農園']).trim();
   var s = window.PRODUCT_SPEC[p&&p.sku] || {}; return s.farm || '';
 }
+/* ★2026-07-24 出荷単位（例：1箱／20本）。商品マスタの「出荷単位」列を読む。
+   列がまだ無いときは空欄のまま（アプリは壊れない）。 */
+function shipUnitOf(p){
+  if(!p) return '';
+  var v = p['出荷単位'] || p.shipUnit || p.shippingUnit || '';
+  return String(v||'').trim();
+}
 function getProductSpec(sku){
   var s = window.PRODUCT_SPEC[sku] || { origin:'', farm:'', lot:'', expiry:'' };
   return { origin:s.origin, farm:s.farm, lot:s.lot, expiry:s.expiry,
@@ -2569,7 +2581,7 @@ function mDash(){ return '<span class="dash">—</span>'; }
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 9 : 8; }
+function meiboColCount(){ return meiboEditMode ? 10 : 9; } /* ★2026-07-24 出荷単位の列を足したので+1 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -2695,7 +2707,7 @@ function meiboSnapshotForm(){
   function val(id){ var e=document.getElementById(id); return e ? e.value : ''; }
   function chk(id){ var e=document.getElementById(id); return e ? !!e.checked : false; }
   meiboFormDraft = {
-    sku: val('mp-sku'), kind: val('mp-kind'), name: val('mp-name'),
+    sku: val('mp-sku'), kind: val('mp-kind'), name: val('mp-name'), shipUnit: val('mp-unit'),
     group: val('mp-group'), groupNew: val('mp-group-new'), boxQty: val('mp-box'),
     origin: val('mp-origin'), farm: val('mp-farm'), container: val('mp-container'),
     noWholesale: chk('mp-nw'), active: chk('mp-active')
@@ -2706,7 +2718,7 @@ function meiboRestoreForm(){
   var d = meiboFormDraft; if(!d) return;
   function set(id, v){ var e=document.getElementById(id); if(e && v!=null) e.value = v; }
   var k = document.getElementById('mp-kind'); if(k && d.kind) k.value = d.kind;
-  set('mp-sku', d.sku); set('mp-name', d.name); set('mp-box', d.boxQty);
+  set('mp-sku', d.sku); set('mp-name', d.name); set('mp-box', d.boxQty); set('mp-unit', d.shipUnit);
   set('mp-origin', d.origin); set('mp-farm', d.farm); set('mp-container', d.container);
   var g = document.getElementById('mp-group'); if(g && d.group) g.value = d.group;
   set('mp-group-new', d.groupNew);
@@ -2717,9 +2729,9 @@ function meiboRestoreForm(){
 
 function meiboEditRowHtml(p, sp){
   var isNew = meiboAddingNew;
-  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', noWholesale:false, active:true }
+  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
-                    origin:sp.origin||'', farm:sp.farm||'', container:(p.container||''),
+                    origin:sp.origin||'', farm:sp.farm||'', container:(p.container||''), shipUnit:shipUnitOf(p),
                     noWholesale:!!p.noWholesale, active:(p.active!==false) };
   function fg(label,id,val,ph){ return '<div class="mp-fg"><label>'+label+'</label><input type="text" id="'+id+'" value="'+esc(val)+'" placeholder="'+esc(ph?('例：'+ph):'')+'"></div>'; }
   var groups = mGroupOrder().map(function(g){ return '<option value="'+esc(g)+'"'+(g===v.group?' selected':'')+'>'+esc(g)+'</option>'; }).join('');
@@ -2741,6 +2753,7 @@ function meiboEditRowHtml(p, sp){
         : '')+
       '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>'+
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
+      fg('出荷単位（この形で出す）','mp-unit',v.shipUnit,'1箱／20本 など')+
       '<div class="mp-fg"><label>区分</label><select id="mp-group" onchange="mbGroupChanged()"><option value="">（選ぶ）</option>'+groups+'<option value="__NEW__">＋ 新しい区分をつくる</option></select>'+
         '<input type="text" id="mp-group-new" placeholder="例：レ・トレ・コロンネ農園" style="display:none;margin-top:6px"></div>'+
       fg('1箱の本数','mp-box',v.boxQty,'12')+
@@ -2762,6 +2775,23 @@ function meiboEditRowHtml(p, sp){
     '</div>'+
     '<div class="mp-note">保存すると、スプレッドシートの「商品マスタ」に書き込まれます。ロット・賞味期限はロット管理、バーコードと一言コメントはラベル図鑑で直します。</div>'+
     '</div>';
+}
+
+/* ★2026-07-24 出荷単位は商品マスタの「出荷単位」列に入ります。
+   その列がまだシートに無いと、保存しても消えてしまうので、保存のたびに
+   サーバーから読み直して、残ったかどうかを確かめてお知らせします。 */
+async function checkShipUnitSaved(sku, want){
+  if(!want) return;
+  try{
+    const res = await fetch(GAS_URL + '?action=loadProducts');
+    const data = await res.json();
+    if(!(data && data.status==='ok' && Array.isArray(data.products))) return;
+    const back = data.products.find(function(x){ return x.sku === sku; });
+    const got = back ? String(back['出荷単位'] || back.shipUnit || '').trim() : '';
+    if(got !== String(want).trim()){
+      alert('⚠️ 「出荷単位」だけがスプレッドシートに残りませんでした。\n\n商品マスタのシートに「出荷単位」という列（見出し）がまだ無いためです。\nスプレッドシートの「商品マスタ」シートの1行目に、列の見出し「出荷単位」を1つ足してから、もう一度保存してください。\n\n（この画面には表示され続けますが、ほかの端末では見えません）');
+    }
+  }catch(e){ /* 確認できなくても保存自体は済んでいるので、何も出さない */ }
 }
 
 async function meiboSaveRow(){
@@ -2796,6 +2826,8 @@ async function meiboSaveRow(){
     boxQty: boxRaw==='' ? '' : (parseInt(boxRaw)||''),
     origin: (document.getElementById('mp-origin').value||'').trim(),
     '農園': (document.getElementById('mp-farm').value||'').trim(),
+    '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
+    shipUnit: (document.getElementById('mp-unit').value||'').trim(),
     container: (document.getElementById('mp-container').value||'').trim(),
     noWholesale: document.getElementById('mp-nw').checked,
     active: document.getElementById('mp-active').checked
@@ -2817,6 +2849,7 @@ async function meiboSaveRow(){
       renderMeibo(); renderPrice(); renderInvTable();
       if(window.LB) LB.render();
       renderNewProductAlert();
+      checkShipUnitSaved(sku, prod['出荷単位']); /* ★2026-07-24 出荷単位がシートに残ったか確かめる */
     } else {
       st.textContent = '⚠️ 保存できませんでした：'+((data&&data.message)||'');
     }
@@ -2882,6 +2915,8 @@ function renderMeibo(){
         '<td><div class="pname">'+esc(p.name||p.sku)+'</div>'+
           (mIsSet(p)?'<div class="psub">セット商品</div>':'')+
           (mIsNoWholesale(p)?'<div style="margin-top:3px"><span class="rtonly">RT限定・卸なし</span></div>':'')+'</td>'+
+        /* ★2026-07-24 出荷単位（例：1箱／20本）。名簿の編集画面で自由に書けます */
+        '<td style="background:#fbf9f4">'+(shipUnitOf(p)?'<span class="spec">'+esc(shipUnitOf(p))+'</span>':mDash())+'</td>'+
         '<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'+
         '<td class="num">'+(p.boxQty?esc(p.boxQty)+'本':mDash())+'</td>'+
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
