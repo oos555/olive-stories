@@ -1036,7 +1036,12 @@ function renderList(){
       const stat = shipped
         ? '<span class="pk-stat-done">✓ 梱包終了<span class="pk-time">'+esc(shippedTimeShort(o))+'</span></span>'
         : '<span class="pk-stat-wait">🕐 梱包待ち</span>';
-      const products = (o.lines||[]).map(function(l){return esc(l.productName)+' ×'+esc(l.bottles);}).join('、');
+      // 一覧カードの本数：箱の分もふくめた「合計の本数」を出す。
+      // （以前はバラの本数だけを出していたため、1箱＋2本＝14本の注文が「×2」に見えていた）
+      const products = (o.lines||[]).map(function(l){
+        const bx = l.boxes||0, bt = l.bottles||0;
+        return esc(l.productName)+' ×'+lineTotal(l)+'本'+(bx?'（'+bx+'箱'+(bt?'＋'+bt+'本':'')+'）':'');
+      }).join('、');
       html += '<div class="'+cardCls+'" onclick="openOrderInPage(\''+String(o.id).replace(/'/g,"\\'")+'\')">';
       html +=   '<div class="pk-top"><span class="pk-name">'+esc(recipientLabel(o))+'</span>'+stat+'</div>';
       if(marks) html += '<div class="pk-marks">'+marks+'</div>';
