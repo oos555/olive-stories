@@ -1469,7 +1469,11 @@ function renderProfitHeatmap(){
     });
   });
   html += '</tbody>';
+  /* ★2026-07-24 表を作り直しても、見ていた場所（スクロール位置）を動かさない */
+  var _wrap = document.getElementById('profit-heatmap-wrap');
+  var _st = _wrap ? _wrap.scrollTop : 0, _sl = _wrap ? _wrap.scrollLeft : 0;
   tbl.innerHTML = html;
+  if(_wrap){ _wrap.scrollTop = _st; _wrap.scrollLeft = _sl; }
   renderCostMissingAlert();   /* ★ 2026-07-23 名簿で増えた商品のお知らせも一緒に出し直す */
 }
 function renderRateSimulation(){
@@ -1519,6 +1523,7 @@ let currentSimMl = 500;         // その商品の内容量（500ml換算に使�
 let currentTierPrice = 0;       // いま調整中の段階の価格（適用ボタン用）
 let currentW2Price = 0;         // （後方互換のため残す）
 let simGuardPendingSku = null;  // （旧・青マス確認。現在は未使用）
+let simAutoPickDone = false;    // ★2026-07-24 自動で1件出すのは「開いた最初の1回」だけ（あとは勝手に動かさない）
 
 // ヒートマップのマスを押したとき（どの段階でも）
 function heatmapCellClick(sku, tier){
@@ -1560,16 +1565,18 @@ function onSimPickerChange(){
   highlightHeatmapRow(sku);
 }
 // 左の利益ヒートマップで、その商品の行をハイライトして画面内に移動
-function highlightHeatmapRow(sku){
+function highlightHeatmapRow(sku, noScroll){
   var tbl = document.getElementById('profit-heatmap-table'); if(!tbl) return;
   var prev = tbl.querySelectorAll('tr.sim-row-hl'); Array.prototype.forEach.call(prev, function(tr){ tr.classList.remove('sim-row-hl'); });
   var safe = (window.CSS && CSS.escape) ? CSS.escape(sku) : sku;
   var row = tbl.querySelector('tr[data-sku="'+safe+'"]');
-  if(row){ row.classList.add('sim-row-hl'); try{ row.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){} }
+  /* ★2026-07-24 noScroll=true のときは画面を動かさない（入力・保存の再描画で勝手にスクロールしないため） */
+  if(row){ row.classList.add('sim-row-hl'); if(!noScroll){ try{ row.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){} } }
 }
 
 // 選んだ商品×段階を右パネルに読み込む（どの段階でもバーで動かせる）
-function loadSimPanel(sku, tier){
+function loadSimPanel(sku, tier, opts){
+  const _noScroll = !!(opts && opts.noScroll); /* ★2026-07-24 再描画のときは画面を動かさない */
   const p = allCostSkus().find(function(x){ return x.sku === sku; });
   const cost = getCostForSku(sku);
   const rec = priceRecForSku(sku);
@@ -1586,7 +1593,7 @@ function loadSimPanel(sku, tier){
   currentSimTier = tier;
   currentSimMl = p.ml || 500;
   { var _sp = document.getElementById('sim-picker'); if(_sp) _sp.value = sku; }
-  highlightHeatmapRow(sku);
+  highlightHeatmapRow(sku, _noScroll);
   // ★2026-07-19 選択中のマスに黒枠（hm-sel）を付け替える（クリック時は再描画しないため、ここで付け替えないと選択印が出ない）
   try{
     document.querySelectorAll('#profit-heatmap-table td.hm-sel').forEach(function(c){ c.classList.remove('hm-sel'); });
@@ -1760,23 +1767,27 @@ function renderPer500(master, adjPrice, tier){
 function renderSimPanel(){
   const panel = document.getElementById('rate-sim-panel');
   if(!panel) return;
-  // すでに選択中の商品があれば、その最新値で出し直す
+  /* ★2026-07-24 中村様のご依頼：選んでいるマスが勝手に「オルガニック750」に戻るのをやめる。
+     旧：選択中の商品でも「卸②の金額が入っていない」と下の自動選びに落ちてしまい、
+         何か入力・保存して再描画するたびに、利益の薄い先頭商品（＝オルガニック750）へ飛んでいた。
+     新：一度でも自分でマスを選んだら、そのマスから絶対に動かさない。 */
   if(currentSimSku){
-    const cost = getCostForSku(currentSimSku);
-    const rec = priceRecForSku(currentSimSku);
-    const p2 = parseFloat(rec.priceWholesale2) || 0;
-    if(cost && p2){ loadSimPanel(currentSimSku); return; }
+    loadSimPanel(currentSimSku, currentSimTier, {noScroll:true});
+    return;
   }
-  // 未選択なら、利益の薄い卸②を1件だけ自動で出す（従来の挙動を踏襲）
+  // まだ一度もマスを選んでいないときだけ、最初の1回に限り利益の薄い卸②を1件出す
   let firstLow = null;
-  allCostSkus().forEach(function(p){
-    if(firstLow) return;
-    const cost = getCostForSku(p.sku);
-    const rec = priceRecForSku(p.sku);
-    const p2 = parseFloat(rec.priceWholesale2) || 0;
-    if(isLowMargin(cost, p2)) firstLow = p.sku;
-  });
-  if(firstLow){ loadSimPanel(firstLow); return; }
+  if(!simAutoPickDone){
+    simAutoPickDone = true;
+    allCostSkus().forEach(function(p){
+      if(firstLow) return;
+      const cost = getCostForSku(p.sku);
+      const rec = priceRecForSku(p.sku);
+      const p2 = parseFloat(rec.priceWholesale2) || 0;
+      if(isLowMargin(cost, p2)) firstLow = p.sku;
+    });
+  }
+  if(firstLow){ loadSimPanel(firstLow, 'wholesale2', {noScroll:true}); return; }
   // 薄い商品が無いときは案内を出す
   const guardEl = document.getElementById('sim-guard'); if(guardEl) guardEl.style.display = 'none';
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'none';
