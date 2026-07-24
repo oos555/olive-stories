@@ -137,6 +137,8 @@ tr:last-child td{border-bottom:none}
 .slip-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1rem}
 .slip-table th{background:#f9f8f5;padding:6px 10px;text-align:left;border:1px solid #e8e2d8;font-size:11px;color:#2b2a26}
 .slip-table td{padding:8px 10px;border:1px solid #e8e2d8;vertical-align:middle}
+    .slip-code{display:inline-block;margin-top:3px;font-family:'SFMono-Regular',Consolas,monospace;font-size:13px;font-weight:800;color:#1e4f86;letter-spacing:.02em}
+    .slip-code .sc-sku{font-size:11.5px;color:#44506a}
 .invoice{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem;margin-bottom:1rem}
 .invoice-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.1em}
 .invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;font-size:13px}
@@ -3116,6 +3118,34 @@ function recipientAddressBlock(o){
   }
   return (o.recipientName||o.client||'');
 }
+/* ★2026-07-25 バーコードは統合マスタNの「名簿」が親。
+   名簿の「バーコード」列（extras）→ jan列 の順に見る。 */
+function pBarcodeOf(p){
+  if(!p) return '';
+  var v = p['バーコード'];
+  if(!v && p.extras) v = p.extras['バーコード'];
+  if(!v) v = p.jan || p.barcode || '';
+  return String(v||'').trim();
+}
+/* 表示する品番コード＝品番＋バーコード下4桁。バーコードが無ければ品番だけ（ハイフンを出さない） */
+function dispCodeOf(p){
+  if(!p || !p.sku) return '';
+  var d = pBarcodeOf(p).replace(/[^0-9A-Za-z]/g,'');
+  var tail = d.length>=4 ? d.slice(-4) : '';
+  return tail ? (String(p.sku)+'-'+tail) : String(p.sku);
+}
+/* 出荷依頼書に出す「品番－末尾4桁」。末尾だけだと見間違えるので品番を保険に付ける */
+function lineCodeHtmlA(l){
+  var p = (typeof findProduct==='function' && l && l.productId!=null) ? findProduct(l.productId) : null;
+  if(!p && l && l.sku && typeof findProductBySku==='function') p = findProductBySku(l.sku);
+  if(!p) return '';
+  var sku = String(p.sku||''); if(!sku) return '';
+  var d = pBarcodeOf(p).replace(/[^0-9A-Za-z]/g,'');
+  var tail = d.length>=4 ? d.slice(-4) : '';
+  return tail
+    ? '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'-</span>'+esc(tail)+'</div>'
+    : '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'</span></div>';
+}
 function buildSlipHtml(o){
   const leadLabel = leadLabelWithDate(o);
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
@@ -3157,7 +3187,7 @@ function buildSlipHtml(o){
     const condHtml = cond==='old' ? '<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>'
       : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>'
       : '<span style="color:#2b2a26">正規</span>';
-    html += '<tr><td>'+l.productName+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
     var _sp = findProduct(l.productId);
     if(_sp && _sp.isSet && _sp.components && _sp.components.length){
       var _cnt = (l.bottles||0) + (l.boxes||0)*(l.boxQty||_sp.boxQty||1);
