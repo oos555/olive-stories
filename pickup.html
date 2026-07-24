@@ -50,6 +50,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .chk-line .bc-lb{color:#6a7480}
 .chk-line .exp-v{font-size:22px;font-weight:900;color:#b25b00;letter-spacing:.02em}
 .chk-line .bc-v{font-size:22px;font-weight:900;color:#1e4f86;letter-spacing:.02em}
+    .chk-line .bc-sku{font-size:16px;font-weight:900;color:#44506a;letter-spacing:.02em}
 .row3{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
 .qty-one{font-size:17px;font-weight:900;padding:7px 15px;border-radius:9px;background:#6b7a3a;color:#fff}
 .qty-one .sub{font-weight:700;font-size:14px;opacity:.9}
@@ -484,11 +485,36 @@ function resolveProduct(l){
   var key = String(l.productId!=null ? l.productId : (l.sku||''));
   return PRODUCTS.find(function(x){ return String(x.sku)===key; }) || null;
 }
+/* ★2026-07-25 バーコードは統合マスタNの「名簿」が親。
+   名簿の「バーコード」列（extras）→ jan列 → 注文明細 の順に見る。 */
+function pBarcodeOf(p){
+  if(!p) return '';
+  var v = p['バーコード'];
+  if(!v && p.extras) v = p.extras['バーコード'];
+  if(!v) v = p.jan || p.barcode || '';
+  return String(v||'').trim();
+}
+/* 表示する品番コード＝品番＋バーコード下4桁。バーコードが無ければ品番だけ */
+function dispCodeOf(p){
+  if(!p || !p.sku) return '';
+  var d = pBarcodeOf(p).replace(/[^0-9A-Za-z]/g,'');
+  var tail = d.length>=4 ? d.slice(-4) : '';
+  return tail ? (String(p.sku)+'-'+tail) : String(p.sku);
+}
 function lineBarcode4(l){
   var p = resolveProduct(l);
-  var jan = (p && (p.jan || p.barcode)) || (l && (l.jan || l.barcode)) || '';
+  var jan = pBarcodeOf(p) || (l && (l.jan || l.barcode)) || '';
   jan = String(jan).replace(/[^0-9]/g,'');
   return jan.length>=4 ? jan.slice(-4) : (jan || '―');
+}
+/* ピッキング画面に出す「品番－末尾4桁」。末尾だけだと見間違えるので品番を保険に付ける */
+function lineCodeHtml(l){
+  var p = resolveProduct(l);
+  var sku = (p && p.sku) ? String(p.sku) : String((l && l.sku) || '');
+  var t4 = lineBarcode4(l);
+  if(!sku) return '<span class="bc-v">'+esc(t4)+'</span>';
+  if(t4==='―') return '<span class="bc-sku">'+esc(sku)+'</span>';
+  return '<span class="bc-sku">'+esc(sku)+'-</span><span class="bc-v">'+esc(t4)+'</span>';
 }
 function lineExpiry(l){
   /* 在庫(stock.html)の正規(new)ロットのうち、賞味期限がいちばん古いもの（先入れ先出し）を表示。無ければ「―」。 */
@@ -893,7 +919,7 @@ function renderStockList(lots, defects, holds){
       var n = stockNumbersFor(p.id, lots, defects, holds);
       var box = p.boxQty ? '・1箱'+p.boxQty+'本' : '';
       html += '<tr>';
-      html +=   '<td class="stk-nm"><b>'+esc(p.name)+'</b><small>'+esc(p.sku)+box+'</small></td>';
+      html +=   '<td class="stk-nm"><b>'+esc(p.name)+'</b><small>'+esc(dispCodeOf(p))+box+'</small></td>';
       html +=   '<td>'+stkNum(n.stock, '#2b2a26')+'</td>';
       html +=   '<td class="stk-av-td">'+n.avail+'</td>';
       html +=   '<td>'+stkNum(n.oldStock, '#b45309')+'</td>';
@@ -1151,7 +1177,7 @@ function renderOrder(){
     var subTxt = sub2.length ? '（'+sub2.join('・')+'）' : '';
     var chk = '<div class="chk-line">'+
       '<span><span class="chk-lb exp-lb">📅 賞味期限</span><span class="exp-v">'+esc(lineExpiry(l))+'</span></span>'+
-      '<span><span class="chk-lb bc-lb">🔖 末尾</span><span class="bc-v">'+esc(lineBarcode4(l))+'</span></span>'+
+      '<span><span class="chk-lb bc-lb">🔖 品番・末尾</span>'+lineCodeHtml(l)+'</span>'+
       '</div>';
     var row3 = '<div class="row3"><span class="qty-one">合計'+total+'本<span class="sub">'+subTxt+'</span></span>'+giftBadgeItemHtml(l.giftType)+'</div>';
     html += '<div class="item" id="item-'+i+'">'+
