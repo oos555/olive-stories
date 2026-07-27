@@ -534,8 +534,8 @@ body{background:#fff}
   <div class="tab-row no-print" style="margin-bottom:1rem">
     <button class="tab active" id="import-tab-csv" onclick="switchImportMode('csv')">STORES CSV取込</button>
     <button class="tab" id="import-tab-pdf" onclick="switchImportMode('pdf')">お客様リスト（PDF）取込</button>
-    <button class="tab" id="import-tab-rt" onclick="switchImportMode('rt')">🏨 RT伝票取込</button>
-    <button class="tab" id="import-tab-basara" onclick="switchImportMode('basara')">📧 バサラ取込</button>
+    <button class="tab" id="import-tab-rt" onclick="switchImportMode('rt')">🏨 RT計算・取込・納品書</button>
+    <button class="tab" id="import-tab-basara" onclick="switchImportMode('basara')">📧 バサラ半自動化・取り込み</button>
   </div>
 
   <div id="import-mode-csv">
@@ -614,10 +614,180 @@ body{background:#fff}
   </div>
 
   <div id="import-mode-rt" style="display:none">
-    <div class="card" style="background:#fffbeb;border:1.5px solid #f59e0b">
-      <div style="font-size:15px;font-weight:800;color:#92400e;margin-bottom:8px">🏨 RT（ホテル）の注文は、この順番で進めます</div>
-      <div style="font-size:13px;color:#78350f;line-height:1.8">① 下の「まず計算する」に本数と希望納期を入れて計算する　→　② 出てきた単価・納期をアイポーターの端末に打つ　→　③ 出てきた発注伝票を「② 発注伝票を取り込む」に入れて納品書を作る</div>
-    </div>
+    <!-- ▼▼ RT説明書（2026-07-27・rtm-プレフィックスで独立／バサラ説明書と同じ流れスタイル） ▼▼ -->
+    <style>
+    .rtm-book{border:2px solid #e3ddd0;border-radius:16px;background:#fff;margin-bottom:16px;overflow:hidden;box-shadow:0 3px 14px rgba(80,70,40,.07)}
+    .rtm-book>summary{list-style:none;cursor:pointer;padding:15px 17px;background:#a3b18a;color:#20301a;font-weight:900;font-size:17px;display:flex;align-items:center;gap:9px}
+    .rtm-book>summary::-webkit-details-marker{display:none}
+    .rtm-book>summary .rtm-chev{margin-left:auto;font-size:13px;font-weight:800;background:#fff;color:#6b7a3a;padding:3px 12px;border-radius:99px;border:1px solid #cfd8bf;white-space:nowrap}
+    .rtm-book[open]>summary .rtm-chev::after{content:"閉じる ▲"}
+    .rtm-book:not([open])>summary .rtm-chev::after{content:"開く ▼"}
+    .rtm-inner{padding:17px 15px 20px}
+    .rtm-lead{font-size:15px;font-weight:700;margin:2px 0 16px;color:#3f3d36;line-height:1.75}
+    .rtm-key{background:#eef4fb;border:2px solid #c4d7ef;border-radius:14px;padding:13px 15px;margin-bottom:20px}
+    .rtm-khead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 11px}
+    .rtm-khead h3{margin:0;font-size:16px;color:#274a6d}
+    .rtm-kbadge{background:#1f4a6d;color:#fff;font-weight:900;font-size:12.5px;padding:4px 12px;border-radius:99px}
+    .rtm-key ul{margin:0;padding-left:0;list-style:none;display:grid;gap:8px}
+    .rtm-key li{display:flex;gap:9px;align-items:flex-start;font-size:14.5px;font-weight:700;color:#2b2a26}
+    .rtm-key li .rtm-k{flex-shrink:0;min-width:74px;background:#fff;border:1px solid #c4d7ef;border-radius:7px;padding:2px 8px;text-align:center;font-size:12.5px;color:#274a6d}
+    .rtm-key b.rtm-red{color:#dc2626}
+    .rtm-maptitle{font-weight:900;font-size:16px;margin:6px 0 6px;color:#2b2a26}
+    .rtm-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;font-size:12.5px;font-weight:700}
+    .rtm-legend span{padding:3px 11px;border-radius:99px}
+    .rtm-lg-you{background:#fdeede;color:#8a4b0b;border:1px solid #f0cfa0}
+    .rtm-lg-btn{background:#e6efff;color:#1b4bb5;border:1px solid #b9cff2}
+    .rtm-lg-auto{background:#e3f2e3;color:#1d6b2a;border:1px solid #b4d9b8}
+    .rtm-flow{display:flex;flex-direction:column;gap:0}
+    .rtm-step{display:flex;gap:11px;align-items:stretch}
+    .rtm-rail{display:flex;flex-direction:column;align-items:center;width:44px;flex-shrink:0}
+    .rtm-dot{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+    .rtm-bar{flex:1;width:4px;min-height:14px}
+    .rtm-d-you{background:#fdeede}.rtm-b-you{background:#f2d6ac}
+    .rtm-d-btn{background:#e6efff}.rtm-b-btn{background:#bcd0f2}
+    .rtm-d-auto{background:#e3f2e3}.rtm-b-auto{background:#bfe0c2}
+    .rtm-d-wh{background:#efeae0}
+    .rtm-c{flex:1;background:#fff;border:1.5px solid #e3ddd0;border-radius:11px;padding:9px 13px;margin-bottom:10px}
+    .rtm-c .rtm-tag{display:inline-block;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:99px;margin-bottom:3px}
+    .rtm-t-you{background:#fdeede;color:#8a4b0b}.rtm-t-btn{background:#e6efff;color:#1b4bb5}.rtm-t-auto{background:#e3f2e3;color:#1d6b2a}
+    .rtm-c .rtm-ttl{font-size:15px;font-weight:800;color:#2b2a26}
+    .rtm-c .rtm-sub{font-size:12.5px;color:#6b6459;margin-top:2px}
+    .rtm-btnface{display:inline-block;background:#2563eb;color:#fff;font-weight:800;font-size:13px;padding:4px 12px;border-radius:8px;margin-top:4px}
+    .rtm-why{margin:16px 0 6px;background:#f4f8fb;border:2px solid #cddff0;border-radius:14px;padding:13px 15px}
+    .rtm-why h3{margin:0 0 8px;font-size:15px;color:#274a6d}
+    .rtm-why-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:center}
+    .rtm-why-box{flex:1;min-width:150px;border-radius:9px;padding:9px 11px;font-size:12.5px;font-weight:700;color:#2b2a26;text-align:center;line-height:1.6}
+    .rtm-why-a{background:#eef4e3;border:1.5px solid #b8c99a}
+    .rtm-why-b{background:#fdeede;border:1.5px solid #e6b48a}
+    .rtm-why-c{background:#dbeafe;border:1.5px solid #93b4e0}
+    .rtm-why-arrow{font-size:18px;color:#8a8578;font-weight:900}
+    .rtm-who{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+    .rtm-who>div{flex:1;min-width:240px;border-radius:13px;padding:13px 15px}
+    .rtm-who h4{margin:0 0 8px;font-size:15px}
+    .rtm-who ul{margin:0;padding-left:19px}.rtm-who li{font-size:13.5px;font-weight:700;margin-bottom:5px;color:#2b2a26}
+    .rtm-who-you{background:#fdf2e6;border:1.5px solid #ecd0aa}.rtm-who-you h4{color:#8a4b0b}
+    .rtm-who-auto{background:#eef6ee;border:1.5px solid #c3ddc6}.rtm-who-auto h4{color:#1d6b2a}
+    .rtm-foot{margin-top:20px;background:#eef4fb;border:1.5px solid #c4d7ef;border-radius:12px;padding:12px 15px;font-size:13.5px;font-weight:700;color:#274a6d;line-height:1.7}
+    .rtm-closebar{margin-top:18px;display:flex;justify-content:center}
+    .rtm-closebtn{background:#a3b18a;color:#20301a;border:none;font-weight:900;font-size:15px;padding:11px 26px;border-radius:99px;cursor:pointer;box-shadow:0 2px 6px rgba(80,70,40,.13)}
+    .rtm-closebtn:active{transform:translateY(1px)}
+    </style>
+
+    <details class="rtm-book" id="rtm-book" open>
+      <summary>🏨 RT（ホテル）の流れ・説明書<span class="rtm-chev"></span></summary>
+      <div class="rtm-inner">
+
+        <div class="rtm-lead">RT（ホテル・レストラン）の注文は、<b>アイポーターの端末</b>を通して届きます。<br>うちの納品書は「オイル＋送料＋ピックアップ」を合わせた金額。<b>まず計算して、アイポーターに打つ単価を出す</b>——ここが肝心です。</div>
+
+        <div class="rtm-key">
+          <div class="rtm-khead">
+            <span class="rtm-kbadge">RTのきまり</span>
+            <h3>先に知っておくこと</h3>
+          </div>
+          <ul>
+            <li><span class="rtm-k">お支払い</span><span><b>後払い（月末にまとめて請求）</b>。だから入金確認はナシ。</span></li>
+            <li><span class="rtm-k">だから</span><span>伝票と納品書が合っているか、<b class="rtm-red">必ず目で確認してから</b>出荷します。</span></li>
+            <li><span class="rtm-k">同梱</span><span><b>RT発注伝票 ＋ 納品書</b>（かならずセット）。</span></li>
+            <li><span class="rtm-k">消費税</span><span>オイル<b>8%</b>／送料・ピックアップ<b>10%</b>。</span></li>
+          </ul>
+        </div>
+
+        <div class="rtm-maptitle">🗺 ぜんぶの流れ（どこが手作業で、どこがボタン・自動か）</div>
+        <div class="rtm-legend">
+          <span class="rtm-lg-you">🟠 私たちがやる（手を動かす）</span>
+          <span class="rtm-lg-btn">🔵 ボタンを押す</span>
+          <span class="rtm-lg-auto">🟢 自動</span>
+        </div>
+
+        <div class="rtm-flow">
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-you">🏨</div><div class="rtm-bar rtm-b-you"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-you">🟠 まず届く</span>
+              <div class="rtm-ttl">① アイポーターにRTの注文が届く</div>
+              <div class="rtm-sub">ホテル・レストランのご注文が、端末に入ってきます</div></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-you">🧮</div><div class="rtm-bar rtm-b-you"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-you">🟠 私たちがやる</span>
+              <div class="rtm-ttl">② 下の「まず計算する」に入れて計算</div>
+              <div class="rtm-sub">本数と希望納期を入れると、<b>アイポーターに打つ税抜単価</b>が出ます（送料・ピックアップは自動で目安が入る）</div></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-you">⌨️</div><div class="rtm-bar rtm-b-you"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-you">🟠 私たちがやる</span>
+              <div class="rtm-ttl">③ 出てきた単価・納期をアイポーターに打つ</div>
+              <div class="rtm-sub">画面に出た数字を、そのまま端末に入力します</div></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-you">📄</div><div class="rtm-bar rtm-b-you"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-you">🟠 半自動</span>
+              <div class="rtm-ttl">④ 出てきた発注伝票（PDF）を「② 発注伝票を取り込む」に入れる</div>
+              <div class="rtm-sub">お届け先・商品・本数・納品予定日を<b>自動で拾って</b>、納品書のもとを作ります</div></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-you">👀</div><div class="rtm-bar rtm-b-you"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-you">🟠 いちばん大事</span>
+              <div class="rtm-ttl">⑤ 伝票と納品書がぴったり合っているか確認</div>
+              <div class="rtm-sub">入金確認がないぶん、ここだけは必ず。ちがうところはその場で直せます</div></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-btn">🖐</div><div class="rtm-bar rtm-b-btn"></div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-btn">🔵 ボタンを押す</span>
+              <div class="rtm-ttl">⑥ OKなら「出荷依頼書へ」をポン</div>
+              <div class="rtm-sub">この1回のボタンで、倉庫Dへ発送のお願いが飛びます</div>
+              <span class="rtm-btnface">📦 出荷依頼書へ</span></div>
+          </div>
+          <div class="rtm-step">
+            <div class="rtm-rail"><div class="rtm-dot rtm-d-wh">🏭</div></div>
+            <div class="rtm-c"><span class="rtm-tag rtm-t-auto">🟢 自動 → 倉庫</span>
+              <div class="rtm-ttl">⑦ 倉庫Dに届く → 荷造り・発送</div>
+              <div class="rtm-sub">同梱は「RT発注伝票 ＋ 納品書」。お支払いは後払い（月末に請求）</div></div>
+          </div>
+        </div>
+
+        <div class="rtm-why">
+          <h3>🧮 なぜ「計算」がいるの？（電卓で計算し直さなくて大丈夫）</h3>
+          <div class="rtm-why-row">
+            <div class="rtm-why-box rtm-why-a">うちの納品書は<br><b>オイル8%＋送料10%＋ピックアップ10%</b></div>
+            <span class="rtm-why-arrow">→</span>
+            <div class="rtm-why-box rtm-why-b">でもアイポーターは<br><b>送料の欄がなく、ぜんぶ8%あつかい</b></div>
+            <span class="rtm-why-arrow">→</span>
+            <div class="rtm-why-box rtm-why-c">だからこのツールが<br><b>単価に溶かし込んで逆算</b>して<br>ぴったり合わせます</div>
+          </div>
+          <div style="font-size:12px;color:#6b6459;font-weight:700;margin-top:9px;line-height:1.7">くわしい合わせ方（端数の切り捨て・1円合わない時のルール・検算OK）は、下の <b>①「まず計算する」</b> の中の「🧮 この計算は何をしているの？」を開くと出ます。</div>
+        </div>
+
+        <div class="rtm-who">
+          <div class="rtm-who-you">
+            <h4>🟠 私たち（中村・ゆか）がやること</h4>
+            <ul>
+              <li>「まず計算する」で単価を出す</li>
+              <li>出た単価・納期をアイポーターに打つ</li>
+              <li>発注伝票（PDF）を取り込む</li>
+              <li>伝票と納品書が合っているか確認</li>
+              <li>OKなら「📦 出荷依頼書へ」を押す</li>
+            </ul>
+          </div>
+          <div class="rtm-who-auto">
+            <h4>🟢 システムが自動でやること</h4>
+            <ul>
+              <li>送料・ピックアップの目安を自動で入れる</li>
+              <li>アイポーターに打つ単価を逆算する</li>
+              <li>発注伝票から中身を自動で拾う</li>
+              <li>「出荷依頼書へ」で倉庫Dへ届ける</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="rtm-foot">💡 まとめ：RTは<b>「計算して・端末に打って・伝票を取り込んで・確認して・ボタン1つ」</b>。入金確認がないので、<b>伝票と納品書が合っているかの確認</b>だけ忘れずに。</div>
+
+        <div class="rtm-closebar">
+          <button class="rtm-closebtn" type="button" onclick="var b=document.getElementById('rtm-book'); b.open=false; b.scrollIntoView({behavior:'smooth',block:'start'});">▲ この説明書を閉じる</button>
+        </div>
+
+      </div>
+    </details>
+    <!-- ▲▲ RT説明書ここまで ▲▲ -->
 
     <div class="card">
       <div class="sec">① まず計算する（単価と納期を出す）</div>
