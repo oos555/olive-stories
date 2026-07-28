@@ -452,6 +452,10 @@ th.center,td.center{text-align:center}
         <div style="font-size:13px;font-weight:700;color:#2b2a26">卸①→卸② 自動昇格</div>
         <div style="font-size:12px;color:#2b2a26;margin-top:3px;line-height:1.6">卸①のお客様が同じ商品を6箱以上で、その商品だけ自動的に卸②価格。</div>
       </div>
+      <div style="flex:1;min-width:220px;background:#fff;border:1px solid #e8e2d8;border-left:3px solid #2f6d3a;border-radius:8px;padding:10px 12px">
+        <div style="font-size:13px;font-weight:700;color:#2b2a26">RTGC（ゴルフ）区分</div>
+        <div style="font-size:12px;color:#2b2a26;margin-top:3px;line-height:1.6">ゴルフクラブ用の区分。<b>値段はRTと同じ</b>（RT価格）で、RT限定商品も出せます。請求書は<b>施設ごとに1枚ずつ</b>（RTホテルのようにまとめません）。お客様登録の「区分」で選べます。</div>
+      </div>
     </div>
   </div>
 
@@ -634,6 +638,7 @@ th.center,td.center{text-align:center}
             <option value="wholesale1">卸①</option>
             <option value="wholesale2">卸②</option>
             <option value="rt">RT</option>
+            <option value="rtgc">RTGC（ゴルフ）</option>
           </select>
         </div>
       </div>
@@ -1161,7 +1166,7 @@ const GROUP_CERT = {
   'その他オイル':{organic:'×',contamination:'×',analysis:'○'}
 };
 
-const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', defectprice:'不良在庫特価', hub:'卸②（旧・貢献ハブ）' }; // 貢献ハブは2026年7月廃止。過去に登録済みのお客様の表示・計算のためだけに残す
+const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', rtgc:'RTGC（ゴルフ）', defectprice:'不良在庫特価', hub:'卸②（旧・貢献ハブ）' }; // 貢献ハブは2026年7月廃止。過去に登録済みのお客様の表示・計算のためだけに残す
 
 /* ══════════════════════════════════════════════════════════════
    🏡 農園・公的証明書（2026-07-24 中村様指示）
@@ -1354,7 +1359,7 @@ function fmtDateJa(d){ return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.get
 const PRICE_CODE = { general:'TK', wholesale1:'OS1', wholesale2:'OS2', mix12:'OS12', basara:'BA', rt:'RT', defect:'FT', irregular:'IT' };
 // 請求書の暗号を決める：お客様区分＋明細の実効区分（卸①のお客様でも6箱昇格で卸②が混ざればOS12）
 function priceCodeForInvoice(custType, effTypes){
-  if(custType==='rt') return PRICE_CODE.rt;
+  if(custType==='rt' || custType==='rtgc') return PRICE_CODE.rt;
   if(custType==='general') return PRICE_CODE.general;
   if(custType==='defectprice') return PRICE_CODE.defect;
   if(custType==='wholesale2' || custType==='hub') return PRICE_CODE.wholesale2; // 旧・貢献ハブ（廃止済み）も卸②＝OS2扱い
@@ -1378,7 +1383,7 @@ function priceCodeMix(custType, effTypes, hasMix){
   return hasMix ? (base + '-MIX') : base;
 }
 /* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
-function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', rtgc:'RTG', defectprice:'FT'})[ctype] || 'TK'; }
 // 標準価格表ヘッダー右上に載せる会社の一言情報
 // ※「生産時期」は農園・商品ごとに変わり得るため、ひとまず一般的な文言を入れています。
 //   実際の収穫時期の表記に変更したい場合は、この harvestNote を書き換えてください。
@@ -1575,7 +1580,7 @@ function effectiveCustomerType(customerType, boxes){
 function priceForSku(sku, customerType){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
   if(!p) return 0;
-  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', defectprice:'priceDefect', hub:'priceWholesale2', basara:'priceBasara', oldlot:'priceOldLot', defect:'priceDefect', special:'priceSpecial' };
+  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', defectprice:'priceDefect', hub:'priceWholesale2', basara:'priceBasara', oldlot:'priceOldLot', defect:'priceDefect', special:'priceSpecial' };
   const key = map[customerType] || 'priceGeneral';
   return parseFloat(p[key])||0;
 }
@@ -1617,8 +1622,8 @@ async function registerNewCustomer(){
   if(!name && !contact){ alert('会社名か担当者名の、どちらか一方は入力してください'); return; }
   // 区分の取り違え防止アラートは安全のため残す
   if(gateType==='rt'){
-    if(type!=='rt'){ alert('最初に「RT」を選んでいます。区分を「RT」にするか、上のゲート選択からやり直してください。'); return; }
-  } else if(gateType==='wholesale' && type==='rt'){ alert('最初に「卸し」を選んでいます。区分を「RT」以外にするか、上のゲート選択からやり直してください。'); return; }
+    if(type!=='rt' && type!=='rtgc'){ alert('最初に「RT」を選んでいます。区分を「RT」または「RTGC（ゴルフ）」にするか、上のゲート選択からやり直してください。'); return; }
+  } else if(gateType==='wholesale' && (type==='rt' || type==='rtgc')){ alert('最初に「卸し」を選んでいます。区分を「RT」「RTGC（ゴルフ）」以外にするか、上のゲート選択からやり直してください。'); return; }
   else if(gateType==='general' && type!=='general'){ alert('最初に「一般」を選んでいます。区分を「定価」にするか、上のゲート選択からやり直してください。'); return; }
   const newCust = {
     id: 'c'+Date.now(), name: name || contact, type: type,
@@ -1752,7 +1757,7 @@ function qcChooseNew(){
 function selectRtGate(gateType){ confirmRtGate(gateType); }
 // お客様の区分から入口タイプ(gateType)を決める（2026-07-17 入口ゲート廃止）
 function kubunFromCustomerType(ctype){
-  if(ctype==='rt') return 'rt';
+  if(ctype==='rt' || ctype==='rtgc') return 'rt';
   if(ctype==='wholesale1' || ctype==='wholesale2' || ctype==='hub') return 'wholesale';
   return 'general';
 }
@@ -2013,7 +2018,7 @@ function onQuoteCustomerChange(){
     if(typeof v3AutoPastFind==='function') v3AutoPastFind();
     return;
   }
-  const badgeInfo = GATE_LABELS[c.type==='rt'?'rt':(c.type==='wholesale1'||c.type==='wholesale2'||c.type==='hub'?'wholesale':'general')];
+  const badgeInfo = GATE_LABELS[(c.type==='rt'||c.type==='rtgc')?'rt':(c.type==='wholesale1'||c.type==='wholesale2'||c.type==='hub'?'wholesale':'general')];
   const badge = '<span class="no-print" style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px;background:'+badgeInfo.bg+';color:'+badgeInfo.color+';border:1px solid '+badgeInfo.border+'">'+badgeInfo.label+'（社内用）</span>';
   var memoLine = '';
   if(c.contactMethod || c.note){ memoLine = '<div class="no-print" style="margin-top:6px;background:#fffbeb;border:1px solid #f0c96a;border-radius:6px;padding:6px 9px;font-size:12px;color:#78350f"><b>💬 社内メモ</b>（お客様には出ません）'+(c.contactMethod?'<br>連絡：'+esc(c.contactMethod):'')+(c.note?'<br>'+esc(c.note):'')+'</div>'; }
@@ -2786,7 +2791,7 @@ var V3_RT_LIMIT_LIFTED = ['BAG001', 'BAG002'];
 function quoteAllowedProducts(c){
   return PRODUCTS.filter(function(p){
     if(!isProductActive(p)) return false;
-    if(c.type!=='rt'){
+    if(c.type!=='rt' && c.type!=='rtgc'){
       if(p.noWholesale && V3_RT_LIMIT_LIFTED.indexOf(p.sku) < 0) return false;
       if(p.sku==='ORG100' || p.sku==='MEM100' || p.sku==='CHF100') return false;
     }
@@ -2813,7 +2818,7 @@ function quoteItemOptionList(c, includeSampleOnly){
   // 「イレギュラー見積り」は一品ずつ選ぶための例外的な入口なので、備品のデフォルトOFFはここには適用しない。
   // お客様に対して明示的に保存されたホワイトリスト（見せない商品）だけを反映する。
   let finalList = Array.isArray(c.whitelist) ? allowedList.filter(p=>c.whitelist.indexOf(p.sku)>=0) : allowedList;
-  if(includeSampleOnly && c.type!=='rt'){
+  if(includeSampleOnly && c.type!=='rt' && c.type!=='rtgc'){
     // サンプル（無償・有償）はRT限定の単品制限を回避できる（既存ルール）
     const have = new Set(finalList.map(p=>p.sku));
     PRODUCTS.filter(function(p){ return isProductActive(p) && !have.has(p.sku) && (p.noWholesale || p.sku==='ORG100' || p.sku==='MEM100' || p.sku==='CHF100'); })
@@ -3231,7 +3236,7 @@ function specPriceColForType(custType){
   const t = effectiveCustomerType(custType, 0); // hub→卸②の互換もここで吸収
   if(t==='wholesale1') return {label:'卸価格①', type:'wholesale1'};
   if(t==='wholesale2') return {label:'卸価格②', type:'wholesale2'};
-  if(t==='rt') return {label:'卸価格', type:'rt'};
+  if(t==='rt' || t==='rtgc') return {label:'卸価格', type:'rt'};
   if(t==='defectprice') return {label:'特価', type:'defectprice'};
   return null; // 一般＝オープン価格のみ
 }
@@ -3883,7 +3888,7 @@ function priceListPriceColumns(customerType, specTiers){
       return t==='general' ? {type:'general',label:'オープン価格'} : specTierColDef(t);
     }).filter(Boolean);
   }
-  if(customerType==='rt') return [{type:'general',label:'オープン価格'},{type:'rt',label:'卸価格'}];
+  if(customerType==='rt' || customerType==='rtgc') return [{type:'general',label:'オープン価格'},{type:'rt',label:'卸価格'}];
   if(customerType==='wholesale1' || customerType==='wholesale2') return [{type:'general',label:'オープン価格'},{type:'wholesale1',label:'卸①'},{type:'wholesale2',label:'卸②'}];
   return [{type:'general',label:'オープン価格'}];
 }
@@ -3991,9 +3996,9 @@ function buildPriceListDocHtml(record, c){
   if(showStk) html += '<div style="font-size:10.5px;color:#3b6d11;margin:6px 2px 0">'+MARU+'＝在庫たくさん（ご安心ください）。数字は「残りわずか」の目安です。</div>';
 
   var feeLines='';
-  var isWhole=(record.customerType==='wholesale1'||record.customerType==='wholesale2'||record.customerType==='hub'||record.customerType==='rt');
+  var isWhole=(record.customerType==='wholesale1'||record.customerType==='wholesale2'||record.customerType==='hub'||record.customerType==='rt'||record.customerType==='rtgc');
   var pickFeeMode = record.pickFeeMode || (isWhole?'service':'none');
-  var f=(record.customerType==='rt')?700:250;
+  var f=(record.customerType==='rt'||record.customerType==='rtgc')?700:250;
   if(pickFeeMode==='charge') feeLines += '<div style="display:flex;justify-content:space-between"><span>ピッキング手数料（バラ・卸）</span><span><b>¥'+f.toLocaleString()+'</b></span></div>';
   else if(pickFeeMode==='service') feeLines += '<div style="display:flex;justify-content:space-between"><span>ピッキング手数料（バラ・卸）</span><span><s style="color:#b9b2a3">¥'+f.toLocaleString()+'</s> <b style="color:#16a34a">サービス ¥0</b></span></div>';
   if(record.shippingService) feeLines += '<div style="display:flex;justify-content:space-between"><span>送料</span><span><b style="color:#16a34a">サービス ¥0</b></span></div>';

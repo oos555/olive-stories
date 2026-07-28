@@ -67,6 +67,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .lb-caution{background:#fef3c7;border:2px solid #d9a441;color:#78350f}
 .ctype-pill{display:inline-block;font-size:14px;font-weight:700;padding:5px 14px;border-radius:99px;margin:2px 4px 2px 0}
 .ctype-rt{background:#f3e8ff;color:#6b21a8}
+.ctype-rtgc{background:#dcfce7;color:#14532d}
 .ctype-w1{background:#dbeafe;color:#1e3a8a}
 .ctype-w2{background:#e0e7ff;color:#3730a3}
 .rt-docs{background:#fff8ea;border:2px solid #d9a441;border-radius:10px;padding:12px;margin-bottom:12px}
@@ -97,6 +98,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .badge-wholesale1{background:#dbeafe;color:#1e3a8a}
 .badge-wholesale2{background:#e0e7ff;color:#3730a3}
 .badge-rt{background:#f3e8ff;color:#6b21a8}
+.badge-rtgc{background:#dcfce7;color:#14532d}
 .badge-defectprice{background:#fee2e2;color:#7f1d1d}
 .invoice-notice{margin-top:1.2rem;padding-top:1rem;border-top:1px solid #e8e2d8;font-size:10.5px;color:#2b2a26;line-height:1.7}
 .summary-card{background:#6b7a3a;color:#fff;border-radius:12px;padding:16px;margin-bottom:14px;text-align:center}
@@ -320,7 +322,7 @@ async function gateUnlock(){
 gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
-function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','不良在庫特価':'defectprice'})[v] || v; }
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','不良在庫特価':'defectprice'})[v] || v; }
 const LEAD_LABEL = {normal:'通常（1週間以内にお届け）', urgent:'🚨急ぎ（翌営業日までに発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
 // ── 日付はすべて日本時間（JST, UTC+9）を基準に解釈する ──
@@ -583,7 +585,7 @@ async function initializeProducts(){
   }
 }
 
-const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
+const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', rtgc:'卸●', defectprice:'特化' };
 const COMPANY_WEBSITE = 'https://oliveoilstories.net/';
 const COMPANY_EMAIL = 'office@oliveoilstories.net';
 
@@ -1011,6 +1013,7 @@ function renderList(){
     + '<div style="background:#eef3e0;border:2px solid #6b7a3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:12px;line-height:1.7">📦 <b>「梱包完了」を押すと</b>：この注文は出荷待ち一覧から消えます（作業おわりの記録になります）。実際の発送は下の「いつ発送？」の期日内でOK。当日でなくてかまいません。</div>'
     + '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⏰ <b>いつ発送？</b>：画面上の色帯（発送区分）にしたがってください。通常は出荷依頼書が届いた日を1日目として1週間以内にお客様のお手元に届くように発送／🚨急ぎは翌営業日までに発送／🗓 日付指定はその日に。</div>'
     + '<div style="background:#fbeaea;border:2px solid #dc2626;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">🏨 <b>RT（ホテル・レストラン）の注文は特に注意</b>：<b>① RT発注伝票（端末の伝票）＋ ② 納品書</b>の2点を<b>必ず</b>同梱してください。</div>'
+    + '<div style="background:#eef7ef;border:2px solid #2f6d3a;border-radius:10px;padding:11px 13px;color:#2b2a26;font-size:13px;font-weight:500;margin-top:10px;line-height:1.7">⛳ <b>ゴルフ（RTGC）の注文</b>：カードに「⛳ 卸（ゴルフ・RTGC）」と出ます。<b>RT（ホテル）と全く同じ</b>あつかいで、<b>① RT発注伝票（端末の伝票）＋ ② 納品書</b>の2点を<b>必ず</b>同梱してください。お届けも<b>できる範囲で午前着</b>でお願いします。</div>'
     + '</div></details>';
   if(overdue){
     html += '<div class="alert-danger no-print">⏰ 出荷期限を過ぎているものが'+overdue+'件あります。優先して確認してください。</div>';
@@ -1101,7 +1104,7 @@ function renderAlreadyShipped(){
 }
 
 function leadBandHtml(o){
-  const isRt = o.customerType === 'rt';
+  const isRt = (o.customerType === 'rt' || o.customerType === 'rtgc'); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
   const amNote = isRt ? '<div class="lb-sub" style="font-weight:600;margin-top:6px;font-size:13px;line-height:1.5">🕐 できるだけ午前中着でお願いします<br><span style="font-size:12px">（難しい時は午後着でもOKです）</span></div>' : '';
   if(o.leadType==='urgent'){
     return '<div class="lead-band lb-urgent"><div class="lb-title">⚡ 急ぎ</div><div class="lb-sub">翌営業日までに発送してください</div>'+amNote+'</div>';
@@ -1120,13 +1123,14 @@ function leadBandHtml(o){
 }
 function customerTypePillHtml(o){
   if(o.customerType==='rt') return '<span class="ctype-pill ctype-rt">🏨 卸（ホテル・RT）</span>';
+  if(o.customerType==='rtgc') return '<span class="ctype-pill ctype-rtgc">⛳ 卸（ゴルフ・RTGC）</span>';
   if(o.customerType==='wholesale1') return '<span class="ctype-pill ctype-w1">🏪 卸①（販売店）</span>';
   if(o.customerType==='wholesale2') return '<span class="ctype-pill ctype-w2">🏪 卸②（販売店）</span>';
   return '';
 }
 function renderOrder(){
   const o = currentOrder;
-  const isRt = o.customerType === 'rt';
+  const isRt = (o.customerType === 'rt' || o.customerType === 'rtgc'); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   const orderHasNoshi = hasNoshi(o);
   let html = '';
