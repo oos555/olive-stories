@@ -442,6 +442,7 @@ body{background:#fff}
 
     <div class="fg">
       <label>お客様名（発注元） <span style="font-size:11px;color:#2b2a26">（選択または直接入力）</span></label>
+      <input type="text" id="o-customer-search" placeholder="🔍 お名前でしぼり込み（例：東京 と入れると「東京〜」だけ出ます）" oninput="filterCustomerSelect()" style="margin-bottom:6px;font-size:14px">
       <div style="display:flex;gap:6px">
         <select id="o-customer-select" onchange="onCustomerSelect()" style="flex:1"><option value="">マスタから選択...</option></select>
         <button class="btn-sm" onclick="clearCustomerSelect()" title="クリア">✕</button>
@@ -457,7 +458,7 @@ body{background:#fff}
     <div class="fg"><label>発注元住所</label><input type="text" id="o-addr" placeholder="東京都..."></div>
     <div class="fg"><label>社内メモ（このお客様についての備考）</label><input type="text" id="o-memo" placeholder="例：いつも急ぎ希望、支払いは月末締めなど"></div>
     <div class="fg"><label>この情報をお客様マスタに保存する</label>
-      <label style="font-weight:400;font-size:12px;color:#2b2a26"><input type="checkbox" id="o-save-customer" style="width:auto;display:inline-block;margin-right:6px">新規お客様として保存</label>
+      <label style="font-weight:400;font-size:12px;color:#2b2a26"><input type="checkbox" id="o-save-customer" style="width:auto;display:inline-block;margin-right:6px"><span id="o-save-customer-label">新規お客様として保存</span></label>
     </div>
 
     <details style="margin-bottom:14px"><summary style="cursor:pointer;font-size:11px;color:#2b2a26">📌 納品書の区分表記ルール（社内用メモ）</summary>
@@ -1770,6 +1771,20 @@ function updCustomerSelects(){
   const sel = document.getElementById('o-customer-select');
   sel.innerHTML = '<option value="">マスタから選択...</option>' +
     customers.map(c=>'<option value="'+c.id+'">'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>').join('');
+  filterCustomerSelect();
+}
+// お名前でしぼり込み：検索ボックスに入れた文字を含むお客様だけをマスタ一覧に出す
+function filterCustomerSelect(){
+  var box = document.getElementById('o-customer-search');
+  var sel = document.getElementById('o-customer-select');
+  if(!sel) return;
+  var q = box ? (box.value||'').trim().toLowerCase() : '';
+  var keep = document.getElementById('o-client') ? (document.getElementById('o-client').dataset.custId||'') : '';
+  var list = customers;
+  if(q){ list = customers.filter(function(c){ return (c.name||'').toLowerCase().indexOf(q)>=0; }); }
+  var head = q ? ('該当 '+list.length+'件（開いて選んでください）') : 'マスタから選択...';
+  sel.innerHTML = '<option value="">'+head+'</option>' +
+    list.map(function(c){ return '<option value="'+c.id+'"'+(c.id==keep?' selected':'')+'>'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'; }).join('');
 }
 let selectedCustomerRecord = null;
 function onCustomerSelect(){
@@ -1786,7 +1801,10 @@ function onCustomerSelect(){
   document.getElementById('o-tel').value = c.tel||'';
   document.getElementById('o-memo').value = c.note||'';
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
+  var _lbl=document.getElementById('o-save-customer-label');
+  if(_lbl) _lbl.textContent='このお客様の情報を上書き保存する（住所・電話などを直したら押す）';
   showPrevOrderType(c); // ② 前回はこちら（注文履歴から・流れは変えない）
+  if(typeof onCtypeChange==='function') onCtypeChange(); // 区分の既定を適用（RT・RTGCなら同梱書類＝RT発注伝票＋納品書を自動セット）
 }
 function showPrevOrderType(c){
   var el = document.getElementById('ctype-prev-info');
@@ -1812,12 +1830,17 @@ function clearCustomerSelect(){
   selectedCustomerRecord = null;
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
   var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
+  var _lbl=document.getElementById('o-save-customer-label'); if(_lbl) _lbl.textContent='新規お客様として保存';
+  var _sc=document.getElementById('o-save-customer'); if(_sc) _sc.checked=false;
+  var _cs=document.getElementById('o-customer-search'); if(_cs){ _cs.value=''; }
+  filterCustomerSelect();
 }
 function onClientInput(){
   document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').dataset.custId = '';
   selectedCustomerRecord = null;
   var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
+  var _lbl=document.getElementById('o-save-customer-label'); if(_lbl) _lbl.textContent='新規お客様として保存';
 }
 function onRecordTypeChange(){
   const sel = document.getElementById('o-record-type');
@@ -1864,8 +1887,8 @@ function onCtypeChange(){
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
   const pam = document.getElementById('o-include-pamphlet');
   if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='rtgc' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
-  // ゆかさん要望③④：RTを選んだら 発送区分＝日程指定・同梱書類＝RT発注伝票＋納品書 を自動セット（手で変更可）
-  if(sel.value==='rt'){
+  // ゆかさん要望③④：RT・RTGCを選んだら 発送区分＝日程指定・同梱書類＝RT発注伝票＋納品書 を自動セット（手で変更可）
+  if(sel.value==='rt' || sel.value==='rtgc'){
     document.querySelectorAll('.recipient-card [data-role=lead]').forEach(function(ls){
       if(ls.value==='normal'){ ls.value='scheduled'; ls.dispatchEvent(new Event('change')); }
     });
@@ -2761,15 +2784,29 @@ function registerOrder(){
   list.forEach(o=>orders.push(o));
   list.forEach(logGiftIfApplicable);
   const saveCustomer = list[0].saveCustomer;
-  if(saveCustomer && !list[0].custId){
-    customers.push({
-      id:'c'+Date.now(), name: document.getElementById('o-client').value,
-      zip: document.getElementById('o-zip').value, addr: document.getElementById('o-addr').value,
-      tel: document.getElementById('o-tel').value, type: list[0].customerType,
-      recycle:false, note: document.getElementById('o-memo').value
-    });
-    updCustomerSelects();
-    saveCustomersToGAS();
+  if(saveCustomer){
+    if(list[0].custId){
+      // マスタから呼び出したお客様を上書き（メールアドレスなど他の項目は消さずに残す）
+      var _c = customers.find(function(x){ return x.id==list[0].custId; });
+      if(_c){
+        _c.name = document.getElementById('o-client').value || _c.name;
+        _c.zip  = document.getElementById('o-zip').value;
+        _c.addr = document.getElementById('o-addr').value;
+        _c.tel  = document.getElementById('o-tel').value;
+        _c.note = document.getElementById('o-memo').value;
+        updCustomerSelects();
+        saveCustomersToGAS();
+      }
+    } else {
+      customers.push({
+        id:'c'+Date.now(), name: document.getElementById('o-client').value,
+        zip: document.getElementById('o-zip').value, addr: document.getElementById('o-addr').value,
+        tel: document.getElementById('o-tel').value, type: list[0].customerType,
+        recycle:false, note: document.getElementById('o-memo').value, email:''
+      });
+      updCustomerSelects();
+      saveCustomersToGAS();
+    }
   }
   const recordType = list[0].status;
   if(recordType==='pending'){
@@ -2814,6 +2851,9 @@ function clearForm(){
   document.getElementById('o-tel').value = '';
   document.getElementById('o-memo').value = '';
   document.getElementById('o-save-customer').checked = false;
+  var _lbl2=document.getElementById('o-save-customer-label'); if(_lbl2) _lbl2.textContent='新規お客様として保存';
+  var _cs2=document.getElementById('o-customer-search'); if(_cs2){ _cs2.value=''; }
+  if(typeof filterCustomerSelect==='function') filterCustomerSelect();
   Array.prototype.slice.call(document.querySelectorAll('.enc-doc')).forEach(function(x){ x.checked = (x.value==='納品書' && !x.getAttribute('data-doc')); });
   if(document.getElementById('o-enclosed-doc-custom')){ document.getElementById('o-enclosed-doc-custom').value = ''; }
   if(document.getElementById('o-enclosed-doc-custom-wrap')){ document.getElementById('o-enclosed-doc-custom-wrap').style.display = 'none'; }
