@@ -31,6 +31,21 @@
   .switch button{background:#fff;border:1.5px solid #ddd4c7;color:#2b2a26;font-weight:700;padding:8px 15px;border-radius:999px;cursor:pointer;font-size:14px;}
   .switch button.on{background:#a3b18a;color:#fff;border-color:#a3b18a;}
   .search{width:100%;padding:11px 14px;font-size:16px;border:1.5px solid #b9b09c;border-radius:12px;margin-bottom:14px;}
+  .faclist-toggle{width:100%;background:#fff;border:1.5px solid #a3b18a;color:#4d5a24;font-weight:800;padding:11px 14px;border-radius:12px;font-size:15px;cursor:pointer;margin-bottom:12px;}
+  .faclist-toggle.on{background:#6b7a3a;color:#fff;border-color:#6b7a3a;}
+  .fl-note{background:#f7f9f3;border:1.5px solid #b7cf93;border-radius:11px;padding:10px 13px;font-size:12.5px;color:#4d5a24;line-height:1.7;margin-bottom:10px;}
+  .fl-actions{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .fl-copy{background:#e5eecf;border:1px solid #b7cf93;color:#3f4a1d;font-weight:700;border-radius:999px;padding:7px 13px;font-size:13px;cursor:pointer;}
+  .fl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #ece5da;border-radius:12px;}
+  .fl-tb{border-collapse:collapse;width:100%;font-size:13.5px;background:#fff;min-width:520px;}
+  .fl-tb th{background:#eef2e4;color:#4d5a24;text-align:left;padding:9px 11px;border-bottom:1.5px solid #d7e0c4;white-space:nowrap;position:sticky;top:0;}
+  .fl-tb td{padding:9px 11px;border-bottom:1px solid #f0ece3;vertical-align:top;}
+  .fl-tb tr:last-child td{border-bottom:none;}
+  .fl-fac b{font-weight:800;}
+  .fl-role{display:inline-block;background:#f1ece3;color:#6b5124;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:2px;}
+  .fl-tel a{color:#2563eb;text-decoration:none;font-weight:700;white-space:nowrap;}
+  .fl-fax{color:#57534e;white-space:nowrap;}
+  .fl-na{color:#b8b2a6;}
 
   .card{background:#fff;border:1px solid #ece5da;border-radius:14px;padding:15px 16px;margin-bottom:13px;}
   .card h3{font-family:"Zen Maru Gothic",sans-serif;font-size:18px;margin:0 0 2px;}
@@ -258,7 +273,9 @@
       <button id="sw-chef" onclick="setMode('chef')">👨‍🍳 シェフで</button>
       <button id="sw-genre" onclick="setMode('genre')">🍳 ジャンルで</button>
     </div>
-    <input class="search" id="q" placeholder="🔎 施設名・シェフ名・オイル名で絞る（例：野口、ラグーナ、オルガニック）" oninput="renderDaicho()">
+    <input class="search" id="q" placeholder="🔎 施設名・シェフ名・オイル名で絞る（例：野口、ラグーナ、オルガニック）" oninput="renderDaicho();if(facListOn)renderFacList();">
+    <button id="faclist-btn" class="faclist-toggle" onclick="toggleFacList()">📋 施設だけの一覧（料理長・電話・FAX）を見る</button>
+    <div id="faclist" style="display:none"></div>
     <div id="list"></div>
   </div>
 
@@ -764,6 +781,80 @@ function nav(w){
   if(w==='people') renderPeople();
   if(w==='ugoki') renderUgoki();
   if(w==='ai') renderAI();
+}
+
+/* ===== 📋 施設だけの一覧（連絡先） =====
+   この台帳（FAC＋人物カード）そのものを映した施設リスト。
+   受注A・住所録の施設リストは、こちらを大元とした「写し」という位置づけ。 */
+var facListOn=false;
+function toggleFacList(){
+  facListOn=!facListOn;
+  var b=document.getElementById('faclist-btn');
+  b.textContent = facListOn ? '↩︎ 台帳（くわしい表示）にもどる' : '📋 施設だけの一覧（料理長・電話・FAX）を見る';
+  b.classList.toggle('on', facListOn);
+  document.getElementById('faclist').style.display = facListOn ? 'block':'none';
+  document.getElementById('list').style.display     = facListOn ? 'none':'block';
+  if(facListOn) renderFacList();
+}
+/* 「…（代表）／…　FAX …」の1本の文字列を、電話とFAXに分ける */
+function telFax(s){
+  s=String(s||'');
+  var p=s.split(/ｆａｘ|fax/i);
+  var tel=(p[0]||'').replace(/[　\s]+$/,'').trim();
+  var fax=(p.slice(1).join(' ')||'').replace(/^[\s　:：]+/,'').trim();
+  return {tel:tel, fax:fax};
+}
+/* tel: リンク用に、文字列から最初の電話番号だけ取り出す */
+function firstNum(s){
+  var m=String(s||'').match(/[0-9０-９][0-9０-９\-]{6,}/);
+  return m ? m[0].replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);}) : '';
+}
+/* その施設の「伝票に出る」現任の料理長（お名前・役職）。人物カードを正とし、無ければ施設の現シェフ表記で代用 */
+function mainChef(f){
+  var cands=(typeof PEOPLE!=='undefined'?PEOPLE:[]).filter(function(p){
+    return p && p.fac===f && p.status==='現任' && p.type==='シェフ（料理長）';
+  });
+  function rank(r){ r=r||''; if(/総料理長/.test(r))return 4; if(/料理長/.test(r)&&!/副/.test(r))return 3; if(/副料理長/.test(r))return 2; if(/チーフ/.test(r))return 1; return 0; }
+  cands.sort(function(a,b){ return rank(b.role)-rank(a.role); });
+  if(cands.length) return {name:cands[0].name, role:cands[0].role||''};
+  return {name:(FAC[f]&&FAC[f].cur)||'', role:''};
+}
+function facListKeys(q){
+  return Object.keys(FAC).filter(function(f){
+    var mc=mainChef(f);
+    return match(q, f+' '+facAlias(f)+' '+mc.name+' '+mc.role+' '+((FAC[f].tel)||''));
+  }).sort();
+}
+function renderFacList(){
+  var q=document.getElementById('q').value.trim();
+  var keys=facListKeys(q);
+  var box=document.getElementById('faclist');
+  if(!keys.length){ box.innerHTML='<div class="empty">見つかりませんでした。</div>'; return; }
+  var rows=keys.map(function(f){
+    var d=FAC[f], mc=mainChef(f), tf=telFax(d.tel), tnum=firstNum(tf.tel);
+    var telCell = tf.tel ? (tnum?'<a href="tel:'+tnum+'">'+esc(tf.tel)+'</a>':esc(tf.tel)) : '<span class="fl-na">—</span>';
+    var faxCell = tf.fax ? esc(tf.fax) : '<span class="fl-na">—</span>';
+    var chef = mc.name ? esc(mc.name) : '<span class="fl-na">—</span>';
+    var role = mc.role ? ' <span class="fl-role">'+esc(mc.role)+'</span>' : '';
+    return '<tr>'+
+      '<td class="fl-fac"><b>'+esc(f)+'</b><span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></td>'+
+      '<td>'+chef+role+'</td>'+
+      '<td class="fl-tel">'+telCell+'</td>'+
+      '<td class="fl-fax">'+faxCell+'</td>'+
+    '</tr>';
+  }).join('');
+  box.innerHTML=
+    '<div class="fl-note">この一覧は<b>この台帳（施設＋人物カード）そのもの</b>を映したものです。施設が増えたり料理長が代わると、ここも自動で変わります。<br>受注A・住所録にある施設リストは、こちらを大元とした<b>写し</b>という位置づけです。</div>'+
+    '<div class="fl-actions"><button class="fl-copy" onclick="copyFacList()">📋 表をコピー（スプレッドシート用）</button><span class="mini">'+keys.length+'施設</span></div>'+
+    '<div class="fl-scroll"><table class="fl-tb"><thead><tr><th>施設名</th><th>料理長（役職）</th><th>電話</th><th>FAX</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function copyFacList(){
+  var keys=facListKeys(document.getElementById('q').value.trim());
+  var lines=['施設名\t料理長\t役職\t電話\tFAX'];
+  keys.forEach(function(f){ var mc=mainChef(f), tf=telFax(FAC[f].tel); lines.push([f,mc.name,mc.role,tf.tel,tf.fax].join('\t')); });
+  var txt=lines.join('\n');
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }); }
+  else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }
 }
 
 /* ---- 集計ヘルパ ---- */
