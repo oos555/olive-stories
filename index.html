@@ -2658,7 +2658,18 @@ function previewOrder(){
         html += '<div style="color:#8a5a1c;font-weight:700;background:#fdf6ee;padding:4px 8px;border-radius:6px">🎀 熨斗：'+(n.title||'（表書き未設定）')+'／'+(n.name||'（名前未設定）')+(sub?'　'+sub:'')+'</div>';
       }
       html += '<div>送り主表記：'+o.senderName+'</div>';
-      html += '<div>'+o.lines.map(l=>'・'+l.productName+' × バラ'+l.bottles+'＋箱'+l.boxes+'　＝<strong>合計'+lineTotal(l)+'本</strong>'+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')).join('<br>')+'</div>';
+      html += '<div>'+o.lines.map(function(l){
+        var cond = (l.condition==='old')
+          ? '　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 9px;border-radius:99px">旧ロット</span>'
+          : (l.condition==='defect')
+          ? '　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 9px;border-radius:99px">不良</span>'
+          : '　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 9px;border-radius:99px">正規</span>';
+        var gift = (l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'');
+        var memo = (l.memo && String(l.memo).trim())
+          ? '<div style="background:#fffaf0;border-left:3px solid #e0b45f;color:#7a5a12;font-weight:700;padding:3px 8px;border-radius:0 6px 6px 0;margin:3px 0 6px 14px;font-size:12.5px">📝 メモ：'+esc(l.memo)+'</div>'
+          : '';
+        return '<div style="padding:2px 0">・'+esc(l.productName)+' × バラ'+l.bottles+'＋箱'+l.boxes+'　＝<strong>合計'+lineTotal(l)+'本</strong>'+cond+gift+'</div>'+memo;
+      }).join('')+'</div>';
       html += '</div>';
     });
     html += '</div>';
