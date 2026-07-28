@@ -588,7 +588,7 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" id="meibo-new-btn" style="display:none" onclick="meiboStartNew('')">➕ 新しい商品をつくる</button>
     <button class="btn-sm" onclick="cleanEmptyLots()">🧹 空っぽのロットを片づける</button>
     <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
-    <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 未入力の容器をルールでまとめて保存</button>
+    <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 容器をルールでまとめて直す（未入力・生産地の混入）</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
@@ -2690,7 +2690,9 @@ function containerVolumeMl(p){
 }
 function containerFor(p){
   if(!p) return '';
-  if(p.container && String(p.container).trim()) return String(p.container).trim(); // 保存済み優先
+  var saved = p.container ? String(p.container).trim() : '';
+  // ★2026-07-28 容器欄に「生産地」が紛れ込んでいる不具合対策：容器＝生産地なら混入とみなして無視し、ルールで出し直す
+  if(saved && saved !== originOf(p)) return String(saved); // 保存済み優先（ただし生産地の混入は除く）
   if(typeof mIsSet==='function' && mIsSet(p)) return ''; // セット商品は容器を自動判定しない
   var sku=String(p.sku||'').toUpperCase();
   var ml=containerVolumeMl(p);
@@ -2779,7 +2781,10 @@ function mDash(){ return '<span class="dash">—</span>'; }
 function meiboContainerTargets(){
   return PRODUCTS.filter(function(p){
     if(!p || !p.sku) return false;
-    if(p.container && String(p.container).trim()) return false; // すでに容器が入っている商品はさわらない
+    var saved = p.container ? String(p.container).trim() : '';
+    // ★2026-07-28 生産地が紛れ込んだ容器（容器＝生産地）は「未設定」とみなし、直す対象に含める
+    var validSaved = saved && saved !== originOf(p);
+    if(validSaved) return false; // すでに正しい容器が入っている商品はさわらない
     return !!containerFor(p);  // ルールで容器が決まるものだけ（セット・ルール外は空なので除外）
   });
 }
@@ -2788,7 +2793,7 @@ async function meiboFillContainers(){
   var list = meiboContainerTargets();
   if(!list.length){ alert('容器を入れる商品はありませんでした。\n\n（すでに全部入っているか、ルール対象の商品がありません）'); return; }
   var preview = list.map(function(p){ return '\u30fb' + (p.name||p.sku) + ' \u2192 ' + containerFor(p); }).join('\n');
-  if(!confirm('\u672a\u5165\u529b\u306e\u5bb9\u5668\u3092\u3001\u30eb\u30fc\u30eb\u3067\u307e\u3068\u3081\u3066\u4fdd\u5b58\u3057\u307e\u3059\uff08' + list.length + '\u4ef6\uff09\u3002\n\n' + preview + '\n\n\u3059\u3067\u306b\u5bb9\u5668\u304c\u5165\u3063\u3066\u3044\u308b\u5546\u54c1\u306f\u3055\u308f\u308a\u307e\u305b\u3093\u3002\u3088\u308d\u3057\u3044\u3067\u3059\u304b\uff1f')) return;
+  if(!confirm('容器を、ルールでまとめて直します（' + list.length + '件）。\n※未入力の商品と、容器欄に生産地が入ってしまった商品が対象です。\n\n' + preview + '\n\nすでに正しい容器が入っている商品はさわりません。よろしいですか？')) return;
   if(btn){ btn.disabled = true; }
   var ok = 0, ng = [];
   for(var i=0; i<list.length; i++){
@@ -2819,7 +2824,7 @@ async function meiboFillContainers(){
       }
     }catch(e){ ng.push(p.sku + '（通信エラー）'); }
   }
-  if(btn){ btn.disabled = false; btn.textContent = '\U0001F9F4 \u672a\u5165\u529b\u306e\u5bb9\u5668\u3092\u30eb\u30fc\u30eb\u3067\u307e\u3068\u3081\u3066\u4fdd\u5b58'; }
+  if(btn){ btn.disabled = false; btn.textContent = '🧴 容器をルールでまとめて直す（未入力・生産地の混入）'; }
   try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : [])); }catch(e){}
   renderMeibo();
   var msg = '\u2705 ' + ok + '\u4ef6\u306e\u5bb9\u5668\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f\u3002';
@@ -2854,7 +2859,7 @@ async function meiboImportBuiltinJan(){
       origin: p.origin || '',
       '農園': meiboFieldOf(p, '農園') || meiboFieldOf(p, '農園名'),
       '出荷単位': shipUnitOf(p) || '',
-      container: p.container || '',
+      container: containerFor(p),
       noWholesale: !!p.noWholesale,
       active: (p.active !== false),
       'バーコード': String(BUILTIN_JAN[p.sku])
@@ -3089,7 +3094,7 @@ function meiboEditRowHtml(p, sp){
   var _ml = isNew ? null : meiboMainLot(p);   /* ★2026-07-24 いま使っているロット */
   var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
-                    origin:sp.origin||'', farm:sp.farm||'', container:(p.container||containerFor(p)), shipUnit:shipUnitOf(p),
+                    origin:sp.origin||'', farm:sp.farm||'', container:containerFor(p), shipUnit:shipUnitOf(p),
                     barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'),
                     lotCode:(_ml && _ml.lotCode && _ml.lotCode!=='-') ? _ml.lotCode : '',
                     expiry:(_ml && _ml.expiry) ? _ml.expiry : '',
@@ -3306,7 +3311,7 @@ function renderMeibo(){
         '<td style="background:#fbf9f4">'+(shipUnitOf(p)?'<span class="spec">'+esc(shipUnitOf(p))+'</span>':mDash())+'</td>'+
         '<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'+
         '<td class="num">'+(p.boxQty?esc(p.boxQty)+'本':mDash())+'</td>'+
-        '<td>'+((p.container||containerFor(p))?'<span class="spec">'+esc(p.container||containerFor(p))+'</span>':mDash())+'</td>'+
+        '<td>'+(containerFor(p)?'<span class="spec">'+esc(containerFor(p))+'</span>':mDash())+'</td>'+
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
         '<td>'+(sp.farm?'<span class="spec">'+esc(sp.farm)+'</span>':mDash())+'</td>'+
         meiboLotCells(p, sp, jan)+
