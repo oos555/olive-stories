@@ -179,7 +179,7 @@
 <details class="no-print" id="oos-whatis">
   <summary><span>🍽️ このアプリ「RTシェフ台帳」は何をする場所？</span><span class="owg-chev"></span></summary>
   <div class="owg-body">
-    <div class="owg-lead"><b>だれの？</b>中村様・スタッフ　／　<b>ひとことで</b>どのホテル・シェフが何を買っているかを調べ、次の一手を考える場所です。</div>
+    <div class="owg-lead"><b>だれの？</b>中村様・スタッフ　／　<b>ひとことで</b>どのホテル・シェフが何を買っているかを調べ、次の一手を考える場所です。<br><b>住所・電話</b>は「お客様マスタ」から自動で最新を表示します（この台帳では固定しません）。<b>シェフ・ジャンル・経歴・買っているオイル</b>は、この台帳が大元です。</div>
     <div class="owg-flow"><div class="owg-st"><div class="n">①追う</div><div class="d">施設/シェフ/ジャンル</div></div><div class="owg-ar">→</div><div class="owg-st"><div class="n">②しらべる</div><div class="d">売れ筋を集計</div></div><div class="owg-ar">→</div><div class="owg-st"><div class="n">③名刺</div><div class="d">写真＋手入力</div></div><div class="owg-ar">→</div><div class="owg-st"><div class="n">④カード</div><div class="d">人物にまとまる</div></div></div>
     <div class="owg-h">できること・ボタンの意味</div>
     <table class="owg-tb"><thead><tr><th>タブ・ボタン</th><th>なにをする</th></tr></thead><tbody><tr><td class="k">🏨 台帳</td><td>施設／👨‍🍳シェフ／🍳ジャンルで切り替えて追う</td></tr><tr><td class="k">🔎 しらべる</td><td>売れ筋・施設別・商品別をその場で集計</td></tr><tr><td class="k">📇 名刺を入れる</td><td>写真＋手入力で人物カードにする</td></tr><tr><td class="k">👥 人物カード</td><td>シェフ・購買担当などの一覧</td></tr></tbody></table>
@@ -281,6 +281,7 @@
       <button id="sw-genre" onclick="setMode('genre')">🍳 ジャンルで</button>
     </div>
     <input class="search" id="q" placeholder="🔎 施設名・シェフ名・オイル名で絞る（例：野口、ラグーナ、オルガニック）" oninput="renderDaicho();if(facListOn)renderFacList();">
+    <div id="sync-status" class="mini" style="margin:2px 0 6px;color:#5c6636;font-weight:700;line-height:1.5;"></div>
     <button id="faclist-btn" class="faclist-toggle" onclick="toggleFacList()">📋 施設だけの一覧（料理長・電話・FAX）を見る</button>
     <div id="faclist" style="display:none"></div>
     <div id="list"></div>
@@ -777,6 +778,7 @@ function openMain(){
   document.getElementById('lock-view').style.display='none';
   document.getElementById('main-view').style.display='block';
   fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
+  loadContactsFromMaster();
 }
 
 /* ---- ナビ ---- */
@@ -791,8 +793,10 @@ function nav(w){
 }
 
 /* ===== 📋 施設だけの一覧（連絡先） =====
-   この台帳（FAC＋人物カード）そのものを映した施設リスト。
-   受注A・住所録の施設リストは、こちらを大元とした「写し」という位置づけ。 */
+   この台帳（FAC＋人物カード）を映した施設リスト。
+   【親の決めごと 2026-07-28】住所・電話の大元は「お客様マスタ」（受注Aで日々更新）。
+   開いた時に loadContactsFromMaster がお客様マスタの住所・電話を取り込んで上書き表示する。
+   シェフ・ジャンル・経歴・買っているオイルは、この台帳(FAC)が大元のまま。 */
 var facListOn=false;
 function toggleFacList(){
   facListOn=!facListOn;
@@ -815,6 +819,45 @@ function telFax(s){
 function firstNum(s){
   var m=String(s||'').match(/[0-9０-９][0-9０-９\-]{6,}/);
   return m ? m[0].replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);}) : '';
+}
+/* ===== 住所・電話は「お客様マスタ」を親として最新を映す（2026-07-28 親の決めごと） =====
+   受注Aで日々更新されるお客様マスタの住所・電話を、開いた時に取り込んで表示する。
+   → 台帳の連絡先が古くならない。お客様マスタに無い／空欄の施設は、台帳の値をそのまま使う。
+   シェフ・ジャンル・経歴・買っているオイルは、この台帳(FAC)が大元。 */
+function normFacName(x){ return String(x||'').replace(/[\s\u3000]/g,'').replace(/レストラン$/,''); }
+function loadContactsFromMaster(){
+  var st=document.getElementById('sync-status');
+  if(st) st.textContent='\u260e \u4f4f\u6240\u30fb\u96fb\u8a71\u3092\u304a\u5ba2\u69d8\u30de\u30b9\u30bf\u3068\u540c\u671f\u4e2d\u2026';
+  fetch(GAS_URL+'?action=loadAllData')
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var cs=(res&&res.data&&res.data.customers)?res.data.customers:[];
+      var byName={};
+      cs.forEach(function(c){ if(c&&c.name) byName[normFacName(c.name)]=c; });
+      var n=0;
+      Object.keys(FAC).forEach(function(fk){
+        var c=byName[normFacName(fk)]; if(!c) return;
+        var addr=((c.zip?('\u3012'+String(c.zip).replace(/^\u3012/,'')+' '):'')+(c.addr||'')).trim();
+        var hit=false;
+        if(addr){ FAC[fk].addr=addr; hit=true; }
+        if(c.tel){
+          var oldFax=telFax(FAC[fk].tel||'').fax;
+          var t=String(c.tel).trim();
+          if(oldFax && t.toLowerCase().indexOf('fax')<0) t+='\u3000FAX '+oldFax;
+          FAC[fk].tel=t; hit=true;
+        }
+        if(hit){ FAC[fk]._src='master'; n++; }
+      });
+      if(st) st.innerHTML = (n>0)
+        ? ('\u260e \u4f4f\u6240\u30fb\u96fb\u8a71\u306f <b>\u304a\u5ba2\u69d8\u30de\u30b9\u30bf</b> \u3068\u540c\u671f\u6e08\u307f\uff08'+n+'\u65bd\u8a2d\uff09\u3000/\u3000\u30b7\u30a7\u30d5\u30fb\u30b8\u30e3\u30f3\u30eb\u306f\u3053\u306e\u53f0\u5e33\u304c\u5927\u5143')
+        : '\u260e \u4f4f\u6240\u30fb\u96fb\u8a71\u306f <b>\u304a\u5ba2\u69d8\u30de\u30b9\u30bf</b> \u304c\u5927\u5143\uff08\u4eca\u56de\u306f\u8a72\u5f53\u306a\u3057\uff09';
+      if(typeof renderDaicho==='function') renderDaicho();
+      if(facListOn && typeof renderFacList==='function') renderFacList();
+      if(typeof renderPeople==='function') renderPeople();
+    })
+    .catch(function(e){
+      if(st) st.textContent='\u260e \u4f4f\u6240\u30fb\u96fb\u8a71\u306e\u540c\u671f\u306b\u5931\u6557\uff08\u4eca\u56de\u306f\u53f0\u5e33\u306e\u5024\u3092\u8868\u793a\u3057\u307e\u3059\uff09';
+    });
 }
 /* その施設の「伝票に出る」現任の料理長（お名前・役職）。人物カードを正とし、無ければ施設の現シェフ表記で代用 */
 function mainChef(f){
