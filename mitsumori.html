@@ -2898,7 +2898,7 @@ function addQuoteItemRow(){
     '<div class="fg"><label>商品</label><select data-q-sku onchange="onQuoteItemSkuChange(\''+rowId+'\')">'+opts+'</select></div>'+
     '<div class="fg"><label>本数</label><input type="number" data-q-bottles min="0" value="0"></div>'+
     '<div class="fg"><label>箱数</label><input type="number" data-q-boxes min="0" value="0"></div>'+
-    '<div class="fg"><label>区分</label><select data-q-kind onchange="onQuoteItemKindChange(\''+rowId+'\')"><option value="normal">通常</option><option value="tokka">特価（不良品など）</option><option value="free">無償サンプル</option><option value="paid">有償サンプル</option></select></div>'+
+    '<div class="fg"><label>区分</label><select data-q-kind onchange="onQuoteItemKindChange(\''+rowId+'\')"><option value="normal">通常</option><option value="w1">卸①価格</option><option value="w2">卸②価格</option><option value="tokka">特価（不良品など）</option><option value="free">無償サンプル</option><option value="paid">有償サンプル</option></select></div>'+
     '<div class="fg" style="justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\''+rowId+'\').remove()">削除</button></div>'+
     '</div>'+
     '<div data-q-freenote style="display:none;font-size:11.5px;font-weight:700;color:#0f5040;background:#e3efe9;border-radius:6px;padding:4px 10px;margin:2px 0 6px">この行は無償サンプル：単価0円で書類に載ります</div>'+
@@ -2926,7 +2926,7 @@ function onQuoteItemKindChange(rowId){
   const skuSel = row.querySelector('[data-q-sku]');
   const keep = skuSel.value;
   // 特価・無償・有償は、通常は隠れているRT限定商品なども選べる（不良品を特価で出す等）
-  const list = quoteItemOptionList(c, kind!=='normal');
+  const list = quoteItemOptionList(c, (kind!=='normal' && kind!=='w1' && kind!=='w2'));
   skuSel.innerHTML = list.map(p=>'<option value="'+p.sku+'">'+esc(p.name)+'</option>').join('');
   if(list.some(p=>p.sku===keep)){ skuSel.value = keep; }
   row.querySelector('[data-q-freenote]').style.display = (kind==='free') ? 'block' : 'none';
@@ -3081,6 +3081,13 @@ function generateQuoteDoc(){
       if(up<=0){ paidSampleMissing = true; return; }
       const base = (r.querySelector('[data-q-pricebase]')||{}).value || 'custom';
       items.push({ sku, name: p.name+'（有償サンプル）', bottles, boxes, qty: totalQty, unitPrice: up, amount: up*totalQty, taxRate: tax, sampleKind:'paid', sampleBase: base });
+    } else if(rowKind==='w1' || rowKind==='w2'){
+      // 卸①価格／卸②価格：この行だけ卸①/卸②の単価にする（このオイルだけ値引き）。価格マスタの卸①/卸②から取得
+      const tier = (rowKind==='w1') ? 'wholesale1' : 'wholesale2';
+      effTypes.push(tier);
+      const unitPrice = priceForSku(sku, tier);
+      const tierLabel = (rowKind==='w1') ? '卸①価格' : '卸②価格';
+      items.push({ sku, name: p.name+'（'+tierLabel+'）', bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
     } else {
       const effType = effectiveCustomerType(c.type, boxes);
       effTypes.push(effType);
@@ -3604,6 +3611,13 @@ function generateExtractQuoteDoc(){
       if(up<=0){ paidSampleMissing = true; return; }
       const base = (r.querySelector('[data-q-pricebase]')||{}).value || 'custom';
       items.push({ sku, name: p.name+'（有償サンプル）', bottles, boxes, qty: totalQty, unitPrice: up, amount: up*totalQty, taxRate: tax, sampleKind:'paid', sampleBase: base });
+    } else if(rowKind==='w1' || rowKind==='w2'){
+      // 卸①価格／卸②価格：この行だけ卸①/卸②の単価にする（このオイルだけ値引き）。価格マスタの卸①/卸②から取得
+      const tier = (rowKind==='w1') ? 'wholesale1' : 'wholesale2';
+      effTypes.push(tier);
+      const unitPrice = priceForSku(sku, tier);
+      const tierLabel = (rowKind==='w1') ? '卸①価格' : '卸②価格';
+      items.push({ sku, name: p.name+'（'+tierLabel+'）', bottles, boxes, qty: totalQty, unitPrice, amount: unitPrice*totalQty, taxRate: tax });
     } else {
       const effType = effectiveCustomerType(c.type, boxes);
       effTypes.push(effType);

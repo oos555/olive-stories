@@ -909,6 +909,13 @@ function effectiveCustomerType(customerType, boxes){
   if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
   return customerType;
 }
+// この行だけ卸①/卸②の値段にする指定（受注Aの種別で「卸①価格/卸②価格」を選んだ行＝l.giftType が w1/w2）。
+// 指定が無ければ従来どおりお客様区分（と箱数昇格）で計算する。
+function lineTierType(o, l){
+  if(l && l.giftType==='w1') return 'wholesale1';
+  if(l && l.giftType==='w2') return 'wholesale2';
+  return effectiveCustomerType(o.customerType, (l&&l.boxes)||0);
+}
 function priceForSku(sku, customerType){
   const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
   if(!p) return 0;
@@ -929,7 +936,7 @@ function orderAmount(o){
   (o.lines||[]).forEach(function(l){
     const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
     const sku = l.sku || (findProduct(l.productId)?findProduct(l.productId).sku:'');
-    const effType = effectiveCustomerType(o.customerType, l.boxes);
+    const effType = lineTierType(o, l);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
     total += Math.round(unitPrice * totalQty * (1 + tax));
@@ -1028,7 +1035,7 @@ function buildOrderDetailHtml(o){
     const boxes = l.boxes||0, bottles = l.bottles||0, boxQty = l.boxQty||1;
     const totalQty = bottles + boxes*boxQty;
     const sku = l.sku || (findProduct(l.productId)?findProduct(l.productId).sku:'');
-    const effType = effectiveCustomerType(o.customerType, boxes);
+    const effType = lineTierType(o, l);
     const unitPrice = priceForSku(sku, effType);
     const tax = taxRateForSku(sku);
     const lineTotal = Math.round(unitPrice * totalQty * (1 + tax));
@@ -1201,7 +1208,7 @@ function generateInvoiceDoc(orderId){
   const items = (o.lines||[]).map(function(l){
     const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
     const sku = findProduct(l.productId)?findProduct(l.productId).sku:'';
-    const effType = effectiveCustomerType(o.customerType, l.boxes);
+    const effType = lineTierType(o, l);
     const unitPrice = priceForSku(sku, effType);
     const openPrice = priceForSku(sku, 'general');
     const tax = taxRateForSku(sku);
@@ -3388,7 +3395,7 @@ function calcMonthlyInvoice(forcedClient){
     (o.lines||[]).forEach(function(l){
       const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
       const sku = l.sku || (findProduct(l.productId)?findProduct(l.productId).sku:'');
-      const effType = effectiveCustomerType(o.customerType, l.boxes);
+      const effType = lineTierType(o, l);
       const unitPrice = priceForSku(sku, effType);
       const openPrice = priceForSku(sku, 'general');
       const tax = taxRateForSku(sku);
