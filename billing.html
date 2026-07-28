@@ -830,6 +830,48 @@ const PRICELIST_INFO = {
 // ── 状態 ────────────────────────────────────────────
 let orders = [];
 let customers = [];
+/* ── お客様リストの上書き事故ふせぎ（2026-07-28）──
+   保存の直前に必ず最新を取り直し、「自分が今いじったお客様」だけを最新に重ねてから保存する。
+   これで、別のアプリ／別の端末が先に登録・変更したお客様を、うっかり丸ごと消す事故を防ぐ。 */
+var __custBase = [];
+function __snapshotCustomers(){ try{ __custBase = JSON.parse(JSON.stringify(customers||[])); }catch(e){ __custBase = []; } }
+function __mergeCustomers(srv, local, base){
+  srv = srv||[]; local = local||[]; base = base||[];
+  var srvMap={}, baseMap={}, localMap={};
+  srv.forEach(function(c){ if(c&&c.id) srvMap[c.id]=c; });
+  base.forEach(function(c){ if(c&&c.id) baseMap[c.id]=c; });
+  local.forEach(function(c){ if(c&&c.id) localMap[c.id]=c; });
+  /* 追加・変更：読込時と違う（触った）／新規のお客様だけ最新に上書き */
+  local.forEach(function(c){ if(!c||!c.id) return; var b=baseMap[c.id]; if(!b || JSON.stringify(b)!==JSON.stringify(c)) srvMap[c.id]=c; });
+  /* 削除：読込時にあって今ローカルから消えたお客様だけ最新からも消す（idで確実に判定できる分だけ） */
+  Object.keys(baseMap).forEach(function(id){ if(!localMap[id]) delete srvMap[id]; });
+  /* 並び：最新（サーバ）順。id無しのサーバ記録は絶対に落とさずそのまま残す。自分の新規は末尾。 */
+  var out=[], pushed={};
+  srv.forEach(function(c){ if(!c) return; if(c.id){ if(srvMap[c.id]!==undefined && !pushed[c.id]){ out.push(srvMap[c.id]); pushed[c.id]=1; } } else { out.push(c); } });
+  local.forEach(function(c){ if(!c) return; if(c.id){ if(srvMap[c.id]!==undefined && !pushed[c.id]){ out.push(srvMap[c.id]); pushed[c.id]=1; } } else { out.push(c); } });
+  return out;
+}
+function saveCustomersMerged(){
+  return (async function(){
+    var srv=null;
+    try{
+      var r0 = await fetch(GAS_URL + '?action=loadAllData').then(function(x){ return x.json(); });
+      if(r0 && r0.status==='ok' && r0.data && Array.isArray(r0.data.customers)) srv = r0.data.customers;
+    }catch(e){ srv = null; }
+    var payload;
+    if(!srv || (srv.length===0 && customers.length>0)){
+      /* 最新を取り直せない／空っぽの疑い（更新中の一時的な空返事など）→ マージせず今の全リストを保存（従来どおり＝誰も消さない安全側） */
+      payload = customers;
+    } else {
+      customers = __mergeCustomers(srv, customers, __custBase);
+      __snapshotCustomers();
+      payload = customers;
+    }
+    var resp = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCustomers', customers: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    return resp;
+  })();
+}
+
 let quoteHistory = [];
 let specialPrices = [];
 let defects = [];
@@ -878,6 +920,7 @@ function loadAllBilling(){
       monthlyInvoices = dataRes.data.monthlyInvoices || [];
       monthlyClients = dataRes.data.monthlyClients || [];
       customers = dataRes.data.customers || [];
+      __snapshotCustomers();
       quoteHistory = dataRes.data.quoteHistory || [];
       specialPrices = dataRes.data.specialPrices || [];
       defects = dataRes.data.defects || [];
@@ -1345,11 +1388,7 @@ async function registerNewCustomer(){
   customers.push(newCust);
   showSyncStatus('保存しています...');
   try{
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
+    const res = await saveCustomersMerged();
     const data = await res.json();
     if(data.status==='ok'){
       showSyncStatus('✅ お客様を登録しました');
@@ -1685,11 +1724,7 @@ function saveQuoteFieldsPreference(customerId, fields){
   const c = customers.find(x=>x.id===customerId);
   if(!c) return;
   c.quoteFields = fields;
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify({ action:'saveCustomers', customers: customers }),
-    headers: {'Content-Type':'text/plain;charset=utf-8'}
-  }).catch(function(){});
+  saveCustomersMerged().catch(function(){});
 }
 function renderExtraFieldsForProduct(sku, selectedFields, overrides){
   // 商品ごとに、選択された追加情報を「原産地：トルコ／メモ：...」形式で返す（「今回だけ書き換え」があればそちらを優先）
@@ -1731,11 +1766,7 @@ async function saveCustomerWhitelist(){
   c.whitelist = on;
   showSyncStatus('保存しています...');
   try{
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    });
+    const res = await saveCustomersMerged();
     const data = await res.json();
     if(data.status==='ok'){ showSyncStatus('✅ 保存しました'); renderWhitelistTable(c); }
     else showSyncStatus('⚠️ 保存に失敗しました', true);
@@ -2699,11 +2730,7 @@ async function owToggleException(sku, cb){
     if(cb.checked && idx<0) c.rtExceptions.push(sku);
     if(!cb.checked && idx>=0) c.rtExceptions.splice(idx,1);
     try{
-      await fetch(GAS_URL, {
-        method:'POST',
-        body: JSON.stringify({ action:'saveCustomers', customers: customers }),
-        headers: {'Content-Type':'text/plain;charset=utf-8'}
-      });
+      await saveCustomersMerged();
       showSyncStatus('✅ このお客様の例外設定を記憶しました');
     }catch(e){ showSyncStatus('⚠️ 例外設定の保存に失敗しました', true); }
   }
@@ -2870,11 +2897,7 @@ function generateOilWholesaleDoc(){
   const c = customers.find(x=>x.id===cid);
   if(c && email && c.email !== email){
     c.email = email;
-    fetch(GAS_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveCustomers', customers: customers }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    }).catch(function(){});
+    saveCustomersMerged().catch(function(){});
   }
   quoteHistory.push(record);
   saveQuoteHistoryToGAS();
