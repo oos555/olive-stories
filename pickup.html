@@ -30,7 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .meta-val{font-weight:700;text-align:right}
 .note-box{background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-top:10px;font-size:14px;color:#7f1d1d;font-weight:600}
 .sec-title{font-size:13px;font-weight:700;color:#57534e;margin:18px 0 8px}
-.item{display:flex;align-items:center;gap:12px;background:#f9f8f5;border-radius:10px;padding:14px;margin-bottom:8px;border:2px solid transparent}
+.item{display:flex;align-items:center;gap:12px;background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:8px;border:1px solid #e5e0d6}
 .item.checked{background:#dcfce7;border-color:#16a34a}
 .item .cb{width:26px;height:26px;flex-shrink:0}
 .item .info{flex:1}
@@ -43,17 +43,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .qty-box{background:#dcfce7;color:#14532d}
 .qty-loose{background:#fdecd8;color:#8a5a1c}
 .qty-total{background:#6b7a3a;color:#fff}
-.item .pname-pick{font-weight:900;font-size:20px;line-height:1.25}
-.chk-line{display:flex;gap:14px;align-items:baseline;margin-top:8px;flex-wrap:wrap}
-.chk-line .chk-lb{font-size:11px;font-weight:700;margin-right:4px}
-.chk-line .exp-lb{color:#8a7a58}
-.chk-line .bc-lb{color:#6a7480}
-.chk-line .exp-v{font-size:22px;font-weight:900;color:#b25b00;letter-spacing:.02em}
-.chk-line .bc-v{font-size:22px;font-weight:900;color:#1e4f86;letter-spacing:.02em}
-    .chk-line .bc-sku{font-size:16px;font-weight:900;color:#44506a;letter-spacing:.02em}
-.row3{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
-.qty-one{font-size:17px;font-weight:900;padding:7px 15px;border-radius:9px;background:#6b7a3a;color:#fff}
-.qty-one .sub{font-weight:700;font-size:14px;opacity:.9}
+.item .pname-pick{font-weight:800;font-size:20px;line-height:1.25;color:#2b2a26}
+.pick-row1{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+.pick-row2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px}
+.exp-inline{font-size:14px;font-weight:500;color:#2b2a26}
+.exp-inline b{color:#b9741a;font-size:16px;font-weight:800}
+.code-inline{font-size:14px;font-weight:500;color:#2b2a26}
+.code-inline .bc-sku{font-size:15px;font-weight:500;color:#2b2a26;letter-spacing:.01em}
+.code-inline .bc-v{font-size:17px;font-weight:800;color:#185fa5;letter-spacing:.01em}
+.cond-badge{font-weight:800;padding:2px 11px;border-radius:99px;font-size:13px}
+.cb-old{background:#faeeda;color:#633806}
+.cb-defect{background:#fcebeb;color:#a32d2d}
+.cb-normal{background:#e7efd8;color:#3b5310}
+.qty-frame{background:#fff;border:2px solid #5f6f33;color:#3b5310;font-weight:500;border-radius:8px;padding:3px 13px;font-size:14px;line-height:1.2;white-space:nowrap}
+.qty-frame b{font-weight:800;font-size:22px}
 .gift-badge-item{font-weight:900;font-size:14px;border-radius:8px;padding:5px 13px;background:#fbe3ee;color:#a3286a;border:1.5px solid #e59cc2}
 .sample-badge-item{font-weight:900;font-size:13px;border-radius:8px;padding:5px 12px;background:#fef3c7;color:#8a5a1c;border:1.5px solid #f3d9a8}
 .lead-band{border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:center}
@@ -538,6 +541,12 @@ function giftBadgeItemHtml(giftType){
     return '<span class="sample-badge-item">'+esc(GIFT_TYPE_LABEL[giftType]||'サンプル')+'</span>';
   }
   return '';
+}
+/* ★2026-07-28 ロット状態バッジ（正規＝normal／旧＝old／不良＝defect）。受注Aで保存された l.condition を表示。 */
+function condBadgeHtml(cond){
+  if(cond==='old') return '<span class="cond-badge cb-old">旧ロット</span>';
+  if(cond==='defect') return '<span class="cond-badge cb-defect">不良</span>';
+  return '<span class="cond-badge cb-normal">正規</span>';
 }
 
 // ── 商品マスタ：GASからの読み込み（キャッシュ先手・GAS裏取り・フォールバック）────
@@ -1187,17 +1196,23 @@ function renderOrder(){
     if(boxes) sub2.push('箱'+boxes+'箱');
     if(loose) sub2.push('バラ'+loose+'本');
     var subTxt = sub2.length ? '（'+sub2.join('・')+'）' : '';
-    var chk = '<div class="chk-line">'+
-      '<span><span class="chk-lb exp-lb">📅 賞味期限</span><span class="exp-v">'+esc(lineExpiry(l))+'</span></span>'+
-      '<span><span class="chk-lb bc-lb">🔖 品番・末尾</span>'+lineCodeHtml(l)+'</span>'+
-      '</div>';
-    var row3 = '<div class="row3"><span class="qty-one">合計'+total+'本<span class="sub">'+subTxt+'</span></span>'+giftBadgeItemHtml(l.giftType)+'</div>';
+    var condBadge = condBadgeHtml(l.condition);
+    var _sp=[]; if(boxes) _sp.push('箱<b>'+boxes+'</b>箱'); if(loose) _sp.push('バラ<b>'+loose+'</b>本');
+    var subInner = _sp.length ? '（'+_sp.join('・')+'）' : '';
+    var qtyFrame = '<span class="qty-frame">合計<b>'+total+'</b>本'+subInner+'</span>';
     html += '<div class="item" id="item-'+i+'">'+
       '<input type="checkbox" class="pack-check pick-cb no-print" onchange="this.closest(\'.item\').classList.toggle(\'checked\',this.checked);updateCompleteBtn()">'+
       '<div class="info">'+
-        '<div class="pname pname-pick">'+esc(l.productName)+'</div>'+
-        chk+
-        row3+
+        '<div class="pick-row1">'+
+          '<span class="pname pname-pick">'+esc(l.productName)+'</span>'+
+          '<span class="exp-inline">📅 賞味期限 <b>'+esc(lineExpiry(l))+'</b></span>'+
+          condBadge+
+        '</div>'+
+        '<div class="pick-row2">'+
+          '<span class="code-inline">🔖 品番・cord末尾 '+lineCodeHtml(l)+'</span>'+
+          qtyFrame+
+          giftBadgeItemHtml(l.giftType)+
+        '</div>'+
         (l.memo ? '<div class="pmemo">📝 '+esc(l.memo)+'</div>' : '')+
       '</div>'+
     '</div>';
@@ -1271,11 +1286,11 @@ function renderOrder(){
     }
   }
   html += '<div class="actions no-print">';
-  html += '<div class="sec-title">🚚 追跡番号（発送したら入力）</div>';
-  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
-  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 12px;line-height:1.6">伝票の番号を入れて保存すると、受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。<b>まだ番号が出ていなければ空のままでOK</b>です。</div>';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
   html += '<div class="complete-note">荷造りが終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送は、上の色帯の期日内でOK（当日でなくてかまいません）。</div>';
+  html += '<div class="sec-title" style="margin-top:16px">🚚 追跡番号（発送したら入力）</div>';
+  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
+  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 4px;line-height:1.6">伝票の番号を入れて保存すると、受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。<b>まだ番号が出ていなければ空のままでOK</b>です。</div>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
   if(orderHasNoshi){
