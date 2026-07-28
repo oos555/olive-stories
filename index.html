@@ -716,7 +716,7 @@ body{background:#fff}
     <div class="card">
       <div class="sec">① まず計算する（単価と納期を出す）</div>
       <div class="info-box">端末の注文を見ながら、下に本数を入れて「計算」を押すと、<b>アイポーターに打つ税抜単価</b>が出ます。商品名は選び直し・RT単価は打ち替えOK。</div>
-      <details open style="margin:10px 0 4px">
+      <details style="margin:10px 0 4px">
         <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#1f4a6d;padding:3px 0">🧮 この計算は何をしているの？（電卓で計算し直さなくて大丈夫）</summary>
         <div style="background:#f4f8fb;border:1px solid #d3e0ea;border-radius:10px;padding:12px 12px 14px">
           <div style="font-size:12px;font-weight:800;color:#33421f;margin-bottom:7px">なぜ計算が必要？</div>
@@ -734,21 +734,6 @@ body{background:#fff}
           <div style="font-size:12.5px;color:#2b2a26;padding:3px 0;line-height:1.55"><b style="color:#1f4a6d">②</b> どうしても1円合わない時は<b>送料を1円引いて</b>合わせる（画面で知らせます）</div>
           <div style="font-size:12.5px;color:#2b2a26;padding:3px 0;line-height:1.55"><b style="color:#1f4a6d">③</b> 最後に<b>「検算OK（アイポーター合計と納品書合計がぴったり合う）」</b>を表示</div>
 
-          <div style="font-size:12px;font-weight:800;color:#33421f;margin:13px 0 5px">📋 送料・ピックアップの目安（税抜／ゆかちゃんの表）</div>
-          <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:8px;font-size:12px">
-            <div style="border:1px solid #d3ccbe;border-radius:8px;overflow:hidden">
-              <div style="background:#f2f0e8;padding:4px 10px;font-weight:800;color:#33421f;border-bottom:1px solid #ece7db">🚚 送料（ケース単価）</div>
-              <div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff;border-bottom:1px solid #ece7db"><span>トルコ 100・250ml</span><b>¥1,050</b></div>
-              <div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff;border-bottom:1px solid #ece7db"><span>トルコ 500・750ml・2L</span><b>¥1,250</b></div>
-              <div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff;border-bottom:1px solid #ece7db"><span>トルコ 5L</span><b>¥1,650</b></div>
-              <div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff"><span>シチリア 250・500ml</span><b>¥1,050</b></div>
-            </div>
-            <div style="border:1px solid #d3ccbe;border-radius:8px;overflow:hidden">
-              <div style="background:#f2f0e8;padding:4px 10px;font-weight:800;color:#33421f;border-bottom:1px solid #ece7db">🏭 ピックアップ</div>
-              <div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff"><span>RT</span><b>¥700</b></div>
-            </div>
-          </div>
-          <div style="font-size:11px;color:#8a8578;margin-top:5px">※ 下の「送料」欄には、この目安を自動で入れます。実際に合わせて直せます。</div>
         </div>
       </details>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
@@ -782,6 +767,11 @@ body{background:#fff}
           <div style="font-size:10.5px;color:#8a8578;margin-top:3px">RTでピックアップ手数料をとる時は700円。</div>
         </div>
       </div>
+      <div id="rtc-ship-breakdown" style="margin-top:10px"></div>
+      <details id="rtc-rate-details" style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#33421f;background:#f2f0e8;border:1px solid #d3ccbe;border-radius:8px;padding:8px 11px;list-style:none">📋 送料・ピックアップ 早見表（タップで開く・金額を直せます）</summary>
+        <div id="rtc-rate-table" style="border:1px solid #d3ccbe;border-top:none;border-radius:0 0 8px 8px;padding:11px 11px 12px"></div>
+      </details>
       <button class="btn" style="width:100%;margin-top:14px;background:#2563eb;border-color:#2563eb;color:#fff;font-weight:800;font-size:15px" onclick="rtCalcRun()">計算して、アイポーターに入力する数字を出す</button>
       <div id="rtc-result" style="display:none;margin-top:14px"></div>
     </div>
@@ -4165,8 +4155,10 @@ function rtCalcInit(){
   var od = document.getElementById('rtc-orderdate');
   if(od && !od.value){ try{ od.value = fmtISO(new Date()); }catch(e){} }
   rtUpdateShipDate();
+  if(typeof renderRtRateTable==='function') renderRtRateTable();   // 早見表を描く（普段は閉じる）
   var rows = document.getElementById('rtc-rows');
   if(rows && !rows.children.length) rtCalcAddRow();
+  if(typeof rtcSuggestShipping==='function') rtcSuggestShipping(); // 送料内訳の初期描画
 }
 function rtCalcAddRow(){
   var wrap = document.getElementById('rtc-rows'); if(!wrap) return;
@@ -4245,16 +4237,24 @@ function rtSizeOf(name){
   var n = parseFloat(m[1]), u = m[2].toLowerCase();
   return (u==='ml') ? (n+'ml') : (n+'L');
 }
-function rtCaseRate(group, name){
+// ── 送料の早見表（上書き可・保存はこの端末に残る）──
+var RT_RATE_DEFAULTS = { t_small:1050, t_mid:1250, t_5L:1650, sicily:1050, pickup:700 };
+var RT_RATE_LABELS = { t_small:'トルコ 100・250ml', t_mid:'トルコ 500・750ml・2L', t_5L:'トルコ 5L', sicily:'シチリア 250・500ml', pickup:'ピックアップ RT' };
+function rtRateGet(){
+  try{ var o = JSON.parse(localStorage.getItem('oos_rt_ship_rates_v1')||'{}'); return Object.assign({}, RT_RATE_DEFAULTS, o); }
+  catch(e){ return Object.assign({}, RT_RATE_DEFAULTS); }
+}
+function rtRateSave(o){ try{ localStorage.setItem('oos_rt_ship_rates_v1', JSON.stringify(o)); }catch(e){} }
+function rtRateKey(group, name){
   var s = rtSizeOf(name);
   if(rtGroupOrigin(group)==='turkey'){
-    if(s==='100ml'||s==='250ml') return 1050;
-    if(s==='500ml'||s==='750ml'||s==='2L') return 1250;
-    if(s==='5L') return 1650;
-    return 1250;
+    if(s==='100ml'||s==='250ml') return 't_small';
+    if(s==='5L') return 't_5L';
+    return 't_mid';                 // 500・750ml・2L・その他トルコ
   }
-  return 1050; // シチリア等（250/500ml=1050）／不明も暫定1050・手直し可
+  return 'sicily';                  // シチリア等
 }
+function rtCaseRate(group, name){ var r = rtRateGet(); return r[rtRateKey(group,name)] || 1050; }
 // 送料の単位数：5L缶は1缶=1送料、それ以外は箱数（本数÷1箱の本数、端数は1箱に切り上げ）
 var rtcShipManual = false;   // ゆかちゃんが送料を手で直したら true（自動上書きしない）
 function rtcShipUnits(p, bottles){
@@ -4265,15 +4265,114 @@ function rtcShipUnits(p, bottles){
 }
 function rtcSuggestShipping(){
   var ship = document.getElementById('rtc-shipping'); if(!ship) return;
-  if(rtcShipManual) return;   // 手で直した値は残す（🔄で自動に戻せる）
-  var total = 0;
+  var items = [], total = 0;
   document.querySelectorAll('#rtc-rows > [id^="rtc-row-"]').forEach(function(r){
     var sel=r.querySelector('.rtc-prod'); var qEl=r.querySelector('.rtc-qty');
     var p=(PRODUCTS||[]).find(function(x){ return String(x.id)===String(sel.value); });
     var bottles = parseInt(qEl && qEl.value)||0;
-    if(p && bottles>0){ total += rtCaseRate(p.group, p.name) * rtcShipUnits(p, bottles); }  // 箱ごとに足し上げ
+    if(p && bottles>0){
+      var rate  = rtCaseRate(p.group, p.name);
+      var units = rtcShipUnits(p, bottles);       // 5L缶=缶数／それ以外=箱数
+      var sub   = rate * units;
+      items.push({ name:p.name, units:units, is5L:(rtSizeOf(p.name)==='5L'), rate:rate, sub:sub });
+      total += sub;                               // 箱ごとに足し上げ
+    }
   });
-  ship.value = total;
+  if(!rtcShipManual) ship.value = total;          // 手入力中は上書きしない
+  rtRenderShipBreakdown(items, total, rtcShipManual);
+}
+// 送料の積み上がり内訳を描く（人が検算しなくても目で追える）
+function rtRenderShipBreakdown(items, total, manual){
+  var el = document.getElementById('rtc-ship-breakdown'); if(!el) return;
+  if(!items.length){ el.innerHTML=''; return; }
+  var rows = items.map(function(it){
+    var word = it.is5L ? '缶' : '箱';
+    var tag  = it.is5L ? ' <span style="font-size:10.5px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">缶ごと</span>' : '';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid #eef1e6">'
+      +'<div style="font-size:14px;font-weight:700;color:#2b2a26">'+esc(it.name)+tag+'</div>'
+      +'<div style="font-size:13.5px;color:#2b2a26;white-space:nowrap"><b style="font-size:15px">'+it.units+'</b>'+word+' × ¥'+it.rate.toLocaleString()+' = <b style="font-size:15px">¥'+it.sub.toLocaleString()+'</b></div>'
+      +'</div>';
+  }).join('');
+  var note = manual
+    ? '<div style="font-size:11.5px;color:#92400e;background:#fff7ed;border-top:1px solid #f1d9b0;padding:6px 12px">✋ いまは送料を手入力中です。自動の積み上がりは <b>¥'+total.toLocaleString()+'</b>（🔄自動計算に戻すと反映）。</div>'
+    : '';
+  el.innerHTML = '<div style="background:#fff;border:1.5px solid #cfe0b8;border-radius:9px;overflow:hidden">'
+    +'<div style="background:#eef4e3;padding:6px 12px;font-size:12px;font-weight:800;color:#33421f;border-bottom:1px solid #d8e5c2">🧮 送料の積み上がり（内訳）</div>'
+    +rows
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f3f8ec"><div style="font-size:14px;font-weight:800;color:#33421f">合計</div><div style="font-size:19px;font-weight:800;color:#2b2a26">¥'+total.toLocaleString()+'</div></div>'
+    +note
+    +'</div>';
+}
+// ── 早見表：ふだんは文字だけ（触っても動かない）。修正は確認してから ──
+function renderRtRateTable(){
+  var el = document.getElementById('rtc-rate-table'); if(!el) return;
+  var r = rtRateGet();
+  var editing = el.getAttribute('data-edit')==='1';
+  var shipKeys = ['t_small','t_mid','t_5L','sicily'];
+  function line(k){
+    if(editing){
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;background:#fff;border-bottom:1px solid #ece7db">'
+        +'<span style="font-size:12.5px;color:#2b2a26">'+RT_RATE_LABELS[k]+'</span>'
+        +'<span style="white-space:nowrap;font-weight:800;color:#2b2a26">¥<input type="number" min="0" id="rtc-rate-inp-'+k+'" value="'+r[k]+'" style="width:78px;padding:4px 6px;border:1.5px solid #b9d0e3;border-radius:6px;font-size:14px;font-weight:800;text-align:right;color:#2b2a26"></span>'
+        +'</div>';
+    }
+    return '<div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff;border-bottom:1px solid #ece7db"><span style="font-size:12.5px;color:#2b2a26">'+RT_RATE_LABELS[k]+'</span><b style="color:#2b2a26">¥'+r[k].toLocaleString()+'</b></div>';
+  }
+  function pickupLine(){
+    if(editing){
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;background:#fff"><span style="font-size:12.5px;color:#2b2a26">RT</span><span style="white-space:nowrap;font-weight:800;color:#2b2a26">¥<input type="number" min="0" id="rtc-rate-inp-pickup" value="'+r.pickup+'" style="width:78px;padding:4px 6px;border:1.5px solid #b9d0e3;border-radius:6px;font-size:14px;font-weight:800;text-align:right;color:#2b2a26"></span></div>';
+    }
+    return '<div style="display:flex;justify-content:space-between;padding:5px 10px;background:#fff"><span style="font-size:12.5px;color:#2b2a26">RT</span><b style="color:#2b2a26">¥'+r.pickup.toLocaleString()+'</b></div>';
+  }
+  var grid = '<div style="display:grid;grid-template-columns:1.7fr 1fr;gap:8px;font-size:12px">'
+    +'<div style="border:1px solid #d3ccbe;border-radius:8px;overflow:hidden"><div style="background:#f2f0e8;padding:4px 10px;font-weight:800;color:#33421f;border-bottom:1px solid #ece7db">🚚 送料（ケース単価）</div>'+shipKeys.map(line).join('')+'</div>'
+    +'<div style="border:1px solid #d3ccbe;border-radius:8px;overflow:hidden"><div style="background:#f2f0e8;padding:4px 10px;font-weight:800;color:#33421f;border-bottom:1px solid #ece7db">🏭 ピックアップ</div>'+pickupLine()+'</div>'
+    +'</div>';
+  var foot;
+  if(editing){
+    foot = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+      +'<button type="button" onclick="rtRateApplyEdit()" style="background:#16a34a;border:none;color:#fff;font-size:14px;font-weight:800;border-radius:8px;padding:9px 16px;cursor:pointer">💾 この金額で保存する</button>'
+      +'<button type="button" onclick="rtRateCancelEdit()" style="background:#f1efe8;border:1px solid #cfc9bd;color:#57534e;font-size:13px;font-weight:700;border-radius:8px;padding:9px 14px;cursor:pointer">やめる</button>'
+      +'<button type="button" onclick="rtRateResetDefault()" style="background:#fff;border:1px solid #d5cfc3;color:#8a5a1c;font-size:12px;font-weight:700;border-radius:8px;padding:9px 12px;cursor:pointer;margin-left:auto">最初の金額に戻す</button>'
+      +'</div>'
+      +'<div style="font-size:11px;color:#92400e;background:#fff7ed;border:1px solid #f1d9b0;border-radius:8px;padding:7px 10px;margin-top:8px">⚠️ ここを変えると、送料の<b>自動計算</b>がこの金額になります。ピックアップは目安表示です（下の「ピックアップ料金」欄は今まで通り手で入れます）。</div>';
+  } else {
+    foot = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px">'
+      +'<div style="font-size:11px;color:#8a8578">※ 下の「送料」欄には、この目安を自動で入れます。</div>'
+      +'<button type="button" onclick="rtRateStartEdit()" style="background:#eef4f9;border:1.5px solid #93b4e0;color:#1f4a6d;font-size:12.5px;font-weight:800;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap">✏️ 早見表を修正する</button>'
+      +'</div>';
+  }
+  el.innerHTML = grid + foot;
+}
+function rtRateStartEdit(){
+  if(!confirm('送料・ピックアップの早見表を修正します。\nここを変えると、送料の「自動計算」がこの金額になります。\n本当に修正しますか？')) return;
+  var el=document.getElementById('rtc-rate-table'); if(!el) return;
+  el.setAttribute('data-edit','1'); renderRtRateTable();
+}
+function rtRateCancelEdit(){
+  var el=document.getElementById('rtc-rate-table'); if(!el) return;
+  el.removeAttribute('data-edit'); renderRtRateTable();
+}
+function rtRateApplyEdit(){
+  var r = rtRateGet();
+  ['t_small','t_mid','t_5L','sicily','pickup'].forEach(function(k){
+    var inp=document.getElementById('rtc-rate-inp-'+k);
+    if(inp){ var v=parseInt(inp.value); if(!isNaN(v)&&v>=0) r[k]=v; }
+  });
+  rtRateSave(r);
+  var el=document.getElementById('rtc-rate-table'); if(el) el.removeAttribute('data-edit');
+  renderRtRateTable();
+  rtcSuggestShipping();
+  if(typeof rtCalcRun==='function') rtCalcRun();
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ 早見表を保存しました（送料の自動計算に反映されます）');
+}
+function rtRateResetDefault(){
+  if(!confirm('早見表を最初の金額に戻しますか？')) return;
+  rtRateSave(Object.assign({}, RT_RATE_DEFAULTS));
+  var el=document.getElementById('rtc-rate-table'); if(el) el.removeAttribute('data-edit');
+  renderRtRateTable();
+  rtcSuggestShipping();
+  if(typeof rtCalcRun==='function') rtCalcRun();
 }
 function rtcShipResetAuto(){ rtcShipManual=false; rtCalcRun(); }
 // ── アイポーター逆算（実例3件で確定：端数は切り捨て、合わない時は送料を1円ずつ引く）──
