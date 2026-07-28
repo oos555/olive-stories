@@ -768,8 +768,14 @@ body{background:#fff}
         </div>
       </div>
       <div id="rtc-ship-breakdown" style="margin-top:10px"></div>
-      <details id="rtc-rate-details" style="margin-top:10px">
-        <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#33421f;background:#f2f0e8;border:1px solid #d3ccbe;border-radius:8px;padding:8px 11px;list-style:none">📋 送料・ピックアップ 早見表（タップで開く・金額を直せます）</summary>
+      <style>
+      #rtc-rate-details>summary{list-style:none;display:flex;align-items:center;gap:8px}
+      #rtc-rate-details>summary::-webkit-details-marker{display:none}
+      #rtc-rate-details[open]>summary .rtc-chev::after{content:"閉じる ▲"}
+      #rtc-rate-details:not([open])>summary .rtc-chev::after{content:"開く ▼"}
+      </style>
+      <details id="rtc-rate-details" open style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#33421f;background:#f2f0e8;border:1px solid #d3ccbe;border-radius:8px;padding:8px 11px">📋 送料・ピックアップ 早見表（金額を直せます）<span class="rtc-chev" style="margin-left:auto;font-size:12px;background:#fff;border:1px solid #cfd8bf;color:#6b7a3a;padding:2px 11px;border-radius:99px"></span></summary>
         <div id="rtc-rate-table" style="border:1px solid #d3ccbe;border-top:none;border-radius:0 0 8px 8px;padding:11px 11px 12px"></div>
       </details>
       <button class="btn" style="width:100%;margin-top:14px;background:#2563eb;border-color:#2563eb;color:#fff;font-weight:800;font-size:15px" onclick="rtCalcRun()">計算して、アイポーターに入力する数字を出す</button>
@@ -780,6 +786,7 @@ body{background:#fff}
       <div class="sec">② 発注伝票を取り込む（納品書を作る）</div>
       <div class="info-box"><strong>使い方：</strong>RTから届いた発注伝票のPDF（1枚）をここに読み込むと、お届け先・商品・本数・納品予定日を自動で拾い、下に確認画面を出します。<br>
       <strong>読み取ったあと、必ず内容を確認してください。</strong>RTは入金確認をはさまずそのまま出荷されるため、伝票と納品書が合っていることを確認してから進めます。違うところはその場で直せます。</div>
+      <div style="background:#eef4f9;border:1.5px solid #b9d0e3;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px;color:#1f4a6d;font-weight:700;line-height:1.8">📥 RTの発注伝票PDFを下の枠にドロップすると、<b>納品書が自動でできます</b>。<br>この後の順番 → ①中身を確認（数字が違えばその場で打ち直す）→ ②「🖨️ 納品書を取り出す」で保存 → ③「📮 倉庫へ送る」。</div>
       <div style="border:2px dashed #b9d0e3;border-radius:12px;padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer;background:#f4f8fb"
         onclick="document.getElementById('rt-file').click()"
         ondragover="event.preventDefault();this.style.borderColor='#1f4a6d'"
@@ -792,6 +799,12 @@ body{background:#fff}
       </div>
       <div id="rt-loading" style="display:none;text-align:center;color:#2b2a26;font-size:13px;padding:12px 0">📖 伝票を読み取り中...</div>
       <div id="rt-preview" style="display:none"></div>
+      <div id="rt-actions" style="margin-top:6px">
+        <div id="rt-actions-hint" style="font-size:12.5px;color:#8a8578;background:#f7f4ee;border:1px dashed #d5cfc3;border-radius:8px;padding:9px 11px;margin-bottom:8px;line-height:1.7">↑ まず上の枠に<b>発注伝票のPDF</b>を入れると、下の2つのボタンが<b>使えるようになります</b>（今はまだ押せません）。</div>
+        <button id="rt-pdf-btn" disabled onclick="rtMakeDeliveryNote()" style="width:100%;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">🖨️ 納品書をPDFで取り出す（印刷・保存）</button>
+        <button id="rt-send-btn" disabled onclick="rtSendDocsToWarehouse()" style="width:100%;margin-top:10px;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">📮 発注伝票＋納品書を倉庫へ送る（メール＋LINE）</button>
+        <div style="font-size:11.5px;color:#8a8578;margin-top:5px;line-height:1.6">メール本文に納品書、添付に発注伝票PDFが入ります。倉庫はそれを印刷して同梱します。</div>
+      </div>
     </div>
 
     <div class="card">
@@ -4337,9 +4350,12 @@ function renderRtRateTable(){
       +'</div>'
       +'<div style="font-size:11px;color:#92400e;background:#fff7ed;border:1px solid #f1d9b0;border-radius:8px;padding:7px 10px;margin-top:8px">⚠️ ここを変えると、送料の<b>自動計算</b>がこの金額になります。ピックアップは目安表示です（下の「ピックアップ料金」欄は今まで通り手で入れます）。</div>';
   } else {
-    foot = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px">'
+    foot = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;flex-wrap:wrap">'
       +'<div style="font-size:11px;color:#8a8578">※ 下の「送料」欄には、この目安を自動で入れます。</div>'
-      +'<button type="button" onclick="rtRateStartEdit()" style="background:#eef4f9;border:1.5px solid #93b4e0;color:#1f4a6d;font-size:12.5px;font-weight:800;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap">✏️ 早見表を修正する</button>'
+      +'<div style="display:flex;gap:8px">'
+        +'<button type="button" onclick="rtRateStartEdit()" style="background:#eef4f9;border:1.5px solid #93b4e0;color:#1f4a6d;font-size:12.5px;font-weight:800;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap">✏️ 早見表を修正する</button>'
+        +'<button type="button" onclick="rtRateCloseDetails()" style="background:#f1efe8;border:1px solid #cfc9bd;color:#57534e;font-size:12.5px;font-weight:700;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap">▲ 閉じる</button>'
+      +'</div>'
       +'</div>';
   }
   el.innerHTML = grid + foot;
@@ -4728,6 +4744,7 @@ function applyPdfToOrderForm(){
 
 // ── RT発注伝票（受領書）取込 ───────────────────────────────────────
 let rtParsed = null;
+var rtSlipPdfB64 = '', rtSlipPdfName = '';   // 取り込んだ発注伝票PDFの元データ（倉庫へ添付するため保持）
 
 function handleRtDrop(e){
   e.preventDefault();
@@ -4746,6 +4763,7 @@ function readRtPdf(file){
   reader.onload = function(ev){
     if(!window.pdfjsLib){ alert('PDF読み取り機能の準備ができていません。少し待ってから再度お試しください。'); document.getElementById('rt-loading').style.display='none'; return; }
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    try{ var _b=new Uint8Array(ev.target.result), _s=''; for(var _i=0;_i<_b.length;_i++) _s+=String.fromCharCode(_b[_i]); rtSlipPdfB64=btoa(_s); rtSlipPdfName=(file&&file.name)||'発注伝票.pdf'; }catch(_e){ rtSlipPdfB64=''; rtSlipPdfName=''; }
     pdfjsLib.getDocument({ data: ev.target.result }).promise.then(function(pdf){
       const pagePromises = [];
       for(let i=1;i<=pdf.numPages;i++) pagePromises.push(extractPdfPageLines(pdf, i));
@@ -4844,6 +4862,14 @@ function rtFld(label, key, val, span){
     +'<input type="text" value="'+esc(val||'')+'" oninput="rtParsed.'+key+'=this.value" '
     +'style="padding:7px 9px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:15px;font-weight:700;color:#2b2a26"></div>';
 }
+// ②の操作ボタン（納品書取り出し・倉庫へ送る）の色と可否を切り替える
+function rtSetActionsEnabled(on){
+  var pdf=document.getElementById('rt-pdf-btn'), snd=document.getElementById('rt-send-btn'), hint=document.getElementById('rt-actions-hint');
+  if(pdf){ pdf.disabled=!on; pdf.style.background=on?'#2563eb':'#d6d3cd'; pdf.style.borderColor=on?'#2563eb':'#d6d3cd'; pdf.style.color=on?'#fff':'#8a8578'; pdf.style.cursor=on?'pointer':'not-allowed'; }
+  if(snd){ snd.disabled=!on; snd.style.background=on?'#16a34a':'#d6d3cd'; snd.style.borderColor=on?'#16a34a':'#d6d3cd'; snd.style.color=on?'#fff':'#8a8578'; snd.style.cursor=on?'pointer':'not-allowed'; }
+  if(hint){ hint.style.display=on?'none':'block'; }
+}
+function rtRateCloseDetails(){ var d=document.getElementById('rtc-rate-details'); if(d) d.open=false; }
 function renderRtPreview(){
   const p = rtParsed;
   const el = document.getElementById('rt-preview');
@@ -4859,6 +4885,7 @@ function renderRtPreview(){
       +'<span style="background:#1f4a6d;color:#fff;padding:3px 10px;border-radius:99px;font-weight:700">② 確認・修正</span>'
       +'<span>伝票番号 <b>'+esc(p.slipNo||'—')+'</b></span><span>／</span><span>納品予定日 <b>'+esc(p.deliveryDate||'—')+'</b></span>'
     +'</div>'
+    +'<div style="background:#fef9c3;border:1.5px solid #f59e0b;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:13.5px;font-weight:700;color:#78350f;line-height:1.8">✏️ 数字が違っていたら、下の欄をそのまま<b>打ち直して</b>ください（本数・単価・お届け先・納品書番号など）。直すと納品書に反映されます。</div>'
     +'<div class="order-card" style="padding:1rem 1.1rem">'
       +'<div style="font-size:13px;font-weight:700;color:#33421f;margin-bottom:8px">お届け先（その場で直せます）</div>'
       +'<div class="g3" style="margin-bottom:6px">'+rtFld('会社名・お届け先','recipientName',p.recipientName,2)+rtFld('納品先（部門）','dept',p.dept,1)+'</div>'
@@ -4880,7 +4907,6 @@ function renderRtPreview(){
         +'<span style="background:#eef4f9;color:#1f4a6d;border:1px solid #b9d0e3;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">同梱：RT発注伝票 ＋ 納品書（必ずセット）</span>'
       +'</div>'
     +'</div>'
-    +'<button class="btn" onclick="rtMakeDeliveryNote()" style="width:100%;margin-top:14px;background:#2563eb;border-color:#2563eb;color:#fff;font-weight:800;font-size:16px">🖨️ 納品書をPDFで取り出す（印刷・保存）</button>'
     +'<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
       +'<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">⚠️ 伝票と納品書を確認しましたか？</div>'
       +'<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="rt-confirm-chk" onchange="document.getElementById(\'rt-go-btn\').disabled=!this.checked" style="width:18px;height:18px"> 伝票の内容と、作られる納品書が合っていることを確認しました</label>'
@@ -4889,6 +4915,7 @@ function renderRtPreview(){
         +'<button class="btn btn-gray" onclick="cancelRtImport()">キャンセル</button>'
       +'</div>'
     +'</div>';
+  if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(true);
 }
 // ── RT納品書：取り込んだ発注伝票から、いつもの納品書と同じスタイルで作る（社内コード・検品欄・原価は載せない）──
 function rtDeliveryNoteHtml(){
@@ -4953,6 +4980,85 @@ function rtDeliveryNoteHtml(){
     +'<div class="dn-pageno">1 / 1</div>'
   +'</div>';
 }
+function rtDeliveryNoteCss(){ return '*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;color:#1a1a18;background:#e9e6e0;padding:16px}'
+    +'.dn{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm 12mm;position:relative}'
+    +'.dn-title{text-align:center;font-size:26px;font-weight:700;letter-spacing:6px;margin-bottom:18px}'
+    +'.dn-head{display:flex;justify-content:space-between;gap:24px;margin-bottom:14px}'
+    +'.dn-to{flex:1;min-width:0}'
+    +'.dn-toname{font-size:19px;font-weight:700;border-bottom:1.5px solid #1a1a18;padding-bottom:5px;display:inline-block}'
+    +'.hon{font-size:14px;margin-left:6px}'
+    +'.dn-tosub{font-size:12px;color:#333;margin-top:3px}'
+    +'.dn-tosp{height:10px}'
+    +'.dn-right{width:80mm;flex:none}'
+    +'.dn-meta{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}'
+    +'.dn-meta .ml{color:#333;padding:2px 0}'
+    +'.dn-meta .mv{text-align:right;font-weight:700;padding:2px 0}'
+    +'.dn-from{position:relative;font-size:12px}'
+    +'.dn-fname{font-size:14px;font-weight:700;position:relative;padding-right:52px}'
+    +'.dn-seal{position:absolute;right:0;top:-12px;width:50px;height:50px;border:2px solid #d0021b;color:#d0021b;font-size:7.5px;font-weight:700;line-height:1.35;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}'
+    +'.dn-faddr{margin-top:8px;color:#333;line-height:1.55}'
+    +'.dn-logo{margin-top:12px;font-size:21px;font-weight:700;color:#5b7a2f;letter-spacing:.5px}'
+    +'.dn-logo .o{color:#d98a1f}'
+    +'.dn-logosub{font-size:9px;color:#5b7a2f;letter-spacing:2px;font-weight:400}'
+    +'.dn-lead{font-size:13px;margin:2px 0}'
+    +'.dn-kenmei{font-size:13px;margin-bottom:10px}'
+    +'.dn-sumbox{border-collapse:collapse;margin-bottom:18px;width:66%}'
+    +'.dn-sumbox th{border:1px solid #1a1a18;background:#f4f2ec;font-size:12px;font-weight:700;padding:5px 8px;text-align:center}'
+    +'.dn-sumbox td{border:1px solid #1a1a18;font-size:14px;padding:8px;text-align:right}'
+    +'.dn-sumbox td.big{font-size:21px;font-weight:800}'
+    +'.dn-detail{width:100%;border-collapse:collapse;font-size:12.5px}'
+    +'.dn-detail th{border:1px solid #7a756a;background:#f4f2ec;padding:6px;font-weight:700}'
+    +'.dn-detail td{border:1px solid #b7b1a5;padding:6px 8px;height:26px}'
+    +'.d-tekiyo{text-align:left}'
+    +'.d-qty{width:70px;text-align:center}'
+    +'.d-num{width:98px;text-align:right}'
+    +'.dn-detail thead .d-qty,.dn-detail thead .d-num{text-align:center}'
+    +'.dn-foot{display:flex;justify-content:space-between;align-items:flex-start;margin-top:8px;gap:20px}'
+    +'.dn-note{font-size:11px;color:#333;padding-top:6px}'
+    +'.dn-uchiwake{width:76mm;border:1px solid #1a1a18}'
+    +'.uw-h{font-size:11px;font-weight:700;padding:3px 8px;border-bottom:1px solid #b7b1a5;background:#f4f2ec}'
+    +'.uw-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 8px}'
+    +'.uw-row.uw-small{font-size:10px;color:#444;padding-top:0}'
+    +'.dn-biko{margin-top:16px;border:1px solid #1a1a18;padding:8px 10px;font-size:12px;min-height:54px;line-height:1.7}'
+    +'.biko-h{font-weight:700;margin-bottom:2px}'
+    +'.dn-pageno{text-align:center;font-size:11px;color:#555;margin-top:18px}'
+    +'.noprint{text-align:center;margin-top:20px}'
+    +'.noprint button{background:#2563eb;color:#fff;border:none;font-size:15px;font-weight:800;padding:11px 26px;border-radius:8px;cursor:pointer}'
+    +'@media print{body{background:#fff;padding:0}.dn{width:auto;min-height:auto;padding:0}.noprint{display:none!important}@page{size:A4;margin:12mm}}'; }
+function rtSendDocsToWarehouse(){
+  if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
+  var url = '';
+  try{ url = localStorage.getItem('oos_rt_mailer_url') || ''; }catch(e){}
+  if(!url){
+    url = prompt('倉庫へ送る準備（初回だけ）：\n送信用スクリプト（RT mailer）のウェブアプリURL（末尾 /exec）を貼ってください。');
+    if(!url){ return; }
+    url = url.trim();
+    try{ localStorage.setItem('oos_rt_mailer_url', url); }catch(e){}
+  }
+  var p = rtParsed;
+  var noteHtml = '<style>' + rtDeliveryNoteCss() + '</style>' + rtDeliveryNoteHtml();
+  var payload = { to:'', recipient:p.recipientName||'', nouhinNo:p.nouhinNo||p.slipNo||'', slipNo:p.slipNo||'', deliveryDate:p.deliveryDate||'', noteHtml:noteHtml, slipPdfB64:rtSlipPdfB64||'', slipPdfName:rtSlipPdfName||'' };
+  if(typeof showSyncStatus==='function') showSyncStatus('📮 倉庫へ送っています…');
+  fetch(url, { method:'POST', body: JSON.stringify({ action:'sendRtDocs', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(res && res.status==='ok'){
+        if(typeof showSyncStatus==='function') showSyncStatus('✅ 倉庫へ送りました（メール' + (res.line ? '＋LINE' : '') + '）');
+        alert('倉庫へ送りました。\n・メール：' + (res.to || '') + (res.line ? '\n・LINE：送信しました' : '\n・LINE：（トークン未設定のため今回はメールのみ）'));
+      } else {
+        alert('送信に失敗しました：' + ((res && res.message) || '不明なエラー') + '\n\nURLが正しいか、スクリプトが「全員」公開でデプロイされているか確認してください。');
+      }
+    })
+    .catch(function(err){ alert('送信結果を受け取れませんでした（通信）。\nメールは届いている場合があります。\n\n' + err); });
+}
+function rtResetMailerUrl(){
+  var cur=''; try{ cur=localStorage.getItem('oos_rt_mailer_url')||''; }catch(e){}
+  var u = prompt('倉庫へ送る 送信用スクリプトのURL（末尾 /exec）を貼り直します。', cur);
+  if(u===null) return;
+  try{ localStorage.setItem('oos_rt_mailer_url', (u||'').trim()); }catch(e){}
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ 送信先URLを更新しました');
+}
 function rtMakeDeliveryNote(){
   if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
   var w = window.open('', '_blank');
@@ -5015,6 +5121,7 @@ function cancelRtImport(){
   const el = document.getElementById('rt-preview');
   el.style.display='none'; el.innerHTML='';
   document.getElementById('rt-file').value='';
+  if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(false);
 }
 function rtSetVal(card, role, v){ const el = card.querySelector('[data-role='+role+']'); if(el) el.value = (v||''); }
 function applyRtToOrderForm(){
