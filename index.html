@@ -185,6 +185,8 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -804,6 +806,20 @@ body{background:#fff}
         <button id="rt-pdf-btn" disabled onclick="rtMakeDeliveryNote()" style="width:100%;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">🖨️ 納品書をPDFで取り出す（印刷・保存）</button>
         <button id="rt-send-btn" disabled onclick="rtSendDocsToWarehouse()" style="width:100%;margin-top:10px;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">📮 発注伝票＋納品書を倉庫へ送る（メール＋LINE）</button>
         <div style="font-size:11.5px;color:#8a8578;margin-top:5px;line-height:1.6">メール本文に納品書、添付に発注伝票PDFが入ります。倉庫はそれを印刷して同梱します。</div>
+      </div>
+      <div id="rt-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:14px;max-width:430px;width:100%;padding:18px 18px 16px;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+          <div style="font-size:17px;font-weight:800;color:#166534;margin-bottom:4px">📮 倉庫へ送る前の確認</div>
+          <div style="font-size:12.5px;color:#8a8578;margin-bottom:12px">送る前に、いちど中身を確認してください。よければ下の緑ボタンで送信します。</div>
+          <div id="rt-send-modal-body" style="background:#f7f4ee;border:1px solid #e2ddce;border-radius:10px;padding:11px 13px;margin-bottom:12px"></div>
+          <div style="background:#eef4f9;border:1.5px solid #b9d0e3;border-radius:10px;padding:11px 12px;margin-bottom:12px">
+            <div style="font-size:12.5px;font-weight:700;color:#1f4a6d;margin-bottom:8px">📎 メールに添付されるもの（PDF 2つ）</div>
+            <div style="font-size:13px;color:#2b2a26;line-height:1.9">① 発注伝票PDF（取り込んだ元ファイル）<br>② 納品書PDF（下のボタンで開いて確認できます）</div>
+            <button type="button" onclick="rtMakeDeliveryNote()" style="width:100%;margin-top:10px;background:#2563eb;border:none;color:#fff;font-weight:800;font-size:15px;border-radius:9px;padding:11px;cursor:pointer">🖨️ 納品書を開いて確認する</button>
+          </div>
+          <button type="button" id="rt-send-go-btn" onclick="rtDoSendDocs()" style="width:100%;background:#16a34a;border:none;color:#fff;font-weight:800;font-size:16px;border-radius:10px;padding:13px;cursor:pointer">✅ この内容で倉庫へ送る</button>
+          <button type="button" onclick="rtCloseSendConfirm()" style="width:100%;margin-top:9px;background:#f1efe8;border:1px solid #cfc9bd;color:#57534e;font-weight:700;font-size:14px;border-radius:10px;padding:11px;cursor:pointer">やめる</button>
+        </div>
       </div>
     </div>
 
@@ -5028,29 +5044,74 @@ function rtDeliveryNoteCss(){ return '*{box-sizing:border-box;margin:0;padding:0
     +'@media print{body{background:#fff;padding:0}.dn{width:auto;min-height:auto;padding:0}.noprint{display:none!important}@page{size:A4;margin:12mm}}'; }
 function rtSendDocsToWarehouse(){
   if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
-  var url = '';
-  try{ url = localStorage.getItem('oos_rt_mailer_url') || ''; }catch(e){}
-  if(!url){
-    url = prompt('倉庫へ送る準備（初回だけ）：\n送信用スクリプト（RT mailer）のウェブアプリURL（末尾 /exec）を貼ってください。');
-    if(!url){ return; }
-    url = url.trim();
-    try{ localStorage.setItem('oos_rt_mailer_url', url); }catch(e){}
+  rtShowSendConfirm();
+}
+function rtShowSendConfirm(){
+  var p=rtParsed; if(!p) return;
+  var box=document.getElementById('rt-send-modal-body');
+  if(box){
+    box.innerHTML =
+      '<div style="font-size:13.5px;color:#2b2a26;line-height:1.95">'
+      +'<div>お届け先：<b>'+esc(p.recipientName||'—')+'</b></div>'
+      +'<div>納品書番号：<b>'+esc(p.nouhinNo||p.slipNo||'—')+'</b></div>'
+      +'<div>納品予定日：<b>'+esc(p.deliveryDate||'—')+'</b></div>'
+      +'</div>';
   }
-  var p = rtParsed;
-  var noteHtml = '<style>' + rtDeliveryNoteCss() + '</style>' + rtDeliveryNoteHtml();
-  var payload = { to:'', recipient:p.recipientName||'', nouhinNo:p.nouhinNo||p.slipNo||'', slipNo:p.slipNo||'', deliveryDate:p.deliveryDate||'', noteHtml:noteHtml, slipPdfB64:rtSlipPdfB64||'', slipPdfName:rtSlipPdfName||'' };
+  var m=document.getElementById('rt-send-modal'); if(m) m.style.display='flex';
+}
+function rtCloseSendConfirm(){ var m=document.getElementById('rt-send-modal'); if(m) m.style.display='none'; }
+// 画面と同じ納品書を写し取ってA4のPDF(base64)にする
+async function rtBuildNotePdfB64(){
+  if(!(window.html2canvas && window.jspdf)){ throw new Error('PDF部品の読み込みがまだです。少し待って再度お試しください。'); }
+  var holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-99999px;top:0;background:#fff';
+  holder.innerHTML='<style>'+rtDeliveryNoteCss()+'</style>'+rtDeliveryNoteHtml();
+  document.body.appendChild(holder);
+  try{
+    var target=holder.querySelector('.dn')||holder;
+    var canvas=await html2canvas(target,{scale:2,backgroundColor:'#ffffff',windowWidth:target.scrollWidth,windowHeight:target.scrollHeight});
+    var img=canvas.toDataURL('image/jpeg',0.92);
+    var jsPDF=window.jspdf.jsPDF;
+    var pdf=new jsPDF('p','mm','a4');
+    var pw=210, ph=297, iw=pw, ih=canvas.height*pw/canvas.width;
+    var pos=0, left=ih;
+    pdf.addImage(img,'JPEG',0,pos,iw,ih); left-=ph;
+    while(left>0){ pos-=ph; pdf.addPage(); pdf.addImage(img,'JPEG',0,pos,iw,ih); left-=ph; }
+    return pdf.output('datauristring').split(',')[1];
+  } finally { document.body.removeChild(holder); }
+}
+async function rtDoSendDocs(){
+  var p=rtParsed; if(!p) return;
+  var url=''; try{ url=localStorage.getItem('oos_rt_mailer_url')||''; }catch(e){}
+  if(!url){
+    url=prompt('倉庫へ送る準備（初回だけ）：\n送信用スクリプト（RT mailer）のウェブアプリURL（末尾 /exec）を貼ってください。');
+    if(!url){ return; } url=url.trim();
+    try{ localStorage.setItem('oos_rt_mailer_url',url); }catch(e){}
+  }
+  var btn=document.getElementById('rt-send-go-btn');
+  if(btn){ btn.disabled=true; btn.textContent='📄 納品書PDFを作成中…'; }
+  if(typeof showSyncStatus==='function') showSyncStatus('📄 納品書PDFを作成中…');
+  var notePdfB64='';
+  try{ notePdfB64=await rtBuildNotePdfB64(); }
+  catch(e){ alert('納品書PDFの作成に失敗しました：'+e); if(btn){ btn.disabled=false; btn.textContent='✅ この内容で倉庫へ送る'; } return; }
+  var noteName='納品書_'+((p.nouhinNo||p.slipNo||'')||'RT')+'.pdf';
+  var payload={ to:'', recipient:p.recipientName||'', nouhinNo:p.nouhinNo||p.slipNo||'', slipNo:p.slipNo||'', deliveryDate:p.deliveryDate||'',
+    notePdfB64:notePdfB64, noteName:noteName, slipPdfB64:rtSlipPdfB64||'', slipPdfName:rtSlipPdfName||'',
+    noteHtml:'<style>'+rtDeliveryNoteCss()+'</style>'+rtDeliveryNoteHtml() };
   if(typeof showSyncStatus==='function') showSyncStatus('📮 倉庫へ送っています…');
-  fetch(url, { method:'POST', body: JSON.stringify({ action:'sendRtDocs', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} })
+  fetch(url,{ method:'POST', body:JSON.stringify({action:'sendRtDocs',payload:payload}), headers:{'Content-Type':'text/plain;charset=utf-8'} })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if(res && res.status==='ok'){
-        if(typeof showSyncStatus==='function') showSyncStatus('✅ 倉庫へ送りました（メール' + (res.line ? '＋LINE' : '') + '）');
-        alert('倉庫へ送りました。\n・メール：' + (res.to || '') + (res.line ? '\n・LINE：送信しました' : '\n・LINE：（トークン未設定のため今回はメールのみ）'));
+        rtCloseSendConfirm();
+        if(typeof showSyncStatus==='function') showSyncStatus('✅ 倉庫へ送りました（メール'+(res.line?'＋LINE':'')+'）');
+        alert('倉庫へ送りました。\n・メール：'+(res.to||'')+'\n・添付：発注伝票PDF ＋ 納品書PDF'+(res.line?'\n・LINE：送信しました':'\n・LINE：（トークン未設定のため今回はメールのみ）'));
       } else {
-        alert('送信に失敗しました：' + ((res && res.message) || '不明なエラー') + '\n\nURLが正しいか、スクリプトが「全員」公開でデプロイされているか確認してください。');
+        alert('送信に失敗しました：'+((res&&res.message)||'不明なエラー')+'\n\nURLが正しいか、スクリプトが「全員」公開でデプロイされているか確認してください。');
       }
     })
-    .catch(function(err){ alert('送信結果を受け取れませんでした（通信）。\nメールは届いている場合があります。\n\n' + err); });
+    .catch(function(err){ alert('送信結果を受け取れませんでした（通信）。\nメールは届いている場合があります。\n\n'+err); })
+    .then(function(){ if(btn){ btn.disabled=false; btn.textContent='✅ この内容で倉庫へ送る'; } });
 }
 function rtResetMailerUrl(){
   var cur=''; try{ cur=localStorage.getItem('oos_rt_mailer_url')||''; }catch(e){}
