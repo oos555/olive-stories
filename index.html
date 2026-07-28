@@ -425,7 +425,7 @@ body{background:#fff}
           </select>
         </div>
       </div>
-      <div id="hold-date-wrap" style="display:none;margin-top:8px"><label style="font-size:11px">いつまでの取り置きか</label><input type="date" id="o-hold-date" style="font-size:12px;padding:6px"></div>
+      <div id="hold-date-wrap" style="display:none;margin-top:8px"><label style="font-size:11px">送る目安（いつ頃出す？）</label><input type="date" id="o-hold-date" style="font-size:12px;padding:6px"></div>
       <div id="reserved-date-wrap" style="display:none;margin-top:8px"><label style="font-size:11px">お届け予定時期</label><input type="date" id="o-expected-date" style="font-size:12px;padding:6px"></div>
       <div id="prepay-warn" style="display:none;font-size:11px;color:#b45309;margin-top:6px">⚠️ 先払いの場合、請求アプリCで入金確認するまで、この受注はLINE通知（倉庫への出荷依頼）ができません。</div>
     </div>
@@ -526,6 +526,7 @@ body{background:#fff}
         <button class="btn btn-green" onclick="registerOrder()">受注一覧に登録する</button>
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
+      <div style="margin-top:12px;background:#fff4f2;border:2px solid #e24b4a;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#a32d2d;font-weight:700;line-height:1.7">⚠️ これは「受注一覧」に入れるだけです。<span style="color:#791f1f">この時点では倉庫Dには出荷依頼が出ていません。</span><br><span style="font-weight:500;color:#7a2a24">倉庫に出すには、受注一覧で「📦 出荷依頼書へ」→「📱 LINEに通知」を押してください。</span></div>
     </div>
   </div>
 </div>
@@ -3092,19 +3093,39 @@ function renderHoldPreLists(){
   document.getElementById('reserved-count').textContent = reservedOrders.length;
 
   const heldEl = document.getElementById('held-order-list');
-  heldEl.innerHTML = heldOrders.length ? heldOrders.map(function(o){
+  // ★取り置きの見出し：件数＋いちばん近い予定出荷日（忘れ防止）
+  var heldSummary = '';
+  if(heldOrders.length){
+    var withDate = heldOrders.filter(function(o){ return o.holdUntilDate; })
+      .slice().sort(function(a,b){ return String(a.holdUntilDate).localeCompare(String(b.holdUntilDate)); });
+    var today = new Date(); today.setHours(0,0,0,0);
+    var future = withDate.filter(function(o){ return new Date(o.holdUntilDate) >= today; });
+    var nearest = (future[0] || withDate[0]);
+    var dateTxt, nameTxt='';
+    if(nearest){ var d=new Date(nearest.holdUntilDate); dateTxt=(d.getMonth()+1)+'月'+d.getDate()+'日'; nameTxt=' （'+esc(nearest.recipientName||nearest.client||'')+'様）'; }
+    else { dateTxt='—'; }
+    heldSummary = '<div style="background:#fff9ef;border:2px solid #d9a441;border-radius:12px;padding:12px 15px;margin-bottom:12px">'+
+      '<div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap"><span style="font-size:16px;font-weight:800;color:#7a3a0e">🗄 取り置きリスト</span><span style="font-size:24px;font-weight:800;color:#7a3a0e;line-height:1">'+heldOrders.length+'</span><span style="font-size:14px;font-weight:700;color:#7a3a0e">件</span></div>'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;background:#fff;border:1px solid #ecd9b8;border-radius:9px;padding:8px 11px"><span style="font-size:13px;font-weight:500;color:#57534e">⏰ いちばん近い予定出荷</span><span style="font-size:21px;font-weight:800;color:#b25b00">'+dateTxt+'</span><span style="font-size:12.5px;font-weight:500;color:#2b2a26">'+nameTxt+'</span></div>'+
+      '</div>';
+  }
+  heldEl.innerHTML = heldSummary + (heldOrders.length ? heldOrders.map(function(o){
     const overdue = isHeldOverdue(o), soon = isHeldDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
       '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限切れ</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅期限間近</span>':'')+
-      '<div class="oc-num">'+o.num+'　取り置き期限：'+(o.holdUntilDate||'指定なし')+'</div></div></div>'+
+      '<div class="oc-num">'+o.num+'　送る目安：'+(o.holdUntilDate||'指定なし')+'</div></div></div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
-  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>';
+  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>');
 
   const resEl = document.getElementById('reserved-order-list');
-  resEl.innerHTML = reservedOrders.length ? reservedOrders.map(function(o){
+  // ★予約の見出し：件数だけ（予定はこちらで把握しているため日付は出さない）
+  var resSummary = reservedOrders.length
+    ? '<div style="background:#eef4fb;border:2px solid #85b7eb;border-radius:12px;padding:12px 15px;margin-bottom:12px"><div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap"><span style="font-size:16px;font-weight:800;color:#0c447c">🗓 予約リスト</span><span style="font-size:24px;font-weight:800;color:#0c447c;line-height:1">'+reservedOrders.length+'</span><span style="font-size:14px;font-weight:700;color:#0c447c">件</span></div></div>'
+    : '';
+  resEl.innerHTML = resSummary + (reservedOrders.length ? reservedOrders.map(function(o){
     const overdue = isReservedOverdue(o), soon = isReservedDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
       '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
@@ -3113,7 +3134,7 @@ function renderHoldPreLists(){
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
-  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>';
+  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>');
 
   updateHoldSelected();
 }
@@ -3254,7 +3275,7 @@ function renderList(){
     const whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
     const whBadge = o.status==='pending' ? (o.notified
       ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
-      : '<span class="pill" style="background:#fdf0d5;color:#7a5b1a;border:1px solid #e8c87a">📮 倉庫にまだ送っていません</span>') : '';
+      : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>') : '';
     const shippedInfo = (o.status==='shipped' && o.shippedAt) ? '　<b style="color:#2b2a26">発送：'+esc(fmtShipTime(o.shippedAt))+'</b>' : '';
     const trackRow = o.status==='shipped'
       ? '<div class="no-print" style="display:flex;align-items:center;gap:8px;border-top:1px dashed #d8d0c2;margin-top:6px;padding-top:7px">'
@@ -3264,7 +3285,7 @@ function renderList(){
         + (o.trackingNo ? '<span style="color:#16a34a;font-weight:700;font-size:12px">✓ 保存済み</span>' : '')
         + '</div>'
       : '';
-    return '<div class="order-card'+basaraCls+'">'+
+    return '<div class="order-card'+basaraCls+'"'+((o.status==='pending' && !o.notified)?' style="border-left:6px solid #e24b4a;background:#fff5f4"':'')+'>'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
         '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
