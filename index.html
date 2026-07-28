@@ -413,6 +413,7 @@ body{background:#fff}
             <option value="wholesale1">卸①（仲卸価格）</option>
             <option value="wholesale2">卸②（一般卸価格）</option>
             <option value="rt">RT（ホテル）</option>
+            <option value="rtgc">RTGC（ゴルフ）</option>
             <option value="defectprice">不良在庫特価</option>
           </select>
         </div>
@@ -1168,6 +1169,7 @@ body{background:#fff}
         <option value="wholesale1">卸①</option>
         <option value="wholesale2">卸②</option>
         <option value="rt">RT・ホテル</option>
+        <option value="rtgc">RTGC・ゴルフ</option>
         <option value="defectprice">不良在庫特価</option>
       </select>
       <select id="list-sort" onchange="renderList()" style="padding:5px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px">
@@ -1254,6 +1256,7 @@ body{background:#fff}
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-primary" id="nc-save-btn" onclick="saveCustomerForm()">お客様を追加</button>
       <button class="btn btn-gray" id="nc-cancel-btn" style="display:none" onclick="cancelCustomerEdit()">編集をやめる</button>
+      <button class="btn-sm" id="rt-bulk-btn" onclick="importRtFacilitiesOnce()" style="margin-left:auto;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;background:#fff">📥 RT全施設をまとめて登録（初回だけ）</button>
     </div>
   </div>
 </div>
@@ -1478,11 +1481,11 @@ gateCheck();
 
 const CUSTOMER_TYPE_LABEL = {
   general:'定価', wholesale1:'卸①（仲卸価格）', wholesale2:'卸②（一般卸価格）',
-  rt:'RT（ホテル）', defectprice:'不良在庫特価'
+  rt:'RT（ホテル）', rtgc:'RTGC（ゴルフ）', defectprice:'不良在庫特価'
 };
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（倉庫D・受注A共通の約束）*/
-function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','不良在庫特価':'defectprice'})[v] || v; }
-const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', defectprice:'特化' };
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','不良在庫特価':'defectprice'})[v] || v; }
+const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', rtgc:'卸●', defectprice:'特化' };
 
 // boxQty ＝ 1箱に入っている本数（発注書シートで「箱数→本数」換算に使われます）
 // ★Phase 3以降、起動時にGASの「商品マスタ」シートから読み込んで上書きします。
@@ -1853,7 +1856,7 @@ function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
   const pam = document.getElementById('o-include-pamphlet');
-  if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
+  if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='rtgc' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
   // ゆかさん要望③④：RTを選んだら 発送区分＝日程指定・同梱書類＝RT発注伝票＋納品書 を自動セット（手で変更可）
   if(sel.value==='rt'){
     document.querySelectorAll('.recipient-card [data-role=lead]').forEach(function(ls){
@@ -2472,7 +2475,7 @@ function toggleCardTimeOther(cardId){
 // ── 注文番号自動採番 ────────────────────────────────────────────
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
 /* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
-function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', defectprice:'FT'})[ctype] || 'TK'; }
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', rtgc:'RTG', defectprice:'FT'})[ctype] || 'TK'; }
 function nextOrderNum(offset, ctype){
   const ymd = todayYmd();
   const todays = orders.filter(o=>(o.num||'').indexOf('-'+ymd+'-')>=0).length;
@@ -2608,7 +2611,7 @@ function previewOrder(){
     list.forEach(function(o){
       (o.lines||[]).forEach(function(l){
         const p = findProduct(l.productId);
-        if(p && p.noWholesale && o.customerType!=='rt' && l.giftType!=='sample_free' && l.giftType!=='sample_paid'){
+        if(p && p.noWholesale && o.customerType!=='rt' && o.customerType!=='rtgc' && l.giftType!=='sample_free' && l.giftType!=='sample_paid'){
           rtViolations.push(o.recipientName+'様：'+p.name);
         }
       });
@@ -2866,6 +2869,88 @@ function renderCustomerList(){
       '</div>'+
     '</div>';
   }).join('');
+}
+var RT_FACILITIES_SEED = {
+  rt: [
+    {name:'東京ベイコート倶楽部',loc:'東京都江東区',tel:'03-5769-1111'},
+    {name:'横浜ベイコート倶楽部',loc:'神奈川県横浜市西区',tel:'045-522-0001'},
+    {name:'ラグーナベイコート倶楽部',loc:'愛知県蒲郡市',tel:'0533-53-6111'},
+    {name:'芦屋ベイコート倶楽部',loc:'兵庫県芦屋市',tel:'0797-25-2222'},
+    {name:'サンクチュアリコート日光',loc:'栃木県日光市',tel:'0288-23-1111'},
+    {name:'サンクチュアリコート高山',loc:'岐阜県高山市',tel:'0577-40-1000'},
+    {name:'サンクチュアリコート琵琶湖',loc:'滋賀県高島市',tel:'0740-34-6000'},
+    {name:'エクシブ那須白河',loc:'福島県西白河郡西郷村',tel:'0248-25-6111'},
+    {name:'エクシブ山中湖',loc:'山梨県南都留郡山中湖村',tel:'0555-65-6600'},
+    {name:'エクシブ山中湖サンクチュアリ・ヴィラ',loc:'山梨県南都留郡山中湖村',tel:'0555-65-6600'},
+    {name:'エクシブ軽井沢',loc:'長野県北佐久郡軽井沢町',tel:'0267-46-3331'},
+    {name:'エクシブ軽井沢パセオ',loc:'長野県北佐久郡軽井沢町',tel:'0267-46-3331'},
+    {name:'エクシブ軽井沢サンクチュアリ・ヴィラ',loc:'長野県北佐久郡軽井沢町',tel:'0267-46-3331'},
+    {name:'エクシブ軽井沢サンクチュアリ・ヴィラ ムセオ',loc:'長野県北佐久郡軽井沢町',tel:'0267-46-3331'},
+    {name:'エクシブ蓼科',loc:'長野県',tel:'0266-71-6111'},
+    {name:'エクシブ湯河原離宮',loc:'神奈川県足柄下郡湯河原町',tel:'0465-63-2222'},
+    {name:'エクシブ箱根離宮',loc:'神奈川県足柄下郡箱根町',tel:'0460-85-6111'},
+    {name:'エクシブ初島クラブ',loc:'静岡県熱海市（初島）',tel:'0557-67-3000'},
+    {name:'エクシブ伊豆',loc:'静岡県伊東市',tel:'0557-51-0001'},
+    {name:'エクシブ浜名湖',loc:'静岡県浜松市西区',tel:'053-489-0111'},
+    {name:'エクシブ鳥羽',loc:'三重県鳥羽市',tel:'0599-25-4411'},
+    {name:'エクシブ鳥羽アネックス',loc:'三重県鳥羽市',tel:'0599-25-4400'},
+    {name:'エクシブ鳥羽別邸',loc:'三重県鳥羽市',tel:'0599-21-2666'},
+    {name:'エクシブ琵琶湖',loc:'滋賀県米原市',tel:'0749-52-6111'},
+    {name:'エクシブ京都八瀬離宮',loc:'京都府京都市左京区',tel:'075-707-2888'},
+    {name:'エクシブ白浜',loc:'和歌山県西牟婁郡白浜町',tel:'0739-42-2222'},
+    {name:'エクシブ白浜アネックス',loc:'和歌山県西牟婁郡白浜町',tel:'0739-43-6101'},
+    {name:'エクシブ六甲サンクチュアリ・ヴィラ',loc:'兵庫県神戸市灘区',tel:'078-894-2200'},
+    {name:'エクシブ有馬離宮',loc:'兵庫県神戸市北区',tel:'078-907-4111'},
+    {name:'エクシブ淡路島',loc:'兵庫県南あわじ市',tel:'0799-23-3300'},
+    {name:'エクシブ鳴門',loc:'徳島県鳴門市',tel:'088-683-6111'},
+    {name:'エクシブ鳴門サンクチュアリ・ヴィラ',loc:'徳島県鳴門市',tel:'088-683-6111'},
+    {name:'エクシブ鳴門サンクチュアリ・ヴィラ ドゥーエ',loc:'徳島県鳴門市',tel:'088-683-6111'},
+    {name:'リゾーピア熱海',loc:'静岡県熱海市',tel:'0557-83-0859'},
+    {name:'リゾーピア久美浜',loc:'京都府京丹後市久美浜町',tel:'0772-83-1360'},
+    {name:'リゾーピア別府',loc:'大分県別府市',tel:'0977-25-2311'},
+    {name:'サンメンバーズひるがの',loc:'岐阜県郡上市高鷲町',tel:'0575-73-2221'},
+    {name:'サンメンバーズ京都嵯峨',loc:'京都府京都市右京区',tel:'075-882-8771'},
+    {name:'サンメンバーズ鹿児島',loc:'鹿児島県鹿児島市',tel:'099-225-0311'},
+    {name:'ザ・カハラ・ホテル&リゾート',loc:'Honolulu, HI, USA',tel:''},
+    {name:'ザ・カハラ・ホテル&リゾート 横浜',loc:'神奈川県横浜市西区',tel:'045-522-0008'},
+    {name:'ホテルトラスティ東京ベイサイド',loc:'東京都江東区有明',tel:'03-5769-0001'},
+    {name:'ホテルトラスティ大阪阿倍野',loc:'大阪府大阪市阿倍野区',tel:'06-6530-0011'}
+  ],
+  rtgc: [
+    {name:'グランディ那須白河ゴルフクラブ',loc:'福島県西白河郡西郷村',tel:'0248-25-7001'},
+    {name:'グランディ軽井沢ゴルフクラブ 森泉コース',loc:'長野県北佐久郡御代田町',tel:'0267-32-0001'},
+    {name:'グランディ浜名湖ゴルフクラブ',loc:'静岡県浜松市中央区',tel:'053-488-0120'},
+    {name:'グランディ鳴門ゴルフクラブ36',loc:'徳島県鳴門市',tel:'088-682-0246'},
+    {name:'メイプルポイントゴルフクラブ',loc:'山梨県上野原市',tel:'0554-63-5111'},
+    {name:'ゴルフ倶楽部 金沢リンクス',loc:'石川県金沢市',tel:'076-237-2222'},
+    {name:'スプリングフィールドゴルフクラブ',loc:'岐阜県多治見市',tel:'0572-25-1111'},
+    {name:'パインズゴルフクラブ',loc:'愛知県豊田市',tel:'0565-65-3661'},
+    {name:'セントクリークゴルフクラブ',loc:'愛知県豊田市',tel:'0565-64-2121'},
+    {name:'ザ・トラディションゴルフクラブ',loc:'愛知県岡崎市',tel:'0564-46-1234'},
+    {name:'グレイスヒルズカントリー倶楽部',loc:'三重県四日市市',tel:'059-327-1110'},
+    {name:'ザ・カントリークラブ',loc:'滋賀県甲賀市',tel:'0748-83-8000'},
+    {name:'関西ゴルフ倶楽部',loc:'兵庫県三木市',tel:'0794-72-1000'},
+    {name:'オークモントゴルフクラブ',loc:'奈良県山辺郡山添村',tel:'0743-87-0031'}
+  ]
+};
+function importRtFacilitiesOnce(){
+  var seed = RT_FACILITIES_SEED;
+  var existing = {};
+  customers.forEach(function(c){ if(c && c.name) existing[String(c.name).trim()] = true; });
+  if(!confirm('RT関連の全施設（ホテル' + seed.rt.length + '件＝RT／ゴルフ' + seed.rtgc.length + '件＝RTGC）を、お客様マスタにまとめて登録します。\n\n\u30fb同じお名前のお客様がすでにいる場合は飛ばします（重複しません）。\n\u30fb住所は市区町村までの目安が入ります（あとで各お客様の「編集」から詳しく直せます）。\n\nよろしいですか？')) return;
+  var added = 0, skipped = 0, k = 0; var now = Date.now();
+  function addOne(f, type){
+    var nm = String(f.name).trim();
+    if(existing[nm]){ skipped++; return; }
+    customers.push({ id:'c'+(now+(k++)), recycle:false, name:nm, type:type, zip:'', addr:(f.loc||''), tel:(f.tel||''), email:'', note:'RT台帳より自動登録（'+(type==='rt'?'RT・ホテル':'RTGC・ゴルフ')+'）' });
+    existing[nm] = true; added++;
+  }
+  seed.rt.forEach(function(f){ addOne(f, 'rt'); });
+  seed.rtgc.forEach(function(f){ addOne(f, 'rtgc'); });
+  saveCustomersToGAS();
+  if(typeof updCustomerSelects==='function') updCustomerSelects();
+  if(typeof renderCustomerList==='function') renderCustomerList();
+  alert('\u2705 登録しました。\n\n\u30fb新しく追加：' + added + '件\n\u30fbすでにあって飛ばした：' + skipped + '件\n\n（住所は市区町村までの目安です。必要に応じて各お客様の「編集」から詳しく直せます）');
 }
 function saveCustomerForm(){
   const name = document.getElementById('nc-name').value.trim();

@@ -588,6 +588,7 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" id="meibo-new-btn" style="display:none" onclick="meiboStartNew('')">➕ 新しい商品をつくる</button>
     <button class="btn-sm" onclick="cleanEmptyLots()">🧹 空っぽのロットを片づける</button>
     <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
+    <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 未入力の容器をルールでまとめて保存</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
@@ -595,7 +596,7 @@ tr:last-child td{border-bottom:none}
   <div class="price-scroll">
   <table class="tbl meibotbl"><thead><tr>
     <th>商品</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
-    <th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
+    <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
     <th style="background:#eef4fb">バーコード</th><th style="background:#eef4fb">商品ページ</th>
     <th id="meibo-edit-th" style="display:none">操作</th>
@@ -2674,6 +2675,33 @@ window.PRODUCT_SPEC = (function(){
 })();
 // 他の画面から使う窓口：getProductSpec('ORG500') → {origin, farm, lot, expiry, barcode}
 // シートに値があればそれを使う（統合マスタ＝親。ファイル内の値は昔からの控え）
+// ── 容器のルール（中村様指定 2026-07-28）──────────────────────────
+//  100ml〜500ml＝遮光瓶／750ml〜5000ml＝缶
+//  トルコ産（オルガニック・メメジック・シェフズブレンド）の 750ml・2L＝デザイン缶
+//  アルモニア3L（ARM3L）＝bag in box
+//  ※商品マスタに保存済みの容器があれば、そちらを優先（手入力が正）。
+function containerVolumeMl(p){
+  var sku=String((p&&p.sku)||'').toUpperCase();
+  var mL=sku.match(/(\d+)L$/);          // 2L,3L,5L
+  if(mL){ var ml=parseInt(mL[1],10)*1000; return (ml===2000||ml===3000||ml===5000)?ml:null; }
+  var mM=sku.match(/(\d{3})$/);         // 100,250,500,750（3桁）
+  if(mM){ var v=parseInt(mM[1],10); return ([100,250,500,750].indexOf(v)>=0)?v:null; }
+  return null;
+}
+function containerFor(p){
+  if(!p) return '';
+  if(p.container && String(p.container).trim()) return String(p.container).trim(); // 保存済み優先
+  if(typeof mIsSet==='function' && mIsSet(p)) return ''; // セット商品は容器を自動判定しない
+  var sku=String(p.sku||'').toUpperCase();
+  var ml=containerVolumeMl(p);
+  if(ml==null) return '';               // カップ・備品などルール外
+  if(sku==='ARM3L') return 'bag in box';
+  var turkish=(p.group==='オルガニック'||p.group==='メメジック'||p.group==='シェフズブレンド');
+  if(turkish && (ml===750 || ml===2000)) return 'デザイン缶';
+  if(ml>=100 && ml<=500) return '遮光瓶';
+  if(ml>=750 && ml<=5000) return '缶';
+  return '';
+}
 function originOf(p){
   if(p && p.origin && String(p.origin).trim()) return String(p.origin).trim();
   var s = window.PRODUCT_SPEC[p&&p.sku] || {}; return s.origin || '';
@@ -2748,6 +2776,56 @@ function mDash(){ return '<span class="dash">—</span>'; }
    ・すでに名簿にバーコードが入っている商品は、さわりません（上書きしない）
    ・何度押しても二重にはなりません
    ══════════════════════════════════════════════════════════════════ */
+function meiboContainerTargets(){
+  return PRODUCTS.filter(function(p){
+    if(!p || !p.sku) return false;
+    if(p.container && String(p.container).trim()) return false; // すでに容器が入っている商品はさわらない
+    return !!containerFor(p);  // ルールで容器が決まるものだけ（セット・ルール外は空なので除外）
+  });
+}
+async function meiboFillContainers(){
+  var btn = document.getElementById('meibo-container-btn');
+  var list = meiboContainerTargets();
+  if(!list.length){ alert('容器を入れる商品はありませんでした。\n\n（すでに全部入っているか、ルール対象の商品がありません）'); return; }
+  var preview = list.map(function(p){ return '\u30fb' + (p.name||p.sku) + ' \u2192 ' + containerFor(p); }).join('\n');
+  if(!confirm('\u672a\u5165\u529b\u306e\u5bb9\u5668\u3092\u3001\u30eb\u30fc\u30eb\u3067\u307e\u3068\u3081\u3066\u4fdd\u5b58\u3057\u307e\u3059\uff08' + list.length + '\u4ef6\uff09\u3002\n\n' + preview + '\n\n\u3059\u3067\u306b\u5bb9\u5668\u304c\u5165\u3063\u3066\u3044\u308b\u5546\u54c1\u306f\u3055\u308f\u308a\u307e\u305b\u3093\u3002\u3088\u308d\u3057\u3044\u3067\u3059\u304b\uff1f')) return;
+  if(btn){ btn.disabled = true; }
+  var ok = 0, ng = [];
+  for(var i=0; i<list.length; i++){
+    var p = list[i];
+    if(btn){ btn.textContent = '\U0001F9F4 \u4fdd\u5b58\u4e2d\u2026 ' + (i+1) + ' / ' + list.length; }
+    var prod = {
+      sku: p.sku,
+      name: p.name || '',
+      group: p.group || 'その他',
+      boxQty: (p.boxQty === undefined || p.boxQty === null) ? '' : p.boxQty,
+      origin: p.origin || '',
+      '農園': meiboFieldOf(p, '農園') || meiboFieldOf(p, '農園名'),
+      '出荷単位': shipUnitOf(p) || '',
+      container: containerFor(p),
+      noWholesale: !!p.noWholesale,
+      active: (p.active !== false),
+      'バーコード': meiboFieldOf(p, 'バーコード') || ''
+    };
+    try{
+      var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+      var data = await res.json();
+      if(data && data.status === 'ok'){
+        ok++;
+        var idx = PRODUCTS.findIndex(function(x){ return x.sku === prod.sku; });
+        if(idx >= 0){ PRODUCTS[idx].container = prod.container; }
+      } else {
+        ng.push(p.sku + '（' + ((data && data.message) || '理由不明') + '）');
+      }
+    }catch(e){ ng.push(p.sku + '（通信エラー）'); }
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '\U0001F9F4 \u672a\u5165\u529b\u306e\u5bb9\u5668\u3092\u30eb\u30fc\u30eb\u3067\u307e\u3068\u3081\u3066\u4fdd\u5b58'; }
+  try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : [])); }catch(e){}
+  renderMeibo();
+  var msg = '\u2705 ' + ok + '\u4ef6\u306e\u5bb9\u5668\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f\u3002';
+  if(ng.length) msg += '\n\n\u26a0\ufe0f \u5165\u3089\u306a\u304b\u3063\u305f\u3082\u306e\uff08' + ng.length + '\u4ef6\uff09\n\u3000\u30fb' + ng.join('\n\u3000\u30fb');
+  alert(msg);
+}
 function meiboJanImportTargets(){
   return PRODUCTS.filter(function(p){
     return p && p.sku && BUILTIN_JAN[p.sku] && !meiboFieldOf(p, 'バーコード');
@@ -2813,7 +2891,7 @@ async function meiboImportBuiltinJan(){
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 12 : 11; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
+function meiboColCount(){ return meiboEditMode ? 13 : 12; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -3011,7 +3089,7 @@ function meiboEditRowHtml(p, sp){
   var _ml = isNew ? null : meiboMainLot(p);   /* ★2026-07-24 いま使っているロット */
   var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
-                    origin:sp.origin||'', farm:sp.farm||'', container:(p.container||''), shipUnit:shipUnitOf(p),
+                    origin:sp.origin||'', farm:sp.farm||'', container:(p.container||containerFor(p)), shipUnit:shipUnitOf(p),
                     barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'),
                     lotCode:(_ml && _ml.lotCode && _ml.lotCode!=='-') ? _ml.lotCode : '',
                     expiry:(_ml && _ml.expiry) ? _ml.expiry : '',
@@ -3050,9 +3128,9 @@ function meiboEditRowHtml(p, sp){
       '<div class="mp-fg"><label style="color:#0c447c">バーコード（JAN）　※下4桁が「商品管理番号」になります</label><input type="text" id="mp-barcode" value="'+esc(v.barcode)+'" placeholder="例：8681763395149" style="border-color:#85b7eb;background:#f7fbff;font-family:monospace"></div>'+
       '<div class="mp-fg"><label style="color:#0c447c">商品ページ（HPのURL）　※写真はここで見ます</label><input type="text" id="mp-page" value="'+esc(v.pageUrl)+'" placeholder="例：https://oliveoilstories.net/products/org100" style="border-color:#85b7eb;background:#f7fbff"></div>'+
       '<div id="mp-oilonly" style="display:contents">'+
+        fg('容器','mp-container',v.container,'遮光瓶')+
         fg('生産地','mp-origin',v.origin,'トルコ')+
         fg('農園名','mp-farm',v.farm,'ノヴァヴェラ農園')+
-        fg('容器','mp-container',v.container,'遮光瓶')+
       '</div>'+
       '<div class="mp-fg"><label>そのほか</label><div class="mp-checks">'+
         '<label><input type="checkbox" id="mp-nw"'+(v.noWholesale?' checked':'')+'>RT限定（卸なし）</label>'+
@@ -3228,6 +3306,7 @@ function renderMeibo(){
         '<td style="background:#fbf9f4">'+(shipUnitOf(p)?'<span class="spec">'+esc(shipUnitOf(p))+'</span>':mDash())+'</td>'+
         '<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'+
         '<td class="num">'+(p.boxQty?esc(p.boxQty)+'本':mDash())+'</td>'+
+        '<td>'+((p.container||containerFor(p))?'<span class="spec">'+esc(p.container||containerFor(p))+'</span>':mDash())+'</td>'+
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
         '<td>'+(sp.farm?'<span class="spec">'+esc(sp.farm)+'</span>':mDash())+'</td>'+
         meiboLotCells(p, sp, jan)+
