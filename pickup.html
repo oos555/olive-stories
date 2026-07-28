@@ -79,7 +79,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rt-doc-item:last-child{margin-bottom:0}
 .rt-doc-item input{width:26px;height:26px;accent-color:#8a5a1c}
 .complete-note{font-size:13px;color:#44433f;line-height:1.6;margin:-2px 0 10px;text-align:center}
-.actions{position:sticky;bottom:0;background:#f5f4f0;padding:10px 0;margin-top:10px}
+.actions{background:#f5f4f0;padding:10px 0;margin-top:10px}
 .btn-big{width:100%;padding:16px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px}
 .btn-complete{background:#2563eb;color:#fff}
 .btn-complete:disabled{background:#c7d7f5;color:#eef}
@@ -620,6 +620,14 @@ function recipientAddressBlock(o){
   return esc(o.recipientName || o.client || '');
 }
 function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
+// バサラ（楽天）からの注文かどうか。追跡番号は、この注文のときだけ入力欄を出す。
+function isBasaraOrder(o){ return !!(o && (o.source==='basara' || o.basaraOrderNo || /バサラ/.test(o.client||''))); }
+// バサラの発注番号は注文メモに「#B発注番号/日付」の形で入っている。そこから取り出す。
+function basaraOrderNoOf(o){
+  var t = String((o&&o.note)||'');
+  var m = t.match(/#B([^\/]*)\//) || t.match(/発注番号[：:\s]*([A-Za-z0-9\-_]+)/);
+  return m ? String(m[1]).trim() : ((o&&o.basaraOrderNo)||'');
+}
 
 function buildInvoiceHtml(o){
   const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
@@ -1103,12 +1111,24 @@ function renderList(){
 
 function renderAlreadyShipped(){
   const o = currentOrder;
+  if(isBasaraOrder(o)){
+    document.getElementById('content').innerHTML =
+      '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>'+
+      '<div class="card" style="border:2px solid #7b2fa0">'+
+        '<div style="font-size:16px;font-weight:800;color:#5b2483;margin-bottom:6px">✅ 梱包完了ずみ（バサラの注文）</div>'+
+        '<div style="font-size:13.5px;color:#2b2a26;line-height:1.7;margin-bottom:10px">発送したら、<b>伝票の追跡番号</b>を入れて「保存」を押してください。<br>押すと、<b>バサラへ発送のご連絡メールを自動でお送りします</b>（office@ にも控え）。番号が翌日でも、出たときに入れればOKです。</div>'+
+        '<div class="sec-title">🚚 追跡番号（発送したら入力）</div>'+
+        '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>'+
+        '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 10px;line-height:1.6">保存すると、この注文のバサラへ発送連絡が<b>1回だけ</b>自動で送られます。</div>'+
+        '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
+      '</div>';
+    return;
+  }
   document.getElementById('content').innerHTML =
     '<div class="alert-danger">'+
       '⚠️ この注文（'+esc(o.num)+'）は<strong>すでに梱包完了として処理されています。</strong><br><br>'+
       '二重にスキャンした可能性があります。内容を確認したい場合だけ、下のボタンを押してください。'+
       '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
-
     '</div>';
 }
 
@@ -1197,9 +1217,14 @@ function renderOrder(){
     if(loose) sub2.push('バラ'+loose+'本');
     var subTxt = sub2.length ? '（'+sub2.join('・')+'）' : '';
     var condBadge = condBadgeHtml(l.condition);
-    var _sp=[]; if(boxes) _sp.push('箱<b>'+boxes+'</b>箱'); if(loose) _sp.push('バラ<b>'+loose+'</b>本');
-    var subInner = _sp.length ? '（'+_sp.join('・')+'）' : '';
-    var qtyFrame = '<span class="qty-frame">合計<b>'+total+'</b>本'+subInner+'</span>';
+    // バラだけ＝「合計◯本」だけ（二重表示で入れ間違えないように）。箱買い＝「◯箱＋バラ◯本」。
+    var qtyFrame;
+    if(boxes>0){
+      var _main = '<b>'+boxes+'</b>箱' + (loose ? '＋バラ<b>'+loose+'</b>本' : '');
+      qtyFrame = '<span class="qty-frame">'+_main+'<span style="font-size:12px;color:#57534e;font-weight:400;margin-left:6px">（合計'+total+'本）</span></span>';
+    } else {
+      qtyFrame = '<span class="qty-frame">合計<b>'+total+'</b>本</span>';
+    }
     html += '<div class="item" id="item-'+i+'">'+
       '<input type="checkbox" class="pack-check pick-cb no-print" onchange="this.closest(\'.item\').classList.toggle(\'checked\',this.checked);updateCompleteBtn()">'+
       '<div class="info">'+
@@ -1287,10 +1312,12 @@ function renderOrder(){
   }
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
-  html += '<div class="complete-note">荷造りが終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送は、上の色帯の期日内でOK（当日でなくてかまいません）。</div>';
-  html += '<div class="sec-title" style="margin-top:16px">🚚 追跡番号（発送したら入力）</div>';
-  html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
-  html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 4px;line-height:1.6">伝票の番号を入れて保存すると、受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。<b>まだ番号が出ていなければ空のままでOK</b>です。</div>';
+  html += '<div class="complete-note">荷造りが全部終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送とはずれていても構いません（上の色帯の期日内でOK）。</div>';
+  if(isBasaraOrder(o)){
+    html += '<div class="sec-title" style="margin-top:16px">🚚 追跡番号（バサラの注文なので入力）</div>';
+    html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="例：4700-1234-5678" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
+    html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 4px;line-height:1.6">バサラの注文は追跡番号を入れてください。保存すると受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。</div>';
+  }
   html += '</div>';
   document.getElementById('content').innerHTML = html;
   if(orderHasNoshi){
@@ -1769,7 +1796,24 @@ async function mergeSaveTracking(val){
 async function saveTracking(){
   if(!currentOrder) return;
   const el=document.getElementById('tracking-input'); const val=el?String(el.value||'').trim():'';
-  try{ const ok=await mergeSaveTracking(val); if(ok){ showToastSimple(val?'✅ 追跡番号を保存しました':'追跡番号を空にしました'); } else { alert('保存に失敗しました'); } }
+  try{
+    const ok=await mergeSaveTracking(val);
+    if(!ok){ alert('保存に失敗しました'); return; }
+    // バサラの注文で番号が入ったら、バサラへ「発送のご連絡」を自動送信（office@ にも控え）
+    if(val && isBasaraOrder(currentOrder)){
+      showToastSimple('✅ 追跡番号を保存しました。バサラへ発送連絡を送っています…');
+      try{
+        const res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ action:'basaraShipNotify', payload:{ orderId: currentOrder.id, orderNo: basaraOrderNoOf(currentOrder), trackingNo: val, client: recipientLabel(currentOrder) } }) });
+        const d = await res.json();
+        if(d && d.status==='ok' && d.sent){ showToastSimple('📧 バサラへ発送のご連絡を送りました（office@ にも控え）'); currentOrder.basaraShipNotified = true; }
+        else if(d && d.status==='ok' && !d.sent && d.reason==='already'){ showToastSimple('（このバサラ注文は送信済みでした）'); }
+        else if(d && d.status==='error'){ alert('発送連絡メールの送信に失敗しました：'+(d.message||'')+'\n追跡番号は保存されています。もう一度「保存」を押すと再送します。'); }
+      }catch(e){ alert('発送連絡メールの送信で通信エラー：'+e.message+'\n追跡番号は保存されています。もう一度「保存」を押すと再送します。'); }
+    } else {
+      showToastSimple(val?'✅ 追跡番号を保存しました':'追跡番号を空にしました');
+    }
+  }
   catch(err){ alert('通信エラーが発生しました：'+err.message); }
 }
 async function saveShipNote(){
