@@ -296,6 +296,18 @@ tr:last-child td{border-bottom:none}
       </div>
       <div id="prep-order-en" class="tbl-wrap" style="margin-bottom:0"></div>
     </div>
+    <div class="card" style="border:2px solid #0f7a4a;background:#f2f9f5">
+      <div class="sec">✅ 輸入を確定して記録する</div>
+      <div style="font-size:12px;color:#3a5a48;line-height:1.7;margin-bottom:10px">この輸入準備計算は、ここから<strong>輸入ノートのもと</strong>になる大事な計算書です。内容が固まって輸入が決まったら、下のボタンを押してください。<strong>押した日付といまの発注内容が、まるごと下の記録に残ります</strong>（年に何度でも。あとから「いつ・何を・何本」振り返れます）。</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px">この輸入の時期・メモ <input id="prep-fin-memo" placeholder="例：2026年8月分（ノヴァヴェラ）" style="width:230px;padding:6px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>
+        <button class="btn btn-green" onclick="prepFinalize()" style="font-size:14px;padding:9px 18px">✅ この内容で輸入を確定する</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">📋 輸入確定の記録（新しい順・年ごと）</div>
+      <div id="prep-history"></div>
+    </div>
   </div>
   <div id="panel-new" class="panel">
     <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、「🔒原価データ」タブにも自動反映されます</strong>。</div>
@@ -2921,6 +2933,7 @@ async function ynDelete(){
 var PREP_PRODUCTS = [{"id": "ORG100", "sku": "ORG100", "name": "オルガニック 100ml", "cat": "オーガニック", "vol": "100ml", "cont": "瓶", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "sku": "ORG250", "name": "オルガニック 250ml", "cat": "オーガニック", "vol": "250ml", "cont": "瓶", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "sku": "ORG500", "name": "オルガニック 500ml", "cat": "オーガニック", "vol": "500ml", "cont": "瓶", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "sku": "ORG750", "name": "オルガニック 750ml", "cat": "オーガニック", "vol": "750ml", "cont": "瓶", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "sku": "ORG2L", "name": "オルガニック 2000ml", "cat": "オーガニック", "vol": "2000ml", "cont": "缶", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "sku": "ORG5L", "name": "オルガニック 5000ml", "cat": "オーガニック", "vol": "5000ml", "cont": "缶", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "sku": "MEM100", "name": "メメジック 100ml", "cat": "メメジック", "vol": "100ml", "cont": "瓶", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "sku": "MEM250", "name": "メメジック 250ml", "cat": "メメジック", "vol": "250ml", "cont": "瓶", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "sku": "MEM500", "name": "メメジック 500ml", "cat": "メメジック", "vol": "500ml", "cont": "瓶", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "sku": "MEM750", "name": "メメジック 750ml", "cat": "メメジック", "vol": "750ml", "cont": "瓶", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "sku": "MEM2L", "name": "メメジック 2000ml", "cat": "メメジック", "vol": "2000ml", "cont": "缶", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "sku": "MEM5L", "name": "メメジック 5000ml", "cat": "メメジック", "vol": "5000ml", "cont": "缶", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "sku": "CHF250", "name": "シェフズブレンド 250ml", "cat": "シェフズブレンド", "vol": "250ml", "cont": "瓶", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "sku": "CHF100", "name": "シェフズブレンド 100ml", "cat": "シェフズブレンド", "vol": "100ml", "cont": "瓶", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "sku": "YS100", "name": "your story 100ml×3本セット", "cat": "3本セット(箱入り)100ml", "vol": "100ml×3", "cont": "箱", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199}, {"id": "YS250A", "sku": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "cat": "2本セット(250ml)", "vol": "250ml×2", "cont": "箱", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0}, {"id": "MISC002", "sku": "MISC002", "name": "500ml用空瓶", "cat": "空瓶(500ml用)", "vol": "500ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "sku": "ZAKURO", "name": "ザクロソース 250ml", "cat": "ザクロソース", "vol": "250ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
 var PREP_SETS = [{"set": "4101321", "comp": "4101229", "qty": 1}, {"set": "4101321", "comp": "4101230", "qty": 1}, {"set": "4101321", "comp": "4101306", "qty": 1}, {"set": "4101322", "comp": "4101118", "qty": 1}, {"set": "4101322", "comp": "4101231", "qty": 1}];
 var prepMode = {};
+var prepHistory = [];
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
 function prepFind(id){ for(var i=0;i<PREP_PRODUCTS.length;i++) if(PREP_PRODUCTS[i].id===id) return PREP_PRODUCTS[i]; return null; }
 function prepSetFree(id,field,val){ var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender(); }
@@ -3013,6 +3026,7 @@ function prepRender(){
     return '・'+r.p.name+'：'+bp;
   });
   ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';  prepRenderOrderEN();
+  prepRenderHistory();
   prepSaveLocal();
 }
 
@@ -3020,17 +3034,19 @@ function prepRender(){
 var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
-  var st={v:1,mode:prepMode,p:{}};
-  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl}; });
+  var st={v:1,mode:prepMode,history:prepHistory,p:{}};
+  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,enName:p.enName}; });
   return st;
 }
 function prepApplyState(st){
   if(!st) return;
   if(st.mode) prepMode=st.mode;
+  if(st.history) prepHistory=st.history;
   if(st.p){ PREP_PRODUCTS.forEach(function(p){ var s=st.p[p.id]; if(!s) return;
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
     if(s.name!=null)p.name=s.name; if(s.sku!=null)p.sku=s.sku; if(s.vol!=null)p.vol=s.vol; if(s.cont!=null)p.cont=s.cont;
     if(s.exp!=null)p.exp=s.exp; if(s.lblLang!=null)p.lblLang=s.lblLang; if(s.lblPrint!=null)p.lblPrint=s.lblPrint; if(s.lblUrl!=null)p.lblUrl=s.lblUrl;
+    if(s.enName!=null)p.enName=s.enName;
   }); }
 }
 function prepSaveLocal(){
@@ -3082,6 +3098,7 @@ async function prepGasLoad(){
 /* 英語オーダー表（農園向け・上の数字から自動生成） */
 var PREP_EN_NAME={ORG:'Organic',MEM:'Memecik',CHF:"Chef's Blend"};
 function prepEnName(p){
+  if(p.enName!=null&&p.enName!=='') return p.enName;
   var g=(p.id||'').substr(0,3);
   if(PREP_EN_NAME[g]) return PREP_EN_NAME[g];
   if(p.id==='MISC002') return 'Empty bottle 500ml (Turkish) + pour spout';
@@ -3101,10 +3118,49 @@ function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepS
 function prepBulk(field,val){ PREP_PRODUCTS.forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
 var PREP_LANG_OPTS=[['Japanese','日本語 Japanese'],['Turkish','トルコ語 Turkish'],['English','英語 English']];
 var PREP_PRINT_OPTS=[['Turkey','トルコ Turkey'],['Japan','日本 Japan']];
+var PREP_CONT_OPTS=[['瓶','Bottle'],['缶','Can'],['箱','Box']];
 function prepSelHtml(id,field,cur,opts){
   var h='<select onchange="prepSetLbl(\''+id+'\',\''+field+'\',this.value)" style="font-size:12px;padding:3px;border:1px solid #d8cfc4;border-radius:5px">';
   for(var i=0;i<opts.length;i++){ h+='<option value="'+opts[i][0]+'"'+(opts[i][0]===cur?' selected':'')+'>'+opts[i][1]+'</option>'; }
   return h+'</select>';
+}
+function prepFinalize(){
+  var rows=prepOrderRows();
+  if(!rows.length){ alert('輸入する商品がありません（発注が0本です）。'); return; }
+  var memo=(document.getElementById('prep-fin-memo')||{}).value||'';
+  var d=new Date();
+  var dateStr=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+  var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
+  if(!confirm('この内容で輸入を確定して記録しますか？\n\n'+dateStr+(memo?('（'+memo+'）'):'')+'\n合計 '+tot+'本 / '+rows.length+'品\n\n※下の「輸入確定の記録」に残ります。')) return;
+  var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, total:tot,
+    items: rows.map(function(r){ return {jpname:r.p.name, enName:prepEnName(r.p), sku:r.p.sku, vol:r.p.vol, cont:r.p.cont,
+      box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), url:prepUrlOf(r.p)}; }) };
+  prepHistory.unshift(snap);
+  prepSaveLocal();
+  prepRenderHistory();
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ 輸入を確定して記録しました');
+}
+function prepRenderHistory(){
+  var box=document.getElementById('prep-history'); if(!box) return;
+  if(!prepHistory.length){ box.innerHTML='<div style="color:#999;font-size:13px">まだ確定した輸入はありません。上で「輸入を確定する」を押すと、ここに日付つきで積み重なります。</div>'; return; }
+  var h='', lastYear=null;
+  prepHistory.forEach(function(s){
+    var y=new Date(s.date).getFullYear();
+    if(y!==lastYear){ h+='<div style="font-weight:800;color:#55622e;margin:12px 0 6px;border-bottom:2px solid #cfe0c0;padding-bottom:3px">'+y+'年</div>'; lastYear=y; }
+    h+='<details style="border:1px solid #e8e2d8;border-radius:8px;margin-bottom:8px;background:#fff">';
+    h+='<summary style="cursor:pointer;padding:10px 12px;font-weight:700;color:#0f5a4a">'+s.dateStr+' 確定'+(s.memo?('（'+s.memo+'）'):'')+' — 合計 '+s.total+'本 / '+s.items.length+'品</summary>';
+    h+='<div style="padding:8px 12px"><table style="min-width:0;font-size:12px"><thead><tr><th>商品</th><th>品番</th><th>容量</th><th>容器</th><th>箱</th><th>本数</th><th>賞味期限</th><th>ラベル</th></tr></thead><tbody>';
+    s.items.forEach(function(it){
+      h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+'</td></tr>';
+    });
+    h+='</tbody></table><div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
+  });
+  box.innerHTML=h;
+}
+function prepDeleteHistory(id){
+  if(!confirm('この輸入確定の記録を消しますか？（元に戻せません）')) return;
+  prepHistory=prepHistory.filter(function(s){return s.id!==id;});
+  prepSaveLocal(); prepRenderHistory();
 }
 function prepRenderOrderEN(){
   var box=document.getElementById('prep-order-en'); if(!box) return;
@@ -3117,9 +3173,9 @@ function prepRenderOrderEN(){
   var tot=0;
   rows.forEach(function(r,i){ tot+=r.finalN; var p=r.p; var url=prepUrlOf(p);
     h+='<tr><td style="text-align:center">'+(i+1)+'</td>'
-      +'<td style="text-align:left">'+prepEnName(p)+'</td>'
+      +'<td style="text-align:left"><input value="'+prepAttr(prepEnName(p))+'" onchange="prepSetLbl(\''+p.id+'\',\'enName\',this.value)" style="width:160px;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
       +'<td style="text-align:center">'+p.vol+'</td>'
-      +'<td style="text-align:center">'+prepEnCont(p.cont)+'</td>'
+      +'<td style="text-align:center">'+prepSelHtml(p.id,'cont',p.cont,PREP_CONT_OPTS)+'</td>'
       +'<td style="text-align:center">'+(r.box?r.box:'—')+'</td>'
       +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
       +'<td style="text-align:right;'+IMP+'">'+r.finalN+'</td>'
