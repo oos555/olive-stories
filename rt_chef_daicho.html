@@ -47,6 +47,12 @@
   .fl-fax{color:#57534e;white-space:nowrap;}
   .fl-na{color:#b8b2a6;}
   .fl-biko{min-width:230px;max-width:280px;white-space:normal;font-size:12px;line-height:1.7;color:#2b2a26;}
+  .fl-mode{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  .fl-mode button{background:#fff;border:1.5px solid #cdd8b4;color:#4d5a24;border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:800;cursor:pointer;}
+  .fl-mode button.on{background:#6b7a3a;color:#fff;border-color:#6b7a3a;}
+  .fl-tb-chef{min-width:560px;}
+  .fl-biko-wide{min-width:340px;max-width:560px;}
+  .fl-roleCell{white-space:nowrap;color:#4d5a24;font-weight:700;}
 
   .card{background:#fff;border:1px solid #ece5da;border-radius:14px;padding:15px 16px;margin-bottom:13px;}
   .card h3{font-family:"Zen Maru Gothic",sans-serif;font-size:18px;margin:0 0 2px;}
@@ -942,34 +948,73 @@ function facBikoParts(f){
 }
 function facBiko(f){ var a=facBikoParts(f); if(!a.length) return '<span class="fl-na">—</span>'; return a.map(function(x){return esc(x);}).join('<br>'); }
 
+var facListMode='contact';
+function setFacListMode(m){ facListMode=m; renderFacList(); }
+function telLines(telStr){
+  var tf=telFax(telStr);
+  if(!tf.tel) return '<span class="fl-na">—</span>';
+  var parts=tf.tel.split(/／|\/|、/).map(function(x){return x.trim();}).filter(Boolean);
+  if(!parts.length) parts=[tf.tel];
+  return parts.map(function(t,i){ var num=firstNum(t); return (i===0 && num)?'<a href="tel:'+num+'">'+esc(t)+'</a>':esc(t); }).join('<br>');
+}
 function renderFacList(){
   var q=document.getElementById('q').value.trim();
   var keys=facListKeys(q);
   var box=document.getElementById('faclist');
-  if(!keys.length){ box.innerHTML='<div class="empty">見つかりませんでした。</div>'; return; }
-  var rows=keys.map(function(f){
-    var d=FAC[f], mc=mainChef(f), tf=telFax(d.tel), tnum=firstNum(tf.tel);
-    var telCell = tf.tel ? (tnum?'<a href="tel:'+tnum+'">'+esc(tf.tel)+'</a>':esc(tf.tel)) : '<span class="fl-na">—</span>';
-    var faxCell = tf.fax ? esc(tf.fax) : '<span class="fl-na">—</span>';
-    var chef = mc.name ? esc(mc.name) : '<span class="fl-na">—</span>';
-    var role = mc.role ? ' <span class="fl-role">'+esc(mc.role)+'</span>' : '';
-    return '<tr>'+
-      '<td class="fl-fac"><b>'+esc(f)+'</b><span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></td>'+
-      '<td>'+chef+role+'</td>'+
-      '<td class="fl-biko">'+facBiko(f)+'</td>'+
-      '<td class="fl-tel">'+telCell+'</td>'+
-      '<td class="fl-fax">'+faxCell+'</td>'+
-    '</tr>';
-  }).join('');
+  var modeBar='<div class="fl-mode">'+
+    '<button class="'+(facListMode==='contact'?'on':'')+'" onclick="setFacListMode(\'contact\')">📞 連絡先</button>'+
+    '<button class="'+(facListMode==='chef'?'on':'')+'" onclick="setFacListMode(\'chef\')">👨‍🍳 シェフ情報</button>'+
+  '</div>';
+  if(!keys.length){ box.innerHTML=modeBar+'<div class="empty">見つかりませんでした。</div>'; return; }
+  var head, rows, tbClass, note;
+  if(facListMode==='chef'){
+    tbClass='fl-tb fl-tb-chef';
+    note='<b>シェフ情報だけ</b>を絞って表示しています（電話・FAXは「📞 連絡先」で見られます）。料理長が代わると、ここも自動で変わります。';
+    head='<tr><th>施設名</th><th>料理長</th><th>役職</th><th>備考（人柄・関係・担当）</th></tr>';
+    rows=keys.map(function(f){
+      var d=FAC[f], mc=mainChef(f);
+      var chef = mc.name ? esc(mc.name) : '<span class="fl-na">—</span>';
+      var role = mc.role ? esc(mc.role) : '<span class="fl-na">—</span>';
+      return '<tr>'+
+        '<td class="fl-fac"><b>'+esc(f)+'</b><span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></td>'+
+        '<td>'+chef+'</td>'+
+        '<td class="fl-roleCell">'+role+'</td>'+
+        '<td class="fl-biko fl-biko-wide">'+facBiko(f)+'</td>'+
+      '</tr>';
+    }).join('');
+  } else {
+    tbClass='fl-tb';
+    note='この一覧は<b>この台帳（施設＋人物カード）そのもの</b>を映したものです。施設が増えたり料理長が代わると、ここも自動で変わります。<br>受注A・住所録にある施設リストは、こちらを大元とした<b>写し</b>という位置づけです。';
+    head='<tr><th>施設名</th><th>料理長（役職）</th><th>電話</th><th>FAX</th></tr>';
+    rows=keys.map(function(f){
+      var d=FAC[f], mc=mainChef(f), tf=telFax(d.tel);
+      var faxCell = tf.fax ? esc(tf.fax) : '<span class="fl-na">—</span>';
+      var chef = mc.name ? esc(mc.name) : '<span class="fl-na">—</span>';
+      var role = mc.role ? ' <span class="fl-role">'+esc(mc.role)+'</span>' : '';
+      return '<tr>'+
+        '<td class="fl-fac"><b>'+esc(f)+'</b><span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></td>'+
+        '<td>'+chef+role+'</td>'+
+        '<td class="fl-tel">'+telLines(d.tel)+'</td>'+
+        '<td class="fl-fax">'+faxCell+'</td>'+
+      '</tr>';
+    }).join('');
+  }
   box.innerHTML=
-    '<div class="fl-note">この一覧は<b>この台帳（施設＋人物カード）そのもの</b>を映したものです。施設が増えたり料理長が代わると、ここも自動で変わります。<br>受注A・住所録にある施設リストは、こちらを大元とした<b>写し</b>という位置づけです。</div>'+
+    modeBar+
+    '<div class="fl-note">'+note+'</div>'+
     '<div class="fl-actions"><button class="fl-copy" onclick="copyFacList()">📋 表をコピー（スプレッドシート用）</button><span class="mini">'+keys.length+'施設</span></div>'+
-    '<div class="fl-scroll"><table class="fl-tb"><thead><tr><th>施設名</th><th>料理長（役職）</th><th>備考（人柄・関係・担当）</th><th>電話</th><th>FAX</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    '<div class="fl-scroll"><table class="'+tbClass+'"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>';
 }
 function copyFacList(){
   var keys=facListKeys(document.getElementById('q').value.trim());
-  var lines=['施設名\t料理長\t役職\t電話\tFAX\t備考'];
-  keys.forEach(function(f){ var mc=mainChef(f), tf=telFax(FAC[f].tel); lines.push([f,mc.name,mc.role,tf.tel,tf.fax,facBikoParts(f).join(' / ')].join('\t')); });
+  var lines;
+  if(facListMode==='chef'){
+    lines=['施設名\t料理長\t役職\t備考'];
+    keys.forEach(function(f){ var mc=mainChef(f); lines.push([f,mc.name,mc.role,facBikoParts(f).join(' / ')].join('\t')); });
+  } else {
+    lines=['施設名\t料理長\t役職\t電話\tFAX'];
+    keys.forEach(function(f){ var mc=mainChef(f), tf=telFax(FAC[f].tel); lines.push([f,mc.name,mc.role,tf.tel,tf.fax].join('\t')); });
+  }
   var txt=lines.join('\n');
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }); }
   else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }
