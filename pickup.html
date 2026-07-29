@@ -667,6 +667,11 @@ function buildInvoiceHtml(o){
   return html;
 }
 
+function rtOpenExtraDoc(){
+  if(!currentOrder || !currentOrder.extraDocUrl){ alert('この注文には追加の説明PDFがありません。'); return; }
+  if(isInAppBrowser()){ alert('このアプリ内のブラウザでは開けないことがあります。\n右上の「…」メニューから「Safari／Chromeで開く」を選んでから、もう一度お試しください。'); }
+  window.open(currentOrder.extraDocUrl, '_blank');
+}
 function printInvoice(){
   if(!currentOrder) return;
   if(isInAppBrowser()){
@@ -1277,11 +1282,14 @@ function renderOrder(){
           + '<div style="font-size:15px;font-weight:700">🏨 RT（ホテル・レストラン）の注文です</div>'
           + '<div style="font-size:13.5px;font-weight:500;line-height:1.6;margin-top:3px">ギフトでも、金額の入った書類を<b>必ず</b>入れてください（RTのお約束です）。</div></div>';
       }
-      html += '<div class="rt-docs-t">🖨 印刷して入れる書類（2枚）</div>'
+      html += '<div class="rt-docs-t">🖨 印刷して入れる書類（'+(o.extraDocUrl?'3':'2')+'枚）</div>'
         + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">① RT発注伝票（端末の伝票）を入れた</label>'
         + '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
         + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 ② 納品書を印刷する</button>'
-        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">② 納品書を入れた</label></div>';
+        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">② 納品書を入れた</label></div>'
+        + (o.extraDocUrl ? '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
+            + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="rtOpenExtraDoc()">🖨 ③ 追加の説明PDF を開いて印刷する</button>'
+            + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">③ 追加の説明PDF を入れた</label></div>' : '');
     } else if(encDoc && encDoc!=='なし'){
       var _docs = String(encDoc).split(' ＋ ');
       var _list = [];
