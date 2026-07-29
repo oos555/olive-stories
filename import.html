@@ -261,7 +261,7 @@ tr:last-child td{border-bottom:none}
   <div id="panel-prep" class="panel">
     <div class="info-box">🧮 <strong>輸入準備計算</strong>：RTホテル予約が入ったとき、在庫から「輸入する箱数・本数」を決めます。<br>
       <strong>①</strong>現在庫・予約数を確認 → <strong>②</strong>黄色の「残したい販売在庫（目標）」を入れる → <strong>③</strong>「輸入したい本数」が自動で出る → <strong>④</strong>箱の丸め（切上▲/切捨▼）を選ぶ → <strong>⑤</strong><span style="background:#fde3b3;padding:0 4px;border-radius:4px;font-weight:700">最終箱数・最終本数＝農園に発注する数</span>。<br>
-      <span style="font-size:11px;color:#8a6d3f">※在庫・入数・品番は名簿(統合マスタ)基準。セット注文（YS100/YS250A）は中身の単品にRT社内コードで自動振り分け。</span>
+      <span style="font-size:11px;color:#8a6d3f">※在庫・入数・品番は名簿(統合マスタ)基準。セット注文（YS100/YS250A）は中身の単品にRT社内コードで自動振り分け。</span><br><span style="font-size:11px;color:#8a6d3f">✏️ 現在庫・目標はそのまま入力／<span style="color:#b91c1c">予約数は「本当に変更しますか？」の確認</span>／品番・容量・容器・カテゴリー・入数は<u>クリック＋確認</u>で変更（間違い消し防止）。</span>
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
@@ -2895,12 +2895,26 @@ async function ynDelete(){
 }
 
 
-/* ===== 🧮 輸入準備計算タブ（2026-07 追加・自己完結） ===== */
-var PREP_PRODUCTS = [{"id": "ORG100", "name": "オルガニック 100ml", "vol": "100ml", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "name": "オルガニック 250ml", "vol": "250ml", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "name": "オルガニック 500ml", "vol": "500ml", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "name": "オルガニック 750ml", "vol": "750ml", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "name": "オルガニック 2000ml", "vol": "2000ml", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "name": "オルガニック 5000ml", "vol": "5000ml", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "name": "メメジック 100ml", "vol": "100ml", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "name": "メメジック 250ml", "vol": "250ml", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "name": "メメジック 500ml", "vol": "500ml", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "name": "メメジック 750ml", "vol": "750ml", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "name": "メメジック 2000ml", "vol": "2000ml", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "name": "メメジック 5000ml", "vol": "5000ml", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "name": "シェフズブレンド 250ml", "vol": "250ml", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "name": "シェフズブレンド 100ml", "vol": "100ml", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "name": "your story 100ml×3本セット", "vol": "100ml×3", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199}, {"id": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "vol": "250ml×2", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0}, {"id": "MISC002", "name": "500ml用空瓶(MISC002)", "vol": "500ml", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "name": "ザクロソース 250ml", "vol": "250ml", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
+/* ===== 🧮 輸入準備計算タブ（2026-07 追加・自己完結／編集ガードあり） ===== */
+var PREP_PRODUCTS = [{"id": "ORG100", "sku": "ORG100", "name": "オルガニック 100ml", "cat": "オーガニック", "vol": "100ml", "cont": "瓶", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "sku": "ORG250", "name": "オルガニック 250ml", "cat": "オーガニック", "vol": "250ml", "cont": "瓶", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "sku": "ORG500", "name": "オルガニック 500ml", "cat": "オーガニック", "vol": "500ml", "cont": "瓶", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "sku": "ORG750", "name": "オルガニック 750ml", "cat": "オーガニック", "vol": "750ml", "cont": "瓶", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "sku": "ORG2L", "name": "オルガニック 2000ml", "cat": "オーガニック", "vol": "2000ml", "cont": "缶", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "sku": "ORG5L", "name": "オルガニック 5000ml", "cat": "オーガニック", "vol": "5000ml", "cont": "缶", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "sku": "MEM100", "name": "メメジック 100ml", "cat": "メメジック", "vol": "100ml", "cont": "瓶", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "sku": "MEM250", "name": "メメジック 250ml", "cat": "メメジック", "vol": "250ml", "cont": "瓶", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "sku": "MEM500", "name": "メメジック 500ml", "cat": "メメジック", "vol": "500ml", "cont": "瓶", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "sku": "MEM750", "name": "メメジック 750ml", "cat": "メメジック", "vol": "750ml", "cont": "瓶", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "sku": "MEM2L", "name": "メメジック 2000ml", "cat": "メメジック", "vol": "2000ml", "cont": "缶", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "sku": "MEM5L", "name": "メメジック 5000ml", "cat": "メメジック", "vol": "5000ml", "cont": "缶", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "sku": "CHF250", "name": "シェフズブレンド 250ml", "cat": "シェフズブレンド", "vol": "250ml", "cont": "瓶", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "sku": "CHF100", "name": "シェフズブレンド 100ml", "cat": "シェフズブレンド", "vol": "100ml", "cont": "瓶", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "sku": "YS100", "name": "your story 100ml×3本セット", "cat": "3本セット(箱入り)100ml", "vol": "100ml×3", "cont": "箱", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199}, {"id": "YS250A", "sku": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "cat": "2本セット(250ml)", "vol": "250ml×2", "cont": "箱", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0}, {"id": "MISC002", "sku": "MISC002", "name": "500ml用空瓶", "cat": "空瓶(500ml用)", "vol": "500ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "sku": "ZAKURO", "name": "ザクロソース 250ml", "cat": "ザクロソース", "vol": "250ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
 var PREP_SETS = [{"set": "4101321", "comp": "4101229", "qty": 1}, {"set": "4101321", "comp": "4101230", "qty": 1}, {"set": "4101321", "comp": "4101306", "qty": 1}, {"set": "4101322", "comp": "4101118", "qty": 1}, {"set": "4101322", "comp": "4101231", "qty": 1}];
 var prepMode = {};
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
-function prepSet(id,field,val){ for(var i=0;i<PREP_PRODUCTS.length;i++){ if(PREP_PRODUCTS[i].id===id){ PREP_PRODUCTS[i][field]=prepNum(val); break; } } prepRender(); }
+function prepFind(id){ for(var i=0;i<PREP_PRODUCTS.length;i++) if(PREP_PRODUCTS[i].id===id) return PREP_PRODUCTS[i]; return null; }
+function prepSetFree(id,field,val){ var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender(); }
+function prepSetRes(id,val){
+  if(!confirm('RTの予約数を本当に変更しますか？')){ prepRender(); return; }
+  var p=prepFind(id); if(p){ p.res=prepNum(val); } prepRender();
+}
+function prepEditMaster(id,field,label,isNum){
+  if(!confirm('「'+label+'」を本当に変更しますか？\n（商品コード・容量・容器・カテゴリー・入数などの大事なマスタ情報です。間違えると消えます）')) return;
+  var p=prepFind(id); if(!p) return;
+  var cur=(p[field]==null?'':p[field]);
+  var nv=prompt(label+' を入力してください', cur);
+  if(nv===null) return;
+  p[field]= isNum? prepNum(nv) : nv;
+  prepRender();
+}
 function prepChoose(id,mode){ prepMode[id]=mode; prepRender(); }
 function prepCalc(){
   var setRes={}; PREP_PRODUCTS.forEach(function(p){ if(p.rt) setRes[p.rt]=(prepNum(p.res)||0); });
@@ -2923,68 +2937,59 @@ function prepCalc(){
             mode:prepMode[p.id]||'up'};
   });
 }
-function prepFmtNeg(n){ var s=(n<0)?('<span style="color:#c00;font-weight:700">'+n+'</span>'):(''+n); return s; }
+function prepFmtNeg(n){ return (n<0)?('<span style="color:#c00;font-weight:700">'+n+'</span>'):(''+n); }
+function prepMcell(id,field,label,val,isNum){
+  var show=(val==null||val==='')?'—':val;
+  return '<span onclick="prepEditMaster(\''+id+'\',\''+field+'\',\''+label+'\','+(isNum?'true':'false')+')" title="クリックで変更（確認あり）" style="cursor:pointer;border-bottom:1px dotted #b9b9b9;padding:0 2px">'+show+'</span>';
+}
 function prepRender(){
   var wrap=document.getElementById('prep-table-wrap'); if(!wrap) return;
   var rows=prepCalc();
-  var IN='background:#fffbe6;'; // 入力セル
-  var IMP='background:#fde3b3;font-weight:800;'; // 農園発注（最終）
-  var h='<table style="min-width:1080px">';
-  h+='<thead>';
-  h+='<tr>'
-    +'<th rowspan="2">商品</th>'
-    +'<th rowspan="2">現在庫<br>(入力)</th>'
-    +'<th rowspan="2">予約数<br>(入力)</th>'
-    +'<th rowspan="2">セット<br>由来</th>'
-    +'<th rowspan="2">残数<br>(出荷後)</th>'
-    +'<th rowspan="2" style="background:#fffbe6">★残したい<br>販売在庫<br>(目標)</th>'
-    +'<th rowspan="2">輸入したい<br>本数</th>'
-    +'<th rowspan="2">箱の丸め<br>(選ぶ)</th>'
-    +'<th colspan="2" style="background:#f6a83a;color:#3a2400;font-size:12px">🚚 農園に発注＝輸入するのはここ ⬇️</th>'
-    +'<th rowspan="2">実際に残る<br>販売在庫</th>'
-    +'</tr>';
-  h+='<tr>'
-    +'<th style="'+IMP+'">⬇️最終<br>箱数</th>'
-    +'<th style="'+IMP+'">⬇️最終<br>本数</th>'
-    +'</tr>';
-  h+='</thead><tbody>';
+  var IN='background:#fffbe6;', IMP='background:#fde3b3;font-weight:800;';
+  var h='<table style="min-width:1320px">';
+  h+='<thead><tr>'
+    +'<th rowspan="2">商品名</th><th rowspan="2">品番</th><th rowspan="2">容量</th><th rowspan="2">容器</th><th rowspan="2">入数</th>'
+    +'<th rowspan="2">現在庫<br>(入力)</th><th rowspan="2">予約数<br>(RT・要確認)</th><th rowspan="2">セット<br>由来</th><th rowspan="2">残数<br>(出荷後)</th>'
+    +'<th rowspan="2" style="background:#fffbe6">★残したい<br>販売在庫<br>(目標)</th><th rowspan="2">輸入したい<br>本数</th><th rowspan="2">箱の丸め<br>(選ぶ)</th>'
+    +'<th colspan="2" style="background:#f6a83a;color:#3a2400">🚚 農園に発注＝輸入するのはここ ⬇️</th>'
+    +'<th rowspan="2">実際に残る<br>販売在庫</th></tr>';
+  h+='<tr><th style="'+IMP+'">⬇️最終<br>箱数</th><th style="'+IMP+'">⬇️最終<br>本数</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    var p=r.p;
-    var choose='';
+    var p=r.p, choose='';
     if(r.box&&r.box>0){
-      var upOn=(r.mode!=='down'); 
-      choose='<div style="display:flex;flex-direction:column;gap:3px;align-items:stretch">'
+      var upOn=(r.mode!=='down');
+      choose='<div style="display:flex;flex-direction:column;gap:3px">'
         +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'up\')" style="'+(upOn?'background:#0f7a4a;color:#fff;border-color:#0f7a4a;':'')+'font-size:10px;padding:2px 4px">▲切上 '+r.up+'箱 (+'+r.upSur+')</button>'
-        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'down\')" style="'+(!upOn?'background:#b06a1a;color:#fff;border-color:#b06a1a;':'')+'font-size:10px;padding:2px 4px">▼切捨 '+r.down+'箱 (−'+r.downSh+')</button>'
-        +'</div>';
-    } else { choose='<span style="font-size:10px;color:#999">入数未設定</span>'; }
-    var finalBoxTxt=(r.finalBox==null)?'—':(r.finalBox+'箱');
-    h+='<tr>';
-    h+='<td style="text-align:left;font-weight:600;white-space:nowrap">'+p.name+'</td>';
-    h+='<td><input type="text" value="'+(p.stock==null?'':p.stock)+'" onchange="prepSet(\''+p.id+'\',\'stock\',this.value)" style="width:56px;text-align:right;'+IN+'border:1px solid #d8cfc4;border-radius:4px;padding:3px"></td>';
-    h+='<td><input type="text" value="'+(p.res==null?'':p.res)+'" onchange="prepSet(\''+p.id+'\',\'res\',this.value)" style="width:50px;text-align:right;'+IN+'border:1px solid #d8cfc4;border-radius:4px;padding:3px"></td>';
-    h+='<td style="text-align:right;color:'+(r.setDerived>0?'#c55a11':'#bbb')+'">'+(r.setDerived>0?('+'+r.setDerived):'—')+'</td>';
-    h+='<td style="text-align:right">'+prepFmtNeg(r.remain)+'</td>';
-    h+='<td><input type="text" value="'+(p.target==null?'':p.target)+'" onchange="prepSet(\''+p.id+'\',\'target\',this.value)" style="width:56px;text-align:right;'+IN+'border:1.5px solid #e0b84a;border-radius:4px;padding:3px;font-weight:700"></td>';
-    h+='<td style="text-align:right;font-weight:700;color:'+(r.want>0?'#0f5a4a':'#bbb')+'">'+r.want+'</td>';
-    h+='<td>'+choose+'</td>';
-    h+='<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+finalBoxTxt+'</td>';
-    h+='<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+r.finalN+'</td>';
-    h+='<td style="text-align:right">'+prepFmtNeg(r.realRemain)+'</td>';
-    h+='</tr>';
+        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'down\')" style="'+(!upOn?'background:#b06a1a;color:#fff;border-color:#b06a1a;':'')+'font-size:10px;padding:2px 4px">▼切捨 '+r.down+'箱 (−'+r.downSh+')</button></div>';
+    } else choose='<span style="font-size:10px;color:#999">入数未設定</span>';
+    var fBox=(r.finalBox==null)?'—':(r.finalBox+'箱');
+    h+='<tr>'
+      +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+'</td>'
+      +'<td style="text-align:center;color:#1f4e78;font-weight:700">'+prepMcell(p.id,'sku','品番',p.sku,false)+'</td>'
+      +'<td style="text-align:center">'+prepMcell(p.id,'vol','容量',p.vol,false)+'</td>'
+      +'<td style="text-align:center">'+prepMcell(p.id,'cont','容器',p.cont,false)+'</td>'
+      +'<td style="text-align:center">'+prepMcell(p.id,'box','入数',p.box,true)+'</td>'
+      +'<td><input type="text" value="'+(p.stock==null?'':p.stock)+'" onchange="prepSetFree(\''+p.id+'\',\'stock\',this.value)" style="width:54px;text-align:right;'+IN+'border:1px solid #d8cfc4;border-radius:4px;padding:3px"></td>'
+      +'<td><input type="text" value="'+(p.res==null?'':p.res)+'" onchange="prepSetRes(\''+p.id+'\',this.value)" style="width:50px;text-align:right;background:#fff0f0;border:1px solid #e0b4b4;border-radius:4px;padding:3px"></td>'
+      +'<td style="text-align:right;color:'+(r.setDerived>0?'#c55a11':'#bbb')+'">'+(r.setDerived>0?('+'+r.setDerived):'—')+'</td>'
+      +'<td style="text-align:right">'+prepFmtNeg(r.remain)+'</td>'
+      +'<td><input type="text" value="'+(p.target==null?'':p.target)+'" onchange="prepSetFree(\''+p.id+'\',\'target\',this.value)" style="width:56px;text-align:right;'+IN+'border:1.5px solid #e0b84a;border-radius:4px;padding:3px;font-weight:700"></td>'
+      +'<td style="text-align:right;font-weight:700;color:'+(r.want>0?'#0f5a4a':'#bbb')+'">'+r.want+'</td>'
+      +'<td>'+choose+'</td>'
+      +'<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+fBox+'</td>'
+      +'<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+r.finalN+'</td>'
+      +'<td style="text-align:right">'+prepFmtNeg(r.realRemain)+'</td></tr>';
   });
   var totN=rows.reduce(function(a,r){return a+r.finalN;},0);
-  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="9" style="text-align:right;font-weight:700">合計 輸入本数 →</td>'
-    +'<td style="text-align:right;'+IMP+'font-size:15px">'+totN+'</td><td></td></tr>';
+  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="13" style="text-align:right;font-weight:700">合計 輸入本数 →</td><td style="text-align:right;'+IMP+'font-size:15px">'+totN+'</td><td></td></tr>';
   h+='</tbody></table>';
   wrap.innerHTML=h;
-  // 発注リスト
   var ol=document.getElementById('prep-order-list');
   var lines=rows.filter(function(r){return r.finalN>0;}).map(function(r){
-    var boxpart=(r.finalBox!=null)?('<strong>'+r.finalBox+'箱</strong>（'+r.finalN+'本）'):('<strong>'+r.finalN+'本</strong>（箱数は入数未設定）');
-    return '・'+r.p.name+'：'+boxpart;
+    var bp=(r.finalBox!=null)?('<strong>'+r.finalBox+'箱</strong>（'+r.finalN+'本）'):('<strong>'+r.finalN+'本</strong>（箱数は入数未設定）');
+    return '・'+r.p.name+'：'+bp;
   });
-  ol.innerHTML = lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません（目標に対して在庫が足りています）。</span>';
+  ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';
 }
 
 </script>
