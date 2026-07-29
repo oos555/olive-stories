@@ -274,6 +274,19 @@ tr:last-child td{border-bottom:none}
       <div class="sec">🚚 農園への発注リスト（＝輸入するもの）</div>
       <div id="prep-order-list" style="font-size:13px;line-height:1.9"></div>
     </div>
+    <div class="card" style="border-color:#2E5A3E">
+      <div class="sec">🌍 農園用オーダー表（英語・Excelに書き出せます）</div>
+      <div style="font-size:12px;color:#57534e;margin-bottom:10px;background:#eef4e3;border-radius:8px;padding:8px 10px">
+        この英語表は<strong>上の計算表の数字から自動で作られます</strong>。数字を直す場所は<strong>上の表だけ</strong>。日本語と英語を二重に直す必要はありません（自動で追従します）。
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <label style="font-size:12px">賞味期限 <input id="prep-exp" value="2027.11.11" onchange="prepRender()" style="width:110px;padding:5px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>
+        <label style="font-size:12px">裏ラベル(輸入時) <select id="prep-lbl1" onchange="prepRender()" style="padding:5px;border:1px solid #d8cfc4;border-radius:6px"><option>Turkish</option><option>English</option><option>Japanese</option></select></label>
+        <label style="font-size:12px">裏ラベル(日本で貼る) <select id="prep-lbl2" onchange="prepRender()" style="padding:5px;border:1px solid #d8cfc4;border-radius:6px"><option>Japanese</option><option>Turkish</option><option>English</option></select></label>
+        <button class="btn btn-primary" onclick="prepExportCSV()">⬇️ Excel(CSV)で書き出す</button>
+      </div>
+      <div id="prep-order-en" class="tbl-wrap" style="margin-bottom:0"></div>
+    </div>
   </div>
   <div id="panel-new" class="panel">
     <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、「🔒原価データ」タブにも自動反映されます</strong>。</div>
@@ -2989,7 +3002,69 @@ function prepRender(){
     var bp=(r.finalBox!=null)?('<strong>'+r.finalBox+'箱</strong>（'+r.finalN+'本）'):('<strong>'+r.finalN+'本</strong>（箱数は入数未設定）');
     return '・'+r.p.name+'：'+bp;
   });
-  ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';
+  ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';  prepRenderOrderEN();
+}
+
+/* 英語オーダー表（農園向け・上の数字から自動生成） */
+var PREP_EN_NAME={ORG:'Organic',MEM:'Memecik',CHF:"Chef's Blend"};
+function prepEnName(p){
+  var g=(p.id||'').substr(0,3);
+  if(PREP_EN_NAME[g]) return PREP_EN_NAME[g];
+  if(p.id==='MISC002') return 'Empty bottle 500ml (Turkish) + pour spout';
+  if(p.id==='ZAKURO') return 'Pomegranate sauce';
+  if(p.id==='YS100') return 'your story 100ml x3 gift set';
+  if(p.id==='YS250A') return 'your story 250ml x2 gift set A';
+  return p.name;
+}
+function prepEnCont(c){ return c==='瓶'?'Bottle':(c==='缶'?'Can':(c==='箱'?'Box':(c||''))); }
+function prepOrderRows(){ return prepCalc().filter(function(r){return r.finalN>0;}); }
+function prepRenderOrderEN(){
+  var box=document.getElementById('prep-order-en'); if(!box) return;
+  var rows=prepOrderRows();
+  var exp=(document.getElementById('prep-exp')||{}).value||'';
+  var l1=(document.getElementById('prep-lbl1')||{}).value||'';
+  var l2=(document.getElementById('prep-lbl2')||{}).value||'';
+  var IMP='background:#fce3b4;font-weight:800;color:#7a2f00;';
+  var h='<table style="min-width:1000px"><thead><tr>'
+    +'<th>No.</th><th>Product Name</th><th>Volume</th><th>Container</th><th>Units / Box</th>'
+    +'<th style="'+IMP+'">Boxes to Order</th><th style="'+IMP+'">Total Bottles</th>'
+    +'<th>Best-Before</th><th>Back Label<br>(as imported)</th><th>Back Label<br>(applied in Japan)</th></tr></thead><tbody>';
+  var tot=0;
+  rows.forEach(function(r,i){ tot+=r.finalN;
+    h+='<tr><td style="text-align:center">'+(i+1)+'</td>'
+      +'<td style="text-align:left">'+prepEnName(r.p)+'</td>'
+      +'<td style="text-align:center">'+r.p.vol+'</td>'
+      +'<td style="text-align:center">'+prepEnCont(r.p.cont)+'</td>'
+      +'<td style="text-align:center">'+(r.box?r.box:'—')+'</td>'
+      +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
+      +'<td style="text-align:right;'+IMP+'">'+r.finalN+'</td>'
+      +'<td style="text-align:center">'+exp+'</td>'
+      +'<td style="text-align:center">'+l1+'</td><td style="text-align:center">'+l2+'</td></tr>';
+  });
+  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="6" style="text-align:right;font-weight:700">TOTAL →</td>'
+    +'<td style="text-align:right;'+IMP+'">'+tot+'</td><td colspan="3"></td></tr>';
+  h+='</tbody></table>';
+  if(!rows.length) h='<div style="padding:10px;color:#999">輸入が必要な商品がありません（発注なし）。</div>';
+  box.innerHTML=h;
+}
+function prepExportCSV(){
+  var rows=prepOrderRows();
+  var exp=(document.getElementById('prep-exp')||{}).value||'';
+  var l1=(document.getElementById('prep-lbl1')||{}).value||'';
+  var l2=(document.getElementById('prep-lbl2')||{}).value||'';
+  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label (as imported)','Back Label (applied in Japan)'];
+  function esc(v){ v=(v==null?'':(''+v)); return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v; }
+  var lines=[head.map(esc).join(',')];
+  rows.forEach(function(r,i){
+    lines.push([i+1,prepEnName(r.p),r.p.vol,prepEnCont(r.p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,exp,l1,l2].map(esc).join(','));
+  });
+  var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
+  lines.push(['','TOTAL','','','','',tot,'','',''].map(esc).join(','));
+  var csv='\uFEFF'+lines.join('\r\n'); // BOMでExcelの文字化け防止
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Novavera_Import_Order_'+ymd+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 </script>
