@@ -268,6 +268,25 @@ tr:last-child td{border-bottom:none}
       <button class="btn-sm" onclick="prepGasSave(true)" style="margin-left:auto">☁️ いま共有保存</button>
       <button class="btn-sm" onclick="prepReset()">🔄 初期値に戻す</button>
     </div>
+    <details style="background:#fff;border:1px solid #e8e2d8;border-radius:10px;margin-bottom:12px">
+      <summary style="cursor:pointer;padding:11px 14px;font-weight:700;color:#2b2a26">❓ このページの使い方（クリックで開く）</summary>
+      <div style="padding:0 14px 12px;font-size:13px;line-height:1.85;color:#2b2a26">
+        <p style="margin:8px 0"><strong>このページは何？</strong>　RTホテルからの予約が入ったとき、いまの在庫から「農園に何箱・何本 輸入するか」を決めるページです。ここで確定した内容が、輸入ノートのもとになります。とても大事な計算書です。</p>
+        <p style="margin:8px 0"><strong>いちばん大事な入力＝黄色い「★残したい販売在庫（目標）」</strong>　ここに数字を入れるだけで、あとは全部自動で計算されます。意味は「<strong>予約を全部出荷したあと、手元に何本 残しておきたいか</strong>」。<br>→ その目標に足りない分が「輸入したい本数」になり、→ 満杯の箱に丸めた <span style="background:#fde3b3;padding:0 4px;border-radius:4px;font-weight:700">最終箱数・最終本数＝農園に発注する数</span> になります。空欄＝0（＝予約を埋めるぶんだけ輸入）。</p>
+        <p style="margin:8px 0"><strong>手順</strong>　①現在庫・予約数を確認 → ②黄色い「★残したい販売在庫」を入れる → ③「輸入したい本数」が出る → ④箱の丸め（▲切上＝少し余る／▼切捨＝少し足りない）を選ぶ → ⑤オレンジの「最終箱数・最終本数」が農園に伝える数。</p>
+        <p style="margin:8px 0"><strong>セット商品</strong>　YS100（100ml3本セット）などの予約は、中身の単品（オルガニック100ml等）に自動で振り分けます。</p>
+        <p style="margin:8px 0"><strong>英語オーダー表（下の方）</strong>　上の数字から自動で英語表ができます。<strong>数字を直す場所は上の表だけ</strong>。賞味期限・裏ラベルの言語／印刷地／色／画像URLは商品ごとに設定でき、「⬇️ Excel(CSV)で書き出す」で農園に渡せます。裏ラベル画像は「農園共有フォルダ」リンクで渡します。</p>
+        <p style="margin:8px 0"><strong>確定と記録</strong>　輸入が決まったら「✅ この内容で輸入を確定する」を押すと、日付つきで内容が下の「輸入確定の記録」に残ります（年に何度でも積み重なります）。</p>
+        <p style="margin:8px 0"><strong>保存</strong>　入力は自動で「この端末」と「GAS（共有・バックアップ）」の両方に保存されます。緑の「✅ 共有保存しました」が出れば共有保存OK。</p>
+        <p style="margin:8px 0;color:#8a6d3f;font-size:12px">※もっと詳しい説明書（しくみ・変更のしかた）は、別ファイル「輸入準備計算_説明書.md」にあります。</p>
+      </div>
+    </details>
+    <div class="card" style="border-color:#8a6d3f;background:#fbf7ef">
+      <div class="sec">🔗 農園共有フォルダ（裏ラベル画像・Dropbox）</div>
+      <div style="font-size:12px;color:#57534e;line-height:1.7;margin-bottom:8px">Dropboxで<strong>ラベル専用のフォルダを1つ作って共有リンク</strong>を、ここに貼ってください（入力はこの<strong>日本語側の1か所だけ</strong>。英語オーダー表に自動でコピーされます）。<br>※共有するのは<strong>ラベル専用の新規フォルダだけ</strong>／権限は「閲覧のみ」推奨。上の階層フォルダは共有しないでください。</div>
+      <input id="prep-folder-url" placeholder="https://www.dropbox.com/scl/fo/...（フォルダの共有リンク）" onchange="prepSetFolder(this.value)" style="width:100%;max-width:640px;padding:7px 10px;border:1px solid #d8cfc4;border-radius:6px">
+      <span id="prep-folder-link" style="margin-left:8px;font-size:12px"></span>
+    </div>
     <div class="card">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <span class="sec" style="margin:0">📊 輸入準備の表</span>
@@ -292,8 +311,11 @@ tr:last-child td{border-bottom:none}
         <button class="btn-sm" onclick="prepBulk('lblLang',document.getElementById('prep-bulk-lang').value)">全部に</button>
         <label style="font-size:12px">印刷 <select id="prep-bulk-print" style="padding:4px;border:1px solid #d8cfc4;border-radius:5px"><option value="Turkey">トルコ</option><option value="Japan">日本</option></select></label>
         <button class="btn-sm" onclick="prepBulk('lblPrint',document.getElementById('prep-bulk-print').value)">全部に</button>
+        <label style="font-size:12px">印刷色 <select id="prep-bulk-color" style="padding:4px;border:1px solid #d8cfc4;border-radius:5px"><option value="Color">カラー</option><option value="B&amp;W">白黒</option></select></label>
+        <button class="btn-sm" onclick="prepBulk('lblColor',document.getElementById('prep-bulk-color').value)">全部に</button>
         <button class="btn btn-primary" style="margin-left:auto" onclick="prepExportCSV()">⬇️ Excel(CSV)で書き出す</button>
       </div>
+      <div id="prep-folder-en" style="font-size:12px;margin-bottom:8px;padding:6px 10px;background:#fbf7ef;border:1px solid #ecdfc7;border-radius:6px"></div>
       <div id="prep-order-en" class="tbl-wrap" style="margin-bottom:0"></div>
     </div>
     <div class="card" style="border:2px solid #0f7a4a;background:#f2f9f5">
@@ -2934,6 +2956,7 @@ var PREP_PRODUCTS = [{"id": "ORG100", "sku": "ORG100", "name": "オルガニッ�
 var PREP_SETS = [{"set": "4101321", "comp": "4101229", "qty": 1}, {"set": "4101321", "comp": "4101230", "qty": 1}, {"set": "4101321", "comp": "4101306", "qty": 1}, {"set": "4101322", "comp": "4101118", "qty": 1}, {"set": "4101322", "comp": "4101231", "qty": 1}];
 var prepMode = {};
 var prepHistory = [];
+var prepFolderUrl = '';
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
 function prepFind(id){ for(var i=0;i<PREP_PRODUCTS.length;i++) if(PREP_PRODUCTS[i].id===id) return PREP_PRODUCTS[i]; return null; }
 function prepSetFree(id,field,val){ var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender(); }
@@ -3027,6 +3050,7 @@ function prepRender(){
   });
   ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';  prepRenderOrderEN();
   prepRenderHistory();
+  prepRenderFolder();
   prepSaveLocal();
 }
 
@@ -3034,19 +3058,20 @@ function prepRender(){
 var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
-  var st={v:1,mode:prepMode,history:prepHistory,p:{}};
-  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,enName:p.enName}; });
+  var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,p:{}};
+  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,enName:p.enName}; });
   return st;
 }
 function prepApplyState(st){
   if(!st) return;
   if(st.mode) prepMode=st.mode;
   if(st.history) prepHistory=st.history;
+  if(st.folderUrl!=null) prepFolderUrl=st.folderUrl;
   if(st.p){ PREP_PRODUCTS.forEach(function(p){ var s=st.p[p.id]; if(!s) return;
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
     if(s.name!=null)p.name=s.name; if(s.sku!=null)p.sku=s.sku; if(s.vol!=null)p.vol=s.vol; if(s.cont!=null)p.cont=s.cont;
     if(s.exp!=null)p.exp=s.exp; if(s.lblLang!=null)p.lblLang=s.lblLang; if(s.lblPrint!=null)p.lblPrint=s.lblPrint; if(s.lblUrl!=null)p.lblUrl=s.lblUrl;
-    if(s.enName!=null)p.enName=s.enName;
+    if(s.lblColor!=null)p.lblColor=s.lblColor; if(s.enName!=null)p.enName=s.enName;
   }); }
 }
 function prepSaveLocal(){
@@ -3122,6 +3147,7 @@ function prepOrderRows(){ return prepCalc().filter(function(r){return r.finalN>0
 function prepExpOf(p){ return (p.exp!=null&&p.exp!=='')?p.exp:'2027.11.11'; }
 function prepLangOf(p){ return p.lblLang||'Turkish'; }
 function prepPrintOf(p){ return p.lblPrint||'Turkey'; }
+function prepColorOf(p){ return p.lblColor||'Color'; }
 function prepUrlOf(p){ return p.lblUrl||''; }
 function prepAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRenderOrderEN(); }
@@ -3129,10 +3155,17 @@ function prepBulk(field,val){ PREP_PRODUCTS.forEach(function(p){ p[field]=val; }
 var PREP_LANG_OPTS=[['Japanese','日本語 Japanese'],['Turkish','トルコ語 Turkish'],['English','英語 English']];
 var PREP_PRINT_OPTS=[['Turkey','トルコ Turkey'],['Japan','日本 Japan']];
 var PREP_CONT_OPTS=[['瓶','Bottle'],['缶','Can'],['箱','Box']];
+var PREP_COLOR_OPTS=[['Color','カラー Color'],['B&W','白黒 B&W']];
 function prepSelHtml(id,field,cur,opts){
   var h='<select onchange="prepSetLbl(\''+id+'\',\''+field+'\',this.value)" style="font-size:12px;padding:3px;border:1px solid #d8cfc4;border-radius:5px">';
   for(var i=0;i<opts.length;i++){ h+='<option value="'+opts[i][0]+'"'+(opts[i][0]===cur?' selected':'')+'>'+opts[i][1]+'</option>'; }
   return h+'</select>';
+}
+function prepSetFolder(v){ prepFolderUrl=(v||'').trim(); prepSaveLocal(); prepRenderFolder(); prepRenderOrderEN(); }
+function prepRenderFolder(){
+  var inp=document.getElementById('prep-folder-url'); if(inp && inp.value!==prepFolderUrl) inp.value=prepFolderUrl||'';
+  var el=document.getElementById('prep-folder-link');
+  if(el){ el.innerHTML = prepFolderUrl ? ('<a href="'+prepAttr(prepFolderUrl)+'" target="_blank">🔗 開いて確認</a>') : '<span style="color:#999">未設定</span>'; }
 }
 function prepFinalize(){
   var rows=prepOrderRows();
@@ -3142,9 +3175,9 @@ function prepFinalize(){
   var dateStr=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
   if(!confirm('この内容で輸入を確定して記録しますか？\n\n'+dateStr+(memo?('（'+memo+'）'):'')+'\n合計 '+tot+'本 / '+rows.length+'品\n\n※下の「輸入確定の記録」に残ります。')) return;
-  var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, total:tot,
+  var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, folderUrl:prepFolderUrl, total:tot,
     items: rows.map(function(r){ return {jpname:r.p.name, enName:prepEnName(r.p), sku:r.p.sku, vol:r.p.vol, cont:r.p.cont,
-      box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), url:prepUrlOf(r.p)}; }) };
+      box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), color:prepColorOf(r.p), url:prepUrlOf(r.p)}; }) };
   prepHistory.unshift(snap);
   prepSaveLocal();
   prepRenderHistory();
@@ -3161,9 +3194,9 @@ function prepRenderHistory(){
     h+='<summary style="cursor:pointer;padding:10px 12px;font-weight:700;color:#0f5a4a">'+s.dateStr+' 確定'+(s.memo?('（'+s.memo+'）'):'')+' — 合計 '+s.total+'本 / '+s.items.length+'品</summary>';
     h+='<div style="padding:8px 12px"><table style="min-width:0;font-size:12px"><thead><tr><th>商品</th><th>品番</th><th>容量</th><th>容器</th><th>箱</th><th>本数</th><th>賞味期限</th><th>ラベル</th></tr></thead><tbody>';
     s.items.forEach(function(it){
-      h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+'</td></tr>';
+      h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+' / '+(it.color||'')+'</td></tr>';
     });
-    h+='</tbody></table><div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
+    h+='</tbody></table>'; if(s.folderUrl){ h+='<div style="font-size:11px;margin-top:4px;color:#7a5a1a">🔗 農園共有フォルダ: '+s.folderUrl+'</div>'; } h+='<div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
   });
   box.innerHTML=h;
 }
@@ -3174,12 +3207,13 @@ function prepDeleteHistory(id){
 }
 function prepRenderOrderEN(){
   var box=document.getElementById('prep-order-en'); if(!box) return;
+  var fe=document.getElementById('prep-folder-en'); if(fe){ fe.innerHTML = prepFolderUrl ? ('🔗 <strong>農園共有フォルダ（裏ラベル画像）</strong>: <a href="'+prepAttr(prepFolderUrl)+'" target="_blank">'+prepAttr(prepFolderUrl)+'</a>') : '<span style="color:#999">農園共有フォルダは未設定です（上の日本語側「農園共有フォルダ」で設定するとここにコピーされます）</span>'; }
   var rows=prepOrderRows();
   var IMP='background:#fce3b4;font-weight:800;color:#7a2f00;';
   var h='<table style="min-width:1180px"><thead><tr>'
     +'<th>No.</th><th>Product Name</th><th>Volume</th><th>Container</th><th>Units / Box</th>'
     +'<th style="'+IMP+'">Boxes to Order</th><th style="'+IMP+'">Total Bottles</th>'
-    +'<th>賞味期限<br>Best-Before</th><th>裏ラベル言語<br>Label Lang</th><th>印刷<br>Printed in</th><th>裏ラベル画像<br>(Dropbox URL)</th></tr></thead><tbody>';
+    +'<th>賞味期限<br>Best-Before</th><th>裏ラベル言語<br>Label Lang</th><th>印刷<br>Printed in</th><th>印刷色<br>Color</th><th>裏ラベル画像<br>(Dropbox URL)</th></tr></thead><tbody>';
   var tot=0;
   rows.forEach(function(r,i){ tot+=r.finalN; var p=r.p; var url=prepUrlOf(p);
     h+='<tr><td style="text-align:center">'+(i+1)+'</td>'
@@ -3192,6 +3226,7 @@ function prepRenderOrderEN(){
       +'<td style="text-align:center"><input value="'+prepAttr(prepExpOf(p))+'" onchange="prepSetLbl(\''+p.id+'\',\'exp\',this.value)" style="width:92px;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblLang',prepLangOf(p),PREP_LANG_OPTS)+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblPrint',prepPrintOf(p),PREP_PRINT_OPTS)+'</td>'
+      +'<td style="text-align:center">'+prepSelHtml(p.id,'lblColor',prepColorOf(p),PREP_COLOR_OPTS)+'</td>'
       +'<td style="text-align:left"><input value="'+prepAttr(url)+'" placeholder="Dropbox URL" onchange="prepSetLbl(\''+p.id+'\',\'lblUrl\',this.value)" style="width:150px;border:1px solid #d8cfc4;border-radius:5px;padding:3px">'+(url?(' <a href="'+prepAttr(url)+'" target="_blank" title="開く" style="font-size:13px;text-decoration:none">🔗</a>'):'')+'</td>'
       +'</tr>';
   });
@@ -3203,14 +3238,14 @@ function prepRenderOrderEN(){
 }
 function prepExportCSV(){
   var rows=prepOrderRows();
-  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language','Printed in','Back Label Image URL'];
+  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language','Printed in','Color','Back Label Image URL'];
   function esc(v){ v=(v==null?'':(''+v)); return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v; }
-  var lines=[head.map(esc).join(',')];
+  var lines=[]; if(prepFolderUrl){ lines.push(esc('農園共有フォルダ / Shared label folder')+','+esc(prepFolderUrl)); lines.push(''); } lines.push(head.map(esc).join(','));
   rows.forEach(function(r,i){ var p=r.p;
-    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepLangOf(p),prepPrintOf(p),prepUrlOf(p)].map(esc).join(','));
+    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepLangOf(p),prepPrintOf(p),prepColorOf(p),prepUrlOf(p)].map(esc).join(','));
   });
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
-  lines.push(['','TOTAL','','','','',tot,'','','',''].map(esc).join(','));
+  lines.push(['','TOTAL','','','','',tot,'','','','',''].map(esc).join(','));
   var csv='\uFEFF'+lines.join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
