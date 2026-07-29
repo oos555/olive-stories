@@ -216,6 +216,7 @@ tr:last-child td{border-bottom:none}
 
   <div class="tab-row">
     <button class="tab active" onclick="showPanel('note',this)">📦 輸入ノート</button>
+    <button class="tab" onclick="showPanel('prep',this)" style="color:#0f5a4a;font-weight:700">🧮 輸入準備計算</button>
     <button class="tab" onclick="showPanel('new',this)" style="display:none">輸入を記録する</button>
     <button class="tab" onclick="showPanel('history',this)" style="display:none">輸入履歴・年次比較</button>
     <button class="tab" onclick="showPanel('cost',this)" style="color:#b91c1c">🔒原価データ</button>
@@ -256,6 +257,23 @@ tr:last-child td{border-bottom:none}
       <div id="yn-cards" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
     </div>
     <div id="yn-detail" style="display:none"></div>
+  </div>
+  <div id="panel-prep" class="panel">
+    <div class="info-box">🧮 <strong>輸入準備計算</strong>：RTホテル予約が入ったとき、在庫から「輸入する箱数・本数」を決めます。<br>
+      <strong>①</strong>現在庫・予約数を確認 → <strong>②</strong>黄色の「残したい販売在庫（目標）」を入れる → <strong>③</strong>「輸入したい本数」が自動で出る → <strong>④</strong>箱の丸め（切上▲/切捨▼）を選ぶ → <strong>⑤</strong><span style="background:#fde3b3;padding:0 4px;border-radius:4px;font-weight:700">最終箱数・最終本数＝農園に発注する数</span>。<br>
+      <span style="font-size:11px;color:#8a6d3f">※在庫・入数・品番は名簿(統合マスタ)基準。セット注文（YS100/YS250A）は中身の単品にRT社内コードで自動振り分け。</span>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="sec" style="margin:0">📊 輸入準備の表</span>
+        <span style="margin-left:auto;font-size:12px;color:#57534e">黄色＝入力（在庫・予約・目標）／<span style="background:#fde3b3;padding:0 5px;border-radius:4px">オレンジ＝農園に発注する数</span></span>
+      </div>
+      <div id="prep-table-wrap" class="tbl-wrap" style="margin-bottom:0"></div>
+    </div>
+    <div class="card" id="prep-order-card" style="background:#fff8ee;border-color:#f0c987">
+      <div class="sec">🚚 農園への発注リスト（＝輸入するもの）</div>
+      <div id="prep-order-list" style="font-size:13px;line-height:1.9"></div>
+    </div>
   </div>
   <div id="panel-new" class="panel">
     <div class="info-box">1回の輸入（農園×輸入時期）ごとに登録します。<strong>保存すると、商品ごとの原価が自動計算され、「🔒原価データ」タブにも自動反映されます</strong>。</div>
@@ -760,6 +778,7 @@ function showPanel(name, btn){
   if(name==='history') renderHistory();
   if(name==='note') ynInitPanel();
   if(name==='cost'){ renderCostProductTable(); renderProfitHeatmap(); renderRateSimulation(); renderNovelloNotes(); }
+  if(name==='prep') prepRender();
 }
 
 function toggleEditLock(){
@@ -2873,6 +2892,99 @@ async function ynDelete(){
   document.getElementById('yn-detail').style.display='none';
   ynAllFromBatches(); ynRenderCards();
   showSyncStatus('🗑 消しました');
+}
+
+
+/* ===== 🧮 輸入準備計算タブ（2026-07 追加・自己完結） ===== */
+var PREP_PRODUCTS = [{"id": "ORG100", "name": "オルガニック 100ml", "vol": "100ml", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "name": "オルガニック 250ml", "vol": "250ml", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "name": "オルガニック 500ml", "vol": "500ml", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "name": "オルガニック 750ml", "vol": "750ml", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "name": "オルガニック 2000ml", "vol": "2000ml", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "name": "オルガニック 5000ml", "vol": "5000ml", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "name": "メメジック 100ml", "vol": "100ml", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "name": "メメジック 250ml", "vol": "250ml", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "name": "メメジック 500ml", "vol": "500ml", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "name": "メメジック 750ml", "vol": "750ml", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "name": "メメジック 2000ml", "vol": "2000ml", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "name": "メメジック 5000ml", "vol": "5000ml", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "name": "シェフズブレンド 250ml", "vol": "250ml", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "name": "シェフズブレンド 100ml", "vol": "100ml", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "name": "your story 100ml×3本セット", "vol": "100ml×3", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199}, {"id": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "vol": "250ml×2", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0}, {"id": "MISC002", "name": "500ml用空瓶(MISC002)", "vol": "500ml", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "name": "ザクロソース 250ml", "vol": "250ml", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
+var PREP_SETS = [{"set": "4101321", "comp": "4101229", "qty": 1}, {"set": "4101321", "comp": "4101230", "qty": 1}, {"set": "4101321", "comp": "4101306", "qty": 1}, {"set": "4101322", "comp": "4101118", "qty": 1}, {"set": "4101322", "comp": "4101231", "qty": 1}];
+var prepMode = {};
+function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
+function prepSet(id,field,val){ for(var i=0;i<PREP_PRODUCTS.length;i++){ if(PREP_PRODUCTS[i].id===id){ PREP_PRODUCTS[i][field]=prepNum(val); break; } } prepRender(); }
+function prepChoose(id,mode){ prepMode[id]=mode; prepRender(); }
+function prepCalc(){
+  var setRes={}; PREP_PRODUCTS.forEach(function(p){ if(p.rt) setRes[p.rt]=(prepNum(p.res)||0); });
+  return PREP_PRODUCTS.map(function(p){
+    var setDerived=0;
+    PREP_SETS.forEach(function(s){ if(s.comp===p.rt){ setDerived += (s.qty||1)*(setRes[s.set]||0); } });
+    var target=prepNum(p.target)||0, stock=prepNum(p.stock)||0, res=prepNum(p.res)||0;
+    var remain=stock-res-setDerived;
+    var want=Math.max(target-remain,0);
+    var box=prepNum(p.box);
+    var up=null,upN=null,upSur=null,down=null,downN=null,downSh=null,finalBox=null,finalN;
+    if(box&&box>0){
+      up=Math.ceil(want/box); upN=up*box; upSur=upN-want;
+      down=Math.floor(want/box); downN=down*box; downSh=want-downN;
+      var mode=prepMode[p.id]||'up';
+      finalBox=(mode==='down')?down:up; finalN=finalBox*box;
+    } else { finalN=want; }
+    return {p:p,setDerived:setDerived,remain:remain,want:want,box:box,up:up,upN:upN,upSur:upSur,
+            down:down,downN:downN,downSh:downSh,finalBox:finalBox,finalN:finalN,realRemain:remain+finalN,
+            mode:prepMode[p.id]||'up'};
+  });
+}
+function prepFmtNeg(n){ var s=(n<0)?('<span style="color:#c00;font-weight:700">'+n+'</span>'):(''+n); return s; }
+function prepRender(){
+  var wrap=document.getElementById('prep-table-wrap'); if(!wrap) return;
+  var rows=prepCalc();
+  var IN='background:#fffbe6;'; // 入力セル
+  var IMP='background:#fde3b3;font-weight:800;'; // 農園発注（最終）
+  var h='<table style="min-width:1080px">';
+  h+='<thead>';
+  h+='<tr>'
+    +'<th rowspan="2">商品</th>'
+    +'<th rowspan="2">現在庫<br>(入力)</th>'
+    +'<th rowspan="2">予約数<br>(入力)</th>'
+    +'<th rowspan="2">セット<br>由来</th>'
+    +'<th rowspan="2">残数<br>(出荷後)</th>'
+    +'<th rowspan="2" style="background:#fffbe6">★残したい<br>販売在庫<br>(目標)</th>'
+    +'<th rowspan="2">輸入したい<br>本数</th>'
+    +'<th rowspan="2">箱の丸め<br>(選ぶ)</th>'
+    +'<th colspan="2" style="background:#f6a83a;color:#3a2400;font-size:12px">🚚 農園に発注＝輸入するのはここ ⬇️</th>'
+    +'<th rowspan="2">実際に残る<br>販売在庫</th>'
+    +'</tr>';
+  h+='<tr>'
+    +'<th style="'+IMP+'">⬇️最終<br>箱数</th>'
+    +'<th style="'+IMP+'">⬇️最終<br>本数</th>'
+    +'</tr>';
+  h+='</thead><tbody>';
+  rows.forEach(function(r){
+    var p=r.p;
+    var choose='';
+    if(r.box&&r.box>0){
+      var upOn=(r.mode!=='down'); 
+      choose='<div style="display:flex;flex-direction:column;gap:3px;align-items:stretch">'
+        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'up\')" style="'+(upOn?'background:#0f7a4a;color:#fff;border-color:#0f7a4a;':'')+'font-size:10px;padding:2px 4px">▲切上 '+r.up+'箱 (+'+r.upSur+')</button>'
+        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'down\')" style="'+(!upOn?'background:#b06a1a;color:#fff;border-color:#b06a1a;':'')+'font-size:10px;padding:2px 4px">▼切捨 '+r.down+'箱 (−'+r.downSh+')</button>'
+        +'</div>';
+    } else { choose='<span style="font-size:10px;color:#999">入数未設定</span>'; }
+    var finalBoxTxt=(r.finalBox==null)?'—':(r.finalBox+'箱');
+    h+='<tr>';
+    h+='<td style="text-align:left;font-weight:600;white-space:nowrap">'+p.name+'</td>';
+    h+='<td><input type="text" value="'+(p.stock==null?'':p.stock)+'" onchange="prepSet(\''+p.id+'\',\'stock\',this.value)" style="width:56px;text-align:right;'+IN+'border:1px solid #d8cfc4;border-radius:4px;padding:3px"></td>';
+    h+='<td><input type="text" value="'+(p.res==null?'':p.res)+'" onchange="prepSet(\''+p.id+'\',\'res\',this.value)" style="width:50px;text-align:right;'+IN+'border:1px solid #d8cfc4;border-radius:4px;padding:3px"></td>';
+    h+='<td style="text-align:right;color:'+(r.setDerived>0?'#c55a11':'#bbb')+'">'+(r.setDerived>0?('+'+r.setDerived):'—')+'</td>';
+    h+='<td style="text-align:right">'+prepFmtNeg(r.remain)+'</td>';
+    h+='<td><input type="text" value="'+(p.target==null?'':p.target)+'" onchange="prepSet(\''+p.id+'\',\'target\',this.value)" style="width:56px;text-align:right;'+IN+'border:1.5px solid #e0b84a;border-radius:4px;padding:3px;font-weight:700"></td>';
+    h+='<td style="text-align:right;font-weight:700;color:'+(r.want>0?'#0f5a4a':'#bbb')+'">'+r.want+'</td>';
+    h+='<td>'+choose+'</td>';
+    h+='<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+finalBoxTxt+'</td>';
+    h+='<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+r.finalN+'</td>';
+    h+='<td style="text-align:right">'+prepFmtNeg(r.realRemain)+'</td>';
+    h+='</tr>';
+  });
+  var totN=rows.reduce(function(a,r){return a+r.finalN;},0);
+  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="9" style="text-align:right;font-weight:700">合計 輸入本数 →</td>'
+    +'<td style="text-align:right;'+IMP+'font-size:15px">'+totN+'</td><td></td></tr>';
+  h+='</tbody></table>';
+  wrap.innerHTML=h;
+  // 発注リスト
+  var ol=document.getElementById('prep-order-list');
+  var lines=rows.filter(function(r){return r.finalN>0;}).map(function(r){
+    var boxpart=(r.finalBox!=null)?('<strong>'+r.finalBox+'箱</strong>（'+r.finalN+'本）'):('<strong>'+r.finalN+'本</strong>（箱数は入数未設定）');
+    return '・'+r.p.name+'：'+boxpart;
+  });
+  ol.innerHTML = lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません（目標に対して在庫が足りています）。</span>';
 }
 
 </script>
