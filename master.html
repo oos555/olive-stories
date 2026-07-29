@@ -598,12 +598,70 @@ tr:last-child td{border-bottom:none}
     <th>商品</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
-    <th style="background:#eef4fb">バーコード</th><th style="background:#eef4fb">商品ページ</th>
+    <th style="background:#eef4fb">バーコード</th><th style="background:#e6f4f2;color:#0b5a53">STORES品番</th><th style="background:#eef4fb">商品ページ</th>
     <th id="meibo-edit-th" style="display:none">操作</th>
   </tr></thead>
     <tbody id="meibo-body"><tr><td colspan="8" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
   </table>
   </div>
+
+  <!-- ★2026-07-29 STORES品番の書き方ルール（名簿の一番下・枠外・既定は閉じる） -->
+  <style>
+    .stq-book{border:2px solid #b6ddd7;border-radius:16px;background:#fff;overflow:hidden;margin-top:22px}
+    .stq-book>summary{list-style:none;cursor:pointer;padding:14px 16px;background:#d7ede8;color:#0b5a53;font-weight:900;font-size:16px;display:flex;align-items:center;gap:9px;font-family:'Zen Maru Gothic','Hiragino Sans','Yu Gothic',sans-serif}
+    .stq-book>summary::-webkit-details-marker{display:none}
+    .stq-book>summary .stq-chev{margin-left:auto;font-size:12px;font-weight:800;background:#fff;color:#0f766e;padding:3px 12px;border-radius:99px;border:1px solid #b6ddd7;white-space:nowrap}
+    .stq-book[open]>summary .stq-chev::after{content:"閉じる ▲"}
+    .stq-book:not([open])>summary .stq-chev::after{content:"開く ▼"}
+    .stq-in{padding:16px}
+    .stq-lead{font-size:14px;font-weight:800;color:#0b5a53;background:#e6f4f2;border:1.5px solid #b6ddd7;border-radius:12px;padding:12px 14px;line-height:1.85;margin-bottom:16px}
+    .stq-lead b{color:#2b2a26}
+    .stq-h{font-size:15px;font-weight:900;color:#2b2a26;margin:16px 0 7px;display:flex;align-items:center;gap:8px}
+    .stq-h .stq-n{background:#0f766e;color:#fff;font-size:13px;font-weight:900;border-radius:99px;width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center}
+    .stq-card{background:#fbfefd;border:1.5px solid #b6ddd7;border-radius:11px;padding:11px 14px;margin-bottom:9px;font-size:13.5px;font-weight:700;color:#2b2a26;line-height:1.8}
+    .stq-card b{color:#0b5a53}
+    .stq-code{font-family:monospace;background:#eef4f2;border:1px solid #cfe3de;border-radius:6px;padding:1px 7px;font-size:13.5px;font-weight:800;color:#0b5a53}
+    .stq-eg{font-size:16px;font-weight:900;color:#0b5a53;background:#eef7f4;border:2px solid #b6ddd7;border-radius:10px;padding:9px 12px;margin:6px 0;text-align:center}
+    .stq-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;margin:6px 0}
+    .stq-tbl th{background:#eef4f2;color:#0b5a53;font-weight:900;text-align:left;padding:7px 9px;font-size:12px;border-bottom:1.5px solid #b6ddd7}
+    .stq-tbl td{padding:7px 9px;border-bottom:1px solid #eef0ec;font-weight:800;color:#2b2a26}
+    .stq-tbl td.stq-num{color:#0b5a53}
+    .stq-warn{background:#fff4f2;border:2px solid #e6a4a4;border-radius:12px;padding:12px 14px;margin-top:16px;font-size:13.5px;font-weight:800;color:#a3141b;line-height:1.85}
+    .stq-warn b{color:#2b2a26}
+    .stq-ok{background:#eef7ef;border:1.5px solid #bcdcbf;border-radius:12px;padding:11px 14px;margin-top:12px;font-size:13px;font-weight:800;color:#1d6b2a;line-height:1.8}
+  </style>
+  <details class="stq-book">
+    <summary>📄 STORESの品番の書き方ルール（在庫を合わせるための大切な約束）<span class="stq-chev"></span></summary>
+    <div class="stq-in">
+      <div class="stq-lead">STORESの商品を作る／直すときは、STORESの<b>「品番」欄</b>に、この形で書きます。この形で書いておくと、CSVを取り込んだとき<b>売れた分を正しく在庫から引けます</b>。書き方がバラバラだと在庫がどんどんズレるので、<b>ここを必ず守ってください。</b></div>
+
+      <div class="stq-h"><span class="stq-n">1</span>単品は、うちの品番（SKU）をそのまま</div>
+      <div class="stq-card">品番欄に、うちの品番を書くだけ。<div class="stq-eg">ORG500</div>→ オルガニック500ml が1本、在庫から引かれます。</div>
+
+      <div class="stq-h"><span class="stq-n">2</span>セットは、中身を「SKU＊本数」でカンマ区切り</div>
+      <div class="stq-card">区切りは <b>カンマ <span class="stq-code">,</span></b>（商品どうし）と <b>アスタリスク <span class="stq-code">*</span></b>（本数）。<div class="stq-eg">MEM250*1,PRI500*1,CHF250*1</div>→ メメジック250ml 1本・プリモ500ml 1本・シェフズ250ml 1本 を、それぞれ引きます。<br><span style="color:#0b5a53">※ 本数を省くと「1本」とみなします（<span class="stq-code">MEM250</span> だけ＝1本）。</span></div>
+
+      <div class="stq-h"><span class="stq-n">3</span>同じ商品が複数入るセットは、本数で書く</div>
+      <div class="stq-card">同じ商品が2本入るなら、その本数を書きます。<div class="stq-eg">ORG250*2,PRI500*1</div>→ オルガニック250ml <b>2本</b>・プリモ500ml 1本 を引きます。</div>
+
+      <div class="stq-h"><span class="stq-n">4</span>引く数 ＝「中身の本数 × 注文の個数」</div>
+      <div class="stq-card">上の <span class="stq-code">MEM250*1,PRI500*1,CHF250*1</span> のギフトが、注文で <b>2箱</b> 売れたら：
+        <table class="stq-tbl"><thead><tr><th>中身</th><th>1箱あたり</th><th>×箱数</th><th>引く数</th></tr></thead>
+        <tbody>
+          <tr><td>メメジック250ml</td><td>1本</td><td>×2</td><td class="stq-num">2本</td></tr>
+          <tr><td>プリモ500ml</td><td>1本</td><td>×2</td><td class="stq-num">2本</td></tr>
+          <tr><td>シェフズ250ml</td><td>1本</td><td>×2</td><td class="stq-num">2本</td></tr>
+        </tbody></table>
+        取り込みのときは、こうして<b>分けた結果を一覧で見せ、数もロットも直せる</b>ようにします。</div>
+
+      <div class="stq-h"><span class="stq-n">5</span>バーコードは「答え合わせ」</div>
+      <div class="stq-card">品番だけでも引けますが、STORESの<b>バーコード欄</b>にJANコードも入れておくと、うちに登録したバーコードと照合して<b>二重で確認</b>できます（食い違ったらアラート）。空でもOK＝そのときは品番だけで判定します。</div>
+
+      <div class="stq-warn">⚠️ <b>ルールを守らないと在庫がズレます。</b><br>・品番が<b>うちの商品マスタに無い</b>ときは、取り込みで<b>大きなアラート</b>を出し、<b>その日のCSVは反映できません</b>（全部ひも付くまでロック）。翌日でも誰かが必ず気づけます。<br>・迷ったら、この枠の書き方に戻ってください。</div>
+
+      <div class="stq-ok">✅ まとめ：<b>単品＝SKU／セット＝<span class="stq-code">SKU*本数</span>をカンマ区切り／引く数＝本数×個数／バーコードは答え合わせ。</b>この形で書いておけば、在庫は正しく減ります。</div>
+    </div>
+  </details>
 </div>
 
 <!-- 価格（輸入Eの窓口・見るだけ） -->
@@ -2896,7 +2954,7 @@ async function meiboImportBuiltinJan(){
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 13 : 12; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
+function meiboColCount(){ return meiboEditMode ? 14 : 13; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -3092,10 +3150,10 @@ function meiboSaveLot(p, lotCode, expiry, lotNote){
 function meiboEditRowHtml(p, sp){
   var isNew = meiboAddingNew;
   var _ml = isNew ? null : meiboMainLot(p);   /* ★2026-07-24 いま使っているロット */
-  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', noWholesale:false, active:true }
+  var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', storesHinban:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
                     origin:sp.origin||'', farm:sp.farm||'', container:containerFor(p), shipUnit:shipUnitOf(p),
-                    barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'),
+                    barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'), storesHinban:meiboFieldOf(p,'STORES品番'),
                     lotCode:(_ml && _ml.lotCode && _ml.lotCode!=='-') ? _ml.lotCode : '',
                     expiry:(_ml && _ml.expiry) ? _ml.expiry : '',
                     lotNote:(_ml && _ml.note) ? _ml.note : '',
@@ -3131,6 +3189,7 @@ function meiboEditRowHtml(p, sp){
       /* ★2026-07-24 生産地・農園名・容器は種類にかかわらず常に出す（どんな商品でも自由に書けるように） */
       /* ★2026-07-25 バーコードと商品ページは名簿で直す（ラベル図鑑ではなく、ここが親） */
       '<div class="mp-fg"><label style="color:#0c447c">バーコード（JAN）　※下4桁が「商品管理番号」になります</label><input type="text" id="mp-barcode" value="'+esc(v.barcode)+'" placeholder="例：8681763395149" style="border-color:#85b7eb;background:#f7fbff;font-family:monospace"></div>'+
+      '<div class="mp-fg"><label style="color:#0b5a53">STORES品番　※STORESに記載する品番（下の「書き方ルール」参照）</label><input type="text" id="mp-stores" value="'+esc(v.storesHinban)+'" placeholder="例：ORG500 ／ セット：MEM250*1,PRI500*1" style="border-color:#5dcaa5;background:#f2faf8;font-family:monospace"></div>'+
       '<div class="mp-fg"><label style="color:#0c447c">商品ページ（HPのURL）　※写真はここで見ます</label><input type="text" id="mp-page" value="'+esc(v.pageUrl)+'" placeholder="例：https://oliveoilstories.net/products/org100" style="border-color:#85b7eb;background:#f7fbff"></div>'+
       '<div id="mp-oilonly" style="display:contents">'+
         fg('容器','mp-container',v.container,'遮光瓶')+
@@ -3214,6 +3273,7 @@ async function meiboSaveRow(){
     '農園': (document.getElementById('mp-farm').value||'').trim(),
     '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
     'バーコード': (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '').trim(),
+    'STORES品番': (document.getElementById('mp-stores') ? document.getElementById('mp-stores').value : '').trim(),
     '商品ページ': (document.getElementById('mp-page') ? document.getElementById('mp-page').value : '').trim(),
     container: (document.getElementById('mp-container').value||'').trim(),
     noWholesale: document.getElementById('mp-nw').checked,
@@ -3239,7 +3299,7 @@ async function meiboSaveRow(){
       renderMeibo(); renderPrice(); renderInvTable();
       if(window.LB) LB.render();
       renderNewProductAlert();
-      checkShipUnitSaved(sku, { '出荷単位':prod['出荷単位'], 'バーコード':prod['バーコード'], '商品ページ':prod['商品ページ'] }); /* ★2026-07-25 3列ぶん確かめる */
+      checkShipUnitSaved(sku, { '出荷単位':prod['出荷単位'], 'バーコード':prod['バーコード'], '商品ページ':prod['商品ページ'], 'STORES品番':prod['STORES品番'] }); /* ★2026-07-25 3列ぶん確かめる */
     } else {
       st.textContent = '⚠️ 保存できませんでした：'+((data&&data.message)||'');
     }
@@ -3315,6 +3375,7 @@ function renderMeibo(){
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
         '<td>'+(sp.farm?'<span class="spec">'+esc(sp.farm)+'</span>':mDash())+'</td>'+
         meiboLotCells(p, sp, jan)+
+        '<td style="background:#f2faf8">'+(meiboFieldOf(p,'STORES品番')?'<span style="font-family:monospace;font-size:13px;font-weight:800;color:#0b5a53;white-space:nowrap">'+esc(meiboFieldOf(p,'STORES品番'))+'</span>':mDash())+'</td>'+
         meiboPageCell(p)+   /* ★2026-07-25 商品ページ（HPへのリンク） */
         (meiboEditMode?'<td style="white-space:nowrap"><button class="btn-sm lot-edit" onclick="meiboStartEdit(\''+esc(p.sku)+'\')">✏️ 直す</button></td>':'')+
         '</tr>';
