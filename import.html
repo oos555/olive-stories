@@ -3098,7 +3098,7 @@ var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
   var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,p:{}};
-  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,enName:p.enName}; });
+  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,notes:p.notes,enName:p.enName}; });
   return st;
 }
 function prepApplyState(st){
@@ -3110,7 +3110,7 @@ function prepApplyState(st){
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
     if(s.name!=null)p.name=s.name; if(s.sku!=null)p.sku=s.sku; if(s.vol!=null)p.vol=s.vol; if(s.cont!=null)p.cont=s.cont;
     if(s.exp!=null)p.exp=s.exp; if(s.lblLang!=null)p.lblLang=s.lblLang; if(s.lblPrint!=null)p.lblPrint=s.lblPrint; if(s.lblUrl!=null)p.lblUrl=s.lblUrl;
-    if(s.lblColor!=null)p.lblColor=s.lblColor; if(s.enName!=null)p.enName=s.enName;
+    if(s.lblColor!=null)p.lblColor=s.lblColor; if(s.notes!=null)p.notes=s.notes; if(s.enName!=null)p.enName=s.enName;
   }); }
 }
 function prepSaveLocal(){
@@ -3191,10 +3191,33 @@ function prepUrlOf(p){ return p.lblUrl||''; }
 function prepAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRenderOrderEN(); }
 function prepBulk(field,val){ PREP_PRODUCTS.forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
-var PREP_LANG_OPTS=[['Japanese','日本語 Japanese'],['Turkish','トルコ語 Turkish'],['English','英語 English']];
-var PREP_PRINT_OPTS=[['Turkey','トルコ Turkey'],['Japan','日本 Japan']];
+function prepNotesText(p){ var u=(p.notes||[]).map(function(n){return (n.c?'[済] ':'[  ] ')+(n.t||'');}); return PREP_FIXED_NOTES.concat(u).join(' / '); }
+function prepNotesCell(p){
+  var h='';
+  for(var f=0;f<PREP_FIXED_NOTES.length;f++){
+    h+='<div style="margin:3px 0;background:#fdecea;border:1px solid #f3b4ad;border-radius:5px;padding:5px 8px;line-height:1.45"><div style="font-size:14px;color:#7a1a12;font-weight:700">🔴 '+PREP_FIXED_NOTES[f]+'</div><div style="font-size:11px;color:#a06a62;margin-top:2px">'+(PREP_FIXED_NOTES_JA[f]||'')+'</div></div>';
+  }
+  var notes=p.notes||[];
+  for(var i=0;i<notes.length;i++){ var it=notes[i];
+    h+='<div style="display:flex;align-items:center;gap:5px;margin:3px 0">'
+      +'<input type="checkbox" '+(it.c?'checked':'')+' onchange="prepNoteToggle(\''+p.id+'\','+i+')" style="width:17px;height:17px;flex:0 0 auto">'
+      +'<input value="'+prepAttr(it.t||'')+'" onchange="prepNoteText(\''+p.id+'\','+i+',this.value)" placeholder="メモ" style="font-size:14px;flex:1;min-width:120px;border:1px solid #e0d8cc;border-radius:5px;padding:4px 6px'+(it.c?';text-decoration:line-through;color:#9a9a9a':'')+'">'
+      +'<button onclick="prepNoteDel(\''+p.id+'\','+i+')" title="削除" style="border:none;background:none;cursor:pointer;color:#c0392b;font-size:16px;flex:0 0 auto">×</button>'
+      +'</div>';
+  }
+  h+='<button class="btn-sm" onclick="prepNoteAdd(\''+p.id+'\')" style="font-size:12px;margin-top:3px">＋ 箇条書きを追加</button>';
+  return h;
+}
+function prepNoteAdd(id){ var p=prepFind(id); if(p){ if(!p.notes)p.notes=[]; p.notes.push({t:'',c:false}); } prepSaveLocal(); prepRenderOrderEN(); }
+function prepNoteText(id,i,v){ var p=prepFind(id); if(p&&p.notes&&p.notes[i]){ p.notes[i].t=v; } prepSaveLocal(); prepRenderOrderEN(); }
+function prepNoteToggle(id,i){ var p=prepFind(id); if(p&&p.notes&&p.notes[i]){ p.notes[i].c=!p.notes[i].c; } prepSaveLocal(); prepRenderOrderEN(); }
+function prepNoteDel(id,i){ var p=prepFind(id); if(p&&p.notes){ p.notes.splice(i,1); } prepSaveLocal(); prepRenderOrderEN(); }
+var PREP_LANG_OPTS=[['Japanese','日本語 Japanese'],['Turkish','トルコ語 Turkish'],['English','英語 English'],['None','ナシ None']];
+var PREP_PRINT_OPTS=[['Turkey','トルコ Turkey'],['Japan','日本 Japan'],['None','ナシ None']];
 var PREP_CONT_OPTS=[['瓶','Bottle'],['缶','Can'],['箱','Box']];
-var PREP_COLOR_OPTS=[['Color','カラー Color'],['B&W','白黒 B&W']];
+var PREP_COLOR_OPTS=[['Color','カラー Color'],['B&W','白黒 B&W'],['None','ナシ None']];
+var PREP_FIXED_NOTES=['≪ZORUNLU≫ Bir kutudaki şişe sayısını kesinlikle değiştirmeyin.','≪ZORUNLU≫ 100 ml, 250 ml ve 500 ml cam şişeleri bölme kullanmadan, mutlaka koruyucu (baloncuklu) malzemeye sararak koliye koyun.'];
+var PREP_FIXED_NOTES_JA=['（1箱の入数は絶対に変えないでください）','（100・250・500mlのガラス瓶は仕切りなし／緩衝材で包んで段ボールへ）'];
 function prepSelHtml(id,field,cur,opts){
   var h='<select onchange="prepSetLbl(\''+id+'\',\''+field+'\',this.value)" style="font-size:12px;padding:3px;border:1px solid #d8cfc4;border-radius:5px">';
   for(var i=0;i<opts.length;i++){ h+='<option value="'+opts[i][0]+'"'+(opts[i][0]===cur?' selected':'')+'>'+opts[i][1]+'</option>'; }
@@ -3216,7 +3239,7 @@ function prepFinalize(){
   if(!confirm('この内容で輸入を確定して記録しますか？\n\n'+dateStr+(memo?('（'+memo+'）'):'')+'\n合計 '+tot+'本 / '+rows.length+'品\n\n※下の「輸入確定の記録」に残ります。')) return;
   var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, folderUrl:prepFolderUrl, total:tot,
     items: rows.map(function(r){ return {jpname:r.p.name, enName:prepEnName(r.p), sku:r.p.sku, vol:r.p.vol, cont:r.p.cont,
-      box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), color:prepColorOf(r.p), url:prepUrlOf(r.p)}; }) };
+      box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), color:prepColorOf(r.p), url:prepUrlOf(r.p), notes:(r.p.notes||[]).map(function(n){return {t:n.t,c:n.c};})}; }) };
   prepHistory.unshift(snap);
   prepSaveLocal();
   prepRenderHistory();
@@ -3231,9 +3254,9 @@ function prepRenderHistory(){
     if(y!==lastYear){ h+='<div style="font-weight:800;color:#55622e;margin:12px 0 6px;border-bottom:2px solid #cfe0c0;padding-bottom:3px">'+y+'年</div>'; lastYear=y; }
     h+='<details style="border:1px solid #e8e2d8;border-radius:8px;margin-bottom:8px;background:#fff">';
     h+='<summary style="cursor:pointer;padding:10px 12px;font-weight:700;color:#0f5a4a">'+s.dateStr+' 確定'+(s.memo?('（'+s.memo+'）'):'')+' — 合計 '+s.total+'本 / '+s.items.length+'品</summary>';
-    h+='<div style="padding:8px 12px"><table style="min-width:0;font-size:12px"><thead><tr><th>商品</th><th>品番</th><th>容量</th><th>容器</th><th>箱</th><th>本数</th><th>賞味期限</th><th>ラベル</th></tr></thead><tbody>';
+    h+='<div style="padding:8px 12px"><table style="min-width:0;font-size:12px"><thead><tr><th>商品</th><th>品番</th><th>容量</th><th>容器</th><th>箱</th><th>本数</th><th>賞味期限</th><th>ラベル</th><th>備考</th></tr></thead><tbody>';
     s.items.forEach(function(it){
-      h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+' / '+(it.color||'')+'</td></tr>';
+      h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+' / '+(it.color||'')+'</td><td style="text-align:left;font-size:12px">'+(PREP_FIXED_NOTES.map(function(t){return '<span style="color:#b91c1c">🔴 '+t+'</span>';}).concat((it.notes||[]).map(function(n){return (n.c?'☑ ':'☐ ')+(n.t||'');})).join('<br>'))+'</td></tr>';
     });
     h+='</tbody></table>'; if(s.folderUrl){ h+='<div style="font-size:11px;margin-top:4px;color:#7a5a1a">🔗 農園共有フォルダ: '+s.folderUrl+'</div>'; } h+='<div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
   });
@@ -3250,16 +3273,16 @@ function prepRenderOrderEN(){
   var rows=prepOrderRows();
   var IMP='background:#fce3b4;font-weight:800;color:#7a2f00;';
   var h='<table style="min-width:1180px"><thead><tr>'
-    +'<th>No.</th><th>Product Name</th><th>Volume</th><th>Container</th><th>Units / Box</th>'
-    +'<th style="'+IMP+'">Boxes to Order</th><th style="'+IMP+'">Total Bottles</th>'
-    +'<th>賞味期限<br>Best-Before</th><th>裏ラベル言語<br>Label Lang</th><th>印刷<br>Printed in</th><th>印刷色<br>Color</th><th>裏ラベル画像<br>(Dropbox URL)</th></tr></thead><tbody>';
+    +'<th>No.</th><th>Product Name<br><span style="font-size:10px;color:#7a6f5c">Ürün Adı</span></th><th>Volume<br><span style="font-size:10px;color:#7a6f5c">Hacim</span></th><th>Container<br><span style="font-size:10px;color:#7a6f5c">Kap</span></th><th style="color:#111">Units / Box<br><span style="font-size:10px;color:#555">Kutudaki adet</span></th>'
+    +'<th style="'+IMP+'">Boxes to Order<br><span style="font-size:10px;color:#7a2f00">Sipariş (kutu)</span></th><th style="'+IMP+'">Total Bottles<br><span style="font-size:10px;color:#7a2f00">Toplam şişe</span></th>'
+    +'<th>賞味期限<br>Best-Before<br><span style="font-size:10px;color:#7a6f5c">SKT</span></th><th>裏ラベル言語<br>Label Lang<br><span style="font-size:10px;color:#7a6f5c">Etiket dili</span></th><th>印刷<br>Printed in<br><span style="font-size:10px;color:#7a6f5c">Baskı yeri</span></th><th>印刷色<br>Color<br><span style="font-size:10px;color:#7a6f5c">Renk</span></th><th>裏ラベル画像<br>(Dropbox URL)<br><span style="font-size:10px;color:#7a6f5c">Etiket görseli</span></th><th>備考<br>Notes<br><span style="font-size:10px;color:#7a6f5c">Notlar</span></th></tr></thead><tbody>';
   var tot=0;
   rows.forEach(function(r,i){ tot+=r.finalN; var p=r.p; var url=prepUrlOf(p);
     h+='<tr><td style="text-align:center">'+(i+1)+'</td>'
       +'<td style="text-align:left"><input value="'+prepAttr(prepEnName(p))+'" onchange="prepSetLbl(\''+p.id+'\',\'enName\',this.value)" style="width:160px;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
       +'<td style="text-align:center">'+p.vol+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'cont',p.cont,PREP_CONT_OPTS)+'</td>'
-      +'<td style="text-align:center">'+(r.box?r.box:'—')+'</td>'
+      +'<td style="text-align:center;color:#111;font-weight:600">'+(r.box?r.box:'—')+'</td>'
       +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
       +'<td style="text-align:right;'+IMP+'">'+r.finalN+'</td>'
       +'<td style="text-align:center"><input value="'+prepAttr(prepExpOf(p))+'" onchange="prepSetLbl(\''+p.id+'\',\'exp\',this.value)" style="width:92px;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
@@ -3267,24 +3290,25 @@ function prepRenderOrderEN(){
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblPrint',prepPrintOf(p),PREP_PRINT_OPTS)+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblColor',prepColorOf(p),PREP_COLOR_OPTS)+'</td>'
       +'<td style="text-align:left"><input value="'+prepAttr(url)+'" placeholder="Dropbox URL" onchange="prepSetLbl(\''+p.id+'\',\'lblUrl\',this.value)" style="width:150px;border:1px solid #d8cfc4;border-radius:5px;padding:3px">'+(url?(' <a href="'+prepAttr(url)+'" target="_blank" title="開く" style="font-size:13px;text-decoration:none">🔗</a>'):'')+'</td>'
+      +'<td style="text-align:left;min-width:220px;font-size:14px">'+prepNotesCell(p)+'</td>'
       +'</tr>';
   });
   h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="6" style="text-align:right;font-weight:700">TOTAL →</td>'
-    +'<td style="text-align:right;'+IMP+'">'+tot+'</td><td colspan="4"></td></tr>';
+    +'<td style="text-align:right;'+IMP+'">'+tot+'</td><td colspan="6"></td></tr>';
   h+='</tbody></table>';
   if(!rows.length) h='<div style="padding:10px;color:#999">輸入が必要な商品がありません（発注なし）。</div>';
   box.innerHTML=h;
 }
 function prepExportCSV(){
   var rows=prepOrderRows();
-  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language','Printed in','Color','Back Label Image URL'];
+  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language','Printed in','Color','Back Label Image URL','Notes 備考'];
   function esc(v){ v=(v==null?'':(''+v)); return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v; }
   var lines=[]; if(prepFolderUrl){ lines.push(esc('農園共有フォルダ / Shared label folder')+','+esc(prepFolderUrl)); lines.push(''); } lines.push(head.map(esc).join(','));
   rows.forEach(function(r,i){ var p=r.p;
-    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepLangOf(p),prepPrintOf(p),prepColorOf(p),prepUrlOf(p)].map(esc).join(','));
+    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepLangOf(p),prepPrintOf(p),prepColorOf(p),prepUrlOf(p),prepNotesText(p)].map(esc).join(','));
   });
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
-  lines.push(['','TOTAL','','','','',tot,'','','','',''].map(esc).join(','));
+  lines.push(['','TOTAL','','','','',tot,'','','','','',''].map(esc).join(','));
   var csv='\uFEFF'+lines.join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
