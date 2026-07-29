@@ -400,7 +400,7 @@ tr:last-child td{border-bottom:none}
 </details>
 </div>
 
-<div class="ver-mark">版 7/25 v19</div>
+<div class="ver-mark">版 7/30 v20（構成列つき）</div>
 <div id="newprod-alert"></div>
 
 <div class="tab-row">
@@ -590,13 +590,14 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
     <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 容器をルールでまとめて直す（未入力・生産地の混入）</button>
     <button class="btn-sm" id="meibo-stores-btn" onclick="meiboFillStoresHinban()" style="border-color:#5dcaa5;color:#0b5a53;font-weight:800">📋 STORES品番に品番をまとめて入れる（単品オイル・初回だけ）</button>
+    <button class="btn-sm" id="meibo-setcomp-btn" onclick="meiboSaveAllSetComponents()" style="border-color:#a78bca;color:#5a3a7a;font-weight:800">🧩 セットの構成をマスタにまとめて保存（初回だけ）</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
   <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b style="color:#8a5a12">ロット・賞味期限を直すときは、右の「✏️直す」から。</b><b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。</div>
   <div class="price-scroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
     <th style="background:#eef4fb">バーコード</th><th style="background:#e6f4f2;color:#0b5a53">STORES品番</th><th style="background:#eef4fb">商品ページ</th>
@@ -911,6 +912,79 @@ let PRODUCTS = [
 {id:34, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他'},
 {id:35, sku:'MISC002', name:'トルコ500ml用 空瓶＋後付け注ぎ口1個', group:'その他', noWholesale:true},
 ];
+/* ★2026-07-30 セット構成の控え（初期データから取得）。GAS読込で components が落ちても、
+   名簿の「構成」列が消えないように、この控えをフォールバックに使う（表示のみ・在庫計算は変えない）。 */
+var SET_COMPONENTS_SEED = {};
+PRODUCTS.forEach(function(p){ if(p && p.components && p.components.length) SET_COMPONENTS_SEED[p.sku] = p.components.map(function(c){return {sku:c.sku, qty:c.qty};}); });
+function compsOf(p){
+  if(p && p.components && p.components.length) return p.components;
+  if(p && SET_COMPONENTS_SEED[p.sku]) return SET_COMPONENTS_SEED[p.sku];
+  return [];
+}
+function compName(sku){ var cp = (typeof findProductBySku==='function') ? findProductBySku(sku) : null; return cp ? (cp.name||sku) : sku; }
+function meiboKouseiCell(p){
+  var comps = compsOf(p);
+  if(!comps.length) return mDash();
+  return '<div style="display:flex;flex-direction:column;gap:2px;font-size:12px;line-height:1.5;color:#2b2a26;min-width:180px;">'+
+    comps.map(function(c){ return '<span>'+esc(compName(c.sku))+' <b>×'+(c.qty||1)+'</b></span>'; }).join('')+
+    '</div>';
+}
+/* ★2026-07-30 構成（セットの中身）の編集部品 */
+function kouseiProductOptions(selectedSku){
+  var html='<option value="">— 商品を選ぶ —</option>';
+  mGroupOrder().forEach(function(g){
+    var ps=PRODUCTS.filter(function(p){return mIsActive(p)&&(p.group||'その他')===g;});
+    if(!ps.length) return;
+    html+='<optgroup label="'+esc(g)+'">';
+    ps.forEach(function(p){ html+='<option value="'+esc(p.sku)+'"'+(p.sku===selectedSku?' selected':'')+'>'+esc(p.name||p.sku)+'</option>'; });
+    html+='</optgroup>';
+  });
+  return html;
+}
+function kouseiRowHtml(sku, qty){
+  return '<div class="mp-krow" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'+
+    '<select class="mp-ksku" style="flex:1;min-width:0;">'+kouseiProductOptions(sku)+'</select>'+
+    '<input type="number" class="mp-kqty" value="'+(qty||1)+'" min="1" style="width:60px;text-align:center;">'+
+    '<span style="font-size:12px;color:#57534e;">本</span>'+
+    '<button type="button" class="btn-sm" onclick="mkRemoveKousei(this)" style="color:#b91c1c;border-color:#e6bcbc;padding:4px 9px;">×</button>'+
+  '</div>';
+}
+function mkAddKousei(){ var box=document.getElementById('mp-kousei-rows'); if(box) box.insertAdjacentHTML('beforeend', kouseiRowHtml('',1)); }
+function mkRemoveKousei(btn){ var row=btn.closest('.mp-krow'); if(row) row.remove(); }
+function mkCollectKousei(){
+  var out=[]; document.querySelectorAll('#mp-kousei-rows .mp-krow').forEach(function(row){
+    var selEl=row.querySelector('.mp-ksku'), qtyEl=row.querySelector('.mp-kqty');
+    var sku=selEl?(selEl.value||'').trim():''; var qty=qtyEl?(parseInt(qtyEl.value,10)||1):1;
+    if(sku) out.push({sku:sku, qty:qty});
+  });
+  return out;
+}
+/* ★2026-07-30 全セットの構成を商品マスタに一括保存（初回セットアップ／componentsのみ・安全） */
+async function meiboSaveAllSetComponents(){
+  var sets = PRODUCTS.filter(function(p){ return mIsActive(p) && compsOf(p).length; });
+  if(!sets.length){ alert('構成のあるセット商品が見つかりませんでした。'); return; }
+  var preview = sets.map(function(p){ return '・'+(p.name||p.sku); }).join('\n');
+  if(!confirm('つぎの'+sets.length+'件のセットの「構成」を商品マスタに書き込みます。\n（在庫の自動計算とSTORES品番をそろえるための初回セットアップです。ほかの列は触りません）\n\n'+preview+'\n\nよろしいですか？')) return;
+  var btn=document.getElementById('meibo-setcomp-btn'); if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  var ok=0, ng=[];
+  for(var i=0;i<sets.length;i++){
+    var p=sets[i]; var comps=compsOf(p);
+    var prod={ sku:p.sku,
+      components: comps.map(function(c){return c.sku+':'+(c.qty||1);}).join(','),
+      isSet: true,
+      'STORES品番': comps.map(function(c){return c.sku+'*'+(c.qty||1);}).join(',') };
+    try{
+      var res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveOneProduct',product:prod}),headers:{'Content-Type':'text/plain;charset=utf-8'}});
+      var d=await res.json();
+      if(d&&d.status==='ok'){ ok++; var fi=PRODUCTS.findIndex(function(x){return x.sku===p.sku;}); if(fi>=0){ PRODUCTS[fi].components=comps; PRODUCTS[fi].isSet=true; PRODUCTS[fi]['STORES品番']=prod['STORES品番']; } }
+      else ng.push(p.sku);
+    }catch(e){ ng.push(p.sku); }
+  }
+  saveProductsToCache(PRODUCTS, EXTRA_FIELDS);
+  renderMeibo();
+  if(btn){ btn.disabled=false; btn.textContent='🧩 セットの構成をマスタにまとめて保存（初回だけ）'; }
+  alert('✅ '+ok+'件の構成を商品マスタに保存しました。'+(ng.length?'\n⚠️ 保存できなかったもの：'+ng.join('、'):''));
+}
 
 /* ★2026-07-24 商品マスタの id 欄が空の商品があると、ここで商品を見つけられず、
    ロットが画面から黙って消えていた。id が無いときは品番(sku)でも探す。 */
@@ -2997,7 +3071,7 @@ async function meiboImportBuiltinJan(){
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 14 : 13; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
+function meiboColCount(){ return meiboEditMode ? 15 : 14; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -3243,6 +3317,12 @@ function meiboEditRowHtml(p, sp){
         '<label><input type="checkbox" id="mp-nw"'+(v.noWholesale?' checked':'')+'>RT限定（卸なし）</label>'+
         '<label><input type="checkbox" id="mp-active"'+(v.active?' checked':'')+'>取り扱い中</label>'+
       '</div></div>'+
+      '<div class="mp-fg" style="grid-column:1/-1;margin-top:2px;padding:12px;border:1px dashed #cdb7e0;border-radius:10px;background:#faf7fd">'+
+        '<label style="color:#5a3a7a;font-weight:800">構成（セットの中身）</label>'+
+        '<div class="mp-note" style="margin:2px 0 8px">単品のときは空でOK。ここに商品を入れると<b>「セット商品」</b>になり、<b>在庫の「あと何セット作れるか」</b>と<b>STORES品番</b>が自動でそろいます（箱・紙袋も入れてください）。</div>'+
+        '<div id="mp-kousei-rows">'+ (compsOf(p)||[]).map(function(c){return kouseiRowHtml(c.sku,c.qty);}).join('') +'</div>'+
+        '<button type="button" class="btn-sm" onclick="mkAddKousei()" style="margin-top:4px">＋ 中身を足す</button>'+
+      '</div>'+
     '</div>'+
     '<div class="mp-foot">'+
       '<button class="np-btn" onclick="meiboSaveRow()">この内容で保存する</button>'+
@@ -3322,6 +3402,16 @@ async function meiboSaveRow(){
     noWholesale: document.getElementById('mp-nw').checked,
     active: document.getElementById('mp-active').checked
   };
+  /* ★2026-07-30 構成（セットの中身）を集める。①箱・紙袋も含める ②STORES品番も自動でそろえる */
+  var _kousei = mkCollectKousei();
+  if(_kousei.length){
+    prod.components = _kousei.map(function(c){ return c.sku+':'+(c.qty||1); }).join(',');  /* GAS読込形式 SKU:本数 */
+    prod.isSet = true;
+    prod['STORES品番'] = _kousei.map(function(c){ return c.sku+'*'+(c.qty||1); }).join(',');  /* STORES形式 SKU*本数 */
+  } else {
+    prod.components = '';
+    prod.isSet = false;
+  }
   st.textContent = '保存中...';
   try{
     var res = await fetch(GAS_URL, { method:'POST',
@@ -3332,6 +3422,10 @@ async function meiboSaveRow(){
       var idx = PRODUCTS.findIndex(function(x){ return x.sku===sku; });
       if(idx>=0) PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], prod);
       else PRODUCTS.push(Object.assign({ id: (data.id || null) }, prod)); // idはGASが採番したものを使う
+      /* ★2026-07-30 componentsは配列で持ち直す（保存用に文字列化したものを表示・在庫計算が読めるように） */
+      var _fi = PRODUCTS.findIndex(function(x){ return x.sku===sku; });
+      if(_fi>=0){ PRODUCTS[_fi].components = _kousei; PRODUCTS[_fi].isSet = _kousei.length>0; }
+      if(_kousei.length) SET_COMPONENTS_SEED[sku] = _kousei.map(function(c){return {sku:c.sku,qty:c.qty};}); else delete SET_COMPONENTS_SEED[sku];
       refreshAllProductSelects(); // 新商品をロット登録の選択肢にも出す
       saveProductsToCache(PRODUCTS, EXTRA_FIELDS);
       meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false;
@@ -3408,6 +3502,7 @@ function renderMeibo(){
         '<td><div class="pname">'+esc(p.name||p.sku)+'</div>'+
           (mIsSet(p)?'<div class="psub">セット商品</div>':'')+
           (mIsNoWholesale(p)?'<div style="margin-top:3px"><span class="rtonly">RT限定・卸なし</span></div>':'')+'</td>'+
+        '<td style="background:#faf7fd">'+meiboKouseiCell(p)+'</td>'+
         /* ★2026-07-25 商品管理番号（品番＋バーコード下4桁）。自動で組み立てるので手入力はしません */
         '<td style="background:#f7fbff"><span style="font-family:monospace;font-weight:800;font-size:13.5px;color:#0c447c;white-space:nowrap">'+esc(displaySkuCode(p.sku))+'</span></td>'+
         /* ★2026-07-24 出荷単位（例：1箱／20本）。名簿の編集画面で自由に書けます */
