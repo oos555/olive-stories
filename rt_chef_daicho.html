@@ -251,7 +251,6 @@
 
   <div class="nav">
     <button class="on" id="n-daicho" onclick="nav('daicho')">🏨 台帳</button>
-    <button id="n-ask" onclick="nav('ask')">🔎 しらべる</button>
     <button id="n-ugoki" onclick="nav('ugoki')">📈 うごき</button>
     <button id="n-ai" onclick="nav('ai')">🤖 AI分析</button>
     <button id="n-denpyo" onclick="nav('denpyo')">📥 伝票を入れる</button>
@@ -277,6 +276,7 @@
 </style>
 
   <div class="view on" id="v-daicho">
+    <div id="oil-rank" class="card" style="margin-bottom:12px;"></div>
     <div class="switch">
       <span class="lbl">追い方：</span>
       <button class="on" id="sw-fac" onclick="setMode('fac')">🏨 施設で</button>
@@ -290,16 +290,6 @@
     <div id="list"></div>
   </div>
 
-  <!-- しらべる -->
-  <div class="view" id="v-ask">
-    <div class="askbox">
-      <div style="font-weight:700;margin-bottom:7px;">知りたいことを、言葉で打ってください</div>
-      <textarea id="ask" placeholder="例）RT全体で一番売れてるオイルは？　イタリアンで一番売れてるのは？　オルガニックを一番買ってる施設は？"></textarea>
-      <button class="go" onclick="doAsk()">調べる</button>
-      <div class="examples" id="ask-ex"></div>
-    </div>
-    <div id="answer"></div>
-  </div>
 
   <!-- 伝票を入れる（Dropboxへドロップイン） -->
 
@@ -307,6 +297,26 @@
     <div id="ugoki-body"></div>
   </div>
   <div class="view" id="v-ai">
+
+    <div class="card" style="background:#f3f6ec;border-color:#cfdcb4">
+      <div style="font-weight:800;font-size:15px;color:#4a5a2a;display:flex;align-items:center;gap:6px;">🤖 Claudeに相談する</div>
+      <div class="mini" style="margin:6px 0 9px;line-height:1.7;">下のボタンを押すと、この分析データがコピーされます。Claude（このアプリを作ったAIチャット）に貼りつけて、聞きたいことを書いて送ってください。<b>無料・鍵は要りません。</b></div>
+      <button onclick="copyForConsult()" style="background:#4a5a2a;color:#fff;border:0;border-radius:10px;padding:11px 16px;font-size:15px;font-weight:800;cursor:pointer;">📋 この分析をコピーして相談する</button>
+      <div id="consult-note" class="mini" style="margin-top:8px;color:#4d5a24;font-weight:700;"></div>
+      <textarea id="consult-box" readonly style="display:none;width:100%;height:130px;margin-top:8px;font-size:12px;line-height:1.6;padding:8px;border:1px solid #cfdcb4;border-radius:8px;"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="h">🔎 しらべる（社長だけ）</div>
+      <div class="mini" style="margin:2px 0 8px;">言葉で聞くと、伝票の実データ（本数）から答えます。金額は出しません。</div>
+      <div class="askbox">
+        <textarea id="ask" placeholder="例）RT全体で一番売れてるオイルは？　イタリアンで一番売れてるのは？　オルガニックを一番買ってる施設は？"></textarea>
+        <button class="go" onclick="doAsk()">調べる</button>
+        <div class="examples" id="ask-ex"></div>
+      </div>
+      <div id="answer"></div>
+    </div>
+
     <div id="ai-body"></div>
   </div>
 
@@ -785,14 +795,15 @@ function openMain(){
   document.getElementById('lock-view').style.display='none';
   document.getElementById('main-view').style.display='block';
   fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
+  renderOilRank();
   loadContactsFromMaster();
   applyBossGate();
 }
 
 /* ---- ナビ ---- */
 function nav(w){
-  if(w==='ugoki' && !bossUnlocked()){ return; } /* うごき（金額）は社長のみ */
-  ['daicho','ask','ugoki','ai','denpyo','meishi','people'].forEach(function(x){
+  if((w==='ugoki'||w==='ai') && !bossUnlocked()){ return; } /* うごき・AI分析（金額）は社長のみ */
+  ['daicho','ugoki','ai','denpyo','meishi','people'].forEach(function(x){
     document.getElementById('n-'+x).classList.toggle('on', x===w);
     document.getElementById('v-'+x).classList.toggle('on', x===w);
   });
@@ -805,9 +816,12 @@ function nav(w){
 function applyBossGate(){
   var on = bossUnlocked();
   var nu = document.getElementById('n-ugoki'); if(nu) nu.style.display = on ? '' : 'none';
+  var na = document.getElementById('n-ai'); if(na) na.style.display = on ? '' : 'none';
   var be = document.getElementById('boss-entry'); if(be) be.style.display = on ? 'none' : 'block';
-  if(!on){ var vu=document.getElementById('v-ugoki'); if(vu && vu.classList.contains('on')) nav('daicho'); }
-  var va=document.getElementById('v-ai'); if(va && va.classList.contains('on')) renderAI();
+  if(!on){
+    var vu=document.getElementById('v-ugoki'); if(vu && vu.classList.contains('on')) nav('daicho');
+    var va=document.getElementById('v-ai'); if(va && va.classList.contains('on')) nav('daicho');
+  }
 }
 function bossPrompt(){
   var pw=(prompt('社長専用の合言葉を入れてください（スタッフには不要です）')||'').trim(); if(!pw) return;
@@ -1072,6 +1086,54 @@ function rankTable(obj, unitOf){
 var GENRES=['鉄板焼','イタリアン','中華','物販','フレンチ'];
 function prodBrand(p){ var b=BRANDS.find(function(x){return p.indexOf(x)>=0;}); return b||p; }
 function askFacing(q){ return q.indexOf('施設')>=0||q.indexOf('どこ')>=0||q.indexOf('ホテル')>=0||q.indexOf('だれ')>=0||q.indexOf('誰')>=0; }
+/* ===== 🫒 よく出ているオイル（本数ランキング・スタッフにも常時表示） ===== */
+function renderOilRank(){
+  var el=document.getElementById('oil-rank'); if(!el) return;
+  var s={}; SALES.forEach(function(r){ var b=prodBrand(r[1]); s[b]=(s[b]||0)+(Number(r[2])||0); });
+  var arr=Object.keys(s).map(function(k){return {k:k,n:s[k]};}).sort(function(a,b){return b.n-a.n;});
+  var h='';
+  h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">';
+  h+='<div style="font-weight:800;font-size:16px;color:#4d5a24;">🫒 よく出ているオイル（本数）</div>';
+  h+='<button onclick="renderOilRank()" style="margin-left:auto;background:#eef3e0;border:1px solid #c9d6a6;color:#4d5a24;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">🔄 数え直す</button>';
+  h+='</div>';
+  if(!arr.length){ el.innerHTML=h+'<div class="mini">まだデータがありません。</div>'; return; }
+  var mx=arr[0].n||1, top=arr.slice(0,12);
+  h+='<div class="bars">'+top.map(function(x,i){
+      var w=Math.max(6,Math.round(x.n/mx*300));
+      var rank=(i===0?'🥇':(i===1?'🥈':(i===2?'🥉':(i+1)+'位')));
+      return '<div class="bar-row"><div class="nm" style="font-weight:700;color:#2b2a26;">'+rank+' '+esc(x.k)+'</div><div class="bar" style="width:'+w+'px"></div><div class="q" style="font-weight:800;color:#2b2a26;">'+x.n.toLocaleString('ja-JP')+' 本</div></div>';
+  }).join('')+'</div>';
+  h+='<div class="mini" style="margin-top:8px;color:#777;line-height:1.6;">サイズ・容器（缶なども）ちがいは、同じオイルにまとめて数えています。台帳データが増えれば、この数も自動で新しくなります（すぐ数え直したいときは「🔄 数え直す」）。</div>';
+  el.innerHTML=h;
+}
+
+/* ===== 🤖 Claudeに相談（かんたん版・無料）：分析データをコピー ===== */
+function buildConsultText(){
+  var oil={}, facH={};
+  SALES.forEach(function(r){ var b=prodBrand(r[1]); oil[b]=(oil[b]||0)+(Number(r[2])||0); if(r[3]==='本') facH[r[0]]=(facH[r[0]]||0)+(Number(r[2])||0); });
+  function lines(o,suf){ return Object.keys(o).map(function(k){return {k:k,n:o[k]};}).sort(function(a,b){return b.n-a.n;}).map(function(x){return '・'+x.k+'：'+x.n.toLocaleString('ja-JP')+suf;}); }
+  var t='';
+  t+='あなたはオリーブオイル・ストーリーズ（オリーブオイルの輸入・卸）の相談相手です。以下はRT（リゾートトラスト系のホテル・レストラン）向け販売実績のまとめです。この数字をふまえて、相談に乗ってください。\n\n';
+  t+='【オイル別の本数（サイズ合算・多い順）】\n'+lines(oil,'本').join('\n')+'\n\n';
+  t+='【施設別の本数（多い順）】\n'+lines(facH,'本').slice(0,15).join('\n')+'\n\n';
+  t+='【年ごとの売上（税抜・読み取り済み分）】\n・2024年：4,090,954円\n・2025年：12,680,000円\n・2026年(7月まで)：4,650,000円\n\n';
+  t+='【いまの気づき】\n・5年でいちばん大きな出来事は「売る物が総入れ替わりした」こと（2022年はアイバリック2Lが年商の46%＝943,719円、今は動いていない）。\n・消えた銘柄が別の施設で生き返ることがある（ザクロソースがラグーナ→横浜ベイコートの中華で復活）。\n・施設の顔ぶれが入れ替わっている（主役が八瀬離宮・ラグーナ→高山・東京ベイコート・日光へ）。\n\n';
+  t+='相談したいこと：（ここに質問を書いてください）\n';
+  return t;
+}
+function copyForConsult(){
+  var t=buildConsultText();
+  var ta=document.getElementById('consult-box');
+  var note=document.getElementById('consult-note');
+  if(ta){ ta.value=t; ta.style.display='block'; ta.focus(); ta.select(); }
+  var done=function(){ if(note){ note.textContent='✅ コピーしました。Claude（AIチャット）に貼りつけて、聞きたいことを書いて送ってください。'; } };
+  var manual=function(){ if(note){ note.textContent='下の枠のテキストを全部えらんでコピーし、Claudeに貼ってください。'; } };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done, function(){ try{document.execCommand('copy'); done();}catch(e){ manual(); } }); }
+    else { try{document.execCommand('copy'); done();}catch(e){ manual(); } }
+  }catch(e){ manual(); }
+}
+
 function doAsk(){
   var qraw=document.getElementById('ask').value.trim(); if(!qraw){ return; }
   var q=qraw.replace(/\s/g,'');
@@ -1347,7 +1409,6 @@ function aiBars(obj, color){
 }
 function renderAI(){
   var el=document.getElementById('ai-body'); if(!el) return;
-  var boss = bossUnlocked();
   var fac={}, brand={}, prod={}, yr={};
   SALES.forEach(function(r){
     var a=Number(r[5]||0); if(!a) return;
@@ -1367,7 +1428,7 @@ function renderAI(){
   h+='<div class="card"><div class="h">📖 いま言えること</div>';
   h+='<div style="font-size:13.5px;line-height:1.9;color:#2b2a26">';
   h+='<b>① 5年でいちばん大きな出来事は「売る物が総入れ替わりした」こと。</b><br>';
-  h+='2022年の年商の<b>46%はアイバリック2Lの1銘柄</b>でした（'+(boss?'943,719円':'<span style="background:#fff3d6;color:#8a6d1a;padding:1px 7px;border-radius:6px;font-size:12px;font-weight:700;">金額は社長のみ</span>')+'）。八瀬離宮に一度に90缶納めた伝票もあります。そのアイバリックは今、1本も動いていません。<br>';
+  h+='2022年の年商の<b>46%はアイバリック2Lの1銘柄</b>でした（943,719円）。八瀬離宮に一度に90缶納めた伝票もあります。そのアイバリックは今、1本も動いていません。<br>';
   h+='同じことが2025年にも起きています。2024年に動いていた唐辛子オイル100ml・トゥリリエ・オルガニック750ml缶・ザイトゥーン・プリモフルットが、2025年以降ゼロ。<br>';
   h+='<b>つまり数字の上下は「お客様が離れた」ではなく「銘柄が消えた」で説明がつく場面が多い。</b>打ち手は訪問回数ではなく、代わりの銘柄の提案です。';
   h+='<hr style="border:0;border-top:1px solid #eee;margin:12px 0">';
@@ -1378,15 +1439,14 @@ function renderAI(){
   h+='2022年の主役は八瀬離宮とラグーナ。いまの主役は高山・東京ベイコート・日光です。長く付き合っている先ほど、担当シェフの交代が効いています。';
   h+='</div></div>';
 
-  /* --- 金額のグラフ（年別・施設別・オイル別・商品別）は社長のみ --- */
-  if(boss){
-    h+='<div class="card"><div class="h">📅 年ごと（台帳に入っている分・税抜）</div>'+aiBars(yr,'#6b7a3a')+'</div>';
-    h+='<div class="card"><div class="h">🏨 施設別</div>'+aiBars(fac,'#4a6fa5')+'</div>';
-    h+='<div class="card"><div class="h">🫒 オイル別（銘柄・サイズをまとめた形）</div>'+aiBars(brand,'#8a6d3b')+'</div>';
-    h+='<div class="card"><div class="h">📦 商品別（サイズごと）</div>'+aiBars(prod,'#7a5a8a')+'</div>';
-  } else {
-    h+='<div class="card" style="text-align:center;border-color:#e7dcae;background:#fffdf5;padding:22px 14px;"><div style="font-size:24px;">🔒</div><div style="font-weight:800;color:#8a6d1a;margin-top:4px;font-size:14px;">金額のグラフは社長だけに表示されます</div><div class="mini" style="margin-top:4px;color:#a99b6a;">年ごと・施設別・オイル別・商品別</div></div>';
-  }
+  /* --- 年別 --- */
+  h+='<div class="card"><div class="h">📅 年ごと（台帳に入っている分・税抜）</div>'+aiBars(yr,'#6b7a3a')+'</div>';
+  /* --- 施設別 --- */
+  h+='<div class="card"><div class="h">🏨 施設別</div>'+aiBars(fac,'#4a6fa5')+'</div>';
+  /* --- オイル別 --- */
+  h+='<div class="card"><div class="h">🫒 オイル別（銘柄・サイズをまとめた形）</div>'+aiBars(brand,'#8a6d3b')+'</div>';
+  /* --- 商品別 --- */
+  h+='<div class="card"><div class="h">📦 商品別（サイズごと）</div>'+aiBars(prod,'#7a5a8a')+'</div>';
 
   h+='<div class="card" style="background:#fff8e6;border-color:#f0e2b8">';
   h+='<div class="mini" style="line-height:1.8">⚠️ 上のグラフは<b>いま台帳に入っている伝票だけ</b>の集計です。2023年（65枚）はまだ読み取っていないので、そのぶん空いています。2023年を入れたら、このページは書き替えます。</div>';
