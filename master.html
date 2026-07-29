@@ -589,6 +589,7 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" onclick="cleanEmptyLots()">🧹 空っぽのロットを片づける</button>
     <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
     <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 容器をルールでまとめて直す（未入力・生産地の混入）</button>
+    <button class="btn-sm" id="meibo-stores-btn" onclick="meiboFillStoresHinban()" style="border-color:#5dcaa5;color:#0b5a53;font-weight:800">📋 STORES品番に品番をまとめて入れる（単品オイル・初回だけ）</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
@@ -2836,6 +2837,48 @@ function mDash(){ return '<span class="dash">—</span>'; }
    ・すでに名簿にバーコードが入っている商品は、さわりません（上書きしない）
    ・何度押しても二重にはなりません
    ══════════════════════════════════════════════════════════════════ */
+/* ★2026-07-29 STORES品番に、品番（SKU）をそのままコピー：単品オイル（ORG100〜ARM3L）だけ */
+function storesHinbanTargets(){
+  return PRODUCTS.filter(function(p){
+    if(!p || !p.sku) return false;
+    if(!mIsActive(p)) return false;
+    if(mIsSet(p)) return false;           /* セットは中身を書くので対象外 */
+    if(!containerFor(p)) return false;    /* 容器が決まる＝単品オイル。備品・ルール外は空なので除外 */
+    if(meiboFieldOf(p, 'STORES品番')) return false; /* すでに入っているものはさわらない */
+    return true;
+  });
+}
+async function meiboFillStoresHinban(){
+  var btn = document.getElementById('meibo-stores-btn');
+  var list = storesHinbanTargets();
+  if(!list.length){ alert('STORES品番を入れる単品オイルはありませんでした。\n\n（すでに全部入っているか、対象の商品がありません）'); return; }
+  var preview = list.map(function(p){ return '・' + (p.name||p.sku) + ' → ' + p.sku; }).join('\n');
+  if(!confirm('単品オイルのSTORES品番に、品番（SKU）をそのまま入れます（' + list.length + '件）。\n※オイル本体（容器が決まる商品）だけが対象です。セット・備品・すでに入っている商品はさわりません。\n\n' + preview + '\n\nよろしいですか？')) return;
+  if(btn){ btn.disabled = true; }
+  var ok = 0, ng = [];
+  for(var i=0; i<list.length; i++){
+    var p = list[i];
+    if(btn){ btn.textContent = '📋 保存中… ' + (i+1) + ' / ' + list.length; }
+    var prod = { sku: p.sku, 'STORES品番': p.sku };  /* その1列だけ触る（ほかの列はGASが触らない） */
+    try{
+      var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+      var data = await res.json();
+      if(data && data.status === 'ok'){
+        ok++;
+        var idx = PRODUCTS.findIndex(function(x){ return x.sku === prod.sku; });
+        if(idx >= 0){ PRODUCTS[idx]['STORES品番'] = prod['STORES品番']; PRODUCTS[idx].extras = PRODUCTS[idx].extras || {}; PRODUCTS[idx].extras['STORES品番'] = prod['STORES品番']; }
+      } else {
+        ng.push(p.sku + '（' + ((data && data.message) || '理由不明') + '）');
+      }
+    }catch(e){ ng.push(p.sku + '（通信エラー）'); }
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '📋 STORES品番に品番をまとめて入れる（単品オイル・初回だけ）'; }
+  try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : [])); }catch(e){}
+  renderMeibo();
+  var msg = '✅ ' + ok + '件のSTORES品番を保存しました。';
+  if(ng.length) msg += '\n\n⚠️ 入らなかったもの（' + ng.length + '件）\n　・' + ng.join('\n　・');
+  alert(msg);
+}
 function meiboContainerTargets(){
   return PRODUCTS.filter(function(p){
     if(!p || !p.sku) return false;
