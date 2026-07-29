@@ -258,6 +258,9 @@
     <button id="n-meishi" onclick="nav('meishi')">📇 名刺を入れる</button>
     <button id="n-people" onclick="nav('people')">👥 人物カード（<span id="pcount">0</span>）</button>
   </div>
+  <div id="boss-entry" style="display:none;text-align:right;margin:-2px 2px 8px;">
+    <button onclick="bossPrompt()" title="社長の方はこちら（スタッフには不要です）" style="background:none;border:0;color:#b6b1a6;font-size:11.5px;cursor:pointer;padding:2px 4px;">🔑 社長</button>
+  </div>
 
   <!-- 台帳 -->
 
@@ -742,6 +745,10 @@ function setSync(m){ var e=document.getElementById('sync'); if(e) e.textContent=
 /* ---- 合言葉（玄関と同じスタッフ共通・アプリに文字は書かない） ---- */
 function savedSecret(){ try{ var v=JSON.parse(localStorage.getItem(GATE_PW)||'null'); return (v&&v.p)? v.p:null; }catch(e){ return null; } }
 function storeSecret(pw){ try{ localStorage.setItem(GATE_PW, JSON.stringify({p:pw})); localStorage.setItem(GATE_OK,'1'); }catch(e){} }
+/* ---- 社長専用の合鍵（輸入E・ひろみと共通：localStorage の oos_unlock_secret を照合済みの証として使う） ---- */
+function oosSavedPw(group){ try{ var v=JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null'); if(v&&v.p) return v.p; }catch(e){} return null; }
+function oosMarkUnlocked(group, pw){ try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw})); }catch(e){} }
+function bossUnlocked(){ return !!oosSavedPw('secret'); }
 function pingUnlock(pw, cb){
   // スタッフ共通：玄関と同じ合言葉(gate)を verifyPassword で判定
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'verifyPassword',group:'gate',password:pw})})
@@ -779,10 +786,12 @@ function openMain(){
   document.getElementById('main-view').style.display='block';
   fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
   loadContactsFromMaster();
+  applyBossGate();
 }
 
 /* ---- ナビ ---- */
 function nav(w){
+  if(w==='ugoki' && !bossUnlocked()){ return; } /* うごき（金額）は社長のみ */
   ['daicho','ask','ugoki','ai','denpyo','meishi','people'].forEach(function(x){
     document.getElementById('n-'+x).classList.toggle('on', x===w);
     document.getElementById('v-'+x).classList.toggle('on', x===w);
@@ -790,6 +799,25 @@ function nav(w){
   if(w==='people') renderPeople();
   if(w==='ugoki') renderUgoki();
   if(w==='ai') renderAI();
+}
+
+/* ---- 社長専用ガード：金額（うごきタブ／AI分析の金額グラフ）を社長だけに見せる ---- */
+function applyBossGate(){
+  var on = bossUnlocked();
+  var nu = document.getElementById('n-ugoki'); if(nu) nu.style.display = on ? '' : 'none';
+  var be = document.getElementById('boss-entry'); if(be) be.style.display = on ? 'none' : 'block';
+  if(!on){ var vu=document.getElementById('v-ugoki'); if(vu && vu.classList.contains('on')) nav('daicho'); }
+  var va=document.getElementById('v-ai'); if(va && va.classList.contains('on')) renderAI();
+}
+function bossPrompt(){
+  var pw=(prompt('社長専用の合言葉を入れてください（スタッフには不要です）')||'').trim(); if(!pw) return;
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'loadStickyMemos',sheetName:'付箋メモI',password:pw})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d && d.status==='ok'){ oosMarkUnlocked('secret', pw); applyBossGate(); alert('社長用の表示に切り替えました。「📈 うごき」と金額が見られます。'); }
+      else { document.getElementById('pwerr') ; alert('合言葉が違うようです。'); }
+    })
+    .catch(function(){ alert('通信できませんでした。電波の良いところでもう一度お試しください。'); });
 }
 
 /* ===== 📋 施設だけの一覧（連絡先） =====
@@ -1319,6 +1347,7 @@ function aiBars(obj, color){
 }
 function renderAI(){
   var el=document.getElementById('ai-body'); if(!el) return;
+  var boss = bossUnlocked();
   var fac={}, brand={}, prod={}, yr={};
   SALES.forEach(function(r){
     var a=Number(r[5]||0); if(!a) return;
@@ -1338,7 +1367,7 @@ function renderAI(){
   h+='<div class="card"><div class="h">📖 いま言えること</div>';
   h+='<div style="font-size:13.5px;line-height:1.9;color:#2b2a26">';
   h+='<b>① 5年でいちばん大きな出来事は「売る物が総入れ替わりした」こと。</b><br>';
-  h+='2022年の年商の<b>46%はアイバリック2Lの1銘柄</b>でした（943,719円）。八瀬離宮に一度に90缶納めた伝票もあります。そのアイバリックは今、1本も動いていません。<br>';
+  h+='2022年の年商の<b>46%はアイバリック2Lの1銘柄</b>でした（'+(boss?'943,719円':'<span style="background:#fff3d6;color:#8a6d1a;padding:1px 7px;border-radius:6px;font-size:12px;font-weight:700;">金額は社長のみ</span>')+'）。八瀬離宮に一度に90缶納めた伝票もあります。そのアイバリックは今、1本も動いていません。<br>';
   h+='同じことが2025年にも起きています。2024年に動いていた唐辛子オイル100ml・トゥリリエ・オルガニック750ml缶・ザイトゥーン・プリモフルットが、2025年以降ゼロ。<br>';
   h+='<b>つまり数字の上下は「お客様が離れた」ではなく「銘柄が消えた」で説明がつく場面が多い。</b>打ち手は訪問回数ではなく、代わりの銘柄の提案です。';
   h+='<hr style="border:0;border-top:1px solid #eee;margin:12px 0">';
@@ -1349,14 +1378,15 @@ function renderAI(){
   h+='2022年の主役は八瀬離宮とラグーナ。いまの主役は高山・東京ベイコート・日光です。長く付き合っている先ほど、担当シェフの交代が効いています。';
   h+='</div></div>';
 
-  /* --- 年別 --- */
-  h+='<div class="card"><div class="h">📅 年ごと（台帳に入っている分・税抜）</div>'+aiBars(yr,'#6b7a3a')+'</div>';
-  /* --- 施設別 --- */
-  h+='<div class="card"><div class="h">🏨 施設別</div>'+aiBars(fac,'#4a6fa5')+'</div>';
-  /* --- オイル別 --- */
-  h+='<div class="card"><div class="h">🫒 オイル別（銘柄・サイズをまとめた形）</div>'+aiBars(brand,'#8a6d3b')+'</div>';
-  /* --- 商品別 --- */
-  h+='<div class="card"><div class="h">📦 商品別（サイズごと）</div>'+aiBars(prod,'#7a5a8a')+'</div>';
+  /* --- 金額のグラフ（年別・施設別・オイル別・商品別）は社長のみ --- */
+  if(boss){
+    h+='<div class="card"><div class="h">📅 年ごと（台帳に入っている分・税抜）</div>'+aiBars(yr,'#6b7a3a')+'</div>';
+    h+='<div class="card"><div class="h">🏨 施設別</div>'+aiBars(fac,'#4a6fa5')+'</div>';
+    h+='<div class="card"><div class="h">🫒 オイル別（銘柄・サイズをまとめた形）</div>'+aiBars(brand,'#8a6d3b')+'</div>';
+    h+='<div class="card"><div class="h">📦 商品別（サイズごと）</div>'+aiBars(prod,'#7a5a8a')+'</div>';
+  } else {
+    h+='<div class="card" style="text-align:center;border-color:#e7dcae;background:#fffdf5;padding:22px 14px;"><div style="font-size:24px;">🔒</div><div style="font-weight:800;color:#8a6d1a;margin-top:4px;font-size:14px;">金額のグラフは社長だけに表示されます</div><div class="mini" style="margin-top:4px;color:#a99b6a;">年ごと・施設別・オイル別・商品別</div></div>';
+  }
 
   h+='<div class="card" style="background:#fff8e6;border-color:#f0e2b8">';
   h+='<div class="mini" style="line-height:1.8">⚠️ 上のグラフは<b>いま台帳に入っている伝票だけ</b>の集計です。2023年（65枚）はまだ読み取っていないので、そのぶん空いています。2023年を入れたら、このページは書き替えます。</div>';
