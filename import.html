@@ -265,7 +265,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;background:#eaf4ee;border:1px solid #bfe0cd;border-radius:8px;padding:9px 12px">
       <span>💾 端末に自動保存 ＋ ☁️ GASにも共有保存（別端末・バックアップ）。&nbsp;<span id="prep-gas-status" style="font-weight:700;color:#57534e">☁️ …</span></span>
-      <button class="btn-sm" onclick="prepGasSave()" style="margin-left:auto">☁️ いま共有保存</button>
+      <button class="btn-sm" onclick="prepGasSave(true)" style="margin-left:auto">☁️ いま共有保存</button>
       <button class="btn-sm" onclick="prepReset()">🔄 初期値に戻す</button>
     </div>
     <div class="card">
@@ -3063,18 +3063,28 @@ function prepReset(){
 }
 function prepGasStatus(txt,color){ var el=document.getElementById('prep-gas-status'); if(el){ el.textContent=txt; el.style.color=color||'#57534e'; } }
 function prepGasSaveSoon(){ if(!prepGasReady) return; clearTimeout(prepGasTimer); prepGasTimer=setTimeout(prepGasSave,1500); }
-async function prepGasSave(){
+async function prepGasSave(manual){
   if(prepGasBusy){ prepGasSaveSoon(); return; }
   if(typeof GAS_URL==='undefined' || !password){ prepGasStatus('☁️ 共有保存は未接続（ログイン後に有効）','#b06a1a'); return; }
   prepGasBusy=true; prepGasStatus('☁️ 保存中…','#8a6d3f');
+  var payload=JSON.stringify(prepBuildState());
+  var ok=false, gasUnknown=false;
   try{
-    var res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'savePrepState',password:password,state:JSON.stringify(prepBuildState())})});
-    var d=await res.json();
-    if(d.status==='ok'){ var t=new Date(); prepGasStatus('☁️ 共有保存 '+('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2),'#0f7a4a'); }
-    else if((d.message||'').indexOf('不明')>=0){ prepGasStatus('⚠️ 共有保存はGAS更新後に有効（端末には保存済み）','#b06a1a'); }
-    else { prepGasStatus('⚠️ 共有保存できません（端末には保存済み）','#b91c1c'); }
-  }catch(e){ prepGasStatus('⚠️ 通信できません（端末には保存済み）','#b91c1c'); }
+    var res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'savePrepState',password:password,state:payload})});
+    var txt=await res.text();
+    try{ var d=JSON.parse(txt); if(d && d.status==='ok') ok=true; else if(d && (d.message||'').indexOf('不明')>=0) gasUnknown=true; }catch(e){}
+  }catch(e){}
+  if(!ok && !gasUnknown){
+    try{
+      var res2=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'getPrepState',password:password})});
+      var t2=await res2.text(); var d2=JSON.parse(t2);
+      if(d2 && d2.status==='ok' && d2.data && d2.data.state===payload) ok=true;
+    }catch(e){}
+  }
+  var t=new Date(), hm=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);
+  if(ok){ prepGasStatus('✅ 共有保存しました '+hm,'#0f7a4a'); if(manual && typeof showSyncStatus==='function') showSyncStatus('✅ 共有保存しました'); }
+  else if(gasUnknown){ prepGasStatus('⚠️ 共有保存はGAS更新後に有効（端末には保存済み）','#b06a1a'); }
+  else { prepGasStatus('☁️ 送信済み（応答を確認できず・端末には保存済み）'+hm,'#b06a1a'); if(manual && typeof showSyncStatus==='function') showSyncStatus('☁️ 送信しました（端末には保存済み）'); }
   prepGasBusy=false;
 }
 async function prepGasLoad(){
@@ -3083,7 +3093,7 @@ async function prepGasLoad(){
   try{
     var res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:'getPrepState',password:password})});
-    var d=await res.json();
+    var d=JSON.parse(await res.text());
     if(d.status==='ok' && d.data && d.data.state){
       try{ prepApplyState(JSON.parse(d.data.state)); }catch(e){}
       try{ localStorage.setItem(PREP_LS_KEY, d.data.state); }catch(e){}
