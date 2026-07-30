@@ -119,6 +119,8 @@
   .pcard .row2{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:6px;font-size:14px;}
   .pcard .tagfac{display:inline-block;background:#e5eecf;color:#4d5a24;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-top:6px;}
   .pcard .del{float:right;background:none;border:none;color:#c0bbb0;font-size:13px;cursor:pointer;}
+  .pcard-kat{display:block;width:100%;margin-top:12px;background:#f4ecdd;border:1.5px solid #d8c39a;color:#7a4a10;font-weight:800;font-size:15px;padding:12px;border-radius:11px;cursor:pointer;box-sizing:border-box;}
+  .pcard-kat:active{background:#ecdfc7;}
   .empty{text-align:center;color:#8a857a;padding:24px;font-weight:700;font-size:14px;}
   .stagenote{background:#fff4e6;border:1.5px solid #e5b877;color:#7a4a10;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:13px;line-height:1.7;}
   .oos-nav { background:#fff; border:1px solid #e8e2d8; padding:8px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; border-radius:12px; box-shadow:0 4px 10px rgba(80,70,50,.06); }
@@ -270,6 +272,7 @@
     <button id="n-denpyo" onclick="nav('denpyo')">📥 伝票を入れる</button>
     <button id="n-meishi" onclick="nav('meishi')">📇 名刺を入れる</button>
     <button id="n-people" onclick="nav('people')">👥 人物カード（<span id="pcount">0</span>）</button>
+    <button id="n-katsudo" onclick="nav('katsudo')">📇 できごと</button>
   </div>
   <div id="boss-entry" style="display:none;text-align:right;margin:-2px 2px 8px;">
     <button onclick="bossPrompt()" title="社長の方はこちら（スタッフには不要です）" style="background:none;border:0;color:#b6b1a6;font-size:11.5px;cursor:pointer;padding:2px 4px;">🔑 社長</button>
@@ -420,6 +423,45 @@
     </div>
     <div class="mini" style="margin:-4px 0 10px;">◎はあなたの判断の印、🫒は伝票の実績から自動で付く印です。</div>
     <div id="peoplebox"></div>
+  </div>
+
+  <!-- できごと記録（RT行動ログ・社長専用） -->
+  <div class="view" id="v-katsudo">
+    <style>
+    .kat-help{background:#fff;border:1px solid #ece5da;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5c5647;}
+    .kat-help summary{font-weight:800;color:#7a4a10;cursor:pointer;font-size:14px;}
+    .kat-help>div{margin-top:8px;line-height:1.85;}
+    .kat-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    @media(max-width:520px){.kat-grid2{grid-template-columns:1fr;}}
+    .kat-lbl{font-size:13px;color:#6f6a5f;font-weight:700;margin-bottom:4px;}
+    .kat-mini2{font-size:12px;color:#8a7a55;font-weight:700;margin-bottom:6px;}
+    .kat-in{width:100%;padding:10px 11px;font-size:16px;border:1.5px solid #cfc7b6;border-radius:9px;color:#2b2a26;font-weight:700;background:#fff;box-sizing:border-box;font-family:inherit;}
+    .kat-chips{display:flex;gap:7px;flex-wrap:wrap;}
+    .kat-chip{background:#fff;border:1.5px solid #ddd4c7;color:#2b2a26;font-weight:700;padding:9px 13px;border-radius:999px;cursor:pointer;font-size:15px;}
+    .kat-chip.on{background:#6b7a3a;color:#fff;border-color:#6b7a3a;}
+    .kat-photos{display:flex;gap:9px;flex-wrap:wrap;}
+    .kat-ph{position:relative;width:74px;height:74px;}
+    .kat-ph img{width:74px;height:74px;object-fit:cover;border-radius:9px;border:1px solid #ddd4c7;}
+    .kat-ph button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:#c0392b;color:#fff;border:none;font-size:13px;cursor:pointer;line-height:1;}
+    .kat-add{display:flex;align-items:center;justify-content:center;width:74px;height:74px;border:2px dashed #b9b09c;border-radius:9px;color:#6b7a3a;font-size:12px;font-weight:800;text-align:center;cursor:pointer;line-height:1.4;}
+    .kat-savebtn{flex:2;background:#16a34a;color:#fff;border:none;border-radius:11px;padding:13px;font-size:16px;font-weight:800;cursor:pointer;}
+    .kat-cancelbtn{flex:1;background:#eee;color:#555;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+    .kat-item{border:1px solid #ece5da;border-radius:11px;padding:11px 13px;margin-bottom:10px;background:#fff;}
+    .kat-item-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .kat-date{font-size:13px;color:#8a7a55;font-weight:700;}
+    .kat-badge{background:#f0f4e6;color:#4d5a26;font-size:13px;font-weight:800;padding:3px 10px;border-radius:999px;}
+    .kat-del{margin-left:auto;background:none;border:none;color:#c0392b;font-size:12.5px;font-weight:700;cursor:pointer;}
+    .kat-edit{background:none;border:none;color:#6b7a3a;font-size:12.5px;font-weight:700;cursor:pointer;}
+    .kat-who{font-weight:800;font-size:15px;margin-top:6px;color:#2b2a26;}
+    .kat-content{font-size:15px;margin-top:3px;color:#2b2a26;line-height:1.7;}
+    .kat-sub{font-size:14px;margin-top:5px;color:#5c5647;font-weight:700;}
+    .kat-thumbs{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap;}
+    .kat-th{width:66px;height:66px;object-fit:cover;border-radius:8px;border:1px solid #ddd4c7;cursor:pointer;}
+    .kat-ref{background:#f0f4e6;border-radius:10px;padding:10px 12px;margin-bottom:9px;}
+    .kat-ref-from{font-weight:800;color:#4d5a26;font-size:15px;margin-bottom:7px;}
+    .kat-ref-to{display:inline-block;background:#fff;border:1px solid #cdd8b3;border-radius:999px;padding:5px 12px;font-size:14px;font-weight:700;margin:0 6px 6px 0;}
+    </style>
+    <div id="katsudo-body"></div>
   </div>
 </div>
 
@@ -817,13 +859,14 @@ function openMain(){
 /* ---- ナビ ---- */
 function nav(w){
   if((w==='ugoki'||w==='ai') && !bossUnlocked()){ return; } /* うごき・AI分析（金額）は社長のみ */
-  ['daicho','ugoki','ai','denpyo','meishi','people'].forEach(function(x){
+  ['daicho','ugoki','ai','denpyo','meishi','people','katsudo'].forEach(function(x){
     document.getElementById('n-'+x).classList.toggle('on', x===w);
     document.getElementById('v-'+x).classList.toggle('on', x===w);
   });
   if(w==='people') renderPeople();
   if(w==='ugoki') renderUgoki();
   if(w==='ai') renderAI();
+  if(w==='katsudo') openKatsudo();
 }
 
 /* ---- 社長専用ガード：金額（うごきタブ／AI分析の金額グラフ）を社長だけに見せる ---- */
@@ -1662,12 +1705,351 @@ function buildPersonCard(p,i){
       (p.oils? '<div class="row2" style="color:#6b5124;background:#fdf8ee;border-radius:6px;padding:5px 8px;margin-top:6px;"><span>🧴 使っているオイル：<b>'+esc(p.oils)+'</b></span></div>':'')+
       (p.career? '<div class="row2" style="color:#5c6636;"><span>これまで：<b>'+esc(p.career)+'</b></span></div>':'')+
       (p.note? '<div class="row2" style="color:#7a7266;"><span>📝 '+esc(p.note)+'</span></div>':'')+
-      '<span class="tagfac">🏨 '+esc(p.fac)+'</span></div>';
+      '<span class="tagfac">🏨 '+esc(p.fac)+'</span>'+
+      '<button class="pcard-kat" onclick="openKatsudoForIdx('+o.i+')">📇 この人とのできごとを見る・書く</button>'+
+      '</div>';
   })(o);
 }
 
 document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
 boot();
+
+</script>
+
+<script>
+/* ===== 📇 できごと記録（RT行動ログ・社長専用・スプレッドシート保存） ===== */
+var KATSUDO=[]; var katLoaded=false; var katSkeletonBuilt=false;
+var katType='sent'; var katPhotos=['','','']; var katEditId=''; var katPendingWho=null;
+var katFilterWho=''; var katFilterType='';
+var KAT_TYPES=[
+  {k:'sent',  e:'📮', label:'送った'},
+  {k:'talk',  e:'💬', label:'話した'},
+  {k:'intro', e:'🤝', label:'紹介'},
+  {k:'visit', e:'🏨', label:'訪問'},
+  {k:'sample',e:'🎁', label:'サンプル'},
+  {k:'call',  e:'📞', label:'電話・LINE'}
+];
+function katTypeInfo(k){ for(var i=0;i<KAT_TYPES.length;i++){ if(KAT_TYPES[i].k===k) return KAT_TYPES[i]; } return {k:k,e:'📝',label:k||'その他'}; }
+function secretPw(){ return oosSavedPw('secret'); }
+
+function openKatsudo(){
+  var box=document.getElementById('katsudo-body'); if(!box) return;
+  if(!bossUnlocked()){
+    box.innerHTML='<div class="card" style="text-align:center;">'
+      +'<div style="font-size:16px;font-weight:800;color:#7a4a10;margin-bottom:6px;">🔑 ここは社長専用です</div>'
+      +'<div class="mini" style="margin-bottom:12px;line-height:1.85;">できごと記録（送ったもの・お話・紹介・写真）は、社長の合言葉で開きます。<br>スタッフの方には表示されません。</div>'
+      +'<button onclick="katsudoUnlock()" style="background:#c2761f;color:#fff;border:none;border-radius:12px;padding:12px 22px;font-size:16px;font-weight:800;cursor:pointer;">社長の合言葉で開く</button>'
+      +'</div>';
+    return;
+  }
+  if(!katLoaded){ box.innerHTML='<div class="mini" style="padding:22px;text-align:center;">読み込み中…</div>'; loadKatsudo(); return; }
+  renderKatsudo();
+}
+function katsudoUnlock(){
+  var pw=(prompt('社長専用の合言葉を入れてください（スタッフには不要です）')||'').trim(); if(!pw) return;
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'loadStickyMemos',sheetName:'付箋メモI',password:pw})})
+    .then(function(r){return r.json();})
+    .then(function(d){ if(d&&d.status==='ok'){ oosMarkUnlocked('secret',pw); applyBossGate(); openKatsudo(); } else { alert('合言葉が違うようです。'); } })
+    .catch(function(){ alert('通信できませんでした。電波の良いところでもう一度お試しください。'); });
+}
+function loadKatsudo(){
+  var pw=secretPw(); if(!pw){ openKatsudo(); return; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'loadRtActivities',password:pw})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'&&d.data){ KATSUDO=d.data.activities||[]; katLoaded=true; renderKatsudo(); }
+      else { document.getElementById('katsudo-body').innerHTML='<div class="card">読み込めませんでした：'+esc((d&&d.message)||'不明')+'</div>'; }
+    })
+    .catch(function(){ document.getElementById('katsudo-body').innerHTML='<div class="card">通信できませんでした。電波の良いところでお試しください。</div>'; });
+}
+
+function katWhoOptionsHtml(sel){
+  var html='<option value="">（選んでください）</option>';
+  var facs=Object.keys(FAC);
+  html+='<optgroup label="🏨 施設">';
+  facs.forEach(function(f){ html+='<option value="'+esc(f)+'"'+(sel===f?' selected':'')+'>'+esc(f)+'</option>'; });
+  html+='</optgroup><optgroup label="👨‍🍳 シェフ・担当者">';
+  PEOPLE.forEach(function(p){ html+='<option value="'+esc(p.name)+'"'+(sel===p.name?' selected':'')+'>'+esc(p.name)+'（'+esc(p.fac)+'）</option>'; });
+  html+='</optgroup>';
+  return html;
+}
+function katWhoLabel(who){
+  if(!who) return '（相手なし）';
+  if(FAC[who]) return '🏨 '+who;
+  for(var i=0;i<PEOPLE.length;i++){ if(PEOPLE[i].name===who) return '👨‍🍳 '+who+'（'+PEOPLE[i].fac+'）'; }
+  return who;
+}
+
+function buildKatSkeleton(){
+  var box=document.getElementById('katsudo-body'); if(!box) return;
+  var chips=KAT_TYPES.map(function(t){ return '<button type="button" data-k="'+t.k+'" class="kat-chip'+(t.k==='sent'?' on':'')+'" onclick="katSetType(\''+t.k+'\')">'+t.e+' '+t.label+'</button>'; }).join('');
+  var typeOpts=KAT_TYPES.map(function(t){ return '<option value="'+t.k+'">'+t.e+' '+t.label+'</option>'; }).join('');
+  box.innerHTML=
+    '<details class="kat-help"><summary>このタブは何をする場所？（タップで開く）</summary>'
+      +'<div>RTのシェフ・施設に「📮送った／💬話した／🤝紹介された／🏨訪問」を、写真つきで残す場所です。あとで「誰に何を送ったか」「この人は誰からの紹介か」がすぐ分かります。人物カードの「📇できごと」からも、その人だけの記録に飛べます。ここは社長専用です。</div></details>'
+    +'<div class="card">'
+      +'<div id="kat-form-title" style="font-weight:800;font-size:16px;margin-bottom:12px;">✍️ できごとを記録する</div>'
+      +'<div class="kat-grid2">'
+        +'<div><div class="kat-lbl">日付</div><input id="kat-date" type="date" class="kat-in"></div>'
+        +'<div><div class="kat-lbl">だれに・どこに</div><select id="kat-who" class="kat-in"></select></div>'
+      +'</div>'
+      +'<div class="kat-lbl" style="margin-top:12px;">種類（押して選ぶ）</div>'
+      +'<div id="kat-type-row" class="kat-chips">'+chips+'</div>'
+      +'<div class="kat-lbl" style="margin-top:12px;">内容（ひとこと）</div>'
+      +'<textarea id="kat-content" class="kat-in" style="min-height:52px;"></textarea>'
+      +'<div id="kat-sent-fields" style="margin-top:12px;">'
+        +'<div class="kat-mini2">▼「📮 送った」の中身</div>'
+        +'<div class="kat-grid2">'
+          +'<div><div class="kat-lbl">品目</div><input id="kat-item" class="kat-in" placeholder="例：紹介カード"></div>'
+          +'<div><div class="kat-lbl">数量</div><input id="kat-qty" class="kat-in" placeholder="例：30枚"></div>'
+        +'</div></div>'
+      +'<div id="kat-intro-fields" style="display:none;margin-top:12px;">'
+        +'<div class="kat-mini2">▼「🤝 紹介」の中身（誰から → 誰へ）</div>'
+        +'<div class="kat-grid2">'
+          +'<div><div class="kat-lbl">紹介してくれた人</div><input id="kat-from" class="kat-in" placeholder="例：高垣シェフ"></div>'
+          +'<div><div class="kat-lbl">紹介された人</div><input id="kat-to" class="kat-in" placeholder="例：下井総料理長"></div>'
+        +'</div></div>'
+      +'<div class="kat-lbl" style="margin-top:14px;">写真（2〜3枚まで・自動で軽くします）</div>'
+      +'<div id="kat-photos" class="kat-photos"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:16px;">'
+        +'<button id="kat-save" onclick="saveKatsudo()" class="kat-savebtn">この内容で記録する</button>'
+        +'<button id="kat-cancel" onclick="resetKatForm()" class="kat-cancelbtn" style="display:none;">やめる</button>'
+      +'</div>'
+    +'</div>'
+    +'<div class="card">'
+      +'<div style="font-weight:800;font-size:15px;margin-bottom:4px;">🤝 紹介のつながり（誰からの紹介か）</div>'
+      +'<div class="mini" style="margin-bottom:10px;">「🤝 紹介」の記録から自動でできます。</div>'
+      +'<div id="kat-refmap"></div>'
+    +'</div>'
+    +'<div class="card">'
+      +'<div style="font-weight:800;font-size:15px;margin-bottom:10px;">📋 できごと一覧 <span id="kat-count" class="mini"></span></div>'
+      +'<div class="kat-grid2" style="margin-bottom:10px;">'
+        +'<select id="kat-fwho" class="kat-in" onchange="katApplyFilter()"></select>'
+        +'<select id="kat-ftype" class="kat-in" onchange="katApplyFilter()"><option value="">すべての種類</option>'+typeOpts+'</select>'
+      +'</div>'
+      +'<div id="kat-list"></div>'
+    +'</div>';
+  var d=document.getElementById('kat-date'); if(d) d.value=today();
+  katSetType('sent');
+  renderKatPhotos();
+}
+function renderKatsudo(){
+  if(!bossUnlocked()){ openKatsudo(); return; }
+  if(!katSkeletonBuilt){ buildKatSkeleton(); katSkeletonBuilt=true; }
+  var w=document.getElementById('kat-who'); if(w){ var cv=w.value; w.innerHTML=katWhoOptionsHtml(cv); w.value=cv; }
+  var fw=document.getElementById('kat-fwho'); if(fw){ fw.innerHTML='<option value="">すべての相手</option>'+katWhoOptionsHtml('').replace('<option value="">（選んでください）</option>',''); fw.value=katFilterWho; }
+  if(katPendingWho!=null){
+    katFilterWho=katPendingWho;
+    if(fw) fw.value=katPendingWho;
+    if(w) w.value=katPendingWho;
+    katPendingWho=null;
+  }
+  renderKatList();
+  renderKatRefMap();
+}
+
+function katSetType(k){
+  katType=k;
+  var row=document.getElementById('kat-type-row');
+  if(row){ var btns=row.getElementsByTagName('button'); for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('on', btns[i].getAttribute('data-k')===k); } }
+  var sf=document.getElementById('kat-sent-fields'); if(sf) sf.style.display=(k==='sent')?'block':'none';
+  var inf=document.getElementById('kat-intro-fields'); if(inf) inf.style.display=(k==='intro')?'block':'none';
+}
+
+/* 写真：スマホの元写真は重いので、キャンバスで小さく圧縮してからdataURLにする（セル上限に収める） */
+function katCompress(file, cb){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var max=1000; var w=img.width, h=img.height;
+      if(w>=h && w>max){ h=Math.round(h*max/w); w=max; }
+      else if(h>w && h>max){ w=Math.round(w*max/h); h=max; }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      var q=0.72, url=cv.toDataURL('image/jpeg',q);
+      while(url.length>45000 && q>0.4){ q-=0.08; url=cv.toDataURL('image/jpeg',q); }
+      if(url.length>45000){
+        var s=Math.sqrt(45000/url.length)*0.95;
+        cv.width=Math.max(240,Math.round(w*s)); cv.height=Math.max(180,Math.round(h*s));
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        url=cv.toDataURL('image/jpeg',0.6);
+      }
+      cb(url);
+    };
+    img.onerror=function(){ cb(''); };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function katPickPhotos(ev){
+  var files=ev.target.files; if(!files||!files.length) return;
+  var slots=[]; for(var i=0;i<3;i++){ if(!katPhotos[i]) slots.push(i); }
+  var arr=Array.prototype.slice.call(files,0,slots.length);
+  ev.target.value='';
+  if(!arr.length){ alert('写真は3枚までです。'); return; }
+  var done=0;
+  arr.forEach(function(f,idx){
+    katCompress(f,function(url){
+      if(url){ katPhotos[slots[idx]]=url; }
+      done++; if(done===arr.length){ renderKatPhotos(); }
+    });
+  });
+}
+function renderKatPhotos(){
+  var box=document.getElementById('kat-photos'); if(!box) return;
+  var html='';
+  for(var i=0;i<3;i++){ if(katPhotos[i]){ html+='<div class="kat-ph"><img src="'+katPhotos[i]+'"><button onclick="katRemovePhoto('+i+')">✕</button></div>'; } }
+  var filled=0; for(var j=0;j<3;j++){ if(katPhotos[j]) filled++; }
+  if(filled<3){ html+='<label class="kat-add"><span>＋ 写真を<br>足す</span><input type="file" accept="image/*" multiple onchange="katPickPhotos(event)" style="display:none;"></label>'; }
+  box.innerHTML=html;
+}
+function katRemovePhoto(i){ katPhotos[i]=''; var t=katPhotos.filter(function(x){return x;}); while(t.length<3) t.push(''); katPhotos=t; renderKatPhotos(); }
+
+function katFindCreatedAt(id){ for(var i=0;i<KATSUDO.length;i++){ if(KATSUDO[i].id===id) return KATSUDO[i].createdAt; } return ''; }
+function saveKatsudo(){
+  var pw=secretPw(); if(!pw){ katsudoUnlock(); return; }
+  var who=document.getElementById('kat-who').value;
+  var content=(document.getElementById('kat-content').value||'').trim();
+  var item=(document.getElementById('kat-item').value||'').trim();
+  var qty=(document.getElementById('kat-qty').value||'').trim();
+  if(!who){ alert('「だれに・どこに」を選んでください。'); return; }
+  if(!content && !item && katType!=='intro'){ alert('内容をひとこと書いてください。'); return; }
+  var rec={
+    id: katEditId || ('k'+Date.now()+Math.floor(Math.random()*1000)),
+    date: (document.getElementById('kat-date').value||today()),
+    who: who, type: katType, content: content,
+    item: (katType==='sent'?item:''), qty:(katType==='sent'?qty:''),
+    refFrom: (katType==='intro'? ((document.getElementById('kat-from').value||'').trim()||who):''),
+    refTo: (katType==='intro'? (document.getElementById('kat-to').value||'').trim():''),
+    img1:katPhotos[0]||'', img2:katPhotos[1]||'', img3:katPhotos[2]||'',
+    createdAt: katEditId ? (katFindCreatedAt(katEditId)||new Date().toISOString()) : new Date().toISOString()
+  };
+  var btn=document.getElementById('kat-save'); if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveRtActivity',password:pw,rec:rec})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(btn){ btn.disabled=false; btn.textContent='この内容で記録する'; }
+      if(d&&d.status==='ok'){
+        var found=false;
+        for(var i=0;i<KATSUDO.length;i++){ if(KATSUDO[i].id===rec.id){ KATSUDO[i]=rec; found=true; break; } }
+        if(!found) KATSUDO.push(rec);
+        resetKatForm(); renderKatList(); renderKatRefMap();
+        if(typeof setSync==='function') setSync('記録しました');
+      } else { alert('保存できませんでした：'+((d&&d.message)||'不明')); }
+    })
+    .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='この内容で記録する'; } alert('通信できませんでした。'); });
+}
+function resetKatForm(){
+  katEditId=''; katPhotos=['','',''];
+  var d=document.getElementById('kat-date'); if(d) d.value=today();
+  var w=document.getElementById('kat-who'); if(w) w.value='';
+  var c=document.getElementById('kat-content'); if(c) c.value='';
+  var it=document.getElementById('kat-item'); if(it) it.value='';
+  var q=document.getElementById('kat-qty'); if(q) q.value='';
+  var ff=document.getElementById('kat-from'); if(ff) ff.value='';
+  var tt=document.getElementById('kat-to'); if(tt) tt.value='';
+  katSetType('sent'); renderKatPhotos();
+  var ttl=document.getElementById('kat-form-title'); if(ttl) ttl.textContent='✍️ できごとを記録する';
+  var cb=document.getElementById('kat-cancel'); if(cb) cb.style.display='none';
+}
+function editKatsudo(id){
+  var rec=null; for(var i=0;i<KATSUDO.length;i++){ if(KATSUDO[i].id===id){ rec=KATSUDO[i]; break; } }
+  if(!rec) return;
+  katEditId=rec.id;
+  var w=document.getElementById('kat-who'); if(w){ w.value=rec.who||''; }
+  document.getElementById('kat-date').value=rec.date||today();
+  document.getElementById('kat-content').value=rec.content||'';
+  document.getElementById('kat-item').value=rec.item||'';
+  document.getElementById('kat-qty').value=rec.qty||'';
+  document.getElementById('kat-from').value=rec.refFrom||'';
+  document.getElementById('kat-to').value=rec.refTo||'';
+  katPhotos=[rec.img1||'',rec.img2||'',rec.img3||''];
+  katSetType(rec.type||'sent'); renderKatPhotos();
+  document.getElementById('kat-form-title').textContent='✏️ できごとを直す';
+  var cb=document.getElementById('kat-cancel'); if(cb) cb.style.display='';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function delKatsudo(id){
+  if(!confirm('この記録を消しますか？')) return;
+  var pw=secretPw(); if(!pw){ katsudoUnlock(); return; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'deleteRtActivity',password:pw,id:id})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'){ KATSUDO=KATSUDO.filter(function(x){return x.id!==id;}); if(katEditId===id) resetKatForm(); renderKatList(); renderKatRefMap(); }
+      else alert('消せませんでした：'+((d&&d.message)||'不明'));
+    })
+    .catch(function(){ alert('通信できませんでした。'); });
+}
+function katApplyFilter(){
+  var fw=document.getElementById('kat-fwho'), ft=document.getElementById('kat-ftype');
+  katFilterWho=fw?fw.value:''; katFilterType=ft?ft.value:'';
+  renderKatList();
+}
+function renderKatList(){
+  var box=document.getElementById('kat-list'); if(!box) return;
+  var list=KATSUDO.filter(function(r){
+    if(katFilterWho && r.who!==katFilterWho) return false;
+    if(katFilterType && r.type!==katFilterType) return false;
+    return true;
+  });
+  list.sort(function(a,b){
+    var da=(a.date||''), db=(b.date||'');
+    if(da!==db) return da<db?1:-1;
+    return (a.createdAt||'')<(b.createdAt||'')?1:-1;
+  });
+  var cnt=document.getElementById('kat-count'); if(cnt) cnt.textContent='（'+list.length+'件）';
+  if(!list.length){ box.innerHTML='<div class="mini" style="padding:16px;text-align:center;color:#8a857a;">まだ記録がありません。上の「記録する」から足してください。</div>'; return; }
+  box.innerHTML=list.map(function(r){
+    var ti=katTypeInfo(r.type);
+    var imgs=[r.img1,r.img2,r.img3].filter(function(x){return x;});
+    var thumbs=imgs.map(function(u,ix){ return '<img src="'+u+'" class="kat-th" onclick="katShowImg(\''+r.id+'\','+ix+')">'; }).join('');
+    var extra='';
+    if(r.type==='sent' && (r.item||r.qty)) extra='<div class="kat-sub">📦 '+esc(r.item||'')+(r.qty?'　'+esc(r.qty):'')+'</div>';
+    if(r.type==='intro') extra='<div class="kat-sub" style="color:#4d5a26;">🤝 '+esc(r.refFrom||r.who)+' → '+esc(r.refTo||'（相手未記入）')+'</div>';
+    return '<div class="kat-item">'
+      +'<div class="kat-item-top"><span class="kat-date">'+esc(r.date||'')+'</span> <span class="kat-badge">'+ti.e+' '+esc(ti.label)+'</span>'
+      +'<button class="kat-del" onclick="delKatsudo(\''+r.id+'\')">消す</button>'
+      +'<button class="kat-edit" onclick="editKatsudo(\''+r.id+'\')">直す</button></div>'
+      +'<div class="kat-who">'+esc(katWhoLabel(r.who))+'</div>'
+      +(r.content?'<div class="kat-content">'+esc(r.content)+'</div>':'')
+      +extra
+      +(thumbs?'<div class="kat-thumbs">'+thumbs+'</div>':'')
+      +'</div>';
+  }).join('');
+}
+function renderKatRefMap(){
+  var box=document.getElementById('kat-refmap'); if(!box) return;
+  var map={};
+  KATSUDO.forEach(function(r){
+    if(r.type!=='intro') return;
+    var from=r.refFrom||r.who||'（不明）'; var to=r.refTo||''; if(!to) return;
+    (map[from]=map[from]||[]).push(to);
+  });
+  var froms=Object.keys(map);
+  if(!froms.length){ box.innerHTML='<div class="mini" style="color:#8a857a;">「🤝 紹介」に「誰から→誰へ」を入れると、ここに地図ができます。</div>'; return; }
+  box.innerHTML=froms.map(function(f){
+    return '<div class="kat-ref"><div class="kat-ref-from">'+esc(f)+' から広がった方（'+map[f].length+'名）</div>'
+      +'<div>'+map[f].map(function(t){return '<span class="kat-ref-to">'+esc(t)+'</span>';}).join('')+'</div></div>';
+  }).join('');
+}
+function katShowImg(id, idx){
+  var rec=null; for(var i=0;i<KATSUDO.length;i++){ if(KATSUDO[i].id===id){ rec=KATSUDO[i]; break; } }
+  if(!rec) return;
+  var imgs=[rec.img1,rec.img2,rec.img3].filter(function(x){return x;});
+  var url=imgs[idx]||imgs[0]; if(!url) return;
+  var ov=document.getElementById('kat-lightbox');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='kat-lightbox';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px;';
+    ov.onclick=function(){ ov.style.display='none'; };
+    ov.innerHTML='<img style="max-width:96%;max-height:92%;border-radius:8px;">';
+    document.body.appendChild(ov);
+  }
+  ov.getElementsByTagName('img')[0].src=url; ov.style.display='flex';
+}
+function openKatsudoForIdx(i){ var p=PEOPLE[i]; if(p) openKatsudoFor(p.name); }
+function openKatsudoFor(name){ katPendingWho=name; nav('katsudo'); }
 
 </script>
 </body>
