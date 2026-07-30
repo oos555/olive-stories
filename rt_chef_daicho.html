@@ -269,6 +269,7 @@
     <button class="on" id="n-daicho" onclick="nav('daicho')">🏨 台帳</button>
     <button id="n-ugoki" onclick="nav('ugoki')">📈 うごき</button>
     <button id="n-ai" onclick="nav('ai')">🤖 AI分析</button>
+    <button id="n-memo" onclick="nav('memo')">📝 メモ</button>
     <button id="n-denpyo" onclick="nav('denpyo')">📥 伝票を入れる</button>
     <button id="n-meishi" onclick="nav('meishi')">📇 名刺を入れる</button>
     <button id="n-people" onclick="nav('people')">👥 人物カード（<span id="pcount">0</span>）</button>
@@ -462,6 +463,22 @@
     .kat-ref-to{display:inline-block;background:#fff;border:1px solid #cdd8b3;border-radius:999px;padding:5px 12px;font-size:14px;font-weight:700;margin:0 6px 6px 0;}
     </style>
     <div id="katsudo-body"></div>
+  </div>
+
+  <!-- 📝 メモ（名刺前の下書き・自由メモ／スタッフも閲覧可） -->
+  <div class="view" id="v-memo">
+    <style>
+    .memo-note{background:#fff4e6;border:1.5px solid #e5b877;color:#7a4a10;border-radius:11px;padding:10px 13px;font-size:12.5px;line-height:1.75;margin-bottom:13px;}
+    .memo-in{width:100%;box-sizing:border-box;border:1.5px solid #cfc7b6;border-radius:10px;padding:11px;font-size:15px;color:#2b2a26;font-weight:700;font-family:inherit;background:#fff;}
+    .memo-savebtn{flex:1;background:#16a34a;color:#fff;border:none;border-radius:11px;padding:12px;font-size:16px;font-weight:800;cursor:pointer;}
+    .memo-item{background:#fff;border:1px solid #ece5da;border-radius:12px;padding:12px 13px;margin-bottom:10px;}
+    .memo-item .top{display:flex;align-items:center;gap:8px;}
+    .memo-date{font-size:13px;color:#8a7a55;font-weight:700;}
+    .memo-edit{margin-left:auto;background:none;border:none;color:#6b7a3a;font-size:12.5px;font-weight:700;cursor:pointer;}
+    .memo-del{background:none;border:none;color:#c0392b;font-size:12.5px;font-weight:700;cursor:pointer;}
+    .memo-text{font-size:15px;margin-top:6px;line-height:1.7;color:#2b2a26;white-space:pre-wrap;}
+    </style>
+    <div id="memo-body"></div>
   </div>
 </div>
 
@@ -859,7 +876,7 @@ function openMain(){
 /* ---- ナビ ---- */
 function nav(w){
   if((w==='ugoki'||w==='ai') && !bossUnlocked()){ return; } /* うごき・AI分析（金額）は社長のみ */
-  ['daicho','ugoki','ai','denpyo','meishi','people','katsudo'].forEach(function(x){
+  ['daicho','ugoki','ai','denpyo','meishi','people','katsudo','memo'].forEach(function(x){
     document.getElementById('n-'+x).classList.toggle('on', x===w);
     document.getElementById('v-'+x).classList.toggle('on', x===w);
   });
@@ -867,6 +884,7 @@ function nav(w){
   if(w==='ugoki') renderUgoki();
   if(w==='ai') renderAI();
   if(w==='katsudo') openKatsudo();
+  if(w==='memo') memoOpen();
 }
 
 /* ---- 社長専用ガード：金額（うごきタブ／AI分析の金額グラフ）を社長だけに見せる ---- */
@@ -2050,6 +2068,116 @@ function katShowImg(id, idx){
 }
 function openKatsudoForIdx(i){ var p=PEOPLE[i]; if(p) openKatsudoFor(p.name); }
 function openKatsudoFor(name){ katPendingWho=name; nav('katsudo'); }
+
+/* ===== 📝 メモ（名刺前の下書き・自由メモ／スタッフも閲覧可・スプレッドシート保存） ===== */
+var RTMEMO=[]; var memoLoaded=false; var memoSkelBuilt=false; var memoEditId='';
+function memoPw(){ return savedSecret() || oosSavedPw('secret') || password || ''; }
+function memoOpen(){
+  var box=document.getElementById('memo-body'); if(!box) return;
+  if(!memoLoaded){ box.innerHTML='<div class="mini" style="padding:22px;text-align:center;">読み込み中…</div>'; memoLoad(); return; }
+  memoRender();
+}
+function memoLoad(){
+  var pw=memoPw(); if(!pw){ document.getElementById('memo-body').innerHTML='<div class="card">合言葉が確認できませんでした。台帳に入り直してください。</div>'; return; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'loadRtMemos',password:pw})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'&&d.data){ RTMEMO=d.data.memos||[]; memoLoaded=true; memoRender(); }
+      else { document.getElementById('memo-body').innerHTML='<div class="card">読み込めませんでした：'+esc((d&&d.message)||'不明')+'</div>'; }
+    })
+    .catch(function(){ document.getElementById('memo-body').innerHTML='<div class="card">通信できませんでした。電波の良いところでお試しください。</div>'; });
+}
+function memoRender(){ if(!memoSkelBuilt){ memoBuildSkeleton(); memoSkelBuilt=true; } memoRenderList(); }
+function memoBuildSkeleton(){
+  var box=document.getElementById('memo-body'); if(!box) return;
+  box.innerHTML=
+    '<div class="memo-note">名刺やカードがまだ無い人のこと・今度会う人・その場で決まったこと…を、どこにも紐づけず思いついたまま書き留める場所です。スタッフも見られます。</div>'
+    +'<div class="card">'
+      +'<div id="memo-form-title" style="font-weight:800;font-size:16px;margin-bottom:10px;">✍️ ちょこっと書きとめる</div>'
+      +'<textarea id="memo-text" class="memo-in" style="min-height:74px;" placeholder="例：東京ベイコートの新しい料理長は麻生さん。まだ名刺もらってない。近いうち仕込み中にご挨拶に行く予定。"></textarea>'
+      +'<div style="display:flex;gap:8px;align-items:center;margin-top:11px;flex-wrap:wrap;">'
+        +'<span style="font-size:13px;color:#6f6a5f;font-weight:700;">日付</span>'
+        +'<input id="memo-date" type="date" class="memo-in" style="width:auto;">'
+        +'<button id="memo-save" onclick="memoSave()" class="memo-savebtn">書きとめる</button>'
+        +'<button id="memo-cancel" onclick="memoReset()" style="display:none;background:#eee;color:#555;border:none;border-radius:11px;padding:12px 16px;font-size:15px;font-weight:700;cursor:pointer;">やめる</button>'
+      +'</div>'
+    +'</div>'
+    +'<div style="font-weight:800;font-size:15px;margin:4px 2px 9px;">🗒 書きとめたメモ（新しい順）<span id="memo-count" class="mini"></span></div>'
+    +'<div id="memo-list"></div>';
+  var d=document.getElementById('memo-date'); if(d) d.value=today();
+}
+function memoSave(){
+  var pw=memoPw(); if(!pw){ alert('合言葉が確認できませんでした。台帳に入り直してください。'); return; }
+  var text=(document.getElementById('memo-text').value||'').trim();
+  if(!text){ alert('メモを書いてください。'); return; }
+  var memo={
+    id: memoEditId || ('m'+Date.now()+Math.floor(Math.random()*1000)),
+    date: (document.getElementById('memo-date').value||today()),
+    text: text,
+    createdAt: memoEditId ? (memoFindCreatedAt(memoEditId)||new Date().toISOString()) : new Date().toISOString()
+  };
+  var btn=document.getElementById('memo-save'); if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveRtMemo',password:pw,memo:memo})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(btn){ btn.disabled=false; btn.textContent='書きとめる'; }
+      if(d&&d.status==='ok'){
+        var found=false;
+        for(var i=0;i<RTMEMO.length;i++){ if(RTMEMO[i].id===memo.id){ RTMEMO[i]=memo; found=true; break; } }
+        if(!found) RTMEMO.push(memo);
+        memoReset(); memoRenderList();
+        if(typeof setSync==='function') setSync('メモを書きとめました');
+      } else { alert('保存できませんでした：'+((d&&d.message)||'不明')); }
+    })
+    .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='書きとめる'; } alert('通信できませんでした。'); });
+}
+function memoFindCreatedAt(id){ for(var i=0;i<RTMEMO.length;i++){ if(RTMEMO[i].id===id) return RTMEMO[i].createdAt; } return ''; }
+function memoReset(){
+  memoEditId='';
+  var t=document.getElementById('memo-text'); if(t) t.value='';
+  var d=document.getElementById('memo-date'); if(d) d.value=today();
+  var ttl=document.getElementById('memo-form-title'); if(ttl) ttl.textContent='✍️ ちょこっと書きとめる';
+  var cb=document.getElementById('memo-cancel'); if(cb) cb.style.display='none';
+}
+function memoEdit(id){
+  var m=null; for(var i=0;i<RTMEMO.length;i++){ if(RTMEMO[i].id===id){ m=RTMEMO[i]; break; } }
+  if(!m) return;
+  memoEditId=m.id;
+  document.getElementById('memo-text').value=m.text||'';
+  document.getElementById('memo-date').value=m.date||today();
+  document.getElementById('memo-form-title').textContent='✏️ メモを直す';
+  var cb=document.getElementById('memo-cancel'); if(cb) cb.style.display='';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function memoDelete(id){
+  if(!confirm('このメモを消しますか？')) return;
+  var pw=memoPw(); if(!pw){ alert('合言葉が確認できませんでした。'); return; }
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'deleteRtMemo',password:pw,id:id})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'){ RTMEMO=RTMEMO.filter(function(x){return x.id!==id;}); if(memoEditId===id) memoReset(); memoRenderList(); }
+      else alert('消せませんでした：'+((d&&d.message)||'不明'));
+    })
+    .catch(function(){ alert('通信できませんでした。'); });
+}
+function memoRenderList(){
+  var box=document.getElementById('memo-list'); if(!box) return;
+  var list=RTMEMO.slice();
+  list.sort(function(a,b){
+    var da=(a.date||''), db=(b.date||'');
+    if(da!==db) return da<db?1:-1;
+    return (a.createdAt||'')<(b.createdAt||'')?1:-1;
+  });
+  var cnt=document.getElementById('memo-count'); if(cnt) cnt.textContent=' （'+list.length+'件）';
+  if(!list.length){ box.innerHTML='<div class="mini" style="padding:16px;text-align:center;color:#8a857a;">まだメモがありません。上の欄に書いて「書きとめる」を押してください。</div>'; return; }
+  box.innerHTML=list.map(function(m){
+    return '<div class="memo-item"><div class="top">'
+      +'<span class="memo-date">'+esc(m.date||'')+'</span>'
+      +'<button class="memo-edit" onclick="memoEdit(\''+m.id+'\')">直す</button>'
+      +'<button class="memo-del" onclick="memoDelete(\''+m.id+'\')">消す</button>'
+      +'</div><div class="memo-text">'+esc(m.text||'')+'</div></div>';
+  }).join('');
+}
 
 </script>
 </body>
