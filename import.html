@@ -325,6 +325,25 @@ tr:last-child td{border-bottom:none}
         <span class="sec" style="margin:0">📊 輸入準備の表</span>
         <span style="margin-left:auto;font-size:12px;color:#57534e">黄色＝入力（在庫・予約・目標）／<span style="background:#fde3b3;padding:0 5px;border-radius:4px">オレンジ＝農園に発注する数</span></span>
       </div>
+      <div style="margin-bottom:10px">
+        <button class="btn-sm" onclick="prepToggleAddForm()" style="border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer">＋ 商品を追加（自分で記入）</button>
+        <div id="prep-addform" style="display:none;border:2px solid #0f5a4a;background:#f4faf8;border-radius:12px;padding:13px;margin-top:8px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px">
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">品目名 ＊</label><input id="pa-name" placeholder="例：唐辛子オイル 100ml" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">品番</label><input id="pa-sku" placeholder="例：TGR100" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">容量</label><input id="pa-vol" placeholder="例：100ml" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">容器</label><select id="pa-cont" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"><option>瓶</option><option>缶</option><option>箱</option><option>その他</option></select></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">1箱の入数</label><input id="pa-box" inputmode="numeric" placeholder="例：24（無ければ空）" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">現在庫</label><input id="pa-stock" inputmode="numeric" placeholder="例：0" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">残したい目標</label><input id="pa-target" inputmode="numeric" placeholder="例：0" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+            <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">RTコード（任意）</label><input id="pa-rt" placeholder="任意・セット照合用" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:11px">
+            <button onclick="prepAddProduct()" style="flex:1;background:#0f5a4a;color:#fff;border:none;font-size:15px;font-weight:800;padding:10px;border-radius:9px;cursor:pointer">追加する</button>
+            <button onclick="prepToggleAddForm()" style="flex:1;background:#eee;color:#555;border:none;font-size:15px;font-weight:800;padding:10px;border-radius:9px;cursor:pointer">やめる</button>
+          </div>
+        </div>
+      </div>
       <div id="prep-table-wrap" class="tbl-wrap" style="margin-bottom:0"></div>
     </div>
     <div class="card" id="prep-order-card" style="background:#fff8ee;border-color:#f0c987">
@@ -3076,9 +3095,13 @@ var prepMode = {};
 var prepHistory = [];
 var prepFolderUrl = '';
 var prepOrderNotes = [];
+var prepAdded = [];   /* 自分で足した商品（完全オブジェクト） */
+var prepRemoved = []; /* 消した商品のid */
+function prepProducts(){ return PREP_PRODUCTS.concat(prepAdded).filter(function(p){ return prepRemoved.indexOf(p.id)<0; }); }
+function prepNewProdId(){ return 'U'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
 var prepLabelLinks = [];
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
-function prepFind(id){ for(var i=0;i<PREP_PRODUCTS.length;i++) if(PREP_PRODUCTS[i].id===id) return PREP_PRODUCTS[i]; return null; }
+function prepFind(id){ var all=prepProducts(); for(var i=0;i<all.length;i++) if(all[i].id===id) return all[i]; return null; }
 function prepSetFree(id,field,val){ var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender(); }
 function prepSetRes(id,val){
   if(!confirm('RTの予約数を本当に変更しますか？')){ prepRender(); return; }
@@ -3095,8 +3118,9 @@ function prepEditMaster(id,field,label,isNum){
 }
 function prepChoose(id,mode){ prepMode[id]=mode; prepRender(); }
 function prepCalc(){
-  var setRes={}; PREP_PRODUCTS.forEach(function(p){ if(p.rt) setRes[p.rt]=(prepNum(p.res)||0); });
-  return PREP_PRODUCTS.map(function(p){
+  var all=prepProducts();
+  var setRes={}; all.forEach(function(p){ if(p.rt) setRes[p.rt]=(prepNum(p.res)||0); });
+  return all.map(function(p){
     var setDerived=0;
     PREP_SETS.forEach(function(s){ if(s.comp===p.rt){ setDerived += (s.qty||1)*(setRes[s.set]||0); } });
     var target=prepNum(p.target)||0, stock=prepNum(p.stock)||0, res=prepNum(p.res)||0;
@@ -3143,7 +3167,7 @@ function prepRender(){
     } else choose='<span style="font-size:10px;color:#999">入数未設定</span>';
     var fBox=(r.finalBox==null)?'—':(r.finalBox+'箱');
     h+='<tr>'
-      +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+'</td>'
+      +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+' <button title="この商品を表から消す" onclick="prepRemoveProduct(\''+p.id+'\')" style="border:1px solid #e0b5b1;background:#fff;color:#a1443c;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;cursor:pointer;margin-left:4px">🗑</button>'+((prepAdded.indexOf(p)>=0)?' <span style="font-size:10px;font-weight:800;color:#0f5a4a;background:#d3efe6;border-radius:5px;padding:1px 5px">追加</span>':'')+'</td>'
       +'<td style="text-align:center;color:#1f4e78;font-weight:700">'+prepMcell(p.id,'sku','品番',p.sku,false)+'</td>'
       +'<td style="text-align:center">'+prepMcell(p.id,'vol','容量',p.vol,false)+'</td>'
       +'<td style="text-align:center">'+prepMcell(p.id,'cont','容器',p.cont,false)+'</td>'
@@ -3160,7 +3184,10 @@ function prepRender(){
       +'<td style="text-align:right">'+prepFmtNeg(r.realRemain)+'</td></tr>';
   });
   var totN=rows.reduce(function(a,r){return a+r.finalN;},0);
-  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="13" style="text-align:right;font-weight:700">合計 輸入本数 →</td><td style="text-align:right;'+IMP+'font-size:15px">'+totN+'</td><td></td></tr>';
+  var totBox=rows.reduce(function(a,r){return a+((r.finalBox!=null && !isNaN(r.finalBox))?r.finalBox:0);},0); /* 箱の無いものは0として合計 */
+  h+='<tr style="border-top:2px solid #d8cfc4"><td colspan="12" style="text-align:right;font-weight:700">合計 →</td>'
+    +'<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+totBox+'箱</td>'
+    +'<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+totN+'</td><td></td></tr>';
   h+='</tbody></table>';
   wrap.innerHTML=h;
   var ol=document.getElementById('prep-order-list');
@@ -3180,7 +3207,7 @@ function prepRender(){
 var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
-  var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,orderNotes:prepOrderNotes,labelLinks:prepLabelLinks,p:{}};
+  var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,orderNotes:prepOrderNotes,labelLinks:prepLabelLinks,added:prepAdded,removed:prepRemoved,p:{}};
   PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,notes:p.notes,enName:p.enName}; });
   return st;
 }
@@ -3191,6 +3218,8 @@ function prepApplyState(st){
   if(st.folderUrl!=null) prepFolderUrl=st.folderUrl;
   if(st.orderNotes) prepOrderNotes=st.orderNotes.map(prepMigNote);
   if(st.labelLinks) prepLabelLinks=st.labelLinks;
+  prepAdded = Array.isArray(st.added) ? st.added : [];
+  prepRemoved = Array.isArray(st.removed) ? st.removed : [];
   if(st.p){ PREP_PRODUCTS.forEach(function(p){ var s=st.p[p.id]; if(!s) return;
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
     if(s.name!=null)p.name=s.name; if(s.sku!=null)p.sku=s.sku; if(s.vol!=null)p.vol=s.vol; if(s.cont!=null)p.cont=s.cont;
@@ -3275,7 +3304,33 @@ function prepColorOf(p){ return p.lblColor||'Color'; }
 function prepUrlOf(p){ return p.lblUrl||''; }
 function prepAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRenderOrderEN(); }
-function prepBulk(field,val){ PREP_PRODUCTS.forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
+function prepBulk(field,val){ prepProducts().forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
+function prepToggleAddForm(){ var f=document.getElementById('prep-addform'); if(f) f.style.display=(f.style.display==='none'||!f.style.display)?'block':'none'; }
+function prepPV(id){ var el=document.getElementById(id); return el?el.value.trim():''; }
+function prepAddProduct(){
+  var name=prepPV('pa-name'); if(!name){ alert('品目名を入れてください。'); return; }
+  function numOrNull(v){ v=(v||'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
+  var prod={ id:prepNewProdId(), sku:prepPV('pa-sku'), name:name, cat:'（追加）', vol:prepPV('pa-vol'),
+    cont:(document.getElementById('pa-cont')?document.getElementById('pa-cont').value:'瓶'),
+    rt:(prepPV('pa-rt')||null), box:numOrNull(prepPV('pa-box')),
+    res:0, stock:(numOrNull(prepPV('pa-stock'))||0), target:(numOrNull(prepPV('pa-target'))||0) };
+  prepAdded.push(prod);
+  ['pa-name','pa-sku','pa-vol','pa-box','pa-stock','pa-target','pa-rt'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  prepToggleAddForm();
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon();
+  prepRender();
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ 「'+name+'」を追加しました');
+}
+function prepRemoveProduct(id){
+  var p=prepFind(id); var nm=p?p.name:id;
+  if(!confirm('「'+nm+'」を表から消します。よろしいですか？')) return;
+  var ai=-1; for(var k=0;k<prepAdded.length;k++){ if(prepAdded[k].id===id){ ai=k; break; } }
+  if(ai>=0){ prepAdded.splice(ai,1); }            /* 自分で足したもの→リストから削除 */
+  else { if(prepRemoved.indexOf(id)<0) prepRemoved.push(id); } /* 元からのもの→非表示リストへ */
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon();
+  prepRender();
+  if(typeof showSyncStatus==='function') showSyncStatus('🗑 「'+nm+'」を消しました');
+}
 function prepNotesText(p){ var u=(p.notes||[]).map(function(n){return (n.c?'[済] ':'[  ] ')+(n.t||'');}); return PREP_FIXED_NOTES.concat(u).join(' / '); }
 function prepNotesCell(p){
   var h='';
