@@ -346,6 +346,12 @@ tr:last-child td{border-bottom:none}
       </div>
       <div id="prep-table-wrap" class="tbl-wrap" style="margin-bottom:0"></div>
     </div>
+    <div class="card" style="border-color:#0f5a4a">
+      <div class="sec">📦 同梱依頼物（オイル以外・農園へのお願い）</div>
+      <div style="font-size:12px;color:#57534e;margin-bottom:8px;line-height:1.7;background:#eef4f1;border-radius:8px;padding:8px 10px">予備ラベルなど「箱に一緒に入れてほしいもの」を書きます。<b>箱数・本数の計算には入りません。</b>下の<b>農園用オーダー表にも「同梱依頼物」の別ブロック</b>として出るので、備考より目立って忘れられにくいです。</div>
+      <div id="prep-copack-wrap" class="tbl-wrap" style="margin-bottom:8px"></div>
+      <button class="btn-sm" onclick="prepCopackAdd()" style="border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer">＋ 同梱依頼物を追加</button>
+    </div>
     <div class="card" id="prep-order-card" style="background:#fff8ee;border-color:#f0c987">
       <div class="sec">🚚 農園への発注リスト（＝輸入するもの）</div>
       <div id="prep-order-list" style="font-size:13px;line-height:1.9"></div>
@@ -369,6 +375,7 @@ tr:last-child td{border-bottom:none}
       </div>
       <div id="prep-folder-en" style="font-size:12px;margin-bottom:8px;padding:6px 10px;background:#fbf7ef;border:1px solid #ecdfc7;border-radius:6px"></div>
       <div id="prep-order-en" class="tbl-wrap" style="margin-bottom:0"></div>
+      <div id="prep-copack-en" style="margin-top:12px"></div>
       <div id="prep-label-links" style="margin-top:12px"></div>
       <div id="prep-order-notes" style="margin-top:12px"></div>
     </div>
@@ -3097,12 +3104,17 @@ var prepFolderUrl = '';
 var prepOrderNotes = [];
 var prepAdded = [];   /* 自分で足した商品（完全オブジェクト） */
 var prepRemoved = []; /* 消した商品のid */
+var prepCopack = []; /* 同梱依頼物（オイル以外）：{name,qty,unit,tr,memo} */
 function prepProducts(){ return PREP_PRODUCTS.concat(prepAdded).filter(function(p){ return prepRemoved.indexOf(p.id)<0; }); }
 function prepNewProdId(){ return 'U'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
 var prepLabelLinks = [];
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
 function prepFind(id){ var all=prepProducts(); for(var i=0;i<all.length;i++) if(all[i].id===id) return all[i]; return null; }
-function prepSetFree(id,field,val){ var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender(); }
+function prepSetFree(id,field,val){
+  var lbl = field==='stock' ? '現在庫' : (field==='target' ? '残したい目標' : field);
+  if(!confirm('「'+lbl+'」を本当に数を変えますか？')){ prepRender(); return; }
+  var p=prepFind(id); if(p){ p[field]=prepNum(val); } prepRender();
+}
 function prepSetRes(id,val){
   if(!confirm('RTの予約数を本当に変更しますか？')){ prepRender(); return; }
   var p=prepFind(id); if(p){ p.res=prepNum(val); } prepRender();
@@ -3198,6 +3210,8 @@ function prepRender(){
   ol.innerHTML=lines.length? lines.join('<br>')+'<div style="margin-top:8px;font-size:12px;color:#7a5a1a">合計 '+totN+'本</div>' : '<span style="color:#999">輸入が必要な商品はありません。</span>';  prepRenderOrderEN();
   prepRenderLabelLinks();
   prepRenderOrderNotes();
+  prepRenderCopack();
+  prepRenderCopackEN();
   prepRenderHistory();
   prepRenderFolder();
   prepSaveLocal();
@@ -3207,7 +3221,7 @@ function prepRender(){
 var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
-  var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,orderNotes:prepOrderNotes,labelLinks:prepLabelLinks,added:prepAdded,removed:prepRemoved,p:{}};
+  var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,orderNotes:prepOrderNotes,labelLinks:prepLabelLinks,added:prepAdded,removed:prepRemoved,copack:prepCopack,p:{}};
   PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,notes:p.notes,enName:p.enName}; });
   return st;
 }
@@ -3219,6 +3233,7 @@ function prepApplyState(st){
   if(st.orderNotes) prepOrderNotes=st.orderNotes.map(prepMigNote);
   if(st.labelLinks) prepLabelLinks=st.labelLinks;
   prepAdded = Array.isArray(st.added) ? st.added : [];
+  prepCopack = Array.isArray(st.copack) ? st.copack : [];
   prepRemoved = Array.isArray(st.removed) ? st.removed : [];
   if(st.p){ PREP_PRODUCTS.forEach(function(p){ var s=st.p[p.id]; if(!s) return;
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
@@ -3305,6 +3320,47 @@ function prepUrlOf(p){ return p.lblUrl||''; }
 function prepAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRenderOrderEN(); }
 function prepBulk(field,val){ prepProducts().forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
+/* === 📦 同梱依頼物（オイル以外・農園へのお願い） === */
+function prepCEsc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function prepCAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function prepRenderCopack(){
+  var box=document.getElementById('prep-copack-wrap'); if(!box) return;
+  var h='<table style="min-width:660px"><thead><tr>'
+    +'<th style="width:26%">品目名</th><th style="width:64px">数量</th><th style="width:74px">単位</th><th>トルコ語（農園向け）</th><th>メモ</th><th style="width:56px">操作</th>'
+    +'</tr></thead><tbody>';
+  if(!prepCopack.length){ h+='<tr><td colspan="6" style="color:#999;text-align:center;padding:9px">（まだありません）下の「＋ 同梱依頼物を追加」で足せます</td></tr>'; }
+  prepCopack.forEach(function(r,i){
+    h+='<tr>'
+      +'<td><input value="'+prepCAttr(r.name)+'" oninput="prepCopackSet('+i+',\'name\',this.value)" style="width:100%;border:1px solid #d8cfc4;border-radius:5px;padding:5px;font-weight:600"></td>'
+      +'<td><input value="'+prepCAttr(r.qty)+'" inputmode="numeric" oninput="prepCopackSet('+i+',\'qty\',this.value)" style="width:100%;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:5px"></td>'
+      +'<td><input value="'+prepCAttr(r.unit)+'" placeholder="枚/個/本" oninput="prepCopackSet('+i+',\'unit\',this.value)" style="width:100%;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:5px"></td>'
+      +'<td><input value="'+prepCAttr(r.tr)+'" placeholder="トルコ語（空OK）" oninput="prepCopackSet('+i+',\'tr\',this.value)" style="width:100%;color:#7a1a12;font-weight:700;background:#fffdf8;border:1px solid #d8cfc4;border-radius:5px;padding:5px"></td>'
+      +'<td><input value="'+prepCAttr(r.memo)+'" placeholder="ひとこと" oninput="prepCopackSet('+i+',\'memo\',this.value)" style="width:100%;border:1px solid #d8cfc4;border-radius:5px;padding:5px"></td>'
+      +'<td style="text-align:center"><button title="この行を消す" onclick="prepCopackDel('+i+')" style="border:1px solid #e0b5b1;background:#fff;color:#a1443c;font-size:12px;font-weight:800;padding:4px 8px;border-radius:7px;cursor:pointer">🗑</button></td>'
+    +'</tr>';
+  });
+  h+='</tbody></table>';
+  box.innerHTML=h;
+}
+function prepRenderCopackEN(){
+  var box=document.getElementById('prep-copack-en'); if(!box) return;
+  if(!prepCopack.length){ box.innerHTML=''; return; }
+  var h='<div style="border:1px solid #cfe0d6;background:#f2f8f4;border-radius:8px;padding:10px 12px">';
+  h+='<div style="font-weight:800;font-size:13px;color:#0f5a4a;margin-bottom:6px">📦 Extra items to include in the boxes ／ Koliye eklenecekler（同梱依頼物）</div>';
+  prepCopack.forEach(function(r){
+    var q=(r.qty?(''+r.qty):'')+(r.unit?(' '+r.unit):'');
+    var tr=(r.tr||'').trim();
+    h+='<div style="font-size:13px;padding:3px 0;border-top:1px dashed #d6e6dd">'
+      +'<span style="font-weight:700;color:#7a1a12">'+(tr?prepCEsc(tr):'（トルコ語 未記入）')+'</span>'
+      +' — <span style="color:#3a4a44">'+prepCEsc((q?(q+'　'):'')+(r.name||''))+(r.memo?('（'+prepCEsc(r.memo)+'）'):'')+'</span></div>';
+  });
+  h+='</div>';
+  box.innerHTML=h;
+}
+function prepCopackAdd(){ prepCopack.push({name:'',qty:'',unit:'',tr:'',memo:''}); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderCopack(); prepRenderCopackEN();
+  setTimeout(function(){ var ins=document.querySelectorAll('#prep-copack-wrap tbody tr:last-child input'); if(ins[0]) ins[0].focus(); },0); }
+function prepCopackDel(i){ if(!prepCopack[i]) return; if(!confirm('「'+(prepCopack[i].name||'この行')+'」を本当に消しますか？')) return; prepCopack.splice(i,1); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderCopack(); prepRenderCopackEN(); }
+function prepCopackSet(i,field,val){ if(prepCopack[i]){ prepCopack[i][field]=val; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderCopackEN(); }
 function prepToggleAddForm(){ var f=document.getElementById('prep-addform'); if(f) f.style.display=(f.style.display==='none'||!f.style.display)?'block':'none'; }
 function prepPV(id){ var el=document.getElementById(id); return el?el.value.trim():''; }
 function prepAddProduct(){
@@ -3323,7 +3379,7 @@ function prepAddProduct(){
 }
 function prepRemoveProduct(id){
   var p=prepFind(id); var nm=p?p.name:id;
-  if(!confirm('「'+nm+'」を表から消します。よろしいですか？')) return;
+  if(!confirm('「'+nm+'」を本当に消しますか？')) return;
   var ai=-1; for(var k=0;k<prepAdded.length;k++){ if(prepAdded[k].id===id){ ai=k; break; } }
   if(ai>=0){ prepAdded.splice(ai,1); }            /* 自分で足したもの→リストから削除 */
   else { if(prepRemoved.indexOf(id)<0) prepRemoved.push(id); } /* 元からのもの→非表示リストへ */
@@ -3526,6 +3582,8 @@ function prepExportCSV(){
   lines.push(esc('備考 / Notes / Notlar'));
   for(var fi=0;fi<PREP_FIXED_NOTES.length;fi++){ lines.push(esc(PREP_FIXED_NOTES[fi])); }
   for(var oi=0;oi<prepOrderNotes.length;oi++){ var _n=prepOrderNotes[oi]; var _jv=(_n.ja!=null?_n.ja:(_n.t||'')); lines.push(esc((_n.c?'[済] ':'[  ] ')+(_n.cat?('['+_n.cat+'] '):'')+_jv+(_n.tr?(' | TR: '+_n.tr):''))); }
+  if(prepCopack.length){ lines.push(''); lines.push(esc('📦 同梱依頼物 / Extra items to include / Koliye eklenecekler'));
+    for(var ci=0;ci<prepCopack.length;ci++){ var _c=prepCopack[ci]; var _q=(_c.qty?(''+_c.qty):'')+(_c.unit?(' '+_c.unit):''); lines.push(esc((_c.tr?(_c.tr+' | '):'')+(_q?(_q+' '):'')+(_c.name||'')+(_c.memo?(' ('+_c.memo+')'):''))); } }
   var csv='\uFEFF'+lines.join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
