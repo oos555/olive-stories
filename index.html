@@ -1605,6 +1605,18 @@ function ensureRtProducts(){
 }
 ensureRtProducts();
 
+// ── EC営業課の注文だけ届け先になる「京都のリゾートトラスト通販倉庫」（住所は固定）──────────
+// リゾートトラスト社のEC営業課からの注文は、伝票に載っている発注元（名古屋等）ではなく、
+// 委託先のこの倉庫へ届ける。伝票のあて名（＝御中）はそのまま、届け先だけここに差し替える。
+// ※印字物には社内隠語「RT」を書かず、正式名称「リゾートトラスト」で表記する。
+const EC_WAREHOUSE = {
+  companyName: '株式会社カワタキコーポレーション内【リゾートトラスト 通販倉庫宛】',
+  zip: '601-8203',
+  addr: '京都府京都市南区久世築山町212-1',
+  tel: '075-925-1266',
+  bikoLine: 'お届け先：〒601-8203 京都府京都市南区久世築山町212-1　株式会社カワタキコーポレーション内　リゾートトラスト様通販倉庫に納品しています。'
+};
+
 const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'包装紙ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)', w1:'卸①価格', w2:'卸②価格' };
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
@@ -2096,6 +2108,7 @@ function addRecipient(){
     '<div data-role="addrFields" style="display:none">'+
     '<div data-role="giftHint" style="display:none;background:#fdf6ee;border:1px solid #d9a441;border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#8a5a1c">🎁 ギフトのため、お届け先は発注者と別の住所を入れてください</div>'+
     '<button type="button" class="btn-sm" data-role="resetAddrBtn" onclick="setRecipientAddrMode(\''+id+'\',true)" style="margin-bottom:10px">↩ 発注者と同じ住所に戻す</button>'+
+    '<button type="button" class="btn-sm" onclick="fillEcWarehouse(\''+id+'\')" style="margin:0 0 10px 6px;border:1.5px solid #c2761f;color:#7c3a12;font-weight:800;background:#fff7ec">🛒 京都のリゾートトラスト通販倉庫を入れる（EC注文）</button>'+
     '<div class="fg"><label>届け先の種類</label>'+
       '<div style="display:flex;gap:16px;padding:4px 0">'+
         '<label style="font-weight:400;display:flex;align-items:center;gap:4px"><input type="radio" name="rtype-'+id+'" value="individual" data-role="rtypeInd" checked onchange="onRecipientTypeChange(\''+id+'\')">個人</label>'+
@@ -4947,6 +4960,14 @@ function rtSetActionsEnabled(on){
   if(hint){ hint.style.display=on?'none':'block'; }
 }
 function rtRateCloseDetails(){ var d=document.getElementById('rtc-rate-details'); if(d) d.open=false; }
+// 🛒 EC注文の切替：チェックすると届け先を京都のリゾートトラスト通販倉庫にする（納品書のあて名＝伝票のままは変えない）
+function rtToggleEc(on){
+  if(!rtParsed) return;
+  rtParsed.ecShip = !!on;
+  var box=document.getElementById('rt-ec-addr'); if(box) box.style.display = on ? 'block' : 'none';
+  var lab=document.getElementById('rt-ec-label');
+  if(lab){ lab.style.background = on ? '#fff3e6' : '#f7f6f2'; lab.style.borderColor = on ? '#c2761f' : '#d5cfc3'; }
+}
 function renderRtPreview(){
   const p = rtParsed;
   const el = document.getElementById('rt-preview');
@@ -4968,6 +4989,24 @@ function renderRtPreview(){
       +'<div class="g3" style="margin-bottom:6px">'+rtFld('会社名・お届け先','recipientName',p.recipientName,2)+rtFld('納品先（部門）','dept',p.dept,1)+'</div>'
       +'<div class="g3" style="margin-bottom:6px">'+rtFld('郵便番号','zip',p.zip,1)+rtFld('住所','addr',p.addr,2)+'</div>'
       +'<div class="g3">'+rtFld('電話番号','tel',p.tel,1)+rtFld('納品予定日','deliveryDate',p.deliveryDate,1)+rtFld('伝票番号','slipNo',p.slipNo,1)+'</div>'
+      +'<div style="margin-top:12px">'
+        +'<label id="rt-ec-label" style="display:flex;align-items:flex-start;gap:9px;background:'+(p.ecShip?'#fff3e6':'#f7f6f2')+';border:2px solid '+(p.ecShip?'#c2761f':'#d5cfc3')+';border-radius:10px;padding:11px 13px;cursor:pointer">'
+          +'<input type="checkbox" '+(p.ecShip?'checked':'')+' onchange="rtToggleEc(this.checked)" style="width:20px;height:20px;margin-top:1px;flex:none">'
+          +'<span>'
+            +'<span style="font-size:15px;font-weight:800;color:#7c3a12">🛒 ECの注文（京都のリゾートトラスト通販倉庫に届ける）</span>'
+            +'<span style="display:block;font-size:12.5px;color:#5a4a3a;margin-top:2px;line-height:1.7">チェックすると、<b>お届け先が下の住所</b>になります。上の「会社名・お届け先」欄は<b>伝票のまま＝納品書のあて名（御中）</b>として使われます。</span>'
+          +'</span>'
+        +'</label>'
+        +'<div id="rt-ec-addr" style="display:'+(p.ecShip?'block':'none')+';margin-top:8px;background:#f6faf0;border:2px solid #6b7a3a;border-radius:10px;padding:13px 15px">'
+          +'<div style="font-size:12.5px;font-weight:800;color:#5c6636;margin-bottom:6px">▼ 実際のお届け先（この住所で発送します）</div>'
+          +'<div style="font-size:16px;font-weight:800;color:#2b2a26;line-height:1.85">'
+            +'〒'+esc(EC_WAREHOUSE.zip)+'　'+esc(EC_WAREHOUSE.addr)+'<br>'
+            +esc(EC_WAREHOUSE.companyName)+'<br>'
+            +'TEL '+esc(EC_WAREHOUSE.tel)
+          +'</div>'
+          +'<div style="font-size:12px;color:#5a4a3a;margin-top:8px;line-height:1.7">納品書のあて名は伝票の発注元のまま／備考に「リゾートトラスト様通販倉庫に納品しています」を自動で入れます。</div>'
+        +'</div>'
+      +'</div>'
       +'<div style="margin:12px 0 0;background:#eef4f9;border:1.5px solid #b9d0e3;border-radius:8px;padding:9px 11px">'
         +'<div style="font-size:12px;font-weight:700;color:#1f4a6d;margin-bottom:4px">納品書番号（伝票番号を自動で入れています／必要なら直せます）</div>'
         +'<input type="text" value="'+esc(p.nouhinNo||p.slipNo||'')+'" oninput="rtParsed.nouhinNo=this.value" style="width:200px;padding:7px;border:1.5px solid #b9d0e3;border-radius:6px;font-size:17px;font-weight:800;color:#2b2a26">'
@@ -5056,7 +5095,7 @@ function rtDeliveryNoteHtml(){
       +'<div class="dn-note">'+(hasReduced?'※印は軽減税率対象です。':'')+'</div>'
       +'<div class="dn-uchiwake"><div class="uw-h">内訳</div>'+uchiwake+'</div>'
     +'</div>'
-    +'<div class="dn-biko"><div class="biko-h">備考</div>'+(p.orderDate?'<div>受注日：'+esc(p.orderDate)+'</div>':'')+'<div>いつもありがとうございます。</div></div>'
+    +'<div class="dn-biko"><div class="biko-h">備考</div>'+(p.ecShip?'<div>'+esc(EC_WAREHOUSE.bikoLine)+'</div>':'')+(p.orderDate?'<div>受注日：'+esc(p.orderDate)+'</div>':'')+'<div>いつもありがとうございます。</div></div>'
   +'</div>';
 }
 function rtDeliveryNoteCss(){ return '*{box-sizing:border-box;margin:0;padding:0}'
@@ -5250,6 +5289,20 @@ function cancelRtImport(){
   if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(false);
 }
 function rtSetVal(card, role, v){ const el = card.querySelector('[data-role='+role+']'); if(el) el.value = (v||''); }
+// 🛒 手入力の届け先カードに、京都のリゾートトラスト通販倉庫（EC注文の届け先）を一発で入れる
+function fillEcWarehouse(cardId){
+  var card=document.getElementById(cardId); if(!card) return;
+  var com=card.querySelector('[data-role=rtypeCom]');
+  if(com){ com.checked=true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(cardId); }
+  rtSetVal(card,'companyName', EC_WAREHOUSE.companyName);
+  rtSetVal(card,'deptName','');
+  rtSetVal(card,'positionName','');
+  rtSetVal(card,'personName','');
+  rtSetVal(card,'zip', EC_WAREHOUSE.zip);
+  rtSetVal(card,'addr', EC_WAREHOUSE.addr);
+  rtSetVal(card,'tel', EC_WAREHOUSE.tel);
+  if(typeof showSyncStatus==='function') showSyncStatus('🛒 お届け先に「リゾートトラスト通販倉庫（京都）」を入れました。ご確認ください');
+}
 function applyRtToOrderForm(){
   if(!rtParsed) return;
   const p = rtParsed;
@@ -5279,13 +5332,24 @@ function applyRtToOrderForm(){
   const card = cards[cards.length-1];
   const comRadio = card.querySelector('[data-role=rtypeCom]');
   if(comRadio){ comRadio.checked = true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(card.id); }
-  rtSetVal(card,'companyName', p.recipientName);
-  rtSetVal(card,'deptName', p.dept);
-  rtSetVal(card,'personName','');
-  rtSetVal(card,'zip', p.zip);
-  rtSetVal(card,'addr', p.addr);
-  rtSetVal(card,'tel', p.tel);
-  rtSetVal(card,'note', memoText);
+  if(p.ecShip){
+    // ECの注文：実際のお届け先＝京都のリゾートトラスト通販倉庫（発注元・請求先はRT施設のまま）
+    rtSetVal(card,'companyName', EC_WAREHOUSE.companyName);
+    rtSetVal(card,'deptName','');
+    rtSetVal(card,'personName','');
+    rtSetVal(card,'zip', EC_WAREHOUSE.zip);
+    rtSetVal(card,'addr', EC_WAREHOUSE.addr);
+    rtSetVal(card,'tel', EC_WAREHOUSE.tel);
+    rtSetVal(card,'note', memoText + ' ／ EC注文（リゾートトラスト通販倉庫あて）');
+  } else {
+    rtSetVal(card,'companyName', p.recipientName);
+    rtSetVal(card,'deptName', p.dept);
+    rtSetVal(card,'personName','');
+    rtSetVal(card,'zip', p.zip);
+    rtSetVal(card,'addr', p.addr);
+    rtSetVal(card,'tel', p.tel);
+    rtSetVal(card,'note', memoText);
+  }
 
   // 商品行
   const linesWrap = card.querySelector('[data-role=lines]');
