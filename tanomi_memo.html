@@ -130,6 +130,11 @@
   .uin-price { width:96px; font-size:15px; font-weight:800; color:#7c2d12; text-align:right; }
   .u-del, .d-del { border:none; background:transparent; color:#c08; font-size:16px; cursor:pointer; padding:2px 6px; }
   .u-add { margin-top:6px; width:100%; border:1.5px dashed #c9b48f; background:#fff; color:#7a5f2a; font-weight:800; font-size:12.5px; padding:7px; border-radius:8px; cursor:pointer; }
+  .autorow { display:flex; align-items:center; gap:7px; padding:6px 4px; border-bottom:1px dashed #e2d9c8; background:#f2f7ef; border-radius:6px; margin:2px 0; }
+  .autorow .ua-badge { flex-shrink:0; font-size:9.5px; font-weight:800; color:#2f6b2f; background:#d9ecd0; border:1px solid #bcdcae; border-radius:5px; padding:1px 5px; }
+  .autorow .ua-name { flex:1; font-size:13.5px; font-weight:700; color:#2b2a26; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .autorow .ua-src { font-size:10px; color:#5a7a4a; font-weight:700; }
+  .autorow .ua-price { width:96px; text-align:right; font-size:15px; font-weight:800; color:#7c2d12; flex-shrink:0; }
   .docbox { background:#fbfaf6; border:1px solid #ece5d8; border-radius:10px; padding:5px 9px; }
   .drow { display:flex; align-items:center; gap:6px; padding:6px 2px; border-bottom:1px solid #eee; flex-wrap:wrap; }
   .drow:last-of-type { border-bottom:none; }
@@ -406,6 +411,7 @@ function undoDone(id){
   renderList();
 }
 function esc(s){ return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function circledNum(n){ var c='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮'; return (n>=1&&n<=15)?c.charAt(n-1):('('+n+')'); }
 function toggleDetail(id){
   var d=document.getElementById('d-'+id);
   if(!d) return;
@@ -540,6 +546,17 @@ function renderGroupDetail(id){
       +'<button class="u-del" onclick="vUnitDel(\''+g.id+'\','+idx+')" title="消す">🗑</button>'
     +'</div>';
   });
+  var autoHtml='';
+  (g.costs||[]).forEach(function(c,ci){
+    var nm=(c.name||'').trim(); if(!nm) return;
+    var t=costTotal(c), q=parseQty(c.qty);
+    var per=(q>0)?('¥'+Math.round(t/q).toLocaleString()):'—';
+    autoHtml += '<div class="autorow">'
+      +'<span class="ua-badge">自動</span>'
+      +'<span class="ua-name">'+esc(nm)+' <span class="ua-src">（原価'+circledNum(ci+1)+'より）</span></span>'
+      +'<span class="ua-price" id="ua-price-'+ci+'">'+per+'</span>'
+    +'</div>';
+  });
   var dhtml='';
   g.docs.forEach(function(dc,idx){
     dhtml += '<div class="drow">'
@@ -588,11 +605,12 @@ function renderGroupDetail(id){
     +'<div class="v-contact"><label>担当者</label>'
       +'<input class="v-contact-in" value="'+escAttr(g.contact)+'" placeholder="例）柴田さん" onchange="vGroupField(\''+g.id+'\',\'contact\',this.value)"></div>'
     +'<div class="v-sec-h">上：単価メモ（原価に使う金額）</div>'
-    +'<div class="v-sec-sub">品目名も金額もその場で打ち直せます。</div>'
+    +'<div class="v-sec-sub">下の「原価を出す」で作ったカードが、自動でここに乗ります。手入力の品目も足せます。</div>'
     +'<div class="unitbox">'
       +'<div class="u-head"><span class="h1">品目</span><span class="h2">単価（税抜き）</span></div>'
-      +(uhtml||'<div style="font-size:13px;color:#8a7a77;padding:8px 2px">まだありません。下の「＋」で足せます。</div>')
-      +'<button class="u-add" onclick="vUnitAdd(\''+g.id+'\')">＋ 品目と単価を足す</button>'
+      +autoHtml
+      +(uhtml||(autoHtml?'':'<div style="font-size:13px;color:#8a7a77;padding:8px 2px">まだありません。下の「＋」で足せます。</div>'))
+      +'<button class="u-add" onclick="vUnitAdd(\''+g.id+'\')">＋ 品目と単価を足す（手で入れる分）</button>'
     +'</div>'
     +'<div class="v-sec-h">💰 原価を出す（1個あたり）</div>'
     +'<div class="v-sec-sub">品名・個数と、かかったお金を足すと自動計算。送料は後から足すだけ。</div>'
@@ -626,11 +644,12 @@ function vCostRecalc(id,ci){
   var pe=document.getElementById('cc-per-'+ci), ne=document.getElementById('cc-note-'+ci);
   if(q>0){ if(pe) pe.textContent='¥'+Math.round(t/q).toLocaleString(); if(ne) ne.textContent='＝ '+Math.round(t).toLocaleString()+' ÷ '+q+'個'; }
   else { if(pe) pe.textContent='—'; if(ne) ne.textContent='個数を入れると出ます'; }
+  var ua=document.getElementById('ua-price-'+ci); if(ua){ ua.textContent=(q>0)?('¥'+Math.round(t/q).toLocaleString()):'—'; }
 }
 function vCostSave(id){ var g=vFind(id); if(g) vSaveGroup(g); }
 function vCostAddCard(id){ var g=vFind(id); if(!g) return; if(!g.costs) g.costs=[]; g.costs.push({name:'',qty:'',items:[]}); vSaveGroup(g); renderGroupDetail(id); }
 function vCostDelCard(id,ci){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; if(!confirm('この原価カードを消します。よろしいですか？')) return; g.costs.splice(ci,1); vSaveGroup(g); renderGroupDetail(id); }
-function vCostNameCard(id,ci,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].name=val; vSaveGroup(g); }
+function vCostNameCard(id,ci,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].name=val; vSaveGroup(g); renderGroupDetail(id); }
 function vCostQtyInput(id,ci,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].qty=val; vCostRecalc(id,ci); }
 function vCostItemAdd(id,ci,preset){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].items.push({n:preset||'',a:''}); vSaveGroup(g); renderGroupDetail(id); }
 function vCostItemDel(id,ci,ii){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].items.splice(ii,1); vSaveGroup(g); renderGroupDetail(id); }
