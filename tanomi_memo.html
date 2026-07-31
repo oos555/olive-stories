@@ -90,6 +90,30 @@
   .v-dropbox:hover { background:#e2edf6; }
   .v-memo { width:100%; border:2px solid #e2d9c8; border-radius:10px; padding:10px 12px; font-size:14px; color:#2b2a26; background:#fff; font-family:inherit; min-height:52px; resize:vertical; }
   .v-memo:focus { outline:none; border-color:#8d6a66; }
+  /* 原価を出す（1個あたり） */
+  .costcard { background:#fff; border:2px solid #d7b26a; border-radius:14px; padding:14px 15px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .cc-name { width:100%; border:2px solid #e2d9c8; border-radius:9px; padding:9px 11px; font-size:16px; font-weight:800; color:#2b2a26; font-family:inherit; background:#fff; }
+  .cc-name:focus, .cc-qty:focus, .c-name:focus, .c-amt:focus { outline:none; border-color:#8d6a66; }
+  .cc-qtyrow { display:flex; align-items:center; gap:8px; margin:10px 0 6px; }
+  .cc-qtyrow label { font-size:13px; font-weight:800; color:#5a4340; }
+  .cc-qty { width:110px; border:2px solid #e2d9c8; border-radius:9px; padding:9px 10px; font-size:18px; font-weight:800; color:#2b2a26; text-align:right; font-family:inherit; background:#fff; }
+  .cc-cardel { margin-left:auto; border:none; background:transparent; color:#c08; font-size:15px; cursor:pointer; padding:2px 6px; }
+  .cc-costs { background:#fbfaf4; border:1.5px solid #eadfc8; border-radius:10px; padding:8px 10px; margin-top:2px; }
+  .costrow { display:flex; align-items:center; gap:8px; padding:6px 2px; border-bottom:1px dashed #e2d9c8; }
+  .costrow:last-child { border-bottom:none; }
+  .c-name { flex:1; border:1.5px solid #e2d9c8; border-radius:8px; padding:7px 9px; font-size:13.5px; font-weight:700; color:#2b2a26; font-family:inherit; background:#fff; min-width:0; }
+  .c-amt { width:118px; border:1.5px solid #e2d9c8; border-radius:8px; padding:7px 9px; font-size:16px; font-weight:800; color:#2b2a26; text-align:right; font-family:inherit; background:#fff; }
+  .c-add { margin-top:8px; width:100%; border:1.5px dashed #c9b48f; background:#fff; color:#7a5f2a; font-weight:800; font-size:13px; padding:9px; border-radius:9px; cursor:pointer; }
+  .c-add.ship { border-color:#9bb3c9; color:#274b66; background:#f2f7fb; }
+  .cc-result { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .cc-total { flex:1; min-width:150px; background:#f4f2ec; border:2px solid #cfc4b2; border-radius:11px; padding:10px 13px; }
+  .cc-total .l { font-size:12px; font-weight:800; color:#8a7a77; }
+  .cc-total .v { font-size:22px; font-weight:800; color:#2b2a26; }
+  .cc-per { flex:1; min-width:150px; background:#fff3e6; border:2px solid #d7962e; border-radius:11px; padding:10px 13px; }
+  .cc-per .l { font-size:12px; font-weight:800; color:#8a5a1c; }
+  .cc-per .v { font-size:28px; font-weight:800; color:#7c2d12; line-height:1.2; }
+  .cc-per .note { font-size:11px; color:#8a5a1c; font-weight:700; margin-top:2px; }
+  .cc-addcard { width:100%; background:#8d6a66; color:#fff; border:none; font-size:14.5px; font-weight:800; padding:12px; border-radius:11px; cursor:pointer; margin-bottom:4px; }
   .v-sec-h { font-size:15.5px; font-weight:800; color:#5a4340; border-left:6px solid #8d6a66; padding-left:10px; margin:16px 0 4px; }
   .v-sec-sub { font-size:12.5px; color:#8a7a77; margin-bottom:10px; font-weight:600; }
   .unitbox { background:#fbfaf4; border:2px solid #e2d9c8; border-radius:12px; padding:12px 13px; }
@@ -431,11 +455,11 @@ function fromVendor(m){
   var pp={}; try{ pp=JSON.parse(m.text||'{}'); }catch(e){ return null; }
   if(pp.kind!=='vendordoc') return null;
   return { id:String(m.id), kind:'vendordoc', name:pp.name||'（名前なし）', vendor:pp.vendor||'', contact:pp.contact||'', memo:pp.memo||'',
-           units:Array.isArray(pp.units)?pp.units:[], docs:Array.isArray(pp.docs)?pp.docs:[], createdAt:m.createdAt||'' };
+           units:Array.isArray(pp.units)?pp.units:[], docs:Array.isArray(pp.docs)?pp.docs:[], costs:Array.isArray(pp.costs)?pp.costs:[], createdAt:m.createdAt||'' };
 }
 function toVendor(g){
   return { id:String(g.id),
-    text: JSON.stringify({ kind:'vendordoc', name:g.name, vendor:g.vendor, contact:g.contact||'', memo:g.memo||'', units:g.units||[], docs:g.docs||[] }),
+    text: JSON.stringify({ kind:'vendordoc', name:g.name, vendor:g.vendor, contact:g.contact||'', memo:g.memo||'', units:g.units||[], docs:g.docs||[], costs:g.costs||[] }),
     reminderDate:'', tellSomeone:g.vendor||'', done:false, createdAt:g.createdAt||new Date().toISOString() };
 }
 function syncSaveVendor(g, cb){
@@ -529,6 +553,33 @@ function renderGroupDetail(id){
       +'<input class="d-link" value="'+escAttr(dc.u)+'" placeholder="原本のリンク（写真・PDFのURL・任意）" onchange="vDocChange(\''+g.id+'\','+idx+',\'u\',this.value)">'
     +'</div>';
   });
+  var chtml='';
+  (g.costs||[]).forEach(function(c,ci){
+    var irows='';
+    (c.items||[]).forEach(function(it,ii){
+      irows += '<div class="costrow">'
+        +'<input class="c-name" value="'+escAttr(it.n)+'" placeholder="費目（例：箱代／送料）" onchange="vCostNameItem(\''+g.id+'\','+ci+','+ii+',this.value)">'
+        +'<input class="c-amt" value="'+escAttr(it.a)+'" placeholder="金額" inputmode="numeric" oninput="vCostItemInput(\''+g.id+'\','+ci+','+ii+',this.value)" onchange="vCostSave(\''+g.id+'\')">'
+        +'<button class="c-del" onclick="vCostItemDel(\''+g.id+'\','+ci+','+ii+')" title="消す">🗑</button>'
+      +'</div>';
+    });
+    var t=costTotal(c), q=parseQty(c.qty);
+    var perStr = q>0 ? ('¥'+Math.round(t/q).toLocaleString()) : '—';
+    var noteStr = q>0 ? ('＝ '+Math.round(t).toLocaleString()+' ÷ '+q+'個') : '個数を入れると出ます';
+    chtml += '<div class="costcard">'
+      +'<input class="cc-name" value="'+escAttr(c.name)+'" placeholder="品名（何を作った？）" onchange="vCostNameCard(\''+g.id+'\','+ci+',this.value)">'
+      +'<div class="cc-qtyrow"><label>作った数</label><input class="cc-qty" value="'+escAttr(c.qty)+'" placeholder="0" inputmode="numeric" oninput="vCostQtyInput(\''+g.id+'\','+ci+',this.value)" onchange="vCostSave(\''+g.id+'\')"><span style="font-weight:800">個</span>'
+        +'<button class="cc-cardel" onclick="vCostDelCard(\''+g.id+'\','+ci+')" title="このカードを消す">🗑</button></div>'
+      +'<div class="cc-costs">'+(irows||'<div style="font-size:12.5px;color:#8a7a77;padding:6px 2px">下のボタンで費目を足してください。</div>')+'</div>'
+      +'<button class="c-add ship" onclick="vCostItemAdd(\''+g.id+'\','+ci+',\'送料\')">＋ 送料を足す（後から来た分もここに）</button>'
+      +'<button class="c-add" onclick="vCostItemAdd(\''+g.id+'\','+ci+',\'\')">＋ 費目を足す（箱代・木型代など）</button>'
+      +'<div class="cc-result">'
+        +'<div class="cc-total"><div class="l">合計金額（自動）</div><div class="v" id="cc-total-'+ci+'">¥'+Math.round(t).toLocaleString()+'</div></div>'
+        +'<div class="cc-per"><div class="l">1個あたりの原価（自動）</div><div class="v" id="cc-per-'+ci+'">'+perStr+'</div><div class="note" id="cc-note-'+ci+'">'+noteStr+'</div></div>'
+      +'</div>'
+    +'</div>';
+  });
+  if(!(g.costs||[]).length){ chtml = '<div style="font-size:13px;color:#8a7a77;padding:4px 2px 10px">まだありません。「＋ 別の商品の原価カードを作る」で作れます。</div>'; }
   box.innerHTML =
     '<div class="v-back" onclick="closeGroup()">← ボタン一覧にもどる</div>'
     +(g.vendor?'<div class="v-gvendor">'+esc(g.vendor)+'</div>':'')
@@ -542,6 +593,10 @@ function renderGroupDetail(id){
       +(uhtml||'<div style="font-size:13px;color:#8a7a77;padding:8px 2px">まだありません。下の「＋」で足せます。</div>')
       +'<button class="u-add" onclick="vUnitAdd(\''+g.id+'\')">＋ 品目と単価を足す</button>'
     +'</div>'
+    +'<div class="v-sec-h">💰 原価を出す（1個あたり）</div>'
+    +'<div class="v-sec-sub">品名と個数を入れ、かかったお金（箱代・送料…）を足すと、合計と1個あたりの原価が自動で出ます。送料が後から来たら足すだけ。</div>'
+    +chtml
+    +'<button class="cc-addcard" onclick="vCostAddCard(\''+g.id+'\')">＋ 別の商品の原価カードを作る</button>'
     +'<div class="v-sec-h">下：もらった書類（いつ・いくら）</div>'
     +'<div class="v-sec-sub">📄見積・🧾請求／日付／金額を1行ずつ。原本は下のDropboxフォルダに入れて、リンクを貼ってください。</div>'
     +'<a class="v-dropbox" href="'+DROPBOX_FOLDER+'" target="_blank" rel="noopener">📁 Dropboxの保存フォルダを開く（02_販売・取引先 → 外部依頼アプリT）</a>'
@@ -559,6 +614,27 @@ function vSaveGroup(g){
   syncSaveVendor(g, function(err){ if(err){ setSync('⚠️ パソコンに保存できませんでした／この端末には残っています'); } else { setSync('☁️ パソコンとも同期しました'); } });
 }
 function vGroupField(id,f,val){ var g=vFind(id); if(!g) return; g[f]=val; vSaveGroup(g); if(f==='contact') renderVGroups(); }
+/* 原価を出す（1個あたり） */
+function parseYen(x){ var n=parseFloat(String(x==null?'':x).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+function parseQty(x){ var n=parseInt(String(x==null?'':x).replace(/[^0-9]/g,''),10); return isNaN(n)?0:n; }
+function costTotal(c){ var t=0; (c && c.items||[]).forEach(function(it){ t+=parseYen(it.a); }); return t; }
+function vCostRecalc(id,ci){
+  var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return;
+  var c=g.costs[ci], t=costTotal(c), q=parseQty(c.qty);
+  var te=document.getElementById('cc-total-'+ci); if(te) te.textContent='¥'+Math.round(t).toLocaleString();
+  var pe=document.getElementById('cc-per-'+ci), ne=document.getElementById('cc-note-'+ci);
+  if(q>0){ if(pe) pe.textContent='¥'+Math.round(t/q).toLocaleString(); if(ne) ne.textContent='＝ '+Math.round(t).toLocaleString()+' ÷ '+q+'個'; }
+  else { if(pe) pe.textContent='—'; if(ne) ne.textContent='個数を入れると出ます'; }
+}
+function vCostSave(id){ var g=vFind(id); if(g) vSaveGroup(g); }
+function vCostAddCard(id){ var g=vFind(id); if(!g) return; if(!g.costs) g.costs=[]; g.costs.push({name:'',qty:'',items:[]}); vSaveGroup(g); renderGroupDetail(id); }
+function vCostDelCard(id,ci){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; if(!confirm('この原価カードを消します。よろしいですか？')) return; g.costs.splice(ci,1); vSaveGroup(g); renderGroupDetail(id); }
+function vCostNameCard(id,ci,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].name=val; vSaveGroup(g); }
+function vCostQtyInput(id,ci,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].qty=val; vCostRecalc(id,ci); }
+function vCostItemAdd(id,ci,preset){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].items.push({n:preset||'',a:''}); vSaveGroup(g); renderGroupDetail(id); }
+function vCostItemDel(id,ci,ii){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]) return; g.costs[ci].items.splice(ii,1); vSaveGroup(g); renderGroupDetail(id); }
+function vCostNameItem(id,ci,ii,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]||!g.costs[ci].items[ii]) return; g.costs[ci].items[ii].n=val; vSaveGroup(g); }
+function vCostItemInput(id,ci,ii,val){ var g=vFind(id); if(!g||!g.costs||!g.costs[ci]||!g.costs[ci].items[ii]) return; g.costs[ci].items[ii].a=val; vCostRecalc(id,ci); }
 function vUnitChange(id,idx,f,val){ var g=vFind(id); if(!g||!g.units[idx]) return; g.units[idx][f]=val; vSaveGroup(g); }
 function vUnitAdd(id){ var g=vFind(id); if(!g) return; g.units.push({n:'',p:''}); vSaveGroup(g); renderGroupDetail(id); }
 function vUnitDel(id,idx){ var g=vFind(id); if(!g) return; g.units.splice(idx,1); vSaveGroup(g); renderGroupDetail(id); }
