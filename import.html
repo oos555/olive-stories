@@ -375,6 +375,7 @@ tr:last-child td{border-bottom:none}
       </div>
       <div id="prep-folder-en" style="font-size:12px;margin-bottom:8px;padding:6px 10px;background:#fbf7ef;border:1px solid #ecdfc7;border-radius:6px"></div>
       <div id="prep-order-en" class="tbl-wrap" style="margin-bottom:0"></div>
+      <div style="margin:12px 0 4px"><button onclick="prepTranslateJaToTr()" style="border:1.5px solid #0f5a4a;background:#0f5a4a;color:#fff;font-weight:800;font-size:14px;padding:10px 16px;border-radius:9px;cursor:pointer">🔄 日本語をトルコ語に変換（同梱依頼物・備考）</button> <span id="prep-tr-status" style="font-size:11.5px;color:#7a6a4a;margin-left:6px">押すと、同梱依頼物と備考の日本語をトルコ語に訳して入れます（日本語は残ります）</span></div>
       <div id="prep-copack-en" style="margin-top:12px"></div>
       <div id="prep-label-links" style="margin-top:12px"></div>
       <div id="prep-order-notes" style="margin-top:12px"></div>
@@ -3372,6 +3373,36 @@ function prepCopackAdd(){ prepCopack.push({name:'',qty:'',unit:'',tr:'',memo:''}
   setTimeout(function(){ var ins=document.querySelectorAll('#prep-copack-wrap tbody tr:last-child input'); if(ins[0]) ins[0].focus(); },0); }
 function prepCopackDel(i){ if(!prepCopack[i]) return; if(!confirm('「'+(prepCopack[i].name||'この行')+'」を本当に消しますか？')) return; prepCopack.splice(i,1); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderCopack(); prepRenderCopackEN(); }
 function prepCopackSet(i,field,val){ if(prepCopack[i]){ prepCopack[i][field]=val; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderCopackEN(); }
+function prepTrStatus(t,c){ var el=document.getElementById('prep-tr-status'); if(el){ el.textContent=t; el.style.color=c||'#7a6a4a'; } }
+async function prepTranslateJaToTr(){
+  var jobs=[];
+  prepOrderNotes.forEach(function(n,i){ var ja=(n.ja!=null?n.ja:(n.t||'')); ja=(ja||'').trim(); if(ja) jobs.push({kind:'note',idx:i,text:ja,hasTr:!!((n.tr||'').trim())}); });
+  prepCopack.forEach(function(r,i){ var ja=(r.name||'').trim(); if(ja) jobs.push({kind:'copack',idx:i,text:ja,hasTr:!!((r.tr||'').trim())}); });
+  if(!jobs.length){ alert('翻訳する日本語がありません。備考か同梱依頼物に日本語を書いてから押してください。'); return; }
+  var anyTr=jobs.some(function(j){return j.hasTr;});
+  var overwrite=true;
+  if(anyTr){ overwrite=confirm('すでにトルコ語が入っている欄があります。\n\nOK＝全部を日本語から訳し直して上書き\nキャンセル＝空いている欄だけ入れる'); }
+  var targets=jobs.filter(function(j){ return overwrite || !j.hasTr; });
+  if(!targets.length){ alert('入れる先がありません（すでに全部トルコ語が入っています）。'); return; }
+  if(typeof GAS_URL==='undefined' || !password){ alert('ログインしてからお試しください。'); return; }
+  prepTrStatus('🔄 翻訳中…（Googleの翻訳を使っています）','#8a6d3f');
+  var texts=targets.map(function(j){return j.text;});
+  var trs=null, gasUnknown=false;
+  try{
+    var res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'translateBatch',source:'ja',target:'tr',password:password,texts:texts})});
+    var d=JSON.parse(await res.text());
+    if(d && d.status==='ok' && Array.isArray(d.translations)) trs=d.translations;
+    else if(d && (d.message||'').indexOf('不明')>=0) gasUnknown=true;
+  }catch(e){}
+  if(gasUnknown){ prepTrStatus('⚠️ 翻訳はGAS更新後に使えます（お渡ししたコードを貼り付けてください）','#b06a1a'); alert('翻訳の準備がまだです。\nお渡しした「翻訳コード」をGASに貼り付けて更新すると使えるようになります。'); return; }
+  if(!trs){ prepTrStatus('⚠️ 翻訳できませんでした（通信）。少し待って再度お試しください','#b06a1a'); return; }
+  targets.forEach(function(j,k){ var tr=(trs[k]!=null?trs[k]:''); if(j.kind==='note'){ if(prepOrderNotes[j.idx]) prepOrderNotes[j.idx].tr=tr; } else { if(prepCopack[j.idx]) prepCopack[j.idx].tr=tr; } });
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon();
+  if(typeof prepRenderOrderNotes==='function') prepRenderOrderNotes();
+  if(typeof prepRenderCopack==='function') prepRenderCopack();
+  if(typeof prepRenderCopackEN==='function') prepRenderCopackEN();
+  prepTrStatus('✅ トルコ語に変換しました（'+targets.length+'件）。日本語はそのまま残しています','#0f7a4a');
+}
 function prepToggleAddForm(){ var f=document.getElementById('prep-addform'); if(f) f.style.display=(f.style.display==='none'||!f.style.display)?'block':'none'; }
 function prepPV(id){ var el=document.getElementById(id); return el?el.value.trim():''; }
 function prepAddProduct(){
@@ -3600,7 +3631,7 @@ function prepExportCSV(){
   lines.push('');
   lines.push(esc('備考 / Notlar'));
   for(var fi=0;fi<PREP_FIXED_NOTES.length;fi++){ lines.push(esc(PREP_FIXED_NOTES[fi])); }
-  for(var oi=0;oi<prepOrderNotes.length;oi++){ var _n=prepOrderNotes[oi]; var _jv=(_n.ja!=null?_n.ja:(_n.t||'')); lines.push(esc((_n.c?'[済] ':'[  ] ')+(_n.cat?('['+_n.cat+'] '):'')+_jv+(_n.tr?(' | TR: '+_n.tr):''))); }
+  for(var oi=0;oi<prepOrderNotes.length;oi++){ var _n=prepOrderNotes[oi]; var _jv=(_n.ja!=null?_n.ja:(_n.t||'')); _jv=(_jv||'').trim(); var _tv=(_n.tr||'').trim(); var _line=_tv?(_tv+(_jv?('（'+_jv+'）'):'')):_jv; if(_line) lines.push(esc(_line)); }
   if(prepCopack.length){ lines.push('');
     lines.push(esc('同梱依頼物 / Koliye eklenecekler'));
     lines.push([esc('品目名 / Ürün'),esc('数量 / Adet'),esc('単位 / Birim'),esc('農園向けの言葉 / Çiftlik için'),esc('メモ / Not')].join(','));
