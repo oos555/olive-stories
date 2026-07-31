@@ -1618,6 +1618,28 @@ async function saveProvisionalEntry(){
   renderRateSimulation();
 }
 
+// ★2026-07-31 利益ヒートマップの「原価」セルから、確定原価(costData)を直接なおせる。確認を1回はさむ。保存は既存 saveCostData。
+async function editConfirmedCost(sku){
+  var cur = (costData[sku] && costData[sku].cost!=null && costData[sku].cost!=='') ? (parseFloat(costData[sku].cost)||0) : 0;
+  var nm = (typeof provProductName==='function') ? provProductName(sku) : sku;
+  var raw = prompt('「'+nm+'」の新しい原価（円）を入れてください。\n（今：¥'+cur.toLocaleString()+'）', cur||'');
+  if(raw===null) return; // キャンセル
+  var v = parseFloat((''+raw).replace(/[^0-9.]/g,''))||0;
+  if(v===cur) return;    // 変わっていなければ何もしない
+  if(!confirm('原価を ¥'+cur.toLocaleString()+' → ¥'+v.toLocaleString()+' に本当に変更しますか？')){ renderProfitHeatmap(); return; }
+  var prevMemo = (costData[sku] && costData[sku].memo) ? costData[sku].memo : '';
+  costData[sku] = { cost: v, memo: prevMemo };
+  if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています...');
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    var data = await res.json();
+    if(data && data.status==='ok'){ if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました'); }
+    else { if(typeof showSyncStatus==='function') showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）'); }
+  }catch(e){ if(typeof showSyncStatus==='function') showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）'); }
+  if(typeof renderCostProductTable==='function') renderCostProductTable();
+  renderProfitHeatmap();
+  if(typeof renderRateSimulation==='function') renderRateSimulation();
+}
 function getCostForSku(sku){
   const rec = costData[sku];
   if(rec && rec.cost !== undefined && rec.cost !== '' && (parseFloat(rec.cost)||0) > 0) return parseFloat(rec.cost)||0;
@@ -1697,7 +1719,7 @@ function renderProfitHeatmap(){
       if(isProvisionalCost(p.sku)){
         html += '<td onclick="openProvisionalEntry(\''+p.sku+'\')" title="押すと仮原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<br><span style="font-size:9.5px;font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 5px">⏳仮</span></td>';
       } else {
-        html += '<td style="padding:5px 6px;text-align:right;color:#57534e">¥'+cost.toLocaleString()+'</td>';
+        html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<div style="font-size:9px;color:#8a867c;font-weight:700;margin-top:2px">✏ 直す</div></td>';
       }
       const _openTK = parseFloat(priceRec['priceGeneral'])||0; // ◯掛け計算用の定価
       ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
@@ -2031,27 +2053,21 @@ function renderSimPanel(){
     loadSimPanel(currentSimSku, currentSimTier, {noScroll:true});
     return;
   }
-  // まだ一度もマスを選んでいないときだけ、最初の1回に限り利益の薄い卸②を1件出す
-  let firstLow = null;
-  if(!simAutoPickDone){
-    simAutoPickDone = true;
-    allCostSkus().forEach(function(p){
-      if(firstLow) return;
-      const cost = getCostForSku(p.sku);
-      const rec = priceRecForSku(p.sku);
-      const p2 = parseFloat(rec.priceWholesale2) || 0;
-      if(isLowMargin(cost, p2)) firstLow = p.sku;
-    });
-  }
-  if(firstLow){ loadSimPanel(firstLow, 'wholesale2', {noScroll:true}); return; }
-  // 薄い商品が無いときは案内を出す
+  // ★2026-07-31 中村様のご依頼：こちらから勝手に商品を選ばない。自分で左のマスを押したものだけを選択状態にする。
+  //   （旧：まだ一度も選んでいないとき、利益の薄い先頭商品＝オルガニックを自動で1件選んでいた。誤操作のもとになるため廃止。）
   const guardEl = document.getElementById('sim-guard'); if(guardEl) guardEl.style.display = 'none';
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'none';
   setSimExtras(false);
+  // 何も選ばれていない状態をはっきりさせる（選択中の黒枠・行ハイライトを消す）
+  try{
+    document.querySelectorAll('#profit-heatmap-table td.hm-sel').forEach(function(c){ c.classList.remove('hm-sel'); });
+    document.querySelectorAll('#profit-heatmap-table tr.sim-row-hl').forEach(function(r){ r.classList.remove('sim-row-hl'); });
+    var _sp = document.getElementById('sim-picker'); if(_sp) _sp.value = '';
+  }catch(e){}
   const emptyEl = document.getElementById('sim-empty');
   if(emptyEl){
     emptyEl.style.display = 'block';
-    emptyEl.innerHTML = '🎉 卸②の利益率が40%を切っている商品はありません。<br><span style="font-size:11px">見直したい商品は、左の卸②マスを押すとここで試せます。</span>';
+    emptyEl.innerHTML = '見直したい商品の <b>左のマス（卸②など）を押す</b>と、ここで金額を試せます。<br><span style="font-size:11px;color:#8a867c">※こちらから勝手に商品は選びません。</span>';
   }
 }
 function toggleRateSimAll(){
