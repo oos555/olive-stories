@@ -3408,10 +3408,17 @@ function prepNoteAdd(id){ var p=prepFind(id); if(p){ if(!p.notes)p.notes=[]; p.n
 function prepNoteText(id,i,v){ var p=prepFind(id); if(p&&p.notes&&p.notes[i]){ p.notes[i].t=v; } prepSaveLocal(); prepRenderOrderEN(); }
 function prepNoteToggle(id,i){ var p=prepFind(id); if(p&&p.notes&&p.notes[i]){ p.notes[i].c=!p.notes[i].c; } prepSaveLocal(); prepRenderOrderEN(); }
 function prepNoteDel(id,i){ var p=prepFind(id); if(p&&p.notes){ p.notes.splice(i,1); } prepSaveLocal(); prepRenderOrderEN(); }
-var PREP_LANG_OPTS=[['Japanese','日本語 Japanese'],['Turkish','トルコ語 Turkish'],['English','英語 English'],['None','ナシ None']];
-var PREP_PRINT_OPTS=[['Turkey','トルコ Turkey'],['Japan','日本 Japan'],['None','ナシ None']];
+var PREP_LANG_OPTS=[['Japanese','日本語 Japonca'],['Turkish','トルコ語 Türkçe'],['English','英語 İngilizce'],['None','ナシ Yok']];
+var PREP_PRINT_OPTS=[['Turkey','トルコ Türkiye'],['Japan','日本 Japonya'],['None','ナシ Yok']];
 var PREP_CONT_OPTS=[['瓶','Bottle'],['缶','Can'],['箱','Box']];
-var PREP_COLOR_OPTS=[['Color','カラー Color'],['B&W','白黒 B&W'],['None','ナシ None']];
+var PREP_COLOR_OPTS=[['Color','カラー Renkli'],['B&W','白黒 Siyah-Beyaz'],['None','ナシ Yok']];
+/* 値→トルコ語（CSV・農園向け表示用の固定マップ） */
+var PREP_TR_LANG={Japanese:'Japonca',Turkish:'Türkçe',English:'İngilizce',None:'Yok'};
+var PREP_TR_PRINT={Turkey:'Türkiye',Japan:'Japonya',None:'Yok'};
+var PREP_TR_COLOR={Color:'Renkli','B&W':'Siyah-Beyaz',None:'Yok'};
+function prepTrLang(v){ return PREP_TR_LANG[v]||v||''; }
+function prepTrPrint(v){ return PREP_TR_PRINT[v]||v||''; }
+function prepTrColor(v){ return PREP_TR_COLOR[v]||v||''; }
 var PREP_FIXED_NOTES=[];        /* 2026-07-31 中村様指示：固定の注意2つを削除（消せない状態だったため） */
 var PREP_FIXED_NOTES_JA=[];
 function prepSelHtml(id,field,cur,opts){
@@ -3568,11 +3575,11 @@ function prepRenderOrderEN(){
 }
 function prepExportCSV(){
   var rows=prepOrderRows();
-  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language','Printed in','Color'];
+  var head=['No.','Product Name','Volume','Container','Units per Box','Boxes to Order','Total Bottles','Best-Before','Back Label Language / Etiket dili','Printed in / Baskı yeri','Color / Renk'];
   function esc(v){ v=(v==null?'':(''+v)); return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v; }
   var lines=[]; if(prepFolderUrl){ lines.push(esc('農園共有フォルダ / Shared label folder')+','+esc(prepFolderUrl)); lines.push(''); } lines.push(head.map(esc).join(','));
   rows.forEach(function(r,i){ var p=r.p;
-    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepLangOf(p),prepPrintOf(p),prepColorOf(p)].map(esc).join(','));
+    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepTrLang(prepLangOf(p)),prepTrPrint(prepPrintOf(p)),prepTrColor(prepColorOf(p))].map(esc).join(','));
   });
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
   lines.push(['','TOTAL','','','','',tot,'','','',''].map(esc).join(','));
