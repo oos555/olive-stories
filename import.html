@@ -427,6 +427,7 @@ tr:last-child td{border-bottom:none}
       #panel-trouble .tr-red{border:none;background:transparent;cursor:pointer;flex:none;padding:2px 4px;font-size:13px;opacity:.35}
       #panel-trouble .tr-rule.red .tr-red{opacity:1}
       #panel-trouble .tr-del{border:none;background:transparent;cursor:pointer;flex:none;padding:2px 4px;font-size:13px;color:#b0559c}
+      #panel-trouble .tr-tobik{border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:11px;padding:3px 8px;border-radius:7px;cursor:pointer;flex:none;white-space:nowrap}
     </style>
     <div class="tr-intro">💡 以前ムスタファさんとのWhatsAppから拾い出した、農園（Novavera）との<b>トラブルの原因・どう対応したか・再発防止</b>の台帳です（全21件）。台帳の一番右<b>「✍️ その後の対応」</b>に「いつ・どうやったか」を書き込み、決まりごとにしたくなったら<b>「→ ルールに移す」</b>で上の枠にためていきます。</div>
     <div class="tr-rulebox">
@@ -3187,7 +3188,7 @@ function prepApplyState(st){
   if(st.mode) prepMode=st.mode;
   if(st.history) prepHistory=st.history;
   if(st.folderUrl!=null) prepFolderUrl=st.folderUrl;
-  if(st.orderNotes) prepOrderNotes=st.orderNotes;
+  if(st.orderNotes) prepOrderNotes=st.orderNotes.map(prepMigNote);
   if(st.labelLinks) prepLabelLinks=st.labelLinks;
   if(st.p){ PREP_PRODUCTS.forEach(function(p){ var s=st.p[p.id]; if(!s) return;
     if('s' in s)p.stock=s.s; if('r' in s)p.res=s.r; if('t' in s)p.target=s.t; if('b' in s)p.box=s.b;
@@ -3333,28 +3334,57 @@ function prepLLAdd(){ prepLabelLinks.push({t:'',u:''}); prepSaveLocal(); prepRen
 function prepLLText(i,v){ if(prepLabelLinks[i]){ prepLabelLinks[i].t=v; } prepSaveLocal(); prepRenderLabelLinks(); }
 function prepLLUrl(i,v){ if(prepLabelLinks[i]){ prepLabelLinks[i].u=(v||'').trim(); } prepSaveLocal(); prepRenderLabelLinks(); }
 function prepLLDel(i){ prepLabelLinks.splice(i,1); prepSaveLocal(); prepRenderLabelLinks(); }
+function prepArg(c){ return "'"+String(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')+"'"; }
+function prepEscTxt(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function prepMigNote(n){ n=n||{}; return { cat:(n.cat||'その他'), tr:(n.tr!=null?n.tr:''), ja:(n.ja!=null?n.ja:(n.t!=null?n.t:'')), c:!!n.c }; }
+function prepBikouCats(){
+  var base=(typeof TR_DEFAULT_CATS!=='undefined')?TR_DEFAULT_CATS.slice():['書類','ラベル','賞味期限','梱包','その他'];
+  var out=base.slice();
+  try{ if(typeof trState!=='undefined' && trState && Array.isArray(trState.cats)){ trState.cats.forEach(function(c){ if(out.indexOf(c)<0) out.push(c); }); } }catch(e){}
+  prepOrderNotes.forEach(function(n){ if(n && n.cat && out.indexOf(n.cat)<0) out.push(n.cat); });
+  return out;
+}
 function prepRenderOrderNotes(){
   var box=document.getElementById('prep-order-notes'); if(!box) return;
+  prepOrderNotes=prepOrderNotes.map(prepMigNote); /* 古い1行メモも {cat,tr,ja,c} に引き継ぐ（消さない） */
   var h='<div style="border:1px solid #ecdfc7;border-radius:8px;background:#fbf7ef;padding:12px 14px">';
-  h+='<div style="font-weight:700;font-size:14px;margin-bottom:8px">📝 備考 ／ Notes ／ Notlar（農園への連絡・注意）</div>';
+  h+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">📝 備考 ／ Notes ／ Notlar（農園への連絡・注意）</div>';
+  h+='<div style="font-size:11.5px;color:#7a6a4a;margin-bottom:8px">各行は<b>トルコ語（農園が読む・空でOK）</b>＋<b>日本語</b>。トラブル台帳の各ルールの「📋 備考へ」でも入ります（分類のまま）。</div>';
   for(var f=0;f<PREP_FIXED_NOTES.length;f++){
     h+='<div style="margin:4px 0;background:#fdecea;border:1px solid #f3b4ad;border-radius:5px;padding:6px 9px;line-height:1.5"><div style="font-size:14px;color:#7a1a12;font-weight:700">🔴 '+PREP_FIXED_NOTES[f]+'</div><div style="font-size:11px;color:#a06a62;margin-top:2px">'+(PREP_FIXED_NOTES_JA[f]||'')+'</div></div>';
   }
-  for(var i=0;i<prepOrderNotes.length;i++){ var it=prepOrderNotes[i];
-    h+='<div style="display:flex;align-items:center;gap:6px;margin:4px 0">'
-      +'<input type="checkbox" '+(it.c?'checked':'')+' onchange="prepONoteToggle('+i+')" style="width:18px;height:18px;flex:0 0 auto">'
-      +'<input value="'+prepAttr(it.t||'')+'" onchange="prepONoteText('+i+',this.value)" placeholder="ここに書き足せます" style="font-size:15px;flex:1;min-width:200px;border:1px solid #e0d8cc;border-radius:5px;padding:5px 8px'+(it.c?';text-decoration:line-through;color:#9a9a9a':'')+'">'
-      +'<button onclick="prepONoteDel('+i+')" title="削除" style="border:none;background:none;cursor:pointer;color:#c0392b;font-size:17px;flex:0 0 auto">×</button>'
+  var cats=prepBikouCats();
+  cats.forEach(function(c){
+    var idxs=[]; prepOrderNotes.forEach(function(n,i){ if(n.cat===c) idxs.push(i); });
+    h+='<div style="padding:5px 0;border-top:1px solid #f0e6d2">'
+      +'<div style="display:flex;align-items:center;gap:7px">'
+        +'<span style="width:5px;height:14px;background:#c9a24a;border-radius:3px;display:inline-block"></span>'
+        +'<span style="font-size:13px;font-weight:800;color:#5a4a2a">'+prepEscTxt(c)+'</span>'
+        +'<button class="btn-sm" style="font-size:11px;padding:2px 8px" onclick="prepONoteAddCat('+prepArg(c)+')">＋この分類に足す</button>'
+        +(idxs.length?'':'<span style="font-size:11px;color:#b3a988">（まだ無し）</span>')
       +'</div>';
-  }
-  h+='<button class="btn-sm" onclick="prepONoteAdd()" style="font-size:13px;margin-top:4px">＋ 箇条書きを追加</button>';
+    idxs.forEach(function(i){ var it=prepOrderNotes[i];
+      h+='<div style="display:flex;align-items:flex-start;gap:6px;margin:5px 0 5px 12px;background:#fff;border:1px solid #ecdfc7;border-radius:7px;padding:6px 8px">'
+        +'<input type="checkbox" '+(it.c?'checked':'')+' onchange="prepONoteToggle('+i+')" style="width:16px;height:16px;flex:0 0 auto;margin-top:4px">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:9.5px;font-weight:800;color:#8a7a5a">トルコ語（農園が読む・あとで入れられます）</div>'
+          +'<input value="'+prepAttr(it.tr||'')+'" oninput="prepONoteTr('+i+',this.value)" placeholder="トルコ語をここに（空でOK）" style="width:100%;font-size:14px;font-weight:700;color:#7a1a12;border:1px solid #e0d8cc;border-radius:5px;padding:4px 6px;background:#fffdf8'+(it.c?';text-decoration:line-through;color:#b39a97':'')+'">'
+          +'<div style="font-size:9.5px;font-weight:800;color:#8a8a70;margin-top:3px">日本語</div>'
+          +'<input value="'+prepAttr(it.ja||'')+'" oninput="prepONoteJa('+i+',this.value)" placeholder="日本語" style="width:100%;font-size:12px;color:#3a3a2a;border:1px solid #e6e0d4;border-radius:5px;padding:3px 6px;background:#fbfbfa'+(it.c?';text-decoration:line-through;color:#9a9a9a':'')+'">'
+        +'</div>'
+        +'<button onclick="prepONoteDel('+i+')" title="削除" style="border:none;background:none;cursor:pointer;color:#c0392b;font-size:16px;flex:0 0 auto;padding-top:2px">×</button>'
+      +'</div>';
+    });
+    h+='</div>';
+  });
   h+='</div>';
   box.innerHTML=h;
 }
-function prepONoteAdd(){ prepOrderNotes.push({t:'',c:false}); prepSaveLocal(); prepRenderOrderNotes(); }
-function prepONoteText(i,v){ if(prepOrderNotes[i]){ prepOrderNotes[i].t=v; } prepSaveLocal(); prepRenderOrderNotes(); }
-function prepONoteToggle(i){ if(prepOrderNotes[i]){ prepOrderNotes[i].c=!prepOrderNotes[i].c; } prepSaveLocal(); prepRenderOrderNotes(); }
-function prepONoteDel(i){ prepOrderNotes.splice(i,1); prepSaveLocal(); prepRenderOrderNotes(); }
+function prepONoteAddCat(cat){ prepOrderNotes.push({cat:(cat||'その他'),tr:'',ja:'',c:false}); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); }
+function prepONoteTr(i,v){ if(prepOrderNotes[i]){ prepOrderNotes[i].tr=v; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); }
+function prepONoteJa(i,v){ if(prepOrderNotes[i]){ prepOrderNotes[i].ja=v; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); }
+function prepONoteToggle(i){ if(prepOrderNotes[i]){ prepOrderNotes[i].c=!prepOrderNotes[i].c; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); }
+function prepONoteDel(i){ prepOrderNotes.splice(i,1); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); }
 function prepFinalize(){
   var rows=prepOrderRows();
   if(!rows.length){ alert('輸入する商品がありません（発注が0本です）。'); return; }
@@ -3363,7 +3393,7 @@ function prepFinalize(){
   var dateStr=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
   if(!confirm('この内容で輸入を確定して記録しますか？\n\n'+dateStr+(memo?('（'+memo+'）'):'')+'\n合計 '+tot+'本 / '+rows.length+'品\n\n※下の「輸入確定の記録」に残ります。')) return;
-  var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, folderUrl:prepFolderUrl, orderNotes:prepOrderNotes.map(function(n){return {t:n.t,c:n.c};}), labelLinks:prepLabelLinks.map(function(x){return {t:x.t,u:x.u};}), total:tot,
+  var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, folderUrl:prepFolderUrl, orderNotes:prepOrderNotes.map(function(n){return {cat:n.cat,tr:n.tr,ja:(n.ja!=null?n.ja:(n.t||'')),c:n.c};}), labelLinks:prepLabelLinks.map(function(x){return {t:x.t,u:x.u};}), total:tot,
     items: rows.map(function(r){ return {jpname:r.p.name, enName:prepEnName(r.p), sku:r.p.sku, vol:r.p.vol, cont:r.p.cont,
       box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), color:prepColorOf(r.p), url:prepUrlOf(r.p)}; }) };
   prepHistory.unshift(snap);
@@ -3384,7 +3414,7 @@ function prepRenderHistory(){
     s.items.forEach(function(it){
       h+='<tr><td style="text-align:left">'+(it.jpname||it.enName||'')+'</td><td>'+(it.sku||'')+'</td><td style="text-align:center">'+(it.vol||'')+'</td><td style="text-align:center">'+prepEnCont(it.cont)+'</td><td style="text-align:center">'+(it.finalBox!=null?it.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+it.finalN+'</td><td style="text-align:center">'+(it.exp||'')+'</td><td style="text-align:center;font-size:11px">'+(it.lang||'')+' / '+(it.print||'')+' / '+(it.color||'')+'</td></tr>';
     });
-    h+='</tbody></table>'; if(s.folderUrl){ h+='<div style="font-size:11px;margin-top:4px;color:#7a5a1a">🔗 農園共有フォルダ: '+s.folderUrl+'</div>'; } h+='<div style="margin-top:6px;font-size:12px"><strong>ラベルについて:</strong> '+((s.labelLinks||[]).map(function(x){return (x.t?x.t+' ':'')+(x.u||'');}).filter(function(z){return z;}).join(' / ')||'—')+'</div>'; h+='<div style="margin-top:6px;font-size:12px"><strong>備考:</strong><br>'+PREP_FIXED_NOTES.map(function(t){return '<span style="color:#b91c1c">🔴 '+t+'</span>';}).concat((s.orderNotes||[]).map(function(n){return (n.c?'☑ ':'☐ ')+(n.t||'');})).join('<br>')+'</div>'; h+='<div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
+    h+='</tbody></table>'; if(s.folderUrl){ h+='<div style="font-size:11px;margin-top:4px;color:#7a5a1a">🔗 農園共有フォルダ: '+s.folderUrl+'</div>'; } h+='<div style="margin-top:6px;font-size:12px"><strong>ラベルについて:</strong> '+((s.labelLinks||[]).map(function(x){return (x.t?x.t+' ':'')+(x.u||'');}).filter(function(z){return z;}).join(' / ')||'—')+'</div>'; h+='<div style="margin-top:6px;font-size:12px"><strong>備考:</strong><br>'+PREP_FIXED_NOTES.map(function(t){return '<span style="color:#b91c1c">🔴 '+t+'</span>';}).concat((s.orderNotes||[]).map(function(n){var jv=(n.ja!=null?n.ja:(n.t||''));var tv=(n.tr||'');return (n.c?'☑ ':'☐ ')+(n.cat?('['+n.cat+'] '):'')+jv+(tv?(' ／ '+tv):'');})).join('<br>')+'</div>'; h+='<div style="margin-top:6px"><button class="btn-sm" onclick="prepDeleteHistory(\''+s.id+'\')">🗑 この記録を消す</button></div></div></details>';
   });
   box.innerHTML=h;
 }
@@ -3439,7 +3469,7 @@ function prepExportCSV(){
   lines.push('');
   lines.push(esc('備考 / Notes / Notlar'));
   for(var fi=0;fi<PREP_FIXED_NOTES.length;fi++){ lines.push(esc(PREP_FIXED_NOTES[fi])); }
-  for(var oi=0;oi<prepOrderNotes.length;oi++){ lines.push(esc((prepOrderNotes[oi].c?'[済] ':'[  ] ')+(prepOrderNotes[oi].t||''))); }
+  for(var oi=0;oi<prepOrderNotes.length;oi++){ var _n=prepOrderNotes[oi]; var _jv=(_n.ja!=null?_n.ja:(_n.t||'')); lines.push(esc((_n.c?'[済] ':'[  ] ')+(_n.cat?('['+_n.cat+'] '):'')+_jv+(_n.tr?(' | TR: '+_n.tr):''))); }
   var csv='\uFEFF'+lines.join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
@@ -3502,6 +3532,7 @@ function trRenderRules(){
       list.forEach(function(i){ var r=trState.rules[i];
         h+='<div class="tr-rule'+(r.red?' red':'')+'"><span class="tr-bull">・</span>'
           +'<div class="tr-rtxt" data-ri="'+i+'" contenteditable="true" oninput="trRuleInput('+i+',this.textContent)" onkeydown="trRuleKey(event,'+i+')">'+trEsc(r.t)+'</div>'
+          +'<button class="tr-tobik" title="この1件を輸入準備計算の備考へコピー" onclick="trRuleToBikou('+i+')">📋 備考へ</button>'
           +'<select class="tr-movecat" onchange="trRuleCat('+i+',this.value)">'+catOpts.map(function(cc){return '<option'+(cc===r.cat?' selected':'')+'>'+trEsc(cc)+'</option>';}).join('')+'</select>'
           +'<button class="tr-red" title="重要（赤）にする" onclick="trToggleRed('+i+')">🔴</button>'
           +'<button class="tr-del" title="消す" onclick="trDelRule('+i+')">🗑</button>'
@@ -3557,6 +3588,16 @@ function trMoveToRule(no){
   var cat=trCatFromBunrui(row?row.bun:''); if(trState.cats.indexOf(cat)<0) cat='その他';
   trState.rules.push({t:t,red:false,cat:cat}); trSaveSoon(); trRenderRules();
   var box=document.querySelector('#panel-trouble .tr-rulebox'); if(box) box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function trRuleToBikou(i){
+  var r=trState.rules[i]; if(!r) return;
+  if(typeof prepOrderNotes==='undefined'){ alert('輸入準備計算の備考が見つかりません。'); return; }
+  if(!window.__prepLoaded && typeof prepLoadLocal==='function'){ prepLoadLocal(); }
+  prepOrderNotes.push({cat:(r.cat||'その他'), tr:'', ja:(r.t||''), c:false});
+  if(typeof prepSaveLocal==='function') prepSaveLocal();
+  if(typeof prepGasSave==='function'){ try{ prepGasSave(); }catch(e){} }
+  if(typeof prepRenderOrderNotes==='function') prepRenderOrderNotes();
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ 備考に入れました（'+(r.cat||'その他')+'）');
 }
 
 /* 保存（localStorage＋既存メモ保存の流用・GAS改修なし・prep流の堅牢化） */
