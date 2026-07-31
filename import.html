@@ -3131,6 +3131,26 @@ function prepEditMaster(id,field,label,isNum){
   prepRender();
 }
 function prepChoose(id,mode){ prepMode[id]=mode; prepRender(); }
+/* 農園への発注を手で決める（1箱でも中身の本数を自由に）。空きスペースにラベルを入れたい時などに使う。 */
+function prepManualOn(id){
+  var p=prepFind(id); if(!p) return;
+  var row=prepCalc().filter(function(r){return r.p.id===id;})[0];
+  p.manual=true;
+  if(p.manualBoxes==null||p.manualBoxes===''){ p.manualBoxes=(row&&row.finalBox!=null)?row.finalBox:''; }
+  if(p.manualN==null||p.manualN===''){ p.manualN=(row?row.finalN:''); }
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRender();
+}
+function prepManualOff(id){
+  var p=prepFind(id); if(!p) return;
+  p.manual=false; p.manualBoxes=null; p.manualN=null;
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRender();
+}
+function prepSetManual(id,which,val){
+  var p=prepFind(id); if(!p) return;
+  if(which==='box') p.manualBoxes=(val===''?null:prepNum(val));
+  else p.manualN=(val===''?null:prepNum(val));
+  prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRender();
+}
 function prepCalc(){
   var all=prepProducts();
   var setRes={}; all.forEach(function(p){ if(p.rt) setRes[p.rt]=(prepNum(p.res)||0); });
@@ -3148,9 +3168,15 @@ function prepCalc(){
       var mode=prepMode[p.id]||'up';
       finalBox=(mode==='down')?down:up; finalN=finalBox*box;
     } else { finalN=want; }
+    var manual=(p.manual===true);
+    if(manual){
+      var mB=prepNum(p.manualBoxes), mN=prepNum(p.manualN);
+      finalBox=(mB==null)?finalBox:mB;
+      finalN=(mN==null)?(finalN||0):mN;
+    }
     return {p:p,setDerived:setDerived,remain:remain,want:want,box:box,up:up,upN:upN,upSur:upSur,
             down:down,downN:downN,downSh:downSh,finalBox:finalBox,finalN:finalN,realRemain:remain+finalN,
-            mode:prepMode[p.id]||'up'};
+            mode:prepMode[p.id]||'up',manual:manual};
   });
 }
 function prepFmtNeg(n){ return (n<0)?('<span style="color:#c00;font-weight:700">'+n+'</span>'):(''+n); }
@@ -3173,12 +3199,20 @@ function prepRender(){
   h+='<tr><th style="'+IMP+'">⬇️最終<br>箱数</th><th style="'+IMP+'">⬇️最終<br>本数</th></tr></thead><tbody>';
   rows.forEach(function(r){
     var p=r.p, choose='';
-    if(r.box&&r.box>0){
+    if(r.manual){
+      choose='<div style="display:flex;flex-direction:column;gap:4px">'
+        +'<div style="display:flex;gap:4px;align-items:center;justify-content:center">'
+        +'<label style="font-size:10px;color:#7a2f00">箱 <input type="text" value="'+(p.manualBoxes==null?'':p.manualBoxes)+'" onchange="prepSetManual(\''+p.id+'\',\'box\',this.value)" style="width:32px;text-align:center;border:1.5px solid #e0a94a;border-radius:4px;padding:2px"></label>'
+        +'<label style="font-size:10px;color:#7a2f00">本 <input type="text" value="'+(p.manualN==null?'':p.manualN)+'" onchange="prepSetManual(\''+p.id+'\',\'n\',this.value)" style="width:44px;text-align:center;border:1.5px solid #e0a94a;border-radius:4px;padding:2px"></label>'
+        +'<span style="font-size:9px;font-weight:800;color:#7a2f00;background:#fce3b4;border-radius:4px;padding:1px 4px">手入力</span></div>'
+        +'<button class="btn-sm" onclick="prepManualOff(\''+p.id+'\')" style="font-size:10px;padding:2px 4px">↩ 自動に戻す</button></div>';
+    } else if(r.box&&r.box>0){
       var upOn=(r.mode!=='down');
       choose='<div style="display:flex;flex-direction:column;gap:3px">'
         +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'up\')" style="'+(upOn?'background:#0f7a4a;color:#fff;border-color:#0f7a4a;':'')+'font-size:10px;padding:2px 4px">▲切上 '+r.up+'箱 (+'+r.upSur+')</button>'
-        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'down\')" style="'+(!upOn?'background:#b06a1a;color:#fff;border-color:#b06a1a;':'')+'font-size:10px;padding:2px 4px">▼切捨 '+r.down+'箱 (−'+r.downSh+')</button></div>';
-    } else choose='<span style="font-size:10px;color:#999">入数未設定</span>';
+        +'<button class="btn-sm" onclick="prepChoose(\''+p.id+'\',\'down\')" style="'+(!upOn?'background:#b06a1a;color:#fff;border-color:#b06a1a;':'')+'font-size:10px;padding:2px 4px">▼切捨 '+r.down+'箱 (−'+r.downSh+')</button>'
+        +'<button class="btn-sm" onclick="prepManualOn(\''+p.id+'\')" style="font-size:10px;padding:2px 4px;color:#7a2f00">✏ 手で決める</button></div>';
+    } else choose='<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:#999">入数未設定</span><button class="btn-sm" onclick="prepManualOn(\''+p.id+'\')" style="font-size:10px;padding:2px 4px;color:#7a2f00">✏ 手で決める</button></div>';
     var fBox=(r.finalBox==null)?'—':(r.finalBox+'箱');
     h+='<tr>'
       +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+' <button title="この商品を表から消す" onclick="prepRemoveProduct(\''+p.id+'\')" style="border:1px solid #e0b5b1;background:#fff;color:#a1443c;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;cursor:pointer;margin-left:4px">🗑</button>'+((prepAdded.indexOf(p)>=0)?' <span style="font-size:10px;font-weight:800;color:#0f5a4a;background:#d3efe6;border-radius:5px;padding:1px 5px">追加</span>':'')+'</td>'
@@ -3193,8 +3227,8 @@ function prepRender(){
       +'<td><input type="text" value="'+(p.target==null?'':p.target)+'" onchange="prepSetFree(\''+p.id+'\',\'target\',this.value)" style="width:56px;text-align:right;'+IN+'border:1.5px solid #e0b84a;border-radius:4px;padding:3px;font-weight:700"></td>'
       +'<td style="text-align:right;font-weight:700;color:'+(r.want>0?'#0f5a4a':'#bbb')+'">'+r.want+'</td>'
       +'<td>'+choose+'</td>'
-      +'<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+fBox+'</td>'
-      +'<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+r.finalN+'</td>'
+      +'<td style="text-align:center;'+IMP+'font-size:15px;color:#7a2f00">'+fBox+(r.manual?'<div style="font-size:9px;font-weight:800;color:#a06a1a">手入力</div>':'')+'</td>'
+      +'<td style="text-align:right;'+IMP+'font-size:15px;color:#7a2f00">'+r.finalN+(r.manual?'<div style="font-size:9px;font-weight:800;color:#a06a1a">手入力</div>':'')+'</td>'
       +'<td style="text-align:right">'+prepFmtNeg(r.realRemain)+'</td></tr>';
   });
   var totN=rows.reduce(function(a,r){return a+r.finalN;},0);
@@ -3224,7 +3258,7 @@ var PREP_LS_KEY='oos_prep_state_v1';
 var prepGasReady=false, prepGasTimer=null, prepGasBusy=false;
 function prepBuildState(){
   var st={v:1,mode:prepMode,history:prepHistory,folderUrl:prepFolderUrl,orderNotes:prepOrderNotes,labelLinks:prepLabelLinks,added:prepAdded,removed:prepRemoved,copack:prepCopack,p:{}};
-  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,notes:p.notes,enName:p.enName}; });
+  PREP_PRODUCTS.forEach(function(p){ st.p[p.id]={s:p.stock,r:p.res,t:p.target,b:p.box,name:p.name,sku:p.sku,vol:p.vol,cont:p.cont,exp:p.exp,lblLang:p.lblLang,lblPrint:p.lblPrint,lblUrl:p.lblUrl,lblColor:p.lblColor,notes:p.notes,enName:p.enName,manual:p.manual,manualBoxes:p.manualBoxes,manualN:p.manualN}; });
   return st;
 }
 function prepApplyState(st){
@@ -3242,6 +3276,7 @@ function prepApplyState(st){
     if(s.name!=null)p.name=s.name; if(s.sku!=null)p.sku=s.sku; if(s.vol!=null)p.vol=s.vol; if(s.cont!=null)p.cont=s.cont;
     if(s.exp!=null)p.exp=s.exp; if(s.lblLang!=null)p.lblLang=s.lblLang; if(s.lblPrint!=null)p.lblPrint=s.lblPrint; if(s.lblUrl!=null)p.lblUrl=s.lblUrl;
     if(s.lblColor!=null)p.lblColor=s.lblColor; if(s.notes!=null)p.notes=s.notes; if(s.enName!=null)p.enName=s.enName;
+    if('manual' in s)p.manual=s.manual; if('manualBoxes' in s)p.manualBoxes=s.manualBoxes; if('manualN' in s)p.manualN=s.manualN;
   }); }
 }
 function prepSaveLocal(){
@@ -3630,8 +3665,8 @@ function prepRenderOrderEN(){
       +'<td style="text-align:center">'+p.vol+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'cont',p.cont,PREP_CONT_OPTS)+'</td>'
       +'<td style="text-align:center;color:#111;font-weight:600">'+(r.box?r.box:'—')+'</td>'
-      +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
-      +'<td style="text-align:right;'+IMP+'">'+r.finalN+'</td>'
+      +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+(r.manual?'<div style="font-size:9px;font-weight:800;color:#a06a1a">手入力</div>':'')+'</td>'
+      +'<td style="text-align:right;'+IMP+'">'+r.finalN+(r.manual?'<div style="font-size:9px;font-weight:800;color:#a06a1a">手入力</div>':'')+'</td>'
       +'<td style="text-align:center"><input value="'+prepAttr(prepExpOverseas(prepExpOf(p)))+'" onchange="prepSetLbl(\''+p.id+'\',\'exp\',this.value)" style="width:98px;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblLang',prepLangOf(p),PREP_LANG_OPTS)+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblPrint',prepPrintOf(p),PREP_PRINT_OPTS)+'</td>'
@@ -3664,8 +3699,9 @@ function prepExportCSV(){
   for(var oi=0;oi<prepOrderNotes.length;oi++){ var _n=prepOrderNotes[oi]; var _jv=(_n.ja!=null?_n.ja:(_n.t||'')); _jv=(_jv||'').trim(); var _tv=(_n.tr||'').trim(); var _line=_tv?(_tv+(_jv?('（'+_jv+'）'):'')):_jv; if(_line) lines.push(esc(_line)); }
   if(prepCopack.length){ lines.push('');
     lines.push(esc('同梱依頼物 / Koliye eklenecekler'));
-    lines.push([esc('品目名 / Ürün'),esc('数量 / Adet'),esc('単位 / Birim'),esc('農園向けの言葉 / Çiftlik için'),esc('メモ / Not')].join(','));
-    for(var ci=0;ci<prepCopack.length;ci++){ var _c=prepCopack[ci]; lines.push([esc(_c.name||''),esc(_c.qty||''),esc(_c.unit||''),esc(_c.tr||''),esc(_c.memo||'')].join(',')); } }
+    lines.push([esc('品目名 / Ürün'),esc('数量 / Adet'),esc('単位 / Birim'),esc('メモ / Not')].join(','));
+    var _tj=function(tr,ja){ tr=(tr==null?'':(''+tr)).trim(); ja=(ja==null?'':(''+ja)).trim(); return tr?(tr+(ja?('（'+ja+'）'):'')):ja; };
+    for(var ci=0;ci<prepCopack.length;ci++){ var _c=prepCopack[ci]; lines.push([esc(_tj(_c.tr,_c.name)),esc(_c.qty||''),esc(_tj(_c.trUnit,_c.unit)),esc(_tj(_c.trMemo,_c.memo))].join(',')); } }
   var csv='\uFEFF'+lines.join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var d=new Date(), ymd=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
