@@ -2053,21 +2053,27 @@ function renderSimPanel(){
     loadSimPanel(currentSimSku, currentSimTier, {noScroll:true});
     return;
   }
-  // ★2026-07-31 中村様のご依頼：こちらから勝手に商品を選ばない。自分で左のマスを押したものだけを選択状態にする。
-  //   （旧：まだ一度も選んでいないとき、利益の薄い先頭商品＝オルガニックを自動で1件選んでいた。誤操作のもとになるため廃止。）
+  // まだ一度もマスを選んでいないときだけ、最初の1回に限り利益の薄い卸②を1件出す
+  let firstLow = null;
+  if(!simAutoPickDone){
+    simAutoPickDone = true;
+    allCostSkus().forEach(function(p){
+      if(firstLow) return;
+      const cost = getCostForSku(p.sku);
+      const rec = priceRecForSku(p.sku);
+      const p2 = parseFloat(rec.priceWholesale2) || 0;
+      if(isLowMargin(cost, p2)) firstLow = p.sku;
+    });
+  }
+  if(firstLow){ loadSimPanel(firstLow, 'wholesale2', {noScroll:true}); return; }
+  // 薄い商品が無いときは案内を出す
   const guardEl = document.getElementById('sim-guard'); if(guardEl) guardEl.style.display = 'none';
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'none';
   setSimExtras(false);
-  // 何も選ばれていない状態をはっきりさせる（選択中の黒枠・行ハイライトを消す）
-  try{
-    document.querySelectorAll('#profit-heatmap-table td.hm-sel').forEach(function(c){ c.classList.remove('hm-sel'); });
-    document.querySelectorAll('#profit-heatmap-table tr.sim-row-hl').forEach(function(r){ r.classList.remove('sim-row-hl'); });
-    var _sp = document.getElementById('sim-picker'); if(_sp) _sp.value = '';
-  }catch(e){}
   const emptyEl = document.getElementById('sim-empty');
   if(emptyEl){
     emptyEl.style.display = 'block';
-    emptyEl.innerHTML = '見直したい商品の <b>左のマス（卸②など）を押す</b>と、ここで金額を試せます。<br><span style="font-size:11px;color:#8a867c">※こちらから勝手に商品は選びません。</span>';
+    emptyEl.innerHTML = '🎉 卸②の利益率が40%を切っている商品はありません。<br><span style="font-size:11px">見直したい商品は、左の卸②マスを押すとここで試せます。</span>';
   }
 }
 function toggleRateSimAll(){
