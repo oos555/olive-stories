@@ -428,6 +428,7 @@ tr:last-child td{border-bottom:none}
       #panel-trouble .tr-rule.red .tr-red{opacity:1}
       #panel-trouble .tr-del{border:none;background:transparent;cursor:pointer;flex:none;padding:2px 4px;font-size:13px;color:#b0559c}
       #panel-trouble .tr-tobik{border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:11px;padding:3px 8px;border-radius:7px;cursor:pointer;flex:none;white-space:nowrap}
+      #panel-trouble .tr-tobik.done{border-color:#9aa0a6;background:#6b7280;color:#fff}
     </style>
     <div class="tr-intro">💡 以前ムスタファさんとのWhatsAppから拾い出した、農園（Novavera）との<b>トラブルの原因・どう対応したか・再発防止</b>の台帳です（全21件）。台帳の一番右<b>「✍️ その後の対応」</b>に「いつ・どうやったか」を書き込み、決まりごとにしたくなったら<b>「→ ルールに移す」</b>で上の枠にためていきます。</div>
     <div class="tr-rulebox">
@@ -3336,7 +3337,7 @@ function prepLLUrl(i,v){ if(prepLabelLinks[i]){ prepLabelLinks[i].u=(v||'').trim
 function prepLLDel(i){ prepLabelLinks.splice(i,1); prepSaveLocal(); prepRenderLabelLinks(); }
 function prepArg(c){ return "'"+String(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')+"'"; }
 function prepEscTxt(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function prepMigNote(n){ n=n||{}; return { cat:(n.cat||'その他'), tr:(n.tr!=null?n.tr:''), ja:(n.ja!=null?n.ja:(n.t!=null?n.t:'')), c:!!n.c }; }
+function prepMigNote(n){ n=n||{}; return { cat:(n.cat||'その他'), tr:(n.tr!=null?n.tr:''), ja:(n.ja!=null?n.ja:(n.t!=null?n.t:'')), c:!!n.c, src:(n.src!=null?n.src:'') }; }
 function prepBikouCats(){
   var base=(typeof TR_DEFAULT_CATS!=='undefined')?TR_DEFAULT_CATS.slice():['書類','ラベル','賞味期限','梱包','その他'];
   var out=base.slice();
@@ -3384,7 +3385,7 @@ function prepONoteAddCat(cat){ prepOrderNotes.push({cat:(cat||'その他'),tr:''
 function prepONoteTr(i,v){ if(prepOrderNotes[i]){ prepOrderNotes[i].tr=v; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); }
 function prepONoteJa(i,v){ if(prepOrderNotes[i]){ prepOrderNotes[i].ja=v; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); }
 function prepONoteToggle(i){ if(prepOrderNotes[i]){ prepOrderNotes[i].c=!prepOrderNotes[i].c; } prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); }
-function prepONoteDel(i){ prepOrderNotes.splice(i,1); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); }
+function prepONoteDel(i){ prepOrderNotes.splice(i,1); prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon(); prepRenderOrderNotes(); if(typeof trRenderRules==='function' && document.getElementById('tr-rules')) trRenderRules(); }
 function prepFinalize(){
   var rows=prepOrderRows();
   if(!rows.length){ alert('輸入する商品がありません（発注が0本です）。'); return; }
@@ -3494,6 +3495,8 @@ var trOpened=false, trGasReady=false, trGasBusy=false, trGasTimer=null;
 function trEsc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function trArg(c){ return "'"+String(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')+"'"; }
 function trStateColor(s){ s=s||''; if(s.indexOf('未解決')>=0) return '#c0392b'; if(s.indexOf('対応中')>=0||s.indexOf('運用')>=0||s.indexOf('改善')>=0||s.indexOf('確認')>=0) return '#b26a00'; if(s.indexOf('費用')>=0) return '#8a5a1c'; if(s.indexOf('解決')>=0) return '#2e7d32'; return '#5a4a3a'; }
+function trNewId(){ return 'r'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36); }
+var __trMut=false;
 function trApplyState(st){
   if(!st) return;
   trState.followups=(st.followups&&typeof st.followups==='object')?st.followups:{};
@@ -3501,17 +3504,21 @@ function trApplyState(st){
   trState.cats=(Array.isArray(st.cats)&&st.cats.length)?st.cats.slice():TR_DEFAULT_CATS.slice();
   trState.rules.forEach(function(r){ if(!r.cat) r.cat='その他'; });
   trState.rules.forEach(function(r){ if(trState.cats.indexOf(r.cat)<0) trState.cats.push(r.cat); });
+  /* 安定ID（備考との結び付け用）を無いものに付ける。付けたら保存フラグを立てる */
+  trState.rules.forEach(function(r){ if(!r.id){ r.id=trNewId(); __trMut=true; } });
 }
 function trCatFromBunrui(b){ b=b||''; var order=['書類','ラベル','賞味期限','梱包'], best='その他', bi=1e9;
   order.forEach(function(k){ var i=b.indexOf(k); if(i>=0 && i<bi){ bi=i; best=k; } }); return best; }
 function trSaveLocal(){ try{ localStorage.setItem(TR_LS_KEY, JSON.stringify(trState)); }catch(e){} }
-function trLoadLocal(){ try{ var s=localStorage.getItem(TR_LS_KEY); if(s) trApplyState(JSON.parse(s)); }catch(e){} }
+function trLoadLocal(){ try{ var s=localStorage.getItem(TR_LS_KEY); if(s) trApplyState(JSON.parse(s)); }catch(e){} if(__trMut){ trSaveLocal(); __trMut=false; } }
 function trSaveSoon(){ trSaveLocal(); trGasSaveSoon(); }
 
 function trRender(){
   if(!trOpened){ trLoadLocal(); trOpened=true; if(!trGasReady) trGasLoad(); }
+  if(typeof prepOrderNotes!=='undefined' && !window.__prepLoaded && !window.__trPrepPeeked && typeof prepLoadLocal==='function'){ prepLoadLocal(); window.__trPrepPeeked=true; }
   trRenderCatBtns(); trRenderRules(); trRenderTable();
 }
+function trBikNoteFor(id){ if(typeof prepOrderNotes==='undefined'||!id) return null; for(var k=0;k<prepOrderNotes.length;k++){ if(prepOrderNotes[k] && prepOrderNotes[k].src===id) return prepOrderNotes[k]; } return null; }
 function trRenderCatBtns(){
   var box=document.getElementById('tr-catbtns'); if(!box) return;
   var h=trState.cats.map(function(c){ return '<button class="tr-catbtn" onclick="trAddRuleToCat('+trArg(c)+')">✏️ '+trEsc(c)+'</button>'; }).join('');
@@ -3532,7 +3539,7 @@ function trRenderRules(){
       list.forEach(function(i){ var r=trState.rules[i];
         h+='<div class="tr-rule'+(r.red?' red':'')+'"><span class="tr-bull">・</span>'
           +'<div class="tr-rtxt" data-ri="'+i+'" contenteditable="true" oninput="trRuleInput('+i+',this.textContent)" onkeydown="trRuleKey(event,'+i+')">'+trEsc(r.t)+'</div>'
-          +'<button class="tr-tobik" title="この1件を輸入準備計算の備考へコピー" onclick="trRuleToBikou('+i+')">📋 備考へ</button>'
+          +'<button class="tr-tobik'+(trBikNoteFor(r.id)?' done':'')+'" title="'+(trBikNoteFor(r.id)?'すでに備考にあります（押すと上書き）':'この1件を輸入準備計算の備考へコピー')+'" onclick="trRuleToBikou('+i+')">'+(trBikNoteFor(r.id)?'✓ 済':'📋 備考へ')+'</button>'
           +'<select class="tr-movecat" onchange="trRuleCat('+i+',this.value)">'+catOpts.map(function(cc){return '<option'+(cc===r.cat?' selected':'')+'>'+trEsc(cc)+'</option>';}).join('')+'</select>'
           +'<button class="tr-red" title="重要（赤）にする" onclick="trToggleRed('+i+')">🔴</button>'
           +'<button class="tr-del" title="消す" onclick="trDelRule('+i+')">🗑</button>'
@@ -3572,10 +3579,10 @@ function trFocusRule(i){
 function trRuleInput(i,val){ if(!trState.rules[i]) return; trState.rules[i].t=val; trSaveSoon(); }
 function trToggleRed(i){ if(!trState.rules[i]) return; trState.rules[i].red=!trState.rules[i].red; trSaveSoon(); trRenderRules(); trFocusRule(i); }
 function trDelRule(i){ if(!trState.rules[i]) return; trState.rules.splice(i,1); trSaveSoon(); trRenderRules(); trFocusRule(Math.max(0,i-1)); }
-function trAddRuleToCat(cat){ trState.rules.push({t:'',red:false,cat:cat}); trSaveSoon(); trRenderRules(); trFocusRule(trState.rules.length-1); }
+function trAddRuleToCat(cat){ trState.rules.push({id:trNewId(),t:'',red:false,cat:cat}); trSaveSoon(); trRenderRules(); trFocusRule(trState.rules.length-1); }
 function trMakeCat(){ var n=prompt('新しいカテゴリの名前を入れてください（例：輸送）'); if(!n) return; n=(''+n).trim(); if(!n) return; if(trState.cats.indexOf(n)<0){ trState.cats.push(n); trSaveSoon(); trRenderCatBtns(); trRenderRules(); } }
 function trRuleCat(i,val){ if(!trState.rules[i]) return; trState.rules[i].cat=val; trSaveSoon(); trRenderRules(); }
-function trAddRuleAfter(i){ var cat=(trState.rules[i]&&trState.rules[i].cat)||'その他'; trState.rules.splice(i+1,0,{t:'',red:false,cat:cat}); trSaveSoon(); trRenderRules(); trFocusRule(i+1); }
+function trAddRuleAfter(i){ var cat=(trState.rules[i]&&trState.rules[i].cat)||'その他'; trState.rules.splice(i+1,0,{id:trNewId(),t:'',red:false,cat:cat}); trSaveSoon(); trRenderRules(); trFocusRule(i+1); }
 function trRuleKey(e,i){
   if(e.key==='Enter'){ e.preventDefault(); trAddRuleAfter(i); }
   else if(e.key==='Backspace'){ var el=e.target; if((el.textContent||'')==='' && trState.rules.length>1){ e.preventDefault(); trDelRule(i); } }
@@ -3586,18 +3593,26 @@ function trMoveToRule(no){
   if(!t){ alert('先に「その後の対応」を書いてから押してください。'); return; }
   var row=null; for(var k=0;k<TROUBLE_ROWS.length;k++){ if(String(TROUBLE_ROWS[k].no)===String(no)){ row=TROUBLE_ROWS[k]; break; } }
   var cat=trCatFromBunrui(row?row.bun:''); if(trState.cats.indexOf(cat)<0) cat='その他';
-  trState.rules.push({t:t,red:false,cat:cat}); trSaveSoon(); trRenderRules();
+  trState.rules.push({id:trNewId(),t:t,red:false,cat:cat}); trSaveSoon(); trRenderRules();
   var box=document.querySelector('#panel-trouble .tr-rulebox'); if(box) box.scrollIntoView({behavior:'smooth',block:'center'});
 }
 function trRuleToBikou(i){
   var r=trState.rules[i]; if(!r) return;
+  if(!r.id){ r.id=trNewId(); trSaveSoon(); }
   if(typeof prepOrderNotes==='undefined'){ alert('輸入準備計算の備考が見つかりません。'); return; }
-  if(!window.__prepLoaded && typeof prepLoadLocal==='function'){ prepLoadLocal(); }
-  prepOrderNotes.push({cat:(r.cat||'その他'), tr:'', ja:(r.t||''), c:false});
+  if(!window.__prepLoaded && !window.__trPrepPeeked && typeof prepLoadLocal==='function'){ prepLoadLocal(); window.__trPrepPeeked=true; }
+  var ex=trBikNoteFor(r.id), overwrote=false;
+  if(ex){
+    if(!confirm('この行はすでに備考にあります。\n今のルールの内容に「上書き」しますか？\n（日本語だけ更新／あなたが入れたトルコ語はそのまま残ります）')) return;
+    ex.ja=(r.t||''); ex.cat=(r.cat||'その他'); overwrote=true;
+  } else {
+    prepOrderNotes.push({cat:(r.cat||'その他'), tr:'', ja:(r.t||''), c:false, src:r.id});
+  }
   if(typeof prepSaveLocal==='function') prepSaveLocal();
   if(typeof prepGasSave==='function'){ try{ prepGasSave(); }catch(e){} }
   if(typeof prepRenderOrderNotes==='function') prepRenderOrderNotes();
-  if(typeof showSyncStatus==='function') showSyncStatus('✅ 備考に入れました（'+(r.cat||'その他')+'）');
+  trRenderRules(); /* ボタンをグレー「✓ 済」に更新 */
+  if(typeof showSyncStatus==='function') showSyncStatus(overwrote?'✅ 備考を上書きしました':'✅ 備考に入れました（'+(r.cat||'その他')+'）');
 }
 
 /* 保存（localStorage＋既存メモ保存の流用・GAS改修なし・prep流の堅牢化） */
@@ -3644,7 +3659,9 @@ async function trGasLoad(){
     } else if((d.message||'').indexOf('不明')>=0){ trGasStatus('⚠️ 共有保存はGAS更新後に有効（今は端末保存のみ）','#b06a1a'); }
     else trGasStatus('⚠️ 共有読込に失敗（端末の保存を使用）','#b06a1a');
   }catch(e){ trGasStatus('⚠️ 通信できません（端末の保存を使用）','#b06a1a'); }
-  trGasReady=true; trRender();
+  trGasReady=true;
+  if(__trMut){ trSaveLocal(); try{ trGasSave(); }catch(e){} __trMut=false; }
+  trRender();
 }
 </script>
 </body>
