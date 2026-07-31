@@ -348,7 +348,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="card" style="border-color:#0f5a4a">
       <div class="sec">📦 同梱依頼物（オイル以外・農園へのお願い）</div>
-      <div style="font-size:12px;color:#57534e;margin-bottom:8px;line-height:1.7;background:#eef4f1;border-radius:8px;padding:8px 10px">予備ラベルなど「箱に一緒に入れてほしいもの」を書きます。<b>箱数・本数の計算には入りません。</b>下の<b>農園用オーダー表にも「同梱依頼物」の別ブロック</b>として出るので、備考より目立って忘れられにくいです。</div>
+      <div style="font-size:12px;color:#57534e;margin-bottom:8px;line-height:1.7;background:#eef4f1;border-radius:8px;padding:8px 10px">予備ラベルなど「箱に一緒に入れてほしいもの」を書きます。<b>箱数・本数の計算には入りません。</b>下の<b>農園用オーダー表にも「同梱依頼物」の別ブロック</b>として出るので、備考より目立って忘れられにくいです。<br>ここに書くと、<b>その場で下の「同梱依頼物・農園向け（トルコ語）」に反映</b>され、<b>常に同じ内容</b>になります。</div>
       <div id="prep-copack-wrap" class="tbl-wrap" style="margin-bottom:8px"></div>
       <button class="btn-sm" onclick="prepCopackAdd()" style="border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer">＋ 同梱依頼物を追加</button>
     </div>
@@ -363,7 +363,7 @@ tr:last-child td{border-bottom:none}
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <span style="font-size:12px;color:#57534e">まとめて入れる：</span>
-        <label style="font-size:12px">賞味期限 <input id="prep-bulk-exp" value="2027.11.11" style="width:95px;padding:4px 6px;border:1px solid #d8cfc4;border-radius:5px"></label>
+        <label style="font-size:12px">賞味期限 <input id="prep-bulk-exp" value="2027.11.11" style="width:95px;padding:4px 6px;border:1px solid #d8cfc4;border-radius:5px"><span style="font-size:10.5px;color:#8a7a5a;margin-left:4px">入力は 年.月.日／農園表は 日.月.年で出ます</span></label>
         <button class="btn-sm" onclick="prepBulk('exp',document.getElementById('prep-bulk-exp').value)">全部に</button>
         <label style="font-size:12px">言語 <select id="prep-bulk-lang" style="padding:4px;border:1px solid #d8cfc4;border-radius:5px"><option value="Japanese">日本語</option><option value="Turkish">トルコ語</option><option value="English">英語</option></select></label>
         <button class="btn-sm" onclick="prepBulk('lblLang',document.getElementById('prep-bulk-lang').value)">全部に</button>
@@ -461,6 +461,7 @@ tr:last-child td{border-bottom:none}
     <div class="tr-rulebox">
       <h3>📌 ルール化するもの</h3>
       <div class="tr-sub">上のボタンで<b>カテゴリ</b>を選ぶと、その見出しの下に1行足されます（<b>Enterで次の行</b>）。文はクリックで<b>編集</b>／<b>🔴赤</b>／<b>🗑削除</b>／右の選択で<b>分類変更</b>。台帳の「→ ルールに移す」でも分類のまま入ります。</div>
+      <div style="font-size:12px;color:#1f5136;background:#e9f3ec;border:1px solid #bfe0cb;border-radius:8px;padding:7px 10px;margin:6px 0 8px;line-height:1.7">🔁 ここで作った<b>ルール</b>は、各行の右の<b>「📋 備考へ」</b>を押すと、別タブ<b>「🧮 輸入準備計算」</b>の<b>備考</b>（＝農園用オーダー表の備考）に入り、農園に一緒に伝えられます。</div>
       <div id="tr-catbtns" class="tr-catbtns"></div>
       <div id="tr-rules"></div>
     </div>
@@ -3314,13 +3315,27 @@ function prepEnName(p){
 function prepEnCont(c){ return c==='瓶'?'Bottle':(c==='缶'?'Can':(c==='箱'?'Box':(c||''))); }
 function prepOrderRows(){ return prepCalc().filter(function(r){return r.finalN>0;}); }
 function prepExpOf(p){ return (p.exp!=null&&p.exp!=='')?p.exp:'2027.11.11'; }
+/* 賞味期限を「農園向け＝日.月.年」の並びに直す。入力が 年.月.日 でも 日.月.年 でも受け取り、
+   区切り（. / - 年月日 空白）は問わない。日付として読めないものはそのまま返す（壊さない）。 */
+function prepExpOverseas(v){
+  var s=(v==null?'':(''+v)).trim();
+  if(!s) return s;
+  var nums=s.match(/\d+/g);
+  if(!nums || nums.length<3) return s;
+  var y,mo,d;
+  if(nums[0].length===4){ y=nums[0]; mo=nums[1]; d=nums[2]; }
+  else if(nums[2].length===4){ d=nums[0]; mo=nums[1]; y=nums[2]; }
+  else return s;
+  var pad=function(x){ x=String(parseInt(x,10)); return x.length<2?('0'+x):x; };
+  return pad(d)+'.'+pad(mo)+'.'+y;
+}
 function prepLangOf(p){ return p.lblLang||'Turkish'; }
 function prepPrintOf(p){ return p.lblPrint||'Turkey'; }
 function prepColorOf(p){ return p.lblColor||'Color'; }
 function prepUrlOf(p){ return p.lblUrl||''; }
 function prepAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
-function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRenderOrderEN(); }
-function prepBulk(field,val){ prepProducts().forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRenderOrderEN(); }
+function prepSetLbl(id,field,val){ var p=prepFind(id); if(p) p[field]=val; prepSaveLocal(); prepRender(); }
+function prepBulk(field,val){ prepProducts().forEach(function(p){ p[field]=val; }); prepSaveLocal(); prepRender(); }
 /* === 📦 同梱依頼物（オイル以外・農園へのお願い） === */
 function prepCEsc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function prepCAttr(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
@@ -3524,7 +3539,8 @@ function prepRenderOrderNotes(){
   prepOrderNotes=prepOrderNotes.map(prepMigNote); /* 古い1行メモも {cat,tr,ja,c} に引き継ぐ（消さない） */
   var h='<div style="border:1px solid #ecdfc7;border-radius:8px;background:#fbf7ef;padding:12px 14px">';
   h+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">📝 備考 ／ Notes ／ Notlar（農園への連絡・注意）</div>';
-  h+='<div style="font-size:11.5px;color:#7a6a4a;margin-bottom:8px">各行は<b>トルコ語（農園が読む・空でOK）</b>＋<b>日本語</b>。トラブル台帳の各ルールの「📋 備考へ」でも入ります（分類のまま）。</div>';
+  h+='<div style="font-size:11.5px;color:#7a6a4a;margin-bottom:4px">各行は<b>トルコ語（農園が読む・空でOK）</b>＋<b>日本語</b>。</div>';
+  h+='<div style="font-size:11.5px;color:#8a5a1c;background:#fbf1e0;border:1px solid #ecdcbf;border-radius:6px;padding:6px 9px;margin-bottom:8px;line-height:1.7">📌 ここの一部は、別タブ<b>「🌿 農園とのやり取り記録と改善」</b>の<b>『ルール化するもの』</b>から<b>「📋 備考へ」</b>で飛んできています。<b>この案内文はエクセル（農園向け）には出ません。</b></div>';
   for(var f=0;f<PREP_FIXED_NOTES.length;f++){
     h+='<div style="margin:4px 0;background:#fdecea;border:1px solid #f3b4ad;border-radius:5px;padding:6px 9px;line-height:1.5"><div style="font-size:14px;color:#7a1a12;font-weight:700">🔴 '+PREP_FIXED_NOTES[f]+'</div><div style="font-size:11px;color:#a06a62;margin-top:2px">'+(PREP_FIXED_NOTES_JA[f]||'')+'</div></div>';
   }
@@ -3606,7 +3622,7 @@ function prepRenderOrderEN(){
   var h='<table style="min-width:1180px"><thead><tr>'
     +'<th>No.</th><th>Product Name<br><span style="font-size:10px;color:#7a6f5c">Ürün Adı</span></th><th>Volume<br><span style="font-size:10px;color:#7a6f5c">Hacim</span></th><th>Container<br><span style="font-size:10px;color:#7a6f5c">Kap</span></th><th style="color:#111">Units / Box<br><span style="font-size:10px;color:#555">Kutudaki adet</span></th>'
     +'<th style="'+IMP+'">Boxes to Order<br><span style="font-size:10px;color:#7a2f00">Sipariş (kutu)</span></th><th style="'+IMP+'">Total Bottles<br><span style="font-size:10px;color:#7a2f00">Toplam şişe</span></th>'
-    +'<th>賞味期限<br>Best-Before<br><span style="font-size:10px;color:#7a6f5c">SKT</span></th><th>裏ラベル言語<br>Label Lang<br><span style="font-size:10px;color:#7a6f5c">Etiket dili</span></th><th>印刷<br>Printed in<br><span style="font-size:10px;color:#7a6f5c">Baskı yeri</span></th><th>印刷色<br>Color<br><span style="font-size:10px;color:#7a6f5c">Renk</span></th></tr></thead><tbody>';
+    +'<th>賞味期限<br>Best-Before<br><span style="font-size:10px;color:#7a6f5c">SKT ・ 日.月.年</span></th><th>裏ラベル言語<br>Label Lang<br><span style="font-size:10px;color:#7a6f5c">Etiket dili</span></th><th>印刷<br>Printed in<br><span style="font-size:10px;color:#7a6f5c">Baskı yeri</span></th><th>印刷色<br>Color<br><span style="font-size:10px;color:#7a6f5c">Renk</span></th></tr></thead><tbody>';
   var tot=0, totBox=0;
   rows.forEach(function(r,i){ tot+=r.finalN; totBox+=((r.finalBox!=null && !isNaN(r.finalBox))?r.finalBox:0); var p=r.p; var url=prepUrlOf(p);
     h+='<tr><td style="text-align:center">'+(i+1)+'</td>'
@@ -3616,7 +3632,7 @@ function prepRenderOrderEN(){
       +'<td style="text-align:center;color:#111;font-weight:600">'+(r.box?r.box:'—')+'</td>'
       +'<td style="text-align:center;'+IMP+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
       +'<td style="text-align:right;'+IMP+'">'+r.finalN+'</td>'
-      +'<td style="text-align:center"><input value="'+prepAttr(prepExpOf(p))+'" onchange="prepSetLbl(\''+p.id+'\',\'exp\',this.value)" style="width:92px;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
+      +'<td style="text-align:center"><input value="'+prepAttr(prepExpOverseas(prepExpOf(p)))+'" onchange="prepSetLbl(\''+p.id+'\',\'exp\',this.value)" style="width:98px;text-align:center;border:1px solid #d8cfc4;border-radius:5px;padding:3px"></td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblLang',prepLangOf(p),PREP_LANG_OPTS)+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblPrint',prepPrintOf(p),PREP_PRINT_OPTS)+'</td>'
       +'<td style="text-align:center">'+prepSelHtml(p.id,'lblColor',prepColorOf(p),PREP_COLOR_OPTS)+'</td>'
@@ -3635,7 +3651,7 @@ function prepExportCSV(){
   function esc(v){ v=(v==null?'':(''+v)); return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v; }
   var lines=[]; if(prepFolderUrl){ lines.push(esc('農園共有フォルダ / Paylaşılan klasör')+','+esc(prepFolderUrl)); lines.push(''); } lines.push(head.map(esc).join(','));
   rows.forEach(function(r,i){ var p=r.p;
-    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOf(p),prepTrLang(prepLangOf(p)),prepTrPrint(prepPrintOf(p)),prepTrColor(prepColorOf(p))].map(esc).join(','));
+    lines.push([i+1,prepEnName(p),p.vol,prepEnCont(p.cont),(r.box||''),(r.finalBox!=null?r.finalBox:''),r.finalN,prepExpOverseas(prepExpOf(p)),prepTrLang(prepLangOf(p)),prepTrPrint(prepPrintOf(p)),prepTrColor(prepColorOf(p))].map(esc).join(','));
   });
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
   lines.push(['','TOTAL','','','','',tot,'','','',''].map(esc).join(','));
