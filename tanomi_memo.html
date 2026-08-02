@@ -49,6 +49,8 @@
   .row.green { border-left-color:#6b7a3a; } .row.green .pill { background:#eef2e3; color:#4d5a24; }
   .sec { font-size:12px; font-weight:700; color:#8a5a12; margin:14px 2px 7px; }
   .sec.done-sec { color:#6b6a63; }
+  .sec.done-toggle { cursor:pointer; background:#f3f1ea; border:1px solid #e4ded2; border-radius:8px; padding:8px 11px; margin:14px 0 6px; font-size:12.5px; }
+  .sec.done-toggle:hover { background:#ece8de; }
   .row.donelog { opacity:.55; border-left-color:#cfc7b6; }
   .row.donelog .task { text-decoration:line-through; }
   .row .undo { flex-shrink:0; background:#eee; color:#555; border:none; border-radius:9px; padding:6px 10px; font-size:12px; font-weight:700; }
@@ -305,6 +307,7 @@ var ATELIER_OK = 'oos_atelier_ok';
 
 var password = '';
 var ITEMS = [];
+var doneOpen = false;   // 「できたもの」は普段たたむ。開いたときだけ展開
 var VCACHE_KEY = 'oos_tanomi_vcache_v1';
 var VGROUPS = [];   // もらった見積・請求のボタン（グループ）
 var FCACHE_KEY = 'oos_tanomi_fcache_v1';
@@ -487,17 +490,20 @@ function renderList(){
   var oc=document.getElementById('opencount'); if(oc) oc.textContent=open.length;
   open.sort(function(a,b){ if(a.urgent!==b.urgent) return a.urgent?-1:1; var da=a.dueTs==null?Infinity:a.dueTs, db=b.dueTs==null?Infinity:b.dueTs; return da-db; });
   var html='';
-  if(!open.length){ html+='<div class="empty">いまは頼みごとはありません。<br>「✏️ 入れる」から追加できます。</div>'; }
+  if(!open.length){ html+='<div class="empty">いまは頼みごとはありません。<br>下の欄から追加できます。</div>'; }
   else { open.forEach(function(x){ html+=rowHtml(x); }); }
   if(done.length){
-    html+='<div class="sec done-sec">✓ できたもの（'+done.length+'）</div>';
-    done.slice().reverse().forEach(function(x){
-      html+='<div class="row donelog"><div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div></div>'+
-        '<button class="undo" onclick="undoDone(\''+x.id+'\')">戻す</button></div>';
-    });
+    html+='<div class="sec done-sec done-toggle" onclick="toggleDone()">'+(doneOpen?'▽':'▷')+' できたもの（'+done.length+'）'+(doneOpen?'　閉じる':'　タップで見る')+'</div>';
+    if(doneOpen){
+      done.slice().reverse().forEach(function(x){
+        html+='<div class="row donelog"><div class="mid"><div class="task">'+esc(x.task)+'</div><div class="who">'+esc(x.who)+' ／ '+esc(x.due)+'</div></div>'+
+          '<button class="undo" onclick="undoDone(\''+x.id+'\')">戻す</button></div>';
+      });
+    }
   }
   var lb=document.getElementById('listbox'); if(lb) lb.innerHTML=html;
 }
+function toggleDone(){ doneOpen=!doneOpen; renderList(); }
 
 /* ========================================================================
    📥 もらった見積・請求（ボタン式）— 2026-07-31 追加
