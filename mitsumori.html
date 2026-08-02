@@ -4050,30 +4050,67 @@ function docCompanyBlockHtml(){
   h += '<div style="margin-top:8px;text-align:right"><img src="data:image/png;base64,'+DOC_LOGO_B64+'" alt="oliveoil stories" style="width:150px;height:auto"></div>';
   return h;
 }
+// ── PDF書き出しの共通部品（2026-08-03 修正）──────────────────────────
+// スマホ（iPhone・iPad）の Safari は、1枚の画像（canvas）の高さに上限があり、
+// 長い価格表などを一気に画像化すると「まっ白（何も写らない）」になってしまう。
+// そこで、①画面幅に関係なく決まった横幅（A4の比率）で書類を組み直し、
+// ②1ページ分ずつ小さく切り取って画像化 → PDFに貼る、という方式にした。
+// これで、たての長い価格表でも、どの端末でも中身がちゃんと入る。
+async function rasterizeDocToPdf(el, landscape, filename){
+  const TARGET_W = landscape ? 1123 : 800;   // 書類を組み直す横幅（px）。よこ＝A4横相当／たて＝A4縦相当
+  const SCALE = 2;                            // きれいさ（2倍）。1ページずつ切るので大きくなりすぎない
+  const saved = { width: el.style.width, maxWidth: el.style.maxWidth };
+  el.style.width = TARGET_W + 'px';
+  el.style.maxWidth = 'none';
+  el.getBoundingClientRect(); // レイアウトを組み直させる
+  const fullH = el.offsetHeight;
+
+  const pdf = new jspdf.jsPDF({orientation: landscape ? 'landscape' : 'portrait', unit:'mm', format:'a4'});
+  const pdfW = pdf.internal.pageSize.getWidth();
+  const pdfH = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const usableW = pdfW - margin*2;
+  const usableH = pdfH - margin*2;
+  // 1ページ分の高さ（px）：紙の「使える幅：高さ」の比率に合わせる
+  const pageHpx = Math.max(1, Math.floor(TARGET_W * (usableH / usableW)));
+  const pages = Math.max(1, Math.ceil(fullH / pageHpx));
+
+  try {
+    for(let p=0; p<pages; p++){
+      const y = p * pageHpx;
+      const sliceHpx = Math.min(pageHpx, fullH - y);
+      if(sliceHpx <= 0) break;
+      const canvas = await html2canvas(el, {
+        scale: SCALE, backgroundColor:'#ffffff', useCORS:true,
+        width: TARGET_W, height: sliceHpx, x:0, y:y,
+        windowWidth: TARGET_W, windowHeight: fullH,
+        scrollX:0, scrollY:0
+      });
+      const img = canvas.toDataURL('image/png');
+      const imgW = usableW;
+      const imgH = imgW * (canvas.height / canvas.width); // 最後の短いページも、伸びずに正しい高さで貼る
+      if(p>0) pdf.addPage();
+      pdf.addImage(img, 'PNG', margin, margin, imgW, imgH);
+    }
+    pdf.save(filename);
+  } finally {
+    el.style.width = saved.width;
+    el.style.maxWidth = saved.maxWidth;
+  }
+}
 function downloadQuotePdf(record){
   const el = document.querySelector('#quote-doc-area .invoice-doc');
   if(!el){ alert((record&&(record.kind==='invoice'||record.kind==='both'))?'請求書が表示されていません':'見積書が表示されていません'); return; }
+  if(typeof html2canvas==='undefined' || typeof jspdf==='undefined'){
+    alert('PDFの部品がまだ読み込めていません。少し待ってから、もう一度押してください。'); return;
+  }
   showSyncStatus('PDFを作成しています...');
-  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
-    const img = canvas.toDataURL('image/png');
-    const pdf = new jspdf.jsPDF({orientation:(window.v3PdfLandscape?'landscape':'portrait'), unit:'mm', format:'a4'});
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = pdf.internal.pageSize.getHeight();
-    const imgW = pdfW - 20;
-    const imgH = canvas.height * imgW / canvas.width;
-    let heightLeft = imgH;
-    let position = 10;
-    pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
-    heightLeft -= (pdfH - 20);
-    while(heightLeft > 0){
-      position = heightLeft - imgH + 10;
-      pdf.addPage();
-      pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
-      heightLeft -= (pdfH - 20);
-    }
-    const dateStr = new Date().toISOString().slice(0,10);
-    const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : (record.kind==='both' ? '見積書兼請求書' : '見積書'));
-    pdf.save(kindStr+'_'+record.customerName+'様_'+dateStr+'.pdf');
+  // 用紙の向きは中身で決める（価格表・オイル価格表＝よこ／それ以外＝たて）。画面ボタンから直接呼ばれても正しく判定できるようにする。
+  const landscape = (record && (record.kind==='pricelist' || record.kind==='oilwholesale')) || !!window.v3PdfLandscape;
+  const dateStr = new Date().toISOString().slice(0,10);
+  const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : (record.kind==='both' ? '見積書兼請求書' : '見積書'));
+  const filename = kindStr+'_'+record.customerName+'様_'+dateStr+'.pdf';
+  rasterizeDocToPdf(el, landscape, filename).then(function(){
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
     showSyncStatus('⚠️ PDF作成に失敗しました', true);
@@ -4863,15 +4900,13 @@ function renderSpecialPriceDocBatch(records, cust){
 function downloadSpecialBatchPdf(customerName){
   const el = document.querySelector('#special-doc-area .invoice-doc');
   if(!el){ alert('特価見積書が表示されていません'); return; }
+  if(typeof html2canvas==='undefined' || typeof jspdf==='undefined'){
+    alert('PDFの部品がまだ読み込めていません。少し待ってから、もう一度押してください。'); return;
+  }
   showSyncStatus('PDFを作成しています...');
-  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(function(canvas){
-    const img = canvas.toDataURL('image/png');
-    const pdf = new jspdf.jsPDF({orientation:(window.v3PdfLandscape?'landscape':'portrait'), unit:'mm', format:'a4'});
-    const imgW = pdf.internal.pageSize.getWidth() - 20;
-    const imgH = canvas.height * imgW / canvas.width;
-    pdf.addImage(img, 'PNG', 10, 10, imgW, imgH);
-    const dateStr = new Date().toISOString().slice(0,10);
-    pdf.save('特別見積書_'+(customerName||'')+'_'+dateStr+'.pdf');
+  const dateStr = new Date().toISOString().slice(0,10);
+  // 特価見積書はたて（portrait）で作る
+  rasterizeDocToPdf(el, false, '特別見積書_'+(customerName||'')+'_'+dateStr+'.pdf').then(function(){
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
     showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
