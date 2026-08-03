@@ -4450,7 +4450,9 @@ async function rasterizeSectionsToPdf(sections, landscape, filename){
 }
 
 function downloadQuotePdf(record){
-  const el = document.querySelector('#quote-doc-area .invoice-doc');
+  // 価格一覧（2026-08-03 新pl9モジュール）は .pls-sheet で描画される。旧様式は .invoice-doc。どちらでも拾えるようにする。
+  var plsSheets = Array.prototype.slice.call(document.querySelectorAll('#quote-doc-area .pls-sheet'));
+  const el = document.querySelector('#quote-doc-area .invoice-doc') || plsSheets[0] || null;
   if(!el){ alert((record&&(record.kind==='invoice'||record.kind==='both'))?'請求書が表示されていません':'見積書が表示されていません'); return; }
   if(typeof html2canvas==='undefined' || typeof jspdf==='undefined'){
     alert('PDFの部品がまだ読み込めていません。少し待ってから、もう一度押してください。'); return;
@@ -4465,6 +4467,16 @@ function downloadQuotePdf(record){
   // 価格表で「📷 商品写真ページを付ける」がONなら、価格表(1枚)＋写真ページをまとめて出す
   var wantPhotos = record.kind==='pricelist' && Array.isArray(record.selectedFields) && record.selectedFields.indexOf('label:商品写真')>=0;
   if(record.kind==='pricelist'){
+    // 新pl9の価格一覧：画面に出ている .pls-sheet を1枚ずつA4横で出す（シート1＋旧ロット別シート＋追加資料も全部まとめて）
+    if(plsSheets.length){
+      var plsSections = plsSheets.map(function(s){ return {el:s, fitOnePage:true}; });
+      rasterizeSectionsToPdf(plsSections, true, filename).then(function(){
+        showSyncStatus('✅ PDFを作成しました');
+      }).catch(function(err){
+        showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
+      });
+      return;
+    }
     var sections = [{el: el, fitOnePage: true}];
     var photoEl = null;
     if(wantPhotos){
