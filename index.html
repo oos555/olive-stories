@@ -26,6 +26,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 @keyframes basaraGlowP{0%,100%{box-shadow:0 0 0 0 rgba(123,47,160,0)}50%{box-shadow:0 0 0 3px rgba(123,47,160,.55)}}
 .order-card.basara-glow{border-color:#7b2fa0 !important;animation:basaraGlowP 1.1s ease-in-out infinite}
 .order-card.oc-unsent{border:2px solid #e24b4a !important;border-left:7px solid #e24b4a !important;background:#fff5f4 !important}
+.order-card.oc-sent{background:#f0efeb !important;border-color:#ddd8cc !important;opacity:.78}
+.order-card.oc-sent .oc-name{color:#6b665c}
 .basara-paste{width:100%;min-height:210px;padding:12px 14px;border:1.5px solid #9d957f;border-radius:8px;font-size:13px;line-height:1.7;color:#2b2a26;resize:vertical}
 .nav-group{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 8px;border-radius:10px}
 .nav-group-label{font-size:10px;font-weight:700;letter-spacing:.04em;margin-right:2px;opacity:.8}
@@ -440,13 +442,12 @@ body{background:#fff}
     </div>
 
     <div class="fg">
-      <label>お客様名（発注元） <span style="font-size:11px;color:#2b2a26">（選択または直接入力）</span></label>
+      <label>お客様名（発注元） <span style="font-size:11px;color:#2b2a26">（入力すると候補が出ます／新しいお客様はそのまま入力）</span></label>
       <div style="display:flex;gap:6px;align-items:center">
-        <input type="text" id="o-customer-search" placeholder="🔍 お名前でしぼり込み（例：東京 と入れると「東京〜」だけ出ます）" oninput="filterCustomerSelect()" style="flex:1;min-width:0;font-size:14px">
-        <select id="o-customer-select" onchange="onCustomerSelect()" style="flex:1;min-width:0"><option value="">マスタから選択...</option></select>
+        <input type="text" id="o-client" list="o-customer-datalist" autocomplete="off" placeholder="🔍 お名前を入力（例：東京 と入れると「東京〜」が候補に出ます）" oninput="onClientPick()" style="flex:1;min-width:0;font-size:14px">
         <button class="btn-sm" onclick="clearCustomerSelect()" title="クリア">✕</button>
       </div>
-      <input type="text" id="o-client" placeholder="または直接入力" style="margin-top:6px" oninput="onClientInput()">
+      <datalist id="o-customer-datalist"></datalist>
     </div>
     <div id="ctype-mismatch-warn"></div>
     <div id="ctype-prev-info"></div>
@@ -1337,6 +1338,9 @@ body{background:#fff}
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 let gasSyncEnabled = true;
+// GASからの読み取りは毎回ちがう印を付けて、ブラウザ・回線が古い返事を使い回すのを防ぐ。
+// （倉庫Dに最新が出ない／保存時に古いデータを取り直して上書きしてしまう、を防ぐ）
+function bust(url){ return url + (url.indexOf('?')>=0?'&':'?') + '_ts=' + Date.now(); }
 
 /* ════════════════════════════════════════════════════════════════
    No.12 お届け日指定：営業日エンジン（お休みの大もと＝送料・約束ごとS soryo.html。計算ロジックは各アプリ共通）
@@ -1703,7 +1707,7 @@ function saveCustomersMerged(){
   return (async function(){
     var srv=null;
     try{
-      var r0 = await fetch(GAS_URL + '?action=loadAllData').then(function(x){ return x.json(); });
+      var r0 = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'}).then(function(x){ return x.json(); });
       if(r0 && r0.status==='ok' && r0.data && Array.isArray(r0.data.customers)) srv = r0.data.customers;
     }catch(e){ srv = null; }
     var payload;
@@ -1759,8 +1763,8 @@ function loadInitialData(retry){
   if(!gasSyncEnabled){ ordersLoaded = true; return; }
   retry = retry || 0;
   Promise.all([
-    fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
-    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
+    fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+    fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null)
   ]).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
     const dOk = !!(dataRes && dataRes.status==='ok' && dataRes.data);
@@ -1869,34 +1873,22 @@ function renderStockStrip(){ /* 在庫サマリー・見張り表示は廃止（
 
 // ── お客様マスタ連動 ────────────────────────────────────────────
 function updCustomerSelects(){
-  const sel = document.getElementById('o-customer-select');
-  sel.innerHTML = '<option value="">マスタから選択...</option>' +
-    customers.map(c=>'<option value="'+c.id+'">'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>').join('');
-  filterCustomerSelect();
+  const dl = document.getElementById('o-customer-datalist');
+  if(!dl) return;
+  dl.innerHTML = customers.map(function(c){
+    return '<option value="'+esc(c.name)+'" label="'+esc(c.name)+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）"></option>';
+  }).join('');
 }
-// お名前でしぼり込み：検索ボックスに入れた文字を含むお客様だけをマスタ一覧に出す
-function filterCustomerSelect(){
-  var box = document.getElementById('o-customer-search');
-  var sel = document.getElementById('o-customer-select');
-  if(!sel) return;
-  var q = box ? (box.value||'').trim().toLowerCase() : '';
-  var keep = document.getElementById('o-client') ? (document.getElementById('o-client').dataset.custId||'') : '';
-  var list = customers;
-  if(q){ list = customers.filter(function(c){ return (c.name||'').toLowerCase().indexOf(q)>=0; }); }
-  var head = q ? ('該当 '+list.length+'件（開いて選んでください）') : 'マスタから選択...';
-  sel.innerHTML = '<option value="">'+head+'</option>' +
-    list.map(function(c){ return '<option value="'+c.id+'"'+(c.id==keep?' selected':'')+'>'+c.name+'（'+(CUSTOMER_TYPE_LABEL[c.type]||c.type)+'）</option>'; }).join('');
-}
+// データリスト化により専用のしぼり込みは不要（入力すると候補が自動で絞られる）
+function filterCustomerSelect(){ /* no-op（互換のため関数だけ残す） */ }
 let selectedCustomerRecord = null;
-function onCustomerSelect(){
-  const id = document.getElementById('o-customer-select').value;
-  if(!id) return;
-  const c = customers.find(x=>x.id==id);
+// お客様の情報をフォームに反映（マスタから拾った1件ぶん）
+function applyCustomerRecord(c){
   if(!c) return;
   selectedCustomerRecord = c;
   document.getElementById('o-client').value = c.name;
-  document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-client').dataset.custId = c.id;
+  document.getElementById('o-ctype').value = c.type;
   document.getElementById('o-zip').value = c.zip||'';
   document.getElementById('o-addr').value = c.addr||'';
   document.getElementById('o-tel').value = c.tel||'';
@@ -1904,9 +1896,34 @@ function onCustomerSelect(){
   document.getElementById('ctype-mismatch-warn').innerHTML = '';
   var _lbl=document.getElementById('o-save-customer-label');
   if(_lbl) _lbl.textContent='このお客様の情報を上書き保存する（住所・電話などを直したら押す）';
-  showPrevOrderType(c); // ② 前回はこちら（注文履歴から・流れは変えない）
-  if(typeof onCtypeChange==='function') onCtypeChange(); // 区分の既定を適用（RT・RTGCなら同梱書類＝RT発注伝票＋納品書を自動セット）
+  showPrevOrderType(c);
+  if(typeof onCtypeChange==='function') onCtypeChange();
 }
+// お客様名の入力欄が変わるたび：マスタに完全一致する名前があれば自動で情報を埋める。
+// 一致しなければ「新規のお客様（直接入力）」あつかい。
+function onClientPick(){
+  var el = document.getElementById('o-client');
+  var v = (el.value||'').trim();
+  var c = v ? customers.find(function(x){ return (x.name||'').trim() === v; }) : null;
+  if(c){ applyCustomerRecord(c); return; }
+  // 一致しない＝新規のお客様あつかい。直前にマスタから自動入力していた住所などが
+  // そのまま残っていれば消す（手で直した分は消さない）。
+  var prev = selectedCustomerRecord;
+  if(prev){
+    var z=document.getElementById('o-zip'), a=document.getElementById('o-addr'), t=document.getElementById('o-tel'), m=document.getElementById('o-memo');
+    if(z && z.value===(prev.zip||'')) z.value='';
+    if(a && a.value===(prev.addr||'')) a.value='';
+    if(t && t.value===(prev.tel||'')) t.value='';
+    if(m && m.value===(prev.note||'')) m.value='';
+  }
+  el.dataset.custId = '';
+  selectedCustomerRecord = null;
+  var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
+  var _lbl=document.getElementById('o-save-customer-label'); if(_lbl) _lbl.textContent='新規お客様として保存';
+}
+// 互換用エイリアス（過去の呼び出し元のため）
+function onCustomerSelect(){ onClientPick(); }
+function onClientInput(){ onClientPick(); }
 function showPrevOrderType(c){
   var el = document.getElementById('ctype-prev-info');
   if(!el || !c) return;
@@ -1921,7 +1938,6 @@ function showPrevOrderType(c){
   } else { el.innerHTML = ''; }
 }
 function clearCustomerSelect(){
-  document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-zip').value = '';
@@ -1933,15 +1949,6 @@ function clearCustomerSelect(){
   var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
   var _lbl=document.getElementById('o-save-customer-label'); if(_lbl) _lbl.textContent='新規お客様として保存';
   var _sc=document.getElementById('o-save-customer'); if(_sc) _sc.checked=false;
-  var _cs=document.getElementById('o-customer-search'); if(_cs){ _cs.value=''; }
-  filterCustomerSelect();
-}
-function onClientInput(){
-  document.getElementById('o-customer-select').value = '';
-  document.getElementById('o-client').dataset.custId = '';
-  selectedCustomerRecord = null;
-  var _pi=document.getElementById('ctype-prev-info'); if(_pi) _pi.innerHTML='';
-  var _lbl=document.getElementById('o-save-customer-label'); if(_lbl) _lbl.textContent='新規お客様として保存';
 }
 function onRecordTypeChange(){
   const sel = document.getElementById('o-record-type');
@@ -2101,6 +2108,8 @@ function addRecipient(){
       '</div>'+
     '</div>'+
     '<div data-role="overridePanel" style="display:none;background:#f9f8f5;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+      '<button type="button" class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700;margin-bottom:6px" onclick="fillSenderFromOrderer(\''+id+'\')">📥 発注者（購入者）の名前・住所を入れる</button>'+
+      '<div style="font-size:11px;color:#8a7f6a;margin-bottom:8px;line-height:1.6">↑ 上の「お客様名（発注元）」の名前・郵便番号・電話・住所を、送り主にそのまま入れます。入れたあと自由に直せます。</div>'+
       '<div class="fg" style="margin-bottom:0"><label>送り主氏名（上書き）</label><input type="text" data-role="senderName" placeholder="空欄なら発注者名を使用"></div>'+
       '<div class="g2">'+
         '<div class="fg"><label>送り主郵便番号（上書き）</label><input type="text" data-role="senderZipOv" placeholder="1000001（ハイフン無しでもOK）" onblur="onZipBlur(this)"></div>'+
@@ -2226,6 +2235,18 @@ function addRecipient(){
 function toggleRecipientOverride(cardId){
   const panel = document.getElementById(cardId).querySelector('[data-role=overridePanel]');
   panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+}
+// 送り主を「発注者（購入者）」の名前・住所にそろえる。押したあと自由に直せる。
+function fillSenderFromOrderer(cardId){
+  var card = document.getElementById(cardId);
+  if(!card) return;
+  var name = (document.getElementById('o-client').value||'').trim();
+  if(!name){ alert('先に上の「お客様名（発注元）」を入力してください。'); return; }
+  var set = function(role, val){ var el=card.querySelector('[data-role='+role+']'); if(el) el.value = val||''; };
+  set('senderName', name);
+  set('senderZipOv', document.getElementById('o-zip').value);
+  set('senderTelOv', document.getElementById('o-tel').value);
+  set('senderAddrOv', document.getElementById('o-addr').value);
 }
 
 // ── 郵便番号・電話番号：ハイフン有無どちらで入力してもOKにし、入力欄を離れたら自動整形 ──
@@ -2967,7 +2988,6 @@ function registerOrder(){
 
 function clearForm(){
   window._rtExtraDoc = null; if(typeof rtResetExtraDoc==='function') rtResetExtraDoc();
-  document.getElementById('o-customer-select').value = '';
   document.getElementById('o-client').value = '';
   document.getElementById('o-client').dataset.custId = '';
   document.getElementById('o-ctype').value = 'general';
@@ -2985,8 +3005,6 @@ function clearForm(){
   document.getElementById('o-memo').value = '';
   document.getElementById('o-save-customer').checked = false;
   var _lbl2=document.getElementById('o-save-customer-label'); if(_lbl2) _lbl2.textContent='新規お客様として保存';
-  var _cs2=document.getElementById('o-customer-search'); if(_cs2){ _cs2.value=''; }
-  if(typeof filterCustomerSelect==='function') filterCustomerSelect();
   Array.prototype.slice.call(document.querySelectorAll('.enc-doc')).forEach(function(x){ x.checked = (x.value==='納品書' && !x.getAttribute('data-doc')); });
   if(document.getElementById('o-enclosed-doc-custom')){ document.getElementById('o-enclosed-doc-custom').value = ''; }
   if(document.getElementById('o-enclosed-doc-custom-wrap')){ document.getElementById('o-enclosed-doc-custom-wrap').style.display = 'none'; }
@@ -3195,8 +3213,8 @@ function goToOrderTab(){
   document.getElementById('panel-order').classList.add('active');
 }
 function selectCustomerInOrder(id){
-  const sel = document.getElementById('o-customer-select');
-  if(sel){ sel.value = id; onCustomerSelect(); }
+  const c = customers.find(x=>x.id==id);
+  if(c) applyCustomerRecord(c);
 }
 function proceedToOrder(id){
   goToOrderTab();
@@ -3392,7 +3410,7 @@ async function saveTracking(id){
   if(!inp) return;
   var val = (inp.value||'').trim();
   try{
-    const res = await fetch(GAS_URL + '?action=loadAll');
+    const res = await fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'});
     const data = await res.json();
     if(!(data && data.status==='ok' && data.data && Array.isArray(data.data.orders))){ alert('通信に失敗しました。もう一度お試しください。'); return; }
     const all = data.data.orders;
@@ -3426,7 +3444,10 @@ function renderList(){
   if(sort==='client') list.sort((a,b)=>(a.client||'').localeCompare(b.client||'','ja'));
   document.getElementById('list-count').textContent = list.length+'件';
 
-  const overdueOrders = orders.filter(o=>isOverdue(o));
+  // 出荷期限のお知らせは「まだ倉庫Dへ送っていない受注」だけを数える。
+  // 送信済み（notified）は下の折りたたみ「送信済み」に移っており、ここで催促し続けると
+  //「一覧から消したのに残っている」ように見えて紛らわしいため。キャンセルは isOverdue で既に除外。
+  const overdueOrders = orders.filter(o=>isOverdue(o) && !o.notified);
   document.getElementById('overdue-alert-area').innerHTML = overdueOrders.length
     ? '<div class="alert-bar alert-danger">⏰ 出荷期限を過ぎている受注が'+overdueOrders.length+'件あります：'+overdueOrders.map(o=>(o.recipientName||o.client)+'（'+o.num+'）').join('、')+'</div>'
     : '';
@@ -3444,7 +3465,50 @@ function renderList(){
     el.innerHTML = '<div style="color:#2b2a26;font-size:13px;padding:12px 0">'+emptyMsg+'</div>';
     return;
   }
-  el.innerHTML = list.map(function(o){
+  el.innerHTML = buildOrderListHtml(list, filter);
+}
+
+// 直近days日以内かどうか（送信済みグループの1週間保持に使う）
+function withinDays(iso, days){
+  if(!iso) return true;                 // 日付が無いものは念のため残す
+  var t = Date.parse(iso);
+  if(isNaN(t)) return true;
+  return (Date.now() - t) <= days*24*60*60*1000;
+}
+
+// 出荷待ちビューでは「未送信」を上に、「送信済み（倉庫へ通知ずみ）」を下の折りたたみにまとめる
+function buildOrderListHtml(list, filter){
+  if(filter!=='pending'){
+    return list.map(function(o){ return renderOrderCard(o, false); }).join('');
+  }
+  var active = list.filter(function(o){ return !o.notified; });
+  var sent   = list.filter(function(o){ return o.notified && withinDays(o.notifiedAt||o.registeredAt, 7); });
+  var html = '';
+  if(active.length){
+    html += active.map(function(o){ return renderOrderCard(o, false); }).join('');
+  } else {
+    html += '<div style="color:#2b2a26;font-size:13px;padding:8px 0">送信前（未送信）の受注はありません。</div>';
+  }
+  if(sent.length){
+    html += '<details class="no-print" style="margin-top:14px;border:1px solid #d8d3c7;border-radius:10px;overflow:hidden">'
+      + '<summary style="cursor:pointer;padding:11px 14px;font-weight:700;color:#5a5346;font-size:13.5px;background:#eae7df;list-style:none">✅ 送信済み（倉庫へ通知ずみ・直近1週間） '+sent.length+'件　<span style="font-weight:500;color:#8a8578">▼タップで開く</span></summary>'
+      + '<div style="padding:10px 12px;background:#f6f5f1">'
+      + '<div style="font-size:12px;color:#7a746a;line-height:1.7;margin-bottom:8px">倉庫Dへ送ったものです。もし倉庫Dのアプリに届いていないものがあれば「🔄 もう一度送る」で送り直せます。1週間を過ぎたものはここから自動で消えます（記録は絞り込み「すべて」で見られます）。</div>'
+      + sent.map(function(o){ return renderOrderCard(o, true); }).join('')
+      + '</div></details>';
+  }
+  return html;
+}
+
+// 倉庫Dへの送り直し（データ上は送信済みでも、実際は届いていなかったとき用）
+function resendToWarehouse(id){
+  var o = orders.find(function(x){ return String(x.id)===String(id); });
+  if(!o){ alert('対象の受注が見つかりませんでした。'); return; }
+  if(!confirm((o.recipientName||o.client)+'（'+o.num+'）を、もう一度 倉庫Dへ送りますか？\n\n※倉庫Dのアプリに届いていなかったときの送り直し用です。')) return;
+  notifyLineShort([o]);
+}
+
+function renderOrderCard(o, sentGroup){
     const statusCls = {pending:'os-pending',shipped:'os-shipped',cancelled:'os-cancelled'}[o.status]||'os-pending';
     const statusLabel = {pending:'出荷待ち',shipped:'出荷済み',cancelled:'キャンセル'}[o.status]||o.status;
     const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
@@ -3476,7 +3540,7 @@ function renderList(){
         + (o.trackingNo ? '<span style="color:#16a34a;font-weight:700;font-size:12px">✓ 保存済み</span>' : '')
         + '</div>'
       : '';
-    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified)?' oc-unsent':'')+'">'+
+    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified)?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" class="order-select-cb" value="'+o.id+'" onchange="updateSelectedCount(this)" style="margin-top:4px">'+
         '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
@@ -3487,6 +3551,7 @@ function renderList(){
       payMsg+
       trackRow+
       '<div class="oc-actions no-print">'+
+        (sentGroup ? '<button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')+
         (o.source==='basara' && !basaraAcked(o.id) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : '')+
         (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
         (o.status==='pending' && !locked ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
@@ -3495,7 +3560,6 @@ function renderList(){
         (!locked ? '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')+
       '</div>'+
     '</div>';
-  }).join('');
 }
 
 // ── 在庫連動：出荷依頼を送った注文の分だけ、正しい枠から自動で減らす ────────────
@@ -3612,7 +3676,7 @@ function buildStockDeltas(list, mode){
 function persistStockDeltas(deltas){
   if(!gasSyncEnabled) return;
   if(!deltas || !deltas.length) return;
-  fetch(GAS_URL + '?action=loadAllData').then(function(r){ return r.json(); }).then(function(data){
+  fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(data){
     var freshLots, freshDefects, gotFresh = false;
     if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
       freshLots = data.data.lots;
@@ -5706,7 +5770,7 @@ function syncOrdersToGAS(changed){
       else showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
     }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
   }
-  return fetch(GAS_URL + '?action=loadAll').then(function(r){ return r.json(); }).then(function(fresh){
+  return fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(fresh){
     var base;
     if(fresh && fresh.status==='ok' && fresh.data && Array.isArray(fresh.data.orders)){
       // 最新をベースに、自分の変更した注文だけを id で重ねる（新規は追加）

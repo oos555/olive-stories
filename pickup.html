@@ -327,13 +327,31 @@ const NOSHI_IMAGE = 'noshi-flower.png';
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
 function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','不良在庫特価':'defectprice'})[v] || v; }
 // 通信が返ってこないまま「読み込み中...」で止まり続けるのを防ぐ。既定15秒で打ち切る。
+// あわせて、ブラウザが古い返事を使い回して最新が出ない問題を防ぐため cache:'no-store' を既定にする。
 function fetchWithTimeout(url, opts, ms){
   ms = ms || 15000;
   var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
   var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, ms);
   var o = Object.assign({}, opts||{});
   if(ctrl) o.signal = ctrl.signal;
+  if(!o.cache) o.cache = 'no-store';
   return fetch(url, o).finally(function(){ clearTimeout(timer); });
+}
+// URLに毎回ちがう印を付けて、ブラウザ・回線側のキャッシュ（古い返事の使い回し）を確実に避ける
+function bust(url){ return url + (url.indexOf('?')>=0?'&':'?') + '_ts=' + Date.now(); }
+// 画面上の小さなお知らせ（更新した／できなかった）
+function pickupToast(msg, isErr){
+  var el = document.getElementById('pickup-toast');
+  if(!el){
+    el=document.createElement('div'); el.id='pickup-toast';
+    el.style.cssText='position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;padding:9px 18px;border-radius:9px;font-size:13.5px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.22);transition:opacity .3s;max-width:90%;text-align:center';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.style.background=isErr?'#fee2e2':'#dcfce7';
+  el.style.color=isErr?'#7f1d1d':'#14532d';
+  el.style.opacity='1';
+  clearTimeout(el._t); el._t=setTimeout(function(){ el.style.opacity='0'; }, 2600);
 }
 const LEAD_LABEL = {normal:'通常（1週間以内にお届け）', urgent:'🚨急ぎ（翌営業日までに発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
@@ -479,7 +497,7 @@ var LOTS_BY_PID = {}; var LOTS_LOADED = false;
 async function ensureLotsLoaded(){
   if(LOTS_LOADED) return;
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
       var map = {};
@@ -792,7 +810,7 @@ async function init(){
 
 async function fetchWarehouseNotes(){
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     if(data.status==='ok' && data.data){
       if(Array.isArray(data.data.warehouseNotes)) warehouseNotes = data.data.warehouseNotes;
@@ -837,7 +855,7 @@ async function openOrderInPage(id){
 async function loadSingleOrder(id){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetchWithTimeout(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id));
+    const res = await fetchWithTimeout(bust(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id)));
     const data = await res.json();
     if(data.status !== 'ok'){
       document.getElementById('content').innerHTML = '<div class="alert-danger">受注が見つかりませんでした。QRコードが古い可能性があります。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="location.href=\'pickup.html\'">🏠 一覧にもどる</button>';
@@ -895,7 +913,7 @@ function stockNumbersFor(pid, lots, defects, holds){
 async function loadStockScreen(){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     if(data.status!=='ok' || !data.data){
       document.getElementById('content').innerHTML = '<div class="alert-danger">在庫を読み込めませんでした。</div>'+stockBackBtn();
@@ -977,7 +995,9 @@ function stkNum(val, color){
   return '<span style="color:'+(val===0 ? '#c9c3b6' : color)+'">'+val+'</span>';
 }
 
-async function loadOrderList(){
+async function loadOrderList(isManual){
+  // 「🔄更新」ボタンから呼ばれたときは、押した手ごたえ（お知らせ）を出す
+  if(isManual) pickupToast('🔄 最新を確認しています…');
   // ① まずキャッシュがあれば一瞬で表示（戻ってきたときに待たせない）
   var hadCache = false;
   try{
@@ -990,13 +1010,14 @@ async function loadOrderList(){
   if(!hadCache){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   }
-  // ② そのあと裏で最新を取りに行き、届いたら差し替える
+  // ② そのあと裏で「必ず最新」を取りに行き、届いたら差し替える（キャッシュ回避）
   try{
-    const [res, ] = await Promise.all([fetchWithTimeout(GAS_URL + '?action=loadAll'), fetchWarehouseNotes()]);
+    const [res, ] = await Promise.all([fetchWithTimeout(bust(GAS_URL + '?action=loadAll')), fetchWarehouseNotes()]);
     /* 区分の翻訳は下の orders 代入後に行う */
     const data = await res.json();
     if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
-      if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList()">🔄 もう一度読み込む</button>'; }
+      if(isManual) pickupToast('⚠️ 更新できませんでした。電波を確認してください', true);
+      if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList(true)">🔄 もう一度読み込む</button>'; }
       return;
     }
     // 出荷待ち（出荷依頼書が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
@@ -1009,13 +1030,15 @@ async function loadOrderList(){
     });
     try{ sessionStorage.setItem('oos_pickup_orders_v1', JSON.stringify(allOrders)); }catch(e){}
     renderList();
+    if(isManual) pickupToast('✅ 最新にしました（'+allOrders.filter(function(o){return o.status==='pending';}).length+'件）');
   }catch(err){
+    var isAbort = (err && (err.name==='AbortError'));
+    if(isManual) pickupToast(isAbort ? '⚠️ サーバーの反応がありません（時間切れ）。もう一度お試しください' : '⚠️ 更新できませんでした。電波を確認してください', true);
     if(!hadCache){
-      var isAbort = (err && (err.name==='AbortError'));
       var msg = isAbort
         ? 'サーバーの反応がありませんでした（時間切れ）。電波の良い場所で、もう一度お試しください。'
         : '通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message);
-      document.getElementById('content').innerHTML = '<div class="alert-danger">'+msg+'</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList()">🔄 もう一度読み込む</button>';
+      document.getElementById('content').innerHTML = '<div class="alert-danger">'+msg+'</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList(true)">🔄 もう一度読み込む</button>';
     }
   }
 }
@@ -1070,7 +1093,7 @@ function renderList(){
   html += '<div class="wm-card wm-urg"><div class="wm-label">急ぎ・未梱包</div><div class="wm-num">'+urgentPending+'<span class="wm-unit"> 件</span></div></div>';
   html += '<div class="wm-card wm-pend"><div class="wm-label">梱包待ち 合計</div><div class="wm-num">'+pendingList.length+'<span class="wm-unit"> 件</span></div></div>';
   html += '</div>';
-  html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList()">🔄 出荷依頼書を更新</button>';
+  html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 出荷依頼書を更新</button>';
   html += '<details class="tools-box no-print">';
   html += '<summary><span>🧰 その他のボタン（不良品・メモ・資材・在庫）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
   html += '<div class="tool-grid">';
@@ -1459,7 +1482,7 @@ let warehouseMaterials = [];
 async function loadMaterialsScreen(){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     if(data.status==='ok' && data.data && Array.isArray(data.data.warehouseMaterials)){
       warehouseMaterials = data.data.warehouseMaterials;
@@ -1601,7 +1624,7 @@ async function renderDefectForm(){
 var _defectHistory = [];
 async function loadDefectHistory(){
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     var defs = (data.status==='ok' && data.data && Array.isArray(data.data.defects)) ? data.data.defects : [];
     // 倉庫からの報告のみ・残数がある or 直近のものを新しい順に
@@ -1686,7 +1709,7 @@ async function submitDefectFix(id){
       appended = !!(apData && apData.status==='ok' && apData.appended===true);
     }catch(e){ appended = false; }
     if(!appended){
-      var res = await fetch(GAS_URL + '?action=loadAllData');
+      var res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
       var data = await res.json();
       var defs = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
       defs.push(fixReport);
@@ -1772,7 +1795,7 @@ async function submitDefect(){
   // 【従来方式・フォールバック】全件読み→1件足す→全件保存。
   // GAS側にまだ appendDefect が無い場合や、追記に失敗した場合に使う。
   async function fallbackSaveWhole(){
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
     const data = await res.json();
     const defects = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
     defects.push(newDefect);
@@ -1810,7 +1833,7 @@ async function submitDefect(){
 
 async function mergeSaveTracking(val){
   if(!currentOrder) return false;
-  const res = await fetch(GAS_URL + '?action=loadAll');
+  const res = await fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'});
   const data = await res.json();
   if(data.status!=='ok' || !data.data || !Array.isArray(data.data.orders)) return false;
   const allOrders = data.data.orders;
@@ -1849,7 +1872,7 @@ async function saveShipNote(){
   if(!currentOrder) return;
   const val = document.getElementById('ship-note-input').value;
   try{
-    const res = await fetch(GAS_URL + '?action=loadAll');
+    const res = await fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'});
     const data = await res.json();
     if(data.status!=='ok' || !data.data || !Array.isArray(data.data.orders)) return;
     const allOrders = data.data.orders;
