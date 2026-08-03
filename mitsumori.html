@@ -212,6 +212,20 @@ th.center,td.center{text-align:center}
 .pl-ast{color:#b45309;font-weight:700}
 .pl-foot-notes{display:flex;justify-content:space-between;gap:16px;margin-top:9px;font-size:8.6pt;color:#4b4b45;line-height:1.55}
 .pl-foot-notes .pl-foot-r{text-align:right;white-space:nowrap}
+.pl-matrix th.pl-abc{font-weight:800;font-size:1.05em;letter-spacing:0}
+.pl-abc-legend{font-weight:600;color:#3f4a1e;margin-bottom:3px}
+/* 商品写真ページ */
+.pl-photo-doc{padding:16px 18px}
+.pl-photo-title{text-align:center;font-weight:800;font-size:15px;letter-spacing:.08em;border-bottom:2px solid #1a1a18;padding-bottom:6px;margin:10px 0 12px}
+.pl-photo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pl-photo-card{border:1px solid #cdc6b6;border-radius:9px;padding:8px;background:#fff;text-align:center;break-inside:avoid}
+.pl-photo-no{display:inline-block;background:#3f4a1e;color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:2px 9px;margin-bottom:5px}
+.pl-photo-name{font-weight:800;font-size:13px;color:#1a1a18}
+.pl-photo-cap{font-size:11px;color:#6b6355;margin-bottom:6px}
+.pl-photo-img{width:100%;height:150px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f7f5ef;border-radius:6px}
+.pl-photo-img img{max-width:100%;max-height:150px;object-fit:contain}
+.pl-photo-noimg{color:#a99;font-size:12px}
+.pl-photo-note{font-size:11px;color:#4b4b45;margin-top:5px;line-height:1.4;text-align:left}
 @media print{
   .pricelist-doc{padding:10mm 14mm}
 }
@@ -2740,7 +2754,7 @@ function renderQuoteFieldsCheckboxes(containerId, c, docType){
   /* 2026-07-23 中村様ご指定：この3つは【ラベル図鑑 labels.html】から読み込む。
      labels.html を見せていただくまで接続できないため、いまは押せない状態にしてあります。 */
   const V3_MASTER_FIELDS = [
-    {key:'label:商品写真',   label:'📷 商品写真を載せる',   defaultOn:false, pending:true},
+    {key:'label:商品写真',   label:'📷 商品写真ページを付ける',   defaultOn:false, pending:false},
     {key:'label:一言メモ',   label:'💬 一言メモを載せる',   defaultOn:false, pending:true},
     {key:'label:バーコード', label:'🔖 バーコードを載せる', defaultOn:false, pending:true}
   ];
@@ -4038,7 +4052,8 @@ function buildPriceListDocHtml(record, c){
   }
   const showExp = true; // 価格表は賞味期限を常に表示（見本PDF準拠）
   const exVals = record.expiryValues||{};
-  function expOf(sku){ var o=exVals[sku]; var v=(o&&typeof o==='object'&&o.reg!=null)?String(o.reg):(typeof o==='string'?o:''); if(!v) v=(typeof defaultRegExpiryForSku==='function')?defaultRegExpiryForSku(sku):''; return v; }
+  function ovExp(sku){ var o=exVals[sku]; if(o&&typeof o==='object'&&o.reg!=null) return String(o.reg); if(typeof o==='string') return o; return ''; }
+  function masterExp(sku){ var pp=(typeof findProductBySku==='function')?findProductBySku(sku):null; return (pp&&pp.extras&&pp.extras['賞味期限'])?String(pp.extras['賞味期限']).trim():''; }
   function capNum(s){ s=String(s).replace(/,/g,''); var mL=s.match(/(\d+(?:\.\d+)?)\s*[lLℓ]/); if(mL) return parseFloat(mL[1])*1000; var mm=s.match(/(\d+)\s*ml/i); if(mm) return parseInt(mm[1],10); var m=s.match(/(\d+)/); return m?parseInt(m[1],10):0; }
 
   // ── オイルだけを対象にする（カップ・ギフト箱・紙袋・セットは別紙。見本PDFの本表と同じ）──
@@ -4058,7 +4073,7 @@ function buildPriceListDocHtml(record, c){
       prod: (typeof specDisplayName==='function') ? specDisplayName(NAME_OVERRIDE[p.sku]||p.name, cap) : (NAME_OVERRIDE[p.sku]||p.name),
       cap:cap, capN:capNum(cap),
       box: (p.boxQty ? String(p.boxQty) : ''),
-      exp: showExp ? (expOf(p.sku) || ((typeof defaultRegExpiry==='function')?defaultRegExpiry(p.group):'')) : '',
+      exp: showExp ? (ovExp(p.sku) || masterExp(p.sku) || ((typeof defaultRegExpiry==='function')?defaultRegExpiry(p.group):'')) : '',
       container: (typeof containerForSku==='function') ? containerForSku(p.sku) : '遮光瓶',
       org:cert.organic, cont:cert.contamination, ana:cert.analysis,
       prices: priceTiers.map(function(t){ return priceForSku(p.sku, t); })
@@ -4075,6 +4090,9 @@ function buildPriceListDocHtml(record, c){
     return a.capN-b.capN;
   });
 
+  // 商品写真ページと同じNo.で対応させるため、並び順＋No.を記録しておく
+  try{ record.__plRows = rows.map(function(r,i){ return {sku:r.sku, no:i+1, prod:r.prod, cap:r.cap, origin:r.origin, bunrui:r.bunrui, container:r.container}; }); }catch(e){}
+
   // 縦の結合（rowspan）：連続して同じ値のかたまりごとにまとめる
   function computeSpans(valKey, boundaryKeys){
     var spans=new Array(rows.length).fill(0), i=0;
@@ -4090,17 +4108,17 @@ function buildPriceListDocHtml(record, c){
   var spanProd   = computeSpans('prod',   ['bunrui','origin']);
   var spanExp    = computeSpans('exp',    ['bunrui','origin']);
 
-  // ── 列幅レイアウト（価格の数で切替。均等割りにしない）──
-  var fixed = 6/*分類*/ + 6/*生産地*/ + 6/*容量*/ + 5/*1箱数*/ + 7/*賞味期限*/ + 9/*容器*/ + 6+7+6/*証明書3列*/;
-  var priceBlock = (nprice<=1) ? 14 : (nprice===2 ? 22 : (nprice===3 ? 30 : Math.min(38, 9*nprice)));
-  var nameW = Math.max(10, 100 - fixed - priceBlock);
-  var priceColW = priceBlock / nprice;
-  var baseFont = (nprice>=3) ? 8.8 : (nprice===2 ? 9.4 : 9.8);
+  // ── 列幅レイアウト（★価格エリアの幅は固定。価格が1/2/3でも他の列は動かさない）──
+  var PRICE_AREA = 26;                 // 価格エリアの固定幅(%)。3価格でも収まる大きさを最初から確保
+  var priceColW  = PRICE_AREA / nprice; // その中を価格数で等分（1分割/2分割/3分割）
+  var nameW      = 18.5;               // 商品名は固定（価格数が変わっても動かない）
+  var baseFont   = 9.2;                // 文字サイズも固定（レイアウトを安定させる）
 
   function colTag(w){ return '<col style="width:'+w.toFixed(2)+'%">'; }
-  var cols = colTag(6)+colTag(6)+colTag(nameW)+colTag(6)+colTag(5)+colTag(7);
+  // 分類, 生産地, 商品名, No., 容量, 1箱, 賞味期限, [価格×n], 容器, A, B, C  （合計100）
+  var cols = colTag(6)+colTag(6)+colTag(nameW)+colTag(3.5)+colTag(6)+colTag(5)+colTag(8.5);
   for(var pi=0; pi<nprice; pi++) cols += colTag(priceColW);
-  cols += colTag(9)+colTag(6)+colTag(7)+colTag(6);
+  cols += colTag(8.5)+colTag(4)+colTag(4)+colTag(4);
 
   var hdrRec = Object.assign({}, record, {issuedDateStr:(record.issuedDateStr||dateStr)});
   let html = '<div class="invoice-doc pricelist-doc pl-matrix-doc" data-nprice="'+nprice+'" style="font-size:'+baseFont+'pt">';
@@ -4109,16 +4127,16 @@ function buildPriceListDocHtml(record, c){
   html += '<table class="pricelist-table pl-matrix"><colgroup>'+cols+'</colgroup>';
   // グループ見出し行
   html += '<thead><tr class="pl-grp">';
-  html += '<th colspan="6">オリーブオイル（卸の出荷単位：箱）</th>';
+  html += '<th colspan="7">オリーブオイル（卸の出荷単位：箱）</th>';
   html += '<th colspan="'+nprice+'">（税抜：円）</th>';
   html += '<th rowspan="2">容器</th>';
   html += '<th colspan="3">公的証明書（EU）の有無</th>';
   html += '</tr>';
   // 列見出し行
   html += '<tr class="pl-head2">';
-  html += '<th>分類</th><th>生産地</th><th class="pl-name-cell">商品名</th><th>容量ml</th><th>1箱数</th><th>賞味期限</th>';
+  html += '<th>分類</th><th>生産地</th><th class="pl-name-cell">商品名</th><th>No.</th><th>容量ml</th><th>1箱数</th><th>賞味期限</th>';
   priceTiers.forEach(function(t){ html += '<th class="pl-price-th">'+tierHead(t)+'</th>'; });
-  html += '<th>オーガ<br>ニック</th><th>コンタミ<br>ネーション</th><th>分析表</th>';
+  html += '<th class="pl-abc">A</th><th class="pl-abc">B</th><th class="pl-abc">C</th>';
   html += '</tr></thead><tbody>';
 
   rows.forEach(function(r, idx){
@@ -4126,6 +4144,7 @@ function buildPriceListDocHtml(record, c){
     if(spanBunrui[idx]>0) html += '<td class="pl-c pl-bunrui" rowspan="'+spanBunrui[idx]+'">'+esc(r.bunrui)+'</td>';
     if(spanOrigin[idx]>0) html += '<td class="pl-c pl-origin" rowspan="'+spanOrigin[idx]+'">'+esc(r.origin)+'</td>';
     if(spanProd[idx]>0)   html += '<td class="pl-name-cell pl-prod" rowspan="'+spanProd[idx]+'"><span class="pl-name">'+esc(r.prod)+'</span></td>';
+    html += '<td class="pl-c pl-no">'+(idx+1)+'</td>';
     html += '<td class="pl-c">'+esc(r.cap)+'</td>';
     html += '<td class="pl-c">'+esc(r.box)+'</td>';
     if(spanExp[idx]>0)    html += '<td class="pl-c pl-exp" rowspan="'+spanExp[idx]+'">'+esc(r.exp||'－')+'</td>';
@@ -4144,8 +4163,9 @@ function buildPriceListDocHtml(record, c){
 
   // ── 見本PDFの注記（下部）──
   var openNote = (priceTiers.indexOf('general')>=0) ? 'オープン価格<span class="pl-ast">※</span>：こちらの価格を販売最低価格とさせていただきます。<br>' : '';
+  var abcNote = '<div class="pl-abc-legend"><b>公的証明書（EU）の有無</b>　※A 公的証明書：オーガニック証明書　／　※B 公的証明書：コンタミネーション証明書　／　※C 公的証明書：分析証</div>';
   html += '<div class="pl-foot-notes">'
-    + '<div class="pl-foot-l">' + openNote
+    + '<div class="pl-foot-l">' + abcNote + openNote
     + '卸は原則箱単位ですが、バラでの卸も承ります。ただし、１発送あたり倉庫での作業手数料700円をお預かりいたします。弊社都合でバラになる場合はご請求は致しません。'
     + (record.remarks ? '<br><b>備考：</b>'+esc(record.remarks).replace(/\n/g,'<br>') : '')
     + '</div>'
@@ -4251,6 +4271,74 @@ async function rasterizeDocToPdf(el, landscape, filename, fitOnePage){
     el.style.maxWidth = saved.maxWidth;
   }
 }
+// ── 商品写真ページ（価格表のNo.と対応）──────────────────────────
+// ラベル図鑑（window.QLabels / v3Label）の写真を、価格表の後ろに別ページで付ける。
+function buildPhotoPagesHtml(record, c){
+  var rows = (record && record.__plRows) ? record.__plRows : [];
+  if(!rows.length) return '';
+  // 商品ごとにまとめる（同じ商品名は写真1枚。No.は範囲で表示）
+  var byProd = [], idx = {};
+  rows.forEach(function(r){
+    if(idx[r.prod]===undefined){ idx[r.prod]=byProd.length; byProd.push({prod:r.prod, nos:[], caps:[], skus:[], origin:r.origin}); }
+    var g=byProd[idx[r.prod]]; g.nos.push(r.no); g.caps.push(r.cap); g.skus.push(r.sku);
+  });
+  function pickLabel(skus){ for(var i=0;i<skus.length;i++){ var l=(typeof v3Label==='function')?v3Label(skus[i]):null; if(l && (l.front||l.back)) return l; } return null; }
+  var cards = byProd.map(function(g){ g.label=pickLabel(g.skus); return g; }).filter(function(g){ return g.label; });
+  if(!cards.length) return ''; // 写真が1枚も無ければページを作らない
+  function noRange(nos){ var mn=Math.min.apply(null,nos), mx=Math.max.apply(null,nos); return mn===mx?('No.'+mn):('No.'+mn+'〜'+mx); }
+  var html = '<div class="invoice-doc pricelist-doc pl-photo-doc">';
+  html += buildDocHeaderHtml(Object.assign({}, record), c, 'quote');
+  html += '<div class="pl-photo-title">商品写真（価格表の No. と対応しています）</div>';
+  html += '<div class="pl-photo-grid">';
+  cards.forEach(function(g){
+    var img = g.label.front || g.label.back || '';
+    var note = g.label.note ? esc(g.label.note) : '';
+    html += '<div class="pl-photo-card">'
+      + '<div class="pl-photo-no">'+esc(noRange(g.nos))+'</div>'
+      + '<div class="pl-photo-name">'+esc(g.prod)+'</div>'
+      + '<div class="pl-photo-cap">'+esc(g.caps.join('・'))+'</div>'
+      + (img ? '<div class="pl-photo-img"><img src="'+img+'" crossorigin="anonymous" alt=""></div>' : '<div class="pl-photo-img pl-photo-noimg">（写真未登録）</div>')
+      + (note ? '<div class="pl-photo-note">'+note+'</div>' : '')
+      + '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+// 複数セクションを1つのPDFにまとめる（価格表＝1枚に収める／写真ページ＝縦に流して複数ページOK）。すべてA4横。
+async function rasterizeSectionsToPdf(sections, landscape, filename){
+  const TARGET_W = landscape ? 1123 : 800, SCALE = 2;
+  const pdf = new jspdf.jsPDF({orientation: landscape?'landscape':'portrait', unit:'mm', format:'a4'});
+  const pdfW = pdf.internal.pageSize.getWidth(), pdfH = pdf.internal.pageSize.getHeight();
+  const margin = 10, usableW = pdfW-margin*2, usableH = pdfH-margin*2;
+  let pageAdded = false;
+  for(const sec of sections){
+    const el = sec.el; if(!el) continue;
+    const saved = { width: el.style.width, maxWidth: el.style.maxWidth };
+    el.style.width = TARGET_W+'px'; el.style.maxWidth='none';
+    el.getBoundingClientRect(); const fullH = el.offsetHeight;
+    try{
+      if(sec.fitOnePage){
+        const canvas = await html2canvas(el, {scale:SCALE, backgroundColor:'#ffffff', useCORS:true, width:TARGET_W, height:fullH, windowWidth:TARGET_W, windowHeight:fullH, scrollX:0, scrollY:0});
+        const img = canvas.toDataURL('image/png');
+        let imgW = usableW, imgH = imgW*(canvas.height/canvas.width);
+        if(imgH > usableH){ const k = usableH/imgH; imgW*=k; imgH*=k; }
+        if(pageAdded) pdf.addPage(); pdf.addImage(img,'PNG', margin+(usableW-imgW)/2, margin, imgW, imgH); pageAdded=true;
+      } else {
+        const pageHpx = Math.max(1, Math.floor(TARGET_W*(usableH/usableW)));
+        const pages = Math.max(1, Math.ceil(fullH/pageHpx));
+        for(let pg=0; pg<pages; pg++){
+          const y=pg*pageHpx, sliceHpx=Math.min(pageHpx, fullH-y); if(sliceHpx<=0) break;
+          const canvas = await html2canvas(el, {scale:SCALE, backgroundColor:'#ffffff', useCORS:true, width:TARGET_W, height:sliceHpx, x:0, y:y, windowWidth:TARGET_W, windowHeight:fullH, scrollX:0, scrollY:0});
+          const img = canvas.toDataURL('image/png'); const imgW=usableW, imgH=imgW*(canvas.height/canvas.width);
+          if(pageAdded) pdf.addPage(); pdf.addImage(img,'PNG', margin, margin, imgW, imgH); pageAdded=true;
+        }
+      }
+    } finally { el.style.width = saved.width; el.style.maxWidth = saved.maxWidth; }
+  }
+  pdf.save(filename);
+}
+
 function downloadQuotePdf(record){
   const el = document.querySelector('#quote-doc-area .invoice-doc');
   if(!el){ alert((record&&(record.kind==='invoice'||record.kind==='both'))?'請求書が表示されていません':'見積書が表示されていません'); return; }
@@ -4264,6 +4352,28 @@ function downloadQuotePdf(record){
   const dateStr = new Date().toISOString().slice(0,10);
   const kindStr = record.kind==='pricelist' ? '標準価格表' : (record.kind==='invoice' ? '請求書' : (record.kind==='both' ? '見積書兼請求書' : '見積書'));
   const filename = kindStr+'_'+record.customerName+'様_'+dateStr+'.pdf';
+  // 価格表で「📷 商品写真ページを付ける」がONなら、価格表(1枚)＋写真ページをまとめて出す
+  var wantPhotos = record.kind==='pricelist' && Array.isArray(record.selectedFields) && record.selectedFields.indexOf('label:商品写真')>=0;
+  if(record.kind==='pricelist'){
+    var sections = [{el: el, fitOnePage: true}];
+    var photoEl = null;
+    if(wantPhotos){
+      var c2 = customers.find(function(x){return x.id===record.customerId;}) || {name: record.customerName};
+      var photoHtml = (typeof buildPhotoPagesHtml==='function') ? buildPhotoPagesHtml(record, c2) : '';
+      if(photoHtml){
+        photoEl = document.createElement('div');
+        photoEl.style.position='absolute'; photoEl.style.left='-99999px'; photoEl.style.top='0'; photoEl.style.width='1123px';
+        photoEl.innerHTML = photoHtml; document.body.appendChild(photoEl);
+        sections.push({el: photoEl.firstChild, fitOnePage: false});
+      }
+    }
+    rasterizeSectionsToPdf(sections, true, filename).then(function(){
+      showSyncStatus('✅ PDFを作成しました');
+    }).catch(function(err){
+      showSyncStatus('⚠️ PDF作成に失敗しました', true); console.error(err);
+    }).finally(function(){ if(photoEl && photoEl.parentNode) photoEl.parentNode.removeChild(photoEl); });
+    return;
+  }
   rasterizeDocToPdf(el, landscape, filename, fitOnePage).then(function(){
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
