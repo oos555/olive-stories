@@ -882,7 +882,30 @@ async function loadSingleOrder(id){
 // ════════════════════════════════════
 // ★ 在庫を見る（本数）— 見るだけ・在庫Bと同じデータ／同じ計算
 // ════════════════════════════════════
-const STOCK_HIDE_GROUPS = { 'セット商品':1, 'ギフト箱・備品':1, 'その他':1 };
+// セット商品は受注生産なので在庫単位では出さない。それ以外（備品ふくむ）は表示する。
+const STOCK_HIDE_GROUPS = { 'セット商品':1 };
+// 備品グループ：在庫Bに数の記録が無くても、一覧には出す（倉庫の置き場所の目安になるように）
+const STOCK_SUPPLY_GROUPS = { 'ギフト箱・備品':1, '備品':1, '資材':1, 'その他':1 };
+
+// ════════════════════════════════════
+// ★ 倉庫に「見せる／見せない」在庫のコントロール（中村様が決める場所）
+//   方法1（おすすめ・自分で管理）：統合マスターN（名簿）に「倉庫非表示」という列を作り、
+//     倉庫に見せたくない商品にしるし（○ や × など）を入れる。空欄なら見せる。倉庫Dは自動で従う。
+//   方法2（かんたん・Claudeにお願い）：下の STOCK_HIDE_SKUS に品番（SKU）を足す。
+//     例）'MISC001' を足すと、その商品が倉庫の在庫一覧から消える。
+// ════════════════════════════════════
+const STOCK_HIDE_SKUS = [
+  // 例）'MISC001',   // サイン本は倉庫に見せない
+];
+function isWarehouseHidden(p){
+  if(!p) return false;
+  if(p.sku && STOCK_HIDE_SKUS.indexOf(String(p.sku))>=0) return true;   // 方法2：品番リスト
+  var v = p['倉庫非表示'];                                              // 方法1：名簿の「倉庫非表示」列
+  if((v===undefined||v===null||v==='') && p.extras) v = p.extras['倉庫非表示'];
+  v = String(v==null?'':v).trim();
+  if(!v || v==='0' || v==='表示' || v==='見せる') return false;         // 空欄・0・「表示」「見せる」＝見せる
+  return true;                                                          // それ以外（○/×/1/はい/非表示 等）＝隠す
+}
 
 // 不良の「有効判定」：未処理の倉庫報告・却下・青(貼替)・黒(廃棄)は不良に数えない（在庫Bと同一ルール）
 function isActiveDefect(d){
@@ -944,7 +967,9 @@ function renderStockList(lots, defects, holds){
   PRODUCTS.forEach(function(p){
     if(p.isSet) return;
     if(STOCK_HIDE_GROUPS[p.group]) return;
-    if(!tracked[p.id]) return;
+    if(isWarehouseHidden(p)) return;   // ★ 中村様が決めた「倉庫に見せない」商品はここで除外
+    // オイル等は在庫記録があるものだけ表示。備品は記録が無くても一覧に出す。
+    if(!tracked[p.id] && !STOCK_SUPPLY_GROUPS[p.group]) return;
     if(!groups[p.group]){ groups[p.group]=[]; order.push(p.group); }
     groups[p.group].push(p);
   });
@@ -960,7 +985,7 @@ function renderStockList(lots, defects, holds){
     return;
   }
 
-  html += '<div class="stock-note"><b style="color:#16a34a">販売可能</b>＝いま出荷につかえる本数（旧ロット・不良・取り置きを引いた数）。<br>いちばん右の<b style="color:#1d4ed8">入庫予定</b>＝これから届く本数（置き場所の目安に）。</div>';
+  html += '<div class="stock-note"><b style="color:#16a34a">販売可能</b>＝いま出荷につかえる本数（旧ロット・不良・取り置きを引いた数）。<br>いちばん右の<b style="color:#1d4ed8">入庫予定</b>＝これから届く本数（置き場所の目安に）。<br>ギフト箱・紙袋などの<b>備品</b>も下の方に出ます。<b>「—」</b>は在庫B（在庫アプリ）でまだ数を管理していない備品です。</div>';
 
   html += '<table class="stk-tbl"><colgroup>'
         + '<col style="width:22%"><col style="width:12%"><col style="width:14%"><col style="width:11%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:12%">'
@@ -971,17 +996,19 @@ function renderStockList(lots, defects, holds){
   order.forEach(function(g){
     html += '<tr class="stk-grp-row"><td colspan="8">'+esc(g)+'</td></tr>';
     groups[g].forEach(function(p){
+      var isTracked = !!tracked[p.id];
       var n = stockNumbersFor(p.id, lots, defects, holds);
       var box = p.boxQty ? '・1箱'+p.boxQty+'本' : '';
+      var dash = '<span style="color:#c9c3b6">—</span>';
       html += '<tr>';
       html +=   '<td class="stk-nm"><b>'+esc(p.name)+'</b><small>'+esc(dispCodeOf(p))+box+'</small></td>';
-      html +=   '<td>'+stkNum(n.stock, '#2b2a26')+'</td>';
-      html +=   '<td class="stk-av-td">'+n.avail+'</td>';
-      html +=   '<td>'+stkNum(n.oldStock, '#b45309')+'</td>';
-      html +=   '<td>'+stkNum(n.defectQty, '#dc2626')+'</td>';
-      html +=   '<td>'+stkNum(n.holdQty, '#b45309')+'</td>';
-      html +=   '<td>'+stkNum(n.discard, '#1a1a18')+'</td>';
-      html +=   '<td class="stk-in-td">'+(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming)+'</td>';
+      html +=   '<td>'+(isTracked?stkNum(n.stock, '#2b2a26'):dash)+'</td>';
+      html +=   '<td class="stk-av-td">'+(isTracked?n.avail:dash)+'</td>';
+      html +=   '<td>'+(isTracked?stkNum(n.oldStock, '#b45309'):dash)+'</td>';
+      html +=   '<td>'+(isTracked?stkNum(n.defectQty, '#dc2626'):dash)+'</td>';
+      html +=   '<td>'+(isTracked?stkNum(n.holdQty, '#b45309'):dash)+'</td>';
+      html +=   '<td>'+(isTracked?stkNum(n.discard, '#1a1a18'):dash)+'</td>';
+      html +=   '<td class="stk-in-td">'+(isTracked?(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming):dash)+'</td>';
       html += '</tr>';
     });
   });
