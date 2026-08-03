@@ -1724,7 +1724,7 @@ function renderProfitHeatmap(){
       const _openTK = parseFloat(priceRec['priceGeneral'])||0; // ◯掛け計算用の定価
       ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
         const price = parseFloat(priceRec[key])||0;
-        const emptySettable = (key!=='priceGeneral'); // 定価以外（卸①〜特別提供価格）は、空(未設定)なら＋設定として表示し、押して設定できる
+        const emptySettable = true; // ★2026-08-04 定価も含めて、空(未設定)なら＋設定として表示し、押して設定できる（適用時に「定価はほんとうに変えますか？」で確認）
         if(!price && emptySettable){
           const tierKey0 = HM_KEY_TO_TIER[key];
           const tierLabel0 = simTierByKey(tierKey0).label;
@@ -1809,7 +1809,7 @@ function heatmapCellClick(sku, tier){
   const rec = priceRecForSku(sku);
   const t = simTierByKey(tier);
   const price = parseFloat(rec[t.field]) || 0;
-  const allowEmpty = (tier!=='general'); // 定価以外（卸①〜特別提供価格）は、空(＋設定)でも押して設定できる
+  const allowEmpty = true; // ★2026-08-04 定価も含めて、空(＋設定)でも押して設定できる
   if(!cost || (!price && !allowEmpty)) return; // 原価が無い商品は対象外
   loadSimPanel(sku, tier);
 }
@@ -1864,7 +1864,7 @@ function loadSimPanel(sku, tier, opts){
   const wasUnset = !cur; // まだ金額が決まっていない（不良品用特価・特別提供価格の初回設定）
   if(!p || !cost) return;
   if(!cur){
-    if(tier==='general') return; // 定価だけは空(＋設定)から設定パネルを開かない
+    // ★2026-08-04 定価も空(＋設定)から設定できるように解除（適用時に「定価はほんとうに変えますか？」で確認）
     cur = parseFloat(rec.priceWholesale2) || Math.round(cost * 1.5); // 出発点：卸②、無ければ原価×1.5
   }
   currentSimSku = sku;
@@ -2217,8 +2217,11 @@ function revertPriceChange(idx){
 async function applyRateToTier(sku, tier, price){
   const T = simTierByKey(tier);
   let ok;
-  if(T.strong){
-    // 定価・卸①・RT は基本の価格 → 強い確認
+  if(T.tier==='general'){
+    // ★2026-08-04 定価は特に大事な価格 → 「定価はほんとうに変えますか？」と念押し確認
+    ok = confirm('定価はほんとうに変えますか？\n\n「'+T.label+'」を ¥'+price.toLocaleString()+' にします。\n定価はお店の基本の値段です。コロコロ変えるものではありません。\n（価格マスタが更新され、即座に保存されます）');
+  } else if(T.strong){
+    // 卸①・RT は基本の価格 → 強い確認
     ok = confirm('⚠️ 「'+T.label+'」は基本の価格です。\nコロコロ変えるものではありません。\n\n本当に ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタが更新され、即座に保存されます）');
   } else {
     // 卸②・卸バサラスター・不良品用特価・特別提供価格 は軽い確認
