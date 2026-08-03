@@ -326,6 +326,15 @@ gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
 function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','不良在庫特価':'defectprice'})[v] || v; }
+// 通信が返ってこないまま「読み込み中...」で止まり続けるのを防ぐ。既定15秒で打ち切る。
+function fetchWithTimeout(url, opts, ms){
+  ms = ms || 15000;
+  var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, ms);
+  var o = Object.assign({}, opts||{});
+  if(ctrl) o.signal = ctrl.signal;
+  return fetch(url, o).finally(function(){ clearTimeout(timer); });
+}
 const LEAD_LABEL = {normal:'通常（1週間以内にお届け）', urgent:'🚨急ぎ（翌営業日までに発送）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
 
 // ── 日付はすべて日本時間（JST, UTC+9）を基準に解釈する ──
@@ -828,10 +837,10 @@ async function openOrderInPage(id){
 async function loadSingleOrder(id){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetch(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id));
+    const res = await fetchWithTimeout(GAS_URL + '?action=getPickOrder&orderId=' + encodeURIComponent(id));
     const data = await res.json();
     if(data.status !== 'ok'){
-      document.getElementById('content').innerHTML = '<div class="alert-danger">受注が見つかりませんでした。QRコードが古い可能性があります。</div>';
+      document.getElementById('content').innerHTML = '<div class="alert-danger">受注が見つかりませんでした。QRコードが古い可能性があります。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="location.href=\'pickup.html\'">🏠 一覧にもどる</button>';
       return;
     }
     currentOrder = data.order;
@@ -844,7 +853,11 @@ async function loadSingleOrder(id){
       renderOrder();
     }
   }catch(err){
-    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>';
+    var isAbort = (err && (err.name==='AbortError'));
+    var msg = isAbort
+      ? 'サーバーの反応がありませんでした（時間切れ）。電波の良い場所で、もう一度お試しください。'
+      : '通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message);
+    document.getElementById('content').innerHTML = '<div class="alert-danger">'+msg+'</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadSingleOrder(\''+encodeURIComponent(id).replace(/'/g,"\\'")+'\')">🔄 もう一度読み込む</button>';
   }
 }
 
@@ -979,11 +992,11 @@ async function loadOrderList(){
   }
   // ② そのあと裏で最新を取りに行き、届いたら差し替える
   try{
-    const [res, ] = await Promise.all([fetch(GAS_URL + '?action=loadAll'), fetchWarehouseNotes()]);
+    const [res, ] = await Promise.all([fetchWithTimeout(GAS_URL + '?action=loadAll'), fetchWarehouseNotes()]);
     /* 区分の翻訳は下の orders 代入後に行う */
     const data = await res.json();
     if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
-      if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div>'; }
+      if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList()">🔄 もう一度読み込む</button>'; }
       return;
     }
     // 出荷待ち（出荷依頼書が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
@@ -997,7 +1010,13 @@ async function loadOrderList(){
     try{ sessionStorage.setItem('oos_pickup_orders_v1', JSON.stringify(allOrders)); }catch(e){}
     renderList();
   }catch(err){
-    if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>'; }
+    if(!hadCache){
+      var isAbort = (err && (err.name==='AbortError'));
+      var msg = isAbort
+        ? 'サーバーの反応がありませんでした（時間切れ）。電波の良い場所で、もう一度お試しください。'
+        : '通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message);
+      document.getElementById('content').innerHTML = '<div class="alert-danger">'+msg+'</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList()">🔄 もう一度読み込む</button>';
+    }
   }
 }
 
