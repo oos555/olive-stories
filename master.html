@@ -594,10 +594,10 @@ tr:last-child td{border-bottom:none}
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
-  <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b style="color:#8a5a12">ロット・賞味期限を直すときは、右の「✏️直す」から。</b><b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。</div>
+  <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b style="color:#8a5a12">ロット・賞味期限を直すときは、右の「✏️直す」から。</b><b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。<br><b style="color:#3b6d11">🏭 商品名のとなりの「倉庫表示」</b>で、倉庫Dの在庫一覧に<b>見せる（👁）／見せない（🙈）</b>を切り替えられます。ボタンを押すだけで切り替わり、倉庫Dに反映されます。</div>
   <div class="price-scroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#eef7e6;color:#3b6d11;text-align:center">倉庫<br>表示</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
     <th style="background:#eef4fb">バーコード</th><th style="background:#e6f4f2;color:#0b5a53">STORES品番</th><th style="background:#eef4fb">商品ページ</th>
@@ -2870,6 +2870,37 @@ function meiboFieldOf(p, key){
   if(p.extras && p.extras[key] !== undefined && p.extras[key] !== null && String(p.extras[key]).trim() !== '') return String(p.extras[key]).trim();
   return '';
 }
+/* ★倉庫Dの在庫一覧に「見せる／見せない」。名簿の「倉庫非表示」列に保存する（値：×＝隠す／表示＝見せる）。
+   倉庫D側はこの列を読んで自動でしたがう。 */
+function meiboIsWhHidden(p){
+  var cur = meiboFieldOf(p, '倉庫非表示');
+  return !!(cur && cur!=='0' && cur!=='表示' && cur!=='見せる');
+}
+function meiboWarehouseCell(p){
+  if(!p || !p.sku) return mDash();
+  if(meiboIsWhHidden(p)){
+    return '<button class="btn-sm" style="background:#fde8e8;border:1px solid #e6a3a3;color:#a12b2b;font-weight:700;white-space:nowrap" onclick="meiboToggleWarehouse(\''+esc(p.sku)+'\')" title="いまは倉庫Dに見せていません。押すと見せます">🙈 非表示</button>';
+  }
+  return '<button class="btn-sm" style="background:#e7f1dc;border:1px solid #9cc36f;color:#3b6d11;font-weight:700;white-space:nowrap" onclick="meiboToggleWarehouse(\''+esc(p.sku)+'\')" title="いまは倉庫Dに見せています。押すと隠します">👁 見せる</button>';
+}
+async function meiboToggleWarehouse(sku){
+  var p = PRODUCTS.find(function(x){ return x.sku===sku; });
+  if(!p) return;
+  var next = meiboIsWhHidden(p) ? '表示' : '×';   // 見せる ⇄ 非表示
+  var prod = { sku: sku, '倉庫非表示': next };      // この1列だけ保存（STORES品番と同じやり方）
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    var d = await res.json();
+    if(d && d.status==='ok'){
+      var idx = PRODUCTS.findIndex(function(x){ return x.sku===sku; });
+      if(idx>=0){ PRODUCTS[idx].extras = PRODUCTS[idx].extras || {}; PRODUCTS[idx].extras['倉庫非表示'] = next; PRODUCTS[idx]['倉庫非表示'] = next; }
+      try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS!=='undefined'?EXTRA_FIELDS:[])); }catch(e){}
+      renderMeibo();
+    } else {
+      alert('保存に失敗しました：'+((d&&d.message)||'')+'\n（商品マスタのシートに「倉庫非表示」列が無いと保存できないことがあります）');
+    }
+  }catch(e){ alert('通信エラー：'+e.message); }
+}
 function meiboBarcode(sku){
   var p = PRODUCTS.find(function(x){ return x.sku===sku; });
   var v = meiboFieldOf(p, 'バーコード');
@@ -3075,7 +3106,7 @@ async function meiboImportBuiltinJan(){
    ✏️ 名簿を直す（統合マスタが親。ここで直すと商品マスタシートに保存される）
    ══════════════════════════════════════════════════════════════════ */
 var meiboEditMode = false, meiboEditingSku = null, meiboAddingNew = false;
-function meiboColCount(){ return meiboEditMode ? 15 : 14; } /* ★2026-07-25 商品管理番号・商品ページの列を足したので+2 */
+function meiboColCount(){ return meiboEditMode ? 16 : 15; } /* ★倉庫表示の列を足したので+1 */
 function toggleMeiboEdit(){
   meiboEditMode = !meiboEditMode;
   if(!meiboEditMode){ meiboClearDraft(); meiboEditingSku = null; meiboAddingNew = false; }
@@ -3506,6 +3537,7 @@ function renderMeibo(){
         '<td><div class="pname">'+esc(p.name||p.sku)+'</div>'+
           (mIsSet(p)?'<div class="psub">セット商品</div>':'')+
           (mIsNoWholesale(p)?'<div style="margin-top:3px"><span class="rtonly">RT限定・卸なし</span></div>':'')+'</td>'+
+        '<td style="text-align:center;background:#f5faef">'+meiboWarehouseCell(p)+'</td>'+   /* ★倉庫Dの在庫一覧に見せる／見せない */
         '<td style="background:#faf7fd">'+meiboKouseiCell(p)+'</td>'+
         /* ★2026-07-25 商品管理番号（品番＋バーコード下4桁）。自動で組み立てるので手入力はしません */
         '<td style="background:#f7fbff"><span style="font-family:monospace;font-weight:800;font-size:13.5px;color:#0c447c;white-space:nowrap">'+esc(displaySkuCode(p.sku))+'</span></td>'+
