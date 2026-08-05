@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>倉庫の出荷作業 かんたん手引き</title>
+<style>
+  :root{
+    --paper:#f4efe4; --card:#fffdf8; --card-2:#faf6ec;
+    --ink:#2f2c25; --ink-soft:#6d6552; --ink-faint:#948a74;
+    --olive:#6b7a3a; --olive-deep:#4f5c28; --olive-tint:#eaf0da;
+    --mark:#d63a2e; --mark-tint:#fdeae7;
+    --ok:#1a8f42; --ok-tint:#dcf3e2;
+    --sky:#2563eb; --amber:#b45309; --grape:#6d28d9;
+    --line:#e5ddcc; --line-soft:#efe8d9;
+    --shadow:0 14px 34px rgba(60,50,25,.16);
+    --disp:'Hiragino Maru Gothic ProN','Hiragino Maru Gothic Pro','ヒラギノ丸ゴ ProN','Yu Gothic','游ゴシック体','Hiragino Sans','Meiryo',sans-serif;
+    --body:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','游ゴシック体','Meiryo',system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#211f1a; --card:#2c2a24; --card-2:#26241f;
+      --ink:#f3efe4; --ink-soft:#c3baa6; --ink-faint:#938a76;
+      --olive:#a9b76a; --olive-deep:#c2cf8a; --olive-tint:#343922;
+      --mark:#ff6f5e; --mark-tint:#3a231f; --ok:#5cc47a; --ok-tint:#24331f;
+      --sky:#7aa9ff; --amber:#e0a154; --grape:#b794f6;
+      --line:#3b382f; --line-soft:#332f27; --shadow:0 14px 34px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#f4efe4; --card:#fffdf8; --card-2:#faf6ec;
+    --ink:#2f2c25; --ink-soft:#6d6552; --ink-faint:#948a74;
+    --olive:#6b7a3a; --olive-deep:#4f5c28; --olive-tint:#eaf0da;
+    --mark:#d63a2e; --mark-tint:#fdeae7; --ok:#1a8f42; --ok-tint:#dcf3e2;
+    --sky:#2563eb; --amber:#b45309; --grape:#6d28d9;
+    --line:#e5ddcc; --line-soft:#efe8d9; --shadow:0 14px 34px rgba(60,50,25,.16);
+  }
+  :root[data-theme="dark"]{
+    --paper:#211f1a; --card:#2c2a24; --card-2:#26241f;
+    --ink:#f3efe4; --ink-soft:#c3baa6; --ink-faint:#938a76;
+    --olive:#a9b76a; --olive-deep:#c2cf8a; --olive-tint:#343922;
+    --mark:#ff6f5e; --mark-tint:#3a231f; --ok:#5cc47a; --ok-tint:#24331f;
+    --sky:#7aa9ff; --amber:#e0a154; --grape:#b794f6;
+    --line:#3b382f; --line-soft:#332f27; --shadow:0 14px 34px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+    font-size:18px;line-height:1.85;-webkit-text-size-adjust:100%;letter-spacing:.01em}
+  .wrap{max-width:600px;margin:0 auto;padding:22px 18px 70px}
+
+  /* header */
+  .head{text-align:center;padding:14px 6px 6px}
+  .kicker{font-family:var(--disp);color:var(--olive-deep);font-weight:700;font-size:15px;
+    letter-spacing:.1em;margin:0 0 8px}
+  .title{font-family:var(--disp);font-weight:700;font-size:31px;line-height:1.3;margin:0;
+    color:var(--ink);text-wrap:balance}
+  .subtitle{font-size:17px;color:var(--ink-soft);margin:12px auto 0;max-width:30em;line-height:1.8}
+
+  /* もくじ */
+  .toc{background:var(--card);border:2px solid var(--olive);border-radius:20px;
+    padding:18px 16px;margin:24px 0;box-shadow:var(--shadow)}
+  .toc h2{font-family:var(--disp);font-size:19px;margin:0 0 4px;color:var(--olive-deep);text-align:center}
+  .toc .toc-note{font-size:13px;color:var(--ink-faint);text-align:center;margin:0 0 12px}
+  .toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .toc a{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);
+    padding:11px 10px;border-radius:11px;font-weight:600;font-size:16px}
+  .toc a:active{background:var(--olive-tint)}
+  .toc .t-no{flex-shrink:0;width:29px;height:29px;border-radius:50%;background:var(--olive-tint);
+    color:var(--olive-deep);font-family:var(--disp);font-weight:800;font-size:15px;
+    display:flex;align-items:center;justify-content:center}
+
+  /* 3-point gist */
+  .gist{background:var(--card);border:2px solid var(--olive);border-radius:20px;
+    padding:20px 18px;margin:8px 0;box-shadow:var(--shadow)}
+  .gist h2{font-family:var(--disp);font-size:19px;margin:0 0 14px;color:var(--olive-deep);text-align:center}
+  .gist ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+  .gist li{display:flex;align-items:center;gap:14px;background:var(--card-2);
+    border:1.5px solid var(--line);border-radius:14px;padding:13px 15px}
+  .gist .g-no{flex-shrink:0;width:34px;height:34px;border-radius:50%;background:var(--olive);
+    color:#fff;font-family:var(--disp);font-weight:700;font-size:19px;display:flex;
+    align-items:center;justify-content:center}
+  .gist .g-tx{font-size:17px;font-weight:600;line-height:1.5}
+  .gist .g-tx b{color:var(--mark);font-weight:800}
+  .gist .pw{font-family:var(--disp);font-weight:800;color:var(--olive-deep);
+    background:var(--olive-tint);border-radius:8px;padding:1px 8px;letter-spacing:.08em}
+
+  /* chapter divider */
+  .chapter{display:flex;align-items:center;gap:14px;margin:46px 0 2px;padding:16px 18px;
+    background:var(--olive);color:#fff;border-radius:18px 18px 6px 6px;box-shadow:var(--shadow);
+    scroll-margin-top:14px}
+  .chapter .ch-no{flex-shrink:0;width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.2);
+    font-family:var(--disp);font-weight:800;font-size:22px;display:flex;align-items:center;justify-content:center}
+  .chapter .ch-title{font-family:var(--disp);font-weight:700;font-size:21px;line-height:1.3;color:#fff}
+  .chapter .ch-title small{display:block;font-size:13px;font-weight:600;opacity:.9;margin-top:2px}
+
+  /* step / panel */
+  .step,.panel{background:var(--card);border:1.5px solid var(--line);border-radius:8px 8px 20px 20px;
+    padding:20px 18px 22px;margin:0 0 14px;box-shadow:var(--shadow)}
+  .step{border-radius:22px;margin:16px 0}
+  .step-head{display:flex;align-items:center;gap:14px;margin-bottom:4px}
+  .step-no{flex-shrink:0;width:44px;height:44px;border-radius:50%;background:var(--olive);color:#fff;
+    font-family:var(--disp);font-weight:700;font-size:22px;display:flex;align-items:center;
+    justify-content:center;box-shadow:0 3px 0 var(--olive-deep)}
+  .step-title,.panel-title{font-family:var(--disp);font-weight:700;font-size:21px;line-height:1.35;color:var(--ink);margin:0}
+  .panel-title{margin-bottom:6px}
+  .say{font-size:18px;line-height:1.85;margin:12px 2px 4px}
+  .say b{color:var(--olive-deep);font-weight:800}
+  .say .red{color:var(--mark);font-weight:800}
+
+  /* list inside panels */
+  .flow{list-style:none;margin:14px 0 4px;padding:0;display:flex;flex-direction:column;gap:0}
+  .flow li{background:var(--olive-tint);border:1.5px solid var(--olive);border-radius:12px;
+    padding:12px 14px;font-size:16px;font-weight:700;color:var(--ink);line-height:1.55}
+  .flow .arrow{align-self:center;color:var(--olive);font-weight:800;font-size:18px;
+    background:none;border:none;padding:3px 0}
+
+  /* tip */
+  .tip{display:flex;gap:11px;align-items:flex-start;background:var(--olive-tint);border-radius:14px;
+    padding:13px 15px;margin-top:14px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .tip.warn{background:var(--mark-tint)}
+  .tip.blue{background:color-mix(in srgb,var(--sky) 12%,transparent)}
+  .tip .ic{flex-shrink:0;font-size:20px;line-height:1.4}
+  .tip b{font-weight:800}
+  .tip .red{color:var(--mark);font-weight:800}
+
+  .backtop{display:block;text-align:center;font-size:14px;color:var(--olive-deep);
+    text-decoration:none;font-weight:700;margin:6px 0 0;padding:8px}
+
+  /* phone mockup */
+  .phone{max-width:328px;margin:18px auto 4px;background:#000;border-radius:36px;padding:9px;
+    box-shadow:0 16px 36px rgba(40,34,18,.28)}
+  .phone-inner{background:#faf7f2;border-radius:28px;overflow:hidden}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:7px 16px 4px;
+    font-size:12px;color:#3a3a3a;font-weight:600;background:#faf7f2}
+  .screen{background:#faf7f2;padding:12px 12px 16px;font-family:var(--body);color:#2b2a26;
+    font-size:13.5px;line-height:1.5}
+  .screen *{box-sizing:border-box}
+  .cap{text-align:center;font-size:13px;color:var(--ink-faint);margin:2px 0 0}
+
+  /* app pieces (fixed app colors) */
+  .a-topbar{background:#6b7a3a;color:#fff;border-radius:11px;padding:10px;text-align:center;
+    font-weight:700;font-size:14px;margin-bottom:10px;font-family:var(--disp)}
+  .a-topbar .sub{font-size:11px;opacity:.9;font-weight:600;margin-top:1px}
+  .a-guide{background:#fff;border:2px solid #6b7a3a;border-radius:11px;padding:11px 13px;
+    font-weight:700;color:#3b4a1a;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;gap:6px}
+  .a-alert{background:#fee2e2;border:1.5px solid #dc2626;color:#7f1d1d;border-radius:9px;
+    padding:9px 11px;font-size:12px;font-weight:600;margin-bottom:10px;line-height:1.5}
+  .a-metrics{display:flex;gap:8px;margin-bottom:10px}
+  .a-mc{flex:1;border-radius:11px;padding:9px 8px;text-align:center}
+  .a-mc.urg{background:#fdeceb;border:1.5px solid #e6b4b0}
+  .a-mc.pend{background:#eef3e0;border:1.5px solid #b9c78f}
+  .a-mc .ml{font-size:11px;color:#6b6250;font-weight:600}
+  .a-mc .mn{font-size:22px;font-weight:800;color:#2b2a26;font-family:var(--disp)}
+  .a-mc .mn small{font-size:12px;font-weight:700}
+  .a-refresh{background:#eef3e0;border:1.5px solid #6b7a3a;color:#3b4a1a;border-radius:10px;
+    padding:10px;text-align:center;font-weight:700;font-size:13px;margin-bottom:10px}
+  .a-tools{background:#fff;border:1.5px solid #d5cfc3;border-radius:9px;padding:10px 12px;
+    font-weight:600;color:#2b2a26;font-size:12.5px;display:flex;justify-content:space-between;gap:6px}
+
+  .a-card{background:#fff;border:1px solid #e5e3da;border-radius:11px;padding:11px 12px;margin-bottom:9px}
+  .a-card.urg{background:#fdecec;border-color:#f0c7c7}
+  .a-card .c-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .a-card .c-name{font-size:16px;font-weight:800;color:#2b2a26}
+  .a-card .c-stat{font-size:12px;color:#b45309;font-weight:700;white-space:nowrap}
+  .a-card .c-marks{margin:5px 0 2px;display:flex;gap:5px;flex-wrap:wrap}
+  .a-mk{font-size:11px;font-weight:800;border-radius:6px;padding:2px 7px;background:#f1f0ea;color:#5a5346}
+  .a-mk.over{background:#fdecec;color:#a3241d}
+  .a-mk.urgm{background:#fbe0c9;color:#8a4a12}
+  .a-card .c-items{font-size:12.5px;color:#2b2a26;margin-top:4px;line-height:1.5}
+  .a-card .c-dates{display:flex;gap:16px;margin-top:6px;font-size:12px;color:#2b2a26}
+  .a-card .c-dates b{font-weight:800}
+  .a-card .c-dates .wish{color:#185fa5}
+
+  .a-back{background:#6b7a3a;color:#fff;border-radius:9px;padding:11px;text-align:center;
+    font-weight:700;font-size:14px;margin-bottom:11px;font-family:var(--disp)}
+  .a-ono{text-align:center;font-family:var(--disp);font-weight:800;font-size:17px;color:#2b2a26;margin:2px 0 10px}
+  .a-band{border-radius:11px;padding:11px 12px;margin-bottom:11px;text-align:center;
+    background:#eef3e0;border:2px solid #6b7a3a;color:#3b4a1a}
+  .a-band .bt{font-size:15px;font-weight:800;font-family:var(--disp)}
+  .a-band .bs{font-size:11.5px;font-weight:600;margin-top:3px;line-height:1.5;color:#42501f}
+  .a-item{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e5e0d6;
+    border-radius:10px;padding:11px 12px;margin-bottom:8px}
+  .a-item.done{background:#dcfce7;border-color:#16a34a}
+  .a-box{width:34px;height:34px;border-radius:7px;border:2.5px solid #b8b0a0;background:#fff;
+    flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:#16a34a;font-weight:900}
+  .a-item.done .a-box{background:#16a34a;border-color:#16a34a;color:#fff}
+  .a-item .it-name{font-weight:800;font-size:15px;color:#2b2a26;line-height:1.3}
+  .a-item .it-sub{font-size:12px;color:#5a5346;margin-top:2px}
+  .a-complete{background:#2563eb;color:#fff;border-radius:11px;padding:15px;text-align:center;
+    font-weight:800;font-size:16px;margin-top:6px;font-family:var(--disp)}
+  .a-complete.off{background:#c7d7f5;color:#eef}
+  .a-cnote{font-size:11.5px;color:#57534e;text-align:center;margin-top:7px;line-height:1.6}
+
+  /* tools grid */
+  .a-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .a-tile{border-radius:11px;padding:15px 6px;text-align:center;border:2px solid}
+  .a-tile .ti{font-size:24px;line-height:1}
+  .a-tile .tt{font-size:13px;font-weight:800;margin-top:4px}
+  .a-sec{font-size:13px;font-weight:800;color:#57534e;margin:2px 0 8px}
+  .a-field{background:#fff;border:1px solid #d5cfc3;border-radius:8px;padding:10px 11px;
+    font-size:13px;color:#2b2a26;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  .a-label{font-size:12px;font-weight:700;color:#2b2a26;margin-bottom:5px}
+  .a-lv{display:flex;align-items:center;gap:8px;border-radius:8px;padding:9px 10px;margin-bottom:7px;font-size:13px;font-weight:700}
+  .a-dot{width:14px;height:14px;border-radius:50%;flex:none}
+  .a-blue{background:#2563eb;color:#fff;border-radius:9px;padding:12px;text-align:center;font-weight:800;font-size:14px;font-family:var(--disp)}
+  .a-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 11px;
+    font-size:11.5px;color:#1e3a5f;line-height:1.6;margin-bottom:10px}
+  .a-matcard{display:flex;gap:10px;background:#f9f8f5;border-radius:10px;padding:11px;margin-bottom:9px}
+  .a-photo{width:60px;height:60px;border-radius:8px;background:#e7e2d7;flex:none;display:flex;
+    align-items:center;justify-content:center;font-size:26px;color:#b6ac98}
+  .a-matinfo{flex:1;min-width:0}
+  .a-qtyrow{display:flex;align-items:center;gap:8px;margin-top:7px}
+  .a-qbtn{width:28px;height:28px;border-radius:7px;border:1px solid #d5cfc3;background:#fff;font-weight:800;font-size:16px;text-align:center;line-height:26px}
+  .a-qnum{font-size:16px;font-weight:800;min-width:26px;text-align:center}
+  .a-stockrow{display:flex;align-items:center;justify-content:space-between;background:#fff;
+    border:1px solid #e5e0d6;border-radius:9px;padding:9px 11px;margin-bottom:7px;font-size:13px}
+  .a-stockrow .sn{font-weight:700;color:#2b2a26}
+  .a-stockrow .sv{text-align:right}
+  .a-stockrow .sell{font-weight:800;color:#16a34a;font-size:16px}
+  .a-stockrow .incoming{font-size:11px;color:#1d4ed8}
+
+  /* browser bar mockup */
+  .a-topclose{display:flex;justify-content:space-between;align-items:center;background:#fff;
+    border-bottom:1px solid #e2ddd2;padding:8px 12px;font-size:13px;color:#57534e;font-weight:600}
+  .a-browserbar{display:flex;justify-content:space-around;align-items:center;background:#efece6;
+    border-top:1px solid #ddd6c8;padding:11px 8px;font-size:22px;color:#555}
+  .bb-btn{position:relative;padding:2px 8px}
+
+  /* pointer cue */
+  .cue{position:relative;display:block}
+  .cue.ring{outline:3.5px dashed var(--mark);outline-offset:4px;border-radius:14px}
+  .cue.ring.ok{outline-color:#1a8f42}
+  .cue-tag{position:absolute;top:-15px;right:-6px;z-index:6;background:var(--mark);color:#fff;
+    font-family:var(--disp);font-weight:800;font-size:12.5px;padding:3px 11px;border-radius:99px;
+    box-shadow:0 3px 8px rgba(150,30,20,.45);white-space:nowrap}
+  .cue-tag.ok{background:#1a8f42;box-shadow:0 3px 8px rgba(20,100,40,.45)}
+  .cue-tag.left{right:auto;left:-6px}
+  .cue-tag.bottom{top:auto;bottom:-15px}
+
+  /* password callout */
+  .pwbox{background:var(--olive);color:#fff;border-radius:20px;padding:20px 18px;text-align:center;
+    margin:16px 0;box-shadow:var(--shadow)}
+  .pwbox .lb{font-size:15px;font-weight:700;opacity:.92;font-family:var(--disp)}
+  .pwbox .pw{font-family:var(--disp);font-weight:800;font-size:44px;letter-spacing:.14em;margin:6px 0 4px;line-height:1.1}
+  .pwbox .yomi{font-size:16px;font-weight:700;background:rgba(255,255,255,.16);border-radius:99px;
+    padding:6px 16px;display:inline-block;margin-top:4px}
+  .pwbox .yomi b{color:#fff8d6}
+
+  /* big warning band (最重要：戻り方) */
+  .bigwarn{display:flex;align-items:center;gap:14px;margin:28px 0 2px;padding:16px 18px;
+    background:var(--mark);color:#fff;border-radius:18px 18px 6px 6px;box-shadow:var(--shadow);scroll-margin-top:14px}
+  .bigwarn .bw-ic{flex-shrink:0;font-size:26px;line-height:1}
+  .bigwarn .bw-t{font-family:var(--disp);font-weight:800;font-size:20px;line-height:1.3}
+  .bigwarn .bw-t small{display:block;font-size:13px;font-weight:600;opacity:.95;margin-top:2px}
+
+  /* FAQ */
+  .faq{background:var(--card);border:1.5px solid var(--line);border-radius:22px;padding:8px 4px;margin:22px 0;box-shadow:var(--shadow)}
+  .faq h2{font-family:var(--disp);font-size:21px;text-align:center;color:var(--olive-deep);margin:16px 0 6px}
+  .qa{border-top:1.5px solid var(--line-soft);padding:16px 16px}
+  .qa:first-of-type{border-top:none}
+  .qa .q{font-family:var(--disp);font-weight:700;font-size:17px;color:var(--ink);display:flex;gap:9px;align-items:flex-start}
+  .qa .q .qm{color:var(--mark);font-weight:800}
+  .qa .a{font-size:16px;color:var(--ink-soft);line-height:1.8;margin:8px 0 0 27px}
+  .qa .a b{color:var(--olive-deep);font-weight:800}
+  .qa .a .pw{font-family:var(--disp);font-weight:800;color:var(--olive-deep);background:var(--olive-tint);border-radius:6px;padding:0 6px}
+
+  .foot{text-align:center;color:var(--ink-faint);font-size:14px;line-height:1.9;margin-top:30px;padding:0 10px}
+  .foot .call{display:inline-block;background:var(--card);border:1.5px solid var(--olive);border-radius:14px;
+    padding:13px 20px;margin-top:6px;color:var(--ink);font-size:16px;font-weight:700;box-shadow:var(--shadow)}
+  .foot .call b{color:var(--olive-deep)}
+
+  @media (max-width:400px){
+    body{font-size:17px}
+    .title{font-size:26px}
+    .phone{max-width:288px}
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <p class="kicker">オリーブオイル・ストーリーズ｜倉庫のみなさまへ</p>
+    <h1 class="title">スマホで出荷 かんたん手引き</h1>
+    <p class="subtitle">むずかしくありません。スマホだけでできます。<br>この手引きを、上から順番にゆっくり読めば大丈夫です。</p>
+  </header>
+
+  <!-- もくじ -->
+  <nav class="toc" id="top">
+    <h2>もくじ</h2>
+    <p class="toc-note">読みたいところを押すと、そのページに飛びます</p>
+    <ol>
+      <li><a href="#gist"><span class="t-no">★</span>まず、これだけ覚えれば大丈夫</a></li>
+      <li><a href="#back"><span class="t-no">🚨</span>いちばん大事：もどり方（✗を押さない）</a></li>
+      <li><a href="#faq"><span class="t-no">?</span>こまった時は（パスワード・エラーなど）</a></li>
+      <li><a href="#c1"><span class="t-no">1</span>出荷のやり方（7ステップ）</a></li>
+      <li><a href="#c2"><span class="t-no">2</span>「このアプリは何をする場所？」の中身</a></li>
+      <li><a href="#c3"><span class="t-no">3</span>「その他のボタン」を開くと</a></li>
+      <li><a href="#c4"><span class="t-no">4</span>🔴 不良品ほうこく</a></li>
+      <li><a href="#c5"><span class="t-no">5</span>📝 メモ</a></li>
+      <li><a href="#c6"><span class="t-no">6</span>📦 資材カタログ</a></li>
+      <li><a href="#c7"><span class="t-no">7</span>🫒 在庫を見る（在庫はどこで動く？）</a></li>
+    </ol>
+  </nav>
+
+  <!-- gist -->
+  <section class="gist" id="gist">
+    <h2>⭐ まず、これだけ覚えれば大丈夫</h2>
+    <ol>
+      <li><span class="g-no">1</span><span class="g-tx">とどいた<b style="color:var(--sky)">青いリンク</b>を押す</span></li>
+      <li><span class="g-no">2</span><span class="g-tx">パスワード <span class="pw">U4649</span>（＝ヨロシク）を入れる<br><small style="font-size:14px;color:var(--ink-soft)">※最初の1回だけ</small></span></li>
+      <li><span class="g-no">3</span><span class="g-tx">品物を用意して <b class="red">✓</b> を付け、<br>青い<b>「梱包完了」</b>を押す</span></li>
+      <li style="border-color:var(--mark);background:var(--mark-tint)"><span class="g-no" style="background:var(--mark)">4</span><span class="g-tx"><b class="red">開いたら「✗（バツ）」で閉じない！</b><br><small style="font-size:14px;color:var(--ink-soft);font-weight:600">もどる時は、緑の「もどる」か、画面下の「←」で（すぐ下でくわしく）</small></span></li>
+    </ol>
+  </section>
+
+  <!-- 最重要：もどり方 -->
+  <div class="bigwarn" id="back"><span class="bw-ic">🚨</span><span class="bw-t">いちばん大事：もどり方<small>開いたら「✗（バツ）」で消さないでね</small></span></div>
+  <section class="panel">
+    <p class="say">どれかの画面を開いたあと、前にもどりたい時の話です。<b class="red">もどる方法は2つ。「✗（バツ）」は押さないでください</b>（全部閉じてしまいます）。</p>
+    <ol class="flow">
+      <li>⭕ 方法1：画面の中の<b>緑の「← 出荷依頼書一覧にもどる」</b>を押す（いちばん確実）</li>
+      <li>⭕ 方法2：画面の<b>いちばん下の「←（左向きの矢印）」</b>を押す</li>
+    </ol>
+    <div class="phone"><div class="phone-inner">
+      <div class="a-topclose"><span>ピッキング確認</span>
+        <span class="cue ring"><span class="cue-tag" style="top:-13px;right:-2px">これは押さない</span><span style="font-size:17px;color:#b91c1c;font-weight:800;padding:0 4px">✕</span></span>
+      </div>
+      <div class="screen" style="padding:16px 12px 10px">
+        <div class="a-back" style="margin-bottom:8px">← 出荷依頼書一覧にもどる</div>
+        <div style="font-size:12px;color:#8a8378;text-align:center">（画面の中身）</div>
+      </div>
+      <div class="a-browserbar">
+        <span class="cue ring ok bb-btn"><span class="cue-tag ok bottom">これで戻る 〇</span>←</span>
+        <span style="color:#bbb">→</span><span style="color:#888">⟳</span><span style="color:#888">⬆</span>
+      </div>
+    </div></div>
+    <p class="cap">上の「✕」＝全部閉じる（押さない）／下の「←」＝前にもどる（こっち）</p>
+    <div class="tip warn"><span class="ic">✕</span><div><b class="red">「✗（バツ）」を押すと、全部閉じてしまいます。</b>作業のとちゅうで押さないように気をつけてください。</div></div>
+    <div class="tip"><span class="ic">😊</span><div>もし<b>まちがえて閉じてしまっても大丈夫。</b>また<b>LINEのリンク</b>を押せば、すぐ開きます。パスワードも、たいてい聞かれません（同じスマホなら）。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- こまった時は（前の方に配置） -->
+  <section class="faq" id="faq">
+    <h2>こまった時は？</h2>
+    <div class="qa"><div class="q"><span class="qm">Q.</span><span>また パスワードを聞かれた</span></div>
+      <div class="a">別のスマホやパソコンで開いた時や、しばらく経つと、また聞かれることがあります。あわてず <span class="pw">U4649</span> を入れれば開きます。</div></div>
+    <div class="qa"><div class="q"><span class="qm">Q.</span><span>エラーが出た／画面が出ない</span></div>
+      <div class="a">最初は出やすいです。<b>2〜3回</b>ひらき直してみてください。それでも出ない時は、下の連絡先に連絡してください。</div></div>
+    <div class="qa"><div class="q"><span class="qm">Q.</span><span>まちがえて押した・閉じてしまった</span></div>
+      <div class="a"><b>だいじょうぶ、こわれません。</b>チェックはもう一度押せば消えます。閉じたら、またLINEのリンクから開けばOK。困ったら下の連絡先へ。</div></div>
+    <div class="qa"><div class="q"><span class="qm">Q.</span><span>いつ発送すればいい？</span></div>
+      <div class="a">画面の<b>色帯</b>のとおりで大丈夫。📦通常は届いた日から1週間以内にお客様へ届くように、🚨急ぎは翌営業日までに、🗓 日付指定はその日に発送します。</div></div>
+    <div class="qa"><div class="q"><span class="qm">Q.</span><span>悪い品物（割れ・漏れ）を見つけた</span></div>
+      <div class="a">「その他のボタン」→<b>🔴 不良品ほうこく</b>から知らせてください（4章）。<b>LINE・電話ではなく、必ずこの画面から</b>お願いします。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 1 ══ -->
+  <div class="chapter" id="c1"><span class="ch-no">1</span><span class="ch-title">出荷のやり方<small>7つのステップ。ふだんの作業はこれだけ。</small></span></div>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">1</span><h3 class="step-title">とどいた青いリンクを押す</h3></div>
+    <p class="say">LINEに「<b>新しい出荷依頼があります</b>」と来ます。その中の<span style="color:var(--sky);font-weight:800">青い文字のリンク</span>を、指で<b>1回ポン</b>と押します。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:52</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div style="background:#8aa7c4;border-radius:16px;padding:16px 14px">
+          <div class="cue ring"><span class="cue-tag bottom">👆 ここを押す</span>
+            <div style="background:#fff;border-radius:5px 16px 16px 16px;padding:11px 13px;font-size:13px;color:#1f2937;line-height:1.6">
+              🐝 新しい出荷依頼：1件あります。<br>アプリを開いて確認してください
+              <span style="color:#1a73e8;text-decoration:underline;word-break:break-all;display:block;margin-top:6px;font-weight:600">https://oos555.github.io/olive-stories/pickup.html</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">2</span><h3 class="step-title">パスワードを入れる<br><small style="font-size:16px;color:var(--ink-soft);font-weight:600">（最初の1回だけ）</small></h3></div>
+    <p class="say">🔑 の画面が出たら、まん中のわくに<b>パスワード</b>を入れて、緑の<b>「開く」</b>を押します。</p>
+    <div class="pwbox"><div class="lb">パスワードは</div><div class="pw">U4649</div><div class="yomi"><b>U</b>（大文字のユー）＋ <b>4649</b>（ヨロシク）</div></div>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:53</span><span>📶 🔋</span></div>
+      <div class="screen" style="padding:22px 16px 26px">
+        <div style="text-align:center;font-size:34px;line-height:1">🔑</div>
+        <div style="text-align:center;font-family:var(--disp);font-weight:800;font-size:18px;color:#2b2a26;margin:6px 0 4px">玄関の鍵</div>
+        <div style="text-align:center;font-size:12px;color:#57534e;line-height:1.6;margin-bottom:14px">パスワードを入れてください。<br>一度合えば、次回からこの端末では聞きません。</div>
+        <div class="cue ring" style="margin-bottom:12px"><span class="cue-tag left">ここに入力</span>
+          <div style="border:1px solid #d8cfc4;border-radius:9px;padding:12px 13px;font-size:19px;font-weight:800;letter-spacing:.18em;color:#2b2a26;background:#fff">U4649</div></div>
+        <div class="cue ring"><span class="cue-tag bottom">👆 そのあと押す</span>
+          <div style="background:#6b7a3a;color:#fff;border-radius:9px;padding:13px;text-align:center;font-weight:800;font-size:16px;font-family:var(--disp)">開く</div></div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">⏳</span><div><b>最初だけ少し時間がかかったり、エラーが出ることがあります。</b>あわてず<b>2〜3回</b>やってみてください。それで開きます。</div></div>
+    <div class="tip"><span class="ic">😊</span><div><b>一度開けたら、次からはもう聞かれません</b>（同じスマホなら）。毎回入れなくて大丈夫です。</div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">3</span><h3 class="step-title">この画面が「ホーム」<br><small style="font-size:16px;color:var(--ink-soft);font-weight:600">（出荷するものの一覧）</small></h3></div>
+    <p class="say">開くとこの画面。ここが<b>おうち（ホーム）</b>です。出荷する注文が<b>上から順番</b>に並びます。<b>上にあるほど急ぎ</b>です。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:52</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-topbar">🏠 出荷依頼書 一覧<div class="sub">（この画面がホームです）</div></div>
+        <div class="a-guide"><span>📦 このアプリは何をする場所？</span><span style="color:#78716c">タップで開く ▼</span></div>
+        <div class="a-alert">⏰ 出荷期限を過ぎているものが 1 件あります。優先して確認してください。</div>
+        <div class="a-metrics">
+          <div class="a-mc urg"><div class="ml">急ぎ・未梱包</div><div class="mn">1<small> 件</small></div></div>
+          <div class="a-mc pend"><div class="ml">梱包待ち 合計</div><div class="mn">3<small> 件</small></div></div>
+        </div>
+        <div class="a-refresh">🔄 出荷依頼書を更新</div>
+        <div class="a-tools"><span>🧰 その他のボタン（不良品・メモ…）</span><span style="color:#78716c">開く ▼</span></div>
+        <div class="a-card urg">
+          <div class="c-top"><span class="c-name">山田 花子</span><span class="c-stat">🕐 梱包待ち</span></div>
+          <div class="c-marks"><span class="a-mk urgm">急ぎ</span><span class="a-mk over">⏰期限超過</span><span class="a-mk">🎀</span></div>
+          <div class="c-items">your story 100ml ×3本セット ＋ギフト箱 ＋紙袋大</div>
+          <div class="c-dates"><span>依頼日 <b>8/5</b></span><span>希望日 <b class="wish">8/9</b></span></div>
+        </div>
+        <div class="a-card">
+          <div class="c-top"><span class="c-name">ささき商店</span><span class="c-stat">🕐 梱包待ち</span></div>
+          <div class="c-items">your story 250ml ×6本</div>
+          <div class="c-dates"><span>依頼日 <b>8/5</b></span><span>希望日 <b>なし</b></span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">👀</span><div>カードの中に、<b>お客様の名前・送る品物・急ぎかどうか・日にち</b>が全部出ています。迷ったらカードを見ればOKです。</div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">4</span><h3 class="step-title">出荷する人のカードを押す</h3></div>
+    <p class="say">出荷したい注文の<b>お名前のカード</b>を、どれか1つ指で押します。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:54</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-topbar">🏠 出荷依頼書 一覧<div class="sub">（この画面がホームです）</div></div>
+        <div class="cue ring"><span class="cue-tag">👆 ここを押す</span>
+          <div class="a-card urg" style="margin-bottom:0">
+            <div class="c-top"><span class="c-name">山田 花子</span><span class="c-stat">🕐 梱包待ち</span></div>
+            <div class="c-marks"><span class="a-mk urgm">急ぎ</span><span class="a-mk over">⏰期限超過</span><span class="a-mk">🎀</span></div>
+            <div class="c-items">your story 100ml ×3本セット ＋ギフト箱 ＋紙袋大</div>
+            <div class="c-dates"><span>依頼日 <b>8/5</b></span><span>希望日 <b class="wish">8/9</b></span></div>
+          </div>
+        </div>
+        <div class="a-card" style="margin-top:9px">
+          <div class="c-top"><span class="c-name">ささき商店</span><span class="c-stat">🕐 梱包待ち</span></div>
+          <div class="c-items">your story 250ml ×6本</div>
+          <div class="c-dates"><span>依頼日 <b>8/5</b></span><span>希望日 <b>なし</b></span></div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">5</span><h3 class="step-title">その人の「中身」が出ます</h3></div>
+    <p class="say">そのお客様に<b>送る品物</b>が出ます。この画面を<b>見ながら</b>倉庫で品物をそろえられます。紙にメモして行かなくて大丈夫です。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:55</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="cue ring" style="margin-bottom:11px"><span class="cue-tag bottom">一覧にもどる時はここ</span>
+          <div class="a-back" style="margin-bottom:0">← 出荷依頼書一覧にもどる</div></div>
+        <div class="a-ono">OS-20260805-001</div>
+        <div class="a-band"><div class="bt">📦 通常</div><div class="bs">出荷依頼書が届いた日を1日目として数え、1週間以内にお客様のお手元に届くように発送してください</div></div>
+        <div class="a-sec">送るもの（このお客様の注文）</div>
+        <div class="a-item"><div class="a-box"></div><div><div class="it-name">your story 100ml ×3本セット</div><div class="it-sub">ギフト箱入り</div></div></div>
+        <div class="a-item"><div class="a-box"></div><div><div class="it-name">紙袋（大）×1</div><div class="it-sub">同梱</div></div></div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">6</span><h3 class="step-title">用意できた品物に ✓ を付ける</h3></div>
+    <p class="say">品物を用意できたら、左の<b>四角い □</b>を1つずつ押します。押すと<b style="color:var(--ok)">緑色</b>に。<b>ぜんぶ緑</b>になると、下のボタンが押せます。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:56</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-item done"><div class="a-box">✓</div><div><div class="it-name">your story 100ml ×3本セット</div><div class="it-sub">ギフト箱入り</div></div></div>
+        <div class="cue ring"><span class="cue-tag left">👆 押すと緑に</span>
+          <div class="a-item" style="margin-bottom:0"><div class="a-box"></div><div><div class="it-name">紙袋（大）×1</div><div class="it-sub">同梱</div></div></div></div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">💡</span><div>チェックは<b>品物を用意したしるし</b>です。まちがえて押しても、もう一度押せば消えます。こわれません。</div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">7</span><h3 class="step-title">青い「梱包完了」を押して おわり</h3></div>
+    <p class="say">ぜんぶ緑になったら、いちばん下の<b style="color:var(--sky)">青いボタン「✅ 梱包完了にする」</b>を押します。これで<b>「おわりました」の記録</b>が残り、この注文は一覧から消えます。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>14:57</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-item done"><div class="a-box">✓</div><div><div class="it-name">your story 100ml ×3本セット</div><div class="it-sub">ギフト箱入り</div></div></div>
+        <div class="a-item done" style="margin-bottom:12px"><div class="a-box">✓</div><div><div class="it-name">紙袋（大）×1</div><div class="it-sub">同梱</div></div></div>
+        <div class="cue ring"><span class="cue-tag bottom">👆 さいごにここ</span><div class="a-complete">✅ 梱包完了にする</div></div>
+        <div class="a-cnote">押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。</div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">📮</span><div><b>実際の発送は、その場ですぐでなくて大丈夫。</b>画面の色帯（📦通常なら1週間以内など）の<b>期日内</b>に送ればOKです。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 2 ══ -->
+  <div class="chapter" id="c2"><span class="ch-no">2</span><span class="ch-title">「このアプリは何をする場所？」の中身<small>ホームの緑わくを開くと、このアプリの説明が出ます</small></span></div>
+
+  <section class="panel">
+    <p class="say">ホーム画面の<b>「📦 このアプリは何をする場所？」</b>を押すと、下に説明が開きます。<b class="red">大事なことは、ぜんぶここにも書いてあります。</b>迷ったらここを読めば大丈夫です。中身はこんな内容です👇</p>
+    <p class="say" style="margin-top:16px;font-size:17px">📮 ここは、届いた<b>「発送のお願い」を、その通りに発送する場所</b>です。何を・何を付けて・いつ・どこへ送るかは、すべて注文カードに出ます。</p>
+    <ol class="flow">
+      <li>1. 発送する商品と届け先を確認する（注文カードに出ます）</li>
+      <li class="arrow">↓</li>
+      <li>2. 商品を荷造りする（箱・バラをチェック）＋ 納品書を同梱</li>
+      <li class="arrow">↓</li>
+      <li>3. のし・同梱書類の指示があれば、その通りに付ける</li>
+      <li class="arrow">↓</li>
+      <li>4. そろったら「✅ 梱包完了にする」を押す</li>
+    </ol>
+    <div class="tip warn"><span class="ic">📮</span><div><b>不良品のご報告は、このアプリの「不良品ほうこく」からだけ</b>お願いします。LINE・お電話だと事務所で手入力になり、記録が残らず在庫の数が合わなくなるためです。（→ くわしくは<b>4章</b>）</div></div>
+    <div class="tip"><span class="ic">⏰</span><div><b>いつ発送？</b>：画面の色帯（発送区分）のとおりに。<b>📦通常</b>＝届いた日を1日目として1週間以内にお客様に届くように／<b>🚨急ぎ</b>＝翌営業日までに／<b>🗓 日付指定</b>＝その日に。</div></div>
+    <div class="tip warn"><span class="ic">🏨</span><div><b>RT（ホテル・レストラン）の注文は特に注意。</b><b class="red">① RT発注伝票（端末の伝票）＋ ② 納品書</b>の2点を<b>必ず</b>同梱してください。</div></div>
+    <div class="tip"><span class="ic">⛳</span><div><b>ゴルフ（RTGC）の注文</b>は、RT（ホテル）と<b>まったく同じ</b>あつかい。<b>① RT発注伝票 ＋ ② 納品書</b>を必ず同梱。お届けも<b>できる範囲で午前着</b>で。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 3 ══ -->
+  <div class="chapter" id="c3"><span class="ch-no">3</span><span class="ch-title">「その他のボタン」を開くと<small>ふだんは使いませんが、4つの道具があります</small></span></div>
+
+  <section class="panel">
+    <p class="say">ホームの<b>「🧰 その他のボタン」</b>を押すと、<b>4つのボタン</b>が出ます。ふだんの出荷だけなら使いませんが、こういう時に使います👇</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>15:01</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-tools" style="margin-bottom:10px"><span>🧰 その他のボタン</span><span style="color:#78716c">開く ▲</span></div>
+        <div class="a-grid">
+          <div class="a-tile" style="background:#fef2f2;border-color:#dc2626"><div class="ti">🔴</div><div class="tt" style="color:#991b1b">不良品ほうこく</div></div>
+          <div class="a-tile" style="background:#f1ecfb;border-color:#7c3aed"><div class="ti">📝</div><div class="tt" style="color:#5b21b6">メモ</div></div>
+          <div class="a-tile" style="background:#fbeede0;border-color:#b45309"><div class="ti">📦</div><div class="tt" style="color:#7a3a0e">資材カタログ</div></div>
+          <div class="a-tile" style="background:#eef3e0;border-color:#6b7a3a"><div class="ti">🫒</div><div class="tt" style="color:#3b4a1a">在庫を見る</div></div>
+        </div>
+      </div>
+    </div></div>
+    <ol class="flow" style="margin-top:16px">
+      <li>🔴 <b>不良品ほうこく</b>… 割れ・へこみなど、悪い品物があった時に知らせる（→4章）</li>
+      <li>📝 <b>メモ</b>… 倉庫の中だけの覚え書き（→5章）</li>
+      <li>📦 <b>資材カタログ</b>… 箱・袋・テープなどの置き場メモ（→6章）</li>
+      <li>🫒 <b>在庫を見る</b>… 今ある本数を見るだけ（→7章）</li>
+    </ol>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 4 ══ -->
+  <div class="chapter" id="c4"><span class="ch-no">4</span><span class="ch-title">🔴 不良品ほうこく<small>割れ・へこみ・オイル漏れなどを見つけた時</small></span></div>
+
+  <section class="panel">
+    <p class="say">悪い品物（割れ・へこみ・オイル漏れなど）を見つけたら、<b class="red">必ずこの画面から</b>知らせます。<b>①商品をえらぶ → ②本数 → ③どのくらいの状態か → ④（あれば）メモ → ⑤青いボタンで報告</b>、の順です。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>15:05</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-back">← 出荷依頼書一覧にもどる</div>
+        <div class="a-sec" style="font-size:15px;color:#33421f">🔴 不良品の報告</div>
+        <div class="a-info">報告すると、事務所（<b>中村さん</b>）に届きます。在庫の数字への反映は、中村さんが確認したあとです。すぐ数字が変わらなくても大丈夫。</div>
+        <div class="a-label">商品</div>
+        <div class="a-field">your story 100ml <span style="color:#8a8378">▼</span></div>
+        <div class="a-label">本数</div>
+        <div class="a-field">3</div>
+        <div class="a-label">どのくらいの状態？（えらんでください）</div>
+        <div class="a-lv" style="border:2px solid #2563eb;background:#eaf1fc;color:#0c447c"><span class="a-dot" style="background:#2563eb"></span>貼り替えればOK（青シール）</div>
+        <div class="a-lv" style="border:2px solid #16a34a;background:#eef7ea;color:#166534"><span class="a-dot" style="background:#16a34a"></span>レベル1・軽い（緑シール）</div>
+        <div class="a-lv" style="border:2px solid #eab308;background:#fdf6e3;color:#854d0e"><span class="a-dot" style="background:#eab308"></span>レベル2・中くらい（黄シール）</div>
+        <div class="a-lv" style="border:2px solid #dc2626;background:#fceaea;color:#991b1b"><span class="a-dot" style="background:#dc2626"></span>レベル3・重い（赤シール）</div>
+        <div class="a-lv" style="border:2px solid #1a1a18;background:#ececeb;color:#1a1a18"><span class="a-dot" style="background:#1a1a18"></span>レベル4・廃棄（黒シール）</div>
+        <div class="cue ring" style="margin-top:10px"><span class="cue-tag bottom">👆 さいごにここ</span><div class="a-blue">この内容で報告する</div></div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">🎨</span><div>状態をえらぶと、<b>貼るシールの色</b>が出ます（青・緑・黄・赤・黒）。迷ったら<b>近いほう</b>でOK。ひどい割れやオイル漏れは「赤」や「黒（廃棄）」です。</div></div>
+    <div class="tip warn"><span class="ic">📮</span><div><b>不良品はLINE・電話ではなく、必ずこの画面から。</b>ここから報告すると記録が残り、在庫の数がずれません。</div></div>
+    <div class="tip"><span class="ic">📋</span><div>画面の下に<b>「これまでに報告した不良品」</b>も出ます。「やっぱり状態がちがった」時は、そこから<b>なおして報告</b>できます。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 5 ══ -->
+  <div class="chapter" id="c5"><span class="ch-no">5</span><span class="ch-title">📝 メモ<small>倉庫の中だけの覚え書き</small></span></div>
+
+  <section class="panel">
+    <p class="say">倉庫の中で<b>覚えておきたいこと</b>を書いておけます。<b class="red">本部への連絡ではありません</b>（連絡したいことは電話やLINEで）。2種類あります。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>15:10</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-back">← 出荷依頼書一覧にもどる</div>
+        <div style="background:#eef3e0;border:1.5px solid #6b7a3a;border-radius:10px;padding:11px 13px;margin-bottom:10px;font-size:12.5px;color:#3b4a1a;font-weight:700">🏭 ここは倉庫の中だけのメモです（本部への連絡ではありません）</div>
+        <div class="a-sec">📌 倉庫みんなで見るメモ</div>
+        <div style="border:1px solid #d5cfc3;border-radius:8px;background:#fff;padding:11px;min-height:46px;font-size:12.5px;color:#9a958c;margin-bottom:8px">例：本日16時以降は出荷締切です</div>
+        <div class="a-blue" style="margin-bottom:14px">このメモを保存</div>
+        <div class="a-sec">📝 お客様ごとの注意メモ</div>
+        <div class="a-field" style="color:#9a958c">お客様名で検索・新規追加</div>
+        <div style="font-size:11.5px;color:#57534e">例：「置き配希望」「割れ物注意」など、お客様ごとに書けます</div>
+      </div>
+    </div></div>
+    <ol class="flow" style="margin-top:14px">
+      <li>📌 <b>みんなで見るメモ</b>…倉庫で共有したいこと。<b>ホーム画面の上にも出ます</b>。</li>
+      <li>📝 <b>お客様ごとのメモ</b>…そのお客様の注意（置き配希望・割れ物注意など）。</li>
+    </ol>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 6 ══ -->
+  <div class="chapter" id="c6"><span class="ch-no">6</span><span class="ch-title">📦 資材カタログ<small>箱・袋・テープなどの置き場メモ</small></span></div>
+
+  <section class="panel">
+    <p class="say">オイル以外の<b>資材（箱・袋・テープなど）</b>を、<b>写真と大きさのメモ</b>つきで管理できます。梱包のとき資材を探す手間が省けます。自由に使ってOK。<b class="red">オイルの本数はここでは扱いません。</b></p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>15:14</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div class="a-back">← 出荷依頼書一覧にもどる</div>
+        <div class="a-sec">📦 資材カタログ</div>
+        <div class="a-matcard">
+          <div class="a-photo">📦</div>
+          <div class="a-matinfo"><div style="font-weight:800;font-size:14px;color:#2b2a26">ギフト箱（大）</div>
+            <div style="font-size:11.5px;color:#5a5346;margin-top:2px">30×20×10cm・棚A</div>
+            <div class="a-qtyrow"><div class="a-qbtn">－</div><div class="a-qnum">12</div><div class="a-qbtn">＋</div></div></div>
+        </div>
+        <div class="a-matcard">
+          <div class="a-photo">📦</div>
+          <div class="a-matinfo"><div style="font-weight:800;font-size:14px;color:#2b2a26">紙袋（大）</div>
+            <div style="font-size:11.5px;color:#5a5346;margin-top:2px">手提げ・棚B</div>
+            <div class="a-qtyrow"><div class="a-qbtn">－</div><div class="a-qnum">8</div><div class="a-qbtn">＋</div></div></div>
+        </div>
+        <div class="a-blue">＋ 新しい資材を登録する</div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">➕➖</span><div>数は <b>＋ と −</b> で増やしたり減らしたり。新しい資材は<b>「＋ 新しい資材を登録する」</b>から写真つきで追加できます。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <!-- ══ CHAPTER 7 ══ -->
+  <div class="chapter" id="c7"><span class="ch-no">7</span><span class="ch-title">🫒 在庫を見る<small>今ある本数を「見るだけ」／在庫はどこで動く？</small></span></div>
+
+  <section class="panel">
+    <p class="say">今ある<b>オイルの本数</b>を<b class="red">見るだけ</b>のページです。<b>ここでは在庫は変えられません</b>（数字を確認するだけ）。</p>
+    <div class="phone"><div class="phone-inner">
+      <div class="statusbar"><span>15:18</span><span>📶 🔋</span></div>
+      <div class="screen">
+        <div style="text-align:center;margin-bottom:6px"><div style="font-family:var(--disp);font-weight:800;font-size:16px;color:#2b2a26">倉庫の在庫（見るだけ）</div>
+          <div style="font-size:11.5px;color:#57534e">数字を確認するだけのページです。ここでは在庫は変えられません。</div></div>
+        <div class="a-refresh" style="margin:8px 0 12px">🔄 最新の数字に更新する</div>
+        <div class="a-stockrow"><span class="sn">your story 100ml</span><span class="sv"><span class="sell">48</span> 本<br><span class="incoming">入庫予定 24</span></span></div>
+        <div class="a-stockrow"><span class="sn">your story 250ml</span><span class="sv"><span class="sell">30</span> 本<br><span class="incoming">入庫予定 0</span></span></div>
+        <div class="a-stockrow"><span class="sn">ギフト箱（大）</span><span class="sv"><span class="sell">—</span></span></div>
+      </div>
+    </div></div>
+    <div class="tip"><span class="ic">🔢</span><div><b style="color:var(--ok)">販売可能</b>＝いま出荷につかえる本数。<b style="color:var(--sky)">入庫予定</b>＝これから届く本数（置き場所の目安に）。<b>「—」</b>は、まだ数を管理していない備品です。</div></div>
+    <div class="tip blue"><span class="ic">🗂️</span><div><b>在庫の数は、どこで動くの？</b><br>在庫の数は、<b>本部が「出荷依頼書」を送った時点で</b>自動で計算されます。だから、梱包や発送が<b>少しくらい遅れても、在庫の数がずれることはありません</b>。<br>この倉庫のアプリは、<b class="red">届いた出荷のお願いを、その通りに発送する場所</b>です。在庫の数はここでは動かないので、安心して作業してください。</div></div>
+    <a href="#top" class="backtop">↑ もくじにもどる</a>
+  </section>
+
+  <div class="foot">
+    ひとりで悩まなくて大丈夫です。<br>
+    <span class="call">こまったら <b>連絡ください</b> 😊</span>
+  </div>
+
+</div>
+</body>
+</html>
