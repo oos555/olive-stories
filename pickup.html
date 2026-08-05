@@ -280,14 +280,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
 
 /* ════════════════════════════════════════════════════════════════
-   玄関の鍵（home.htmlと共通）
-   ・localStorage の oos_gate_ok に '1' が入っていれば、
+   倉庫Dの鍵（玄関 home.html とは別パスワード・別の記憶印）
+   ・localStorage の oos_gate_ok_pickup に '1' が入っていれば、
      この端末ではもう聞かない（日付での区切りなし）
-   ・パスワード照合は home.html と同じ loadStickyMemos 経由
+   ・玄関の印(oos_gate_ok)とは別キーなので、玄関を開けても倉庫Dは改めて聞く
+   ・パスワード照合は GAS の verifyPassword(group:'d') で行う
+     （GAS側 GROUP_PASSWORDS の d = 倉庫D専用パスワード。玄関 gate とは別物）
    ════════════════════════════════════════════════════════════════ */
 function gateCheck(){
   let ok = false;
-  try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
+  try{ ok = localStorage.getItem('oos_gate_ok_pickup') === '1'; }catch(e){}
   if(ok){
     document.getElementById('main-wrap').classList.add('gate-open');
   } else {
@@ -305,12 +307,12 @@ async function gateUnlock(){
   try{
     const res = await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+      body: JSON.stringify({ action:'verifyPassword', group:'d', password: pw }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
     const data = await res.json();
     if(data.status==='ok'){
-      try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
+      try{ localStorage.setItem('oos_gate_ok_pickup','1'); }catch(e){}
       document.getElementById('gate-overlay').classList.remove('show');
       document.getElementById('main-wrap').classList.add('gate-open');
     } else {
