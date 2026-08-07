@@ -1093,7 +1093,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
 <!-- ===== 見積兼請求書作成パネル（QI・2026-08-05 実装） ===== -->
 <div id="panel-quote2" class="panel">
   <div class="card">
-    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07c</span></div>
+    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07e</span></div>
     <div style="font-size:13px;color:#4a463d;line-height:1.6">お客様に渡す「見積書」または「請求書」を作ります。①書類を選ぶ → ②始め方（お客様／履歴／新規）→ ③商品を入れる → 作成でPDFの見本が出ます。<b>特価で出したものは特価のまま請求できます（定価に戻りません）。</b></div>
   </div>
   <div class="card">
@@ -1114,6 +1114,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
     <div style="font-weight:800;margin-bottom:6px" id="qi-items-ttl">③ 商品を入れる</div>
     <div style="overflow-x:auto"><table class="qi-rowedit"><thead><tr id="qi-head"></tr></thead><tbody id="qi-body"></tbody></table></div>
     <button class="btn-sm" style="margin-top:8px;font-weight:700" onclick="qiAddRow()">＋ 商品を追加</button>
+    <div style="font-size:11px;color:#8a8574;margin-top:6px;line-height:1.6">請求書モードでは行ごとに<b>価格の種類</b>（定価・卸①・卸②・特価 など）を選べます。選ぶと単価が入り、そのあと<b>金額は手で直せます</b>。<b>RT</b>は、この宛名に過去RTで出したことがある場合のみ選べます（初めての相手にはRTは出ません）。</div>
     <div id="qi-ship-wrap" style="display:none;margin-top:10px;background:#f4f1e8;border:1px solid #e2ddcf;border-radius:8px;padding:9px 12px;font-size:12.5px">🚚 <b>送料（税抜）</b>：<input type="number" id="qi-ship" value="800" oninput="qiUpdShip(this.value)" style="width:90px;padding:5px 7px;border:1px solid #d5cfc3;border-radius:5px;text-align:right;font-weight:700"> 円　＋消費税10%（自動）<div style="font-size:11px;color:#6b6558;margin-top:4px">「送料・約束ごと S」から自動（その他の都道府県＝¥880税込＝税抜800）。イレギュラーなときは手で直せます。</div>
     <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #d8d2c2">🧺 <b>ピックアップ料金</b>：
       <button type="button" id="qi-pk-free" class="on" onclick="qiSetPickupMode('free')" style="padding:4px 10px;border-radius:6px;border:1.5px solid #cdd8b6;background:#fff;color:#57603a;font-weight:700;cursor:pointer;font-family:inherit">サービス（無料）</button>
@@ -6961,6 +6962,7 @@ function qiOnCustomer(){
     return;
   }
   QI.custId=v;
+  qiRenderItems();
 }
 // 過去に見積・請求を出した相手の宛名を集める（登録の有無を問わない）
 function qiHistNames(){
@@ -7004,7 +7006,7 @@ function qiLoadLatestByName(nm){
 function qiSetMode(m){ QI.mode=m; var q=document.getElementById('qi-seg-quote'),i=document.getElementById('qi-seg-invoice'); if(q)q.classList.toggle('on',m==='quote'); if(i)i.classList.toggle('on',m==='invoice'); var sw=document.getElementById('qi-ship-wrap'); if(sw) sw.style.display=(m==='invoice')?'block':'none'; qiSyncPickupUI(); var t=document.getElementById('qi-items-ttl'); if(t) t.textContent=(m==='invoice')?'③ 買ったものだけチェック＋本数を入れる（特価のまま）':'③ 商品を入れる（特別価格は自動提案＋手直し可）'; qiRenderItems(); }
 function qiAddRow(){ var sku=''; try{ for(var k=0;k<PRODUCTS.length;k++){ if(typeof isProductActive!=='function'||isProductActive(PRODUCTS[k])){ sku=PRODUCTS[k].sku; break; } } }catch(e){} QI.items.push({sku:sku, exp:qiExpFor(sku), sp:qiSuggestSp(sku), avail:qiAvailFor(sku), buy:0, desc:'', on:true}); qiRenderItems(); }
 function qiDel(i){ QI.items.splice(i,1); qiRenderItems(); }
-function qiUpd(i,k,v){ if(k==='sp'||k==='avail'||k==='buy') v=parseInt(v)||0; if(!QI.items[i]) return; QI.items[i][k]=v; if(k==='sku'){ QI.items[i].exp=qiExpFor(v); QI.items[i].sp=qiSuggestSp(v); QI.items[i].avail=qiAvailFor(v); qiRenderItems(); return; } if(QI.mode==='invoice' && (k==='sp'||k==='buy')){ var it=QI.items[i]; var amt=it.on?((parseInt(it.sp)||0)*(parseInt(it.buy)||0)):0; var cell=document.getElementById('qi-amt-'+i); if(cell) cell.textContent='¥'+qiYen(amt); } }
+function qiUpd(i,k,v){ if(k==='sp'||k==='avail'||k==='buy') v=parseInt(v)||0; if(!QI.items[i]) return; if(k==='tier'){ QI.items[i].tier=v; if(v!=='keep' && typeof priceForSku==='function'){ QI.items[i].sp=parseInt(priceForSku(QI.items[i].sku,v))||0; } qiRenderItems(); return; } QI.items[i][k]=v; if(k==='sku'){ QI.items[i].exp=qiExpFor(v); QI.items[i].avail=qiAvailFor(v); var t=QI.items[i].tier; QI.items[i].sp=(t&&t!=='keep'&&typeof priceForSku==='function')?(parseInt(priceForSku(v,t))||0):qiSuggestSp(v); qiRenderItems(); return; } if(QI.mode==='invoice' && (k==='sp'||k==='buy')){ var it=QI.items[i]; var amt=it.on?((parseInt(it.sp)||0)*(parseInt(it.buy)||0)):0; var cell=document.getElementById('qi-amt-'+i); if(cell) cell.textContent='¥'+qiYen(amt); } }
 function qiUpdChk(i,on){ if(!QI.items[i])return; QI.items[i].on=on; if(!on)QI.items[i].buy=0; qiRenderItems(); }
 function qiUpdShip(v){ QI.shipNet=parseInt(v)||0; }
 function qiUpdPickup(v){ QI.pickupNet=parseInt(v)||0; }
@@ -7018,6 +7020,31 @@ function qiSyncPickupUI(){
   if(inp) inp.value=(parseInt(QI.pickupNet)||0);
 }
 function qiDirectNew(){ QI.items=[]; QI.manageNo=''; QI.custId=(document.getElementById('qi-customer')||{}).value||''; qiAddRow(); }
+// いま対象にしている宛名
+function qiCurrentName(){ var rc=((document.getElementById('qi-recipient')||{}).value||'').trim(); if(rc) return rc; var c=qiCustomer(); return c?String(c.name||''):''; }
+// この宛名に「過去RTで出した」実績があるか（無ければRTは選ばせない）
+function qiRtEligible(){
+  try{
+    var c=qiCustomer(); if(c && (c.type==='rt'||c.type==='rtgc')) return true;
+    var nm=qiCurrentName(); var cid=QI.custId;
+    var RT=(typeof PRICE_CODE!=='undefined'&&PRICE_CODE.rt)?PRICE_CODE.rt:'RT';
+    return (quoteHistory||[]).some(function(r){
+      if(!r) return false;
+      var match=(cid && r.customerId===cid) || (nm && (String(r.customerName||'').indexOf(nm)>=0 || String(r.contactPerson||'').indexOf(nm)>=0));
+      if(!match) return false;
+      if(String(r.priceCode||'')===RT) return true;
+      if(r.customerType==='rt'||r.customerType==='rtgc') return true;
+      if(/^RT([-\s]|$)/.test(String(r.estimateNo||r.invoiceNo||''))) return true;
+      return false;
+    });
+  }catch(e){ return false; }
+}
+// 行ごとの「価格の種類」選択肢（RTは実績があるときだけ出す）
+function qiTierOptions(selKey){
+  var base=[['keep','そのまま（呼出し特価）'],['general','定価'],['wholesale1','卸①'],['wholesale2','卸②'],['basara','卸バサラスター'],['oldlot','旧ロット特価'],['defect','不良特価'],['special','特別提供価格']];
+  if(qiRtEligible()) base.splice(4,0,['rt','RT']);
+  return base.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===selKey?' selected':'')+'>'+o[1]+'</option>'; }).join('');
+}
 function qiRenderItems(){
   var head=document.getElementById('qi-head'), body=document.getElementById('qi-body'); if(!head||!body) return;
   var isQ=(QI.mode==='quote');
@@ -7038,13 +7065,14 @@ function qiRenderItems(){
       '<td><input type="text" value="'+qiEsc(it.desc)+'" oninput="qiUpd('+i+',\'desc\',this.value)" placeholder="このオイルの一言（任意）"></td>'+
       '<td><button class="btn-sm" onclick="qiDel('+i+')">×</button></td></tr>'; }).join('');
   } else {
-    head.innerHTML='<th style="width:44px">買った</th><th style="min-width:150px">商品名</th><th>容量</th><th>賞味期限</th><th>特価(単価)</th><th style="width:74px">見積本数</th><th style="width:78px">購入本数</th><th>金額</th><th></th>';
+    head.innerHTML='<th style="width:44px">買った</th><th style="min-width:140px">商品名</th><th>容量</th><th>賞味期限</th><th style="width:118px">価格の種類</th><th style="width:96px">単価</th><th style="width:74px">見積本数</th><th style="width:78px">購入本数</th><th>金額</th><th></th>';
     body.innerHTML=QI.items.map(function(it,i){ var amt=it.on?((parseInt(it.sp)||0)*(parseInt(it.buy)||0)):0; return '<tr'+(it.on?'':' style="opacity:.45"')+'>'+
       '<td style="text-align:center"><input type="checkbox" '+(it.on?'checked':'')+' onchange="qiUpdChk('+i+',this.checked)"></td>'+
-      '<td>'+qiEsc(qiNameOf(it.sku))+'</td>'+
+      '<td><select onchange="qiUpd('+i+',\'sku\',this.value)">'+qiProdOptions(it.sku)+'</select></td>'+
       '<td>'+qiEsc(qiCapFor(it.sku))+'</td>'+
       '<td>'+qiEsc(it.exp)+'</td>'+
-      '<td style="width:96px"><input type="number" class="qi-price" '+(it.on?'':'disabled')+' value="'+(parseInt(it.sp)||0)+'" oninput="qiUpd('+i+',\'sp\',this.value)"></td>'+
+      '<td><select '+(it.on?'':'disabled')+' onchange="qiUpd('+i+',\'tier\',this.value)">'+qiTierOptions(it.tier||'keep')+'</select></td>'+
+      '<td><input type="number" class="qi-price" '+(it.on?'':'disabled')+' value="'+(parseInt(it.sp)||0)+'" oninput="qiUpd('+i+',\'sp\',this.value)"></td>'+
       '<td style="text-align:center;color:#8a8574">'+(parseInt(it.avail)||0)+'本</td>'+
       '<td><input type="number" '+(it.on?'':'disabled')+' value="'+(parseInt(it.buy)||0)+'" oninput="qiUpd('+i+',\'buy\',this.value)"></td>'+
       '<td class="qi-i-amt" id="qi-amt-'+i+'">¥'+qiYen(amt)+'</td>'+
