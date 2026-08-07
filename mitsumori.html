@@ -496,6 +496,7 @@ table.pls td.pls-soldout{color:#c0392b;font-weight:800}
 #panel-quote2 .qi-seg{display:flex;gap:8px}
 #panel-quote2 .qi-seg button{flex:1;padding:12px;border-radius:10px;border:2px solid #cdd8b6;background:#fff;color:#57603a;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit}
 #panel-quote2 .qi-seg button.on{background:#0f5040;border-color:#0f5040;color:#fff}
+#qi-ship-wrap button.on{background:#0f5040!important;border-color:#0f5040!important;color:#fff!important}
 .qi-rowedit{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
 .qi-rowedit th{background:#f4f1e8;padding:6px;font-size:11px;color:#57603a;border-bottom:1px solid #e2ddcf;text-align:left;white-space:nowrap}
 .qi-rowedit td{padding:5px 6px;border-bottom:1px solid #f0efe9;vertical-align:middle}
@@ -1113,7 +1114,13 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
     <div style="font-weight:800;margin-bottom:6px" id="qi-items-ttl">③ 商品を入れる</div>
     <div style="overflow-x:auto"><table class="qi-rowedit"><thead><tr id="qi-head"></tr></thead><tbody id="qi-body"></tbody></table></div>
     <button class="btn-sm" style="margin-top:8px;font-weight:700" onclick="qiAddRow()">＋ 商品を追加</button>
-    <div id="qi-ship-wrap" style="display:none;margin-top:10px;background:#f4f1e8;border:1px solid #e2ddcf;border-radius:8px;padding:9px 12px;font-size:12.5px">🚚 <b>送料（税抜）</b>：<input type="number" id="qi-ship" value="800" oninput="qiUpdShip(this.value)" style="width:90px;padding:5px 7px;border:1px solid #d5cfc3;border-radius:5px;text-align:right;font-weight:700"> 円　＋消費税10%（自動）<div style="font-size:11px;color:#6b6558;margin-top:4px">「送料・約束ごと S」から自動（その他の都道府県＝¥880税込＝税抜800）。イレギュラーなときは手で直せます。</div></div>
+    <div id="qi-ship-wrap" style="display:none;margin-top:10px;background:#f4f1e8;border:1px solid #e2ddcf;border-radius:8px;padding:9px 12px;font-size:12.5px">🚚 <b>送料（税抜）</b>：<input type="number" id="qi-ship" value="800" oninput="qiUpdShip(this.value)" style="width:90px;padding:5px 7px;border:1px solid #d5cfc3;border-radius:5px;text-align:right;font-weight:700"> 円　＋消費税10%（自動）<div style="font-size:11px;color:#6b6558;margin-top:4px">「送料・約束ごと S」から自動（その他の都道府県＝¥880税込＝税抜800）。イレギュラーなときは手で直せます。</div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #d8d2c2">🧺 <b>ピックアップ料金</b>：
+      <button type="button" id="qi-pk-free" class="on" onclick="qiSetPickupMode('free')" style="padding:4px 10px;border-radius:6px;border:1.5px solid #cdd8b6;background:#fff;color:#57603a;font-weight:700;cursor:pointer;font-family:inherit">サービス（無料）</button>
+      <button type="button" id="qi-pk-charge" onclick="qiSetPickupMode('charge')" style="padding:4px 10px;border-radius:6px;border:1.5px solid #cdd8b6;background:#fff;color:#57603a;font-weight:700;cursor:pointer;font-family:inherit">金額を入れる</button>
+      <span id="qi-pk-amt-wrap" style="display:none;align-items:center;gap:4px;margin-left:6px">（税抜）<input type="number" id="qi-pk-amt" value="0" oninput="qiUpdPickup(this.value)" style="width:90px;padding:5px 7px;border:1px solid #d5cfc3;border-radius:5px;text-align:right;font-weight:700"> 円　＋消費税10%（自動）</span>
+      <div style="font-size:11px;color:#6b6558;margin-top:4px">今回は「サービス（無料）」。有料のときは「金額を入れる」で税抜金額を入力してください（送料と同じ10%で計算します）。</div>
+    </div></div>
   </div>
   <div class="card">
     <div class="fg"><label>作成者名</label><input type="text" id="qi-creator" placeholder="あなたのお名前"></div>
@@ -6921,7 +6928,7 @@ function pl9Init(){ if(!PL9_SEAL) pl9LoadSeal(); pl9RenderPatList(); }
 document.addEventListener("DOMContentLoaded", function(){ try{ pl9Init(); }catch(e){} });
 
 /* ===== 見積兼請求書作成（QI）2026-08-05 実装・自己完結／既存機能には手を触れない ===== */
-var QI = { mode:'quote', items:[], shipNet:800, custId:'', manageNo:'' };
+var QI = { mode:'quote', items:[], shipNet:800, custId:'', manageNo:'', pickupMode:'free', pickupNet:0 };
 var QI_LOGO='', QI_SEAL='';
 function qiLogo(){ return QI_LOGO || ('data:image/png;base64,'+(typeof DOC_LOGO_B64!=='undefined'?DOC_LOGO_B64:'')); }
 function qiSeal(){ return QI_SEAL || ('data:image/png;base64,'+(typeof DOC_SEAL_B64!=='undefined'?DOC_SEAL_B64:'')); }
@@ -6944,19 +6951,72 @@ function qiAvailFor(sku){ try{ var m=(typeof computeTotalStockBySku==='function'
 function qiSuggestSp(sku){ var o=priceForSku(sku,'oldlot'); if(o>0) return o; var d=priceForSku(sku,'defect'); if(d>0) return d; return priceForSku(sku,'general'); }
 function qiProdOptions(sel){ var out=''; try{ PRODUCTS.forEach(function(p){ if(typeof isProductActive==='function' && !isProductActive(p)) return; out+='<option value="'+p.sku+'"'+(p.sku===sel?' selected':'')+'>'+qiEsc(p.name)+'</option>'; }); }catch(e){} return out; }
 function qiCustomer(){ try{ return (customers||[]).find(function(c){return c.id===QI.custId;})||null; }catch(e){ return null; } }
-function qiOnCustomer(){ QI.custId=(document.getElementById('qi-customer')||{}).value||''; }
+function qiOnCustomer(){
+  var v=(document.getElementById('qi-customer')||{}).value||'';
+  if(v.indexOf('hist:')===0){
+    var nm=v.slice(5);
+    QI.custId='';
+    var rc=document.getElementById('qi-recipient'); if(rc) rc.value=nm;
+    qiLoadLatestByName(nm);   // その宛名の最新の見積・請求を自動で呼び戻す
+    return;
+  }
+  QI.custId=v;
+}
+// 過去に見積・請求を出した相手の宛名を集める（登録の有無を問わない）
+function qiHistNames(){
+  var map={};
+  try{ (quoteHistory||[]).forEach(function(r){ if(!r) return; var nm=String(r.customerName||r.contactPerson||r.companyName||'').trim(); if(nm && !map[nm]) map[nm]=1; }); }catch(e){}
+  return Object.keys(map);
+}
 function qiFillCustomers(){
   var sel=document.getElementById('qi-customer'); if(!sel) return;
-  var src=document.getElementById('q-customer');
-  if(src && src.options.length>1){ var prev=sel.value; sel.innerHTML=src.innerHTML; sel.value=prev; return; }
-  try{ if(typeof customers!=='undefined' && customers.length){ var prev2=sel.value; sel.innerHTML='<option value="">お客様を選択...</option>'+customers.map(function(c){ return '<option value="'+c.id+'">'+qiEsc(c.name)+'（'+((typeof CUSTOMER_TYPE_LABEL!=='undefined'&&CUSTOMER_TYPE_LABEL[c.type])||c.type||'')+'）</option>'; }).join(''); sel.value=prev2; } }catch(e){}
+  var prev=sel.value;
+  var opts='<option value="">お客様を選択...</option>';
+  var regNames={};
+  try{ if(typeof customers!=='undefined' && customers && customers.length){
+    opts+='<optgroup label="登録済みのお客様">';
+    customers.forEach(function(c){
+      var n1=String(c.name||'').trim(); if(n1) regNames[n1]=1;
+      var n2=String(c.contactPerson||'').trim(); if(n2) regNames[n2]=1;
+      opts+='<option value="'+c.id+'">'+qiEsc(c.name)+'（'+((typeof CUSTOMER_TYPE_LABEL!=='undefined'&&CUSTOMER_TYPE_LABEL[c.type])||c.type||'')+'）</option>';
+    });
+    opts+='</optgroup>';
+  } }catch(e){}
+  // 過去に作成した宛名（未登録でも選べるように）
+  try{
+    var extra=qiHistNames().filter(function(nm){ return nm && !regNames[nm]; });
+    if(extra.length){
+      opts+='<optgroup label="過去に作成した宛名（未登録）">'+extra.map(function(nm){
+        return '<option value="hist:'+qiEsc(nm)+'">'+qiEsc(nm)+'（履歴）</option>';
+      }).join('')+'</optgroup>';
+    }
+  }catch(e){}
+  sel.innerHTML=opts; sel.value=prev;
 }
-function qiSetMode(m){ QI.mode=m; var q=document.getElementById('qi-seg-quote'),i=document.getElementById('qi-seg-invoice'); if(q)q.classList.toggle('on',m==='quote'); if(i)i.classList.toggle('on',m==='invoice'); var sw=document.getElementById('qi-ship-wrap'); if(sw) sw.style.display=(m==='invoice')?'block':'none'; var t=document.getElementById('qi-items-ttl'); if(t) t.textContent=(m==='invoice')?'③ 買ったものだけチェック＋本数を入れる（特価のまま）':'③ 商品を入れる（特別価格は自動提案＋手直し可）'; qiRenderItems(); }
+// 宛名から最新の履歴を1件呼び戻す
+function qiLoadLatestByName(nm){
+  var list=[];
+  try{ list=(quoteHistory||[]).filter(function(r){ if(!r) return false; var s=String(r.customerName||'')+String(r.contactPerson||'')+String(r.companyName||''); return s.indexOf(nm)>=0; }); }catch(e){}
+  if(!list.length){ qiRenderItems(); return; }
+  list.sort(function(a,b){ return String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')); });
+  qiLoadFrom(list[0].id, true);
+}
+function qiSetMode(m){ QI.mode=m; var q=document.getElementById('qi-seg-quote'),i=document.getElementById('qi-seg-invoice'); if(q)q.classList.toggle('on',m==='quote'); if(i)i.classList.toggle('on',m==='invoice'); var sw=document.getElementById('qi-ship-wrap'); if(sw) sw.style.display=(m==='invoice')?'block':'none'; qiSyncPickupUI(); var t=document.getElementById('qi-items-ttl'); if(t) t.textContent=(m==='invoice')?'③ 買ったものだけチェック＋本数を入れる（特価のまま）':'③ 商品を入れる（特別価格は自動提案＋手直し可）'; qiRenderItems(); }
 function qiAddRow(){ var sku=''; try{ for(var k=0;k<PRODUCTS.length;k++){ if(typeof isProductActive!=='function'||isProductActive(PRODUCTS[k])){ sku=PRODUCTS[k].sku; break; } } }catch(e){} QI.items.push({sku:sku, exp:qiExpFor(sku), sp:qiSuggestSp(sku), avail:qiAvailFor(sku), buy:0, desc:'', on:true}); qiRenderItems(); }
 function qiDel(i){ QI.items.splice(i,1); qiRenderItems(); }
-function qiUpd(i,k,v){ if(k==='sp'||k==='avail'||k==='buy') v=parseInt(v)||0; if(!QI.items[i]) return; QI.items[i][k]=v; if(k==='sku'){ QI.items[i].exp=qiExpFor(v); QI.items[i].sp=qiSuggestSp(v); QI.items[i].avail=qiAvailFor(v); qiRenderItems(); } }
+function qiUpd(i,k,v){ if(k==='sp'||k==='avail'||k==='buy') v=parseInt(v)||0; if(!QI.items[i]) return; QI.items[i][k]=v; if(k==='sku'){ QI.items[i].exp=qiExpFor(v); QI.items[i].sp=qiSuggestSp(v); QI.items[i].avail=qiAvailFor(v); qiRenderItems(); return; } if(QI.mode==='invoice' && (k==='sp'||k==='buy')){ var it=QI.items[i]; var amt=it.on?((parseInt(it.sp)||0)*(parseInt(it.buy)||0)):0; var cell=document.getElementById('qi-amt-'+i); if(cell) cell.textContent='¥'+qiYen(amt); } }
 function qiUpdChk(i,on){ if(!QI.items[i])return; QI.items[i].on=on; if(!on)QI.items[i].buy=0; qiRenderItems(); }
 function qiUpdShip(v){ QI.shipNet=parseInt(v)||0; }
+function qiUpdPickup(v){ QI.pickupNet=parseInt(v)||0; }
+function qiSetPickupMode(m){ QI.pickupMode=m; if(m==='free') QI.pickupNet=0; qiSyncPickupUI(); }
+function qiSyncPickupUI(){
+  var free=document.getElementById('qi-pk-free'), chg=document.getElementById('qi-pk-charge'), amt=document.getElementById('qi-pk-amt-wrap'), inp=document.getElementById('qi-pk-amt');
+  var isFree=(QI.pickupMode!=='charge');
+  if(free) free.classList.toggle('on', isFree);
+  if(chg) chg.classList.toggle('on', !isFree);
+  if(amt) amt.style.display=isFree?'none':'inline-flex';
+  if(inp) inp.value=(parseInt(QI.pickupNet)||0);
+}
 function qiDirectNew(){ QI.items=[]; QI.manageNo=''; QI.custId=(document.getElementById('qi-customer')||{}).value||''; qiAddRow(); }
 function qiRenderItems(){
   var head=document.getElementById('qi-head'), body=document.getElementById('qi-body'); if(!head||!body) return;
@@ -6979,20 +7039,63 @@ function qiRenderItems(){
       '<td>'+qiEsc(qiNameOf(it.sku))+'</td>'+
       '<td>'+qiEsc(qiCapFor(it.sku))+'</td>'+
       '<td>'+qiEsc(it.exp)+'</td>'+
-      '<td class="qi-r" style="font-weight:700">'+qiYen(it.sp)+'</td>'+
+      '<td style="width:96px"><input type="number" class="qi-price" '+(it.on?'':'disabled')+' value="'+(parseInt(it.sp)||0)+'" oninput="qiUpd('+i+',\'sp\',this.value)"></td>'+
       '<td style="width:64px"><input type="number" '+(it.on?'':'disabled')+' value="'+(parseInt(it.buy)||0)+'" oninput="qiUpd('+i+',\'buy\',this.value)"></td>'+
-      '<td class="qi-r" style="font-weight:800">'+qiYen(amt)+'</td>'+
+      '<td class="qi-i-amt" id="qi-amt-'+i+'">¥'+qiYen(amt)+'</td>'+
       '<td><button class="btn-sm" onclick="qiDel('+i+')">×</button></td></tr>'; }).join('');
   }
 }
+function qiKindLabel(k){ return k==='invoice'?'請求書':(k==='both'?'見積書兼請求書':(k==='pricelist'?'価格表':'見積書')); }
 function qiHistSearch(){
   var q=((document.getElementById('qi-hist-search')||{}).value||'').trim(); var box=document.getElementById('qi-hist-res'); if(!box)return;
   if(!q){ box.innerHTML=''; return; }
-  var list=[]; try{ list=(quoteHistory||[]).filter(function(r){ return r && r.qi; }); }catch(e){}
-  var hit=list.filter(function(r){ var s=String(r.customerName||'')+String(r.companyName||'')+String(r.estimateNo||r.invoiceNo||''); return s.indexOf(q)>=0; }).slice(0,20);
-  box.innerHTML=hit.length?hit.map(function(r){ var d=r.issuedAt?new Date(r.issuedAt).toLocaleDateString('ja-JP'):''; return '<div style="border:1px solid #e2ddcf;border-radius:8px;padding:8px 10px;margin:6px 0;cursor:pointer" onclick="qiLoadFrom(\''+r.id+'\')"><b>'+qiEsc(r.customerName||'（宛名なし）')+'</b> ／ '+qiEsc(r.estimateNo||r.invoiceNo||'')+' ／ '+qiEsc(r.kind==='invoice'?'請求書':'見積書')+' ／ '+d+'</div>'; }).join(''):'<div style="color:#8a8574;font-size:13px">見つかりませんでした（このタブで作った見積・請求のみ呼び戻せます）。</div>';
+  var list=[]; try{ list=(quoteHistory||[]).filter(function(r){ return !!r; }); }catch(e){}   // すべての履歴を対象（別ルートで作った見積も呼べる）
+  var hit=list.filter(function(r){ var s=String(r.customerName||'')+String(r.companyName||'')+String(r.contactPerson||'')+String(r.estimateNo||'')+String(r.invoiceNo||''); return s.indexOf(q)>=0; })
+    .sort(function(a,b){ return String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')); }).slice(0,20);
+  box.innerHTML=hit.length?hit.map(function(r){ var d=r.issuedAt?new Date(r.issuedAt).toLocaleDateString('ja-JP'):''; return '<div style="border:1px solid #e2ddcf;border-radius:8px;padding:8px 10px;margin:6px 0;cursor:pointer" onclick="qiLoadFrom(\''+r.id+'\')"><b>'+qiEsc(r.customerName||r.contactPerson||'（宛名なし）')+'</b> ／ '+qiEsc(r.estimateNo||r.invoiceNo||'')+' ／ '+qiEsc(qiKindLabel(r.kind))+' ／ '+d+'</div>'; }).join(''):'<div style="color:#8a8574;font-size:13px">見つかりませんでした。宛名の一部（例：久田）か管理番号で試してください。</div>';
 }
-function qiLoadFrom(id){ var r=null; try{ r=(quoteHistory||[]).find(function(x){return x.id===id;}); }catch(e){} if(!r||!r.qi){ alert('この履歴はこのタブでは呼び戻せません。'); return; } QI.items=JSON.parse(JSON.stringify(r.qi.items||[])); QI.custId=r.customerId||''; QI.manageNo=r.estimateNo||r.invoiceNo||''; if(r.qi.shipNet!=null) QI.shipNet=r.qi.shipNet; var sel=document.getElementById('qi-customer'); if(sel){ qiFillCustomers(); if(QI.custId) sel.value=QI.custId; } var rc=document.getElementById('qi-recipient'); if(rc && r.customerName) rc.value=''; qiRenderItems(); alert('呼び戻しました。請求書にするには上で「🧾請求書」を選び、買ったものだけにチェック＋本数を入れてください（価格は特価のまま）。'); }
+// どんな保存形式の履歴でもQIの商品行に変換する
+function qiItemsFromRecord(r){
+  if(!r) return [];
+  if(r.qi && Array.isArray(r.qi.items)) return JSON.parse(JSON.stringify(r.qi.items));   // このタブ生まれ
+  if(Array.isArray(r.items) && r.items.length){                                          // 見積・特価ルートの記録
+    return r.items.filter(function(it){ return it && it.sku; }).map(function(it){
+      var sku=it.sku;
+      var sp=parseInt(it.unitPrice!=null?it.unitPrice:(it.sp!=null?it.sp:qiSuggestSp(sku)))||0;
+      var q=parseInt(it.qty!=null?it.qty:(it.bottles!=null?it.bottles:0))||0;
+      return { sku:sku, exp:qiExpFor(sku), sp:sp, avail:q, buy:0, desc:'', on:true };
+    });
+  }
+  if(Array.isArray(r.products) && r.products.length){                                    // 価格表ルートの記録（金額なし）
+    return r.products.filter(function(p){ return p && p.sku; }).map(function(p){
+      var sku=p.sku;
+      return { sku:sku, exp:qiExpFor(sku), sp:qiSuggestSp(sku), avail:0, buy:0, desc:'', on:true };
+    });
+  }
+  return [];
+}
+function qiLoadFrom(id, quiet){
+  var r=null; try{ r=(quoteHistory||[]).find(function(x){return x.id===id;}); }catch(e){}
+  if(!r){ if(!quiet) alert('その履歴が見つかりませんでした。'); return; }
+  var items=qiItemsFromRecord(r);
+  QI.items=items;
+  QI.custId=r.customerId||'';
+  QI.manageNo=r.estimateNo||r.invoiceNo||'';   // 管理番号は見積→請求で引き継ぐ
+  if(r.qi && r.qi.shipNet!=null) QI.shipNet=r.qi.shipNet;
+  if(r.qi && r.qi.pickupMode) QI.pickupMode=r.qi.pickupMode;
+  if(r.qi && r.qi.pickupNet!=null) QI.pickupNet=r.qi.pickupNet;
+  // お客様欄：登録済みなら選択、未登録なら宛名を表示
+  var nm=r.customerName||r.contactPerson||'';
+  var isReg=false; try{ isReg=(customers||[]).some(function(c){return c.id===QI.custId;}); }catch(e){}
+  var sel=document.getElementById('qi-customer'); if(sel){ qiFillCustomers(); sel.value = isReg?QI.custId:('hist:'+nm); }
+  var rc=document.getElementById('qi-recipient'); if(rc) rc.value = isReg ? '' : nm;
+  qiSyncPickupUI();
+  qiRenderItems();
+  if(!quiet){
+    if(!items.length) alert('宛名と管理番号（'+(QI.manageNo||'—')+'）を呼び戻しました。この履歴には商品明細が保存されていなかったため、③で商品を入れてください。');
+    else alert('「'+nm+'」の内容を呼び戻しました（管理番号 '+(QI.manageNo||'—')+'）。\n請求書にするには上で「🧾請求書」を選び、買ったものだけにチェック＋本数を入れてください（価格は特価のまま。単価も直せます）。');
+  }
+}
 function qiBuildDoc(){
   var isQ=(QI.mode==='quote'); var c=qiCustomer();
   var recip=((document.getElementById('qi-recipient')||{}).value||'').trim();
@@ -7029,22 +7132,32 @@ function qiBuildDoc(){
     bought.forEach(function(it){ var p=findProductBySku(it.sku)||{}; var amt=(parseInt(it.sp)||0)*(parseInt(it.buy)||0); var rate=(typeof taxRateForSku==='function')?taxRateForSku(it.sku):0.08; if(rate===0.10) sub10+=amt; else sub8+=amt; h+='<tr><td class="qi-i-name">'+qiEsc(qiNameOf(it.sku))+'</td><td class="qi-c">'+qiEsc(qiCapFor(it.sku))+'</td><td class="qi-c">'+qiEsc(it.exp)+'</td><td class="qi-r" style="font-weight:700">'+qiYen(it.sp)+'</td><td class="qi-c">'+(parseInt(it.buy)||0)+'本</td><td class="qi-i-amt">¥'+qiYen(amt)+'</td></tr>'; });
     if(!bought.length) h+='<tr><td colspan="6" style="text-align:center;color:#9a958a;padding:16px">「買った」にチェックし、本数を入れてください。</td></tr>';
     h+='</tbody></table>';
-    var tax8=Math.round(sub8*0.08), tax10=Math.round(sub10*0.10);
-    var shipNet=(bought.length?(parseInt(QI.shipNet)||0):0), shipTax=Math.round(shipNet*0.10);
-    var total=sub8+tax8+sub10+tax10+shipNet+shipTax;
+    var tax8=Math.round(sub8*0.08);
+    var shipNet=(bought.length?(parseInt(QI.shipNet)||0):0);
+    var pickupNet=(bought.length && QI.pickupMode==='charge')?(parseInt(QI.pickupNet)||0):0;
+    var sum10=sub10+shipNet+pickupNet;            // 10%対象の合計（送料・ピックアップ・10%商品）
+    var tax10=Math.round(sum10*0.10);
+    var total=sub8+tax8+sum10+tax10;
     h+='<div class="qi-totbox"><table>';
-    if(sub8){ h+='<tr><td>小計（8%対象・軽減税率※・税抜）</td><td>¥'+qiYen(sub8)+'</td></tr><tr><td>消費税（8%）</td><td>¥'+qiYen(tax8)+'</td></tr>'; }
-    if(sub10){ h+='<tr><td>小計（10%対象・税抜）</td><td>¥'+qiYen(sub10)+'</td></tr><tr><td>消費税（10%）</td><td>¥'+qiYen(tax10)+'</td></tr>'; }
-    h+='<tr><td>送料（税抜／その他の都道府県）</td><td>¥'+qiYen(shipNet)+'</td></tr><tr><td>消費税（10%）</td><td>¥'+qiYen(shipTax)+'</td></tr>';
+    // ── ① オリーブオイル（軽減税率8%）─ 商品はここにまとめる
+    if(sub8){ h+='<tr style="font-weight:700"><td>【オリーブオイル】小計（税抜・軽減税率8%対象）</td><td>¥'+qiYen(sub8)+'</td></tr><tr><td style="padding-left:14px">消費税（8%）</td><td>¥'+qiYen(tax8)+'</td></tr>'; }
+    // ── ② 送料・ピックアップ ほか（10%）─ オイルと分けて表示
+    if(sub10){ h+='<tr><td style="padding-left:14px">商品（10%対象・税抜）</td><td>¥'+qiYen(sub10)+'</td></tr>'; }
+    h+='<tr><td style="padding-left:14px">送料（税抜）</td><td>¥'+qiYen(shipNet)+'</td></tr>';
+    h+='<tr><td style="padding-left:14px">ピックアップ料金（税抜）</td><td>'+(QI.pickupMode==='charge' ? ('¥'+qiYen(pickupNet)) : '無料（サービス）')+'</td></tr>';
+    h+='<tr style="font-weight:700"><td>【送料・ピックアップ ほか】小計（税抜・10%対象）</td><td>¥'+qiYen(sum10)+'</td></tr>';
+    h+='<tr><td style="padding-left:14px">消費税（10%）</td><td>¥'+qiYen(tax10)+'</td></tr>';
     h+='<tr class="qi-grand"><td>ご請求合計（税込）</td><td>¥'+qiYen(total)+'</td></tr></table></div>';
-    h+='<div style="text-align:right;font-size:11px;color:#6b6558;margin-top:4px">※オリーブオイルは軽減税率8%対象／送料は10%対象です。送料は「送料・約束ごと S」の金額です。</div>';
+    h+='<div style="text-align:right;font-size:11px;color:#6b6558;margin-top:4px">※オリーブオイルは軽減税率8%対象。送料・ピックアップ料金は10%対象で、分けて計算しています。</div>';
   }
   var bankIdx=(c && (c.type==='rt'||c.type==='rtgc'))?0:1;
   var bank=(typeof BANK_ACCOUNTS!=='undefined'&&BANK_ACCOUNTS[bankIdx])?BANK_ACCOUNTS[bankIdx]:{bank:'',branch:'',type:'',number:'',holder:''};
   var shipYen=(parseInt(QI.shipNet)||0)+Math.round((parseInt(QI.shipNet)||0)*0.10);
+  var pickupNetT=(QI.pickupMode==='charge')?(parseInt(QI.pickupNet)||0):0;
+  var pickupYen=pickupNetT+Math.round(pickupNetT*0.10);
   h+='<div class="qi-terms"><div class="qi-terms-h">お取引の条件</div><table>';
-  h+='<tr><td class="qi-lbl">ピックアップ手数料</td><td>無料（今回はいただきません）</td></tr>';
-  h+='<tr><td class="qi-lbl">送料</td><td>'+(isQ?'配送業者の規定に準じます':('¥'+qiYen(shipYen)+'（税込／その他の都道府県）※内訳は上記のとおり'))+'</td></tr>';
+  h+='<tr><td class="qi-lbl">ピックアップ料金</td><td>'+(isQ ? '無料（今回はいただきません）' : (QI.pickupMode==='charge' ? ('¥'+qiYen(pickupYen)+'（税込）※内訳は上記のとおり') : '無料（サービス）'))+'</td></tr>';
+  h+='<tr><td class="qi-lbl">送料</td><td>'+(isQ?'配送業者の規定に準じます':('¥'+qiYen(shipYen)+'（税込）※内訳は上記のとおり'))+'</td></tr>';
   h+=(isQ?('<tr><td class="qi-lbl">お見積有効期限</td><td>'+qiExpiry2m()+'</td></tr>'):('<tr><td class="qi-lbl">お支払期日</td><td>'+((typeof dueDateFromInvoiceDate==='function')?dueDateFromInvoiceDate(qiFmtDate(today)):'')+'</td></tr>'));
   h+=(isQ?'<tr><td class="qi-lbl">ご注意</td><td>上記は在庫限りです。ご注文の時点で品切れの場合はご容赦ください。</td></tr>':'');
   h+='</table></div>';
@@ -7062,7 +7175,7 @@ function qiGenerate(){
   var custName=recip || (c?(c.name||''):'') || '';
   var doc=qiBuildDoc();
   var record={ id:'qi'+Date.now(), kind:(isQ?'quote':'invoice'),
-    qi:{ items:JSON.parse(JSON.stringify(QI.items)), shipNet:QI.shipNet, mode:QI.mode },
+    qi:{ items:JSON.parse(JSON.stringify(QI.items)), shipNet:QI.shipNet, pickupMode:QI.pickupMode, pickupNet:QI.pickupNet, mode:QI.mode },
     customerId:(c?c.id:''), customerName:custName, companyName:(c?(c.companyName||''):''), contactPerson:(c?(c.contactPerson||''):recip),
     estimateNo:mn, invoiceNo:(isQ?'':mn), issuedAt:new Date().toISOString(), creator:((document.getElementById('qi-creator')||{}).value||'') };
   try{ if(typeof quoteHistory!=='undefined'){ quoteHistory.push(record); if(typeof saveQuoteHistoryToGAS==='function') saveQuoteHistoryToGAS(); } }catch(e){}
