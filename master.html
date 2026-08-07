@@ -205,6 +205,19 @@ tr:last-child td{border-bottom:none}
 .price-main{font-weight:900;font-size:16px}
 .dash{color:#b4ab99}
 .price-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+/* ★2026-08-07 名簿の横スクロールを分かりやすく：表の上にもExcel風のバーを出す＋下のバーも太く常時表示 */
+.hscroll-top{overflow-x:auto;overflow-y:hidden;height:16px;background:#eef0e5;border:1px solid #d9d8ce;border-radius:9px}
+.hscroll-top .hscroll-top-inner{height:1px}
+.hscroll-top::-webkit-scrollbar{height:14px}
+.hscroll-top::-webkit-scrollbar-track{background:#eef0e5;border-radius:9px}
+.hscroll-top::-webkit-scrollbar-thumb{background:#8a9b53;border:3px solid #eef0e5;border-radius:9px}
+.hscroll-top::-webkit-scrollbar-thumb:hover{background:#6b7a3a}
+.hscroll-top{scrollbar-width:auto;scrollbar-color:#8a9b53 #eef0e5}
+.meibo-hscroll{scrollbar-width:auto;scrollbar-color:#8a9b53 #eef0e5}
+.meibo-hscroll::-webkit-scrollbar{height:14px}
+.meibo-hscroll::-webkit-scrollbar-track{background:#eef0e5;border-radius:9px}
+.meibo-hscroll::-webkit-scrollbar-thumb{background:#8a9b53;border:3px solid #eef0e5;border-radius:9px}
+.meibo-hscroll::-webkit-scrollbar-thumb:hover{background:#6b7a3a}
 .import-warn{color:#dc2626;font-weight:800;font-size:11.5px;line-height:1.45;margin-bottom:4px;white-space:nowrap}
 .col-remain{font-weight:900;font-size:13px;line-height:1.3;margin-bottom:3px;white-space:nowrap}
 .remain-old{color:#b45309}
@@ -589,18 +602,20 @@ tr:last-child td{border-bottom:none}
     <button class="btn-sm" onclick="cleanEmptyLots()">🧹 空っぽのロットを片づける</button>
     <button class="btn-sm" id="meibo-janimport-btn" onclick="meiboImportBuiltinJan()" style="border-color:#85b7eb;color:#0c447c;font-weight:800">📥 バーコードを名簿に取り込む（初回だけ）</button>
     <button class="btn-sm" id="meibo-container-btn" onclick="meiboFillContainers()" style="border-color:#6b7a3a;color:#33421f;font-weight:800">🧴 容器をルールでまとめて直す（未入力・生産地の混入）</button>
-    <button class="btn-sm" id="meibo-stores-btn" onclick="meiboFillStoresHinban()" style="border-color:#5dcaa5;color:#0b5a53;font-weight:800">📋 STORES品番に品番をまとめて入れる（単品オイル・初回だけ）</button>
+    <button class="btn-sm" id="meibo-stores-btn" onclick="meiboFillStoresHinban()" style="border-color:#5dcaa5;color:#0b5a53;font-weight:800">📋 STORES品番を商品管理番号にそろえる</button>
     <button class="btn-sm" id="meibo-setcomp-btn" onclick="meiboSaveAllSetComponents()" style="border-color:#a78bca;color:#5a3a7a;font-weight:800">🧩 セットの構成をマスタにまとめて保存（初回だけ）</button>
     <span id="meibo-edit-warn" style="display:none;font-size:12.5px;font-weight:700;color:#b45309">直した内容は、スプレッドシートの「商品マスタ」に保存されます。ロット・賞味期限・ロットのメモも一緒に保存されます。</span>
   </div>
   <div id="meibo-editbox"></div>
   <div class="listnote">📒 いま扱っている全部の商品の「名前・品番・箱入数・生産地・農園名・ロット・賞味期限・バーコード」の一覧です。<b style="color:#8a5a12">ロット・賞味期限を直すときは、右の「✏️直す」から。</b><b>まだ残っている旧ロットは、黄色い札で下の段に出ます</b>（在庫が0本になれば自動で消えます）。横に長いときは表を左右にスクロールできます。<br><b style="color:#3b6d11">🏭 商品名のとなりの「倉庫表示」</b>で、倉庫Dの在庫一覧に<b>見せる（👁）／見せない（🙈）</b>を切り替えられます。ボタンを押すだけで切り替わり、倉庫Dに反映されます。</div>
-  <div class="price-scroll">
+  <div id="meibo-scroll-hint" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#0b5a53;background:#e6f4f2;border:1px solid #bfe3db;border-radius:8px;padding:4px 10px;margin-bottom:6px;width:fit-content">👉 表はまだ右に続きます（…バーコード → <b>商品ページ</b>）。下か、このすぐ下のバーで左右に動かせます</div>
+  <div id="meibo-topbar" class="hscroll-top" style="display:none"><div class="hscroll-top-inner"></div></div>
+  <div id="meibo-scroll" class="price-scroll meibo-hscroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th style="background:#eef7e6;color:#3b6d11;text-align:center">倉庫<br>表示</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号</th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#eef7e6;color:#3b6d11;text-align:center">倉庫<br>表示</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号<br><span style="font-size:11px;font-weight:600;color:#0b5a53">（＝STORES品番）</span></th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
-    <th style="background:#eef4fb">バーコード</th><th style="background:#e6f4f2;color:#0b5a53">STORES品番</th><th style="background:#eef4fb">商品ページ</th>
+    <th style="background:#eef4fb">バーコード</th><th style="background:#eef4fb">商品ページ</th>
     <th id="meibo-edit-th" style="display:none">操作</th>
   </tr></thead>
     <tbody id="meibo-body"><tr><td colspan="8" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
@@ -637,17 +652,17 @@ tr:last-child td{border-bottom:none}
     <div class="stq-in">
       <div class="stq-lead">STORESの商品を作る／直すときは、STORESの<b>「品番」欄</b>に、この形で書きます。この形で書いておくと、CSVを取り込んだとき<b>売れた分を正しく在庫から引けます</b>。書き方がバラバラだと在庫がどんどんズレるので、<b>ここを必ず守ってください。</b></div>
 
-      <div class="stq-h"><span class="stq-n">1</span>単品は、うちの品番（SKU）をそのまま</div>
-      <div class="stq-card">品番欄に、うちの品番を書くだけ。<div class="stq-eg">ORG500</div>→ オルガニック500ml が1本、在庫から引かれます。</div>
+      <div class="stq-h"><span class="stq-n">1</span>入れるのは、名簿の「商品管理番号」ひとつ</div>
+      <div class="stq-card">STORESの品番欄には、名簿の<b>「商品管理番号」をそのまま</b>入れます。番号は名簿で自動でできています。<b>単品</b>は品番＋バーコード下4桁。<div class="stq-eg">ORG500-5354</div><b>セット</b>はセットの品番（バーコードが無いのでハイフンなし）。<div class="stq-eg">YS100</div><span style="color:#0b5a53">※ 昔の「STORES品番」という別の番号はもうありません。番号は商品管理番号ひとつです。</span></div>
 
-      <div class="stq-h"><span class="stq-n">2</span>セットも、セット自身の品番だけ（単品と同じ）</div>
-      <div class="stq-card">セットも、<b>中身を書き並べる必要はありません</b>。セット自身の品番を書くだけでOK。<div class="stq-eg">YS100</div>→「your story 100ml×3本セット」。<b>中身（どのオイル・箱・紙袋か）は名簿（統合マスタ）が覚えている</b>ので、取り込みのときに<b>アプリが自動で中身に展開して、それぞれを在庫から引きます。</b><br><span style="color:#0b5a53">※ 長い品番をSTORESに入れる必要はもうありません。</span></div>
+      <div class="stq-h"><span class="stq-n">2</span>セットは、中身を書かなくていい</div>
+      <div class="stq-card">セットも、<b>中身を書き並べる必要はありません</b>。セットの商品管理番号（例 <span class="stq-code">YS100</span>）を入れるだけ。<b>中身（どのオイル・箱・紙袋か）は名簿が覚えている</b>ので、取り込みのときに<b>アプリが自動で中身に展開して、それぞれを在庫から引きます。</b></div>
 
       <div class="stq-h"><span class="stq-n">3</span>中身を変えたら「名簿」だけ直す</div>
       <div class="stq-card">セットの中のオイルや箱を入れ替えたら、<b>名簿の「構成（セットの中身）」だけ</b>直してください。STORES側はさわらなくて大丈夫（品番はそのまま）。<b>直す場所が1か所</b>なので、在庫がズレません。</div>
 
       <div class="stq-h"><span class="stq-n">4</span>引く数 ＝「中身 × 注文の個数」（自動）</div>
-      <div class="stq-card"><span class="stq-code">YS100</span> の中身が オルガニック100ml・メメジック100ml・シェフズ100ml・ギフト箱・紙袋 で、注文で <b>2箱</b> 売れたら：
+      <div class="stq-card">セット <span class="stq-code">YS100</span> の中身が オルガニック100ml・メメジック100ml・シェフズ100ml・ギフト箱・紙袋 で、注文で <b>2箱</b> 売れたら：
         <table class="stq-tbl"><thead><tr><th>中身</th><th>1箱あたり</th><th>×箱数</th><th>引く数</th></tr></thead>
         <tbody>
           <tr><td>オルガニック100ml</td><td>1本</td><td>×2</td><td class="stq-num">2本</td></tr>
@@ -657,12 +672,12 @@ tr:last-child td{border-bottom:none}
         </tbody></table>
         この展開は<b>アプリが名簿を見て自動でやります</b>。取り込みのときは、<b>分けた結果を一覧で見せ、数もロットも直せる</b>ようにします。</div>
 
-      <div class="stq-h"><span class="stq-n">5</span>バーコードは「答え合わせ」</div>
-      <div class="stq-card">単品はSTORESの<b>バーコード欄</b>にJANコードも入れておくと、うちに登録したバーコードと照合して<b>二重で確認</b>できます（食い違ったらアラート）。セットは1つのJANが無いので<b>空でOK</b>。空なら品番だけで判定します。</div>
+      <div class="stq-h"><span class="stq-n">5</span>バーコード欄は入れても入れなくてもOK</div>
+      <div class="stq-card">商品管理番号の中に<b>すでにバーコード下4桁が入っている</b>ので、これだけで判定できます。STORESの<b>バーコード欄</b>にJANコードも入れておけば、うちの登録と照合して<b>二重で確認</b>できます（食い違ったらアラート）。セットはJANが無いので<b>空でOK</b>。</div>
 
       <div class="stq-warn">⚠️ <b>ルールを守らないと在庫がズレます。</b><br>・品番が<b>うちの名簿に無い</b>ときは、取り込みで<b>大きなアラート</b>を出し、<b>その日のCSVは反映できません</b>（全部ひも付くまでロック）。翌日でも誰かが必ず気づけます。<br>・迷ったら、この枠の書き方に戻ってください。</div>
 
-      <div class="stq-ok">✅ まとめ：<b>単品もセットも、STORESの品番欄には「うちの品番」を1つだけ。</b>セットの中身は名簿が覚えていて、アプリが自動で展開して引きます。バーコードは答え合わせ。</div>
+      <div class="stq-ok">✅ まとめ：<b>STORESの品番欄には、名簿の「商品管理番号」を1つだけ入れる。</b>（単品＝品番-下4桁／セット＝セット品番）セットの中身は名簿が覚えていて、アプリが自動で展開して引きます。番号はどこでも商品管理番号ひとつ。</div>
     </div>
   </details>
 </div>
@@ -977,7 +992,7 @@ async function meiboSaveAllSetComponents(){
     var prod={ sku:p.sku,
       components: comps.map(function(c){return c.sku+':'+(c.qty||1);}).join(','),
       isSet: true,
-      'STORES品番': p.sku };  /* ★2026-08-07 セットのSTORES品番はセット自身の品番だけ（中身は名簿が持つ→取込時に自動展開） */
+      'STORES品番': displaySkuCode(p.sku) };  /* ★2026-08-07 STORES品番＝商品管理番号にそろえる（セットはバーコード無し＝品番のみ。中身は名簿が持つ→取込時に自動展開） */
     try{
       var res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveOneProduct',product:prod}),headers:{'Content-Type':'text/plain;charset=utf-8'}});
       var d=await res.json();
@@ -2952,24 +2967,22 @@ function storesHinbanTargets(){
   return PRODUCTS.filter(function(p){
     if(!p || !p.sku) return false;
     if(!mIsActive(p)) return false;
-    if(mIsSet(p)) return false;           /* セットは中身を書くので対象外 */
-    if(!containerFor(p)) return false;    /* 容器が決まる＝単品オイル。備品・ルール外は空なので除外 */
-    if(meiboFieldOf(p, 'STORES品番')) return false; /* すでに入っているものはさわらない */
-    return true;
+    if(!(mIsSet(p) || containerFor(p))) return false;   /* STORESで売る対象＝単品オイル または セット */
+    return meiboFieldOf(p, 'STORES品番') !== displaySkuCode(p.sku); /* 商品管理番号とズレているものだけそろえる */
   });
 }
 async function meiboFillStoresHinban(){
   var btn = document.getElementById('meibo-stores-btn');
   var list = storesHinbanTargets();
-  if(!list.length){ alert('STORES品番を入れる単品オイルはありませんでした。\n\n（すでに全部入っているか、対象の商品がありません）'); return; }
-  var preview = list.map(function(p){ return '・' + (p.name||p.sku) + ' → ' + p.sku; }).join('\n');
-  if(!confirm('単品オイルのSTORES品番に、品番（SKU）をそのまま入れます（' + list.length + '件）。\n※オイル本体（容器が決まる商品）だけが対象です。セット・備品・すでに入っている商品はさわりません。\n\n' + preview + '\n\nよろしいですか？')) return;
+  if(!list.length){ alert('そろえるものはありませんでした。\n\n（STORES品番は、すでに全部「商品管理番号」とそろっています）'); return; }
+  var preview = list.map(function(p){ return '・' + (p.name||p.sku) + ' → ' + displaySkuCode(p.sku); }).join('\n');
+  if(!confirm('STORES品番を「商品管理番号」にそろえます（' + list.length + '件）。\n※ECサイトには、この商品管理番号をそのまま入れます。単品は「品番-バーコード下4桁」、セットはセット品番になります。\n\n' + preview + '\n\nよろしいですか？')) return;
   if(btn){ btn.disabled = true; }
   var ok = 0, ng = [];
   for(var i=0; i<list.length; i++){
     var p = list[i];
     if(btn){ btn.textContent = '📋 保存中… ' + (i+1) + ' / ' + list.length; }
-    var prod = { sku: p.sku, 'STORES品番': p.sku };  /* その1列だけ触る（ほかの列はGASが触らない） */
+    var prod = { sku: p.sku, 'STORES品番': displaySkuCode(p.sku) };  /* ★2026-08-07 STORES品番＝商品管理番号にそろえる（その1列だけ） */
     try{
       var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
       var data = await res.json();
@@ -2982,10 +2995,10 @@ async function meiboFillStoresHinban(){
       }
     }catch(e){ ng.push(p.sku + '（通信エラー）'); }
   }
-  if(btn){ btn.disabled = false; btn.textContent = '📋 STORES品番に品番をまとめて入れる（単品オイル・初回だけ）'; }
+  if(btn){ btn.disabled = false; btn.textContent = '📋 STORES品番を商品管理番号にそろえる'; }
   try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : [])); }catch(e){}
   renderMeibo();
-  var msg = '✅ ' + ok + '件のSTORES品番を保存しました。';
+  var msg = '✅ ' + ok + '件のSTORES品番を商品管理番号にそろえました。';
   if(ng.length) msg += '\n\n⚠️ 入らなかったもの（' + ng.length + '件）\n　・' + ng.join('\n　・');
   alert(msg);
 }
@@ -3225,6 +3238,15 @@ function mbKindChanged(){
   mbToggleOilFields(v === 'OIL');
   mbPreviewKanri();             // ★2026-08-07 品番が入ったので商品管理番号を出す（この時点はまだ品番だけ）
 }
+/* ★2026-08-07 商品管理番号を組み立てる唯一の計算（品番＋バーコード下4桁。無ければ品番だけ）。
+   この番号がECサイト（STORES品番）でもそのまま使われる＝どこでも同じ1つの番号。 */
+function mbKanriFrom(sku, barcodeStr){
+  sku = (sku||'').trim();
+  if(!sku) return '';
+  var digits = String(barcodeStr||'').replace(/[^0-9A-Za-z]/g,'');
+  var tail = digits.length>=4 ? digits.slice(-4) : '';
+  return tail ? (sku + '-' + tail) : sku;
+}
 /* ★2026-08-07 商品管理番号のライブ表示。
    品番（sku）が入ると、まず品番だけの管理番号ができる。
    そこにバーコードを打ち込むと、その瞬間に「品番-下4桁」に組み上がる。 */
@@ -3360,8 +3382,7 @@ function meiboEditRowHtml(p, sp){
       fg('1箱の本数','mp-box',v.boxQty,'12')+
       /* ★2026-07-24 生産地・農園名・容器は種類にかかわらず常に出す（どんな商品でも自由に書けるように） */
       /* ★2026-07-25 バーコードと商品ページは名簿で直す（ラベル図鑑ではなく、ここが親） */
-      '<div class="mp-fg"><label style="color:#0c447c">バーコード（JAN）　※下4桁が「商品管理番号」になります</label><input type="text" id="mp-barcode" value="'+esc(v.barcode)+'" placeholder="例：8681763395149" oninput="mbPreviewKanri()" style="border-color:#85b7eb;background:#f7fbff;font-family:monospace"><div id="mp-kanri-preview" style="margin-top:6px;padding:6px 10px;border-radius:8px;background:#eaf3ff;border:1px solid #bdd7ec;font-size:12px;color:#0c447c;display:flex;align-items:center;gap:6px"><span>商品管理番号</span><span id="mp-kanri-val" style="font-family:monospace;font-weight:800;font-size:14px;letter-spacing:.02em">—</span><span id="mp-kanri-hint" style="color:#5a7291"></span></div></div>'+
-      '<div class="mp-fg"><label style="color:#0b5a53">STORES品番　※STORESに記載する品番（下の「書き方ルール」参照）</label><input type="text" id="mp-stores" value="'+esc(v.storesHinban)+'" placeholder="例：ORG500 ／ セットもセット自身の品番（例 YS100）" style="border-color:#5dcaa5;background:#f2faf8;font-family:monospace"></div>'+
+      '<div class="mp-fg"><label style="color:#0c447c">バーコード（JAN）　※下4桁が「商品管理番号」になります</label><input type="text" id="mp-barcode" value="'+esc(v.barcode)+'" placeholder="例：8681763395149" oninput="mbPreviewKanri()" style="border-color:#85b7eb;background:#f7fbff;font-family:monospace"><div id="mp-kanri-preview" style="margin-top:6px;padding:6px 10px;border-radius:8px;background:#eaf3ff;border:1px solid #bdd7ec;font-size:12px;color:#0c447c;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><span>商品管理番号<span style="color:#0b5a53;font-weight:700">（STORESにもこれを入れます）</span></span><span id="mp-kanri-val" style="font-family:monospace;font-weight:800;font-size:14px;letter-spacing:.02em">—</span><span id="mp-kanri-hint" style="color:#5a7291"></span></div></div>'+
       '<div class="mp-fg"><label style="color:#0c447c">商品ページ（HPのURL）　※写真はここで見ます</label><input type="text" id="mp-page" value="'+esc(v.pageUrl)+'" placeholder="例：https://oliveoilstories.net/products/org100" style="border-color:#85b7eb;background:#f7fbff"></div>'+
       '<div id="mp-oilonly" style="display:contents">'+
         fg('容器','mp-container',v.container,'遮光瓶')+
@@ -3451,7 +3472,7 @@ async function meiboSaveRow(){
     '農園': (document.getElementById('mp-farm').value||'').trim(),
     '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
     'バーコード': (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '').trim(),
-    'STORES品番': (document.getElementById('mp-stores') ? document.getElementById('mp-stores').value : '').trim(),
+    'STORES品番': mbKanriFrom(sku, (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '')),  /* ★2026-08-07 STORES品番＝商品管理番号に統一。ECにはこの番号を入れる */
     '商品ページ': (document.getElementById('mp-page') ? document.getElementById('mp-page').value : '').trim(),
     container: (document.getElementById('mp-container').value||'').trim(),
     noWholesale: document.getElementById('mp-nw').checked,
@@ -3462,7 +3483,7 @@ async function meiboSaveRow(){
   if(_kousei.length){
     prod.components = _kousei.map(function(c){ return c.sku+':'+(c.qty||1); }).join(',');  /* GAS読込形式 SKU:本数 */
     prod.isSet = true;
-    prod['STORES品番'] = sku;  /* ★2026-08-07 セットもSTORES品番はセット自身の品番だけ。中身は名簿が持つので取込時に自動展開して各構成品を引く */
+    /* ★2026-08-07 STORES品番＝商品管理番号に統一済み（セットはバーコードが無いので品番のみ＝商品管理番号と同じ）。中身は名簿が持ち、取込時に自動展開して各構成品を引く */
   } else {
     prod.components = '';
     prod.isSet = false;
@@ -3569,7 +3590,6 @@ function renderMeibo(){
         '<td>'+(sp.origin?'<span class="spec">'+esc(sp.origin)+'</span>':mDash())+'</td>'+
         '<td>'+(sp.farm?'<span class="spec">'+esc(sp.farm)+'</span>':mDash())+'</td>'+
         meiboLotCells(p, sp, jan)+
-        '<td style="background:#f2faf8">'+(meiboFieldOf(p,'STORES品番')?'<span style="font-family:monospace;font-size:13px;font-weight:800;color:#0b5a53;white-space:nowrap">'+esc(meiboFieldOf(p,'STORES品番'))+'</span>':mDash())+'</td>'+
         meiboPageCell(p)+   /* ★2026-07-25 商品ページ（HPへのリンク） */
         (meiboEditMode?'<td style="white-space:nowrap"><button class="btn-sm lot-edit" onclick="meiboStartEdit(\''+esc(p.sku)+'\')">✏️ 直す</button></td>':'')+
         '</tr>';
@@ -3588,6 +3608,34 @@ function renderMeibo(){
     } else eb.innerHTML='';
   }
   var th=document.getElementById('meibo-edit-th'); if(th) th.style.display = meiboEditMode?'':'none';
+  if(typeof meiboSetupHScroll==='function') meiboSetupHScroll(); /* ★2026-08-07 上の横スクロールバーを表の幅に合わせる */
+}
+/* ★2026-08-07 名簿の横スクロール補助：表の上のバー（#meibo-topbar）を表の幅に合わせ、
+   上のバーと表本体（#meibo-scroll）のスクロールを両方向で同期する。列がはみ出す時だけ出す。 */
+var _meiboHScrollLock = false;
+function meiboSetupHScroll(){
+  var sc  = document.getElementById('meibo-scroll');
+  var top = document.getElementById('meibo-topbar');
+  var hint= document.getElementById('meibo-scroll-hint');
+  if(!sc || !top) return;
+  var inner = top.firstElementChild;
+  function measure(){
+    var tbl = sc.querySelector('table');
+    var w = tbl ? tbl.scrollWidth : sc.scrollWidth;
+    if(inner) inner.style.width = w + 'px';
+    var overflow = w > (sc.clientWidth + 2);
+    top.style.display  = overflow ? 'block' : 'none';
+    if(hint) hint.style.display = overflow ? 'inline-flex' : 'none';
+    top.scrollLeft = sc.scrollLeft;
+  }
+  measure();
+  if(window.requestAnimationFrame) requestAnimationFrame(measure); /* レイアウト確定後にもう一度測る */
+  if(!sc._hbound){
+    sc._hbound = true;
+    top.addEventListener('scroll', function(){ if(_meiboHScrollLock) return; _meiboHScrollLock=true; sc.scrollLeft = top.scrollLeft; _meiboHScrollLock=false; });
+    sc.addEventListener('scroll',  function(){ if(_meiboHScrollLock) return; _meiboHScrollLock=true; top.scrollLeft = sc.scrollLeft; _meiboHScrollLock=false; });
+    window.addEventListener('resize', function(){ if(typeof meiboSetupHScroll==='function') meiboSetupHScroll(); });
+  }
 }
 function renderPrice(){
   var body=document.getElementById('price-body'); if(!body) return; var rows='';

@@ -1093,7 +1093,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
 <!-- ===== 見積兼請求書作成パネル（QI・2026-08-05 実装） ===== -->
 <div id="panel-quote2" class="panel">
   <div class="card">
-    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07e</span></div>
+    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07f</span></div>
     <div style="font-size:13px;color:#4a463d;line-height:1.6">お客様に渡す「見積書」または「請求書」を作ります。①書類を選ぶ → ②始め方（お客様／履歴／新規）→ ③商品を入れる → 作成でPDFの見本が出ます。<b>特価で出したものは特価のまま請求できます（定価に戻りません）。</b></div>
   </div>
   <div class="card">
@@ -6958,11 +6958,13 @@ function qiOnCustomer(){
     var nm=v.slice(5);
     QI.custId='';
     var rc=document.getElementById('qi-recipient'); if(rc) rc.value=nm;
-    qiLoadLatestByName(nm);   // その宛名の最新の見積・請求を自動で呼び戻す
+    qiLoadLatestFor(nm,'');   // その宛名の最新の見積・請求を自動で呼び戻す
     return;
   }
   QI.custId=v;
-  qiRenderItems();
+  var c=qiCustomer();
+  var rc2=document.getElementById('qi-recipient'); if(rc2) rc2.value='';
+  qiLoadLatestFor(c?String(c.name||''):'', v);   // 登録済みのお客様でも過去の見積を呼び戻す
 }
 // 過去に見積・請求を出した相手の宛名を集める（登録の有無を問わない）
 function qiHistNames(){
@@ -6995,13 +6997,25 @@ function qiFillCustomers(){
   }catch(e){}
   sel.innerHTML=opts; sel.value=prev;
 }
-// 宛名から最新の履歴を1件呼び戻す
-function qiLoadLatestByName(nm){
+// 宛名から最新の履歴を1件呼び戻す（互換ラッパ）
+function qiNorm(s){ return String(s==null?'':s).replace(/\s/g,''); }
+function qiLoadLatestByName(nm){ return qiLoadLatestFor(nm,''); }
+// お客様ID または 宛名（空白無視・部分一致・双方向）で最新の履歴を1件呼び戻す
+function qiLoadLatestFor(nm, cid){
+  var key=qiNorm(nm);
   var list=[];
-  try{ list=(quoteHistory||[]).filter(function(r){ if(!r) return false; var s=String(r.customerName||'')+String(r.contactPerson||'')+String(r.companyName||''); return s.indexOf(nm)>=0; }); }catch(e){}
-  if(!list.length){ qiRenderItems(); return; }
+  try{ list=(quoteHistory||[]).filter(function(r){
+    if(!r) return false;
+    if(cid && r.customerId===cid) return true;
+    if(!key) return false;
+    var rn=qiNorm(r.customerName), cn=qiNorm(r.contactPerson), co=qiNorm(r.companyName);
+    function hit(x){ return x && (x.indexOf(key)>=0 || key.indexOf(x)>=0); }
+    return hit(rn)||hit(cn)||hit(co);
+  }); }catch(e){}
+  if(!list.length){ qiRenderItems(); return false; }
   list.sort(function(a,b){ return String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')); });
   qiLoadFrom(list[0].id, true);
+  return true;
 }
 function qiSetMode(m){ QI.mode=m; var q=document.getElementById('qi-seg-quote'),i=document.getElementById('qi-seg-invoice'); if(q)q.classList.toggle('on',m==='quote'); if(i)i.classList.toggle('on',m==='invoice'); var sw=document.getElementById('qi-ship-wrap'); if(sw) sw.style.display=(m==='invoice')?'block':'none'; qiSyncPickupUI(); var t=document.getElementById('qi-items-ttl'); if(t) t.textContent=(m==='invoice')?'③ 買ったものだけチェック＋本数を入れる（特価のまま）':'③ 商品を入れる（特別価格は自動提案＋手直し可）'; qiRenderItems(); }
 function qiAddRow(){ var sku=''; try{ for(var k=0;k<PRODUCTS.length;k++){ if(typeof isProductActive!=='function'||isProductActive(PRODUCTS[k])){ sku=PRODUCTS[k].sku; break; } } }catch(e){} QI.items.push({sku:sku, exp:qiExpFor(sku), sp:qiSuggestSp(sku), avail:qiAvailFor(sku), buy:0, desc:'', on:true}); qiRenderItems(); }
@@ -7083,8 +7097,9 @@ function qiKindLabel(k){ return k==='invoice'?'請求書':(k==='both'?'見積書
 function qiHistSearch(){
   var q=((document.getElementById('qi-hist-search')||{}).value||'').trim(); var box=document.getElementById('qi-hist-res'); if(!box)return;
   if(!q){ box.innerHTML=''; return; }
+  var qn=qiNorm(q);
   var list=[]; try{ list=(quoteHistory||[]).filter(function(r){ return !!r; }); }catch(e){}   // すべての履歴を対象（別ルートで作った見積も呼べる）
-  var hit=list.filter(function(r){ var s=String(r.customerName||'')+String(r.companyName||'')+String(r.contactPerson||'')+String(r.estimateNo||'')+String(r.invoiceNo||''); return s.indexOf(q)>=0; })
+  var hit=list.filter(function(r){ var s=qiNorm(String(r.customerName||'')+String(r.companyName||'')+String(r.contactPerson||'')+String(r.estimateNo||'')+String(r.invoiceNo||'')); return s.indexOf(qn)>=0; })
     .sort(function(a,b){ return String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')); }).slice(0,20);
   box.innerHTML=hit.length?hit.map(function(r){ var d=r.issuedAt?new Date(r.issuedAt).toLocaleDateString('ja-JP'):''; return '<div style="border:1px solid #e2ddcf;border-radius:8px;padding:8px 10px;margin:6px 0;cursor:pointer" onclick="qiLoadFrom(\''+r.id+'\')"><b>'+qiEsc(r.customerName||r.contactPerson||'（宛名なし）')+'</b> ／ '+qiEsc(r.estimateNo||r.invoiceNo||'')+' ／ '+qiEsc(qiKindLabel(r.kind))+' ／ '+d+'</div>'; }).join(''):'<div style="color:#8a8574;font-size:13px">見つかりませんでした。宛名の一部（例：久田）か管理番号で試してください。</div>';
 }
