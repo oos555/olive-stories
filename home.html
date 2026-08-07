@@ -507,6 +507,7 @@
     const cached = alertsFromCache();
     if(cached) renderAlerts(cached); // まず前回の内容をすぐ出す
     loadAlerts();                    // そのあと最新を取りに行く
+    computeOverdueAndMerge();        // 売上C（M請求書）の支払期限ごえ・未入金を玄関にも出す
   }
   async function loadAlerts(){
     try{
@@ -518,10 +519,34 @@
       }
     }catch(e){ /* GASがまだ頭脳を持っていない時は、そっと今まで通り */ }
   }
+  // ── 売上C（M請求書）の「支払期限ごえ・未入金」を玄関でも自前計算して出す ──
+  window.__oosExtraNow = window.__oosExtraNow || [];
+  function __oosDateJa(s){ var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
+  async function computeOverdueAndMerge(){
+    try{
+      const res = await fetch(GAS_URL + '?action=loadAll');
+      const data = await res.json();
+      const dd = (data && data.data) ? data.data : {};
+      const qh = Array.isArray(dd.quoteHistory) ? dd.quoteHistory : [];
+      const today = new Date(); today.setHours(0,0,0,0);
+      const overdue = qh.filter(function(r){
+        if(!r || r.kind!=='invoice') return false;
+        if(!(r.source==='mitsumori-qi' || r.qi)) return false;
+        if(r.paid || r.paymentConfirmed) return false;
+        const due = __oosDateJa(r.paymentDue);
+        return due && today > due;
+      });
+      window.__oosExtraNow = overdue.length
+        ? [{ label:'支払期限ごえ・未入金 '+overdue.length+'件（売上C）', href:'billing.html', count:overdue.length }]
+        : [];
+      renderAlerts(window.__lastAlertBase || {});
+    }catch(e){ /* GASが未応答のときはそっと従来通り */ }
+  }
   function alertBucketCount(list){ let n=0; (list||[]).forEach(function(x){ n += (parseInt(x.count,10)||1); }); return n; }
   function renderAlerts(d){
     d = d || {};
-    const now = d.now||[], soon = d.soon||[], watch = d.watch||[];
+    window.__lastAlertBase = d;
+    const now = (d.now||[]).concat(window.__oosExtraNow||[]), soon = d.soon||[], watch = d.watch||[];
     const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
     const total = cNow + cSoon + cWatch;
     // アプリの点は毎回リセットしてから付け直す
