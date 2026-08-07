@@ -1093,7 +1093,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
 <!-- ===== 見積兼請求書作成パネル（QI・2026-08-05 実装） ===== -->
 <div id="panel-quote2" class="panel">
   <div class="card">
-    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07b</span></div>
+    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07c</span></div>
     <div style="font-size:13px;color:#4a463d;line-height:1.6">お客様に渡す「見積書」または「請求書」を作ります。①書類を選ぶ → ②始め方（お客様／履歴／新規）→ ③商品を入れる → 作成でPDFの見本が出ます。<b>特価で出したものは特価のまま請求できます（定価に戻りません）。</b></div>
   </div>
   <div class="card">
@@ -7038,14 +7038,15 @@ function qiRenderItems(){
       '<td><input type="text" value="'+qiEsc(it.desc)+'" oninput="qiUpd('+i+',\'desc\',this.value)" placeholder="このオイルの一言（任意）"></td>'+
       '<td><button class="btn-sm" onclick="qiDel('+i+')">×</button></td></tr>'; }).join('');
   } else {
-    head.innerHTML='<th style="width:44px">買った</th><th style="min-width:150px">商品名</th><th>容量</th><th>賞味期限</th><th>特価(単価)</th><th>本数</th><th>金額</th><th></th>';
+    head.innerHTML='<th style="width:44px">買った</th><th style="min-width:150px">商品名</th><th>容量</th><th>賞味期限</th><th>特価(単価)</th><th style="width:74px">見積本数</th><th style="width:78px">購入本数</th><th>金額</th><th></th>';
     body.innerHTML=QI.items.map(function(it,i){ var amt=it.on?((parseInt(it.sp)||0)*(parseInt(it.buy)||0)):0; return '<tr'+(it.on?'':' style="opacity:.45"')+'>'+
       '<td style="text-align:center"><input type="checkbox" '+(it.on?'checked':'')+' onchange="qiUpdChk('+i+',this.checked)"></td>'+
       '<td>'+qiEsc(qiNameOf(it.sku))+'</td>'+
       '<td>'+qiEsc(qiCapFor(it.sku))+'</td>'+
       '<td>'+qiEsc(it.exp)+'</td>'+
       '<td style="width:96px"><input type="number" class="qi-price" '+(it.on?'':'disabled')+' value="'+(parseInt(it.sp)||0)+'" oninput="qiUpd('+i+',\'sp\',this.value)"></td>'+
-      '<td style="width:64px"><input type="number" '+(it.on?'':'disabled')+' value="'+(parseInt(it.buy)||0)+'" oninput="qiUpd('+i+',\'buy\',this.value)"></td>'+
+      '<td style="text-align:center;color:#8a8574">'+(parseInt(it.avail)||0)+'本</td>'+
+      '<td><input type="number" '+(it.on?'':'disabled')+' value="'+(parseInt(it.buy)||0)+'" oninput="qiUpd('+i+',\'buy\',this.value)"></td>'+
       '<td class="qi-i-amt" id="qi-amt-'+i+'">¥'+qiYen(amt)+'</td>'+
       '<td><button class="btn-sm" onclick="qiDel('+i+')">×</button></td></tr>'; }).join('');
   }
@@ -7068,7 +7069,7 @@ function qiItemsFromRecord(r){
       var sku=it.sku;
       var sp=parseInt(it.unitPrice!=null?it.unitPrice:(it.sp!=null?it.sp:qiSuggestSp(sku)))||0;
       var q=parseInt(it.qty!=null?it.qty:(it.bottles!=null?it.bottles:0))||0;
-      return { sku:sku, exp:(it.exp||qiExpFor(sku)), sp:sp, avail:q, buy:0, desc:'', on:true };
+      return { sku:sku, exp:(it.exp||qiExpFor(sku)), sp:sp, avail:q, buy:q, desc:'', on:true };
     });
   }
   if(Array.isArray(r.products) && r.products.length){                                    // 価格表ルートの記録（金額なし）
