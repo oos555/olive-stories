@@ -630,7 +630,7 @@ tr:last-child td{border-bottom:none}
         </div>
       </details>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
-        <div id="profit-heatmap-wrap" style="flex:1 1 420px;min-width:320px;overflow:auto;max-height:74vh">
+        <div id="profit-heatmap-wrap" style="flex:1 1 560px;min-width:320px;overflow:auto;min-height:560px;max-height:90vh">
           <table id="profit-heatmap-table" style="font-size:12px;border-collapse:collapse"></table>
           <div style="font-size:11px;color:#6b675e;margin-top:6px">※ 色：赤＝35%未満(危険)／黄＝35〜40%／薄青＝40〜50%／青＝50%以上</div>
         </div>
@@ -1620,15 +1620,24 @@ async function saveProvisionalEntry(){
 
 // ★2026-07-31 利益ヒートマップの「原価」セルから、確定原価(costData)を直接なおせる。確認を1回はさむ。保存は既存 saveCostData。
 async function editConfirmedCost(sku){
-  var cur = (costData[sku] && costData[sku].cost!=null && costData[sku].cost!=='') ? (parseFloat(costData[sku].cost)||0) : 0;
+  /* ★2026-08-07 いまの原価（本物があれば本物、無ければ仮）を初期値に見せる。セット・備品もここで本物の原価にできる */
+  var cur = (typeof getCostForSku==='function') ? (parseFloat(getCostForSku(sku))||0)
+            : ((costData[sku] && costData[sku].cost!=null && costData[sku].cost!=='') ? (parseFloat(costData[sku].cost)||0) : 0);
   var nm = (typeof provProductName==='function') ? provProductName(sku) : sku;
   var raw = prompt('「'+nm+'」の新しい原価（円）を入れてください。\n（今：¥'+cur.toLocaleString()+'）', cur||'');
   if(raw===null) return; // キャンセル
   var v = parseFloat((''+raw).replace(/[^0-9.]/g,''))||0;
   if(v===cur) return;    // 変わっていなければ何もしない
   if(!confirm('原価を ¥'+cur.toLocaleString()+' → ¥'+v.toLocaleString()+' に本当に変更しますか？')){ renderProfitHeatmap(); return; }
-  var prevMemo = (costData[sku] && costData[sku].memo) ? costData[sku].memo : '';
+  var prevMemo = (costData[sku] && costData[sku].memo) ? costData[sku].memo
+                 : ((typeof provisionalCosts!=='undefined' && provisionalCosts[sku] && provisionalCosts[sku].memo) ? provisionalCosts[sku].memo : '');
   costData[sku] = { cost: v, memo: prevMemo };
+  /* ★2026-08-07 本物の原価にしたので、残っていた仮原価(⏳)は片づける（重複表示を防ぐ） */
+  if(typeof provisionalCosts!=='undefined' && provisionalCosts[sku]){
+    delete provisionalCosts[sku];
+    try{ fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }), headers:{'Content-Type':'text/plain;charset=utf-8'} }); }catch(e){}
+    try{ if(typeof saveProvisionalCostsLocal==='function') saveProvisionalCostsLocal(); }catch(e){}
+  }
   if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています...');
   try{
     var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
@@ -1708,7 +1717,7 @@ function renderProfitHeatmap(){
       html += '<tr data-sku="'+esc(p.sku)+'"><td style="padding:5px 8px;font-weight:600;word-break:break-word">'+esc(p.name)+'<div style="font-size:13px;font-family:monospace;font-weight:700;color:#2b3a4c;background:#e6ecf3;display:inline-block;padding:2px 8px;border-radius:5px;margin-top:3px;letter-spacing:.5px">'+esc(p.sku)+'</div></td>';
       if(!cost){
         // 原価が未入力の商品：隠さずに⚠️印で表示（金額は薄く表示のみ・色分けと調整は原価を入れてから）
-        html += '<td onclick="openProvisionalEntry(\''+p.sku+'\')" title="押すと仮原価を入れられます" style="padding:5px 6px;text-align:right;cursor:pointer"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span><div style="font-size:9px;color:#a05a10;font-weight:700;margin-top:2px">＋仮原価を入れる</div></td>';
+        html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を入れられます（セット・備品もOK）" style="padding:5px 6px;text-align:right;cursor:pointer"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span><div style="font-size:9px;color:#a05a10;font-weight:700;margin-top:2px">＋原価を入れる</div></td>';   /* ★2026-08-07 セット・備品を含め、どの商品も原価を直接入れられる（本物の原価） */
         ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
           const price = parseFloat(priceRec[key])||0;
           html += '<td style="padding:5px 6px;text-align:right;color:#9ca3af">'+(price? '¥'+price.toLocaleString() : '-')+'</td>';
@@ -1717,7 +1726,7 @@ function renderProfitHeatmap(){
         return;
       }
       if(isProvisionalCost(p.sku)){
-        html += '<td onclick="openProvisionalEntry(\''+p.sku+'\')" title="押すと仮原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<br><span style="font-size:9.5px;font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 5px">⏳仮</span></td>';
+        html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を直せます（本物の原価にできます）" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<br><span style="font-size:9.5px;font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 5px">⏳仮</span><span style="font-size:9px;color:#8a867c;font-weight:700;margin-left:3px">✏直す</span></td>';   /* ★2026-08-07 仮原価でも押せば本物の原価に直せる */
       } else {
         html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<div style="font-size:9px;color:#8a867c;font-weight:700;margin-top:2px">✏ 直す</div></td>';
       }
