@@ -1105,7 +1105,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
     <div class="fg"><label>👤 お客様を選ぶ（宛名・区分・振込先が決まります）</label>
       <select id="qi-customer" onchange="qiOnCustomer()"><option value="">お客様を選択...</option></select></div>
     <div class="fg"><label>宛名を直接入れる（任意・お客様を選ばないとき）</label><input type="text" id="qi-recipient" placeholder="例：久田 友佳"></div>
-    <div class="fg"><label>🔎 過去の見積・請求から呼び戻す（このタブで作ったもの）</label>
+    <div class="fg"><label>🔎 過去の見積・請求から呼び戻す（宛名の一部・管理番号で検索）</label>
       <input type="text" id="qi-hist-search" oninput="qiHistSearch()" placeholder="お客様名／管理番号で検索">
       <div id="qi-hist-res" style="margin-top:6px"></div></div>
     <button class="btn-sm" onclick="qiDirectNew()" style="font-weight:700">✍️ ダイレクト新規（ゼロから作る）</button>
@@ -7063,7 +7063,7 @@ function qiItemsFromRecord(r){
       var sku=it.sku;
       var sp=parseInt(it.unitPrice!=null?it.unitPrice:(it.sp!=null?it.sp:qiSuggestSp(sku)))||0;
       var q=parseInt(it.qty!=null?it.qty:(it.bottles!=null?it.bottles:0))||0;
-      return { sku:sku, exp:qiExpFor(sku), sp:sp, avail:q, buy:0, desc:'', on:true };
+      return { sku:sku, exp:(it.exp||qiExpFor(sku)), sp:sp, avail:q, buy:0, desc:'', on:true };
     });
   }
   if(Array.isArray(r.products) && r.products.length){                                    // 価格表ルートの記録（金額なし）
@@ -7183,7 +7183,37 @@ function qiGenerate(){
   if(typeof showQuoteDoc==='function'){ showQuoteDoc(doc, record); }
   else { var a=document.getElementById('quote-doc-area'); if(a){ a.innerHTML=doc; a.scrollIntoView({behavior:'smooth'}); } }
 }
-function qiInit(){ qiLoadAssets(); qiFillCustomers(); if(!QI.items.length) qiAddRow(); qiSetMode(QI.mode); [400,1200,2500].forEach(function(ms){ setTimeout(qiFillCustomers, ms); }); }
+// 履歴に未保存だった過去のPDF見積を、履歴に1件だけ復元する（存在すれば何もしない・冪等）
+// 久田様 旧ロット見積 QR-MIX-20260723-4182（PDFの内容から復元）
+function qiSeedLegacyKuda(){
+  try{
+    if(typeof quoteHistory==='undefined' || !Array.isArray(quoteHistory)) return;
+    var MN='QR-MIX-20260723-4182';
+    if(quoteHistory.some(function(r){ return r && (String(r.estimateNo||'')===MN || String(r.invoiceNo||'')===MN); })) return;
+    var defs=[
+      {nm:'オルガニック',  cap:'500', sp:5473, qty:39, exp:'2026年12月'},
+      {nm:'メメジック',    cap:'500', sp:5473, qty:22, exp:'2026年12月'},
+      {nm:'メメジック',    cap:'2000',sp:17741,qty:3,  exp:'2026年12月'},
+      {nm:'シェフズブレンド',cap:'250', sp:2950, qty:2,  exp:'2026年12月'},
+      {nm:'シェフズブレンド',cap:'250', sp:1800, qty:2,  exp:'2026年7月'},
+      {nm:'シェフズブレンド',cap:'2000',sp:17500,qty:2,  exp:'2026年12月'}
+    ];
+    function findSku(nm,cap){
+      try{
+        var P=(typeof PRODUCTS!=='undefined'&&PRODUCTS)?PRODUCTS:[];
+        for(var i=0;i<P.length;i++){ var p=P[i]; var pn=String(p.name||'').replace(/\s/g,''); if(pn.indexOf(nm)<0) continue;
+          var pc=String(((p.extras&&p.extras['容量'])||'')+ '|' + (p.name||'')).replace(/\s/g,'');
+          if(pc.indexOf(cap)>=0) return p.sku; }
+        for(var j=0;j<P.length;j++){ if(String(P[j].name||'').replace(/\s/g,'').indexOf(nm)>=0) return P[j].sku; }
+      }catch(e){}
+      return '';
+    }
+    var items=defs.map(function(d){ var sku=findSku(d.nm,d.cap); return { sku:sku, name:d.nm+' '+d.cap+'ml（特価）', qty:d.qty, bottles:d.qty, unitPrice:d.sp, amount:d.sp*d.qty, taxRate:0.08, exp:d.exp }; });
+    quoteHistory.push({ id:'legacy-kuda-20260723', kind:'quote', customerName:'久田 友佳', companyName:'', contactPerson:'久田 友佳',
+      estimateNo:MN, invoiceNo:'', issuedAt:'2026-07-23T00:00:00.000Z', creator:'', items:items });
+  }catch(e){}
+}
+function qiInit(){ qiLoadAssets(); qiSeedLegacyKuda(); qiFillCustomers(); if(!QI.items.length) qiAddRow(); qiSetMode(QI.mode); [400,1200,2500].forEach(function(ms){ setTimeout(function(){ qiSeedLegacyKuda(); qiFillCustomers(); }, ms); }); }
 document.addEventListener("DOMContentLoaded", function(){ try{ qiFillCustomers(); }catch(e){} });
 
 </script>
