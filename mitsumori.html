@@ -1093,7 +1093,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
 <!-- ===== 見積兼請求書作成パネル（QI・2026-08-05 実装） ===== -->
 <div id="panel-quote2" class="panel">
   <div class="card">
-    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07f</span></div>
+    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07g</span></div>
     <div style="font-size:13px;color:#4a463d;line-height:1.6">お客様に渡す「見積書」または「請求書」を作ります。①書類を選ぶ → ②始め方（お客様／履歴／新規）→ ③商品を入れる → 作成でPDFの見本が出ます。<b>特価で出したものは特価のまま請求できます（定価に戻りません）。</b></div>
   </div>
   <div class="card">
@@ -1104,7 +1104,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
     <div style="font-weight:800;margin-bottom:6px">② どこから始めますか？</div>
     <div class="fg"><label>👤 お客様を選ぶ（宛名・区分・振込先が決まります）</label>
       <select id="qi-customer" onchange="qiOnCustomer()"><option value="">お客様を選択...</option></select></div>
-    <div class="fg"><label>宛名を直接入れる（任意・お客様を選ばないとき）</label><input type="text" id="qi-recipient" placeholder="例：久田 友佳"></div>
+    <div class="fg"><label>宛名を直接入れる（名前を入れると、その人の過去の見積を呼び戻します）</label><input type="text" id="qi-recipient" onchange="qiRecipientTyped()" placeholder="例：久田 友佳"></div>
     <div class="fg"><label>🔎 過去の見積・請求から呼び戻す（宛名の一部・管理番号で検索）</label>
       <input type="text" id="qi-hist-search" oninput="qiHistSearch()" placeholder="お客様名／管理番号で検索">
       <div id="qi-hist-res" style="margin-top:6px"></div></div>
@@ -6952,6 +6952,13 @@ function qiAvailFor(sku){ try{ var m=(typeof computeTotalStockBySku==='function'
 function qiSuggestSp(sku){ var o=priceForSku(sku,'oldlot'); if(o>0) return o; var d=priceForSku(sku,'defect'); if(d>0) return d; return priceForSku(sku,'general'); }
 function qiProdOptions(sel){ var out=''; try{ PRODUCTS.forEach(function(p){ if(typeof isProductActive==='function' && !isProductActive(p)) return; out+='<option value="'+p.sku+'"'+(p.sku===sel?' selected':'')+'>'+qiEsc(p.name)+'</option>'; }); }catch(e){} return out; }
 function qiCustomer(){ try{ return (customers||[]).find(function(c){return c.id===QI.custId;})||null; }catch(e){ return null; } }
+// 「宛名を直接入れる」に名前を打っても、その人の過去の見積を呼び戻す
+function qiRecipientTyped(){
+  var nm=((document.getElementById('qi-recipient')||{}).value||'').trim();
+  if(!nm){ return; }
+  try{ qiSeedLegacyKuda(); }catch(e){}
+  qiLoadLatestFor(nm, '');
+}
 function qiOnCustomer(){
   var v=(document.getElementById('qi-customer')||{}).value||'';
   if(v.indexOf('hist:')===0){
@@ -6968,6 +6975,7 @@ function qiOnCustomer(){
 }
 // 過去に見積・請求を出した相手の宛名を集める（登録の有無を問わない）
 function qiHistNames(){
+  try{ qiSeedLegacyKuda(); }catch(e){}
   var map={};
   try{ (quoteHistory||[]).forEach(function(r){ if(!r) return; var nm=String(r.customerName||r.contactPerson||r.companyName||'').trim(); if(nm && !map[nm]) map[nm]=1; }); }catch(e){}
   return Object.keys(map);
@@ -7002,6 +7010,7 @@ function qiNorm(s){ return String(s==null?'':s).replace(/\s/g,''); }
 function qiLoadLatestByName(nm){ return qiLoadLatestFor(nm,''); }
 // お客様ID または 宛名（空白無視・部分一致・双方向）で最新の履歴を1件呼び戻す
 function qiLoadLatestFor(nm, cid){
+  try{ qiSeedLegacyKuda(); }catch(e){}
   var key=qiNorm(nm);
   var list=[];
   try{ list=(quoteHistory||[]).filter(function(r){
@@ -7095,6 +7104,7 @@ function qiRenderItems(){
 }
 function qiKindLabel(k){ return k==='invoice'?'請求書':(k==='both'?'見積書兼請求書':(k==='pricelist'?'価格表':'見積書')); }
 function qiHistSearch(){
+  try{ qiSeedLegacyKuda(); }catch(e){}
   var q=((document.getElementById('qi-hist-search')||{}).value||'').trim(); var box=document.getElementById('qi-hist-res'); if(!box)return;
   if(!q){ box.innerHTML=''; return; }
   var qn=qiNorm(q);
