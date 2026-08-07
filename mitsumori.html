@@ -1093,7 +1093,7 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
 <!-- ===== 見積兼請求書作成パネル（QI・2026-08-05 実装） ===== -->
 <div id="panel-quote2" class="panel">
   <div class="card">
-    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07g</span></div>
+    <div style="font-size:15px;font-weight:800;color:#2b2a26;margin-bottom:4px">📝 見積兼請求書を作る <span style="float:right;font-size:10px;font-weight:600;color:#b3ab99">版 2026-08-07h</span></div>
     <div style="font-size:13px;color:#4a463d;line-height:1.6">お客様に渡す「見積書」または「請求書」を作ります。①書類を選ぶ → ②始め方（お客様／履歴／新規）→ ③商品を入れる → 作成でPDFの見本が出ます。<b>特価で出したものは特価のまま請求できます（定価に戻りません）。</b></div>
   </div>
   <div class="card">
@@ -1126,6 +1126,13 @@ table.qi-items td{padding:7px 6px;border:1px solid #dcd6c8;vertical-align:middle
   <div class="card">
     <div class="fg"><label>作成者名</label><input type="text" id="qi-creator" placeholder="あなたのお名前"></div>
     <button class="btn btn-primary" style="width:100%;font-size:16px;font-weight:800;padding:14px" onclick="qiGenerate()">📄 見積書／請求書をつくる（PDF）</button>
+    <button class="btn-sm" style="width:100%;margin-top:8px;font-weight:700" onclick="qiRegisterCurrent()">⭐ このお客様を登録する（次から名前ですぐ呼び出せます）</button>
+  </div>
+
+  <div class="card" id="qi-history-card">
+    <div style="font-weight:800;margin-bottom:2px">🗂 見積・請求書 提出履歴</div>
+    <div style="font-size:12px;color:#6b6558;margin-bottom:8px;line-height:1.6">この人に「見積書」「請求書」のどちらを出したかが、1人1行でわかります。<b>見積書</b>／<b>請求書</b>のボタンを押すと、その内容を呼び戻して見返し・再PDFできます。</div>
+    <div id="qi-history-list"></div>
   </div>
 </div>
 
@@ -4535,7 +4542,7 @@ async function rasterizeSectionsToPdf(sections, landscape, filename){
 function downloadQuotePdf(record){
   // 価格一覧（2026-08-03 新pl9モジュール）は .pls-sheet で描画される。旧様式は .invoice-doc。どちらでも拾えるようにする。
   var plsSheets = Array.prototype.slice.call(document.querySelectorAll('#quote-doc-area .pls-sheet'));
-  const el = document.querySelector('#quote-doc-area .invoice-doc') || plsSheets[0] || null;
+  const el = document.querySelector('#quote-doc-area .invoice-doc') || document.querySelector('#quote-doc-area .qi-paper') || plsSheets[0] || null;
   if(!el){ alert((record&&(record.kind==='invoice'||record.kind==='both'))?'請求書が表示されていません':'見積書が表示されていません'); return; }
   if(typeof html2canvas==='undefined' || typeof jspdf==='undefined'){
     alert('PDFの部品がまだ読み込めていません。少し待ってから、もう一度押してください。'); return;
@@ -7241,6 +7248,7 @@ function qiGenerate(){
   if(typeof setPrintOrientation==='function') setPrintOrientation(false); // A4たて・1枚に収める
   if(typeof showQuoteDoc==='function'){ showQuoteDoc(doc, record); }
   else { var a=document.getElementById('quote-doc-area'); if(a){ a.innerHTML=doc; a.scrollIntoView({behavior:'smooth'}); } }
+  try{ qiRenderHistory(); }catch(e){}
 }
 // 履歴に未保存だった過去のPDF見積を、履歴に1件だけ復元する（存在すれば何もしない・冪等）
 // 久田様 旧ロット見積 QR-MIX-20260723-4182（PDFの内容から復元）
@@ -7272,7 +7280,61 @@ function qiSeedLegacyKuda(){
       estimateNo:MN, invoiceNo:'', issuedAt:'2026-07-23T00:00:00.000Z', creator:'', items:items });
   }catch(e){}
 }
-function qiInit(){ qiLoadAssets(); qiSeedLegacyKuda(); qiFillCustomers(); qiSetMode(QI.mode); [400,1200,2500].forEach(function(ms){ setTimeout(function(){ qiSeedLegacyKuda(); qiFillCustomers(); }, ms); }); }
+// 提出履歴を「1人（1管理番号）＝1行」でまとめて表示。見積書／請求書ボタンを併記
+function qiHistDocKey(r){ return qiNorm(r.estimateNo||r.invoiceNo||('id'+r.id)); }
+function qiRenderHistory(){
+  try{ qiSeedLegacyKuda(); }catch(e){}
+  var box=document.getElementById('qi-history-list'); if(!box) return;
+  var groups={}, order=[];
+  try{ (quoteHistory||[]).forEach(function(r){
+    if(!r) return;
+    var k=qiHistDocKey(r);
+    if(!groups[k]){ groups[k]={ mn:(r.estimateNo||r.invoiceNo||''), name:(r.customerName||r.contactPerson||'（宛名なし）'), quote:null, invoice:null, t:'' }; order.push(k); }
+    var g=groups[k];
+    if(r.kind==='invoice'){ if(!g.invoice || String(r.issuedAt||'')>String(g.invoice.issuedAt||'')) g.invoice=r; }
+    else if(r.kind==='both'){ if(!g.quote) g.quote=r; if(!g.invoice) g.invoice=r; }
+    else { if(!g.quote || String(r.issuedAt||'')>String(g.quote.issuedAt||'')) g.quote=r; }   // quote / pricelist ＝見積側
+    var tt=String(r.issuedAt||''); if(tt>g.t) g.t=tt;
+    if((g.name==='（宛名なし）') && (r.customerName||r.contactPerson)) g.name=r.customerName||r.contactPerson;
+  }); }catch(e){}
+  order.sort(function(a,b){ return String(groups[b].t).localeCompare(String(groups[a].t)); });
+  if(!order.length){ box.innerHTML='<div style="color:#8a8574;font-size:13px">まだ履歴はありません。見積書や請求書を作ると、ここに1人1行で残ります。</div>'; return; }
+  box.innerHTML=order.map(function(k){ var g=groups[k];
+    var qBtn=g.quote ? '<button class="btn-sm" style="font-weight:700" onclick="qiOpenHistory(\''+g.quote.id+'\',\'quote\')">📝 見積書</button>' : '<span style="font-size:11px;color:#b3ab99;padding:0 4px">見積書：なし</span>';
+    var iBtn=g.invoice ? '<button class="btn-sm" style="font-weight:700;background:#e3efe9;border-color:#0f5040;color:#0f5040" onclick="qiOpenHistory(\''+g.invoice.id+'\',\'invoice\')">🧾 請求書</button>' : '<span style="font-size:11px;color:#b3ab99;padding:0 4px">請求書：未</span>';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e8e2d8;border-radius:8px;padding:8px 12px;margin-bottom:6px;background:#fff">'+
+      '<div style="min-width:150px"><div style="font-weight:700">'+qiEsc(g.name)+'</div><div style="font-size:11px;color:#8a8574">'+qiEsc(g.mn||'')+'</div></div>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+qBtn+iBtn+'</div>'+
+    '</div>';
+  }).join('');
+}
+// 履歴の行から呼び戻して、編集画面に載せる（見返し・修正・再PDFできる）
+function qiOpenHistory(id, mode){
+  qiLoadFrom(id, true);
+  qiSetMode(mode==='invoice'?'invoice':'quote');
+  var top=document.getElementById('panel-quote2'); if(top) top.scrollIntoView({behavior:'smooth', block:'start'});
+}
+// いま対象の宛名をお客様として登録（次から名前で選べる）
+function qiRegisterCurrent(){
+  var nm=((document.getElementById('qi-recipient')||{}).value||'').trim();
+  var c=qiCustomer(); if(c && !nm) nm=String(c.name||'');
+  if(!nm){ alert('先にお客様を選ぶか、宛名を入れてください。'); return; }
+  var exists=false; try{ exists=(customers||[]).some(function(x){ return qiNorm(x.name)===qiNorm(nm) || qiNorm(x.contactPerson)===qiNorm(nm); }); }catch(e){}
+  if(exists){ alert('「'+nm+'」は既に登録済みです。'); qiFillCustomers(); qiRenderHistory(); return; }
+  try{
+    var id='c'+Date.now();
+    if(typeof customers==='undefined' || !Array.isArray(customers)) { alert('お客様データの読み込みが終わっていません。少し待ってからもう一度お試しください。'); return; }
+    customers.push({ id:id, name:nm, contactPerson:nm, companyName:'', type:'general' });
+    QI.custId=id;
+    if(typeof saveCustomersMerged==='function') saveCustomersMerged();
+    else if(typeof saveCustomers==='function') saveCustomers();
+  }catch(e){}
+  qiFillCustomers();
+  var sel=document.getElementById('qi-customer'); if(sel) sel.value=QI.custId;
+  qiRenderHistory();
+  alert('「'+nm+'」をお客様として登録しました。次からはお客様一覧から名前で選べます。');
+}
+function qiInit(){ qiLoadAssets(); qiSeedLegacyKuda(); qiFillCustomers(); qiRenderHistory(); qiSetMode(QI.mode); [400,1200,2500].forEach(function(ms){ setTimeout(function(){ qiSeedLegacyKuda(); qiFillCustomers(); qiRenderHistory(); }, ms); }); }
 document.addEventListener("DOMContentLoaded", function(){ try{ qiFillCustomers(); }catch(e){} });
 
 </script>
