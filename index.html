@@ -1268,6 +1268,7 @@ body{background:#fff}
   </div>
 
   <div id="holdview-list" class="holdview">
+  <div style="font-size:16px;font-weight:800;color:#33421f;background:#eef1e6;border:1px solid #c9d3b4;border-radius:10px;padding:10px 14px;margin-bottom:12px">📋 RT以外の取り置き・予約</div>
   <div id="hold-alert-area"></div>
   <div id="hold-batch-bar" style="display:none;align-items:center;gap:10px;background:#fff;border:1px solid #d6d6ce;border-radius:10px;padding:9px 11px;margin-bottom:12px">
     <span style="font-size:14px;font-weight:700"><span id="hold-selected-count">0</span>件を選択中</span>
@@ -1446,6 +1447,19 @@ body{background:#fff}
   <style>
     .rtm-tagwarn{font-size:9.5px;background:#fdeccd;border:1px solid #f0cf95;color:#9a5b12;border-radius:5px;padding:0 5px;margin-left:4px}
     .rtm-xl-warn{font-size:11.5px;background:#fff7ec;border:1px solid #f0d9ad;color:#8a5a13;border-radius:7px;padding:7px 9px;margin:6px 0;text-align:left;line-height:1.5}
+    .rtm-boxcalc{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;background:#f3f6ec;border:1px solid #cdd8b6;border-radius:9px;padding:5px 9px;font-size:12.5px;color:#4b5320;font-weight:700}
+    .rtm-boxcalc select{padding:5px 7px;border:1px solid #b9c19f;border-radius:7px;font-size:12.5px;max-width:200px}
+    .rtm-boxcalc input{width:80px;padding:5px 7px;border:1.5px solid #9d957f;border-radius:7px;font-size:14px;text-align:right;font-weight:800}
+    .rtm-bc-out{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:500;color:#333}
+    .rtm-bc-out .bc-field{display:inline-flex;flex-direction:column;align-items:center;border:1.5px solid #cdd8b6;border-radius:8px;padding:3px 12px;background:#fff;line-height:1.25}
+    .rtm-bc-out .bc-field .bc-lbl{font-size:10px;color:#7a7a6a;font-weight:700}
+    .rtm-bc-out .bc-field .bc-val{font-size:15px;color:#2b3a67;font-weight:800;white-space:nowrap}
+    .rtm-bc-out .bc-field.ok{border-color:#9dc3a6;background:#f2faf4}
+    .rtm-bc-out .bc-field.ok .bc-val{color:#1f7a34}
+    .rtm-bc-out .bc-field.part{border-color:#f0cf95;background:#fff8ec}
+    .rtm-bc-out .bc-field.part .bc-val{color:#b45309}
+    .rtm-bc-out .bc-note{font-size:11px;color:#8a857a;font-weight:600}
+    .rtm-bc-out .bc-muted{color:#8a857a;font-weight:500}
   </style>
 
   <!-- 施設↔施設の移動 -->
@@ -3612,14 +3626,8 @@ function rtmRender(){
   var root=document.getElementById('rtm-root'); if(!root) return;
   var allFac=rtmAllFacilities();
 
-  // 施設が1つも無い（顧客管理で系列RT全体が未設定）
-  if(!allFac.length){
-    root.innerHTML='<div class="rtm-empty">🏛 <b>RT全体の施設がまだありません。</b><br>「🛒 顧客管理」タブで施設の<b>系列＝「RT全体」</b>を設定すると、ここに列として並びます。<br>RT施設をまだ登録していない場合は、顧客管理の<b>「📥 RT全施設をまとめて登録」</b>から登録してください（自動で系列「RT全体」が入ります）。</div>';
-    return;
-  }
-
-  // 初回：列が空なら、受注Aの予約に出てくる施設で自動セット（無ければ全施設）
-  if(!st.cols.length){
+  // 初回：列が空で、かつ登録済み施設がある場合だけ、受注Aの予約に出てくる施設で自動セット（無ければ全施設）
+  if(!st.cols.length && allFac.length){
     var agg=rtmReservedFromOrders();
     var used={};
     Object.keys(agg).forEach(function(sku){ Object.keys(agg[sku]).forEach(function(cid){ if((+agg[sku][cid])>0) used[cid]=true; }); });
@@ -3637,6 +3645,7 @@ function rtmRender(){
   var prodOpts=(PRODUCTS||[]).filter(function(p){ return p&&p.sku&&!p.isSet&&p.group!=='資材'&&!st.q[p.sku]; })
      .map(function(p){ return '<option value="'+p.sku+'">'+esc(p.name)+'</option>'; }).join('');
   var addProdSel = prodOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddRow(this.value);this.value=\'\'"><option value="">＋商品を追加…</option>'+prodOpts+'</select>' : '';
+  var boxCalcOpts = rtmBoxCalcOptsHtml();
 
   var head=
    '<div class="rtm-note">🏛 <b>RT全体</b>の施設ごとに予約を入れ、<b>🔒取置</b>か<b>🛒残す</b>を打つと 予約(要輸入)＝予約合計−取置 が自動。数字は<b>この端末に保存</b>されます。<b>金額は統合マスタNの単価</b>で自動計算。</div>'+
@@ -3646,14 +3655,28 @@ function rtmRender(){
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
        '<button class="rtm-btn rtm-b-imp" onclick="rtmChooseImport()">📥 予約シート取込</button>'+
        '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 受注Aに反映（共有保存）</button>'+
-       '<button class="rtm-btn rtm-b-ghost" onclick="rtmRender()">🔄 最新の予約を反映</button>'+
      '</div>'+
-     '<div class="rtm-tool">'+addFacSel+addProdSel+'<button class="rtm-btn rtm-b-add" onclick="rtmOpenMove()">🔀 施設間で移動</button><button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
+     '<div class="rtm-tool">'+addFacSel+addProdSel+
+       '<span class="rtm-boxcalc">📦 箱を計算：'+
+         '<select id="rtm-bc-sku" onchange="rtmBoxCalcFill()">'+boxCalcOpts+'</select>'+
+         '<input id="rtm-bc-qty" type="number" min="0" inputmode="numeric" placeholder="本数" oninput="rtmBoxCalc()">'+
+         '<span id="rtm-bc-out" class="rtm-bc-out">商品を選ぶと予約合計から自動で計算します</span>'+
+       '</span>'+
+       '<button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
      '<div class="rtm-toolnote"><b>🔒取置</b>＝在庫からRT用に確保（他に売らない）／<b>🗓予約(要輸入)</b>＝輸入で用意する分／<b>🛒残す</b>＝在庫を他チャネルに残す。取置＋予約＝予約合計 になっていれば誤りなし。</div>'+
    '</div>'+
    '<div class="rtm-hqbar"><span class="rtm-hqname">🏨 施設ごとの予約</span><span class="rtm-hid">系列'+st.cols.length+'施設</span>'+
      '<span class="rtm-grand">総合計 <b id="rtm-grand">—</b> 本</span>'+
      '<span class="rtm-rev">💴 金額（予約合計×単価・税抜）：<b id="rtm-grandrev">—</b></span></div>';
+
+  // まだ施設の列が1つも無い時：ツールバーは必ず出したうえで、取込を促すヒントを表示（入り口が消えないように）
+  if(!st.cols.length){
+    root.innerHTML = head +
+      '<div class="rtm-empty" style="border-radius:0 0 12px 12px;margin-top:0">🏛 <b>まだ施設の列がありません。</b><br>'+
+      '上の <b>［📥 予約シート取込］</b> →<b>［📄 お客様のExcel（ご予約シート）から］</b> でExcelを読み込むと、<b>施設ごとの表がここにできます</b>（お客様のシートの施設と本数がそのまま並びます）。<br>'+
+      '<span style="color:#8a857a;font-size:12px">または「🛒顧客管理」で施設の系列＝「RT全体」を設定しておくと、その施設が最初から列に並びます。</span></div>';
+    return;
+  }
 
   var thead='<thead><tr><th class="name">商品（予約）</th>'+facHead+
     '<th class="tot">予約合計</th>'+
@@ -3778,6 +3801,36 @@ document.addEventListener('change', function(e){ var el=e.target; if(el&&el.clas
 
 function rtmFilter(){ rtmRenderBody(); }
 
+// ── 📦 箱を計算：本数 → 何箱と何本／ケース単位か（1箱の本数は商品ごとの boxQty）──
+function rtmBoxCalcOptsHtml(){
+  var opts='<option value="">商品を選ぶ…</option>';
+  rtmRowSkus().forEach(function(sku){
+    var p=findProductBySku(sku); var bq=(p&&p.boxQty)||1;
+    opts+='<option value="'+sku+'">'+esc(rtmProdName(sku))+'（1箱'+bq+'本）</option>';
+  });
+  return opts;
+}
+function rtmBoxCalcFill(){
+  var sel=document.getElementById('rtm-bc-sku'), qi=document.getElementById('rtm-bc-qty');
+  if(!sel||!qi) return;
+  if(sel.value) qi.value=rtmTotal(sel.value); // オーダーされた数（この商品の予約合計）を自動で入れる
+  rtmBoxCalc();
+}
+function rtmBoxCalc(){
+  var sel=document.getElementById('rtm-bc-sku'), qi=document.getElementById('rtm-bc-qty'), out=document.getElementById('rtm-bc-out');
+  if(!sel||!qi||!out) return;
+  var p=sel.value?findProductBySku(sel.value):null;
+  var qty=parseInt(qi.value); if(isNaN(qty)||qty<0) qty=0;
+  if(!p){ out.innerHTML='<span class="bc-muted">商品を選んで本数を入れてください</span>'; return; }
+  var bq=(p.boxQty)||1;
+  var boxes=Math.floor(qty/bq), rem=qty%bq, whole=(qty>0 && rem===0);
+  var boxText = qty===0 ? '—' : (whole ? boxes+'箱（ちょうど）' : boxes+'箱と'+rem+'本');
+  out.innerHTML=
+    '<span class="bc-field"><span class="bc-lbl">本数</span><span class="bc-val">'+qty+'本</span></span>'+
+    '<span class="bc-field '+(qty===0?'':(whole?'ok':'part'))+'"><span class="bc-lbl">箱計算</span><span class="bc-val">'+boxText+'</span></span>'+
+    '<span class="bc-note">1ケース'+bq+'本</span>';
+}
+
 // ── 列（施設）・行（商品）の増減 ──
 function rtmAddCol(cid){ var st=rtmS(); cid=String(cid); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); rtmPushHist('＋施設を追加：'+rtmFacName(cid)); rtmSave(st); } rtmRender(); }
 function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
@@ -3788,7 +3841,7 @@ function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
 }
 function rtmAddRow(sku){ var st=rtmS(); if(!st.q[sku]) st.q[sku]={}; rtmPushHist('＋商品を追加：'+rtmProdName(sku)); rtmSave(st); rtmRender(); }
 function rtmClearAll(){
-  if(!confirm('この端末のRT振り分け（施設・予約本数・取置・履歴）を全部リセットします。よろしいですか？')) return;
+  if(!confirm('⚠️ 本当にリセットしますか？\n\nこの端末のRT振り分け（施設の列・予約本数・取置・変更履歴）が全部消えます。元には戻せません。\n\nリセットする場合は「OK」、やめる場合は「キャンセル」を押してください。')) return;
   RTM={cols:[],q:{},alloc:{},hist:[]}; rtmSave(RTM); rtmRender();
 }
 
