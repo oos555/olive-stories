@@ -1417,6 +1417,22 @@ body{background:#fff}
       <div class="rtm-m-actions"><button class="rtm-cancel" onclick="rtmCloseOv('rtm-ov-imp')">やめる</button><button class="rtm-ok" onclick="rtmApplyImport()">この内容で反映</button></div>
     </div>
   </div>
+
+  <!-- 施設↔施設の移動 -->
+  <div class="rtm-ov" id="rtm-ov-move">
+    <div class="rtm-modal" style="max-width:440px">
+      <h3 style="font-size:16px;margin-bottom:8px">🔀 施設から施設へ移動</h3>
+      <div style="font-size:12px;color:#6b6558;margin-bottom:10px">ある施設の予約を別の施設へ<b>本数を移す</b>だけ（例：鳴門→京都へ20本）。<b>予約合計・要輸入は変わりません</b>（振り分けを変えるだけ）。</div>
+      <div class="fg" style="margin-bottom:8px"><label>商品</label><select id="rtm-mv-sku" onchange="rtmMoveSync()" style="width:100%;padding:9px 10px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px"></select></div>
+      <div class="g2" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="fg" style="margin:0"><label>移動元（この施設から）</label><select id="rtm-mv-from" onchange="rtmMoveSync()" style="width:100%;padding:9px 10px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px"></select></div>
+        <div class="fg" style="margin:0"><label>移動先（この施設へ）</label><select id="rtm-mv-to" style="width:100%;padding:9px 10px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px"></select></div>
+      </div>
+      <div class="fg" style="margin-bottom:6px"><label>本数（移す数）<span id="rtm-mv-avail" style="color:#8a6d3f;font-size:11px"></span></label><input id="rtm-mv-qty" type="number" min="0" style="width:120px;padding:9px 10px;border:1.5px solid #9d957f;border-radius:8px;font-size:16px;text-align:right;font-weight:800"></div>
+      <div id="rtm-mv-msg" style="font-size:12.5px;min-height:18px"></div>
+      <div class="rtm-m-actions"><button class="rtm-cancel" onclick="rtmCloseOv('rtm-ov-move')">やめる</button><button class="rtm-ok" onclick="rtmDoMove()">この内容で移動</button></div>
+    </div>
+  </div>
 </div>
 
 <!-- 出荷依頼書・納品書 -->
@@ -3443,8 +3459,8 @@ function isReservedOverdue(o){ const d = daysUntil(o.expectedDate); return d!==n
 function isReservedDueSoon(o){ const d = daysUntil(o.expectedDate); return d!==null && d>=0 && d<=3; }
 
 function renderHoldPreAlerts(){
-  const heldOrders = orders.filter(o=>o.status==='held');
-  const reservedOrders = orders.filter(o=>o.status==='reserved');
+  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned);
+  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned);
   const overdueHeld = heldOrders.filter(isHeldOverdue);
   const soonHeld = heldOrders.filter(isHeldDueSoon);
   const overdueRes = reservedOrders.filter(isReservedOverdue);
@@ -3599,9 +3615,10 @@ function rtmRender(){
      '<div class="rtm-tool">'+
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
        '<button class="rtm-btn rtm-b-imp" onclick="rtmOpenImport()">📥 予約シート取込</button>'+
+       '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 受注Aに反映（共有保存）</button>'+
        '<button class="rtm-btn rtm-b-ghost" onclick="rtmRender()">🔄 最新の予約を反映</button>'+
      '</div>'+
-     '<div class="rtm-tool">'+addFacSel+addProdSel+'<button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
+     '<div class="rtm-tool">'+addFacSel+addProdSel+'<button class="rtm-btn rtm-b-add" onclick="rtmOpenMove()">🔀 施設間で移動</button><button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
      '<div class="rtm-toolnote"><b>🔒取置</b>＝在庫からRT用に確保（他に売らない）／<b>🗓予約(要輸入)</b>＝輸入で用意する分／<b>🛒残す</b>＝在庫を他チャネルに残す。取置＋予約＝予約合計 になっていれば誤りなし。</div>'+
    '</div>'+
    '<div class="rtm-hqbar"><span class="rtm-hqname">🏨 施設ごとの予約</span><span class="rtm-hid">系列'+st.cols.length+'施設</span>'+
@@ -3792,7 +3809,7 @@ function rtmBuildHeldOrders(sku, H){
       status:'held', holdUntilDate:'', expectedDate:'',
       paymentMode:'later', paymentConfirmed:false, notified:false,
       note:'RT振り分け・取り置き（系列RT全体）', source:'rtm',
-      rtmOwned:true, rtmSku:sku, rtmFac:String(cid),
+      rtmOwned:true, rtmKind:'held', rtmSku:sku, rtmFac:String(cid),
       registeredAt:new Date().toISOString()
     };
     orders.push(o); made.push(o);
@@ -3850,6 +3867,86 @@ function rtmApplyImport(){
 }
 function rtmCloseOv(id){ var el=document.getElementById(id); if(el) el.classList.remove('on'); }
 document.addEventListener('click', function(e){ if(e.target&&e.target.classList&&e.target.classList.contains('rtm-ov')) e.target.classList.remove('on'); });
+
+// ── 🔀 施設↔施設の移動（予約合計・要輸入は不変。振り分けだけ変える）──
+function rtmMoveSku(){ var s=document.getElementById('rtm-mv-sku'); return s?s.value:''; }
+function rtmOpenMove(){
+  var st=rtmS();
+  var skus=rtmRowSkus().filter(function(s){ return !(st.alloc[s]&&st.alloc[s].reflected); });
+  if(!skus.length){ alert('移動できる商品がありません（取り置き登録済みは先に↩やり直してください）。'); return; }
+  document.getElementById('rtm-mv-sku').innerHTML=skus.map(function(s){ return '<option value="'+s+'">'+esc(rtmProdName(s))+'</option>'; }).join('');
+  document.getElementById('rtm-mv-qty').value='';
+  document.getElementById('rtm-mv-msg').innerHTML='';
+  rtmMoveSync();
+  document.getElementById('rtm-ov-move').classList.add('on');
+}
+function rtmMoveSync(){
+  var st=rtmS(); var sku=rtmMoveSku(); var m=st.q[sku]||{};
+  var from=document.getElementById('rtm-mv-from'), to=document.getElementById('rtm-mv-to');
+  var curFrom=from.value;
+  from.innerHTML=st.cols.map(function(cid){ return '<option value="'+cid+'">'+esc(rtmFacName(cid))+'（'+(+m[cid]||0)+'本）</option>'; }).join('');
+  if(curFrom && st.cols.indexOf(curFrom)>=0) from.value=curFrom;
+  var fromV=from.value;
+  to.innerHTML=st.cols.filter(function(cid){ return cid!==fromV; }).map(function(cid){ return '<option value="'+cid+'">'+esc(rtmFacName(cid))+'（'+(+m[cid]||0)+'本）</option>'; }).join('');
+  document.getElementById('rtm-mv-avail').textContent='（移動元にある：'+(+m[fromV]||0)+'本まで）';
+}
+function rtmDoMove(){
+  var st=rtmS(); var sku=rtmMoveSku();
+  var from=document.getElementById('rtm-mv-from').value, to=document.getElementById('rtm-mv-to').value;
+  var qty=parseInt(document.getElementById('rtm-mv-qty').value)||0;
+  var msg=document.getElementById('rtm-mv-msg');
+  if(!from||!to||from===to){ msg.innerHTML='<span style="color:#b91c1c;font-weight:700">移動元と移動先を別の施設にしてください</span>'; return; }
+  if(qty<=0){ msg.innerHTML='<span style="color:#b91c1c;font-weight:700">移す本数を入れてください</span>'; return; }
+  var m=st.q[sku]||(st.q[sku]={}); var avail=(+m[from]||0);
+  if(qty>avail){ msg.innerHTML='<span style="color:#b91c1c;font-weight:700">移動元は'+avail+'本までです</span>'; return; }
+  m[from]=avail-qty; m[to]=(+m[to]||0)+qty;
+  if(st.alloc[sku]) st.alloc[sku].confirmed=false;
+  rtmSave(st);
+  rtmPushHist('🔀 移動 '+rtmProdName(sku)+'：'+rtmFacName(from)+'→'+rtmFacName(to)+' '+qty+'本');
+  rtmCloseOv('rtm-ov-move'); rtmRender();
+}
+
+// ── 📤 受注Aに反映（共有保存）：施設ごとの予約を受注Aの reserved 注文にして共有シートへ ──
+// この表がRT予約の“正”になる。既存のRT施設の非rtm予約は soft-delete で置き換え（recoverable）。
+function rtmPushToOrders(){
+  var st=rtmS();
+  var facLines={}; st.cols.forEach(function(cid){ facLines[cid]=[]; });
+  var totalBottles=0;
+  rtmRowSkus().forEach(function(sku){
+    var m=st.q[sku]||{};
+    st.cols.forEach(function(cid){ var v=(+m[cid]||0); if(v>0){ facLines[cid].push({sku:sku,qty:v}); totalBottles+=v; } });
+  });
+  var facCount=st.cols.filter(function(cid){ return facLines[cid].length; }).length;
+  if(!facCount){ alert('反映する予約がありません（どの施設にも本数が入っていません）。'); return; }
+  var facSet={}; st.cols.forEach(function(cid){ facSet[String(cid)]=true; });
+  var supersede=(orders||[]).filter(function(o){ return o&&o.status==='reserved'&&!o.rtmOwned&&o.custId&&facSet[String(o.custId)]; });
+  if(!confirm('【この振り分けを受注Aの「予約」として保存します（共有）】\n\n・施設'+facCount+'件／計'+totalBottles+'本を受注Aの予約に登録\n・同じRT施設の既存予約 '+supersede.length+'件は、この表の内容に置き換えます（キャンセル＝あとで戻せます）\n・以後この表がRT予約の“正”。他の端末・アプリからも同じ数字が見えます\n\nよろしいですか？')) return;
+  var changed=[];
+  supersede.forEach(function(o){ o.status='cancelled'; o.cancelledAt=new Date().toISOString(); o.rtmSuperseded=true; changed.push(o); });
+  (orders||[]).filter(function(o){ return o&&o.rtmOwned&&o.rtmKind==='reserved'&&o.status==='reserved'; }).forEach(function(o){ o.status='cancelled'; o.cancelledAt=new Date().toISOString(); changed.push(o); });
+  st.cols.forEach(function(cid){
+    var lines=facLines[cid]; if(!lines.length) return;
+    var c=(customers||[]).find(function(x){ return String(x.id)===String(cid); }) || {name:cid,id:cid};
+    var o={
+      id: generateOrderId(), num: nextOrderNum(0, c.type||'rt'),
+      client:c.name, custId:c.id||'', customerType:c.type||'rt',
+      recipientName:c.name, isCompany:false, zip:c.zip||'', addr:c.addr||'', tel:c.tel||'',
+      lines: lines.map(function(x){ var p=findProductBySku(x.sku); return {productId:p?p.id:null, productName:p?p.name:x.sku, bottles:x.qty, boxes:0, boxQty:(p&&p.boxQty)||1, giftType:'none'}; }),
+      status:'reserved', holdUntilDate:'', expectedDate:'',
+      paymentMode:'later', paymentConfirmed:false, notified:false,
+      note:'RT振り分け・予約（系列RT全体）', source:'rtm',
+      rtmOwned:true, rtmKind:'reserved', rtmFac:String(cid),
+      registeredAt:new Date().toISOString()
+    };
+    orders.push(o); changed.push(o);
+  });
+  if(changed.length && typeof syncOrdersToGAS==='function') syncOrdersToGAS(changed);
+  if(typeof renderHoldPreLists==='function') renderHoldPreLists();
+  rtmPushHist('📤 受注Aに反映：予約'+totalBottles+'本／'+facCount+'施設を登録（既存'+supersede.length+'件を置換）');
+  rtmSave(st);
+  alert('✅ 受注Aに反映しました（予約'+totalBottles+'本／'+facCount+'施設）。\nこの表の予約が受注Aの“正”になりました。');
+  rtmRender();
+}
 
 function ghSellableProducts(){ return PRODUCTS.filter(function(p){ return p && p.sku && p.group!=='資材'; }); }
 var ghLineSeq=0;
@@ -3962,8 +4059,8 @@ function addGeneralHold(){
 
 function renderHoldPreLists(){
   renderHoldPreAlerts();
-  const heldOrders = orders.filter(o=>o.status==='held');
-  const reservedOrders = orders.filter(o=>o.status==='reserved');
+  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned);
+  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned);
   document.getElementById('held-count').textContent = heldOrders.length;
   document.getElementById('reserved-count').textContent = reservedOrders.length;
 
