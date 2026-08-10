@@ -332,6 +332,8 @@
       <span class="ab-open">お庭をひらく <span id="ab-caret">▼</span></span>
     </button>
     <div id="alert-garden" class="alert-garden" style="display:none"></div>
+    <!-- 取り置き・予約が今いくつあるか（常設・小さな黒文字） -->
+    <div id="hold-note" style="display:none;margin-top:10px;font-size:12px;color:#2b2a26;line-height:1.7"></div>
   </div>
 
   <!-- ── アラートガーデンの説明書（なぜ光る？）── -->
@@ -477,6 +479,7 @@
      ・前回取れた内容は端末に控え、次に開いたとき先に出す（体感が速い）      */
   const ALERTS_CACHE_KEY = 'oos_alerts_cache_v1';
   let alertGardenOpen = false;
+  // アラートの注入元：window.__oosExtraNow（売上C）／window.__oosHoldNow・__oosHoldSoon（取り置き期限）
   // 見本（?demo=1 で開いたときだけ表示。中身は例。実際はGASの頭脳ができたら本物の数字が入る）
   const DEMO_ALERTS = {
     now:  [{href:'index.html', label:'バサラ：読めなかった注文', count:2},
@@ -507,7 +510,8 @@
     const cached = alertsFromCache();
     if(cached) renderAlerts(cached); // まず前回の内容をすぐ出す
     loadAlerts();                    // そのあと最新を取りに行く
-    computeOverdueAndMerge();        // 売上C（M請求書）の支払期限ごえ・未入金を玄関にも出す
+    computeOverdueAndMerge();        // 売上C（M請求書）の支払期限ごえ・未入金
+    computeHoldAlerts();             // 注文から「取り置き期限」を算出して玄関に出す（GAS非依存）
   }
   async function loadAlerts(){
     try{
@@ -521,6 +525,8 @@
   }
   // ── 売上C（M請求書）の「支払期限ごえ・未入金」を玄関でも自前計算して出す ──
   window.__oosExtraNow = window.__oosExtraNow || [];
+  window.__oosHoldNow  = window.__oosHoldNow || [];   // 取り置き期限切れ（玄関に注入）
+  window.__oosHoldSoon = window.__oosHoldSoon || [];  // 取り置き期限3日前（玄関に注入）
   function __oosDateJa(s){ var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
   async function computeOverdueAndMerge(){
     try{
@@ -542,11 +548,48 @@
       renderAlerts(window.__lastAlertBase || {});
     }catch(e){ /* GASが未応答のときはそっと従来通り */ }
   }
+  // 取り置き・予約が今いくつあるか（常設・小さな黒文字）。期限が迫る/過ぎたものは括弧で添える。
+  function renderHoldNote(heldCount, reservedCount, overdue, soon){
+    var el = document.getElementById('hold-note'); if(!el) return;
+    if((heldCount||0)<=0 && (reservedCount||0)<=0){ el.style.display='none'; return; }
+    var parts = [];
+    if(heldCount>0)     parts.push('🗄 取り置き商品 '+heldCount+'件');
+    if(reservedCount>0) parts.push('🗓 予約商品 '+reservedCount+'件');
+    var extra = '';
+    var e2 = [];
+    if(soon>0)    e2.push('期限3日以内 '+soon+'件');
+    if(overdue>0) e2.push('期限切れ '+overdue+'件');
+    if(e2.length) extra = '（'+e2.join('・')+'）';
+    el.innerHTML = 'いま ' + parts.join('・') + ' があります。' + extra;
+    el.style.display = 'block';
+  }
+  async function computeHoldAlerts(){
+    try{
+      const res = await fetch(GAS_URL + '?action=loadAll&_=' + new Date().getTime(), {cache:'no-store'});
+      const data = await res.json();
+      const orders = (data && data.status==='ok' && data.data && data.data.orders) ? data.data.orders : [];
+      const today = new Date(); today.setHours(0,0,0,0);
+      let overdue=0, soon=0, heldCount=0, reservedCount=0;
+      orders.forEach(function(o){
+        if(!o) return;
+        if(o.status==='held'){
+          heldCount++;
+          if(o.holdUntilDate){ var due=new Date(o.holdUntilDate); if(!isNaN(due)){ due.setHours(0,0,0,0); var d=Math.round((due-today)/86400000); if(d<0) overdue++; else if(d<=3) soon++; } }
+        } else if(o.status==='reserved'){ reservedCount++; }
+      });
+      window.__oosHoldNow  = overdue>0 ? [{href:'index.html', label:'取り置き期限が過ぎています', count:overdue}] : [];
+      window.__oosHoldSoon = soon>0    ? [{href:'index.html', label:'取り置き期限3日前が迫っています', count:soon}] : [];
+      renderAlerts(window.__lastAlertBase || {});
+      renderHoldNote(heldCount, reservedCount, overdue, soon);
+    }catch(e){ /* 取れなければ玄関は今まで通り（壊れない） */ }
+  }
   function alertBucketCount(list){ let n=0; (list||[]).forEach(function(x){ n += (parseInt(x.count,10)||1); }); return n; }
   function renderAlerts(d){
     d = d || {};
     window.__lastAlertBase = d;
-    const now = (d.now||[]).concat(window.__oosExtraNow||[]), soon = d.soon||[], watch = d.watch||[];
+    const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]);
+    const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]);
+    const watch = d.watch||[];
     const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
     const total = cNow + cSoon + cWatch;
     // アプリの点は毎回リセットしてから付け直す

@@ -45,6 +45,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .tab.active{background:#fff;color:#2b2a26;font-weight:700;border-bottom:2px solid #55622e}
 .panel{display:none}
 .panel.active{display:block}
+.hold-subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.hold-subtabs .hsub{border:1.5px solid #cfc8b8;background:#fff;border-radius:9px;padding:8px 13px;font-size:13px;font-weight:700;color:#6b6558;cursor:pointer}
+.hold-subtabs .hsub.on{background:#55622e;color:#fff;border-color:#55622e}
+.gh-form{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.gh-kind{display:flex;gap:8px}
+.gh-kind label{display:flex;align-items:center;gap:6px;border:1.5px solid #cfc8b8;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:14px;background:#fff}
+.gh-kind label.on{border-color:#6b7a3a;background:#f3f6ec;color:#33421f}
+.gh-cbadge{font-size:11px;font-weight:800;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.gh-cbadge.rt{background:#e3eef8;color:#1f4a6d;border:1px solid #bdd7ec}
+.gh-cbadge.oroshi{background:#f3e8d6;color:#8a6d3f;border:1px solid #e2cfa8}
+.gh-cbadge.gen{background:#eef0e5;color:#55622e;border:1px solid #d3ddb8}
+.gh-line{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px;background:#faf8f2;border:1px solid #eee7d8;border-radius:9px;padding:8px 10px}
+.gh-line select,.gh-line input{padding:7px 8px;border:1.5px solid #9d957f;border-radius:7px;font-size:14px;background:#fff}
+.gh-line .unit{font-size:12.5px;color:#6b6558}
+.gh-line .gh-l-total{font-weight:800;color:#33421f;margin-left:auto}
+.gh-del{border:1px solid #e6b4b4;background:#fff;color:#9a3b3b;border-radius:6px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer}
 .card{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
 .sec{font-size:14px;font-weight:700;margin:0 0 12px}
 .info-box{background:#f9f8f5;border-radius:8px;padding:11px 14px;font-size:13px;color:#2b2a26;line-height:1.6;margin-bottom:1rem;border:1px solid #e8e2d8}
@@ -1244,6 +1260,14 @@ body{background:#fff}
       <div>③ 出す時が来たら<b>「出荷依頼書へ」</b>。チェックを付ければ<b>まとめて</b>進められます。</div>
     </div>
   </details>
+
+  <div class="hold-subtabs">
+    <button class="hsub on" id="hsub-list" onclick="switchHoldView('list')">📋 一覧（取り置き・予約）</button>
+    <button class="hsub" id="hsub-ippan" onclick="switchHoldView('ippan')">🏨 一般のお客様を追加</button>
+    <button class="hsub" id="hsub-rt" onclick="switchHoldView('rt')">🏛 RT</button>
+  </div>
+
+  <div id="holdview-list" class="holdview">
   <div id="hold-alert-area"></div>
   <div id="hold-batch-bar" style="display:none;align-items:center;gap:10px;background:#fff;border:1px solid #d6d6ce;border-radius:10px;padding:9px 11px;margin-bottom:12px">
     <span style="font-size:14px;font-weight:700"><span id="hold-selected-count">0</span>件を選択中</span>
@@ -1253,6 +1277,56 @@ body{background:#fff}
   <div id="held-order-list"></div>
   <div class="sec" style="margin-top:1.5rem">🗓 予約中（<span id="reserved-count">0</span>件）</div>
   <div id="reserved-order-list"></div>
+  </div><!-- /holdview-list -->
+
+  <!-- 🏨 一般のお客様を追加（複数商品・箱＋本・支払い・メモ対応） -->
+  <div id="holdview-ippan" class="holdview" style="display:none">
+    <div class="sec">＋ 取り置き・予約を追加（一般のお客様）</div>
+    <div style="background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:14px">
+      <div class="gh-form">
+        <div class="fg" style="min-width:210px"><label>お客様</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="gh-cust" onchange="ghOnCust()"><option value="">選択…</option></select>
+            <span id="gh-ctype-badge"></span>
+          </div>
+        </div>
+        <div class="fg"><label>種別</label>
+          <div class="gh-kind">
+            <label id="gh-k-held" class="on"><input type="radio" name="gh-kind" value="held" checked onchange="ghOnKind()">🗄 取り置き</label>
+            <label id="gh-k-res"><input type="radio" name="gh-kind" value="reserved" onchange="ghOnKind()">🗓 予約</label>
+          </div></div>
+        <div class="fg" style="min-width:170px"><label id="gh-date-lbl">取り置き期限（いつまで）</label><input id="gh-date" type="date"></div>
+      </div>
+
+      <div style="margin-top:12px"><label style="font-size:13px;font-weight:700;color:#33421f">商品（複数OK・箱＋本で入力／合計本数を表示）</label></div>
+      <div id="gh-lines"></div>
+      <button class="btn" style="background:#eef1e6;border:1px solid #c9d3b4;color:#33421f;font-weight:700;margin-top:8px" onclick="ghAddLine()">＋ 商品を追加</button>
+
+      <div class="gh-form" style="margin-top:14px">
+        <div class="fg"><label>支払い</label>
+          <div class="gh-kind">
+            <label id="gh-pay-un" class="on"><input type="radio" name="gh-pay" value="later" checked onchange="ghOnPay()">未払い</label>
+            <label id="gh-pay-done"><input type="radio" name="gh-pay" value="paid" onchange="ghOnPay()">支払い済み</label>
+          </div></div>
+      </div>
+      <div class="fg" style="margin-top:10px"><label>備考メモ（連絡先・入金日など）</label>
+        <textarea id="gh-note" rows="2" placeholder="例：電話 090-xxxx-xxxx／8月9日 入金済み" style="width:100%;padding:9px 10px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px"></textarea></div>
+
+      <div style="font-size:11.5px;color:#8a857a;margin-top:8px">💡 大口で在庫が足りないときは、<b>取り置き（在庫分）</b>で1回、<b>予約（残り）</b>でもう1回 追加＝手で分けます。</div>
+      <div style="text-align:right;margin-top:12px"><button class="btn" style="background:#55622e;color:#fff;border:none;font-weight:800" onclick="addGeneralHold()">＋ この内容で追加</button></div>
+      <div id="gh-msg" style="font-size:13px;margin-top:8px"></div>
+    </div>
+    <div style="font-size:12px;color:#8a857a;margin-top:10px">追加した分は「📋 一覧」に入り、期限アラート・出荷依頼書へ の対象になります。</div>
+  </div>
+
+  <!-- 🏛 RT（次の増分で振り分けマトリクスを実装） -->
+  <div id="holdview-rt" class="holdview" style="display:none">
+    <div class="sec">🏛 RT 取り置き・予約（振り分け）</div>
+    <div style="background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:16px;font-size:13px;color:#5c574c;line-height:1.8">
+      RT（リゾートトラスト）の<b>施設ごとの振り分け</b>（🔒取置／🗓予約／🛒在庫として残す → 確定 → 在庫マスターに反映）は、<b>次の増分で実装予定</b>です。<br>
+      今は動くモックで確認できます：<b>mock_hq_matrix.html</b>
+    </div>
+  </div>
 </div>
 
 <!-- 出荷依頼書・納品書 -->
@@ -3281,6 +3355,123 @@ function renderHoldPreAlerts(){
   const badgeCount = overdueHeld.length + soonHeld.length + overdueRes.length + soonRes.length;
   const badge = document.getElementById('hold-tab-badge');
   if(badge) badge.innerHTML = badgeCount ? ' <span style="background:#dc2626;color:#fff;border-radius:99px;padding:1px 6px;font-size:10px">'+badgeCount+'</span>' : '';
+}
+
+// ── 取り置き・予約タブ：サブビュー切替（一覧／一般追加／RT）──
+function switchHoldView(v){
+  ['list','ippan','rt'].forEach(function(k){
+    var el=document.getElementById('holdview-'+k); if(el) el.style.display=(k===v)?'block':'none';
+    var b=document.getElementById('hsub-'+k); if(b) b.classList.toggle('on', k===v);
+  });
+  if(v==='ippan') ghInit();
+}
+function ghSellableProducts(){ return PRODUCTS.filter(function(p){ return p && p.sku && p.group!=='資材'; }); }
+var ghLineSeq=0;
+function ghInit(){
+  var cs=document.getElementById('gh-cust');
+  if(cs && cs.options.length<=1){
+    (customers||[]).slice().sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''),'ja'); }).forEach(function(c){
+      var o=document.createElement('option'); o.value=c.id; o.textContent=(c.name||''); cs.appendChild(o);
+    });
+  }
+  if(document.querySelectorAll('#gh-lines .gh-line').length===0) ghAddLine();
+}
+var GH_CTYPE_LABEL={ general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT・ホテル', rtgc:'RTGC・ゴルフ', defectprice:'特価' };
+function ghOnCust(){
+  var cid=document.getElementById('gh-cust').value;
+  var badge=document.getElementById('gh-ctype-badge'); if(!badge) return;
+  var c=(customers||[]).find(function(x){ return x.id==cid; });
+  if(!c){ badge.innerHTML=''; return; }
+  var t=c.type||'general', lbl=GH_CTYPE_LABEL[t]||t;
+  var cls=(t==='rt'||t==='rtgc')?'rt':(t==='wholesale1'||t==='wholesale2')?'oroshi':'gen';
+  var price=(t==='rt'||t==='rtgc')?'RT価格':(t==='wholesale1'||t==='wholesale2')?'卸価格':'定価';
+  badge.innerHTML='<span class="gh-cbadge '+cls+'">'+lbl+'</span> <span style="font-size:11px;color:#8a857a">→ '+price+'</span>'+(c.tel?' <span style="font-size:11px;color:#8a857a">☎ '+c.tel+'</span>':'');
+}
+function ghKind(){ var r=document.querySelector('input[name=gh-kind]:checked'); return r?r.value:'held'; }
+function ghOnKind(){
+  var h=ghKind()==='held';
+  var kh=document.getElementById('gh-k-held'), kr=document.getElementById('gh-k-res');
+  if(kh) kh.classList.toggle('on',h); if(kr) kr.classList.toggle('on',!h);
+  var lbl=document.getElementById('gh-date-lbl'); if(lbl) lbl.textContent = h?'取り置き期限（いつまで）':'お届け予定日';
+  document.querySelectorAll('#gh-lines .gh-line').forEach(function(row){ ghLineCalc(+row.dataset.id); });
+}
+function ghOnPay(){
+  var paid=((document.querySelector('input[name=gh-pay]:checked')||{}).value)==='paid';
+  var u=document.getElementById('gh-pay-un'), d=document.getElementById('gh-pay-done');
+  if(u) u.classList.toggle('on',!paid); if(d) d.classList.toggle('on',paid);
+}
+function ghAddLine(){
+  var id=++ghLineSeq;
+  var opts='<option value="">商品…</option>'+ghSellableProducts().map(function(p){ return '<option value="'+p.sku+'">'+p.name+'</option>'; }).join('');
+  var div=document.createElement('div'); div.className='gh-line'; div.dataset.id=id;
+  div.innerHTML='<select class="gh-l-prod" onchange="ghLineCalc('+id+')">'+opts+'</select>'+
+    '<input class="gh-l-box" type="number" min="0" placeholder="0" style="width:58px" oninput="ghLineCalc('+id+')"><span class="unit">箱</span>'+
+    '<span class="unit">＋</span><input class="gh-l-btl" type="number" min="0" placeholder="0" style="width:58px" oninput="ghLineCalc('+id+')"><span class="unit">本</span>'+
+    '<span class="gh-l-total">＝ 計 0本</span>'+
+    '<span class="gh-l-stock" style="font-size:11.5px;color:#8a857a;flex-basis:100%"></span>'+
+    '<button class="gh-del" onclick="ghRemoveLine('+id+')">✕</button>';
+  document.getElementById('gh-lines').appendChild(div);
+}
+function ghRemoveLine(id){
+  var row=document.querySelector('#gh-lines .gh-line[data-id="'+id+'"]'); if(row) row.remove();
+  if(document.querySelectorAll('#gh-lines .gh-line').length===0) ghAddLine();
+}
+function ghLineCalc(id){
+  var row=document.querySelector('#gh-lines .gh-line[data-id="'+id+'"]'); if(!row) return;
+  var sku=row.querySelector('.gh-l-prod').value;
+  var p=PRODUCTS.find(function(x){ return x.sku===sku; });
+  var bq=(p&&p.boxQty)||1;
+  var box=parseInt(row.querySelector('.gh-l-box').value)||0;
+  var btl=parseInt(row.querySelector('.gh-l-btl').value)||0;
+  var total=box*bq+btl;
+  row.querySelector('.gh-l-total').textContent='＝ 計 '+total+'本'+(p?'（1箱='+bq+'本）':'');
+  var st=row.querySelector('.gh-l-stock');
+  if(sku && ghKind()==='held'){
+    var avail=computeAvailable(sku); if(avail===null||avail===undefined) avail=0;
+    if(total>avail) st.innerHTML='<span style="color:#b91c1c;font-weight:700">⚠️ 取り置き'+total+'本は在庫'+avail+'本を超過。'+avail+'本までにして残りは予約へ</span>';
+    else st.innerHTML='販売可能在庫 '+avail+'本 <span style="color:#a49e90">（在庫マスター在庫リストより）</span>';
+  } else if(st){ st.innerHTML=''; }
+}
+function addGeneralHold(){
+  var cid=document.getElementById('gh-cust').value;
+  var date=document.getElementById('gh-date').value;
+  var kind=ghKind();
+  var note=(document.getElementById('gh-note').value||'').trim();
+  var paid=((document.querySelector('input[name=gh-pay]:checked')||{}).value)==='paid';
+  var msg=document.getElementById('gh-msg');
+  function err(t){ msg.innerHTML='<span style="color:#b91c1c;font-weight:700">'+t+'</span>'; }
+  if(!cid) return err('お客様を選んでください');
+  var lines=[], over=[];
+  document.querySelectorAll('#gh-lines .gh-line').forEach(function(row){
+    var sku=row.querySelector('.gh-l-prod').value; if(!sku) return;
+    var p=PRODUCTS.find(function(x){ return x.sku===sku; }); var bq=(p&&p.boxQty)||1;
+    var box=parseInt(row.querySelector('.gh-l-box').value)||0;
+    var btl=parseInt(row.querySelector('.gh-l-btl').value)||0;
+    var total=box*bq+btl; if(total<=0) return;
+    if(kind==='held'){ var avail=computeAvailable(sku)||0; if(total>avail) over.push((p?p.name:sku)+'（在庫'+avail+'／取置'+total+'）'); }
+    lines.push({ productId:p?p.id:null, productName:p?p.name:sku, bottles:btl, boxes:box, boxQty:bq, giftType:'none' });
+  });
+  if(!lines.length) return err('商品と数量（箱か本）を入れてください');
+  if(!date) return err((kind==='held'?'取り置き期限':'お届け予定日')+'を入れてください');
+  if(over.length) return err('取り置きが在庫超過：'+over.join('、')+'。超過分は「予約」で足してください。');
+  var c=(customers||[]).find(function(x){ return x.id==cid; }) || {name:cid, id:cid};
+  var o={
+    id: generateOrderId(), num: nextOrderNum(0, c.type||'general'),
+    client:c.name, custId:c.id||'', customerType:c.type||'general',
+    recipientName:c.name, isCompany:false,
+    zip:c.zip||'', addr:c.addr||'', tel:c.tel||'',
+    lines:lines, status:kind,
+    holdUntilDate: kind==='held'?date:'', expectedDate: kind==='reserved'?date:'',
+    paymentMode: paid?'paid':'later', paymentConfirmed: paid, notified:false,
+    note: note, source:'manual', registeredAt:new Date().toISOString()
+  };
+  orders.push(o);
+  if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+  renderHoldPreLists();
+  var tot=lines.reduce(function(a,l){ return a+(l.bottles+l.boxes*l.boxQty); },0);
+  msg.innerHTML='<span style="color:#2f6b2f;font-weight:800">✅ 追加しました：'+c.name+'／'+lines.length+'商品・計'+tot+'本（'+(kind==='held'?'取り置き':'予約')+(paid?'・支払済':'・未払い')+'）→「📋 一覧」へ</span>';
+  document.getElementById('gh-lines').innerHTML=''; ghAddLine();
+  document.getElementById('gh-date').value=''; document.getElementById('gh-note').value='';
 }
 
 function renderHoldPreLists(){
