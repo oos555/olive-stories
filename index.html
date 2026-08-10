@@ -1418,6 +1418,36 @@ body{background:#fff}
     </div>
   </div>
 
+  <!-- 📥 取り込み元の選択（お客様のExcel / 受注Aの予約）-->
+  <div class="rtm-ov" id="rtm-ov-choose">
+    <div class="rtm-modal" style="max-width:470px">
+      <h3 style="font-size:16px;margin-bottom:8px">📥 予約シートの取り込み</h3>
+      <div style="font-size:12.5px;color:#6b6558;margin-bottom:14px">どちらから施設ごとの予約本数を読み込みますか？<br><b>どちらも「この内容で反映」を押すまで表は変わりません。</b></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="rtm-ok" style="text-align:left;padding:12px 14px;font-size:14px" onclick="rtmExcelPick()">📄 お客様のExcel（ご予約シート）から取り込む<div style="font-weight:400;font-size:11.5px;color:#eef7ef;margin-top:3px">お客様から届いた .xlsx ファイルを選びます（商品コード・施設・本数を読み取ります）</div></button>
+        <button class="rtm-cancel" style="text-align:left;padding:12px 14px;font-size:14px" onclick="rtmCloseOv('rtm-ov-choose');rtmOpenImport()">🔄 受注Aの「予約」から取り込む<div style="font-weight:400;font-size:11.5px;color:#6b6558;margin-top:3px">この受注Aに既に入っているRT予約から読み込みます</div></button>
+      </div>
+      <div class="rtm-m-actions"><button class="rtm-cancel" onclick="rtmCloseOv('rtm-ov-choose')">やめる</button></div>
+    </div>
+  </div>
+  <input type="file" id="rtm-xl-file" accept=".xlsx,.xls" style="display:none" onchange="rtmExcelOnFile(this)">
+
+  <!-- 📄 Excel取込 確認プレビュー -->
+  <div class="rtm-ov" id="rtm-ov-xl">
+    <div class="rtm-modal">
+      <h3 style="font-size:16px;margin-bottom:4px">📄 Excel取込 確認プレビュー</h3>
+      <div style="font-size:11.5px;color:#6b6558;margin-bottom:6px">ファイル：<b id="rtm-xl-fname">—</b>　／　<b>「この内容で反映」まで表に入りません</b>。</div>
+      <div style="font-size:11.5px;color:#256b3a;background:#f2faf4;border:1px solid #cce7d3;border-radius:7px;padding:6px 9px;margin:6px 0">🔒 取り込むのは <b>商品・施設・数量だけ</b>。金額・在庫はここでは動きません（在庫が動くのは後で「📦在庫を確保」を押した時だけ）。</div>
+      <div id="rtm-xl-warnbox"></div>
+      <div style="max-height:46vh;overflow:auto"><table class="rtm-diff"><thead><tr><th>商品</th><th>施設</th><th>今</th><th>取込後</th><th>差</th></tr></thead><tbody id="rtm-xl-diffbody"></tbody></table></div>
+      <div class="rtm-m-actions"><button class="rtm-cancel" onclick="rtmCloseOv('rtm-ov-xl')">やめる</button><button class="rtm-ok" onclick="rtmApplyExcelImport()">この内容で反映</button></div>
+    </div>
+  </div>
+  <style>
+    .rtm-tagwarn{font-size:9.5px;background:#fdeccd;border:1px solid #f0cf95;color:#9a5b12;border-radius:5px;padding:0 5px;margin-left:4px}
+    .rtm-xl-warn{font-size:11.5px;background:#fff7ec;border:1px solid #f0d9ad;color:#8a5a13;border-radius:7px;padding:7px 9px;margin:6px 0;text-align:left;line-height:1.5}
+  </style>
+
   <!-- 施設↔施設の移動 -->
   <div class="rtm-ov" id="rtm-ov-move">
     <div class="rtm-modal" style="max-width:440px">
@@ -3614,7 +3644,7 @@ function rtmRender(){
    '<div class="oos-sub">'+
      '<div class="rtm-tool">'+
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
-       '<button class="rtm-btn rtm-b-imp" onclick="rtmOpenImport()">📥 予約シート取込</button>'+
+       '<button class="rtm-btn rtm-b-imp" onclick="rtmChooseImport()">📥 予約シート取込</button>'+
        '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 受注Aに反映（共有保存）</button>'+
        '<button class="rtm-btn rtm-b-ghost" onclick="rtmRender()">🔄 最新の予約を反映</button>'+
      '</div>'+
@@ -3867,6 +3897,180 @@ function rtmApplyImport(){
 }
 function rtmCloseOv(id){ var el=document.getElementById(id); if(el) el.classList.remove('on'); }
 document.addEventListener('click', function(e){ if(e.target&&e.target.classList&&e.target.classList.contains('rtm-ov')) e.target.classList.remove('on'); });
+
+/* ════════════════════════════════════════════════════════════════
+   📄 お客様のExcel（ご予約シート）から取込
+   ・商品：D列「CD（商品コード）」→ 下の対応表。無ければ カテゴリ＋容量 で照合。
+   ・施設：見出し行の施設名を動的に読む（決め打ちしない）。顧客マスタ(系列RT全体)と名前で対応。
+   ・取込はこの端末の表(localStorage)だけを更新。在庫・受注Aには一切触れない（安全）。
+   ════════════════════════════════════════════════════════════════ */
+// ご予約シートの CD（商品コード）→ 弊社SKU の対応表（分かっているものだけ。無ければ名前で照合）
+var RTM_XL_CD2SKU = {
+  '4101229':'ORG100','4101118':'ORG250','4101043':'ORG500','4101156':'ORG750','4101097':'ORG2L','4101346':'ORG5L',
+  '4101230':'MEM100','4101231':'MEM250','4101243':'MEM500','4101233':'MEM750','4101244':'MEM2L','4101345':'MEM5L',
+  '4101234':'CHF250','4101306':'CHF100'
+};
+var RTM_XL_STAGE = null; // 反映待ちの解析結果
+
+function rtmNorm(s){
+  s = String(s==null?'':s);
+  s = s.replace(/[（(][^）)]*[）)]/g,'');                       // (…) （…）を除去
+  s = s.replace(/[\s　]+/g,'');                             // 空白・全角空白を除去
+  s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(ch){ return String.fromCharCode(ch.charCodeAt(0)-0xFEE0); }); // 全角英数→半角
+  return s.toLowerCase();
+}
+// カテゴリ＋容量 → SKU（CDで引けなかった時のフォールバック）
+function rtmResolveSku(cd, cat, vol){
+  var d = String(cd==null?'':cd).replace(/\D/g,'');
+  if(d && RTM_XL_CD2SKU[d] && findProductBySku(RTM_XL_CD2SKU[d])) return RTM_XL_CD2SKU[d];
+  var c = rtmNorm(cat);
+  var pre = (c.indexOf('オーガニック')>=0||c.indexOf('オルガニック')>=0) ? 'ORG'
+          : c.indexOf('メメジック')>=0 ? 'MEM'
+          : c.indexOf('シェフズ')>=0 ? 'CHF'
+          : c.indexOf('プリモ')>=0 ? 'PRI'
+          : c.indexOf('ザイト')>=0 ? 'ZAI'
+          : c.indexOf('アグルミ')>=0 ? 'AGR' : '';
+  if(!pre) return null;
+  var v = rtmNorm(vol).replace('ml','').replace('ミリ','');
+  var suf = (v==='100')?'100':(v==='250')?'250':(v==='500')?'500':(v==='750')?'750'
+          : (v==='2000'||v==='2l')?'2L'
+          : (v==='5000'||v==='5l')?'5L'
+          : (v==='3000'||v==='3l')?'3L'
+          : (v==='1000'||v==='1l')?'1L' : '';
+  if(!suf) return null;
+  var sku = pre+suf;
+  return findProductBySku(sku) ? sku : null;
+}
+// Excelの施設名 → 表の列（顧客マスタ系列RT全体と名前で対応。無ければ未登録列として仮取込）
+function rtmResolveFac(name){
+  var target = rtmNorm(name);
+  var facs = rtmAllFacilities(); // {id,name}
+  var hit = null;
+  facs.forEach(function(f){
+    if(hit) return; var fn = rtmNorm(f.name); if(!fn) return;
+    if(fn===target || (target.length>=2 && (fn.indexOf(target)>=0 || target.indexOf(fn)>=0))) hit=f;
+  });
+  if(hit) return { id:String(hit.id), adhoc:false, dispName:hit.name };
+  return { id:String(name), adhoc:true, dispName:String(name) }; // 仮の列（列IDに施設名をそのまま使う）
+}
+
+// SheetJS（xlsx）を必要な時だけ読み込む
+function rtmLoadXLSX(cb){
+  if(window.XLSX){ cb(); return; }
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload=function(){ cb(); };
+  s.onerror=function(){ alert('Excelを読み取る部品の取得に失敗しました。インターネットにつながっているか確認して、もう一度お試しください。'); };
+  document.head.appendChild(s);
+}
+function rtmChooseImport(){ var el=document.getElementById('rtm-ov-choose'); if(el) el.classList.add('on'); }
+function rtmExcelPick(){ var el=document.getElementById('rtm-xl-file'); if(el){ el.value=''; el.click(); } }
+function rtmExcelOnFile(input){
+  var file = input.files && input.files[0]; if(!file) return; input.value='';
+  rtmLoadXLSX(function(){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{ rtmBuildExcelPreview(e.target.result, file.name); }
+      catch(err){ alert('Excelの読み取りに失敗しました：\n'+(err&&err.message?err.message:err)); }
+    };
+    reader.onerror=function(){ alert('ファイルの読み込みに失敗しました。'); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+function rtmBuildExcelPreview(buf, fname){
+  var wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  if(!ws) throw new Error('シートが見つかりませんでした。');
+  var grid = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  // 見出し行（CD/商品コード と 合計 の両方を含む行）を探す
+  var hr=-1;
+  for(var i=0;i<grid.length;i++){
+    var joined=(grid[i]||[]).map(function(x){ return String(x==null?'':x); }).join('｜');
+    if(/CD|商品コード/.test(joined) && /合計/.test(joined)){ hr=i; break; }
+  }
+  if(hr<0) throw new Error('見出し行（CD・合計）が見つかりませんでした。ご予約シートの形式か確認してください。');
+  var H=grid[hr];
+  var idx=function(re){ for(var j=0;j<H.length;j++){ if(re.test(String(H[j]==null?'':H[j]))) return j; } return -1; };
+  var catCol=idx(/カテゴリ/); if(catCol<0) catCol=0;
+  var volCol=idx(/容量/);
+  var cdCol=idx(/CD|商品コード/);
+  var priceCol=idx(/単価/);
+  var totCol=idx(/合計/);
+  // 施設列＝単価列より右、合計列より左の、見出しが入っている列
+  var facCols=[];
+  for(var j=0;j<H.length;j++){
+    if(priceCol>=0 && j<=priceCol) continue;
+    if(totCol>=0 && j>=totCol) break;
+    var h=String(H[j]==null?'':H[j]).trim();
+    if(h) facCols.push({ j:j, name:h });
+  }
+  if(!facCols.length) throw new Error('施設の列が見つかりませんでした。（単価と合計の間に施設の列が必要です）');
+  facCols.forEach(function(fc){ var r=rtmResolveFac(fc.name); fc.colId=r.id; fc.adhoc=r.adhoc; fc.dispName=r.dispName; });
+  // データ行を集計
+  var agg={}, unmapped=[];
+  for(var r=hr+1;r<grid.length;r++){
+    var row=grid[r]||[];
+    var catV=String(row[catCol]==null?'':row[catCol]).trim();
+    var cdV = cdCol>=0 ? row[cdCol] : '';
+    if(!catV && !cdV) continue;
+    if(/^合計$/.test(catV)) break;                              // 合計行で終了
+    var volV = volCol>=0 ? row[volCol] : '';
+    var sku = rtmResolveSku(cdV, catV, volV);
+    var rowHas=false; facCols.forEach(function(fc){ if((Number(row[fc.j])||0)>0) rowHas=true; });
+    if(!sku){ if(rowHas||catV) unmapped.push((catV||'')+(volV?(' '+volV):'')+(cdV?(' / '+cdV):'')); continue; }
+    if(!agg[sku]) agg[sku]={};
+    facCols.forEach(function(fc){ var q=Number(row[fc.j])||0; agg[sku][fc.colId]=(agg[sku][fc.colId]||0)+q; });
+  }
+  RTM_XL_STAGE={ agg:agg, facCols:facCols, unmapped:unmapped, fname:fname };
+  rtmRenderExcelPreview();
+}
+function rtmRenderExcelPreview(){
+  var st=rtmS(), S=RTM_XL_STAGE; if(!S) return;
+  var db=document.getElementById('rtm-xl-diffbody'); db.innerHTML='';
+  var rows=0, skippedReflect=[];
+  Object.keys(S.agg).forEach(function(sku){
+    if(st.alloc[sku] && st.alloc[sku].reflected){ skippedReflect.push(rtmProdName(sku)); return; }
+    S.facCols.forEach(function(fc){
+      var to=+S.agg[sku][fc.colId]||0;
+      var cur=(st.q[sku] && +st.q[sku][fc.colId])||0;
+      var isNew=st.cols.indexOf(String(fc.colId))<0;
+      var diff=to-cur;
+      if(diff===0 && !isNew) return;
+      rows++;
+      db.innerHTML+='<tr'+(isNew?' class="newrow"':'')+'><td>'+esc(rtmProdName(sku))+'</td><td>'+esc(fc.dispName)
+        +(isNew?'<span class="rtm-tagnew">新規列</span>':'')+(fc.adhoc?'<span class="rtm-tagwarn">未登録施設</span>':'')
+        +'</td><td>'+cur+'</td><td>'+to+'</td><td class="'+(diff>=0?'up':'dn')+'">'+(diff>0?'+':'')+diff+(to===0?'（0に）':'')+'</td></tr>';
+    });
+  });
+  var warn='';
+  var adhocs=S.facCols.filter(function(f){ return f.adhoc; });
+  if(adhocs.length) warn+='<div class="rtm-xl-warn">⚠️ お客様マスタ（系列＝RT全体）に見つからない施設があります：<b>'+adhocs.map(function(f){ return esc(f.dispName); }).join('、')+'</b>。<br>取り込みはできますが、<b>「📤受注Aに反映」する前に「🛒顧客管理」で施設を登録</b>してください（登録しないと反映時の宛先が仮のままになります）。</div>';
+  if(S.unmapped.length) warn+='<div class="rtm-xl-warn">⚠️ 商品マスタに一致せず取り込めなかった行：<b>'+S.unmapped.map(esc).join(' ／ ')+'</b>。<br>（セット商品などは施設別の表には入りません。必要なら「＋商品を追加」で手入力してください）</div>';
+  if(skippedReflect.length) warn+='<div class="rtm-xl-warn">🔒 すでに取り置き登録済みのため取込しない商品：<b>'+skippedReflect.map(esc).join('、')+'</b>。<br>（変更したい時は、その商品の「↩やり直す」で取り置きを取り消してから取り込んでください）</div>';
+  document.getElementById('rtm-xl-warnbox').innerHTML=warn;
+  document.getElementById('rtm-xl-fname').textContent=S.fname||'';
+  if(!rows) db.innerHTML='<tr><td colspan="5" style="text-align:center;color:#8a857a;padding:14px">今の表と違う数字はありませんでした（すべて同じ内容です）。</td></tr>';
+  rtmCloseOv('rtm-ov-choose');
+  document.getElementById('rtm-ov-xl').classList.add('on');
+}
+function rtmApplyExcelImport(){
+  var st=rtmS(), S=RTM_XL_STAGE; if(!S){ rtmCloseOv('rtm-ov-xl'); return; }
+  var n=0, newCols=0;
+  S.facCols.forEach(function(fc){ var cid=String(fc.colId); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); newCols++; } });
+  Object.keys(S.agg).forEach(function(sku){
+    if(st.alloc[sku] && st.alloc[sku].reflected) return;        // 取り置き登録済みは動かさない
+    if(!st.q[sku]) st.q[sku]={};
+    S.facCols.forEach(function(fc){
+      var cid=String(fc.colId), to=+S.agg[sku][fc.colId]||0, cur=(+st.q[sku][cid]||0);
+      if(to!==cur) n++;
+      st.q[sku][cid]=to;
+    });
+    if(st.alloc[sku]) st.alloc[sku].confirmed=false;
+  });
+  rtmPushHist('【Excel取込】'+(S.fname||'ご予約シート')+' から '+n+'件を反映'+(newCols?('（施設'+newCols+'列を追加）'):''));
+  rtmSave(st); RTM_XL_STAGE=null; rtmCloseOv('rtm-ov-xl'); rtmRender();
+  alert('✅ Excelを取り込みました（'+n+'件を反映）。\nこのあと表の数字は手で直せます。在庫や受注Aはまだ動いていません。');
+}
 
 // ── 🔀 施設↔施設の移動（予約合計・要輸入は不変。振り分けだけ変える）──
 function rtmMoveSku(){ var s=document.getElementById('rtm-mv-sku'); return s?s.value:''; }
