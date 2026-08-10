@@ -3551,6 +3551,7 @@ function rtmLoad(){
   if(!st.q||typeof st.q!=='object') st.q={};
   if(!st.alloc||typeof st.alloc!=='object') st.alloc={};
   if(!Array.isArray(st.hist)) st.hist=[];
+  if(!st.facNames||typeof st.facNames!=='object') st.facNames={}; // 列ID→施設名（一度読めた名前を覚えておく）
   return st;
 }
 function rtmSave(st){ try{ localStorage.setItem(RTM_KEY, JSON.stringify(st)); }catch(e){} }
@@ -3563,7 +3564,12 @@ function rtmAllFacilities(){
     .slice().sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''),'ja'); })
     .map(function(c){ return {id:String(c.id), name:c.name||'（無名）'}; });
 }
-function rtmFacName(id){ var c=(customers||[]).find(function(x){ return String(x.id)===String(id); }); return c?(c.name||'（無名）'):id; }
+function rtmFacName(id){
+  var c=(customers||[]).find(function(x){ return String(x.id)===String(id); });
+  if(c && c.name) return c.name;                       // お客様マスタに名前があればそれ
+  try{ var st=rtmS(); if(st.facNames && st.facNames[String(id)]) return st.facNames[String(id)]; }catch(e){} // 以前覚えた施設名
+  return id;                                           // どちらも無い時だけID（管理番号）
+}
 
 // 受注Aの「予約」から施設×商品の本数を集計（施設＝custIdが系列RT全体）
 function rtmReservedFromOrders(){
@@ -3625,6 +3631,14 @@ function rtmRender(){
   var st=RTM;
   var root=document.getElementById('rtm-root'); if(!root) return;
   var allFac=rtmAllFacilities();
+
+  // 自己修復：お客様名が読める列は施設名を記憶しておく（次回お客様が読めなくてもID表示に戻らないように）
+  var _healed=false;
+  st.cols.forEach(function(cid){
+    var c=(customers||[]).find(function(x){ return String(x.id)===String(cid); });
+    if(c && c.name && st.facNames[String(cid)]!==c.name){ st.facNames[String(cid)]=c.name; _healed=true; }
+  });
+  if(_healed) rtmSave(st);
 
   // 初回：列が空で、かつ登録済み施設がある場合だけ、受注Aの予約に出てくる施設で自動セット（無ければ全施設）
   if(!st.cols.length && allFac.length){
@@ -3832,7 +3846,7 @@ function rtmBoxCalc(){
 }
 
 // ── 列（施設）・行（商品）の増減 ──
-function rtmAddCol(cid){ var st=rtmS(); cid=String(cid); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); rtmPushHist('＋施設を追加：'+rtmFacName(cid)); rtmSave(st); } rtmRender(); }
+function rtmAddCol(cid){ var st=rtmS(); cid=String(cid); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); var _nm=rtmFacName(cid); if(_nm && _nm!==cid) st.facNames[cid]=_nm; rtmPushHist('＋施設を追加：'+rtmFacName(cid)); rtmSave(st); } rtmRender(); }
 function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
   if(!confirm(rtmFacName(cid)+' の列を外します。入力した予約本数も消えます。よろしいですか？')) return;
   st.cols=st.cols.filter(function(x){ return x!==cid; });
@@ -3940,6 +3954,7 @@ function rtmApplyImport(){
       var to=+agg[sku][cid]||0; var cur=(st.q[sku]&&+st.q[sku][cid])||0;
       if(to===cur && st.cols.indexOf(cid)>=0) return;
       if(st.cols.indexOf(cid)<0) st.cols.push(cid);
+      var _nm=rtmFacName(cid); if(_nm && _nm!==cid) st.facNames[cid]=_nm;
       if(!st.q[sku])st.q[sku]={}; st.q[sku][cid]=to;
       if(st.alloc[sku]) st.alloc[sku].confirmed=false;
       n++;
@@ -4109,7 +4124,7 @@ function rtmRenderExcelPreview(){
 function rtmApplyExcelImport(){
   var st=rtmS(), S=RTM_XL_STAGE; if(!S){ rtmCloseOv('rtm-ov-xl'); return; }
   var n=0, newCols=0;
-  S.facCols.forEach(function(fc){ var cid=String(fc.colId); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); newCols++; } });
+  S.facCols.forEach(function(fc){ var cid=String(fc.colId); if(fc.dispName) st.facNames[cid]=fc.dispName; if(st.cols.indexOf(cid)<0){ st.cols.push(cid); newCols++; } });
   Object.keys(S.agg).forEach(function(sku){
     if(st.alloc[sku] && st.alloc[sku].reflected) return;        // 取り置き登録済みは動かさない
     if(!st.q[sku]) st.q[sku]={};
