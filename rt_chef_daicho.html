@@ -305,6 +305,9 @@
     <div id="sync-status" class="mini" style="margin:2px 0 6px;color:#5c6636;font-weight:700;line-height:1.5;"></div>
     <button id="faclist-btn" class="faclist-toggle" onclick="toggleFacList()">📋 施設だけの一覧（料理長・役職・住所・電話）を見る</button>
     <style>
+      .fl-addbtn{background:#6b7a3a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:800;cursor:pointer;margin-left:8px}
+      .fl-addbox{background:#f3f7ea;border:1.5px solid #b9c98d;border-radius:10px;padding:12px;margin:6px 0 10px}
+      .fl-addttl{font-size:13px;font-weight:800;color:#4a5a2a;margin-bottom:8px}
       .fl-parentnote{background:#eef4e2;border:1px solid #b9c98d;border-left:5px solid #6b7a3a;border-radius:8px;padding:9px 12px;margin:6px 0 8px;font-size:12.5px;color:#3b4a1c;line-height:1.7}
       .fl-parentnote b{color:#4a5a2a}
       .fl-alias{display:inline-block;font-size:11px;background:#eaf1fb;border:1px solid #b8cdec;color:#274a78;border-radius:12px;padding:1px 8px;margin-top:4px;font-weight:700}
@@ -1106,7 +1109,8 @@ function renderFacList(){
     modeBar+
     '<div class="fl-parentnote">🏛 <b>ここが「施設情報の大元（親）」です。</b><br>RT施設の<b>呼称・住所・電話</b>は、この一覧の「<b>✏️ 呼称・住所を直す</b>」で直してください。ここで直すと、台帳の<b>詳しい表示・受注A・見積</b>のすべてに反映されます（他の場所では直しません）。</div>'+
     '<div class="fl-note">'+note+'</div>'+
-    '<div class="fl-actions"><button class="fl-copy" onclick="copyFacList()">📋 表をコピー（スプレッドシート用）</button><span class="mini">'+keys.length+'施設</span></div>'+
+    '<div class="fl-actions"><button class="fl-copy" onclick="copyFacList()">📋 表をコピー（スプレッドシート用）</button><button class="fl-addbtn" onclick="facAddToggle()">➕ 施設を追加</button><span class="mini">'+keys.length+'施設</span></div>'+
+    (facAddOpen?facAddFormHtml():'')+
     '<div class="fl-scroll"><table class="'+tbClass+'"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>';
 }
 function copyFacList(){
@@ -1124,6 +1128,39 @@ function copyFacList(){
   else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }
 }
 
+/* ===== 施設をこの一覧から追加（追加した施設は詳しい表示にも出る） ===== */
+var facAddOpen=false;
+function facAddToggle(){ facAddOpen=!facAddOpen; renderFacList(); if(facAddOpen){ var el=document.getElementById('fa-name'); if(el){ try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); } } } }
+function facAddFormHtml(){
+  return '<div class="fl-addbox">'+
+    '<div class="fl-addttl">➕ 新しい施設を追加します（お付き合いのある施設を1件ずつ）</div>'+
+    '<div class="fl-editgrid">'+
+      '<div class="fl-efg fl-efg-wide"><label>施設名（必須）</label><input id="fa-name" placeholder="例：エクシブ鳥羽"></div>'+
+      '<div class="fl-efg"><label>ジャンル</label><input id="fa-genre" list="fa-genre-list" value="その他"><datalist id="fa-genre-list"><option>イタリアン</option><option>鉄板焼</option><option>洋食</option><option>中華</option><option>物販</option><option>その他</option></datalist></div>'+
+      '<div class="fl-efg fl-efg-wide"><label>🏷 呼称（RT本部の呼び名。複数は「、」で区切る）</label><input id="fa-alias" placeholder="例：鳥羽(和食)"></div>'+
+      '<div class="fl-efg"><label>郵便番号</label><input id="fa-zip"></div>'+
+      '<div class="fl-efg fl-efg-wide"><label>住所</label><input id="fa-addr"></div>'+
+      '<div class="fl-efg fl-efg-wide"><label>電話（FAXも含めてそのまま）</label><input id="fa-tel"></div>'+
+    '</div>'+
+    '<div class="fl-editactions"><button class="fl-save" onclick="facAddSave()">➕ 追加する</button><button class="fl-cancel" onclick="facAddToggle()">やめる</button><span id="fa-msg" class="fl-emsg"></span></div>'+
+  '</div>';
+}
+function facAddSave(){
+  var g=function(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():''; };
+  var name=g('fa-name'), msg=document.getElementById('fa-msg');
+  if(!name){ if(msg) msg.textContent='施設名を入れてください'; return; }
+  if(FAC[name]){ if(msg) msg.textContent='その施設名はすでにあります'; return; }
+  var genre=g('fa-genre')||'その他', alias=g('fa-alias'), zip=g('fa-zip'), addr=g('fa-addr'), tel=g('fa-tel');
+  // 画面にすぐ反映（詳しい表示にも出るよう _contactOnly は付けない）
+  FAC[name]={genre:genre, cur:'', staff:'—', lineage:[], pastOils:[], addr:((zip?('〒'+zip.replace(/^〒/,'')+' '):'')+addr).trim(), tel:tel, alias:alias, _rtmaster:true};
+  if(msg) msg.textContent='保存中…';
+  var done=function(){ facAddOpen=false; renderFacList(); if(typeof renderDaicho==='function') renderDaicho(); if(typeof fillFacOptions==='function') fillFacOptions(); };
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveRtFacility',rec:{name:name,zip:zip,addr:addr,tel:tel,alias:alias}})})
+    .then(function(r){return r.json();})
+    .then(function(d){ if(d&&d.status==='ok'){ done(); if(typeof setSync==='function') setSync('施設を追加しました：'+name); }
+      else { if(msg) msg.textContent='保存できませんでした：'+((d&&d.message)||'不明')+'（GASにRT施設マスタの窓口が入っているか確認）'; } })
+    .catch(function(){ if(msg) msg.textContent='通信できませんでした。画面には追加済みです（あとでもう一度保存してください）'; setTimeout(done,600); });
+}
 /* ===== 施設の「呼称・住所・電話」をその場で編集（RT施設マスタ＝台帳が親） ===== */
 var facEditKey='';
 function facEdit(f){ facEditKey=f; renderFacList(); var el=document.getElementById('fe-alias'); if(el){ try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); } } }
