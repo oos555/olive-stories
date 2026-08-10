@@ -1319,12 +1319,102 @@ body{background:#fff}
     <div style="font-size:12px;color:#8a857a;margin-top:10px">追加した分は「📋 一覧」に入り、期限アラート・出荷依頼書へ の対象になります。</div>
   </div>
 
-  <!-- 🏛 RT（次の増分で振り分けマトリクスを実装） -->
+  <!-- 🏛 RT 取り置き・予約（振り分けマトリクス） -->
   <div id="holdview-rt" class="holdview" style="display:none">
-    <div class="sec">🏛 RT 取り置き・予約（振り分け）</div>
-    <div style="background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:16px;font-size:13px;color:#5c574c;line-height:1.8">
-      RT（リゾートトラスト）の<b>施設ごとの振り分け</b>（🔒取置／🗓予約／🛒在庫として残す → 確定 → 在庫マスターに反映）は、<b>次の増分で実装予定</b>です。<br>
-      今は動くモックで確認できます：<b>mock_hq_matrix.html</b>
+    <style>
+    #rtm-root .rtm-note{background:#3f3a2e;color:#fff;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:12px;line-height:1.6}
+    #rtm-root .rtm-note b{color:#ffd88a}
+    #rtm-root .rtm-tool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    #rtm-root .rtm-search{flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #9d957f;border-radius:9px;font-size:14px}
+    #rtm-root .rtm-btn{border:none;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+    #rtm-root .rtm-b-imp{background:#1f4a6d;color:#fff}
+    #rtm-root .rtm-b-seed{background:#55622e;color:#fff}
+    #rtm-root .rtm-b-add{background:#eef1e6;color:#33421f;border:1px solid #c9d3b4}
+    #rtm-root .rtm-b-ghost{background:#fff;color:#6b6558;border:1px solid #d8d1c2}
+    #rtm-root .rtm-toolnote{font-size:11.5px;color:#8a857a;margin:2px 0 10px}
+    #rtm-root .rtm-toolnote b{color:#2f6b2f}
+    #rtm-root .rtm-hqbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 2px 8px}
+    #rtm-root .rtm-hqname{font-size:15px;font-weight:800;color:#7a4e12}
+    #rtm-root .rtm-hid{font-size:10.5px;color:#8a857a;background:#efeee8;border:1px solid #e0dccf;border-radius:5px;padding:1px 6px}
+    #rtm-root .rtm-grand{margin-left:auto;font-size:12px;color:#7a4e12}
+    #rtm-root .rtm-grand b{font-size:18px;color:#8a5a00}
+    #rtm-root .rtm-rev{font-size:12px;color:#9a958a}
+    #rtm-root .rtm-rev b{font-size:14px;color:#7a7568;font-weight:700}
+    #rtm-root .rtm-wrap{overflow-x:auto;background:#fff;border:1px solid #e2ddce;border-radius:11px}
+    #rtm-root table.rtm-t{border-collapse:collapse;width:100%;font-size:13px}
+    #rtm-root .rtm-t th,#rtm-root .rtm-t td{border-bottom:1px solid #f1ece0;padding:7px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;vertical-align:top}
+    #rtm-root .rtm-t th{background:#faf8f2;font-size:11px;color:#5c574c;font-weight:700;vertical-align:bottom}
+    #rtm-root .rtm-t th.name,#rtm-root .rtm-t td.name{text-align:left;font-weight:700;min-width:150px}
+    #rtm-root .rtm-t th.grp{text-align:left;background:#eef0e5;color:#55622e;font-weight:800;font-size:12px}
+    #rtm-root .rtm-t th.fac{color:#1f4a6d}
+    #rtm-root .rtm-t th.fac .x{color:#c1281a;cursor:pointer;font-weight:800;margin-left:4px}
+    #rtm-root .rtm-t th.tot{background:#f4e7c9;color:#7a4e12}
+    #rtm-root .rtm-t td.tot{background:#fbf3e0;font-weight:800;color:#8a5a00;font-size:15px}
+    #rtm-root .rtm-t th.rev{background:#f4f3ef;color:#9a958a;font-weight:500}
+    #rtm-root .rtm-t td.rev{background:#faf9f6;font-weight:500;color:#9a958a;font-size:12px}
+    #rtm-root .rtm-t td.stk{background:#f6f5f0;color:#3a362e;font-weight:700}
+    #rtm-root .rtm-t th.adjust-h{background:#fff3df;color:#8a5a12}
+    #rtm-root .rtm-t td.adjust{text-align:left;background:#fffdf6;min-width:230px;border-left:2px solid #ecdcb6;border-right:2px solid #ecdcb6}
+    #rtm-root .pxsub{display:block;font-size:10.5px;color:#8a857a;font-weight:600;margin-top:1px}
+    #rtm-root input.rtm-num{width:60px;padding:5px 6px;border:1.5px solid #9dc0e0;border-radius:7px;font-size:16px;text-align:right;font-weight:800;color:#1f4a6d;font-variant-numeric:tabular-nums;background:#fff}
+    #rtm-root input.rtm-num:focus{outline:none;border-color:#1f4a6d;box-shadow:0 0 0 3px rgba(31,74,109,.12)}
+    #rtm-root input.rtm-num.hin{border-color:#d9a441;color:#8a5a12}
+    #rtm-root input.rtm-num.kin{border-color:#3f9c5a;color:#256b3a}
+    #rtm-root input.rtm-num.fac{width:52px;border-color:#cfd8e2;color:#2b2a26;font-size:14px}
+    #rtm-root .adj-row{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:2px 0}
+    #rtm-root .adj-row .lbl{font-size:11.5px;color:#7a7568}
+    #rtm-root .resv{font-weight:800;color:#0c447c;font-size:16px}
+    #rtm-root .keeprow{border-top:1px solid #efe6cf;margin-top:2px;padding-top:4px}
+    #rtm-root .keeprow .lbl{color:#256b3a;font-weight:700}
+    #rtm-root .adj-check{font-size:10.5px;color:#1f7a34;border-top:1px dashed #e6ddc9;margin-top:4px;padding-top:3px;text-align:right}
+    #rtm-root .adj-check b{color:#7a4e12}
+    #rtm-root .adj-check.bad{color:#c1281a;font-weight:800}
+    #rtm-root .stk-src{display:block;font-size:9.5px;color:#a49e90;font-weight:500;margin-top:2px}
+    #rtm-root .stk-src.refl{color:#5b7288}
+    #rtm-root .btn-conf{width:100%;background:#55622e;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:800;cursor:pointer;margin-top:6px}
+    #rtm-root .doneMini{text-align:center;color:#2f6b2f;font-size:11px;font-weight:800;margin:6px 0 5px}
+    #rtm-root .conf-btns{display:flex;gap:6px}
+    #rtm-root .btn-refl{flex:1;background:#1f4a6d;color:#fff;border:none;border-radius:8px;padding:8px 6px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+    #rtm-root .btn-redo{background:#eee9df;color:#6b6558;border:1px solid #d8d1c2;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+    #rtm-root .done.refl{width:100%;text-align:center;background:#eaf1fb;border:1.5px solid #9dc0e0;color:#1f4a6d;border-radius:8px;padding:6px;font-size:12px;font-weight:800;margin-top:6px}
+    #rtm-root .done.refl span{display:block;font-weight:500;font-size:10.5px;color:#5b7288}
+    #rtm-root .rtm-t tfoot td{background:#f6f4ee;font-weight:800;color:#4a463c;border-top:2px solid #e6ddc9}
+    #rtm-root .rtm-t tfoot td.tot{background:#f4e7c9;color:#7a4e12}
+    #rtm-root .rtm-t tfoot td.rev{background:#f0efe9;color:#8a857a;font-weight:600;font-size:12px}
+    #rtm-root .rtm-t tfoot td.adjust{background:#fff3df;font-size:11.5px}
+    #rtm-root .rtm-legend{font-size:11.5px;color:#6b6558;background:#fbfaf6;border:1px solid #ece7db;border-radius:9px;padding:9px 13px;margin:12px 0}
+    #rtm-root .rtm-legend b{color:#33421f}
+    #rtm-root .rtm-hist{background:#fff;border:1px solid #ecdfc4;border-radius:10px;padding:9px 13px;font-size:12px;color:#8a6d3f;min-height:20px}
+    #rtm-root .rtm-hist b{color:#7a5a1e}
+    #rtm-root .hitem{background:#fbf6ea;border:1px solid #ecdfc4;border-radius:6px;padding:2px 8px;display:inline-block;margin:3px 5px 0 0}
+    #rtm-root .hnone{color:#b7ad98}
+    #rtm-root .rtm-empty{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:20px;font-size:13px;color:#5c574c;line-height:1.9}
+    #rtm-root .rtm-empty b{color:#33421f}
+    .rtm-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px;z-index:1000}
+    .rtm-ov.on{display:flex}
+    .rtm-modal{background:#fff;border-radius:14px;max-width:520px;width:100%;padding:18px;max-height:88vh;overflow:auto}
+    .rtm-m-actions{display:flex;gap:8px;margin-top:12px}
+    .rtm-m-actions button{flex:1;padding:11px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer}
+    .rtm-ok{background:#1f4a6d;color:#fff}.rtm-cancel{background:#eee9df;color:#4a463c}
+    .rtm-diff{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0}
+    .rtm-diff th,.rtm-diff td{border-bottom:1px solid #eef0ea;padding:6px 7px;text-align:right;white-space:nowrap}
+    .rtm-diff th{background:#f7fafd;color:#5c6b7a;font-size:10.5px}
+    .rtm-diff td:first-child,.rtm-diff th:first-child,.rtm-diff td:nth-child(2),.rtm-diff th:nth-child(2){text-align:left}
+    .rtm-diff .up{color:#1f7a34;font-weight:800}.rtm-diff .dn{color:#c1281a;font-weight:800}
+    .rtm-diff tr.newrow td{background:#f2fbf3}
+    .rtm-tagnew{font-size:9.5px;background:#dff3e2;border:1px solid #b6e0bd;color:#1f7a34;border-radius:5px;padding:0 5px;margin-left:4px}
+    </style>
+    <div id="rtm-root"><!-- JSで描画 --></div>
+  </div>
+
+  <!-- 取込確認プレビュー用モーダル -->
+  <div class="rtm-ov" id="rtm-ov-imp">
+    <div class="rtm-modal">
+      <h3 style="font-size:16px;margin-bottom:8px">📋 取込確認プレビュー</h3>
+      <div style="font-size:12px;color:#6b6558;margin-bottom:4px">受注Aの<b>予約</b>から、施設ごとの本数を読み込みます。<b>「この内容で反映」まで表に入りません</b>。</div>
+      <div style="font-size:11.5px;color:#256b3a;background:#f2faf4;border:1px solid #cce7d3;border-radius:7px;padding:6px 9px;margin:8px 0">🔒 取り込むのは <b>商品・施設・数量だけ</b>。金額はここで取り込みません（統合マスタNの価格を使用）。</div>
+      <div style="max-height:52vh;overflow:auto"><table class="rtm-diff"><thead><tr><th>商品</th><th>施設</th><th>今</th><th>取込後</th><th>差</th></tr></thead><tbody id="rtm-diffbody"></tbody></table></div>
+      <div class="rtm-m-actions"><button class="rtm-cancel" onclick="rtmCloseOv('rtm-ov-imp')">やめる</button><button class="rtm-ok" onclick="rtmApplyImport()">この内容で反映</button></div>
     </div>
   </div>
 </div>
@@ -3378,7 +3468,320 @@ function switchHoldView(v){
     var b=document.getElementById('hsub-'+k); if(b) b.classList.toggle('on', k===v);
   });
   if(v==='ippan') ghInit();
+  if(v==='rt' && typeof rtmRender==='function') rtmRender();
 }
+
+/* ════════════════════════════════════════════════════════════════
+   🏛 RT 取り置き・予約 振り分けマトリクス（rtm＝RT Matrix）
+   ──────────────────────────────────────────────────────────────
+   ・列＝お客様マスタで系列「RT全体」の施設（customers, series==='RT全体'）
+   ・行＝RT商品（PRODUCTS）／RT単価＝rtPriceOf（統合マスタN由来）
+   ・販売可能在庫＝computeAvailable（在庫マスター在庫リスト由来）
+   ・施設ごと予約はこの表で入力→この端末に保存（localStorage）。
+     🔒取置か🛒残すを打つと相手＋予約(要輸入)が自動（取置＋予約＝予約合計）。
+   ・📥予約シート取込＝受注Aの「予約」注文から施設×商品の本数を差分プレビュー→反映。
+   ・確定→（記録）統合マスタNの取置列・予約列へ／📦在庫に反映＝取置分を確保（表示上）
+     ※統合マスタN・在庫マスターへのGAS本書込みは次の増分（ここでは端末に記録＋履歴）。
+   ════════════════════════════════════════════════════════════════ */
+var RTM_KEY='oos_rt_matrix_v1';
+function rtmLoad(){
+  var st; try{ st=JSON.parse(localStorage.getItem(RTM_KEY)||'null'); }catch(e){ st=null; }
+  if(!st||typeof st!=='object') st={};
+  if(!Array.isArray(st.cols)) st.cols=[];
+  if(!st.q||typeof st.q!=='object') st.q={};
+  if(!st.alloc||typeof st.alloc!=='object') st.alloc={};
+  if(!Array.isArray(st.hist)) st.hist=[];
+  return st;
+}
+function rtmSave(st){ try{ localStorage.setItem(RTM_KEY, JSON.stringify(st)); }catch(e){} }
+var RTM=null;
+function rtmS(){ if(!RTM) RTM=rtmLoad(); return RTM; }
+
+// 系列「RT全体」の施設（＝列の候補）
+function rtmAllFacilities(){
+  return (customers||[]).filter(function(c){ return c && c.series==='RT全体'; })
+    .slice().sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''),'ja'); })
+    .map(function(c){ return {id:String(c.id), name:c.name||'（無名）'}; });
+}
+function rtmFacName(id){ var c=(customers||[]).find(function(x){ return String(x.id)===String(id); }); return c?(c.name||'（無名）'):id; }
+
+// 受注Aの「予約」から施設×商品の本数を集計（施設＝custIdが系列RT全体）
+function rtmReservedFromOrders(){
+  var facSet={}; rtmAllFacilities().forEach(function(f){ facSet[f.id]=true; });
+  var agg={}; // sku -> custId -> 本数
+  (orders||[]).filter(function(o){ return o && o.status==='reserved' && o.custId && facSet[String(o.custId)]; })
+    .forEach(function(o){
+      (o.lines||[]).forEach(function(l){
+        var p=findProduct(l.productId)||findProductBySku(l.sku);
+        if(!p||!p.sku) return;
+        var n=lineTotal(l); if(!n) return;
+        if(p.isSet && p.components){ p.components.forEach(function(c){ rtmAdd(agg,c.sku,o.custId,n*(c.qty||1)); }); }
+        else rtmAdd(agg,p.sku,o.custId,n);
+      });
+    });
+  return agg;
+}
+function rtmAdd(agg,sku,cid,n){ if(!agg[sku])agg[sku]={}; agg[sku][String(cid)]=(agg[sku][String(cid)]||0)+n; }
+
+// 表示する行（sku）＝q に載っている商品（空でも行を出す）。商品順は PRODUCTS 準拠。
+function rtmRowSkus(){
+  var st=rtmS(); var have={}; Object.keys(st.q).forEach(function(s){ have[s]=true; });
+  var out=[];
+  (PRODUCTS||[]).forEach(function(p){ if(p&&p.sku&&have[p.sku]&&!p.isSet) out.push(p.sku); });
+  // PRODUCTS に無い sku も拾う（先頭に）
+  Object.keys(have).forEach(function(s){ if(out.indexOf(s)<0) out.push(s); });
+  return out;
+}
+function rtmTotal(sku){ var st=rtmS(); var m=st.q[sku]||{}; var s=0; st.cols.forEach(function(cid){ s+=(+m[cid]||0); }); return s; }
+function rtmStock(sku){ var v=computeAvailable(sku); return (v===null||v===undefined||isNaN(v))?0:v; }
+function rtmPrice(sku){ var p=findProductBySku(sku); var v=p?rtPriceOf(p):null; return (v==null)?0:v; }
+function rtmProdName(sku){ var p=findProductBySku(sku); return p?p.name:sku; }
+function rtmProdGroup(sku){ var p=findProductBySku(sku); return (p&&p.group)||'その他'; }
+function rtmAlloc(sku){ var st=rtmS(); if(!st.alloc[sku]) st.alloc[sku]={}; return st.alloc[sku]; }
+function rtmMinKeep(sku){ return Math.max(0, rtmStock(sku)-rtmTotal(sku)); }
+function rtmKeep(sku){
+  var a=rtmAlloc(sku), stock=rtmStock(sku);
+  var keep=(a.keep===undefined||a.keep===null)?stock:(+a.keep||0);
+  var mn=rtmMinKeep(sku); if(keep>stock)keep=stock; if(keep<mn)keep=mn;
+  return keep;
+}
+function rtmHold(sku){ return rtmStock(sku)-rtmKeep(sku); }       // 取置＝在庫−残す
+function rtmNeed(sku){ return rtmTotal(sku)-rtmHold(sku); }       // 予約(要輸入)＝予約合計−取置
+function rtmYen(n){ return '¥'+Number(n||0).toLocaleString('ja-JP'); }
+function rtmAvailShow(sku){ var a=rtmAlloc(sku); return a.reflected ? (rtmStock(sku)-(+a.reflHold||0)) : rtmStock(sku); }
+
+function rtmConfCell(sku){
+  var a=rtmAlloc(sku);
+  if(a.reflected) return '<div class="done refl">📦 在庫に確保（記録済み）<span>取置'+(+a.reflHold||0)+'本／販売可能 '+rtmStock(sku)+'→'+(rtmStock(sku)-(+a.reflHold||0))+'</span></div>';
+  if(a.confirmed) return '<div class="doneMini">✅ 確定済み（取置'+rtmHold(sku)+'・予約'+rtmNeed(sku)+' → 統合マスタN・記録）</div><div class="conf-btns"><button class="btn-refl" onclick="rtmReflect(\''+sku+'\')">📦 在庫に反映</button><button class="btn-redo" onclick="rtmRedo(\''+sku+'\')">↩ やり直す</button></div>';
+  return '<button class="btn-conf" onclick="rtmConfirm(\''+sku+'\')">✅ この振り分けで確定</button>';
+}
+
+function rtmRender(){
+  RTM=rtmLoad();
+  var st=RTM;
+  var root=document.getElementById('rtm-root'); if(!root) return;
+  var allFac=rtmAllFacilities();
+
+  // 施設が1つも無い（顧客管理で系列RT全体が未設定）
+  if(!allFac.length){
+    root.innerHTML='<div class="rtm-empty">🏛 <b>RT全体の施設がまだありません。</b><br>「🛒 顧客管理」タブで施設の<b>系列＝「RT全体」</b>を設定すると、ここに列として並びます。<br>RT施設をまだ登録していない場合は、顧客管理の<b>「📥 RT全施設をまとめて登録」</b>から登録してください（自動で系列「RT全体」が入ります）。</div>';
+    return;
+  }
+
+  // 初回：列が空なら、受注Aの予約に出てくる施設で自動セット（無ければ全施設）
+  if(!st.cols.length){
+    var agg=rtmReservedFromOrders();
+    var used={};
+    Object.keys(agg).forEach(function(sku){ Object.keys(agg[sku]).forEach(function(cid){ if((+agg[sku][cid])>0) used[cid]=true; }); });
+    var usedIds=allFac.filter(function(f){ return used[f.id]; }).map(function(f){ return f.id; });
+    st.cols = usedIds.length ? usedIds : allFac.slice(0,3).map(function(f){ return f.id; });
+    // 予約本数も自動投入
+    Object.keys(agg).forEach(function(sku){ if(!st.q[sku])st.q[sku]={}; Object.keys(agg[sku]).forEach(function(cid){ if(st.cols.indexOf(cid)>=0) st.q[sku][cid]=agg[sku][cid]; }); });
+    rtmSave(st);
+  }
+
+  var q=(st._q||'');
+  var facHead=st.cols.map(function(cid){ return '<th class="fac">🏨 '+esc(rtmFacName(cid))+'<span class="x" title="列を外す" onclick="rtmRemoveCol(\''+cid+'\')">×</span></th>'; }).join('');
+  var addOpts=allFac.filter(function(f){ return st.cols.indexOf(f.id)<0; }).map(function(f){ return '<option value="'+f.id+'">'+esc(f.name)+'</option>'; }).join('');
+  var addFacSel = addOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddCol(this.value);this.value=\'\'"><option value="">＋施設を追加…</option>'+addOpts+'</select>' : '';
+  var prodOpts=(PRODUCTS||[]).filter(function(p){ return p&&p.sku&&!p.isSet&&p.group!=='資材'&&!st.q[p.sku]; })
+     .map(function(p){ return '<option value="'+p.sku+'">'+esc(p.name)+'</option>'; }).join('');
+  var addProdSel = prodOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddRow(this.value);this.value=\'\'"><option value="">＋商品を追加…</option>'+prodOpts+'</select>' : '';
+
+  var head=
+   '<div class="rtm-note">🏛 <b>RT全体</b>の施設ごとに予約を入れ、<b>🔒取置</b>か<b>🛒残す</b>を打つと 予約(要輸入)＝予約合計−取置 が自動。数字は<b>この端末に保存</b>されます。<b>金額は統合マスタNの単価</b>で自動計算。</div>'+
+   '<div class="oos-header" style="border-radius:12px 12px 0 0">🏛 RT 取り置き・予約（振り分け）　<span style="font-weight:500;font-size:13px">系列＝RT全体</span></div>'+
+   '<div class="oos-sub">'+
+     '<div class="rtm-tool">'+
+       '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
+       '<button class="rtm-btn rtm-b-imp" onclick="rtmOpenImport()">📥 予約シート取込</button>'+
+       '<button class="rtm-btn rtm-b-ghost" onclick="rtmRender()">🔄 最新の予約を反映</button>'+
+     '</div>'+
+     '<div class="rtm-tool">'+addFacSel+addProdSel+'<button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
+     '<div class="rtm-toolnote"><b>🔒取置</b>＝在庫からRT用に確保（他に売らない）／<b>🗓予約(要輸入)</b>＝輸入で用意する分／<b>🛒残す</b>＝在庫を他チャネルに残す。取置＋予約＝予約合計 になっていれば誤りなし。</div>'+
+   '</div>'+
+   '<div class="rtm-hqbar"><span class="rtm-hqname">🏨 施設ごとの予約</span><span class="rtm-hid">系列'+st.cols.length+'施設</span>'+
+     '<span class="rtm-grand">総合計 <b id="rtm-grand">—</b> 本</span>'+
+     '<span class="rtm-rev">💴 金額（予約合計×単価・税抜）：<b id="rtm-grandrev">—</b></span></div>';
+
+  var thead='<thead><tr><th class="name">商品（予約）</th>'+facHead+
+    '<th class="tot">予約合計</th>'+
+    '<th class="rev">金額<br><span style="font-weight:400;font-size:9.5px">予約合計×単価</span></th>'+
+    '<th class="stk">販売可能在庫<br><span style="font-weight:400;font-size:9.5px">◀在庫マスター在庫リスト</span></th>'+
+    '<th class="adjust-h">◀ ここで振り分け ▶<br><span style="font-weight:400;font-size:9.5px">取置か残すを打つ→確定</span></th></tr></thead>';
+
+  var colspan = st.cols.length+5;
+  var fcells=st.cols.map(function(cid){ return '<td id="rtm-f-'+cid+'">—</td>'; }).join('');
+  var tfoot='<tfoot><tr><td class="name">施設別 合計（本）</td>'+fcells+
+    '<td class="tot" id="rtm-ftot">—</td><td class="rev" id="rtm-frev">—</td><td class="stk"></td>'+
+    '<td class="adjust" id="rtm-fadjust">—</td></tr></tfoot>';
+
+  root.innerHTML=head+
+    '<div class="rtm-wrap"><table class="rtm-t">'+thead+'<tbody id="rtm-tbody"></tbody>'+tfoot+'</table></div>'+
+    '<div class="rtm-legend"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［✅確定］</b>→ 取置・予約を<b>統合マスタNの取置列・予約列</b>へ（記録）。③ <b>［📦在庫に反映］</b>→ 取置分を在庫で確保＝<b>販売可能在庫が取置分だけ減る</b>。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※統合マスタN・在庫マスターへの本反映（他アプリへの書込み）は次の増分。今はこの端末に記録＋履歴を残します。</span></div>'+
+    '<div class="rtm-hist" id="rtm-hist"></div>';
+
+  rtmRenderBody();
+  rtmRenderHist();
+}
+
+function rtmRenderBody(){
+  var st=rtmS(); var tb=document.getElementById('rtm-tbody'); if(!tb) return;
+  var q=(document.getElementById('rtm-q')&&document.getElementById('rtm-q').value||'').trim();
+  tb.innerHTML=''; var lastGrp=null; var colspan=st.cols.length+5;
+  rtmRowSkus().forEach(function(sku){
+    var nm=rtmProdName(sku), grp=rtmProdGroup(sku);
+    if(q && nm.indexOf(q)<0 && grp.indexOf(q)<0) return;
+    if(grp!==lastGrp){ lastGrp=grp; var g=document.createElement('tr'); g.innerHTML='<th class="grp" colspan="'+colspan+'">'+esc(grp)+'</th>'; tb.appendChild(g); }
+    var a=rtmAlloc(sku), R=!!a.reflected;
+    var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, ok=(hold+need)===tot, keep=rtmKeep(sku), stock=rtmStock(sku);
+    var m=st.q[sku]||{};
+    var facCells=st.cols.map(function(cid){
+      var val=(+m[cid]||0);
+      return '<td>'+(R?'<span>'+val+'</span>':'<input class="rtm-num fac" type="number" min="0" inputmode="numeric" data-sku="'+sku+'" data-cid="'+cid+'" value="'+val+'">')+'</td>';
+    }).join('');
+    var holdCell = R ? '<span>'+(+a.reflHold||0)+'</span>' : '<input class="rtm-num hin" type="number" min="0" max="'+Math.min(stock,tot)+'" data-sku="'+sku+'" data-f="hold" value="'+hold+'">';
+    var keepCell = R ? '<span>'+(stock-(+a.reflHold||0))+'</span>' : '<input class="rtm-num kin" type="number" min="'+rtmMinKeep(sku)+'" max="'+stock+'" data-sku="'+sku+'" data-f="keep" value="'+keep+'">';
+    var needShow = R ? (tot-(+a.reflHold||0)) : need;
+    var stkNote = R ? '<span class="stk-src refl">取置'+(+a.reflHold||0)+'確保済</span>' : '<span class="stk-src">在庫マスター在庫リストより</span>';
+    var priceNote = price>0 ? 'RT卸 '+rtmYen(price)+'/本 ◀統合マスタN' : '<span style="color:#c1281a">単価未設定（統合マスタN）</span>';
+    var tr=document.createElement('tr'); tr.setAttribute('data-sku',sku);
+    tr.innerHTML='<td class="name">'+esc(nm)+'<span class="pxsub">'+priceNote+'</span></td>'+
+      facCells+
+      '<td class="tot" id="rtm-tot-'+sku+'">'+tot+'</td>'+
+      '<td class="rev" id="rtm-rev-'+sku+'">'+rtmYen(rev)+'</td>'+
+      '<td class="stk" id="rtm-stk-'+sku+'">'+rtmAvailShow(sku)+stkNote+'</td>'+
+      '<td class="adjust">'+
+        '<div class="adj-row"><span class="lbl">🔒取置（在庫から確保）</span>'+holdCell+'</div>'+
+        '<div class="adj-row"><span class="lbl">🗓予約(要輸入)</span><span class="resv" id="rtm-resv-'+sku+'">'+needShow+'</span></div>'+
+        '<div class="adj-row keeprow"><span class="lbl">🛒手元に残す</span>'+keepCell+'</div>'+
+        '<div class="adj-check'+(ok?'':' bad')+'" id="rtm-chk-'+sku+'">取置'+(R?(+a.reflHold||0):hold)+'＋予約'+needShow+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗')+'</div>'+
+        '<div id="rtm-conf-'+sku+'">'+rtmConfCell(sku)+'</div>'+
+      '</td>';
+    tb.appendChild(tr);
+  });
+  rtmRecalcFooter();
+}
+
+function rtmRecalcRow(sku){
+  var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, ok=(hold+need)===tot, stock=rtmStock(sku);
+  var set=function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  set('rtm-tot-'+sku,tot); set('rtm-rev-'+sku,rtmYen(rev)); set('rtm-resv-'+sku,need);
+  var c=document.getElementById('rtm-chk-'+sku); if(c){ c.className='adj-check'+(ok?'':' bad'); c.innerHTML='取置'+hold+'＋予約'+need+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗'); }
+  var hin=document.querySelector('input.hin[data-sku="'+sku+'"]'); var kin=document.querySelector('input.kin[data-sku="'+sku+'"]');
+  if(hin && document.activeElement!==hin){ hin.value=hold; hin.max=Math.min(stock,tot); }
+  if(kin && document.activeElement!==kin){ kin.value=rtmKeep(sku); kin.min=rtmMinKeep(sku); }
+  var cf=document.getElementById('rtm-conf-'+sku); if(cf) cf.innerHTML=rtmConfCell(sku);
+}
+function rtmRecalcFooter(){
+  var st=rtmS(); var colT={}; st.cols.forEach(function(cid){ colT[cid]=0; });
+  var grand=0, needT=0, revT=0, holdT=0, keepT=0;
+  rtmRowSkus().forEach(function(sku){
+    var m=st.q[sku]||{}; st.cols.forEach(function(cid){ colT[cid]+=(+m[cid]||0); });
+    grand+=rtmTotal(sku); needT+=rtmNeed(sku); revT+=rtmTotal(sku)*rtmPrice(sku); holdT+=rtmHold(sku); keepT+=rtmKeep(sku);
+  });
+  st.cols.forEach(function(cid){ var el=document.getElementById('rtm-f-'+cid); if(el) el.textContent=colT[cid]; });
+  var set=function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  set('rtm-ftot',grand); set('rtm-frev',rtmYen(revT)); set('rtm-grand',grand); set('rtm-grandrev',rtmYen(revT));
+  var fa=document.getElementById('rtm-fadjust'); if(fa) fa.innerHTML='🔒取置 '+holdT+' ＋予約 '+needT+' = <b>'+grand+'</b> '+((holdT+needT)===grand?'✓':'✗')+'　／　🛒残す 計 '+keepT;
+}
+function rtmRenderHist(){
+  var st=rtmS(); var h=document.getElementById('rtm-hist'); if(!h) return;
+  h.innerHTML = st.hist.length ? '<b>🕘 変更履歴：</b>'+st.hist.slice(-40).reverse().map(function(x){return '<span class="hitem">'+esc(x)+'</span>';}).join('')
+                               : '<b>🕘 変更履歴：</b><span class="hnone">まだありません</span>';
+}
+function rtmPushHist(s){ var st=rtmS(); st.hist.push(s); if(st.hist.length>200) st.hist=st.hist.slice(-200); rtmSave(st); rtmRenderHist(); }
+
+// ── 入力（施設予約・取置・残す）：フォーカスを保ちつつ連動 ──
+function rtmOnInput(el){
+  var st=rtmS(); var sku=el.dataset.sku; if(!sku) return;
+  var v=parseInt(el.value); if(isNaN(v))v=0; if(v<0)v=0;
+  var f=el.dataset.f;
+  var a=rtmAlloc(sku);
+  if(!f){ // 施設予約
+    if(!st.q[sku])st.q[sku]={}; st.q[sku][el.dataset.cid]=v;
+    // 取置は据え置き→残すを在庫−取置に合わせ直す（取置が在庫や予約超なら詰める）
+    var hold=rtmHold(sku); var mx=Math.min(rtmStock(sku),rtmTotal(sku)); if(hold>mx){ a.keep=rtmStock(sku)-mx; }
+  } else if(f==='hold'){
+    var h=v, mx2=Math.min(rtmStock(sku),rtmTotal(sku)); if(h>mx2)h=mx2; a.keep=rtmStock(sku)-h;
+  } else { a.keep=v; }
+  a.confirmed=false;
+  rtmSave(st);
+  rtmRecalcRow(sku); rtmRecalcFooter();
+}
+function rtmOnChange(el){
+  var sku=el.dataset.sku; if(!sku) return;
+  var orig=el.dataset.orig; var v=parseInt(el.value); if(isNaN(v))v=0;
+  if(orig!==undefined && String(v)!==orig){
+    var f=el.dataset.f;
+    if(!f) rtmPushHist('🏨 '+rtmFacName(el.dataset.cid)+' '+rtmProdName(sku)+' '+orig+'→'+v+'本');
+    else if(f==='hold') rtmPushHist('🔒 '+rtmProdName(sku)+' 取置→'+rtmHold(sku)+'本（予約'+rtmNeed(sku)+'／残す'+rtmKeep(sku)+'）');
+    else rtmPushHist('🛒 '+rtmProdName(sku)+' 残す→'+rtmKeep(sku)+'本（取置'+rtmHold(sku)+'／予約'+rtmNeed(sku)+'）');
+    el.dataset.orig=String(v);
+  }
+}
+// イベント委譲（#rtm-root は再描画されるので document に付ける）
+document.addEventListener('input', function(e){ var el=e.target; if(el&&el.classList&&el.classList.contains('rtm-num')) rtmOnInput(el); });
+document.addEventListener('focusin', function(e){ var el=e.target; if(el&&el.classList&&el.classList.contains('rtm-num')) el.dataset.orig=el.value; });
+document.addEventListener('change', function(e){ var el=e.target; if(el&&el.classList&&el.classList.contains('rtm-num')) rtmOnChange(el); });
+
+function rtmFilter(){ rtmRenderBody(); }
+
+// ── 列（施設）・行（商品）の増減 ──
+function rtmAddCol(cid){ var st=rtmS(); cid=String(cid); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); rtmPushHist('＋施設を追加：'+rtmFacName(cid)); rtmSave(st); } rtmRender(); }
+function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
+  if(!confirm(rtmFacName(cid)+' の列を外します。入力した予約本数も消えます。よろしいですか？')) return;
+  st.cols=st.cols.filter(function(x){ return x!==cid; });
+  Object.keys(st.q).forEach(function(sku){ if(st.q[sku]) delete st.q[sku][cid]; });
+  rtmPushHist('－施設を外す：'+rtmFacName(cid)); rtmSave(st); rtmRender();
+}
+function rtmAddRow(sku){ var st=rtmS(); if(!st.q[sku]) st.q[sku]={}; rtmPushHist('＋商品を追加：'+rtmProdName(sku)); rtmSave(st); rtmRender(); }
+function rtmClearAll(){
+  if(!confirm('この端末のRT振り分け（施設・予約本数・取置・履歴）を全部リセットします。よろしいですか？')) return;
+  RTM={cols:[],q:{},alloc:{},hist:[]}; rtmSave(RTM); rtmRender();
+}
+
+// ── 確定・在庫反映・やり直し ──
+function rtmConfirm(sku){ var a=rtmAlloc(sku); a.confirmed=true; rtmSave(rtmS()); rtmPushHist('✅ 確定 '+rtmProdName(sku)+'：取置'+rtmHold(sku)+'・予約'+rtmNeed(sku)+' → 統合マスタN（記録）'); rtmRenderBody(); }
+function rtmRedo(sku){ var a=rtmAlloc(sku); a.confirmed=false; a.reflected=false; rtmSave(rtmS()); rtmPushHist('↩ やり直す '+rtmProdName(sku)+'（確定を取り消し）'); rtmRenderBody(); }
+function rtmReflect(sku){ var a=rtmAlloc(sku); if(!a.confirmed||a.reflected) return; a.reflHold=rtmHold(sku); a.reflected=true; rtmSave(rtmS()); rtmPushHist('📦 在庫に反映 '+rtmProdName(sku)+'：取置'+a.reflHold+'本を確保（記録）'); rtmRenderBody(); }
+
+// ── 📥 予約シート取込（受注Aの予約 → 施設×商品の本数を差分プレビュー→反映）──
+function rtmOpenImport(){
+  var st=rtmS(); var agg=rtmReservedFromOrders();
+  var db=document.getElementById('rtm-diffbody'); if(!db) return; db.innerHTML='';
+  var rows=0;
+  Object.keys(agg).forEach(function(sku){
+    Object.keys(agg[sku]).forEach(function(cid){
+      var to=+agg[sku][cid]||0; var cur=(st.q[sku]&&+st.q[sku][cid])||0; var diff=to-cur;
+      var isNewFac = st.cols.indexOf(cid)<0;
+      if(diff===0 && !isNewFac) return;
+      rows++;
+      db.innerHTML+='<tr'+(isNewFac?' class="newrow"':'')+'><td>'+esc(rtmProdName(sku))+'</td><td>'+esc(rtmFacName(cid))+(isNewFac?'<span class="rtm-tagnew">新規施設</span>':'')+'</td><td>'+cur+'</td><td>'+to+'</td><td class="'+(diff>=0?'up':'dn')+'">'+(diff>0?'+':'')+diff+(to===0?'（取消）':'')+'</td></tr>';
+    });
+  });
+  if(!rows){ db.innerHTML='<tr><td colspan="5" style="text-align:center;color:#8a857a;padding:14px">受注Aの「予約」に、今の表と違う施設×商品はありませんでした。<br>（RTの予約は「データ取込」や「🏨一般のお客様を追加」から受注Aに入ると、ここに出ます）</td></tr>'; }
+  document.getElementById('rtm-ov-imp').classList.add('on');
+}
+function rtmApplyImport(){
+  var st=rtmS(); var agg=rtmReservedFromOrders(); var n=0;
+  Object.keys(agg).forEach(function(sku){
+    Object.keys(agg[sku]).forEach(function(cid){
+      var to=+agg[sku][cid]||0; var cur=(st.q[sku]&&+st.q[sku][cid])||0;
+      if(to===cur && st.cols.indexOf(cid)>=0) return;
+      if(st.cols.indexOf(cid)<0) st.cols.push(cid);
+      if(!st.q[sku])st.q[sku]={}; st.q[sku][cid]=to;
+      if(st.alloc[sku]) st.alloc[sku].confirmed=false;
+      n++;
+    });
+  });
+  if(n) rtmPushHist('【取込】受注Aの予約から '+n+'件を反映');
+  rtmSave(st); rtmCloseOv('rtm-ov-imp'); rtmRender();
+}
+function rtmCloseOv(id){ var el=document.getElementById(id); if(el) el.classList.remove('on'); }
+document.addEventListener('click', function(e){ if(e.target&&e.target.classList&&e.target.classList.contains('rtm-ov')) e.target.classList.remove('on'); });
+
 function ghSellableProducts(){ return PRODUCTS.filter(function(p){ return p && p.sku && p.group!=='資材'; }); }
 var ghLineSeq=0;
 function ghInit(){
