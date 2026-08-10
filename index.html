@@ -1370,6 +1370,7 @@ body{background:#fff}
     </div>
     <div class="fg" style="margin-bottom:8px"><label>住所</label><input type="text" id="nc-addr"></div>
     <div class="fg" style="margin-bottom:8px"><label>メールアドレス <span style="color:#8a6d3f;font-size:11px">（将来のお便り・大切な連絡に使います）</span></label><input type="text" id="nc-email"></div>
+    <div class="fg" style="margin-bottom:8px"><label>系列（グループ） <span style="color:#8a6d3f;font-size:11px">（同じ系列でまとめて見るための欄。RTの施設は「RT全体」）</span></label><input type="text" id="nc-series" list="series-suggest" placeholder="例：RT全体"><datalist id="series-suggest"><option value="RT全体"></option></datalist></div>
     <div class="fg" style="margin-bottom:10px"><label>メモ</label><input type="text" id="nc-note"></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-primary" id="nc-save-btn" onclick="saveCustomerForm()">お客様を追加</button>
@@ -1869,6 +1870,7 @@ function loadInitialData(retry){
       if(Array.isArray(d.preorders)) preorders = d.preorders;
       if(incomingCustomers && (incomingCustomers.length>0 || customers.length===0)) customers = incomingCustomers;
       __snapshotCustomers();
+      if(typeof backfillCustomerSeries==='function') backfillCustomerSeries(); // RT施設に系列「RT全体」を補完（メモリ内）
       if(Array.isArray(d.priceMaster) && d.priceMaster.length) priceMaster = d.priceMaster;
     }
     if(oOk){
@@ -3140,7 +3142,7 @@ function renderCustomerList(){
   el.innerHTML = list.map(function(c){
     return '<div style="border:1px solid #e8e2d8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff">'+
       '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">'+
-        '<div style="min-width:180px"><span style="font-size:15px;font-weight:700;color:#1a1a18">'+esc(c.name||'（無名）')+'</span> <span style="font-size:11px;background:#eef1e6;border:1px solid #c9d3b4;color:#3b4a1c;border-radius:99px;padding:1px 8px;font-weight:700">'+(CUSTOMER_TYPE_LABEL[c.type]||c.type||'')+'</span>'+(custHasOrder(c)?' <span style="font-size:11px;background:#dcfce7;border:1px solid #86c99a;color:#14532d;border-radius:99px;padding:1px 8px;font-weight:700">✓ 受注あり</span>':'')+'</div>'+
+        '<div style="min-width:180px"><span style="font-size:15px;font-weight:700;color:#1a1a18">'+esc(c.name||'（無名）')+'</span> <span style="font-size:11px;background:#eef1e6;border:1px solid #c9d3b4;color:#3b4a1c;border-radius:99px;padding:1px 8px;font-weight:700">'+(CUSTOMER_TYPE_LABEL[c.type]||c.type||'')+'</span>'+(c.series?' <span style="font-size:11px;background:#e6efff;border:1px solid #9bb8e0;color:#1f4a6d;border-radius:99px;padding:1px 8px;font-weight:700">🏛 '+esc(c.series)+'</span>':'')+(custHasOrder(c)?' <span style="font-size:11px;background:#dcfce7;border:1px solid #86c99a;color:#14532d;border-radius:99px;padding:1px 8px;font-weight:700">✓ 受注あり</span>':'')+'</div>'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
           '<button class="btn-sm" onclick="editCustomer(\''+c.id+'\')">✏️ 直す</button>'+
         '</div>'+
@@ -3218,6 +3220,16 @@ var RT_FACILITIES_SEED = {
     {name:'オークモントゴルフクラブ',loc:'奈良県山辺郡山添村',tel:'0743-87-0031'}
   ]
 };
+// 既にお客様マスタに登録済みのRT施設（区分 rt / rtgc）で「系列」が空のものへ
+// 「RT全体」を自動で補う。読み込みのたびに走らせても安全（すでに入っていれば何もしない）。
+// 目的：RTマトリクスが系列＝「RT全体」で施設を確実に束ねられるようにする。
+function backfillCustomerSeries(){
+  var changed = 0;
+  (customers||[]).forEach(function(c){
+    if(c && !c.series && (c.type==='rt' || c.type==='rtgc')){ c.series = 'RT全体'; changed++; }
+  });
+  return changed;
+}
 function importRtFacilitiesOnce(){
   var seed = RT_FACILITIES_SEED;
   var existing = {};
@@ -3227,7 +3239,7 @@ function importRtFacilitiesOnce(){
   function addOne(f, type){
     var nm = String(f.name).trim();
     if(existing[nm]){ skipped++; return; }
-    customers.push({ id:'c'+(now+(k++)), recycle:false, name:nm, type:type, zip:(f.zip||''), addr:(f.loc||''), tel:(f.tel||''), email:'', note:'RT台帳より自動登録（'+(type==='rt'?'RT・ホテル':'RTGC・ゴルフ')+'）' });
+    customers.push({ id:'c'+(now+(k++)), recycle:false, name:nm, type:type, zip:(f.zip||''), addr:(f.loc||''), tel:(f.tel||''), email:'', series:'RT全体', note:'RT台帳より自動登録（'+(type==='rt'?'RT・ホテル':'RTGC・ゴルフ')+'）' });
     existing[nm] = true; added++;
   }
   seed.rt.forEach(function(f){ addOne(f, 'rt'); });
@@ -3244,6 +3256,7 @@ function saveCustomerForm(){
     name: name, type: document.getElementById('nc-type').value,
     zip: document.getElementById('nc-zip').value.trim(), addr: document.getElementById('nc-addr').value.trim(),
     tel: document.getElementById('nc-tel').value.trim(), email: document.getElementById('nc-email').value.trim(),
+    series: document.getElementById('nc-series').value.trim(),
     note: document.getElementById('nc-note').value.trim()
   };
   if(editingCustId){
@@ -3266,6 +3279,7 @@ function editCustomer(id){
   document.getElementById('nc-tel').value = c.tel||'';
   document.getElementById('nc-addr').value = c.addr||'';
   document.getElementById('nc-email').value = c.email||'';
+  document.getElementById('nc-series').value = c.series||'';
   document.getElementById('nc-note').value = c.note||'';
   document.getElementById('nc-form-title').textContent = '✏️ お客様を編集中：'+(c.name||'');
   document.getElementById('nc-save-btn').textContent = '更新する';
@@ -3274,7 +3288,7 @@ function editCustomer(id){
 }
 function cancelCustomerEdit(){
   editingCustId = null;
-  ['nc-name','nc-zip','nc-addr','nc-tel','nc-email','nc-note'].forEach(id=>document.getElementById(id).value='');
+  ['nc-name','nc-zip','nc-addr','nc-tel','nc-email','nc-series','nc-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nc-type').innerHTML = custTypeOptions('general');
   document.getElementById('nc-form-title').textContent = '＋ お客様を手で追加';
   document.getElementById('nc-save-btn').textContent = 'お客様を追加';
