@@ -304,6 +304,23 @@
     <input class="search" id="q" placeholder="🔎 施設名・シェフ名・オイル名で絞る（例：野口、ラグーナ、オルガニック）" oninput="renderDaicho();if(facListOn)renderFacList();">
     <div id="sync-status" class="mini" style="margin:2px 0 6px;color:#5c6636;font-weight:700;line-height:1.5;"></div>
     <button id="faclist-btn" class="faclist-toggle" onclick="toggleFacList()">📋 施設だけの一覧（料理長・役職・住所・電話）を見る</button>
+    <style>
+      .fl-alias{display:inline-block;font-size:11px;background:#eaf1fb;border:1px solid #b8cdec;color:#274a78;border-radius:12px;padding:1px 8px;margin-top:4px;font-weight:700}
+      .fl-alias.fl-alias-none{background:#f3f2ec;border-color:#ddd8cc;color:#a49e8f;font-weight:600}
+      .fl-editbtn{display:inline-block;margin-top:5px;margin-left:6px;font-size:11px;background:#fff;border:1px solid #b9c19f;color:#4a5a2a;border-radius:7px;padding:2px 9px;cursor:pointer;font-weight:700}
+      .fl-editrow>td{background:#fbfaf4;border-top:2px solid #cdd8b6}
+      .fl-editbox{padding:6px 4px}
+      .fl-emsgtop{font-size:12px;color:#4a5a2a;margin-bottom:8px}
+      .fl-editgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px}
+      .fl-efg{display:flex;flex-direction:column;gap:3px;min-width:0}
+      .fl-efg.fl-efg-wide{grid-column:1 / 3}
+      .fl-efg label{font-size:10.5px;color:#6b6558;font-weight:700}
+      .fl-efg input{padding:7px 9px;border:1.5px solid #b9b3a3;border-radius:8px;font-size:14px;width:100%}
+      .fl-editactions{display:flex;align-items:center;gap:8px;margin-top:9px}
+      .fl-save{background:#6b7a3a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:800;cursor:pointer}
+      .fl-cancel{background:#fff;border:1px solid #c9c3b4;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
+      .fl-emsg{font-size:12px;color:#8a5a13}
+    </style>
     <div id="faclist" style="display:none"></div>
     <div id="list"></div>
   </div>
@@ -870,6 +887,7 @@ function openMain(){
   fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
   renderOilRank();
   loadContactsFromMaster();
+  loadRtFacMaster();   // RT施設マスタ（台帳が親）を読み込み→FACに反映（お客様マスタより優先）
   applyBossGate();
 }
 
@@ -959,6 +977,7 @@ function loadContactsFromMaster(){
       cs.forEach(function(c){ if(c&&c.name) byName[normFacName(c.name)]=c; });
       var n=0;
       Object.keys(FAC).forEach(function(fk){
+        if(FAC[fk] && FAC[fk]._rtmaster) return; // RT\u65bd\u8a2d\u30de\u30b9\u30bf\uff08\u53f0\u5e33\uff09\u304c\u89aa\uff1a\u304a\u5ba2\u69d8\u30de\u30b9\u30bf\u3067\u306f\u4e0a\u66f8\u304d\u3057\u306a\u3044
         var c=byName[normFacName(fk)]; if(!c) return;
         var addr=((c.zip?('\u3012'+String(c.zip).replace(/^\u3012/,'')+' '):'')+(c.addr||'')).trim();
         var hit=false;
@@ -1067,13 +1086,18 @@ function renderFacList(){
       var role = mc.role ? '<div class="fl-role2"><span class="fl-role">'+esc(mc.role)+'</span></div>' : '';
       var genre = '<div class="fl-genre2"><span class="genre-pill g-'+d.genre+'">'+esc(d.genre)+'</span></div>';
       var addrCell = za.addr ? ('<div class="fl-zip">'+esc(za.zip)+'</div><div class="fl-addr">'+esc(za.addr)+'</div>') : '<span class="fl-noaddr">住所が未登録</span>';
-      return '<tr>'+
-        '<td class="fl-fac"><b>'+esc(f)+'</b>'+genre+'</td>'+
+      var aliasChip = d.alias ? '<div class="fl-alias">🏷 呼称：'+esc(d.alias)+'</div>' : '<div class="fl-alias fl-alias-none">🏷 呼称：未登録</div>';
+      var fj = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var editBtn = '<button class="fl-editbtn" onclick="facEdit(\''+fj+'\')">✏️ 呼称・住所を直す</button>';
+      var mainRow = '<tr>'+
+        '<td class="fl-fac"><b>'+esc(f)+'</b>'+genre+aliasChip+editBtn+'</td>'+
         '<td>'+chef+role+'</td>'+
         '<td class="fl-addrcell">'+addrCell+'</td>'+
         '<td class="fl-tel">'+telLines(d.tel)+'</td>'+
         '<td class="fl-fax">'+faxCell+'</td>'+
       '</tr>';
+      if(facEditKey===f){ mainRow += facEditRowHtml(f); }
+      return mainRow;
     }).join('');
   }
   box.innerHTML=
@@ -1097,6 +1121,62 @@ function copyFacList(){
   else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); setSync('施設一覧をコピーしました（'+keys.length+'施設）'); }
 }
 
+/* ===== 施設の「呼称・住所・電話」をその場で編集（RT施設マスタ＝台帳が親） ===== */
+var facEditKey='';
+function facEdit(f){ facEditKey=f; renderFacList(); var el=document.getElementById('fe-alias'); if(el){ try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); } } }
+function facEditCancel(){ facEditKey=''; renderFacList(); }
+function facEditRowHtml(f){
+  var d=FAC[f]||{}; var za=(typeof zipAddr==='function')?zipAddr(d.addr||''):{zip:'',addr:(d.addr||'')};
+  return '<tr class="fl-editrow"><td colspan="5">'+
+    '<div class="fl-editbox">'+
+      '<div class="fl-emsgtop">🏛 この施設の情報（呼称・住所・電話）を編集します。ここが<b>大元</b>です（受注A・見積にも反映されます）。</div>'+
+      '<div class="fl-editgrid">'+
+        '<div class="fl-efg fl-efg-wide"><label>🏷 呼称（RT本部の呼び名。ご予約シートの見出しをそのまま。複数は「、」で区切る）</label><input id="fe-alias" value="'+esc(d.alias||'')+'" placeholder="例：日光(鉄板)、日光"></div>'+
+        '<div class="fl-efg"><label>郵便番号</label><input id="fe-zip" value="'+esc(za.zip||'')+'"></div>'+
+        '<div class="fl-efg fl-efg-wide"><label>住所</label><input id="fe-addr" value="'+esc(za.addr||'')+'"></div>'+
+        '<div class="fl-efg fl-efg-wide"><label>電話（FAXも含めてそのまま）</label><input id="fe-tel" value="'+esc(d.tel||'')+'"></div>'+
+      '</div>'+
+      '<div class="fl-editactions"><button class="fl-save" onclick="facSave(\''+f.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">💾 保存</button><button class="fl-cancel" onclick="facEditCancel()">やめる</button><span id="fe-msg" class="fl-emsg"></span></div>'+
+    '</div>'+
+  '</td></tr>';
+}
+function facSave(f){
+  var g=function(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():''; };
+  var alias=g('fe-alias'), zip=g('fe-zip'), addr=g('fe-addr'), tel=g('fe-tel');
+  var msg=document.getElementById('fe-msg'); if(msg) msg.textContent='保存中…';
+  if(!FAC[f]) FAC[f]={genre:'その他',cur:'',staff:'—',lineage:[],pastOils:[],addr:'',tel:''};
+  FAC[f].alias=alias;
+  FAC[f].addr=((zip?('〒'+zip.replace(/^〒/,'')+' '):'')+addr).trim();
+  FAC[f].tel=tel; FAC[f]._rtmaster=true;   // 台帳を親として確定
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveRtFacility',rec:{name:f,zip:zip,addr:addr,tel:tel,alias:alias}})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'){ facEditKey=''; renderFacList(); if(typeof setSync==='function') setSync('保存しました：'+f); }
+      else { if(msg) msg.textContent='保存できませんでした：'+((d&&d.message)||'不明')+'（GASにRT施設マスタの窓口が入っているか確認してください）'; }
+    })
+    .catch(function(){ if(msg) msg.textContent='通信できませんでした。画面には反映済みです（あとでもう一度保存してください）'; });
+}
+/* ===== RT施設マスタ（台帳が親）を読み込んでFACに反映。お客様マスタより優先。 ===== */
+function loadRtFacMaster(){
+  try{
+    fetch(GAS_URL+'?action=loadRtFacilities&_ts='+Date.now())
+      .then(function(r){return r.json();})
+      .then(function(res){
+        var list=(res&&res.data&&res.data.facilities)?res.data.facilities:[];
+        list.forEach(function(f){
+          if(!f||!f.name) return;
+          if(!FAC[f.name]) FAC[f.name]={genre:'その他',cur:'',staff:'—',lineage:[],pastOils:[],addr:'',tel:''};
+          var d=FAC[f.name];
+          if(f.zip||f.addr){ d.addr=((f.zip?('〒'+String(f.zip).replace(/^〒/,'')+' '):'')+(f.addr||'')).trim(); d._rtmaster=true; }
+          if(f.tel){ d.tel=f.tel; d._rtmaster=true; }
+          d.alias=f.alias||d.alias||'';
+        });
+        if(typeof renderDaicho==='function') renderDaicho();
+        if(facListOn && typeof renderFacList==='function') renderFacList();
+      })
+      .catch(function(){});
+  }catch(e){}
+}
 /* ---- 集計ヘルパ ---- */
 function nowOils(fac){ var s={}; SALES.forEach(function(r){ if(r[0]===fac) s[r[1]]=(s[r[1]]||0)+r[2]; }); return s; }
 function facTotal(fac){ var n=0; SALES.forEach(function(r){ if(r[0]===fac && r[3]==='本') n+=r[2]; }); return n; }

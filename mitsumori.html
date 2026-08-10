@@ -1787,6 +1787,8 @@ function loadAllBilling(){
       monthlyInvoices = dataRes.data.monthlyInvoices || [];
       customers = dataRes.data.customers || [];
       __snapshotCustomers();
+      applyRtFacilityMaster();                          // RT施設マスタ（RTシェフ台帳が親）を宛名の住所・電話に上書き
+      if(!RT_FAC_MASTER_LOADED) loadRtFacilityMaster();  // 初回だけ台帳のRT施設マスタを取得→再適用
       quoteHistory = dataRes.data.quoteHistory || [];
       specialPrices = dataRes.data.specialPrices || [];
       /* 2026-07-23 ラベル図鑑（labels.html）のデータ。写真・一言メモ・バーコード。 */
@@ -1838,6 +1840,25 @@ function orderAmount(o){
 }
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// ── RT施設マスタ（RTシェフ台帳が親）を見積の宛名に映す（台帳に値があれば台帳優先／無ければ従来） ──
+var RT_FAC_MASTER = {}; var RT_FAC_MASTER_LOADED = false;
+function rtfNorm(s){ return String(s==null?'':s).replace(/[\s　]/g,'').replace(/レストラン$/,'').replace(/[（(][^）)]*[）)]/g,'').toLowerCase(); }
+function applyRtFacilityMaster(){
+  if(!Array.isArray(customers)) return;
+  customers.forEach(function(c){
+    if(!c||!c.name) return; var f=RT_FAC_MASTER[rtfNorm(c.name)]; if(!f) return;
+    if(f.addr){ c.addr=f.addr; } if(f.zip){ c.zip=f.zip; } if(f.tel){ c.tel=f.tel; } if(f.alias){ c.rtAlias=f.alias; } c._rtMaster=true;
+  });
+}
+function loadRtFacilityMaster(){
+  try{
+    fetch(GAS_URL+'?action=loadRtFacilities&_ts='+Date.now()).then(function(r){return r.json();}).then(function(res){
+      var list=(res&&res.data&&Array.isArray(res.data.facilities))?res.data.facilities:[];
+      RT_FAC_MASTER={}; list.forEach(function(f){ if(f&&f.name) RT_FAC_MASTER[rtfNorm(f.name)]=f; });
+      RT_FAC_MASTER_LOADED=true; applyRtFacilityMaster();
+    }).catch(function(){});
+  }catch(e){}
+}
 // 印刷の向き：標準価格表はA4横（landscape）、それ以外は縦（portrait）のまま
 function setPrintOrientation(landscape){
   let styleEl = document.getElementById('print-orientation-style');

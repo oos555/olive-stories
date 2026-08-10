@@ -1460,6 +1460,11 @@ body{background:#fff}
     .rtm-bc-out .bc-field.part .bc-val{color:#b45309}
     .rtm-bc-out .bc-note{font-size:11px;color:#8a857a;font-weight:600}
     .rtm-bc-out .bc-muted{color:#8a857a;font-weight:500}
+    .ie-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+    .ie-fg{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .ie-fg.ie-wide{grid-column:1 / 3}
+    .ie-fg label{font-size:10.5px;color:#6b6558;font-weight:700}
+    .ie-fg input,.ie-fg select{padding:6px 8px;border:1.5px solid #cfc9bd;border-radius:7px;font-size:13px;width:100%;background:#fff}
   </style>
 
   <!-- 施設↔施設の移動 -->
@@ -1521,6 +1526,7 @@ body{background:#fff}
     <div class="fg" style="margin-bottom:8px"><label>住所</label><input type="text" id="nc-addr"></div>
     <div class="fg" style="margin-bottom:8px"><label>メールアドレス <span style="color:#8a6d3f;font-size:11px">（将来のお便り・大切な連絡に使います）</span></label><input type="text" id="nc-email"></div>
     <div class="fg" style="margin-bottom:8px"><label>系列（グループ） <span style="color:#8a6d3f;font-size:11px">（同じ系列でまとめて見るための欄。RTの施設は「RT全体」）</span></label><input type="text" id="nc-series" list="series-suggest" placeholder="例：RT全体"><datalist id="series-suggest"><option value="RT全体"></option></datalist></div>
+    <div class="fg" style="margin-bottom:8px"><label>🏷 RT呼称 <span style="color:#8a6d3f;font-size:11px">（RT本部が使う呼び名。編集は「RTシェフ台帳」の施設一覧で行います。ここは表示のみ）</span></label><input type="text" id="nc-rtalias" placeholder="RTシェフ台帳で登録" readonly style="background:#f2f0ea;color:#6b6558"></div>
     <div class="fg" style="margin-bottom:10px"><label>メモ</label><input type="text" id="nc-note"></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-primary" id="nc-save-btn" onclick="saveCustomerForm()">お客様を追加</button>
@@ -2021,6 +2027,8 @@ function loadInitialData(retry){
       if(incomingCustomers && (incomingCustomers.length>0 || customers.length===0)) customers = incomingCustomers;
       __snapshotCustomers();
       if(typeof backfillCustomerSeries==='function') backfillCustomerSeries(); // RT施設に系列「RT全体」を補完（メモリ内）
+      applyRtFacilityMaster();                          // RT施設マスタ（RTシェフ台帳が親）を住所・電話・呼称に上書き
+      if(!RT_FAC_MASTER_LOADED) loadRtFacilityMaster();  // 初回だけ台帳のRT施設マスタを取得→再適用
       if(Array.isArray(d.priceMaster) && d.priceMaster.length) priceMaster = d.priceMaster;
     }
     if(oOk){
@@ -3263,6 +3271,7 @@ function showPanel(name, btn){
 
 // ── 顧客管理（住所録）────────────────────────────────────────────
 let editingCustId = null;
+let inlineEditId = null; // カード内でその場編集中のお客様ID
 let custQueue = [];
 function custTypeOptions(sel){
   return Object.keys(CUSTOMER_TYPE_LABEL).filter(k=>k!=='defectprice')
@@ -3286,25 +3295,65 @@ function renderCustomerList(){
   if(typeSel && !typeSel.options.length) typeSel.innerHTML = custTypeOptions('general');
   const q = (document.getElementById('cust-search').value||'').toLowerCase();
   const el = document.getElementById('cust-list');
-  const list = customers.filter(c=>!q || (c.name||'').toLowerCase().includes(q) || (c.email||'').toLowerCase().includes(q) || (c.tel||'').toLowerCase().includes(q));
+  const list = customers.filter(c=>!q || (c.name||'').toLowerCase().includes(q) || (c.email||'').toLowerCase().includes(q) || (c.tel||'').toLowerCase().includes(q) || (c.rtAlias||'').toLowerCase().includes(q));
   document.getElementById('cust-count').textContent = '全'+customers.length+'件'+(q?'（'+list.length+'件表示）':'');
   if(!list.length){ el.innerHTML = '<div style="color:#2b2a26;font-size:13px;padding:8px 0">お客様がいません。下の「手で追加」から登録できます。</div>'; return; }
   el.innerHTML = list.map(function(c){
-    return '<div style="border:1px solid #e8e2d8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff">'+
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">'+
-        '<div style="min-width:180px"><span style="font-size:15px;font-weight:700;color:#1a1a18">'+esc(c.name||'（無名）')+'</span> <span style="font-size:11px;background:#eef1e6;border:1px solid #c9d3b4;color:#3b4a1c;border-radius:99px;padding:1px 8px;font-weight:700">'+(CUSTOMER_TYPE_LABEL[c.type]||c.type||'')+'</span>'+(c.series?' <span style="font-size:11px;background:#e6efff;border:1px solid #9bb8e0;color:#1f4a6d;border-radius:99px;padding:1px 8px;font-weight:700">🏛 '+esc(c.series)+'</span>':'')+(custHasOrder(c)?' <span style="font-size:11px;background:#dcfce7;border:1px solid #86c99a;color:#14532d;border-radius:99px;padding:1px 8px;font-weight:700">✓ 受注あり</span>':'')+'</div>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-          '<button class="btn-sm" onclick="editCustomer(\''+c.id+'\')">✏️ 直す</button>'+
-        '</div>'+
-      '</div>'+
+    var editing = (String(c.id)===String(inlineEditId));
+    var detail = editing ? custInlineForm(c) :
       '<div style="font-size:12px;color:#2b2a26;margin-top:5px;line-height:1.6">'+
         (c.addr?'📍 '+esc((c.zip?c.zip+' ':'')+c.addr)+'<br>':'')+
         (c.tel?'☎ '+esc(c.tel)+'　':'')+
         (c.email?'✉ '+esc(c.email):'')+
         (c.note?'<br>📝 '+esc(c.note):'')+
+      '</div>';
+    return '<div style="border:1px solid '+(editing?'#9bb8e0':'#e8e2d8')+';border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff">'+
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">'+
+        '<div style="min-width:180px"><span style="font-size:15px;font-weight:700;color:#1a1a18">'+esc(c.name||'（無名）')+'</span> <span style="font-size:11px;background:#eef1e6;border:1px solid #c9d3b4;color:#3b4a1c;border-radius:99px;padding:1px 8px;font-weight:700">'+(CUSTOMER_TYPE_LABEL[c.type]||c.type||'')+'</span>'+(c.series?' <span style="font-size:11px;background:#e6efff;border:1px solid #9bb8e0;color:#1f4a6d;border-radius:99px;padding:1px 8px;font-weight:700">🏛 '+esc(c.series)+'</span>':'')+(c.rtAlias?' <span style="font-size:11px;background:#eaf1fb;border:1px solid #b8cdec;color:#274a78;border-radius:99px;padding:1px 8px;font-weight:700">🏷 RT呼称：'+esc(c.rtAlias)+'</span>':'')+(custHasOrder(c)?' <span style="font-size:11px;background:#dcfce7;border:1px solid #86c99a;color:#14532d;border-radius:99px;padding:1px 8px;font-weight:700">✓ 受注あり</span>':'')+'</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          (editing?'':'<button class="btn-sm" onclick="startInlineEdit(\''+c.id+'\')">✏️ 直す</button>')+
+        '</div>'+
       '</div>'+
+      detail+
     '</div>';
   }).join('');
+}
+// カード内その場編集フォーム（系列の右にRT呼称を並べる。下の大きな枠には飛ばない）
+function custInlineForm(c){
+  return '<div style="margin-top:8px;border-top:1px dashed #cdd3e0;padding-top:9px">'+
+    '<div class="ie-grid">'+
+      '<div class="ie-fg"><label>お名前</label><input id="ie-name" value="'+esc(c.name||'')+'"></div>'+
+      '<div class="ie-fg"><label>区分</label><select id="ie-type">'+custTypeOptions(c.type||'general')+'</select></div>'+
+      '<div class="ie-fg"><label>郵便番号</label><input id="ie-zip" value="'+esc(c.zip||'')+'"></div>'+
+      '<div class="ie-fg"><label>電話</label><input id="ie-tel" value="'+esc(c.tel||'')+'"></div>'+
+      '<div class="ie-fg ie-wide"><label>住所</label><input id="ie-addr" value="'+esc(c.addr||'')+'"></div>'+
+      '<div class="ie-fg ie-wide"><label>メールアドレス</label><input id="ie-email" value="'+esc(c.email||'')+'"></div>'+
+      '<div class="ie-fg"><label>系列（グループ）</label><input id="ie-series" list="series-suggest" value="'+esc(c.series||'')+'"></div>'+
+      '<div class="ie-fg"><label>🏷 RT呼称 <span style="color:#8a6d3f;font-size:10px">（RTシェフ台帳で編集）</span></label><input id="ie-rtalias" value="'+esc(c.rtAlias||'')+'" readonly style="background:#f2f0ea;color:#6b6558"></div>'+
+      '<div class="ie-fg ie-wide"><label>メモ</label><input id="ie-note" value="'+esc(c.note||'')+'"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:9px">'+
+      '<button class="btn-sm" style="background:#55622e;color:#fff;border:none;font-weight:800" onclick="saveInlineEdit(\''+c.id+'\')">💾 保存</button>'+
+      '<button class="btn-sm" onclick="cancelInlineEdit()">やめる</button>'+
+    '</div>'+
+  '</div>';
+}
+function startInlineEdit(id){ inlineEditId=String(id); renderCustomerList(); var f=document.getElementById('ie-name'); if(f){ try{ f.focus({preventScroll:true}); }catch(e){ f.focus(); } } }
+function cancelInlineEdit(){ inlineEditId=null; renderCustomerList(); }
+function saveInlineEdit(id){
+  var c=customers.find(function(x){ return String(x.id)===String(id); });
+  if(!c){ inlineEditId=null; renderCustomerList(); return; }
+  var g=function(k){ var el=document.getElementById(k); return el?el.value.trim():''; };
+  var name=g('ie-name'); if(!name){ alert('お名前を入力してください'); return; }
+  c.name=name;
+  var ty=document.getElementById('ie-type'); if(ty) c.type=ty.value;
+  c.zip=g('ie-zip'); c.tel=g('ie-tel'); c.addr=g('ie-addr'); c.email=g('ie-email');
+  c.series=g('ie-series'); c.rtAlias=g('ie-rtalias'); c.note=g('ie-note');
+  inlineEditId=null;
+  if(typeof showSyncStatus==='function') showSyncStatus('✅ お客様情報を更新しました');
+  if(typeof saveCustomersToGAS==='function') saveCustomersToGAS();
+  if(typeof updCustomerSelects==='function') updCustomerSelects();
+  renderCustomerList();
 }
 var RT_FACILITIES_SEED = {
   rt: [
@@ -3371,6 +3420,37 @@ var RT_FACILITIES_SEED = {
   ]
 };
 // 既にお客様マスタに登録済みのRT施設（区分 rt / rtgc）で「系列」が空のものへ
+// ── RT施設マスタ（RTシェフ台帳が親）を受注Aに映す ──────────────────────
+// 台帳の「RT施設マスタ」を読み込み、お客様データの住所・電話・呼称に上書きする。
+// 台帳に値があれば台帳優先／無ければ従来のまま（＝安全。宛先が空にならない）。
+var RT_FAC_MASTER = {};        // 施設名(正規化) -> {name,zip,addr,tel,alias}
+var RT_FAC_MASTER_LOADED = false;
+function rtfNorm(s){ return String(s==null?'':s).replace(/[\s　]/g,'').replace(/レストラン$/,'').replace(/[（(][^）)]*[）)]/g,'').toLowerCase(); }
+function applyRtFacilityMaster(){
+  if(!Array.isArray(customers)) return;
+  customers.forEach(function(c){
+    if(!c||!c.name) return;
+    var f=RT_FAC_MASTER[rtfNorm(c.name)]; if(!f) return;
+    if(f.addr){ c.addr=f.addr; }
+    if(f.zip){ c.zip=f.zip; }
+    if(f.tel){ c.tel=f.tel; }
+    if(f.alias){ c.rtAlias=f.alias; }   // 呼称も台帳が親
+    c._rtMaster=true;
+  });
+}
+function loadRtFacilityMaster(){
+  try{
+    fetch(bust(GAS_URL+'?action=loadRtFacilities'),{cache:'no-store'}).then(function(r){return r.json();}).then(function(res){
+      var list=(res&&res.data&&Array.isArray(res.data.facilities))?res.data.facilities:[];
+      RT_FAC_MASTER={};
+      list.forEach(function(f){ if(f&&f.name) RT_FAC_MASTER[rtfNorm(f.name)]=f; });
+      RT_FAC_MASTER_LOADED=true;
+      applyRtFacilityMaster();
+      if(typeof updCustomerSelects==='function') updCustomerSelects();
+      if(typeof renderCustomerList==='function') renderCustomerList();
+    }).catch(function(){});
+  }catch(e){}
+}
 // 「RT全体」を自動で補う。読み込みのたびに走らせても安全（すでに入っていれば何もしない）。
 // 目的：RTマトリクスが系列＝「RT全体」で施設を確実に束ねられるようにする。
 function backfillCustomerSeries(){
@@ -3407,6 +3487,7 @@ function saveCustomerForm(){
     zip: document.getElementById('nc-zip').value.trim(), addr: document.getElementById('nc-addr').value.trim(),
     tel: document.getElementById('nc-tel').value.trim(), email: document.getElementById('nc-email').value.trim(),
     series: document.getElementById('nc-series').value.trim(),
+    rtAlias: document.getElementById('nc-rtalias').value.trim(),
     note: document.getElementById('nc-note').value.trim()
   };
   if(editingCustId){
@@ -3430,6 +3511,7 @@ function editCustomer(id){
   document.getElementById('nc-addr').value = c.addr||'';
   document.getElementById('nc-email').value = c.email||'';
   document.getElementById('nc-series').value = c.series||'';
+  document.getElementById('nc-rtalias').value = c.rtAlias||'';
   document.getElementById('nc-note').value = c.note||'';
   document.getElementById('nc-form-title').textContent = '✏️ お客様を編集中：'+(c.name||'');
   document.getElementById('nc-save-btn').textContent = '更新する';
@@ -3438,7 +3520,7 @@ function editCustomer(id){
 }
 function cancelCustomerEdit(){
   editingCustId = null;
-  ['nc-name','nc-zip','nc-addr','nc-tel','nc-email','nc-series','nc-note'].forEach(id=>document.getElementById(id).value='');
+  ['nc-name','nc-zip','nc-addr','nc-tel','nc-email','nc-series','nc-rtalias','nc-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nc-type').innerHTML = custTypeOptions('general');
   document.getElementById('nc-form-title').textContent = '＋ お客様を手で追加';
   document.getElementById('nc-save-btn').textContent = 'お客様を追加';
@@ -4009,17 +4091,39 @@ function rtmResolveSku(cd, cat, vol){
   var sku = pre+suf;
   return findProductBySku(sku) ? sku : null;
 }
-// Excelの施設名 → 表の列（顧客マスタ系列RT全体と名前で対応。無ければ未登録列として仮取込）
+// RT呼称の照合用（括弧の中身は残す。全角→半角・空白除去・小文字化のみ）
+function rtmNormAlias(s){
+  s = String(s==null?'':s);
+  s = s.replace(/[\s　]+/g,'');
+  s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(ch){ return String.fromCharCode(ch.charCodeAt(0)-0xFEE0); });
+  s = s.replace(/（/g,'(').replace(/）/g,')');
+  return s.toLowerCase();
+}
+// Excelの施設名 → 表の列（① RT呼称で照合＝優先 → ② 施設名で照合 → ③ 仮の列）
 function rtmResolveFac(name){
+  var rtFacs = (customers||[]).filter(function(c){ return c && c.series==='RT全体'; });
+  // ① RT呼称（顧客管理で登録した呼び名）で照合＝いちばん確実
+  var aTarget = rtmNormAlias(name);
+  var aliasHit = null;
+  rtFacs.forEach(function(c){
+    if(aliasHit || !c.rtAlias) return;
+    var aliases = String(c.rtAlias).split(/[、,\/／\n]+/).map(rtmNormAlias).filter(Boolean);
+    for(var i=0;i<aliases.length;i++){
+      var a=aliases[i];
+      if(a===aTarget || (aTarget.length>=2 && (a.indexOf(aTarget)>=0 || aTarget.indexOf(a)>=0))){ aliasHit=c; break; }
+    }
+  });
+  if(aliasHit) return { id:String(aliasHit.id), adhoc:false, dispName:aliasHit.name||String(name) };
+  // ② 施設名で照合（従来どおり）
   var target = rtmNorm(name);
-  var facs = rtmAllFacilities(); // {id,name}
   var hit = null;
-  facs.forEach(function(f){
-    if(hit) return; var fn = rtmNorm(f.name); if(!fn) return;
-    if(fn===target || (target.length>=2 && (fn.indexOf(target)>=0 || target.indexOf(fn)>=0))) hit=f;
+  rtFacs.forEach(function(c){
+    if(hit) return; var fn = rtmNorm(c.name||''); if(!fn) return;
+    if(fn===target || (target.length>=2 && (fn.indexOf(target)>=0 || target.indexOf(fn)>=0))) hit=c;
   });
   if(hit) return { id:String(hit.id), adhoc:false, dispName:hit.name };
-  return { id:String(name), adhoc:true, dispName:String(name) }; // 仮の列（列IDに施設名をそのまま使う）
+  // ③ どれにも当たらなければ仮の列（列IDに施設名をそのまま使う）
+  return { id:String(name), adhoc:true, dispName:String(name) };
 }
 
 // SheetJS（xlsx）を必要な時だけ読み込む
