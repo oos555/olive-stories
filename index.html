@@ -1372,6 +1372,9 @@ body{background:#fff}
     #rtm-root .adj-check.bad{color:#c1281a;font-weight:800}
     #rtm-root .stk-src{display:block;font-size:9.5px;color:#a49e90;font-weight:500;margin-top:2px}
     #rtm-root .stk-src.refl{color:#5b7288}
+    #rtm-root .rtm-pill{display:inline-block;font-size:10.5px;font-weight:800;border-radius:10px;padding:1px 8px}
+    #rtm-root .rtm-pill.full{background:#e6f4ea;color:#1f7a34;border:1px solid #9dc3a6}
+    #rtm-root .rtm-pill.need{background:#fff2e0;color:#b45309;border:1px solid #f0cf95}
     #rtm-root .btn-conf{width:100%;background:#55622e;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:800;cursor:pointer;margin-top:6px}
     #rtm-root .doneMini{text-align:center;color:#2f6b2f;font-size:11px;font-weight:800;margin:6px 0 5px}
     #rtm-root .conf-btns{display:flex;gap:6px}
@@ -3705,7 +3708,17 @@ function rtmConfCell(sku){
   if(a.reflected){ var rh=(+a.reflHold||0), cur=rtmStock(sku), before=cur+rh;
     return '<div class="done refl">📦 受注Aに取り置き登録済み<span>取置'+rh+'本を確保／販売可能 '+before+'→'+cur+'</span></div><div class="conf-btns" style="margin-top:5px"><button class="btn-redo" style="flex:1" onclick="rtmRedo(\''+sku+'\')">↩ 取り置きを取り消す</button></div>'; }
   if(a.confirmed) return '<div class="doneMini">✅ 決定（取置'+rtmHold(sku)+'・予約(要輸入)'+rtmNeed(sku)+'）</div><div class="conf-btns"><button class="btn-refl" onclick="rtmReflect(\''+sku+'\')">📦 在庫を確保（受注Aに登録）</button><button class="btn-redo" onclick="rtmRedo(\''+sku+'\')">↩ やり直す</button></div>';
-  return '<button class="btn-conf" onclick="rtmConfirm(\''+sku+'\')">✅ この振り分けで決定</button>';
+  return '<div class="conf-btns"><button class="btn-conf" onclick="rtmConfirm(\''+sku+'\')">✅ この振り分けで決定</button><button class="btn-redo" onclick="rtmReconsider(\''+sku+'\')">🔄 もう一度考え直す</button></div>';
+}
+// 🔄 もう一度考え直す：この商品の振り分け（倉庫に残す＝取り置き/要輸入の分け方）を初期に戻す
+function rtmReconsider(sku){
+  var st=rtmS(); var a=rtmAlloc(sku);
+  if(a.reflected){ alert('この商品は在庫を確保済みです。先に「↩ 取り置きを取り消す」で戻してください。'); return; }
+  a.keep=undefined;      // 倉庫に残すを初期（＝在庫を全部残す）に戻す→取り置き0・要輸入＝予約合計
+  a.confirmed=false;
+  rtmSave(st);
+  rtmPushHist('🔄 考え直す：'+rtmProdName(sku)+'（振り分けを初期に）');
+  rtmRenderBody();
 }
 
 function rtmRender(){
@@ -3735,7 +3748,15 @@ function rtmRender(){
   }
 
   var q=(st._q||'');
-  var facHead=st.cols.map(function(cid){ return '<th class="fac">🏨 '+esc(rtmFacName(cid))+'<span class="x" title="列を外す" onclick="rtmRemoveCol(\''+cid+'\')">×</span></th>'; }).join('');
+  var facHead=st.cols.map(function(cid){
+    var nm=rtmFacName(cid);
+    var unresolved=(String(nm)===String(cid)); // 名前が解決できずIDのまま（例 t3・c1786…）
+    var label=unresolved?'<span style="color:#c1281a">⚠ 施設名を設定</span>':esc(nm);
+    var cj=String(cid).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<th class="fac">🏨 '+label+
+      ' <span class="rtm-rename" title="施設名を直す" onclick="rtmRenameCol(\''+cj+'\')" style="cursor:pointer;color:#5a7bb0;font-weight:800">✎</span>'+
+      '<span class="x" title="列を外す" onclick="rtmRemoveCol(\''+cj+'\')">×</span></th>';
+  }).join('');
   var addOpts=allFac.filter(function(f){ return st.cols.indexOf(f.id)<0; }).map(function(f){ return '<option value="'+f.id+'">'+esc(f.name)+'</option>'; }).join('');
   var addFacSel = addOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddCol(this.value);this.value=\'\'"><option value="">＋施設を追加…</option>'+addOpts+'</select>' : '';
   var prodOpts=(PRODUCTS||[]).filter(function(p){ return p&&p.sku&&!p.isSet&&p.group!=='資材'&&!st.q[p.sku]; })
@@ -3750,6 +3771,7 @@ function rtmRender(){
      '<div class="rtm-tool">'+
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
        '<button class="rtm-btn rtm-b-imp" onclick="rtmChooseImport()">📥 予約シート取込</button>'+
+       '<button class="rtm-btn rtm-b-ghost" onclick="rtmExportExcel()">⬇ Excelに書き出す</button>'+
        '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 受注Aに反映（共有保存）</button>'+
      '</div>'+
      '<div class="rtm-tool">'+addFacSel+addProdSel+
@@ -3758,6 +3780,7 @@ function rtmRender(){
          '<input id="rtm-bc-qty" type="number" min="0" inputmode="numeric" placeholder="本数" oninput="rtmBoxCalc()">'+
          '<span id="rtm-bc-out" class="rtm-bc-out">商品を選ぶと予約合計から自動で計算します</span>'+
        '</span>'+
+       '<button class="rtm-btn rtm-b-ghost" onclick="rtmCleanEmptyCols()">🧹 空の施設列を消す</button>'+
        '<button class="rtm-btn rtm-b-ghost" onclick="rtmClearAll()">🗑 全部リセット</button></div>'+
      '<div class="rtm-toolnote"><b>🔒取置</b>＝在庫からRT用に確保（他に売らない）／<b>🗓予約(要輸入)</b>＝輸入で用意する分／<b>🛒残す</b>＝在庫を他チャネルに残す。取置＋予約＝予約合計 になっていれば誤りなし。</div>'+
    '</div>'+
@@ -3774,17 +3797,23 @@ function rtmRender(){
     return;
   }
 
-  var thead='<thead><tr><th class="name">商品（予約）</th>'+facHead+
+  var thead='<thead><tr><th class="name">商品（RT卸単価）</th>'+facHead+
     '<th class="tot">予約合計</th>'+
+    '<th class="stk">在庫<br><span style="font-weight:400;font-size:9.5px">販売可能</span></th>'+
+    '<th style="background:#eef4fb;color:#274a78">🏬倉庫に残す<br><span style="font-weight:400;font-size:9.5px">👤人が決める</span></th>'+
+    '<th style="background:#f2faf4;color:#1f7a34">🔒取り置き<br><span style="font-weight:400;font-size:9.5px">在庫−残す</span></th>'+
+    '<th style="background:#fff8ec;color:#b45309">📦要輸入<br><span style="font-weight:400;font-size:9.5px">輸入で用意</span></th>'+
     '<th class="rev">金額<br><span style="font-weight:400;font-size:9.5px">予約合計×単価</span></th>'+
-    '<th class="stk">販売可能在庫<br><span style="font-weight:400;font-size:9.5px">◀在庫マスター在庫リスト</span></th>'+
-    '<th class="adjust-h">◀ ここで振り分け ▶<br><span style="font-weight:400;font-size:9.5px">取置か残すを打つ→確定</span></th></tr></thead>';
+    '<th class="adjust-h">状況</th></tr></thead>';
 
-  var colspan = st.cols.length+5;
+  var colspan = st.cols.length+8;
   var fcells=st.cols.map(function(cid){ return '<td id="rtm-f-'+cid+'">—</td>'; }).join('');
   var tfoot='<tfoot><tr><td class="name">施設別 合計（本）</td>'+fcells+
-    '<td class="tot" id="rtm-ftot">—</td><td class="rev" id="rtm-frev">—</td><td class="stk"></td>'+
-    '<td class="adjust" id="rtm-fadjust">—</td></tr></tfoot>';
+    '<td class="tot" id="rtm-ftot">—</td><td class="stk"></td>'+
+    '<td id="rtm-fkeep" style="font-weight:800;color:#274a78">—</td>'+
+    '<td id="rtm-fhold" style="font-weight:800;color:#1f7a34">—</td>'+
+    '<td id="rtm-fneed" style="font-weight:800;color:#b45309">—</td>'+
+    '<td class="rev" id="rtm-frev">—</td><td class="adjust" id="rtm-fadjust"></td></tr></tfoot>';
 
   root.innerHTML=head+
     '<div class="rtm-wrap"><table class="rtm-t">'+thead+'<tbody id="rtm-tbody"></tbody>'+tfoot+'</table></div>'+
@@ -3798,34 +3827,35 @@ function rtmRender(){
 function rtmRenderBody(){
   var st=rtmS(); var tb=document.getElementById('rtm-tbody'); if(!tb) return;
   var q=(document.getElementById('rtm-q')&&document.getElementById('rtm-q').value||'').trim();
-  tb.innerHTML=''; var lastGrp=null; var colspan=st.cols.length+5;
+  tb.innerHTML=''; var lastGrp=null; var colspan=st.cols.length+8;
   rtmRowSkus().forEach(function(sku){
     var nm=rtmProdName(sku), grp=rtmProdGroup(sku);
     if(q && nm.indexOf(q)<0 && grp.indexOf(q)<0) return;
     if(grp!==lastGrp){ lastGrp=grp; var g=document.createElement('tr'); g.innerHTML='<th class="grp" colspan="'+colspan+'">'+esc(grp)+'</th>'; tb.appendChild(g); }
     var a=rtmAlloc(sku), R=!!a.reflected;
-    var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, ok=(hold+need)===tot, keep=rtmKeep(sku), stock=rtmStock(sku);
+    var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, keep=rtmKeep(sku), stock=rtmStock(sku);
     var m=st.q[sku]||{};
     var facCells=st.cols.map(function(cid){
       var val=(+m[cid]||0);
       return '<td>'+(R?'<span>'+val+'</span>':'<input class="rtm-num fac" type="number" min="0" inputmode="numeric" data-sku="'+sku+'" data-cid="'+cid+'" value="'+val+'">')+'</td>';
     }).join('');
-    var holdCell = R ? '<span>'+(+a.reflHold||0)+'</span>' : '<input class="rtm-num hin" type="number" min="0" max="'+Math.min(stock,tot)+'" data-sku="'+sku+'" data-f="hold" value="'+hold+'">';
-    var keepCell = R ? '<span>'+stock+'</span>' : '<input class="rtm-num kin" type="number" min="'+rtmMinKeep(sku)+'" max="'+stock+'" data-sku="'+sku+'" data-f="keep" value="'+keep+'">';
+    var keepCell = R ? '<span>'+stock+'</span>' : '<input class="rtm-num kin" type="number" min="'+rtmMinKeep(sku)+'" max="'+stock+'" data-sku="'+sku+'" data-f="keep" value="'+keep+'" style="width:58px;text-align:right">';
+    var holdShow = R ? (+a.reflHold||0) : hold;
     var needShow = R ? (tot-(+a.reflHold||0)) : need;
-    var stkNote = R ? '<span class="stk-src refl">取置'+(+a.reflHold||0)+'確保済</span>' : '<span class="stk-src">在庫マスター在庫リストより</span>';
-    var priceNote = price>0 ? 'RT卸 '+rtmYen(price)+'/本 ◀統合マスタN' : '<span style="color:#c1281a">単価未設定（統合マスタN）</span>';
+    var stkNote = R ? '<div class="stk-src refl" style="font-size:9.5px">取置'+(+a.reflHold||0)+'確保済</div>' : '';
+    var priceNote = price>0 ? 'RT卸 '+rtmYen(price)+'/本' : '<span style="color:#c1281a">単価未設定（統合マスタN）</span>';
+    var pill = needShow>0 ? '<span class="rtm-pill need">要輸入 '+needShow+'</span>' : (tot>0?'<span class="rtm-pill full">在庫でOK</span>':'');
     var tr=document.createElement('tr'); tr.setAttribute('data-sku',sku);
     tr.innerHTML='<td class="name">'+esc(nm)+'<span class="pxsub">'+priceNote+'</span></td>'+
       facCells+
       '<td class="tot" id="rtm-tot-'+sku+'">'+tot+'</td>'+
-      '<td class="rev" id="rtm-rev-'+sku+'">'+rtmYen(rev)+'</td>'+
       '<td class="stk" id="rtm-stk-'+sku+'">'+rtmAvailShow(sku)+stkNote+'</td>'+
-      '<td class="adjust">'+
-        '<div class="adj-row"><span class="lbl">🔒取置（在庫から確保）</span>'+holdCell+'</div>'+
-        '<div class="adj-row"><span class="lbl">🗓予約(要輸入)</span><span class="resv" id="rtm-resv-'+sku+'">'+needShow+'</span></div>'+
-        '<div class="adj-row keeprow"><span class="lbl">🛒手元に残す</span>'+keepCell+'</div>'+
-        '<div class="adj-check'+(ok?'':' bad')+'" id="rtm-chk-'+sku+'">取置'+(R?(+a.reflHold||0):hold)+'＋予約'+needShow+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗')+'</div>'+
+      '<td style="background:#f4f8ff">'+keepCell+'</td>'+
+      '<td id="rtm-hold-'+sku+'" style="font-weight:800;color:#1f7a34;background:#f2faf4">'+holdShow+'</td>'+
+      '<td id="rtm-need-'+sku+'" style="font-weight:800;color:#b45309;background:#fff8ec">'+needShow+'</td>'+
+      '<td class="rev" id="rtm-rev-'+sku+'">'+rtmYen(rev)+'</td>'+
+      '<td class="adjust" style="min-width:150px">'+
+        '<div id="rtm-pill-'+sku+'" style="margin-bottom:5px">'+pill+'</div>'+
         '<div id="rtm-conf-'+sku+'">'+rtmConfCell(sku)+'</div>'+
       '</td>';
     tb.appendChild(tr);
@@ -3834,13 +3864,13 @@ function rtmRenderBody(){
 }
 
 function rtmRecalcRow(sku){
-  var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, ok=(hold+need)===tot, stock=rtmStock(sku);
+  var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, stock=rtmStock(sku);
   var set=function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
-  set('rtm-tot-'+sku,tot); set('rtm-rev-'+sku,rtmYen(rev)); set('rtm-resv-'+sku,need);
-  var c=document.getElementById('rtm-chk-'+sku); if(c){ c.className='adj-check'+(ok?'':' bad'); c.innerHTML='取置'+hold+'＋予約'+need+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗'); }
-  var hin=document.querySelector('input.hin[data-sku="'+sku+'"]'); var kin=document.querySelector('input.kin[data-sku="'+sku+'"]');
-  if(hin && document.activeElement!==hin){ hin.value=hold; hin.max=Math.min(stock,tot); }
-  if(kin && document.activeElement!==kin){ kin.value=rtmKeep(sku); kin.min=rtmMinKeep(sku); }
+  set('rtm-tot-'+sku,tot); set('rtm-rev-'+sku,rtmYen(rev)); set('rtm-hold-'+sku,hold); set('rtm-need-'+sku,need);
+  var pill=document.getElementById('rtm-pill-'+sku);
+  if(pill){ pill.innerHTML = need>0 ? '<span class="rtm-pill need">要輸入 '+need+'</span>' : (tot>0?'<span class="rtm-pill full">在庫でOK</span>':''); }
+  var kin=document.querySelector('input.kin[data-sku="'+sku+'"]');
+  if(kin && document.activeElement!==kin){ kin.value=rtmKeep(sku); kin.min=rtmMinKeep(sku); kin.max=stock; }
   var cf=document.getElementById('rtm-conf-'+sku); if(cf) cf.innerHTML=rtmConfCell(sku);
 }
 function rtmRecalcFooter(){
@@ -3852,8 +3882,8 @@ function rtmRecalcFooter(){
   });
   st.cols.forEach(function(cid){ var el=document.getElementById('rtm-f-'+cid); if(el) el.textContent=colT[cid]; });
   var set=function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
-  set('rtm-ftot',grand); set('rtm-frev',rtmYen(revT)); set('rtm-grand',grand); set('rtm-grandrev',rtmYen(revT));
-  var fa=document.getElementById('rtm-fadjust'); if(fa) fa.innerHTML='🔒取置 '+holdT+' ＋予約 '+needT+' = <b>'+grand+'</b> '+((holdT+needT)===grand?'✓':'✗')+'　／　🛒残す 計 '+keepT;
+  set('rtm-ftot',grand); set('rtm-fkeep',keepT); set('rtm-fhold',holdT); set('rtm-fneed',needT);
+  set('rtm-frev',rtmYen(revT)); set('rtm-grand',grand); set('rtm-grandrev',rtmYen(revT));
 }
 function rtmRenderHist(){
   var st=rtmS(); var h=document.getElementById('rtm-hist'); if(!h) return;
@@ -3929,6 +3959,17 @@ function rtmBoxCalc(){
 
 // ── 列（施設）・行（商品）の増減 ──
 function rtmAddCol(cid){ var st=rtmS(); cid=String(cid); if(st.cols.indexOf(cid)<0){ st.cols.push(cid); var _nm=rtmFacName(cid); if(_nm && _nm!==cid) st.facNames[cid]=_nm; rtmPushHist('＋施設を追加：'+rtmFacName(cid)); rtmSave(st); } rtmRender(); }
+// ✎ どの列でも施設名を付け直せる（番号のまま／間違いを名前に。facNamesに保存）
+function rtmRenameCol(cid){
+  var st=rtmS(); cid=String(cid);
+  var cur=rtmFacName(cid); if(String(cur)===cid) cur='';
+  var v=prompt('この列の施設名を入れてください（例：サンクチュアリコート日光）', cur);
+  if(v==null) return; v=String(v).trim(); if(!v) return;
+  if(!st.facNames) st.facNames={};
+  st.facNames[cid]=v;
+  rtmPushHist('施設名を設定：'+v);
+  rtmSave(st); rtmRender();
+}
 function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
   if(!confirm(rtmFacName(cid)+' の列を外します。入力した予約本数も消えます。よろしいですか？')) return;
   st.cols=st.cols.filter(function(x){ return x!==cid; });
@@ -3939,6 +3980,35 @@ function rtmAddRow(sku){ var st=rtmS(); if(!st.q[sku]) st.q[sku]={}; rtmPushHist
 function rtmClearAll(){
   if(!confirm('⚠️ 本当にリセットしますか？\n\nこの端末のRT振り分け（施設の列・予約本数・取置・変更履歴）が全部消えます。元には戻せません。\n\nリセットする場合は「OK」、やめる場合は「キャンセル」を押してください。')) return;
   RTM={cols:[],q:{},alloc:{},hist:[]}; rtmSave(RTM); rtmRender();
+}
+
+// ── ⬇ Excelに書き出す（今のRT予約表をそのまま .xlsx に。RTとのやり取り用）──
+function rtmExportExcel(){
+  var doIt=function(){
+    var st=rtmS();
+    var facCols=st.cols.map(function(cid){ return rtmFacName(cid); });
+    var head=['商品','RT卸単価/本'].concat(facCols).concat(['予約合計','販売可能在庫','手元に残す','取り置き','要輸入','金額(税抜)']);
+    var aoa=[head];
+    var colTot=st.cols.map(function(){ return 0; });
+    var tTot=0,tKeep=0,tHold=0,tNeed=0,tYen=0;
+    rtmRowSkus().forEach(function(sku){
+      var m=st.q[sku]||{};
+      var qs=st.cols.map(function(cid,i){ var v=(+m[cid]||0); colTot[i]+=v; return v; });
+      var tot=rtmTotal(sku), price=rtmPrice(sku), keep=rtmKeep(sku), hold=rtmHold(sku), need=rtmNeed(sku), yenv=tot*price;
+      aoa.push([rtmProdName(sku), price].concat(qs).concat([tot, rtmStock(sku), keep, hold, need, yenv]));
+      tTot+=tot; tKeep+=keep; tHold+=hold; tNeed+=need; tYen+=yenv;
+    });
+    aoa.push(['合計',''].concat(colTot).concat([tTot,'',tKeep,tHold,tNeed,tYen]));
+    var ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:22},{wch:11}].concat(facCols.map(function(){return {wch:14};})).concat([{wch:9},{wch:11},{wch:10},{wch:9},{wch:9},{wch:13}]);
+    var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'RT予約');
+    var d=new Date(); var stamp=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+    XLSX.writeFile(wb, 'RT予約_'+stamp+'.xlsx');
+  };
+  if(window.XLSX){ doIt(); return; }
+  var s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload=doIt; s.onerror=function(){ alert('Excel書き出し部品の取得に失敗しました。インターネットにつながっているか確認して、もう一度お試しください。'); };
+  document.head.appendChild(s);
 }
 
 // ── 確定・在庫反映・やり直し ──
@@ -4227,8 +4297,8 @@ function rtmRenderExcelPreview(){
 }
 function rtmApplyExcelImport(){
   var st=rtmS(), S=RTM_XL_STAGE; if(!S){ rtmCloseOv('rtm-ov-xl'); return; }
-  var n=0, newCols=0;
-  S.facCols.forEach(function(fc){ var cid=String(fc.colId); if(fc.dispName) st.facNames[cid]=fc.dispName; if(st.cols.indexOf(cid)<0){ st.cols.push(cid); newCols++; } });
+  var n=0, newCols=0; var xlCids={};
+  S.facCols.forEach(function(fc){ var cid=String(fc.colId); xlCids[cid]=1; if(fc.dispName) st.facNames[cid]=fc.dispName; if(st.cols.indexOf(cid)<0){ st.cols.push(cid); newCols++; } });
   Object.keys(S.agg).forEach(function(sku){
     if(st.alloc[sku] && st.alloc[sku].reflected) return;        // 取り置き登録済みは動かさない
     if(!st.q[sku]) st.q[sku]={};
@@ -4239,9 +4309,36 @@ function rtmApplyExcelImport(){
     });
     if(st.alloc[sku]) st.alloc[sku].confirmed=false;
   });
-  rtmPushHist('【Excel取込】'+(S.fname||'ご予約シート')+' から '+n+'件を反映'+(newCols?('（施設'+newCols+'列を追加）'):''));
+  // 掃除：今回のExcelに無い施設列のうち、本数が全部0＝古いテスト列（t3・c1786… 等）を消す
+  var removed=rtmDropEmptyCols(st, xlCids);
+  rtmPushHist('【Excel取込】'+(S.fname||'ご予約シート')+' から '+n+'件を反映'+(newCols?('（施設'+newCols+'列追加）'):'')+(removed?('／古い空の列'+removed+'件を掃除'):''));
   rtmSave(st); RTM_XL_STAGE=null; rtmCloseOv('rtm-ov-xl'); rtmRender();
-  alert('✅ Excelを取り込みました（'+n+'件を反映）。\nこのあと表の数字は手で直せます。在庫や受注Aはまだ動いていません。');
+  alert('✅ Excelを取り込みました（'+n+'件）。'+(removed?('\n使われていない古い施設の列 '+removed+'件を自動で掃除しました。'):'')+'\n在庫や受注Aはまだ動いていません。');
+}
+// 本数が全部0の施設列を消す（keepCids に入っている列は残す）。消した数を返す。
+function rtmDropEmptyCols(st, keepCids){
+  keepCids=keepCids||{};
+  var removed=0;
+  st.cols = st.cols.filter(function(cid){
+    if(keepCids[cid]) return true;
+    var hasData=rtmRowSkus().some(function(sku){ return st.q[sku] && (+st.q[sku][cid]||0)>0; });
+    if(hasData) return true;
+    // 空の列＝削除
+    rtmRowSkus().forEach(function(sku){ if(st.q[sku]) delete st.q[sku][cid]; });
+    if(st.facNames && st.facNames[cid]) delete st.facNames[cid];
+    removed++; return false;
+  });
+  return removed;
+}
+// 🧹 手動：本数が全部0の施設列を今すぐ消す
+function rtmCleanEmptyCols(){
+  var st=rtmS();
+  var empties=st.cols.filter(function(cid){ return !rtmRowSkus().some(function(sku){ return st.q[sku] && (+st.q[sku][cid]||0)>0; }); });
+  if(!empties.length){ alert('空の施設列はありません（本数の入っていない列はありません）。'); return; }
+  if(!confirm('本数が全部0の施設列を '+empties.length+' 件消します（古いテスト列 t3・c1786… などが対象）。データのある列は消えません。よろしいですか？')) return;
+  var removed=rtmDropEmptyCols(st, {});
+  rtmPushHist('🧹 空の施設列を'+removed+'件掃除');
+  rtmSave(st); rtmRender();
 }
 
 // ── 🔀 施設↔施設の移動（予約合計・要輸入は不変。振り分けだけ変える）──
