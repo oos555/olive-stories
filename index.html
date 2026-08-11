@@ -1368,6 +1368,25 @@ body{background:#fff}
     #rtm-root input.rtm-num.hin{border-color:#d9a441;color:#8a5a12}
     #rtm-root input.rtm-num.kin{border-color:#3f9c5a;color:#256b3a}
     #rtm-root input.rtm-num.fac{width:60px;border-color:#cfd8e2;color:#2b2a26;font-size:14px}
+    #rtm-root input.rtm-num.setq{border-color:#c9a15a;color:#8a5a12;background:#fffdf6}
+    #rtm-root .rtm-facderiv{font-size:10px;font-weight:800;color:#b45309;margin-top:2px;white-space:nowrap}
+    #rtm-root .rtm-derivnote{color:#b45309;font-weight:700}
+    #rtm-root .rtm-splitnote{display:block;margin-top:3px;max-width:300px;font-size:11.5px;font-weight:700;color:#2b5a34;background:#eef7ee;border:1px solid #cfe6d1;border-radius:7px;padding:3px 8px;line-height:1.5;white-space:normal}
+    #rtm-root .rtm-splitnote b{color:#14532d}
+    #rtm-root tr.rtm-setrow>td{background:#fffaf0}
+    #rtm-root tr.rtm-setrow td.name{color:#8a5a12}
+    #rtm-root .rtm-setnote{color:#a07b2e !important}
+    #rtm-root td.rtm-dash{color:#b3ad9f;text-align:center;font-weight:700}
+    #rtm-root .rtm-delrow{cursor:pointer;font-size:13px;margin-left:6px;opacity:.75}
+    #rtm-root .rtm-delrow:hover{opacity:1}
+    #rtm-root #rtm-supply{margin-top:10px}
+    #rtm-root .rtm-supbox{background:#fbf7ef;border:1.5px solid #e6dcc4;border-radius:11px;padding:11px 14px}
+    #rtm-root .rtm-suphd{font-weight:900;color:#8a5a12;font-size:13.5px;margin-bottom:8px}
+    #rtm-root .rtm-supnote{display:block;font-weight:600;font-size:11.5px;color:#9a8f76;margin-top:2px}
+    #rtm-root .rtm-suprow{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:5px 0;border-top:1px solid #efe7d4}
+    #rtm-root .rtm-supname{font-weight:800;color:#3f3d36;font-size:13px}
+    #rtm-root .rtm-suptot{font-weight:900;color:#8a5a12;background:#fff;border:1px solid #e6d6b0;border-radius:99px;padding:1px 10px;font-size:12.5px}
+    #rtm-root .rtm-supper{color:#7a7263;font-size:12px}
     #rtm-root .adj-row{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:2px 0}
     #rtm-root .adj-row .lbl{font-size:11.5px;color:#7a7568}
     #rtm-root .resv{font-weight:800;color:#0c447c;font-size:16px}
@@ -3677,8 +3696,8 @@ function rtmReservedFromOrders(){
         var p=findProduct(l.productId)||findProductBySku(l.sku);
         if(!p||!p.sku) return;
         var n=lineTotal(l); if(!n) return;
-        if(p.isSet && p.components){ p.components.forEach(function(c){ rtmAdd(agg,c.sku,o.custId,n*(c.qty||1)); }); }
-        else rtmAdd(agg,p.sku,o.custId,n);
+        // ギフトセットは「セットのまま」集計する（オイルへの振り分けは表側で自動。単品/ギフトの内訳を残すため）
+        rtmAdd(agg,p.sku,o.custId,n);
       });
     });
   return agg;
@@ -3688,13 +3707,77 @@ function rtmAdd(agg,sku,cid,n){ if(!agg[sku])agg[sku]={}; agg[sku][String(cid)]=
 // 表示する行（sku）＝q に載っている商品（空でも行を出す）。商品順は PRODUCTS 準拠。
 function rtmRowSkus(){
   var st=rtmS(); var have={}; Object.keys(st.q).forEach(function(s){ have[s]=true; });
-  var out=[];
-  (PRODUCTS||[]).forEach(function(p){ if(p&&p.sku&&have[p.sku]&&!p.isSet) out.push(p.sku); });
-  // PRODUCTS に無い sku も拾う（先頭に）
-  Object.keys(have).forEach(function(s){ if(out.indexOf(s)<0) out.push(s); });
+  var d=rtmDerived(); var derivedOil={}; Object.keys(d.oil).forEach(function(s){ derivedOil[s]=true; });
+  var sets=[], oils=[], seen={};
+  function isSet(s){ var p=findProductBySku(s); return !!(p&&p.isSet); }
+  // ① PRODUCTS の並び順で（セットは先頭、備品は本体には出さない＝別欄）
+  (PRODUCTS||[]).forEach(function(p){
+    if(!p||!p.sku) return; var s=p.sku;
+    if(!(have[s]||derivedOil[s]) || seen[s]) return;
+    if(p.isSet){ seen[s]=1; sets.push(s); return; }
+    if(rtmIsSupplySku(s)) return;                 // 備品は「その他備品」欄へ
+    seen[s]=1; oils.push(s);
+  });
+  // ② PRODUCTS に無い sku（手入力・レガシー）も拾う
+  Object.keys(have).forEach(function(s){
+    if(seen[s]) return;
+    if(isSet(s)){ seen[s]=1; sets.push(s); return; }
+    if(rtmIsSupplySku(s)) return;
+    seen[s]=1; oils.push(s);
+  });
+  // ③ セット由来だけで登場するオイルも拾う
+  Object.keys(derivedOil).forEach(function(s){ if(!seen[s] && !rtmIsSupplySku(s)){ seen[s]=1; oils.push(s); } });
+  return oils.concat(sets);   // オイル行 → ギフト箱（セット）行 の順（お客様と話す単品オイルを上に）
+}
+// ── セット商品（ギフト）→ 構成品（オイル／備品）への自動振り分け ──────────
+// 備品＝ギフト箱・紙袋など（group に「備品／箱／袋」を含む）。オイル＝それ以外の構成品。
+function rtmIsSupplySku(sku){ var p=findProductBySku(sku); var g=(p&&p.group)||''; return /備品|箱|袋/.test(g); }
+// いま表の中にあるセット行の個数から、施設ごとの派生本数を集計
+//   戻り値 {oil:{sku:{cid:本数}}, sup:{sku:{cid:本数}}}
+function rtmDerived(){
+  var st=rtmS(); var oil={}, sup={};
+  Object.keys(st.q).forEach(function(setSku){
+    var p=findProductBySku(setSku); if(!p||!p.isSet||!p.components) return;
+    var row=st.q[setSku]||{};
+    p.components.forEach(function(c){
+      var tgt=rtmIsSupplySku(c.sku)?sup:oil;
+      st.cols.forEach(function(cid){
+        var n=(+row[cid]||0)*(c.qty||1); if(!n) return;
+        if(!tgt[c.sku]) tgt[c.sku]={};
+        tgt[c.sku][cid]=(tgt[c.sku][cid]||0)+n;
+      });
+    });
+  });
+  return {oil:oil, sup:sup};
+}
+// この施設のこの商品の「実効本数」＝手入力＋セット由来（オイルのみ）。セット行はそのまま手入力。
+function rtmEffCell(sku,cid){
+  var st=rtmS(); var base=(+((st.q[sku]||{})[cid])||0);
+  var p=findProductBySku(sku); if(p&&p.isSet) return base;
+  var d=rtmDerived().oil[sku]; return base+(d?(+d[cid]||0):0);
+}
+// この商品のセット由来だけの合計本数（内訳表示用）
+function rtmDerivTotal(sku){ var d=rtmDerived().oil[sku]; if(!d)return 0; var s=0,st=rtmS(); st.cols.forEach(function(cid){ s+=(+d[cid]||0); }); return s; }
+// このオイルの「単品（バラ＝手入力）」合計＝合計−ギフト由来
+function rtmBaraTotal(sku){ return rtmTotal(sku)-rtmDerivTotal(sku); }
+// このオイルがどのギフト（セット）から何本来ているか [{sku,name,qty}]
+function rtmDerivBySet(oilSku){
+  var st=rtmS(); var out=[];
+  Object.keys(st.q).forEach(function(setSku){
+    var p=findProductBySku(setSku); if(!p||!p.isSet||!p.components) return;
+    var per=0; p.components.forEach(function(c){ if(c.sku===oilSku && !rtmIsSupplySku(c.sku)) per+=(c.qty||1); });
+    if(per<=0) return;
+    var cnt=0; st.cols.forEach(function(cid){ cnt+=(+((st.q[setSku]||{})[cid])||0); });
+    var qty=per*cnt; if(qty>0) out.push({sku:setSku, name:p.name, qty:qty});
+  });
   return out;
 }
-function rtmTotal(sku){ var st=rtmS(); var m=st.q[sku]||{}; var s=0; st.cols.forEach(function(cid){ s+=(+m[cid]||0); }); return s; }
+// ギフト名を短く（「+ギフト箱…」以降と余分を落とす）
+function rtmSetShort(name){ return String(name||'').split('+')[0].replace(/\s+$/,'').trim(); }
+// オイル行だけ（セット行を除く）
+function rtmOilRowSkus(){ return rtmRowSkus().filter(function(s){ var p=findProductBySku(s); return !(p&&p.isSet); }); }
+
+function rtmTotal(sku){ var st=rtmS(); var s=0; st.cols.forEach(function(cid){ s+=rtmEffCell(sku,cid); }); return s; }
 function rtmStock(sku){ var v=computeAvailable(sku); return (v===null||v===undefined||isNaN(v))?0:v; }
 function rtmPrice(sku){ var p=findProductBySku(sku); var v=p?rtPriceOf(p):null; return (v==null)?0:v; }
 function rtmProdName(sku){ var p=findProductBySku(sku); return p?p.name:sku; }
@@ -3775,8 +3858,8 @@ function rtmRender(){
   }).join('');
   var addOpts=allFac.filter(function(f){ return st.cols.indexOf(f.id)<0; }).map(function(f){ return '<option value="'+f.id+'">'+esc(f.name)+'</option>'; }).join('');
   var addFacSel = addOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddCol(this.value);this.value=\'\'"><option value="">＋施設を追加…</option>'+addOpts+'</select>' : '';
-  var prodOpts=(PRODUCTS||[]).filter(function(p){ return p&&p.sku&&!p.isSet&&p.group!=='資材'&&!st.q[p.sku]; })
-     .map(function(p){ return '<option value="'+p.sku+'">'+esc(p.name)+'</option>'; }).join('');
+  var prodOpts=(PRODUCTS||[]).filter(function(p){ return p&&p.sku&&p.group!=='資材'&&!st.q[p.sku]; })
+     .map(function(p){ return '<option value="'+p.sku+'">'+(p.isSet?'🎁 ':'')+esc(p.name)+'</option>'; }).join('');
   var addProdSel = prodOpts ? '<select class="rtm-btn rtm-b-add" onchange="if(this.value)rtmAddRow(this.value);this.value=\'\'"><option value="">＋商品を追加…</option>'+prodOpts+'</select>' : '';
   var boxCalcOpts = rtmBoxCalcOptsHtml();
 
@@ -3834,6 +3917,7 @@ function rtmRender(){
   root.innerHTML=head+
     '<div class="rtm-scrolltop" id="rtm-scrolltop"><div></div></div>'+
     '<div class="rtm-wrap" id="rtm-wrap"><table class="rtm-t">'+thead+'<tbody id="rtm-tbody"></tbody>'+tfoot+'</table></div>'+
+    '<div id="rtm-supply"></div>'+
     '<div class="rtm-guide"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［✅この振り分けで決定］</b>（この端末に記録）。③ <b>［📦在庫を確保（受注Aに取り置き登録）］</b>→ 取置分が<b>受注Aの取り置きに入り、販売可能在庫が取置分だけ減ります</b>（他チャネルに出さない）。<b>↩やり直す</b>で取り消せます。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※施設ごとの予約本数（青枠）はこの端末に保存。📥予約シート取込で受注Aの予約から取り込めます。</span></div>'+
     '<div class="rtm-hist" id="rtm-hist"></div>';
 
@@ -3866,21 +3950,56 @@ function rtmRenderBody(){
     var nm=rtmProdName(sku), grp=rtmProdGroup(sku);
     if(q && nm.indexOf(q)<0 && grp.indexOf(q)<0) return;
     if(grp!==lastGrp){ lastGrp=grp; var g=document.createElement('tr'); g.innerHTML='<th class="grp" colspan="'+colspan+'">'+esc(grp)+'</th>'; tb.appendChild(g); }
+    var p=findProductBySku(sku), isSet=!!(p&&p.isSet);
+    var del=rtmRemoveBtnHtml(sku);
+    if(isSet){
+      // ── セット行：施設ごとの「セット個数」を入れる。中身はオイル/備品へ自動振り分け ──
+      var mS=st.q[sku]||{};
+      var setCells=st.cols.map(function(cid){
+        var val=(+mS[cid]||0);
+        return '<td><input class="rtm-num fac setq" type="number" min="0" inputmode="numeric" data-sku="'+sku+'" data-cid="'+cid+'" value="'+val+'"></td>';
+      }).join('');
+      var comp=(p.components||[]).map(function(c){ var cp=findProductBySku(c.sku); return (cp?cp.name:c.sku)+((c.qty||1)>1?'×'+c.qty:''); }).join('／');
+      var trS=document.createElement('tr'); trS.setAttribute('data-sku',sku); trS.className='rtm-setrow';
+      trS.innerHTML='<td class="name">🎁 '+esc(nm)+del+'<span class="pxsub rtm-setnote">セット（中身はオイル・備品へ自動振り分け）</span></td>'+
+        setCells+
+        '<td class="tot" id="rtm-tot-'+sku+'">'+rtmTotal(sku)+'</td>'+
+        '<td class="stk rtm-dash">—</td>'+
+        '<td class="rtm-dash" style="background:#f4f8ff">—</td>'+
+        '<td class="rtm-dash" style="background:#f2faf4">—</td>'+
+        '<td class="rtm-dash" style="background:#fff8ec">—</td>'+
+        '<td class="rev rtm-dash">—</td>'+
+        '<td class="adjust" style="min-width:150px;font-size:11px;color:#6b6459">中身：'+esc(comp)+'</td>';
+      tb.appendChild(trS);
+      return;
+    }
+    // ── オイル行（従来）＋ セット由来の内訳表示 ──
     var a=rtmAlloc(sku), R=!!a.reflected;
     var tot=rtmTotal(sku), hold=rtmHold(sku), need=rtmNeed(sku), price=rtmPrice(sku), rev=tot*price, keep=rtmKeep(sku), stock=rtmStock(sku);
     var m=st.q[sku]||{};
+    var dOil=rtmDerived().oil[sku]||{};
     var facCells=st.cols.map(function(cid){
-      var val=(+m[cid]||0);
-      return '<td>'+(R?'<span>'+val+'</span>':'<input class="rtm-num fac" type="number" min="0" inputmode="numeric" data-sku="'+sku+'" data-cid="'+cid+'" value="'+val+'">')+'</td>';
+      var man=(+m[cid]||0), dv=(+dOil[cid]||0);
+      if(R) return '<td><span>'+(man+dv)+'</span></td>';
+      var chip = dv>0 ? '<div class="rtm-facderiv" title="この施設のギフト由来（自動）">ギフト+'+dv+'</div>' : '';
+      return '<td><input class="rtm-num fac" type="number" min="0" inputmode="numeric" data-sku="'+sku+'" data-cid="'+cid+'" value="'+man+'">'+chip+'</td>';
     }).join('');
     var keepCell = R ? '<span>'+stock+'</span>' : '<input class="rtm-num kin" type="number" min="'+rtmMinKeep(sku)+'" max="'+stock+'" data-sku="'+sku+'" data-f="keep" value="'+keep+'" style="width:64px;text-align:right">';
     var holdShow = R ? (+a.reflHold||0) : hold;
     var needShow = R ? (tot-(+a.reflHold||0)) : need;
     var stkNote = R ? '<div class="stk-src refl" style="font-size:9.5px">取置'+(+a.reflHold||0)+'確保済</div>' : '';
     var priceNote = price>0 ? 'RT卸 '+rtmYen(price)+'/本' : '<span style="color:#c1281a">単価未設定（統合マスタN）</span>';
+    var giftT=rtmDerivTotal(sku);
+    var derivNote='';
+    if(giftT>0){
+      var baraT=rtmTotal(sku)-giftT;
+      var bySet=rtmDerivBySet(sku).map(function(x){ return esc(rtmSetShort(x.name))+' '+x.qty+'本'; }).join('・');
+      derivNote='<span class="pxsub rtm-splitnote">🗣 単品（お客様に伝える）<b>'+baraT+'</b>本'+
+        '　＋　ギフト箱 <b>'+giftT+'</b>本（'+bySet+'）　＝　合計 <b>'+rtmTotal(sku)+'</b>本</span>';
+    }
     var pill = needShow>0 ? '<span class="rtm-pill need">要輸入 '+needShow+'</span>' : (tot>0?'<span class="rtm-pill full">在庫でOK</span>':'');
     var tr=document.createElement('tr'); tr.setAttribute('data-sku',sku);
-    tr.innerHTML='<td class="name">'+esc(nm)+'<span class="pxsub">'+priceNote+'</span></td>'+
+    tr.innerHTML='<td class="name">'+esc(nm)+del+'<span class="pxsub">'+priceNote+'</span>'+derivNote+'</td>'+
       facCells+
       '<td class="tot" id="rtm-tot-'+sku+'">'+tot+'</td>'+
       '<td class="stk" id="rtm-stk-'+sku+'">'+rtmAvailShow(sku)+stkNote+'</td>'+
@@ -3894,6 +4013,7 @@ function rtmRenderBody(){
       '</td>';
     tb.appendChild(tr);
   });
+  rtmRenderSupplies();
   // 施設列はあるのに商品が1つも無いとき：どうやって商品を出すかだけ案内（商品は自動で入れない）
   if(st.cols.length>0 && !tb.querySelector('tr[data-sku]')){
     var hint=document.createElement('tr');
@@ -3902,6 +4022,49 @@ function rtmRenderBody(){
     tb.appendChild(hint);
   }
   rtmRecalcFooter();
+}
+
+// 🗑 間違って追加した商品を消すボタン（手入力で入っている行だけ出す）
+function rtmRemoveBtnHtml(sku){
+  var st=rtmS(); if(!st.q[sku]) return '';
+  var sj=String(sku).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return ' <span class="rtm-delrow" title="この商品を表から消す" onclick="rtmRemoveRow(\''+sj+'\')">🗑</span>';
+}
+function rtmRemoveRow(sku){
+  var st=rtmS();
+  var a=st.alloc&&st.alloc[sku];
+  if(a&&a.reflected){ alert(rtmProdName(sku)+' は在庫を確保済みです。\n先に「↩ 取り置きを取り消す」で戻してから消してください。'); return; }
+  var isSet=(function(){ var p=findProductBySku(sku); return !!(p&&p.isSet); })();
+  if(!confirm(rtmProdName(sku)+' を表から消します。\n'+(isSet?'このセットの個数（と、そこから振り分けていたオイル・備品）が消えます。':'この商品に入れた本数が消えます。')+'\nよろしいですか？')) return;
+  delete st.q[sku]; if(st.alloc) delete st.alloc[sku];
+  rtmPushHist('－商品を消す：'+rtmProdName(sku));
+  rtmSave(st); rtmRender();
+}
+// ── その他備品（セットの金箱・紙袋など）：必要数を自動集計して表示（取り置き/要輸入の計算には入れない）──
+function rtmRenderSupplies(){
+  var host=document.getElementById('rtm-supply'); if(!host) return;
+  var st=rtmS(); var d=rtmDerived();
+  var skus={}; Object.keys(d.sup).forEach(function(s){ skus[s]=true; });
+  Object.keys(st.q).forEach(function(s){ if(rtmIsSupplySku(s)) skus[s]=true; });
+  var list=Object.keys(skus);
+  if(!list.length){ host.innerHTML=''; return; }
+  list.sort(function(a,b){ var pa=findProductBySku(a),pb=findProductBySku(b); return ((pa&&pa.id)||9999)-((pb&&pb.id)||9999); });
+  var rows=list.map(function(s){
+    var per={}, tot=0;
+    st.cols.forEach(function(cid){
+      var dv=(d.sup[s]&&+d.sup[s][cid])||0;
+      var man=(+((st.q[s]||{})[cid])||0);
+      var v=dv+man; if(v>0){ per[cid]=v; tot+=v; }
+    });
+    if(tot<=0) return '';
+    var perTxt=Object.keys(per).map(function(cid){ return esc(rtmFacName(cid))+' '+per[cid]; }).join('・');
+    return '<div class="rtm-suprow"><span class="rtm-supname">🎁 '+esc(rtmProdName(s))+'</span>'+
+      '<span class="rtm-suptot">合計 '+tot+'</span>'+
+      '<span class="rtm-supper">'+perTxt+'</span></div>';
+  }).filter(Boolean).join('');
+  if(!rows){ host.innerHTML=''; return; }
+  host.innerHTML='<div class="rtm-supbox"><div class="rtm-suphd">🧰 その他備品（セット分から自動集計）'+
+    '<span class="rtm-supnote">箱・紙袋などの必要数です。取り置き・要輸入（オイルの輸入）には入れていません。</span></div>'+rows+'</div>';
 }
 
 function rtmRecalcRow(sku){
@@ -3917,8 +4080,9 @@ function rtmRecalcRow(sku){
 function rtmRecalcFooter(){
   var st=rtmS(); var colT={}; st.cols.forEach(function(cid){ colT[cid]=0; });
   var grand=0, needT=0, revT=0, holdT=0, keepT=0;
-  rtmRowSkus().forEach(function(sku){
-    var m=st.q[sku]||{}; st.cols.forEach(function(cid){ colT[cid]+=(+m[cid]||0); });
+  // フッターは「オイル（実効＝手入力＋セット由来）」だけ集計。セット行・備品は数えない（二重計上を防ぐ）。
+  rtmOilRowSkus().forEach(function(sku){
+    st.cols.forEach(function(cid){ colT[cid]+=rtmEffCell(sku,cid); });
     grand+=rtmTotal(sku); needT+=rtmNeed(sku); revT+=rtmTotal(sku)*rtmPrice(sku); holdT+=rtmHold(sku); keepT+=rtmKeep(sku);
   });
   st.cols.forEach(function(cid){ var el=document.getElementById('rtm-f-'+cid); if(el) el.textContent=colT[cid]; });
@@ -3938,6 +4102,12 @@ function rtmOnInput(el){
   var st=rtmS(); var sku=el.dataset.sku; if(!sku) return;
   var v=parseInt(el.value); if(isNaN(v))v=0; if(v<0)v=0;
   var f=el.dataset.f;
+  var pp=findProductBySku(sku);
+  if(pp&&pp.isSet && !f){ // セットの施設個数：保存して合計だけ即更新。オイル・備品・フッターは blur で全体更新
+    if(!st.q[sku])st.q[sku]={}; st.q[sku][el.dataset.cid]=v; rtmSave(st);
+    var tc=document.getElementById('rtm-tot-'+sku); if(tc) tc.textContent=rtmTotal(sku);
+    return;
+  }
   var a=rtmAlloc(sku);
   if(!f){ // 施設予約
     if(!st.q[sku])st.q[sku]={}; st.q[sku][el.dataset.cid]=v;
@@ -3953,6 +4123,14 @@ function rtmOnInput(el){
 function rtmOnChange(el){
   var sku=el.dataset.sku; if(!sku) return;
   var orig=el.dataset.orig; var v=parseInt(el.value); if(isNaN(v))v=0;
+  var pp=findProductBySku(sku);
+  if(pp&&pp.isSet && !el.dataset.f){ // セット個数の確定：履歴＋オイル/備品/フッターを全体再描画
+    if(orig!==undefined && String(v)!==orig){ rtmPushHist('🎁 '+rtmFacName(el.dataset.cid)+' '+rtmProdName(sku)+' '+orig+'→'+v+'セット'); el.dataset.orig=String(v); }
+    var st=rtmS(); var d=rtmDerived().oil;   // セット由来が変わったオイルの「決定」を解除（数字がずれるため）
+    Object.keys(d).forEach(function(os){ var oa=st.alloc&&st.alloc[os]; if(oa&&!oa.reflected) oa.confirmed=false; });
+    rtmSave(st); rtmRenderBody();
+    return;
+  }
   if(orig!==undefined && String(v)!==orig){
     var f=el.dataset.f;
     if(!f) rtmPushHist('🏨 '+rtmFacName(el.dataset.cid)+' '+rtmProdName(sku)+' '+orig+'→'+v+'本');
@@ -3971,7 +4149,7 @@ function rtmFilter(){ rtmRenderBody(); }
 // ── 📦 箱を計算：本数 → 何箱と何本／ケース単位か（1箱の本数は商品ごとの boxQty）──
 function rtmBoxCalcOptsHtml(){
   var opts='<option value="">商品を選ぶ…</option>';
-  rtmRowSkus().forEach(function(sku){
+  rtmOilRowSkus().forEach(function(sku){
     var p=findProductBySku(sku); var bq=(p&&p.boxQty)||1;
     opts+='<option value="'+sku+'">'+esc(rtmProdName(sku))+'（1箱'+bq+'本）</option>';
   });
@@ -4017,7 +4195,14 @@ function rtmRemoveCol(cid){ var st=rtmS(); cid=String(cid);
   Object.keys(st.q).forEach(function(sku){ if(st.q[sku]) delete st.q[sku][cid]; });
   rtmPushHist('－施設を外す：'+rtmFacName(cid)); rtmSave(st); rtmRender();
 }
-function rtmAddRow(sku){ var st=rtmS(); if(!st.q[sku]) st.q[sku]={}; rtmPushHist('＋商品を追加：'+rtmProdName(sku)); rtmSave(st); rtmRender(); }
+function rtmAddRow(sku){
+  var st=rtmS(); if(!st.q[sku]) st.q[sku]={};
+  var p=findProductBySku(sku);
+  if(p&&p.isSet&&p.components){ // セットを足したら、中のオイル行も空で出しておく（振り分けが見えるように）
+    p.components.forEach(function(c){ if(!rtmIsSupplySku(c.sku) && !st.q[c.sku]) st.q[c.sku]={}; });
+  }
+  rtmPushHist('＋商品を追加：'+rtmProdName(sku)); rtmSave(st); rtmRender();
+}
 function rtmClearAll(){
   if(!confirm('⚠️ 本当にリセットしますか？\n\nこの端末のRT振り分け（施設の列・予約本数・取置・変更履歴）が全部消えます。元には戻せません。\n\nリセットする場合は「OK」、やめる場合は「キャンセル」を押してください。')) return;
   RTM={cols:[],q:{},alloc:{},hist:[]}; rtmSave(RTM); rtmRender();
@@ -4032,14 +4217,26 @@ function rtmExportExcel(){
     var aoa=[head];
     var colTot=st.cols.map(function(){ return 0; });
     var tTot=0,tKeep=0,tHold=0,tNeed=0,tYen=0;
-    rtmRowSkus().forEach(function(sku){
-      var m=st.q[sku]||{};
-      var qs=st.cols.map(function(cid,i){ var v=(+m[cid]||0); colTot[i]+=v; return v; });
+    // オイル（実効＝手入力＋セット由来）を書き出す。セット行・備品は別集計。
+    rtmOilRowSkus().forEach(function(sku){
+      var qs=st.cols.map(function(cid,i){ var v=rtmEffCell(sku,cid); colTot[i]+=v; return v; });
       var tot=rtmTotal(sku), price=rtmPrice(sku), keep=rtmKeep(sku), hold=rtmHold(sku), need=rtmNeed(sku), yenv=tot*price;
       aoa.push([rtmProdName(sku), price].concat(qs).concat([tot, rtmStock(sku), keep, hold, need, yenv]));
       tTot+=tot; tKeep+=keep; tHold+=hold; tNeed+=need; tYen+=yenv;
     });
     aoa.push(['合計',''].concat(colTot).concat([tTot,'',tKeep,tHold,tNeed,tYen]));
+    // その他備品（セット分＋直接入力）の必要数を末尾に付記
+    var d=rtmDerived();
+    var supSkus={}; Object.keys(d.sup).forEach(function(s){ supSkus[s]=true; }); Object.keys(st.q).forEach(function(s){ if(rtmIsSupplySku(s)) supSkus[s]=true; });
+    var supList=Object.keys(supSkus);
+    if(supList.length){
+      aoa.push([]); aoa.push(['その他備品（セット分から自動集計。取り置き・要輸入には含めません）']);
+      aoa.push(['備品'].concat(facCols).concat(['合計']));
+      supList.forEach(function(s){
+        var t=0; var qs=st.cols.map(function(cid){ var v=((d.sup[s]&&+d.sup[s][cid])||0)+(+((st.q[s]||{})[cid])||0); t+=v; return v; });
+        if(t>0) aoa.push([rtmProdName(s)].concat(qs).concat([t]));
+      });
+    }
     var ws=XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols']=[{wch:22},{wch:11}].concat(facCols.map(function(){return {wch:14};})).concat([{wch:9},{wch:11},{wch:10},{wch:9},{wch:9},{wch:13}]);
     var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'RT予約');
@@ -4083,11 +4280,11 @@ function rtmReflect(sku){
 }
 // 取置Hを施設(列)へ按分して held 注文を作成（addGeneralHostと同じ形）。作成した注文idの配列を返す。
 function rtmBuildHeldOrders(sku, H){
-  var st=rtmS(); var p=findProductBySku(sku); var m=st.q[sku]||{};
+  var st=rtmS(); var p=findProductBySku(sku);
   var remaining=H; var made=[]; var bq=(p&&p.boxQty)||1;
   st.cols.forEach(function(cid){
     if(remaining<=0) return;
-    var q=(+m[cid]||0); if(q<=0) return;
+    var q=rtmEffCell(sku,cid); if(q<=0) return;   // 実効＝手入力＋セット由来（セット分の取り置きも施設へ按分）
     var amt=Math.min(remaining, q); remaining-=amt;
     var c=(customers||[]).find(function(x){ return String(x.id)===String(cid); }) || {name:cid,id:cid};
     var o={
@@ -4426,9 +4623,9 @@ function rtmPushToOrders(){
   var st=rtmS();
   var facLines={}; st.cols.forEach(function(cid){ facLines[cid]=[]; });
   var totalBottles=0;
-  rtmRowSkus().forEach(function(sku){
-    var m=st.q[sku]||{};
-    st.cols.forEach(function(cid){ var v=(+m[cid]||0); if(v>0){ facLines[cid].push({sku:sku,qty:v}); totalBottles+=v; } });
+  // オイルだけ（実効＝手入力＋セット由来）を受注Aの予約へ。セット行・備品は行として出さない（オイルに集約済み）。
+  rtmOilRowSkus().forEach(function(sku){
+    st.cols.forEach(function(cid){ var v=rtmEffCell(sku,cid); if(v>0){ facLines[cid].push({sku:sku,qty:v}); totalBottles+=v; } });
   });
   var facCount=st.cols.filter(function(cid){ return facLines[cid].length; }).length;
   if(!facCount){ alert('反映する予約がありません（どの施設にも本数が入っていません）。'); return; }
