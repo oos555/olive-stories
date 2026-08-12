@@ -1560,6 +1560,59 @@ function availBoxLine(v, per){
   var txt = (r === 0) ? (b + '箱') : (b + '箱＋' + r + '本');
   return '<div class="iv-availbox">' + txt + '</div>';
 }
+// ── 表の数字を、その場で直接打ち替える（足し算せず、打った数に置き換える）──────────
+// 編集ONのときだけ動く。実在庫は「ふつうの在庫（正規）」で、旧ロットは旧で調整する。
+function setBucketDirect(pid, kind, raw){
+  if(!invEditMode) return;
+  var p = findProduct(pid); if(!p || p.isSet) return;
+  var n = computeStockNumbers(pid);
+  var s = String(raw).trim();
+  if(s===''){ renderInvTable(); return; }
+  var target = parseInt(s);
+  if(isNaN(target) || target<0){ alert('0以上の数を入れてください'); renderInvTable(); return; }
+  var DEFLBL = {'lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重'};
+  var curMap = {'stock':n.stock,'old':n.oldStock,'lv1':n.defLight,'lv2':n.defMid,'lv3':n.defHeavy,'incoming':n.incoming};
+  var cur = curMap[kind];
+  if(cur===undefined) return;
+  if(target===cur){ renderInvTable(); return; }
+  if(kind==='stock'){
+    var floor = n.oldStock + n.defectQty;
+    if(target < floor){
+      alert(p.name+'\n\n実在庫を '+target+' 本にはできません。\n旧ロット '+n.oldStock+' 本＋不良 '+n.defectQty+' 本＝'+floor+' 本 が別に残っているためです。\n先に旧ロットや不良を 0 にしてから、実在庫を直してください。');
+      renderInvTable(); return;
+    }
+    if(!confirm(p.name+'\n\n実在庫を  '+cur+' 本  →  '+target+' 本  にします。\n（足し算ではなく、この数に置き換えます）\n\nよろしいですか？')){ renderInvTable(); return; }
+    var d = target - cur;
+    if(d>0) sepReconAdd(pid,'new',d); else sepReconRemove(pid,'new',-d);
+    addLog('在庫を直接編集', p.name+'　実在庫　'+cur+'→'+target+'本');
+    showSyncStatus('✅ '+p.name+'　実在庫 を '+target+'本 にしました');
+  } else if(kind==='old'){
+    if(!confirm(p.name+'\n\n旧ロットを  '+cur+' 本  →  '+target+' 本  にします。\n（旧ロットは実在庫にも含まれます）\n\nよろしいですか？')){ renderInvTable(); return; }
+    var d2 = target - cur;
+    if(d2>0) sepReconAdd(pid,'old',d2); else sepReconRemove(pid,'old',-d2);
+    addLog('在庫を直接編集', p.name+'　旧ロット　'+cur+'→'+target+'本');
+    showSyncStatus('✅ '+p.name+'　旧ロット を '+target+'本 にしました');
+  } else if(kind==='lv1' || kind==='lv2' || kind==='lv3'){
+    var lbl = DEFLBL[kind];
+    if(!confirm(p.name+'\n\n'+lbl+'を  '+cur+' 本  →  '+target+' 本  にします。\n（傷んだ瓶も実物なので、実在庫には入ります。販売可能からは外れます）\n\nよろしいですか？')){ renderInvTable(); return; }
+    var d3 = target - cur;
+    if(d3>0) sepReconAdd(pid,kind,d3); else sepReconRemove(pid,kind,-d3);
+    addLog('在庫を直接編集', p.name+'　'+lbl+'　'+cur+'→'+target+'本');
+    showSyncStatus('✅ '+p.name+'　'+lbl+' を '+target+'本 にしました');
+  } else if(kind==='incoming'){
+    if(!confirm(p.name+'\n\n輸入予定を  '+cur+' 本  →  '+target+' 本  にします。\n\nよろしいですか？')){ renderInvTable(); return; }
+    var ilot = lots.find(function(l){ return l.pid==pid && l.status==='incoming'; });
+    if(!ilot){ ilot = { id: nextId(), pid: parseInt(pid), lotCode:'-', expiry:'', stock:0, status:'incoming', note:'' }; lots.push(ilot); }
+    ilot.stock = target;
+    addLog('在庫を直接編集', p.name+'　輸入予定　'+cur+'→'+target+'本');
+    showSyncStatus('✅ '+p.name+'　輸入予定 を '+target+'本 にしました');
+  } else { return; }
+  renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
+}
+// 編集ONのとき、表のマスを直接入力欄にするための共通パーツ
+function editNumCell(pid, kind, val, color, bg, w){
+  return '<input type="number" min="0" value="'+val+'" style="width:'+(w||56)+'px;height:32px;font-size:15px;font-weight:700;text-align:center;border:2px solid '+color+';border-radius:6px;color:'+color+';background:'+bg+';padding:0" onfocus="this.select()" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="setBucketDirect('+pid+',\''+kind+'\',this.value)">';
+}
 function renderInvTable(){
   if(invLoading){
     const _tb = document.getElementById('inv-tbl-body');
@@ -1594,9 +1647,18 @@ function renderInvTable(){
       } else if(!invEditMode){
         actionCell = '<span class="iv-lock">🔒 ロック中</span>';
       } else {
-        actionCell = '<button class="op-edit" onclick="openStockEditPanel('+p.id+')">✏️ 数を直す</button>'+
-          (n.incoming>0 ? '<div style="margin-top:6px"><button class="op-edit-inc" onclick="confirmIncomingFromList('+p.id+')">✅ 輸入予定数を実在庫にする</button></div>' : '');
+        actionCell = (n.incoming>0
+          ? '<button class="op-edit-inc" onclick="confirmIncomingFromList('+p.id+')">✅ 輸入予定数を実在庫にする</button>'
+          : '<span style="color:#9a958c;font-size:11px">表の数字を直接直せます</span>');
       }
+      // 編集ONのとき、数えられるマス（実在庫・旧ロット・不良軽中重・輸入予定）を直接入力にする→置き換え
+      var canEdit = (!p.isSet && invEditMode);
+      var stockCell = canEdit ? editNumCell(p.id,'stock',n.stock,'#166534','#f0fff4',66) : ivNum(n.stock);
+      var oldCell   = canEdit ? editNumCell(p.id,'old',n.oldStock,'#b45309','#fffbeb',58) : ivNum(n.oldStock,'amber');
+      var d1Cell    = canEdit ? editNumCell(p.id,'lv1',n.defLight,'#b91c1c','#fef2f2',50) : ivNum(n.defLight,'red');
+      var d2Cell    = canEdit ? editNumCell(p.id,'lv2',n.defMid,'#b91c1c','#fef2f2',50) : ivNum(n.defMid,'red');
+      var d3Cell    = canEdit ? editNumCell(p.id,'lv3',n.defHeavy,'#b91c1c','#fef2f2',50) : ivNum(n.defHeavy,'red');
+      var incCell   = canEdit ? editNumCell(p.id,'incoming',n.incoming,'#1d4ed8','#eff6ff',56) : ivNum(n.incoming);
       var incNum = (typeof n.incoming === 'number') ? n.incoming : 0;
       var preInc, freeInc;
       if(typeof n.incoming === 'number'){
@@ -1607,14 +1669,14 @@ function renderInvTable(){
       rows += '<tr><td class="iv-name">'+p.name+(p.jan?' <span class="jan-tag">JAN:'+p.jan+'</span>':'')+(p.isSet?'<span class="set-badge">SET</span>':'')+'<div class="iv-perbox">1箱 '+(p.boxQty||'-')+'本</div></td>'+
         '<td class="iv-sku">'+(p.sku||'')+'</td>'+
         '<td class="col-avail">'+availCell+'</td>'+
-        '<td>'+ivNum(n.stock)+'</td>'+
-        '<td class="col-old">'+ivNum(n.oldStock,'amber')+'</td>'+
-        '<td class="col-defect">'+ivNum(n.defLight,'red')+'</td>'+
-        '<td class="col-defect">'+ivNum(n.defMid,'red')+'</td>'+
-        '<td class="col-defect">'+ivNum(n.defHeavy,'red')+'</td>'+
+        '<td>'+stockCell+'</td>'+
+        '<td class="col-old">'+oldCell+'</td>'+
+        '<td class="col-defect">'+d1Cell+'</td>'+
+        '<td class="col-defect">'+d2Cell+'</td>'+
+        '<td class="col-defect">'+d3Cell+'</td>'+
         '<td class="col-hold">'+ivNum(n.holdQty,'brown')+'</td>'+
         '<td class="col-disc">'+ivNum(n.discardQty)+'</td>'+
-        '<td class="col-inc">'+ivNum(n.incoming)+'</td>'+
+        '<td class="col-inc">'+incCell+'</td>'+
         '<td class="col-inc">'+ivNum(preInc,'blue')+'</td>'+
         '<td class="col-inc">'+ivNum(freeInc)+'</td>'+
         '<td>'+actionCell+'</td></tr>';
@@ -2278,8 +2340,7 @@ function renderStockEditPanel(){
     html += '<div style="background:#f4f2ec;border:1px dashed #c9c4b8;border-radius:9px;padding:12px;margin-bottom:12px">'+
       '<div style="font-size:13px;font-weight:700;color:#3f4a1f;margin-bottom:7px">① どの数を直しますか？</div>'+
       '<select id="sep-recon-bucket" onchange="sepBucketPick()" style="width:100%;height:42px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 8px;margin-bottom:8px">'+
-        '<option value="stock">実在庫（倉庫にある本数）</option>'+
-        '<option value="avail">販売可能（今すぐ売れる数）</option>'+
+        '<option value="new">ふつうに売れる在庫（数えた本数はここ）</option>'+
         '<option value="old">旧ロット</option>'+
         '<option value="lv1">不良・軽</option>'+
         '<option value="lv2">不良・中</option>'+
@@ -2290,8 +2351,9 @@ function renderStockEditPanel(){
       '<div id="sep-hold-note" style="display:none;background:#fbf3e6;border:1px solid #e6c98a;border-radius:8px;padding:10px 11px;font-size:12px;color:#8a5a12;line-height:1.6">取り置きは<b>受注A（受注・出荷）</b>で登録・変更します。ここでは直せません（表示だけ）。</div>'+
       '<div id="sep-set-wrap">'+
         '<div style="font-size:13px;font-weight:700;color:#1e3a5f;margin:12px 0 6px">② 何本にしますか？</div>'+
+        '<div style="font-size:11px;color:#6b665d;margin-bottom:6px">数えた本数をそのまま打ってください。<b>足し算ではなく、打った数に置き換え</b>ます。</div>'+
         '<div class="sep-row"><label style="color:#1e3a5f">この数にする</label><input id="sep-recon-set" type="number" min="0" placeholder="数えた本数" style="border-color:#8aa0c0"><span class="unit">本</span></div>'+
-        '<button class="sep-btn" style="background:#166534;border-color:#166534;margin-top:2px" onclick="sepApplySetTo()">③ この数にする（確定）</button>'+
+        '<button class="sep-btn" style="background:#166534;border-color:#166534;margin-top:2px" onclick="sepApplySetTo()">③ この数に置き換える（確定）</button>'+
         '<div style="border-top:1px dashed #cbb58a;margin:15px 0 9px"></div>'+
         '<div style="font-size:11px;color:#6b665d;margin-bottom:7px">または、＋−で調整する（見つかった・なくなった時）</div>'+
         '<div class="sep-row"><label style="color:#14532d">＋ 増やす</label><input id="sep-recon-plus" type="number" min="0" value="0" style="border-color:#8ac09a"><span class="unit">本</span></div>'+
@@ -2558,16 +2620,19 @@ function sepReconRemove(pid, bucket, qty){
   return reducedDef;
 }
 // 直接入力・数合わせで使う「直したい数」のラベル。実在庫・販売可能は正規（new）を動かして実現する
-var SEP_SET_LABEL = {'stock':'実在庫','avail':'販売可能','old':'旧ロット','lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重','hold':'取り置き','new':'正規'};
+var SEP_SET_LABEL = {'stock':'実在庫','avail':'販売可能','old':'旧ロット','lv1':'不良・軽','lv2':'不良・中','lv3':'不良・重','hold':'取り置き','new':'ふつうに売れる在庫'};
 function sepPhysBucket(bucket){ return (bucket==='stock'||bucket==='avail') ? 'new' : bucket; }
-// ① で選んだものの「今の本数」を出す。取り置きは受注A管理なので、入力欄を隠して表示だけにする
+// ① で選んだものの「今の本数」＋この商品の実在庫・販売可能（計算結果）を出す。取り置きは表示だけ
 function sepBucketPick(){
   var pid = sepPid; if(pid==null) return;
-  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'stock';
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
   var cur = sepBucketCurrent(pid, bucket);
   var label = SEP_SET_LABEL[bucket] || bucket;
+  var n = computeStockNumbers(pid);
   var line = document.getElementById('sep-cur-line');
-  if(line) line.innerHTML = 'いま <span style="color:#166534">'+cur+'本</span>（'+label+'）';
+  if(line) line.innerHTML =
+    '<div>「'+label+'」は いま <span style="color:#166534">'+cur+'本</span></div>'+
+    '<div style="font-size:12px;font-weight:400;color:#6b665d;margin-top:5px;line-height:1.5">この商品の今 → 実在庫 '+n.stock+'本 ／ 販売可能 '+n.avail+'本 ／ 旧ロット '+n.oldStock+'本 ／ 不良 '+n.defectQty+'本<br>（実在庫・販売可能は計算結果です。ふつうの在庫を直すと、この2つも自動でそろいます）</div>';
   var wrap = document.getElementById('sep-set-wrap');
   var note = document.getElementById('sep-hold-note');
   if(bucket==='hold'){ if(wrap) wrap.style.display='none'; if(note) note.style.display='block'; }
@@ -2576,7 +2641,7 @@ function sepBucketPick(){
 function sepApplyReconcile(){
   var pid = sepPid; if(pid==null) return;
   var p = findProduct(pid);
-  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'stock';
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
   var label = SEP_SET_LABEL[bucket] || bucket;
   if(bucket==='hold'){ alert('取り置きは受注A（受注・出荷）で変更します。ここでは直せません。'); return; }
   var delta = sepReadInt('sep-recon-plus') - sepReadInt('sep-recon-minus');
@@ -2612,7 +2677,7 @@ function sepBucketCurrent(pid, bucket){
 function sepApplySetTo(){
   var pid = sepPid; if(pid==null) return;
   var p = findProduct(pid); if(!p) return;
-  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'stock';
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
   var label = SEP_SET_LABEL[bucket] || bucket;
   if(bucket==='hold'){ alert('取り置きは受注A（受注・出荷）で変更します。ここでは直せません。'); return; }
   var el = document.getElementById('sep-recon-set');
