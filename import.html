@@ -588,6 +588,8 @@ tr:last-child td{border-bottom:none}
     </div>
     <!-- ★2026-07-23 統合マスタの名簿で商品が増えたら、ここに自動でお知らせが出る -->
     <div id="cost-missing-alert" style="display:none"></div>
+    <!-- ★2026-08-12 読み込みに失敗したとき、真っ白のまま黙らず、はっきり赤で知らせる -->
+    <div id="cost-load-error" style="display:none;background:#fee2e2;border:2px solid #dc2626;border-radius:10px;padding:12px 14px;font-size:14px;font-weight:800;color:#7f1d1d;margin:10px 0;line-height:1.7"></div>
     <div class="card">
       <div class="sec">🎨 区分別 利益ひと目比較 ＋ 📐 掛け率シミュレーション</div>
       <div id="price-gas-banner" style="display:none;background:#eef4fb;border:1px solid #b5d4f4;border-radius:8px;padding:8px 12px;font-size:12px;color:#0c447c;margin-bottom:10px;line-height:1.7"></div>
@@ -868,6 +870,7 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   const saved = oosSavedPw('secret');
   if(saved){ autoUnlock(saved); }
+  try{ localStorage.removeItem('oos_price_local_edits_v1'); }catch(e){} // ★2026-08-12 古い価格控えを掃除（もう使わない）
 });
 
 function showSyncStatus(msg,isError){
@@ -1464,6 +1467,21 @@ function renderCostMissingAlert(){
   el.style.display = 'block';
 }
 
+// ★2026-08-12 読み込みが成功したかどうかの印。失敗している間は「保存」を止める（消える事故を画面側でも防ぐ）。
+let costLoadedOk = false;   // 原価が正しく読めたか
+let priceLoadedOk = false;  // 価格マスタが正しく読めたか
+function setCostLoadBanner(msg){
+  const el = document.getElementById('cost-load-error');
+  if(!el) return;
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+function clearCostLoadBanner(){
+  // 原価も価格も両方きちんと読めたときだけ消す（片方でも失敗していれば警告を残す）
+  if(!(costLoadedOk && priceLoadedOk)) return;
+  const el = document.getElementById('cost-load-error');
+  if(el) el.style.display = 'none';
+}
 async function loadCostDataFromGAS(){
   try{
     const res = await fetch(GAS_URL + '?action=loadCostData&password=' + encodeURIComponent(password));
@@ -1471,13 +1489,21 @@ async function loadCostDataFromGAS(){
     if(data.status==='ok'){
       costData = data.data.costData || {};
       novelloNotes = data.data.novelloNotes || [];
+      costLoadedOk = true;              // ★読み込み成功。以後、保存を許可する
+      clearCostLoadBanner();
       renderCostProductTable();
       renderProfitHeatmap();
       renderRateSimulation();
       renderNovelloNotes();
       if(typeof ynRenderCompare==='function') ynRenderCompare(); // 青い枠（使用中の回）は原価データ読込後に決まる
+    } else {
+      costLoadedOk = false;             // ★読み込み失敗。保存を止める
+      setCostLoadBanner('原価を読み込めませんでした（'+((data&&data.message)||'サーバーからの応答がありません')+'）。数字は消えていません。「保存」は押さず、少し待ってから画面を開き直してください（Cmd+Shift+R）。');
     }
-  }catch(err){}
+  }catch(err){
+    costLoadedOk = false;               // ★通信エラー。保存を止める
+    setCostLoadBanner('原価を読み込めませんでした（通信エラー）。数字は消えていません。「保存」は押さず、少し待ってから画面を開き直してください（Cmd+Shift+R）。');
+  }
   loadProvisionalCostsFromGAS(); // ★2026-07-20 仮原価も読み込む（別口・失敗しても既存には影響しない）
 }
 
@@ -1515,13 +1541,34 @@ async function loadStockAndPriceRef(){
     const data = await res.json();
     if(data && data.status==='ok' && data.data){
       priceMaster = data.data.priceMaster || [];
-      if(typeof applyLocalPriceEdits==='function') applyLocalPriceEdits(priceMaster); // この画面で反映した金額は読み直しでも消さない
+      // ★2026-08-12 古い応急処置（この端末のブラウザにだけ価格を控える仕組み）を撤去。
+      //   サーバーが価格を確実に保存・保持するようになったので、画面にはサーバーの本当の値をそのまま出す。
       currentLots = data.data.lots || data.data.stock || data.data.stockLots || currentLots || [];
+      priceLoadedOk = true;             // ★読み込み成功
+      clearCostLoadBanner();
       renderProfitHeatmap();
       renderRateSimulation();
       if(typeof ynRenderCompare==='function') ynRenderCompare(); // 🔔（旧ロット残）は在庫読込後に決まる
+    } else {
+      priceLoadedOk = false;            // ★読み込み失敗。保存・反映を止める
+      setCostLoadBanner('価格（定価・卸・バサラ・特別提供など）を読み込めませんでした。数字は消えていません。「保存」「反映」は押さず、少し待ってから画面を開き直してください（Cmd+Shift+R）。');
     }
-  }catch(err){}
+  }catch(err){
+    priceLoadedOk = false;              // ★通信エラー。保存・反映を止める
+    setCostLoadBanner('価格を読み込めませんでした（通信エラー）。数字は消えていません。「保存」「反映」は押さず、少し待ってから画面を開き直してください（Cmd+Shift+R）。');
+  }
+}
+// ★2026-08-12 価格マスタの1項目だけを、取り直した最新データに直接セットするヘルパー（端末控えの代わり）。
+//   保存直前に freshMaster へ今回の変更だけを乗せる。行が無ければ最小の行を足す。
+function setFieldOnMaster(master, sku, field, value){
+  let r = master.find(function(x){ return x.sku===sku; });
+  if(!r){
+    const dp = (typeof DEFAULT_PRICES!=='undefined' && DEFAULT_PRICES[sku]) ? DEFAULT_PRICES[sku] : {};
+    r = {sku:sku, productName:(dp.productName||sku), priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOldLot:0};
+    master.push(r);
+  }
+  r[field] = value;
+  return master;
 }
 
 function toggleCostEditLock(){
@@ -1620,6 +1667,7 @@ async function saveProvisionalEntry(){
 
 // ★2026-07-31 利益ヒートマップの「原価」セルから、確定原価(costData)を直接なおせる。確認を1回はさむ。保存は既存 saveCostData。
 async function editConfirmedCost(sku){
+  if(!costLoadedOk){ alert('原価がまだ正しく読み込めていません。\n\n消えるといけないので、いまは直せません。\n画面を開き直して（Cmd+Shift+R）、原価が表示されてから直してください。\n※サーバーの原価は無事です。'); return; }
   /* ★2026-08-07 いまの原価（本物があれば本物、無ければ仮）を初期値に見せる。セット・備品もここで本物の原価にできる */
   var cur = (typeof getCostForSku==='function') ? (parseFloat(getCostForSku(sku))||0)
             : ((costData[sku] && costData[sku].cost!=null && costData[sku].cost!=='') ? (parseFloat(costData[sku].cost)||0) : 0);
@@ -1643,8 +1691,8 @@ async function editConfirmedCost(sku){
     var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     var data = await res.json();
     if(data && data.status==='ok'){ if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました'); }
-    else { if(typeof showSyncStatus==='function') showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）'); }
-  }catch(e){ if(typeof showSyncStatus==='function') showSyncStatus('✅ この端末に保存しました（ほかの端末への共有はあとで）'); }
+    else { if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 保存できませんでした：'+((data&&data.message)||'もう一度お試しください'), true); }
+  }catch(e){ if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 通信エラーで保存できませんでした。もう一度お試しください', true); }
   if(typeof renderCostProductTable==='function') renderCostProductTable();
   renderProfitHeatmap();
   if(typeof renderRateSimulation==='function') renderRateSimulation();
@@ -2142,7 +2190,7 @@ const priceLocalEdits = {};               // この画面で反映した金額�
 // ★2026-07-20(修正) 価格の控え帳もこの端末に必ず残す。GASが新しい価格欄（旧ロット・卸バサラ・不良品・特別提供など）を保存できない形でも、別アプリへ移動して戻って消えないようにする。
 const PRICE_LOCAL_EDITS_KEY = 'oos_price_local_edits_v1';
 function savePriceLocalEdits(){
-  try{ localStorage.setItem(PRICE_LOCAL_EDITS_KEY, JSON.stringify(priceLocalEdits||{})); }catch(e){}
+  /* ★2026-08-12 端末ごとの価格控えは廃止（サーバーが確実に保持するため不要）。何もしない＝古い情報を溜めない。 */
 }
 function loadPriceLocalEdits(){
   try{
@@ -2261,7 +2309,7 @@ async function applyRateToTierNow(sku, T, price){
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
     // 控え帳の金額をすべて上書きで復元（今回の金額もここで入る）
-    applyLocalPriceEdits(freshMaster);
+    setFieldOnMaster(freshMaster, sku, T.field, price); // ★2026-08-12 端末控えの代わりに、今回の変更だけを最新データに乗せて保存
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
@@ -2331,7 +2379,7 @@ async function clearTierPriceNow(sku, T){
     const freshData = await freshRes.json();
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
-    applyLocalPriceEdits(freshMaster); // 控え帳（空にした分も含む）を反映
+    setFieldOnMaster(freshMaster, sku, T.field, ''); // ★2026-08-12 端末控えの代わりに、この1マスを空にして保存
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
@@ -2379,6 +2427,7 @@ function addNovelloRow(){
   markCostDirty();
 }
 async function saveCostDataToGAS(){
+  if(!costLoadedOk){ alert('原価がまだ正しく読み込めていません。\n\n消えるといけないので、いまは保存できません。\n画面を開き直して（Cmd+Shift+R）、原価の数字が表示されてから保存してください。\n※サーバーの原価は無事です。'); return; }
   if(!confirm('メモを保存しますか？')) return;
   document.querySelectorAll('[data-cost-sku]').forEach(function(inp){
     const sku = inp.getAttribute('data-cost-sku');
