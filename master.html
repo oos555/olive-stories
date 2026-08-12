@@ -2277,7 +2277,7 @@ function renderStockEditPanel(){
   } else {
     html += '<div style="background:#f4f2ec;border:1px dashed #c9c4b8;border-radius:9px;padding:11px;margin-bottom:12px">'+
       '<div style="font-size:11px;color:#3f4a1f;margin-bottom:6px">① どの在庫か選ぶ</div>'+
-      '<select id="sep-recon-bucket" onchange="sepReconPreview()" style="width:100%;height:38px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 8px;margin-bottom:10px">'+
+      '<select id="sep-recon-bucket" onchange="sepReconPreview();sepSetPreview()" style="width:100%;height:38px;border:1.5px solid #cbb58a;border-radius:8px;background:#fff;font-size:15px;font-weight:700;color:#2b2a26;padding:0 8px;margin-bottom:10px">'+
         '<option value="new">正規（ふつうに売れる）</option>'+
         '<option value="old">旧ロット</option>'+
         '<option value="lv1">不良・軽</option>'+
@@ -2292,7 +2292,8 @@ function renderStockEditPanel(){
       '<div style="border-top:1px dashed #cbb58a;margin:14px 0 10px"></div>'+
       '<div style="font-size:12px;font-weight:700;color:#1e3a5f;margin-bottom:6px">または、計算せずに「この数にちょうど直す」（直接入力）</div>'+
       '<div style="font-size:11px;color:#3f4a1f;margin-bottom:8px">＋−で計算せず、数えた本数をそのまま打てます（棚卸しに便利・打ち間違い防止）。</div>'+
-      '<div class="sep-row"><label style="color:#1e3a5f">＝ この数にする</label><input id="sep-recon-set" type="number" min="0" placeholder="例 645" style="border-color:#8aa0c0"><span class="unit">本</span></div>'+
+      '<div class="sep-row"><label style="color:#1e3a5f">＝ この数にする</label><input id="sep-recon-set" type="number" min="0" placeholder="例 645" oninput="sepSetPreview()" style="border-color:#8aa0c0"><span class="unit">本</span></div>'+
+      '<div id="sep-set-preview" style="background:#eef2fa;border:1px solid #9cc0e6;border-radius:10px;padding:11px;margin:10px 0;font-size:12px;color:#6b665d">数を入れると、ここに「実在庫 ◯→◯／販売可能 ◯→◯」が出ます。①で選んだ在庫を、この数に直します。</div>'+
       '<button class="sep-btn" style="background:#166534;border-color:#166534" onclick="sepApplySetTo()">この数にちょうど直す</button>'+
     '</div>';
   }
@@ -2305,7 +2306,7 @@ function renderStockEditPanel(){
 
   box.innerHTML = html;
   sepOnMoveChange();
-  if(sepAdjustOpen && document.getElementById('sep-recon-preview')) sepReconPreview();
+  if(sepAdjustOpen && document.getElementById('sep-recon-preview')){ sepReconPreview(); sepSetPreview(); }
 }
 
 // ── 2026-07-19 案A：どの状態からどの状態へでも動かす（実在庫の合計は不変） ──
@@ -2604,6 +2605,35 @@ function sepApplySetTo(){
   showSyncStatus('✅ '+p.name+'　'+label+' を '+target+'本 にしました');
   sepAdjustOpen = false;
   renderStockEditPanel();
+}
+// 直接入力のライブプレビュー：この数にしたら、実在庫・販売可能がどうなるかを先に見せる
+function sepSetPreview(){
+  var el = document.getElementById('sep-set-preview'); if(!el) return;
+  var pid = sepPid; if(pid==null) return;
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
+  var label = SEP_BUCKET_LABEL[bucket] || bucket;
+  var inp = document.getElementById('sep-recon-set');
+  var raw = inp ? String(inp.value) : '';
+  var cur = sepBucketCurrent(pid, bucket);
+  if(raw===''){
+    el.innerHTML = '<span style="color:#6b665d">数を入れると、ここに変化が出ます。今えらんでいるのは「<b style="color:#1e3a5f">'+label+'</b>」（今 '+cur+'本）。この数にちょうど直します。</span>';
+    return;
+  }
+  var target = parseInt(raw);
+  if(isNaN(target) || target<0){ el.innerHTML = '<span style="color:#b91c1c">0以上の数を入れてください</span>'; return; }
+  var n = computeStockNumbers(pid);
+  var delta = target - cur;
+  var newStock = Math.max(0, n.stock + delta);
+  var newAvail = (bucket==='new') ? Math.max(0, n.avail + delta) : n.avail;
+  function arrow(a,b){ var c=(b>a)?'#166534':(b<a?'#b91c1c':'#6b665d'); var d=(b-a); var ds=(d>0?'（＋'+d+'）':(d<0?'（'+d+'）':'（変わらず）')); return a+' → <span style="color:'+c+'">'+b+'</span> <span style="font-size:12px;color:'+c+'">'+ds+'</span>'; }
+  var note = (bucket==='new')
+    ? '「正規」を直すので、実在庫も販売可能も、どちらも動きます。'
+    : '「'+label+'」を直すので、実在庫だけ動いて、販売可能は変わりません。';
+  el.innerHTML =
+    '<div style="font-size:12px;font-weight:700;color:#1e3a5f;margin-bottom:8px">えらんでいる在庫：「'+label+'」を '+cur+' → '+target+'本 に直します 👇</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;color:#2b2a26"><span>実在庫</span><span style="font-weight:700">'+arrow(n.stock,newStock)+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:14px;color:#2b2a26"><span>販売可能</span><span style="font-weight:700">'+arrow(n.avail,newAvail)+'</span></div>'+
+    '<div style="font-size:11px;color:#1e3a5f;margin-top:8px;line-height:1.5">'+note+'</div>';
 }
 function sepDiscard(){
   var pid = sepPid; if(pid==null) return;
