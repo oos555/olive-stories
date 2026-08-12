@@ -651,6 +651,8 @@ function recipientAddressBlock(o){
 function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
 // バサラ（楽天）からの注文かどうか。追跡番号は、この注文のときだけ入力欄を出す。
 function isBasaraOrder(o){ return !!(o && (o.source==='basara' || o.basaraOrderNo || /バサラ/.test(o.client||''))); }
+// バサラ注文の送り主表記（固定・正）。自動取込のメール値は誤りがあるため、倉庫Dではこの固定値を出す。変更時はここだけ直す。
+const BASARA_SENDER = { name:'バサラ・TABEOLOGY タベオロジー', zip:'133-0056', addr:'東京都江戸川区南小岩６－５－１２', tel:'03-6666-8360' };
 // バサラの発注番号は注文メモに「#B発注番号/日付」の形で入っている。そこから取り出す。
 function basaraOrderNoOf(o){
   var t = String((o&&o.note)||'');
@@ -1247,8 +1249,12 @@ function renderOrder(){
   /* ★2026-07-25 修正：以前は「ギフト種別がgiftのとき」だけ送り主を出していたため、
      熨斗つきでも種別が違うと送り主が倉庫に伝わらなかった（ゆかさん報告）。
      これからはギフト種別も熨斗の有無も問わず、お届け先と名前が違えば必ず出す。 */
-  var _sender = o.senderName || o.buyerName || o.client || '';
-  if(_sender && nameKeyPD(_sender) !== nameKeyPD(recipientLabel(o))) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(_sender)+'</span></div>';
+  if(isBasaraOrder(o)){
+    html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(BASARA_SENDER.name)+'<br>〒'+esc(BASARA_SENDER.zip)+' '+esc(BASARA_SENDER.addr)+'<br>Tel: '+esc(BASARA_SENDER.tel)+'</span></div>';
+  } else {
+    var _sender = o.senderName || o.buyerName || o.client || '';
+    if(_sender && nameKeyPD(_sender) !== nameKeyPD(recipientLabel(o))) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(_sender)+'</span></div>';
+  }
   html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
@@ -1348,6 +1354,8 @@ function renderOrder(){
         + (o.extraDocUrl ? '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
             + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="rtOpenExtraDoc()">🖨 ③ 追加の説明PDF を開いて印刷する</button>'
             + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">③ 追加の説明PDF を入れた</label></div>' : '');
+    } else if(isBasaraOrder(o)){
+      html += '<div class="rt-docs-t" style="color:#57534e">🚫 納品書は同梱しません（バサラの注文）</div>';
     } else if(encDoc && encDoc!=='なし'){
       var _docs = String(encDoc).split(' ＋ ');
       var _list = [];
