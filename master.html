@@ -1587,16 +1587,24 @@ function setBucketDirect(pid, kind, raw){
     addLog('在庫を直接編集', p.name+'　実在庫　'+cur+'→'+target+'本');
     showSyncStatus('✅ '+p.name+'　実在庫 を '+target+'本 にしました');
   } else if(kind==='old'){
-    if(!confirm(p.name+'\n\n旧ロットを  '+cur+' 本  →  '+target+' 本  にします。\n（旧ロットは実在庫にも含まれます）\n\nよろしいですか？')){ renderInvTable(); return; }
     var d2 = target - cur;
-    if(d2>0) sepReconAdd(pid,'old',d2); else sepReconRemove(pid,'old',-d2);
+    if(d2>0 && d2>n.avail){
+      alert(p.name+'\n\n旧ロットを '+cur+' 本 → '+target+' 本 にはできません。\n販売可能（'+n.avail+'本）を超えて旧ロットに回せないためです。\n実物が増えたのなら、先に「実在庫」の欄で総数を増やしてください。');
+      renderInvTable(); return;
+    }
+    if(!confirm(p.name+'\n\n旧ロットを  '+cur+' 本  →  '+target+' 本  にします。\n（実在庫の中での内訳の変更です。実在庫の合計は変わりません）\n\nよろしいですか？')){ renderInvTable(); return; }
+    if(d2>0) sepMoveToOld(pid, d2); else sepRestoreFromOld(pid, -d2);
     addLog('在庫を直接編集', p.name+'　旧ロット　'+cur+'→'+target+'本');
     showSyncStatus('✅ '+p.name+'　旧ロット を '+target+'本 にしました');
   } else if(kind==='lv1' || kind==='lv2' || kind==='lv3'){
     var lbl = DEFLBL[kind];
-    if(!confirm(p.name+'\n\n'+lbl+'を  '+cur+' 本  →  '+target+' 本  にします。\n（傷んだ瓶も実物なので、実在庫には入ります。販売可能からは外れます）\n\nよろしいですか？')){ renderInvTable(); return; }
     var d3 = target - cur;
-    if(d3>0) sepReconAdd(pid,kind,d3); else sepReconRemove(pid,kind,-d3);
+    if(d3>0 && d3>n.avail){
+      alert(p.name+'\n\n'+lbl+'を '+cur+' 本 → '+target+' 本 にはできません。\n販売可能（'+n.avail+'本）を超えて不良に回せないためです。\n実物が増えたのなら、先に「実在庫」の欄で総数を増やしてください。');
+      renderInvTable(); return;
+    }
+    if(!confirm(p.name+'\n\n'+lbl+'を  '+cur+' 本  →  '+target+' 本  にします。\n（傷んだ瓶も実物なので、実在庫の合計は変わりません。販売可能からは外れます）\n\nよろしいですか？')){ renderInvTable(); return; }
+    if(d3>0) sepPushFromAvail(pid, kind, d3); else sepReturnDefect(pid, kind, -d3);
     addLog('在庫を直接編集', p.name+'　'+lbl+'　'+cur+'→'+target+'本');
     showSyncStatus('✅ '+p.name+'　'+lbl+' を '+target+'本 にしました');
   } else if(kind==='incoming'){
