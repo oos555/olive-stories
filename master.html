@@ -2289,6 +2289,11 @@ function renderStockEditPanel(){
       '<div class="sep-row"><label style="color:#7f1d1d">− 減らす</label><input id="sep-recon-minus" type="number" min="0" value="0" oninput="sepReconPreview()" style="border-color:#e0a0a0"><span class="unit">本</span></div>'+
       '<div id="sep-recon-preview" style="background:#eef4e6;border:1px solid #cfd9b6;border-radius:10px;padding:11px;margin:10px 0"></div>'+
       '<button class="sep-btn" onclick="sepApplyReconcile()">この数合わせを反映する</button>'+
+      '<div style="border-top:1px dashed #cbb58a;margin:14px 0 10px"></div>'+
+      '<div style="font-size:12px;font-weight:700;color:#1e3a5f;margin-bottom:6px">または、計算せずに「この数にちょうど直す」（直接入力）</div>'+
+      '<div style="font-size:11px;color:#3f4a1f;margin-bottom:8px">＋−で計算せず、数えた本数をそのまま打てます（棚卸しに便利・打ち間違い防止）。</div>'+
+      '<div class="sep-row"><label style="color:#1e3a5f">＝ この数にする</label><input id="sep-recon-set" type="number" min="0" placeholder="例 645" style="border-color:#8aa0c0"><span class="unit">本</span></div>'+
+      '<button class="sep-btn" style="background:#166534;border-color:#166534" onclick="sepApplySetTo()">この数にちょうど直す</button>'+
     '</div>';
   }
 
@@ -2566,6 +2571,37 @@ function sepApplyReconcile(){
   addLog('数合わせ', p.name+'　'+label+'　'+sign+done+'本');
   renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
   showSyncStatus('✅ '+p.name+'　'+label+' を '+sign+done+'本 数合わせしました');
+  sepAdjustOpen = false;
+  renderStockEditPanel();
+}
+// ── 直接入力：選んだ在庫を「この数にちょうど直す」。差分を計算して、既存の数合わせ処理(sepReconAdd/Remove)に流すだけ ──
+function sepBucketCurrent(pid, bucket){
+  var n = computeStockNumbers(pid);
+  if(bucket==='new'){ var s=0; lots.forEach(function(l){ if(l.pid==pid && l.status==='new') s+=(l.stock||0); }); return s; }
+  if(bucket==='old') return n.oldStock;
+  if(bucket==='lv1') return n.defLight;
+  if(bucket==='lv2') return n.defMid;
+  if(bucket==='lv3') return n.defHeavy;
+  return 0;
+}
+function sepApplySetTo(){
+  var pid = sepPid; if(pid==null) return;
+  var p = findProduct(pid); if(!p) return;
+  var bucket = (document.getElementById('sep-recon-bucket')||{}).value || 'new';
+  var label = SEP_BUCKET_LABEL[bucket] || bucket;
+  var el = document.getElementById('sep-recon-set');
+  if(!el || String(el.value)===''){ alert('「この数にする」に本数を入れてください'); return; }
+  var target = parseInt(el.value); if(isNaN(target) || target<0){ alert('0以上の数を入れてください'); return; }
+  var cur = sepBucketCurrent(pid, bucket);
+  var delta = target - cur;
+  if(delta===0){ alert(p.name+'の「'+label+'」は今 '+cur+'本で、すでにこの数です。'); return; }
+  if(!confirm(p.name+'の「'+label+'」を\n\n'+cur+'本 → '+target+'本\n\nにします。よろしいですか？')) return;
+  var done = 0;
+  if(delta>0){ done = sepReconAdd(pid, bucket, delta); }
+  else { done = sepReconRemove(pid, bucket, -delta); if(done < -delta){ showSyncStatus('⚠️ '+p.name+'の'+label+'は在庫が足りず、'+(cur-done)+'本 までしか下げられませんでした', true); } }
+  addLog('数合わせ(直接)', p.name+'　'+label+'　'+cur+'→'+target+'本');
+  renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
+  showSyncStatus('✅ '+p.name+'　'+label+' を '+target+'本 にしました');
   sepAdjustOpen = false;
   renderStockEditPanel();
 }
