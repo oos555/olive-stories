@@ -2118,16 +2118,17 @@ function computeAvailable(sku){
     return Math.min.apply(null, p.components.map(c=>{ const v=computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
   }
   const pid = p.id;
-  let stock = 0, oldStock = 0, defectQty = 0;
+  // 新モデル(2026-08-12決定)：販売可能＝正規(最新ロット)のみ − 受注Aの取り置き分。
+  // 旧ロット(old)・不良・手入力取り置き(hold)・輸入予定(incoming)・廃棄(discard)は数えない。
+  // マスターN(master.html)・在庫B(stock.html)の computeStockNumbers と完全に同じ判定にする。
+  let newStock = 0;
   lots.forEach(function(l){
-    // 輸入予定（incoming）と廃棄（discard）は実在庫に数えない（在庫Bの computeStockNumbers と完全に同じ判定にする）
-    if(l.pid != pid || l.status==='incoming' || l.status==='discard') return;
-    stock += (l.stock||0);
-    if(l.status==='old') oldStock += (l.stock||0);
+    if(l.pid != pid) return;
+    if(l.status==='old' || l.status==='hold' || l.status==='incoming' || l.status==='discard') return;
+    newStock += (l.stock||0);
   });
-  defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
   const holdQty = computeHeldQtyBySku(sku);
-  return Math.max(0, stock - oldStock - defectQty - holdQty);
+  return Math.max(0, newStock - holdQty);
 }
 
 function computeDefectQty(pid){

@@ -995,8 +995,8 @@ function moveToDiscard(pid, qty){
 
 // ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
 function computeStockNumbers(pid){
-  let stock=0, oldStock=0;
-  lots.forEach(function(l){ if(l.pid==pid && l.status!=='incoming' && l.status!=='discard'){ stock += (l.stock||0); if(l.status==='old') oldStock += (l.stock||0); } });
+  let newStock=0, oldStock=0, manualHold=0;
+  lots.forEach(function(l){ if(l.pid==pid){ if(l.status==='old'){ oldStock += (l.stock||0); } else if(l.status==='hold'){ manualHold += (l.stock||0); } else if(l.status!=='incoming' && l.status!=='discard'){ newStock += (l.stock||0); } } });
   let defLight=0, defMid=0, defHeavy=0;
   defects.forEach(function(d){
     if(d.pid!=pid || !isActiveDefect(d)) return;
@@ -1006,16 +1006,18 @@ function computeStockNumbers(pid){
     else defMid += dq;
   });
   let defectQty = defLight + defMid + defHeavy;
-  let holdQty = 0;
-  holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
+  let autoHold = 0;
+  holds.forEach(function(h){ if(h.pid==pid) autoHold += (h.qty||0); });
+  let holdQty = autoHold + manualHold;
   let preQty = 0;
   preorders.forEach(function(r){ if(r.pid==pid) preQty += (r.qty||r.bottles||0); });
   let incoming = 0;
   lots.forEach(function(l){ if(l.pid==pid && l.status==='incoming') incoming += (l.stock||0); });
   let discardQty = 0;
   lots.forEach(function(l){ if(l.pid==pid && l.status==='discard') discardQty += (l.stock||0); });
-  const avail = Math.max(0, stock - oldStock - defectQty - holdQty);
-  return { stock, oldStock, defectQty, defLight, defMid, defHeavy, holdQty, preQty, incoming, discardQty, avail };
+  const avail = Math.max(0, newStock - autoHold);
+  const stock = newStock + oldStock + defectQty + manualHold;
+  return { stock, newStock, oldStock, defectQty, defLight, defMid, defHeavy, holdQty, autoHold, manualHold, preQty, incoming, discardQty, avail };
 }
 function computeAvailable(sku){
   const p = findProductBySku(sku);
@@ -1304,7 +1306,7 @@ function renderLotList(){
     html += '<div class="lot-pcard"><div class="sec" style="margin-bottom:8px">'+p.name+' <span class="sku-tag">'+(p.sku||'')+'</span></div>';
     html += '<table class="lot-tbl"><thead><tr><th>ロット</th><th>賞味期限</th><th>状態</th><th>在庫数</th><th>メモ</th><th>操作</th></tr></thead><tbody>';
     groups[pid].forEach(function(l){
-      if(l.status==='discard') return;
+      if(l.status==='discard' || l.status==='hold') return;
       const badge = l.status==='old' ? '<span class="lot-badge lot-old">旧</span>' : l.status==='supply' ? '<span class="lot-badge lot-supply">備品</span>' : l.status==='incoming' ? '<span class="lot-badge lot-supply">輸入予定</span>' : '<span class="lot-badge lot-new">新</span>';
       if(l.status==='old') oldAlerts.push(p.name+'（'+l.lotCode+'／'+l.expiry+'）');
       html += '<tr><td>'+(l.lotCode||'-')+'</td><td>'+(l.expiry||'-')+expiryChip(l.expiry,l.status)+'</td><td>'+badge+'</td><td>'+(l.stock||0)+'</td><td>'+(l.note||'')+'</td><td>'+
