@@ -2928,11 +2928,20 @@ const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日
 // ── 発送区分の期限日表示・期限超過チェック ────────────────────────────
 function computeDueDateISO(o){
   if(o.leadType==='scheduled') return o.leadDate || '';
-  const days = o.leadType==='urgent' ? 1 : (o.leadType==='normal' ? 3 : null);
-  if(days===null) return '';
+  if(o.leadType!=='urgent' && o.leadType!=='normal') return '';
   const base = o.registeredAt ? new Date(o.registeredAt) : new Date();
-  base.setDate(base.getDate()+days);
-  return base.toISOString().slice(0,10);
+  if(isNaN(base.getTime())) return '';
+  // ★2026-08-12 修正：急ぎ＝翌営業日までに出荷（お休みは飛ばす）＝soryo.html（送料・約束ごと）のルールに合わせる。
+  //   以前は「+1暦日」かつ toISOString(UTC) で作っていたため、深夜受注だと当日表示にズレていた。
+  //   日付はJST(ローカル)で組み立てる。通常は従来どおり3日以内の内部目安。
+  var due;
+  if(o.leadType==='urgent'){
+    due = addBusinessDays(base, 1);
+  } else {
+    due = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    due.setDate(due.getDate()+3);
+  }
+  return due.getFullYear()+'-'+('0'+(due.getMonth()+1)).slice(-2)+'-'+('0'+due.getDate()).slice(-2);
 }
 function formatDateJp(iso){
   if(!iso) return '';
