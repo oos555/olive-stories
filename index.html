@@ -434,13 +434,15 @@ body{background:#fff}
             <option value="reserved">予約（まだ入荷していない）</option>
           </select>
         </div>
-        <div class="fg" style="margin-bottom:0"><label style="font-size:13.5px;font-weight:700;color:#2b2a26">お客様区分</label>
+        <div class="fg" style="margin-bottom:0"><label style="font-size:13.5px;font-weight:700;color:#2b2a26">価格区分</label>
           <select id="o-ctype" onchange="onCtypeChange()" style="font-weight:700;font-size:15.5px;padding:9px">
             <option value="general">定価</option>
             <option value="wholesale1">卸①（仲卸価格）</option>
             <option value="wholesale2">卸②（一般卸価格）</option>
             <option value="rt">RT（ホテル）</option>
             <option value="rtgc">RTGC（ゴルフ）</option>
+            <option value="basara">卸バサラスター</option>
+            <option value="special">特別提供価格</option>
             <option value="defectprice">不良在庫特価</option>
           </select>
         </div>
@@ -480,7 +482,7 @@ body{background:#fff}
     <details style="margin-bottom:14px"><summary style="cursor:pointer;font-size:11px;color:#2b2a26">📌 納品書の区分表記ルール（社内用メモ）</summary>
       <div style="font-size:11px;color:#2b2a26;background:#f9f8f5;border-radius:6px;padding:8px 12px;margin-top:4px">
         納品書には金額確認用の区分バッジが入ります（お客様には区分名は伝えていません）<br>
-        卸①（仲卸価格）→「卸」　卸②（一般卸価格）→「卸※」　RT（ホテル）→「卸●」　不良在庫特価→「特化」
+        卸①（仲卸価格）→「卸」　卸②（一般卸価格）→「卸※」　RT（ホテル）→「卸●」　卸バサラスター→「卸◆」　特別提供価格→「特提」　不良在庫特価→「特化」
       </div>
     </details>
 
@@ -1230,6 +1232,8 @@ body{background:#fff}
         <option value="wholesale2">卸②</option>
         <option value="rt">RT・ホテル</option>
         <option value="rtgc">RTGC・ゴルフ</option>
+        <option value="basara">卸バサラスター</option>
+        <option value="special">特別提供価格</option>
         <option value="defectprice">不良在庫特価</option>
       </select>
       <select id="list-sort" onchange="renderList()" style="padding:5px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px">
@@ -1788,11 +1792,11 @@ gateCheck();
 
 const CUSTOMER_TYPE_LABEL = {
   general:'定価', wholesale1:'卸①（仲卸価格）', wholesale2:'卸②（一般卸価格）',
-  rt:'RT（ホテル）', rtgc:'RTGC（ゴルフ）', defectprice:'不良在庫特価'
+  rt:'RT（ホテル）', rtgc:'RTGC（ゴルフ）', basara:'卸バサラスター', special:'特別提供価格', defectprice:'不良在庫特価'
 };
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（倉庫D・受注A共通の約束）*/
-function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','不良在庫特価':'defectprice'})[v] || v; }
-const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', rtgc:'卸●', defectprice:'特化' };
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','卸バサラスター':'basara','特別提供価格':'special','不良在庫特価':'defectprice'})[v] || v; }
+const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', rtgc:'卸●', basara:'卸◆', special:'特提', defectprice:'特化' };
 
 // boxQty ＝ 1箱に入っている本数（発注書シートで「箱数→本数」換算に使われます）
 // ★Phase 3以降、起動時にGASの「商品マスタ」シートから読み込んで上書きします。
@@ -2256,7 +2260,7 @@ function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
   const pam = document.getElementById('o-include-pamphlet');
-  if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='rtgc' || sel.value==='wholesale1' || sel.value==='wholesale2'); }
+  if(pam){ pam.checked = !(sel.value==='rt' || sel.value==='rtgc' || sel.value==='wholesale1' || sel.value==='wholesale2' || sel.value==='basara'); }
   // ゆかさん要望③④：RT・RTGCを選んだら 発送区分＝日程指定・同梱書類＝RT発注伝票＋納品書 を自動セット（手で変更可）
   if(sel.value==='rt' || sel.value==='rtgc'){
     document.querySelectorAll('.recipient-card [data-role=lead]').forEach(function(ls){
@@ -2911,7 +2915,7 @@ function toggleCardTimeOther(cardId){
 // ── 注文番号自動採番 ────────────────────────────────────────────
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
 /* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
-function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', hub:'OS2', rt:'RT', rtgc:'RTG', defectprice:'FT'})[ctype] || 'TK'; }
+function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', basara:'BA', special:'IT', rt:'RT', rtgc:'RTG', defectprice:'FT'})[ctype] || 'TK'; }
 function nextOrderNum(offset, ctype){
   const ymd = todayYmd();
   const todays = orders.filter(o=>(o.num||'').indexOf('-'+ymd+'-')>=0).length;
@@ -4670,15 +4674,15 @@ function ghInit(){
   }
   if(document.querySelectorAll('#gh-lines .gh-line').length===0) ghAddLine();
 }
-var GH_CTYPE_LABEL={ general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT・ホテル', rtgc:'RTGC・ゴルフ', defectprice:'特価' };
+var GH_CTYPE_LABEL={ general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT・ホテル', rtgc:'RTGC・ゴルフ', basara:'卸バサラスター', special:'特別提供価格', defectprice:'特価' };
 function ghOnCust(){
   var cid=document.getElementById('gh-cust').value;
   var badge=document.getElementById('gh-ctype-badge'); if(!badge) return;
   var c=(customers||[]).find(function(x){ return x.id==cid; });
   if(!c){ badge.innerHTML=''; return; }
   var t=c.type||'general', lbl=GH_CTYPE_LABEL[t]||t;
-  var cls=(t==='rt'||t==='rtgc')?'rt':(t==='wholesale1'||t==='wholesale2')?'oroshi':'gen';
-  var price=(t==='rt'||t==='rtgc')?'RT価格':(t==='wholesale1'||t==='wholesale2')?'卸価格':'定価';
+  var cls=(t==='rt'||t==='rtgc')?'rt':(t==='wholesale1'||t==='wholesale2'||t==='basara')?'oroshi':'gen';
+  var price=(t==='rt'||t==='rtgc')?'RT価格':(t==='basara')?'バサラ価格':(t==='special')?'特別価格':(t==='wholesale1'||t==='wholesale2')?'卸価格':'定価';
   badge.innerHTML='<span class="gh-cbadge '+cls+'">'+lbl+'</span> <span style="font-size:11px;color:#8a857a">→ '+price+'</span>'+(c.tel?' <span style="font-size:11px;color:#8a857a">☎ '+c.tel+'</span>':'');
 }
 function ghKind(){ var r=document.querySelector('input[name=gh-kind]:checked'); return r?r.value:'held'; }
@@ -7179,7 +7183,7 @@ function applyBasaraToOrderForm(){
   var clientEl = document.getElementById('o-client');
   clientEl.value = 'バサラ';
   if(clientEl.dataset) clientEl.dataset.custId = '';
-  document.getElementById('o-ctype').value = 'wholesale2';
+  document.getElementById('o-ctype').value = 'basara';
   if(typeof onCtypeChange==='function') onCtypeChange();
   document.getElementById('o-payment-mode').value = 'postpay';
   if(document.getElementById('prepay-warn')) document.getElementById('prepay-warn').style.display='none';
