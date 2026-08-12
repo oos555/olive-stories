@@ -1238,7 +1238,6 @@ function renderOrder(){
   html += '<div class="center" style="font-size:12px;color:#57534e;margin-bottom:4px">注文番号</div>';
   html += '<div class="center" style="font-size:20px;font-weight:700;margin-bottom:10px">'+esc(o.num)+'</div>';
   html += '<div class="center" style="margin-bottom:10px">';
-  html += customerTypePillHtml(o);
   var _ecWarehouse = /通販倉庫/.test((o.companyName||'')+' '+(o.recipientName||'')+' '+(o.addr||''));
   if(_ecWarehouse) html += '<span class="badge" style="background:#fbe9d8;color:#7c3a12;border:1px solid #d99b5f">🛒 EC注文（通販倉庫あて）</span>';
   if(hasGift) html += '<span class="badge b-gift">🎁 ギフトあり</span>';
@@ -1246,18 +1245,17 @@ function renderOrder(){
   if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
   html += '</div>';
   html += '<div class="meta-row"><span class="meta-label">お届け先</span><span class="meta-val">'+esc(recipientLabel(o))+'</span></div>';
-  /* ★2026-07-25 修正：以前は「ギフト種別がgiftのとき」だけ送り主を出していたため、
-     熨斗つきでも種別が違うと送り主が倉庫に伝わらなかった（ゆかさん報告）。
-     これからはギフト種別も熨斗の有無も問わず、お届け先と名前が違えば必ず出す。 */
+  html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
+  html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
+  /* ★2026-08-12 送り主は、お届け先と取り違えないよう、お届け先情報を全部出したあと、いちばん下にまとめて表示する。
+     （以前はお届け先名の直下に送り主が来ていて、送り主住所へ誤発送する恐れがあったため移動） */
   if(isBasaraOrder(o)){
     html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(BASARA_SENDER.name)+'<br>〒'+esc(BASARA_SENDER.zip)+' '+esc(BASARA_SENDER.addr)+'<br>Tel: '+esc(BASARA_SENDER.tel)+'</span></div>';
   } else {
     var _sender = o.senderName || o.buyerName || o.client || '';
     if(_sender && nameKeyPD(_sender) !== nameKeyPD(recipientLabel(o))) html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(_sender)+'</span></div>';
   }
-  html += '<div class="meta-row"><span class="meta-label">郵便番号・住所</span><span class="meta-val">〒'+esc(o.zip)+' '+esc(o.addr)+'</span></div>';
-  html += '<div class="meta-row"><span class="meta-label">電話番号</span><span class="meta-val">'+esc(o.tel||'-')+'</span></div>';
-  html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
   html += '</div>';
   if(orderHasNoshi){
     const n = o.noshi;
