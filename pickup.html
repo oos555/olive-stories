@@ -253,6 +253,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .stk-tbl td.stk-av-td{font-size:20px;font-weight:800;color:#16a34a;background:#eef8f1}
 .stk-tbl td.stk-in-td{font-size:14px;color:#7c93b3;border-left:2px solid #eef1f6}
 .stk-grp-row td{background:#f1eee7;font-size:11.5px;font-weight:700;color:#5a5340;text-align:left;padding:4px 6px;border-bottom:none}
+.stk-lot{display:inline-block;font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 7px;white-space:nowrap;background:#fff;border:1px solid #cfe3cf;color:#2b2a26}
+.stk-lot.old{border-color:#f3c9c9;color:#b91c1c}
+.stk-tbl tr.stk-new td{border-bottom:none}
+.stk-tbl tr.stk-old td{color:#b91c1c;font-weight:400}
+.stk-tbl tr.stk-old td.stk-av-td{color:#b91c1c;font-weight:400}
+.stk-tbl tr.stk-total td{border-top:1px solid #ddd8cc;background:#faf8f3;font-size:15px;text-align:center}
+.stk-tbl tr.stk-total td:first-child{font-size:11px;font-weight:800;text-align:right;padding-right:5px}
+.stk-sub{display:block;font-size:10px;font-weight:600;color:#6b6459;line-height:1.3}
+.df-lot-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
+.df-src-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -919,22 +929,40 @@ function isActiveDefect(d){
   if(d.level==='relabel' || d.level==='discard') return false;
   return true;
 }
-// 在庫Bの computeStockNumbers と同じロジック（正規＝販売可能数、旧＝old、不良＝defect、廃棄＝discard）
+// マスターN（master.html）の computeStockNumbers と同じ数え方（2026-08-13）。
+//   現ロットと旧ロットは絶対に混ぜない。その行の数字は全部その行のロットのもの。
+//   販売可能 ＝ 棚の良品 − 受注Aの取り置き
+//   実在庫   ＝ 棚の良品 ＋ 不良 ＋ 手で入れた取置（廃棄は足さない＝もう倉庫にない）
 function stockNumbersFor(pid, lots, defects, holds){
-  var stock=0, oldStock=0, incoming=0, discard=0;
+  function blank(){ return { good:0, defectQty:0, autoHold:0, manualHold:0, discard:0 }; }
+  var cur = blank(), old = blank(), incoming = 0;
   lots.forEach(function(l){
     if(l.pid!=pid) return;
-    if(l.status==='incoming'){ incoming += (l.stock||0); return; }
-    if(l.status==='discard'){ discard += (l.stock||0); return; }
-    stock += (l.stock||0);
-    if(l.status==='old') oldStock += (l.stock||0);
+    var st = l.status, q = (l.stock||0);
+    if(st==='old')              old.good += q;
+    else if(st==='incoming')    incoming += q;
+    else if(st==='hold')        cur.manualHold += q;
+    else if(st==='hold_old')    old.manualHold += q;
+    else if(st==='discard')     cur.discard += q;
+    else if(st==='discard_old') old.discard += q;
+    else                        cur.good += q;   // 'new' ほか＝現ロット
   });
-  var defectQty=0;
-  defects.forEach(function(d){ if(d.pid==pid && isActiveDefect(d)) defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0)); });
-  var holdQty=0;
-  holds.forEach(function(h){ if(h.pid==pid) holdQty += (h.qty||0); });
-  var avail = Math.max(0, stock - oldStock - defectQty - holdQty);
-  return { stock:stock, oldStock:oldStock, defectQty:defectQty, holdQty:holdQty, incoming:incoming, discard:discard, avail:avail };
+  defects.forEach(function(d){
+    if(d.pid!=pid || !isActiveDefect(d)) return;
+    var t = (d.lotKind==='old') ? old : cur;
+    t.defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0));
+  });
+  holds.forEach(function(h){ if(h.pid==pid) cur.autoHold += (h.qty||0); });  // 受注Aの取り置きは現ロットから
+  [cur, old].forEach(function(t){
+    t.holdQty  = t.autoHold + t.manualHold;
+    t.stock    = t.good + t.defectQty + t.manualHold;
+    t.sellable = Math.max(0, t.good - t.autoHold);
+  });
+  var hasOld = (old.good + old.defectQty + old.holdQty + old.discard) > 0;
+  return { cur:cur, old:old, hasOld:hasOld, incoming:incoming,
+           stock: cur.stock + old.stock, avail: cur.sellable + old.sellable,
+           oldStock: old.good, defectQty: cur.defectQty + old.defectQty,
+           holdQty: cur.holdQty + old.holdQty, discard: cur.discard + old.discard };
 }
 
 async function loadStockScreen(){
@@ -947,7 +975,7 @@ async function loadStockScreen(){
       return;
     }
     const lots    = (data.data.lots||[]).map(function(l){ return { pid:parseInt(l.pid), stock:parseInt(l.stock)||0, status:l.status }; });
-    const defects = (data.data.defects||[]).map(function(x){ return { pid:parseInt(x.pid), qty:parseInt(x.qty)||0, shippedQty:parseInt(x.shippedQty)||0, status:x.status||'pending', level:x.level||'', source:x.source||'', reviewed:!!x.reviewed }; });
+    const defects = (data.data.defects||[]).map(function(x){ return { pid:parseInt(x.pid), qty:parseInt(x.qty)||0, shippedQty:parseInt(x.shippedQty)||0, status:x.status||'pending', level:x.level||'', source:x.source||'', reviewed:!!x.reviewed, lotKind:x.lotKind||'' }; });
     const holds   = (data.data.holds||[]).map(function(h){ return { pid:parseInt(h.pid), qty:parseInt(h.qty)||0 }; });
     renderStockList(lots, defects, holds);
   }catch(err){
@@ -989,12 +1017,12 @@ function renderStockList(lots, defects, holds){
     return;
   }
 
-  html += '<div class="stock-note"><b style="color:#16a34a">販売可能</b>＝いま出荷につかえる本数（旧ロット・不良・取り置きを引いた数）。<br>いちばん右の<b style="color:#1d4ed8">入庫予定</b>＝これから届く本数（置き場所の目安に）。<br>ギフト箱・紙袋などの<b>備品</b>も下の方に出ます。<b>「—」</b>は在庫B（在庫アプリ）でまだ数を管理していない備品です。</div>';
+  html += '<div class="stock-note"><b style="color:#16a34a">販売可能</b>＝いま出荷につかえる本数。<br><b style="color:#b91c1c">赤い行＝旧ロット</b>。早めに出したいぶんです。<br>いちばん右の<b style="color:#1d4ed8">入庫予定</b>＝これから届く本数（置き場所の目安に）。<br>ギフト箱・紙袋などの<b>備品</b>も下の方に出ます。<b>「—」</b>はまだ数を管理していない備品です。</div>';
 
   html += '<table class="stk-tbl"><colgroup>'
-        + '<col style="width:22%"><col style="width:12%"><col style="width:14%"><col style="width:11%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:12%">'
+        + '<col style="width:22%"><col style="width:13%"><col style="width:17%"><col style="width:12%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:10%">'
         + '</colgroup><thead><tr>'
-        + '<th class="stk-name">商品</th><th>実在庫</th><th class="stk-av">販売<br>可能</th><th>旧<br>ロット</th><th>不良</th><th>取置</th><th>廃棄</th><th class="stk-in">入庫<br>予定</th>'
+        + '<th class="stk-name">商品</th><th>ロット</th><th class="stk-av">販売<br>可能</th><th>実在庫</th><th>不良</th><th>取置</th><th>廃棄</th><th class="stk-in">入庫<br>予定</th>'
         + '</tr></thead><tbody>';
 
   order.forEach(function(g){
@@ -1004,16 +1032,32 @@ function renderStockList(lots, defects, holds){
       var n = stockNumbersFor(p.id, lots, defects, holds);
       var box = p.boxQty ? '・1箱'+p.boxQty+'本' : '';
       var dash = '<span style="color:#c9c3b6">—</span>';
-      html += '<tr>';
-      html +=   '<td class="stk-nm"><b>'+esc(p.name)+'</b><small>'+esc(dispCodeOf(p))+box+'</small></td>';
-      html +=   '<td>'+(isTracked?stkNum(n.stock, '#2b2a26'):dash)+'</td>';
-      html +=   '<td class="stk-av-td">'+(isTracked?n.avail:dash)+'</td>';
-      html +=   '<td>'+(isTracked?stkNum(n.oldStock, '#b45309'):dash)+'</td>';
-      html +=   '<td>'+(isTracked?stkNum(n.defectQty, '#dc2626'):dash)+'</td>';
-      html +=   '<td>'+(isTracked?stkNum(n.holdQty, '#b45309'):dash)+'</td>';
-      html +=   '<td>'+(isTracked?stkNum(n.discard, '#1a1a18'):dash)+'</td>';
-      html +=   '<td class="stk-in-td">'+(isTracked?(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming):dash)+'</td>';
-      html += '</tr>';
+      var span = n.hasOld ? 3 : 1;
+      // 現ロットの行（＋旧ロットがあれば旧ロットの行と合計行）。マスターNと同じ読み方。
+      function lotRow(s, isOld){
+        var h = '<tr class="'+(isOld?'stk-old':'stk-new')+'">';
+        if(!isOld) h += '<td class="stk-nm" rowspan="'+span+'"><b>'+esc(p.name)+'</b><small>'+esc(dispCodeOf(p))+box+'</small></td>';
+        h += '<td><span class="stk-lot'+(isOld?' old':'')+'">'+(isOld?'旧ロット':'現ロット')+'</span></td>';
+        h += '<td class="stk-av-td">'+(isTracked?(s.sellable+(s.autoHold>0?'<span class="stk-sub">棚'+s.good+'（取置'+s.autoHold+'）</span>':'')):dash)+'</td>';
+        h += '<td>'+(isTracked?stkNum(s.stock, '#2b2a26'):dash)+'</td>';
+        h += '<td>'+(isTracked?stkNum(s.defectQty, '#dc2626'):dash)+'</td>';
+        h += '<td>'+(isTracked?stkNum(s.holdQty, '#b45309'):dash)+'</td>';
+        h += '<td>'+(isTracked?stkNum(s.discard, '#1a1a18'):dash)+'</td>';
+        if(!isOld) h += '<td class="stk-in-td">'+(isTracked?(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming):dash)+'</td>';
+        else       h += '<td class="stk-in-td">'+dash+'</td>';
+        return h + '</tr>';
+      }
+      html += lotRow(n.cur, false);
+      if(n.hasOld){
+        html += lotRow(n.old, true);
+        html += '<tr class="stk-total"><td>合計 →</td>'
+              + '<td class="stk-av-td">'+n.avail+'</td>'
+              + '<td>'+stkNum(n.stock, '#2b2a26')+'</td>'
+              + '<td>'+stkNum(n.defectQty, '#dc2626')+'</td>'
+              + '<td>'+stkNum(n.holdQty, '#b45309')+'</td>'
+              + '<td>'+stkNum(n.discard, '#1a1a18')+'</td>'
+              + '<td class="stk-in-td">'+(n.incoming===0 ? '<span style="color:#c9c3b6">0</span>' : n.incoming)+'</td></tr>';
+      }
     });
   });
 
@@ -1615,8 +1659,10 @@ async function renderDefectForm(){
   html += '<div class="sec-title" style="margin-top:0">🔴 不良品の報告</div>';
   html += '<div style="background:#f5f8ef;border:2px solid #6b7a3a;border-radius:10px;padding:12px 14px;margin-bottom:12px"><div style="font-size:15px;font-weight:900;color:#33421f;line-height:1.5">📮 不良品のご報告は、この画面からのみお願いします。</div><div style="font-size:13px;color:#2b2a26;line-height:1.8;margin-top:7px"><b>実在庫と管理表がずれてしまうのを避けるため</b>です。<br>LINE・お電話でのご連絡ですと、事務所で手入力することになり、記録が残らないため数が合わなくなってしまいます。<br><b>お手数をおかけしますが、ご協力よろしくお願いします。</b></div></div>';
   html += '<div style="font-size:13px;color:#2b2a26;line-height:1.6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 11px;margin-bottom:12px">報告すると、事務所（中村さん）に届きます。在庫の数字への反映は、中村さんが内容を確認したあとです。報告した直後に数字が変わっていなくても大丈夫です。</div>';
-  html += '<div class="form-group"><label>商品</label><select id="df-product">'+productOptionsHtml()+'</select></div>';
-  html += '<div class="form-group"><label>本数</label><input type="number" id="df-qty" min="1" value="1"><div style="font-size:12px;color:#57534e;margin-top:4px">同じ商品が3本なら「3」と入力でOK（1本ずつ登録しなくて大丈夫）</div></div>';
+  html += '<div class="form-group"><label>商品</label><select id="df-product" onchange="renderDefectLotPick()">'+productOptionsHtml()+'</select></div>';
+  html += '<div class="form-group" id="df-lot-wrap"><label>どちらのロットですか？<span style="color:#dc2626">（えらんでください）</span></label>';
+  html += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">瓶のラベルの<b>賞味期限</b>を見てえらんでください。</div>';
+  html += '<div id="df-lot"></div></div>';
   html += '<div class="form-group"><label>どのくらいの状態？<span style="color:#dc2626">（えらんでください）</span></label>';
   html += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">えらぶと、貼るシールの色が出ます。迷ったら近いほうでOK。</div>';
   html += '<div id="df-levels" style="display:flex;flex-direction:column;gap:8px">';
@@ -1629,6 +1675,8 @@ async function renderDefectForm(){
       + '<div style="font-size:12px;color:'+l.tx+';margin-top:3px;padding-left:24px">'+esc(l.desc)+' → <b>'+esc(l.seal)+'シール</b></div></label>';
   });
   html += '</div></div>';
+  html += '<div id="df-srcwrap"></div>';
+  html += '<div class="form-group"><label>本数（同じ状態なら、まとめて何本でもOK）</label><input type="number" id="df-qty" min="1" value="1" onchange="updateDefectSubmit()" oninput="updateDefectSubmit()"><div style="font-size:12px;color:#57534e;margin-top:4px">同じ商品が3本なら「3」と入力でOK（1本ずつ登録しなくて大丈夫）</div></div>';
   html += '<div class="form-group"><label>メモ（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた、オイル漏れ など"></textarea></div>';
   html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()" disabled>状態をえらぶと報告できます</button>';
   html += '</div>';
@@ -1637,7 +1685,55 @@ async function renderDefectForm(){
     + '<div style="font-size:13px;color:#57534e;line-height:1.6;margin-bottom:10px">「やっぱり状態がちがった」ときは、ここで<b>なおして報告</b>できます。在庫の数字は中村さんがそろえます。</div>'
     + '<div id="df-history"><div class="spinner" style="font-size:13px">読み込み中...</div></div></div>';
   document.getElementById('content').innerHTML = html;
+  renderDefectLotPick();
+  await loadDefectLots();
   await loadDefectHistory();
+}
+
+// ── 不良報告：どちらのロットか（2026-08-13追加）────────────────────────
+// 瓶を手に持っている倉庫さんに、その場で選んでもらう。
+// 旧ロットが無い商品では質問を出さない（迷わせない）。分からないときは「わからない」。
+var _lotInfo = {};   // { pid: {curExp:'…', oldExp:'…', hasOld:true} }
+async function loadDefectLots(){
+  try{
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData'), {cache:'no-store'});
+    const data = await res.json();
+    var lots = (data.status==='ok' && data.data && Array.isArray(data.data.lots)) ? data.data.lots : [];
+    var info = {};
+    lots.forEach(function(l){
+      var pid = parseInt(l.pid); if(!pid) return;
+      if(!info[pid]) info[pid] = { curExp:'', oldExp:'', hasOld:false };
+      if(l.status==='old'){
+        if((parseInt(l.stock)||0) > 0) info[pid].hasOld = true;
+        if(l.expiry && !info[pid].oldExp) info[pid].oldExp = l.expiry;
+      } else if(l.status==='hold_old' || l.status==='discard_old'){
+        if((parseInt(l.stock)||0) > 0) info[pid].hasOld = true;
+      } else if(l.status!=='incoming' && l.status!=='discard' && l.status!=='hold'){
+        if(l.expiry && !info[pid].curExp) info[pid].curExp = l.expiry;
+      }
+    });
+    _lotInfo = info;
+  }catch(e){ _lotInfo = {}; }
+  renderDefectLotPick();
+}
+function renderDefectLotPick(){
+  var wrap = document.getElementById('df-lot-wrap'), box = document.getElementById('df-lot');
+  if(!wrap || !box) return;
+  var pid = parseInt(document.getElementById('df-product').value)||0;
+  var info = _lotInfo[pid] || { curExp:'', oldExp:'', hasOld:false };
+  if(!info.hasOld){ wrap.style.display = 'none'; box.innerHTML = ''; updateDefectSubmit(); return; }
+  wrap.style.display = '';
+  function opt(val, name, exp, col, bg){
+    return '<label class="df-lot-op" style="border-color:'+col+';background:'+bg+'">'
+      + '<input type="radio" name="df-lot" value="'+val+'" style="width:auto;margin:2px 0 0" onchange="updateDefectSubmit()">'
+      + '<span style="font-size:15px;font-weight:700;color:'+col+'">'+name
+      + '<small style="display:block;font-size:12px;font-weight:600;margin-top:2px">'+exp+'</small></span></label>';
+  }
+  box.innerHTML =
+      opt('cur','現ロット', info.curExp ? ('賞味期限 '+esc(info.curExp)) : '新しいほう', '#2b2a26', '#fff')
+    + opt('old','旧ロット', info.oldExp ? ('賞味期限 '+esc(info.oldExp)) : '古いほう', '#b91c1c', '#fff')
+    + opt('unknown','わからない', '本部で確認します', '#57534e', '#fff');
+  updateDefectSubmit();
 }
 
 // 倉庫が報告した不良品を読み込んで一覧表示（自分たちの報告だけ・貼替/廃棄含む全レベル）
@@ -1717,6 +1813,7 @@ async function submitDefectFix(id){
     id: 'deffix_'+Date.now(), pid: d.pid, productName: d.productName, lotId:'',
     qty: (d.qty||0)-(d.shippedQty||0), cat: newLv.name, level: newLv.code, seal: newLv.seal,
     note: '【状態なおし】'+oldLv.name+'→'+newLv.name+(note?'／'+note:''),
+    lotKind: d.lotKind || '',
     status: 'pending', shippedQty: 0, processedAt:'', reportedAt: new Date().toISOString(),
     source: 'warehouse', fixOf: d.id, fixFromLevel: d.level
   };
@@ -1746,13 +1843,58 @@ async function submitDefectFix(id){
   }
 }
 // 旧・不良品フォーム(renderDefectFormOLD_UNUSED)は未使用のため削除。現行は renderDefectForm を使用。
+// ── 黒（廃棄）のときだけ聞く「その瓶は、どこから出しましたか？」（2026-08-13追加）──
+// 倉庫さんは瓶を持っているので、貼ってあるシールの色でえらべる。専門用語は使わない。
+// 残り本数は出さず、選択も止めない（手元の瓶が現実。食い違いは本部の画面で分かる）。
+var DF_SRC = [
+  { k:'good', label:'棚から出した',               note:'シールは貼っていなかった（良品として扱っていたもの）' },
+  { k:'lv1',  label:'緑のシールが貼ってあった',   note:'不良・軽だったもの' },
+  { k:'lv2',  label:'黄のシールが貼ってあった',   note:'不良・中だったもの' },
+  { k:'lv3',  label:'赤のシールが貼ってあった',   note:'不良・重だったもの' }
+];
+function renderDefectSrcPick(){
+  var wrap = document.getElementById('df-srcwrap'); if(!wrap) return;
+  var sel = document.querySelector('input[name="df-level"]:checked');
+  if(!sel || sel.value !== 'discard'){ wrap.innerHTML = ''; return; }
+  if(wrap.querySelector('input[name="df-src"]')) return;   // すでに出ていれば作り直さない（選択が消えないように）
+  wrap.innerHTML = '<div class="form-group" style="border:2px solid #1a1a18;background:#f7f7f6;border-radius:10px;padding:11px 12px">'
+    + '<label style="font-size:13.5px">その瓶は、どこから出しましたか？<span style="color:#dc2626">（えらんでください）</span></label>'
+    + '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">貼ってあったシールの色でえらんでください。分からなければ「棚から出した」でOK（本部で直せます）。</div>'
+    + DF_SRC.map(function(o){
+        return '<label class="df-src-op"><input type="radio" name="df-src" value="'+o.k+'" style="width:auto;margin:2px 0 0" onchange="updateDefectSubmit()">'
+          + '<span style="font-size:15px;font-weight:700">'+esc(o.label)+'<small style="display:block;font-size:12px;font-weight:600;color:#6b6459;margin-top:2px">'+esc(o.note)+'</small></span></label>';
+      }).join('')
+    + '</div>';
+}
 function updateDefectSubmit(){
+  renderDefectSrcPick();
   const sel = document.querySelector('input[name="df-level"]:checked');
   const btn = document.getElementById('df-submit-btn');
-  if(btn){ btn.disabled = !sel; btn.textContent = sel ? 'この内容で報告する' : '状態をえらぶと報告できます'; }
+  const lotWrap = document.getElementById('df-lot-wrap');
+  const needLot = !!(lotWrap && lotWrap.style.display !== 'none');
+  const lotSel = document.querySelector('input[name="df-lot"]:checked');
+  const needSrc = !!(sel && sel.value==='discard');
+  const srcSel = document.querySelector('input[name="df-src"]:checked');
+  const qtyEl = document.getElementById('df-qty');
+  const qty = qtyEl ? (parseInt(qtyEl.value)||0) : 0;
+  if(btn){
+    if(needLot && !lotSel){ btn.disabled = true; btn.textContent = 'ロットをえらぶと報告できます'; }
+    else if(!sel){ btn.disabled = true; btn.textContent = '状態をえらぶと報告できます'; }
+    else if(needSrc && !srcSel){ btn.disabled = true; btn.textContent = 'どこから出したかをえらんでください'; }
+    else if(qty<=0){ btn.disabled = true; btn.textContent = '本数を入れてください'; }
+    else { btn.disabled = false; btn.textContent = 'この内容で報告する'; }
+  }
   document.querySelectorAll('#df-levels .df-lv').forEach(function(el){
     const r = el.querySelector('input[name="df-level"]');
     el.style.boxShadow = (r && r.checked) ? '0 0 0 3px rgba(37,99,235,0.25)' : 'none';
+  });
+  document.querySelectorAll('#df-lot .df-lot-op').forEach(function(el){
+    const r = el.querySelector('input[name="df-lot"]');
+    el.style.boxShadow = (r && r.checked) ? '0 0 0 3px rgba(107,122,58,0.30)' : 'none';
+  });
+  document.querySelectorAll('#df-srcwrap .df-src-op').forEach(function(el){
+    const r = el.querySelector('input[name="df-src"]');
+    el.style.boxShadow = (r && r.checked) ? '0 0 0 3px rgba(26,26,24,0.30)' : 'none';
   });
 }
 async function submitDefect(){
@@ -1762,6 +1904,17 @@ async function submitDefect(){
   const note = document.getElementById('df-note').value;
   if(!pid || qty<=0){ alert('商品と本数を入力してください'); return; }
   if(!levelSel){ alert('「どのくらいの状態？」をえらんでください'); return; }
+  // どちらのロットか（旧ロットが無い商品では質問を出さないので、その場合は現ロット）
+  const lotWrap = document.getElementById('df-lot-wrap');
+  const needLot = !!(lotWrap && lotWrap.style.display !== 'none');
+  const lotSel = document.querySelector('input[name="df-lot"]:checked');
+  if(needLot && !lotSel){ alert('「どちらのロットですか？」をえらんでください'); return; }
+  const lotKind = needLot ? lotSel.value : 'cur';
+  // 黒（廃棄）のときは「どこから出したか」も一緒に送る
+  const needSrc = (levelSel.value === 'discard');
+  const srcSel = document.querySelector('input[name="df-src"]:checked');
+  if(needSrc && !srcSel){ alert('「その瓶は、どこから出しましたか？」をえらんでください'); return; }
+  const discardSrc = needSrc ? srcSel.value : '';
   const lv = defectLevelByCode(levelSel.value);
   if(!confirm('【'+lv.seal+'】のシールを貼りましたか？\n\n貼ってから「OK」を押してください。（まだなら「キャンセル」）')) return;
   const p = findProduct(pid);
@@ -1772,7 +1925,7 @@ async function submitDefect(){
   // 報告する不良品（1件）
   const newDefect = {
     id: 'def_'+Date.now(), pid: p.id, productName: p.name, lotId: '',
-    qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note,
+    qty: qty, cat: lv.name, level: lv.code, seal: lv.seal, note: note, lotKind: lotKind, discardSrc: discardSrc,
     status: 'pending', shippedQty: 0, processedAt: '', reportedAt: new Date().toISOString(), source: 'warehouse'
   };
 
