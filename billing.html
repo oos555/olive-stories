@@ -176,6 +176,28 @@ tr:last-child td{border-bottom:none}
   .pricelist-doc{padding:10mm 14mm}
 }
 </style>
+<!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
+<script src="oos-zaiko.js?v=20260813"></script>
+<script>
+/* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
+   黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZAIKO === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 在庫の計算ファイル（oos-zaiko.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">在庫の数字が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zaiko.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZAIKO = null;
+  }
+})();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -2352,17 +2374,15 @@ function computeOldLotStock(){
   });
   return map;
 }
-// 商品ごとの在庫合計（賞味期限に関わらず全ロットを合算）。0または未登録の場合、価格マスタ画面で赤く警告表示します。
+// 商品ごとの在庫合計（実在庫）。※現在どこからも呼ばれていないが、古い独自の式が残っていると
+// 将来使ったときにずれるため、親（統合マスタN）の式に揃えてある。削除はしていない。
 function computeTotalStockBySku(){
   const map = {};
-  (lots||[]).forEach(function(l){
-    if(!l) return;
-    if(l.status==='discard' || l.status==='incoming') return; // 実在庫のみ（廃棄・輸入予定は除く）
-    let sku = l.sku;
-    if(!sku){ const prod = findProduct(parseInt(l.pid)); sku = prod ? prod.sku : ''; }
-    if(!sku) return;
-    const qty = parseInt(l.stock!=null ? l.stock : l.qty) || 0;
-    map[sku] = (map[sku]||0) + qty;
+  const pidMap = computeStockPidMap();
+  Object.keys(pidMap).forEach(function(pid){
+    const prod = findProduct(parseInt(pid));
+    if(!prod || !prod.sku) return;
+    map[prod.sku] = (map[prod.sku]||0) + pidMap[pid].stock;   // 実在庫＝棚の良品＋不良＋手入力取置（現＋旧）
   });
   return map;
 }
@@ -2579,13 +2599,7 @@ function buildMemoBtn(p){
        + '<span class="memo-pop">'+popHtml+'</span></span>';
 }
 // ── 販売可能数の計算（在庫Bと同じ式：実在庫 − 旧ロット − 不良 − 取置）───────────
-function isActiveDefectB(d){
-  if(!d) return false;
-  if(d.status==='resolved' || d.status==='rejected') return false;
-  if(d.source==='warehouse' && !d.reviewed) return false;
-  if(d.level==='relabel' || d.level==='discard') return false;
-  return true;
-}
+function isActiveDefectB(d){ return OOS_ZAIKO.isActiveDefect(d); }   // ★親（oos-zaiko.js）を見に行く
 function buildHoldsFromOrdersB(){
   const result = [];
   (orders||[]).forEach(function(o){
@@ -2607,21 +2621,25 @@ function buildHoldsFromOrdersB(){
   });
   return result;
 }
+// ══════════════════════════════════════════════════════════════════
+// 在庫の数え方は【親＝統合マスタN（master.html）の computeStockNumbers】が正。
+// ここはその複製である。独自の式を書いてはいけない。
+// 直すときは必ず master.html を先に直し、その本文をそのままここへ写すこと。
+// （2026-08-13：請求Cが独自の古い式を持っていて数字がずれていたため、親の複製に統一した）
+// ══════════════════════════════════════════════════════════════════
+function computeStockNumbersB(pid, holdsArr){
+  // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
+  //   ここに計算式を書き写してはいけない（独自のコピーを持たない）。
+  return OOS_ZAIKO.numbers(pid, { lots: lots, defects: defects, holds: holdsArr || [] });
+}
 function computeStockPidMap(){
   const m = {};
-  function ensure(pid){ if(!m[pid]) m[pid] = {stock:0, oldStock:0, defectQty:0, holdQty:0}; return m[pid]; }
-  (lots||[]).forEach(function(l){
-    if(!l || l.status==='incoming' || l.status==='discard') return;
-    const q = parseInt(l.stock!=null?l.stock:l.qty)||0;
-    const e = ensure(parseInt(l.pid)); e.stock += q; if(l.status==='old') e.oldStock += q;
-  });
-  (defects||[]).forEach(function(d){
-    if(!isActiveDefectB(d)) return;
-    const e = ensure(parseInt(d.pid)); e.defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0));
-  });
-  buildHoldsFromOrdersB().forEach(function(h){
-    const e = ensure(parseInt(h.pid)); e.holdQty += (h.qty||0);
-  });
+  const holdsArr = buildHoldsFromOrdersB();
+  const pids = {};
+  (lots||[]).forEach(function(l){ if(l && l.pid!=null) pids[parseInt(l.pid)] = true; });
+  (defects||[]).forEach(function(d){ if(d && d.pid!=null) pids[parseInt(d.pid)] = true; });
+  holdsArr.forEach(function(h){ if(h && h.pid!=null) pids[parseInt(h.pid)] = true; });
+  Object.keys(pids).forEach(function(pid){ m[pid] = computeStockNumbersB(parseInt(pid), holdsArr); });
   return m;
 }
 function availableForSku(sku, pidMap){
@@ -2631,8 +2649,8 @@ function availableForSku(sku, pidMap){
     if(!p.components || !p.components.length) return 0;
     return Math.min.apply(null, p.components.map(function(c){ return Math.floor(availableForSku(c.sku, pidMap)/(c.qty||1)); }));
   }
-  const n = pidMap[p.id] || {stock:0, oldStock:0, defectQty:0, holdQty:0};
-  return Math.max(0, n.stock - n.oldStock - n.defectQty - n.holdQty);
+  const n = pidMap[p.id];
+  return n ? n.sellable : 0;   // 親と同じ「販売可能＝現ロットの棚の良品 − 受注Aの取り置き」
 }
 
 // ── 価格マスタ表（見るだけの一覧。編集は輸入E（原価データ）に集約済み）──────────

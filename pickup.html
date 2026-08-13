@@ -264,6 +264,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .df-lot-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
 .df-src-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
 </style>
+<!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
+<script src="oos-zaiko.js?v=20260813"></script>
+<script>
+/* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
+   黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZAIKO === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 在庫の計算ファイル（oos-zaiko.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">在庫の数字が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zaiko.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZAIKO = null;
+  }
+})();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -922,47 +944,15 @@ function isWarehouseHidden(p){
 }
 
 // 不良の「有効判定」：未処理の倉庫報告・却下・青(貼替)・黒(廃棄)は不良に数えない（在庫Bと同一ルール）
-function isActiveDefect(d){
-  if(!d) return false;
-  if(d.status==='resolved' || d.status==='rejected') return false;
-  if(d.source==='warehouse' && !d.reviewed) return false;
-  if(d.level==='relabel' || d.level==='discard') return false;
-  return true;
-}
+function isActiveDefect(d){ return OOS_ZAIKO.isActiveDefect(d); }   // ★親（oos-zaiko.js）を見に行く
 // マスターN（master.html）の computeStockNumbers と同じ数え方（2026-08-13）。
 //   現ロットと旧ロットは絶対に混ぜない。その行の数字は全部その行のロットのもの。
 //   販売可能 ＝ 棚の良品 − 受注Aの取り置き
 //   実在庫   ＝ 棚の良品 ＋ 不良 ＋ 手で入れた取置（廃棄は足さない＝もう倉庫にない）
 function stockNumbersFor(pid, lots, defects, holds){
-  function blank(){ return { good:0, defectQty:0, autoHold:0, manualHold:0, discard:0 }; }
-  var cur = blank(), old = blank(), incoming = 0;
-  lots.forEach(function(l){
-    if(l.pid!=pid) return;
-    var st = l.status, q = (l.stock||0);
-    if(st==='old')              old.good += q;
-    else if(st==='incoming')    incoming += q;
-    else if(st==='hold')        cur.manualHold += q;
-    else if(st==='hold_old')    old.manualHold += q;
-    else if(st==='discard')     cur.discard += q;
-    else if(st==='discard_old') old.discard += q;
-    else                        cur.good += q;   // 'new' ほか＝現ロット
-  });
-  defects.forEach(function(d){
-    if(d.pid!=pid || !isActiveDefect(d)) return;
-    var t = (d.lotKind==='old') ? old : cur;
-    t.defectQty += Math.max(0,(d.qty||0)-(d.shippedQty||0));
-  });
-  holds.forEach(function(h){ if(h.pid==pid) cur.autoHold += (h.qty||0); });  // 受注Aの取り置きは現ロットから
-  [cur, old].forEach(function(t){
-    t.holdQty  = t.autoHold + t.manualHold;
-    t.stock    = t.good + t.defectQty + t.manualHold;
-    t.sellable = Math.max(0, t.good - t.autoHold);
-  });
-  var hasOld = (old.good + old.defectQty + old.holdQty + old.discard) > 0;
-  return { cur:cur, old:old, hasOld:hasOld, incoming:incoming,
-           stock: cur.stock + old.stock, avail: cur.sellable + old.sellable,
-           oldStock: old.good, defectQty: cur.defectQty + old.defectQty,
-           holdQty: cur.holdQty + old.holdQty, discard: cur.discard + old.discard };
+  // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
+  //   ここに計算式を書き写してはいけない（独自のコピーを持たない）。
+  return OOS_ZAIKO.numbers(pid, { lots: lots, defects: defects, holds: holds });
 }
 
 async function loadStockScreen(){

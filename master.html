@@ -904,6 +904,29 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 
 </div><!-- /.app -->
 
+<!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
+<script src="oos-zaiko.js?v=20260813"></script>
+<script>
+/* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
+   黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZAIKO === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 在庫の計算ファイル（oos-zaiko.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">在庫の数字が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zaiko.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZAIKO = null;
+  }
+})();
+</script>
+
+
 <!-- 廃棄の出どころを選ぶパネル（2026-08-13） -->
 <div class="disc-pan" id="disc-pan">
   <div class="disc-in">
@@ -1547,13 +1570,7 @@ function buildHoldsFromOrders(){
 
 // ── 不良の「有効判定」＆廃棄移動 ───────────────────────────────
 // 有効な不良＝在庫の不良枠に数える対象。未処理の倉庫報告・却下・青(貼替)・黒(廃棄)は数えない。
-function isActiveDefect(d){
-  if(!d) return false;
-  if(d.status==='resolved' || d.status==='rejected') return false;
-  if(d.source==='warehouse' && !d.reviewed) return false;
-  if(d.level==='relabel' || d.level==='discard') return false;
-  return true;
-}
+function isActiveDefect(d){ return OOS_ZAIKO.isActiveDefect(d); }   // ★親（oos-zaiko.js）を見に行く
 // 黒＝廃棄：正規→旧の順（賞味期限の早い順）で実在庫を減らし、廃棄ロットに積む
 function moveToDiscard(pid, qty, lotKind){
   // 指定したロットの在庫から qty 本を廃棄へ移す（実在庫からは抜ける＝もう倉庫にない）
@@ -1575,75 +1592,17 @@ function moveToDiscard(pid, qty, lotKind){
 
 // ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
 function computeStockNumbers(pid){
-  // ── A案（2026-08-13確定）ロットごとに数える ──────────────────────
-  // 保存の形は変えない。ロットの status で現／旧を分ける（既存データはすべて現ロット扱い）。
-  //   現ロット在庫 = status 'new'（従来どおり）／旧ロット在庫 = status 'old'
-  //   手入力の取置 = 'hold'（現）／'hold_old'（旧）　廃棄 = 'discard'（現）／'discard_old'（旧）
-  //   不良は defects の lotKind（'old' なら旧ロット、無ければ現ロット）
-  // 法則（スキル master-n-rules「計算の法則」より・勝手に変えない）：
-  //   その行の実在庫 ＝ 販売可能 ＋ 不良 ＋ 取置／販売可能からは何も引かない／廃棄は実在庫に足さない
-  //   現ロットと旧ロットは絶対に混ざらない
-  function blank(){ return { avail:0, defLight:0, defMid:0, defHeavy:0, defectQty:0, autoHold:0, manualHold:0, holdQty:0, discardQty:0, stock:0 }; }
-  var cur = blank(), old = blank();
-  var incoming = 0;
-  lots.forEach(function(l){
-    if(l.pid!=pid) return;
-    var st = l.status, q = (l.stock||0);
-    if(st==='old')            old.avail += q;
-    else if(st==='incoming')  incoming += q;
-    else if(st==='hold')      cur.manualHold += q;
-    else if(st==='hold_old')  old.manualHold += q;
-    else if(st==='discard')   cur.discardQty += q;
-    else if(st==='discard_old') old.discardQty += q;
-    else                      cur.avail += q;   // 'new' ほか＝現ロット
-  });
-  defects.forEach(function(d){
-    if(d.pid!=pid || !isActiveDefect(d)) return;
-    var dq = Math.max(0,(d.qty||0)-(d.shippedQty||0));
-    var t = (d.lotKind==='old') ? old : cur;
-    if(d.level==='lv1') t.defLight += dq;
-    else if(d.level==='lv3') t.defHeavy += dq;
-    else t.defMid += dq;
-  });
-  holds.forEach(function(h){ if(h.pid==pid) cur.autoHold += (h.qty||0); });  // 受注Aの取り置きは現ロットから
+  // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
+  //   ここに計算式を書き写してはいけない（独自のコピーを持たない）。
+  var n = OOS_ZAIKO.numbers(pid, { lots: lots, defects: defects, holds: holds });
   var preQty = 0;
-  preorders.forEach(function(r){ if(r.pid==pid) preQty += (r.qty||r.bottles||0); });
-  [cur, old].forEach(function(t){
-    t.defectQty = t.defLight + t.defMid + t.defHeavy;
-    t.holdQty   = t.autoHold + t.manualHold;
-    // 2026-08-13 決定：受注Aの取り置き(autoHold)は「棚の良品(avail)の中にある本数」なので実在庫に足さない。
-    //   実在庫   = 棚の良品 ＋ 不良 ＋ 手で入れた取置（廃棄は足さない＝もう倉庫にない）
-    //   販売可能 = 棚の良品 − 受注Aの取り置き（取り置きしても棚の本数は動かない）
-    t.stock     = t.avail + t.defectQty + t.manualHold;
-    t.sellable  = Math.max(0, t.avail - t.autoHold);
-  });
-  var hasOld = (old.avail + old.defectQty + old.holdQty + old.discardQty) > 0;
-  // 後方互換：従来の呼び出し（n.avail / n.stock など）がそのまま動くように全部返す
-  return {
-    cur: cur, old: old, hasOld: hasOld, incoming: incoming, preQty: preQty,
-    stock: cur.stock + old.stock,
-    avail: cur.avail,
-    sellable: cur.sellable,
-    sellableAll: cur.sellable + old.sellable,
-    oldStock: old.avail,
-    defectQty: cur.defectQty + old.defectQty,
-    defLight: cur.defLight + old.defLight,
-    defMid: cur.defMid + old.defMid,
-    defHeavy: cur.defHeavy + old.defHeavy,
-    holdQty: cur.holdQty + old.holdQty,
-    autoHold: cur.autoHold,
-    manualHold: cur.manualHold + old.manualHold,
-    discardQty: cur.discardQty + old.discardQty
-  };
+  preorders.forEach(function(r){ if(r.pid==pid) preQty += (r.qty||r.bottles||0); });  // 予約はマスタNだけが持つ
+  n.preQty = preQty;
+  return n;
 }
 function computeAvailable(sku){
-  const p = findProductBySku(sku);
-  if(!p) return null;
-  if(p.isSet){
-    if(!p.components || !p.components.length) return null;
-    return Math.min.apply(null, p.components.map(c=>{ const v = computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
-  }
-  return computeStockNumbers(p.id).sellable;
+  // ★親（oos-zaiko.js）を見に行く。セット商品の扱いも親が持っている。
+  return OOS_ZAIKO.availableForSku(sku, { lots: lots, defects: defects, holds: holds }, PRODUCTS);
 }
 
 // ── 在庫リスト ────────────────────────────────────────────

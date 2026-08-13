@@ -202,6 +202,28 @@ body{background:#fff}
 .pres-modal .btn-ok[disabled]{opacity:.6;cursor:default}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
+<!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
+<script src="oos-zaiko.js?v=20260813"></script>
+<script>
+/* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
+   黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZAIKO === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 在庫の計算ファイル（oos-zaiko.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">在庫の数字が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zaiko.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZAIKO = null;
+  }
+})();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -2110,28 +2132,30 @@ function computeHeldQtyBySku(sku){
   });
   return qty;
 }
-function computeAvailable(sku){
-  const p = findProductBySku(sku);
-  if(!p) return null;
-  if(p.isSet){
-    if(!p.components || !p.components.length) return null;
-    return Math.min.apply(null, p.components.map(c=>{ const v=computeAvailable(c.sku); return v===null?0:Math.floor(v/(c.qty||1)); }));
-  }
-  const pid = p.id;
-  // 新モデル(2026-08-12決定)：販売可能＝正規(最新ロット)のみ − 受注Aの取り置き分。
-  // 旧ロット(old)・不良・手入力取り置き(hold)・輸入予定(incoming)・廃棄(discard)は数えない。
-  // マスターN(master.html)・在庫B(stock.html)の computeStockNumbers と完全に同じ判定にする。
-  // 2026-08-13：旧ロット側の置き場所（hold_old／discard_old）も現ロットに混ぜない。
-  //   マスターN（master.html）の computeStockNumbers と完全に同じ判定。
-  let newStock = 0;
-  lots.forEach(function(l){
-    if(l.pid != pid) return;
-    if(l.status==='old' || l.status==='hold' || l.status==='hold_old'
-       || l.status==='incoming' || l.status==='discard' || l.status==='discard_old') return;
-    newStock += (l.stock||0);
+// 受注Aの取り置き（ステータス='held'の注文）を、商品ごとの本数にまとめる
+function buildHoldsForZaiko(){
+  const m = {};
+  orders.forEach(function(o){
+    if(o.status!=='held') return;
+    (o.lines||[]).forEach(function(l){
+      const p = findProduct(l.productId);
+      if(!p) return;
+      const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+      if(p.isSet && p.components){
+        p.components.forEach(function(c){
+          const cp = findProductBySku(c.sku);
+          if(cp) m[cp.id] = (m[cp.id]||0) + totalQty*(c.qty||1);
+        });
+      } else {
+        m[p.id] = (m[p.id]||0) + totalQty;
+      }
+    });
   });
-  const holdQty = computeHeldQtyBySku(sku);
-  return Math.max(0, newStock - holdQty);
+  return Object.keys(m).map(function(pid){ return { pid: parseInt(pid), qty: m[pid] }; });
+}
+function computeAvailable(sku){
+  // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
+  return OOS_ZAIKO.availableForSku(sku, { lots: lots, defects: defects, holds: buildHoldsForZaiko() }, PRODUCTS);
 }
 
 function computeDefectQty(pid){
@@ -2636,13 +2660,7 @@ function giftOptionsHtml(isSet, selected){
   const keys = isSet ? ['gift'] : Object.keys(GIFT_TYPE_LABEL).filter(k=>k!=='gift');
   return keys.map(k=>'<option value="'+k+'" '+(k===selected?'selected':'')+'>'+GIFT_TYPE_LABEL[k]+'</option>').join('');
 }
-function isActiveDefect(d){
-  if(!d) return false;
-  if(d.status==='resolved' || d.status==='rejected') return false;
-  if(d.source==='warehouse' && !d.reviewed) return false;
-  if(d.level==='relabel' || d.level==='discard') return false;
-  return true;
-}
+function isActiveDefect(d){ return OOS_ZAIKO.isActiveDefect(d); }   // ★親（oos-zaiko.js）を見に行く
 function lotStockFor(pid, status){
   var s=0; lots.forEach(function(l){ if(l.pid==pid && l.status===status) s+=(l.stock||0); }); return s;
 }
