@@ -360,6 +360,8 @@ input.inv-editnum{-moz-appearance:textfield;appearance:textfield}
 .disc-eff{font-size:12.5px;color:#6b6459;line-height:1.6;min-height:20px}
 .disc-go{background:#6b7a3a;color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:15px;font-weight:800;cursor:pointer;width:100%;margin-top:10px}
 .disc-go:disabled{background:#c9c9c9;cursor:not-allowed}
+.disc-mode{flex:1;padding:11px 6px;font-size:14px;font-weight:800;border-radius:9px;border:2px solid #d5cfc3;background:#faf8f3;color:#2b2a26;cursor:pointer}
+.disc-mode.on{border-color:#6b7a3a;background:#6b7a3a;color:#fff}
 .disc-can{background:#fff;border:1px solid #d5cfc3;color:#2b2a26;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:7px}
 /* 旧ロットの行と不良の列は赤文字。旧ロットの数字は細字（現ロットを主役に） */
 tr.lotrow-new td{border-bottom:none}
@@ -933,8 +935,20 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 <div class="disc-pan" id="disc-pan">
   <div class="disc-in">
     <div class="disc-h" id="disc-title">廃棄にする</div>
-    <div class="disc-s">どこから廃棄しますか？　いま残っている本数を（　）に出しています。</div>
-    <div id="disc-src"></div>
+    <!-- ★2026-08-13 承認済みモック mock_master_廃棄から戻す_2026-08-13.html：廃棄から在庫に戻せるように -->
+    <div style="display:flex;gap:8px;margin:0 0 12px">
+      <button type="button" id="disc-m-add" class="disc-mode on" onclick="discSetMode('add')">🗑 廃棄にする（今まで通り）</button>
+      <button type="button" id="disc-m-back" class="disc-mode" onclick="discSetMode('back')">↩ 廃棄から戻す</button>
+    </div>
+    <div id="disc-view-add">
+      <div class="disc-s">どこから廃棄しますか？　いま残っている本数を（　）に出しています。</div>
+      <div id="disc-src"></div>
+    </div>
+    <div id="disc-view-back" style="display:none">
+      <div class="disc-s" style="margin-bottom:6px">いま廃棄になっている数：<b id="disc-back-have" style="background:#f3f0e8;border-radius:6px;padding:2px 8px">0本</b></div>
+      <div class="disc-s">どこに戻しますか？（戻し先）</div>
+      <div id="disc-dst"></div>
+    </div>
     <div class="disc-qtyrow"><span>何本？</span><input type="number" id="disc-qty" min="1" value="1" oninput="discPanUp()"></div>
     <div class="disc-eff" id="disc-eff"></div>
     <button class="disc-go" id="disc-go" onclick="doDiscardPanel()">この内容で廃棄にする</button>
@@ -1716,14 +1730,16 @@ function discardSrcLabel(src){
   return '（未選択）';
 }
 // 在庫リストの廃棄の数字を押したときのパネル
-var discPan = { pid:0, lotKind:'cur', src:'' };
+var discPan = { pid:0, lotKind:'cur', src:'', mode:'add', dst:'' };  // mode: 'add'=廃棄にする / 'back'=廃棄から戻す
 function openDiscardPanel(pid, lotKind){
   if(!invEditMode) return;
   var p = findProduct(pid); if(!p) return;
-  discPan = { pid:pid, lotKind:lotKind, src:'' };
+  discPan = { pid:pid, lotKind:lotKind, src:'', mode:'add', dst:'' };
   document.getElementById('disc-title').textContent = '廃棄にする（'+p.name+'／'+((lotKind==='old')?'旧ロット':'現ロット')+'）';
   document.getElementById('disc-qty').value = 1;
+  discApplyMode();
   renderDiscardSrc();
+  renderDiscardDst();
   document.getElementById('disc-pan').classList.add('show');
   discPanUp();
 }
@@ -1737,9 +1753,74 @@ function renderDiscardSrc(){
   }).join('');
 }
 function pickDiscardSrc(k){ discPan.src = k; renderDiscardSrc(); discPanUp(); }
+// ── 廃棄から戻す（2026-08-13 承認済みモック mock_master_廃棄から戻す_2026-08-13.html）──────
+// 間違った報告を反映してしまった／廃棄した瓶に別の使い道ができた、のときに廃棄を減らして在庫に戻す。
+// 戻し先で数の動きが違う：棚の良品へ＝販売可能＋・実在庫＋ ／ 不良へ＝販売可能は動かない・実在庫＋。
+// どちらも廃棄−。現ロットと旧ロットは混ぜない。戻せる上限＝その行の廃棄に残っている本数。
+var DISC_BACK_DST = [
+  { k:'good', label:'棚の良品に戻す', note:'また普通に売れる瓶。販売可能も実在庫も増えます' },
+  { k:'lv1',  label:'不良・軽に戻す', note:'廃棄は間違いで、実は不良だった。販売可能は動きません' },
+  { k:'lv2',  label:'不良・中に戻す', note:'同上' },
+  { k:'lv3',  label:'不良・重に戻す', note:'同上' }
+];
+function discBackHave(){
+  var n = computeStockNumbers(discPan.pid);
+  return (discPan.lotKind==='old') ? n.old.discardQty : n.cur.discardQty;
+}
+function discSetMode(m){
+  discPan.mode = m; discPan.src=''; discPan.dst='';
+  discApplyMode(); renderDiscardSrc(); renderDiscardDst(); discPanUp();
+}
+function discApplyMode(){
+  var add = (discPan.mode!=='back');
+  document.getElementById('disc-m-add').classList.toggle('on', add);
+  document.getElementById('disc-m-back').classList.toggle('on', !add);
+  document.getElementById('disc-view-add').style.display = add ? '' : 'none';
+  document.getElementById('disc-view-back').style.display = add ? 'none' : '';
+}
+function renderDiscardDst(){
+  var have = discBackHave();
+  document.getElementById('disc-back-have').textContent = have + '本';
+  document.getElementById('disc-dst').innerHTML = DISC_BACK_DST.map(function(o){
+    var on = (discPan.dst === o.k);
+    return '<label class="disc-op'+(on?' sel':'')+'" onclick="pickDiscardDst(\''+o.k+'\')">'+
+      '<input type="radio" name="ddst" '+(on?'checked':'')+' style="width:auto;margin:3px 0 0">'+
+      '<span>'+o.label+'<small>'+o.note+'</small></span></label>';
+  }).join('');
+}
+function pickDiscardDst(k){ discPan.dst = k; renderDiscardDst(); discPanUp(); }
+function discBackDstLabel(k){
+  for(var i=0;i<DISC_BACK_DST.length;i++) if(DISC_BACK_DST[i].k===k) return DISC_BACK_DST[i].label;
+  return '（未選択）';
+}
+// 廃棄から qty 本を、選んだ戻し先に移す。実際に移せた本数を返す。
+function restoreFromDiscard(pid, lotKind, dst, qty){
+  var have = (function(){ var n = computeStockNumbers(pid); return (lotKind==='old') ? n.old.discardQty : n.cur.discardQty; })();
+  var use = Math.min(qty, have);
+  if(use <= 0) return 0;
+  bucketAdjustLots(pid, lotStatusFor(lotKind,'discard'), -use, '廃棄から戻す');   // 廃棄を減らす
+  if(dst === 'good'){
+    bucketAdjustLots(pid, lotStatusFor(lotKind,'avail'), use, '廃棄→良品');       // 良品へ（販売可能＋・実在庫＋）
+  } else {
+    defectAdjust(pid, lotKind, dst, use);                                          // 不良へ（実在庫＋のみ）
+  }
+  return use;
+}
 function discPanUp(){
   var q = parseInt(document.getElementById('disc-qty').value)||0;
   var go = document.getElementById('disc-go'), eff = document.getElementById('disc-eff');
+  if(discPan.mode==='back'){
+    // ↩ 廃棄から戻す
+    if(!discPan.dst){ go.disabled=true; go.textContent='戻し先をえらんでください'; eff.textContent=''; return; }
+    var have = discBackHave();
+    if(q<=0){ go.disabled=true; go.textContent='本数を入れてください'; eff.textContent=''; return; }
+    if(q>have){ go.disabled=true; go.textContent='廃棄には '+have+'本 しかありません'; eff.textContent=''; return; }
+    go.disabled=false; go.textContent='この内容で実行する';
+    eff.innerHTML = (discPan.dst==='good')
+      ? '→ 販売可能が '+q+'本 増え、実在庫も '+q+'本 増えます（廃棄 −'+q+'本）'
+      : '→ <b>販売可能は動きません</b>。実在庫が '+q+'本 増えます（廃棄 −'+q+'本）';
+    return;
+  }
   if(!discPan.src){ go.disabled=true; go.textContent='出どころをえらんでください'; eff.textContent=''; return; }
   var n = discardHave(discPan.pid, discPan.lotKind, discPan.src);
   if(q<=0){ go.disabled=true; go.textContent='本数を入れてください'; eff.textContent=''; return; }
@@ -1752,10 +1833,20 @@ function discPanUp(){
 function closeDiscardPanel(){ document.getElementById('disc-pan').classList.remove('show'); }
 function doDiscardPanel(){
   var q = parseInt(document.getElementById('disc-qty').value)||0;
-  if(!discPan.src || q<=0) return;
   var p = findProduct(discPan.pid);
-  var use = discardFrom(discPan.pid, discPan.lotKind, discPan.src, q);
   var lotName = (discPan.lotKind==='old') ? '旧ロット' : '現ロット';
+  if(discPan.mode==='back'){
+    // ↩ 廃棄から戻す
+    if(!discPan.dst || q<=0) return;
+    var back = restoreFromDiscard(discPan.pid, discPan.lotKind, discPan.dst, q);
+    addLog('廃棄から戻す', (p?p.name:'')+'　'+lotName+'　'+discBackDstLabel(discPan.dst)+' '+back+'本');
+    showSyncStatus('✅ '+(p?p.name:'')+'　'+lotName+'　廃棄から '+back+'本を「'+discBackDstLabel(discPan.dst)+'」にしました');
+    closeDiscardPanel();
+    renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
+    return;
+  }
+  if(!discPan.src || q<=0) return;
+  var use = discardFrom(discPan.pid, discPan.lotKind, discPan.src, q);
   addLog('廃棄', (p?p.name:'')+'　'+lotName+'　'+discardSrcLabel(discPan.src)+' '+use+'本を廃棄');
   showSyncStatus('✅ '+(p?p.name:'')+'　'+lotName+'　'+discardSrcLabel(discPan.src)+' '+use+'本を廃棄にしました');
   closeDiscardPanel();
