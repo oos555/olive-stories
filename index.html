@@ -49,7 +49,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rk-b{flex:1;min-width:0}
 .rk-l{font-size:12px;font-weight:800;color:#6b6459;margin-bottom:5px}
 .rk-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-.rk-ba{background:#7b2fa0;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #521f6c}
+/* ★2026-08-17 ひろみさん指摘「紫色がどぎつい」→ 落ち着いた藍色にした */
+.rk-ba{background:#4a6d8c;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #35506b}
+/* ①の枠に入れる「この場で編集」 */
+.rk-ed2{background:#fff;border:2px solid #4a6d8c;color:#35506b;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+.rk-why{font-size:11.5px;font-weight:700;color:#6b6459;margin-top:6px;line-height:1.65}
+.rk-why b{color:#2b2a26}
+/* 枠の中に入れる小さめのボタン（出荷まわり・その他） */
+.rk-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e0d6}
+.rk-sub{background:#fff;border:1.5px solid #d5cfc3;color:#4a4438;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.rk-sub:hover{background:#faf9f5}
+.rk-sub.red{border-color:#b91c1c;color:#b91c1c}
+.rk-sub.blue{border-color:#2563eb;color:#2563eb}
+.rk-sub.green{border-color:#16a34a;color:#16a34a}
+.rk-sub.orange{border-color:#b45309;color:#b45309}
 .rk-ed{background:#fff;border:2px solid #b9741a;color:#8a5a12;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer}
 .rk-sk{background:#fff;border:1.5px solid #d5cfc3;color:#8a8578;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer}
 .rk-wh{background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #04913f}
@@ -5159,28 +5172,26 @@ function renderOrderCard(o, sentGroup){
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
       payMsg+
-      renrakuBox(o)+                    /* ★2026-08-17 ①バサラ→②倉庫（順番を強制） */
+      /* ★2026-08-17 ひろみさん指示：ボタンを枠の外に置かない。
+         「枠の外に出ていると、何のボタンか分からない」。①②の枠の中に全部入れる。 */
+      renrakuBox(o, {
+        /* ①の枠に入れるもの（バサラの注文そのものを直す・光を消す） */
+        one: (o.status==='pending' && !o.notified && isBasaraOrder(o)
+               ? '<button class="rk-ed2" onclick="openBasaraEdit(\''+o.id+'\')">✏️ この場で編集（お届け先・商品・本数）</button>'
+                 + '<div class="rk-why">バサラの顧客は<b>OOS顧客ではないため登録しません</b>。差し戻しは使わず、この画面で直します。</div>'
+               : '')
+             + (o.source==='basara' && !basaraAcked(o.id)
+               ? '<button class="rk-sub" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : ''),
+        /* ②の枠に入れるもの（倉庫・出荷まわり。ひろみさん指示でここへ集約） */
+        two: (sentGroup ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
+             + (o.status==='pending' && locked && !appPre ? '<button class="rk-sub green" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')
+             + (!locked ? '<button class="rk-sub" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')
+             + (o.status==='pending' && !locked ? '<button class="rk-sub" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')
+             + (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="rk-sub orange" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')
+             + (o.status==='pending' ? '<button class="rk-sub" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')
+             + '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注から消す</button>'
+      })+
       trackRow+
-      '<div class="oc-actions no-print">'+
-        (sentGroup ? '<button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')+
-        (o.source==='basara' && !basaraAcked(o.id) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : '')+
-        (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
-        (o.status==='pending' && !locked ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
-        (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')+
-        /* ★2026-08-17 ひろみさん指示：バサラ案件は「差し戻す」を使えない。
-           差し戻すと元の受注がキャンセル扱いになり、受注登録から入れ直しになる。
-           バサラのお客様はOOSのお客様ではないので、こちらで顧客登録できない
-           （他社のお客様に案内メールを出せないため）。だからこの画面で直す。 */
-        (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="btn-sm" style="background:#b45309;color:#fff;border-color:#b45309;font-weight:700" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')+
-        (o.status==='pending' && !o.notified && isBasaraOrder(o) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="openBasaraEdit(\''+o.id+'\')">✏️ この場で編集</button>' : '')+
-        (!locked ? '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')+
-        /* ★2026-08-17 ひろみさん指示：どの発注にも「消す」を付ける（取込ミス・二重取込・注文変更のとき） */
-        '<button class="btn-sm" style="background:#fff;border-color:#b91c1c;color:#b91c1c;font-weight:800" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注から消す</button>'+
-      '</div>'+
-      /* ★2026-08-17 バサラ案件に、差し戻しが無い理由をその場に書いておく */
-      (o.status==='pending' && !o.notified && isBasaraOrder(o)
-        ? '<div class="bedit-note no-print">✏️ <b>この場で編集</b>：バサラの顧客は、OOS顧客ではないため登録しないので、この画面で簡易編集します（差し戻しは使いません）</div>'
-        : '')+
     '</div>';
 }
 
@@ -5555,16 +5566,25 @@ function basaraOrderNoOf(o){                   // メモから発注番号を取
   var m = String(o.note||'').match(/発注番号\s*([^\s／\/]+)/);
   return m ? m[1] : '';
 }
-function renrakuBox(o){
-  if(o.status !== 'pending') return '';        // 出荷待ちのときだけ出す
+function renrakuBox(o, acts){
+  acts = acts || {one:'', two:''};
+  // ★出荷待ち以外（出荷済み・キャンセル等）は、①②を出さずに操作だけを枠に入れる
+  if(o.status !== 'pending'){
+    if(!acts.two && !acts.one) return '';
+    return '<div class="rk"><div class="rk-step"><div class="rk-no">操作</div><div class="rk-b">'+
+      '<div class="rk-l">この受注にできること</div><div class="rk-row">'+(acts.one||'')+(acts.two||'')+'</div>'+
+      '</div></div></div>';
+  }
   var wh = o.notified
     ? '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>'
     : '<button class="rk-wh" '+(ackDone(o)?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
       + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「送らない」を押してください）</div>');
 
+  var actsTwo = acts.two ? '<div class="rk-acts">'+acts.two+'</div>' : '';
+  var actsOne = acts.one ? '<div class="rk-acts">'+acts.one+'</div>' : '';
   if(!isBasaraOrder(o)){
     return '<div class="rk"><div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼</div>'+wh+'</div></div></div>';
+      '<div class="rk-l">倉庫へ出荷依頼</div>'+wh+actsTwo+'</div></div></div>';
   }
   var st = ackStateOf(o), a = o.ack || {};
   var one;
@@ -5585,9 +5605,9 @@ function renrakuBox(o){
   }
   return '<div class="rk">'+
     '<div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">バサラへ「受注しました」の連絡</div>'+one+'</div></div>'+
+      '<div class="rk-l">バサラへ「受注しました」の連絡</div>'+one+actsOne+'</div></div>'+
     '<div class="rk-step"><div class="rk-no'+(ackDone(o)?'':' off')+'">②</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼</div>'+wh+'</div></div>'+
+      '<div class="rk-l">倉庫へ出荷依頼・出荷まわり</div>'+wh+actsTwo+'</div></div>'+
   '</div>';
 }
 
