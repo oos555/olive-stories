@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>【動くモック】RT取り置き・予約：取置・予約・残すを自由に決めて確定</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px;line-height:1.5}
+.app{max-width:1120px;margin:0 auto;padding:1rem 1rem 4rem}
+.mockbar{background:#3f3a2e;color:#fff;font-size:12px;padding:8px 13px;border-radius:8px;margin-bottom:12px}
+.mockbar b{color:#ffd88a}
+.oos-header{background:#a3b18a;color:#33421f;padding:12px 16px;font-size:16px;font-weight:bold;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.oos-sub{background:#fff;border:1px solid #e8e2d8;border-top:none;border-radius:0 0 12px 12px;padding:11px 14px;margin-bottom:12px}
+.toolrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:200px;padding:10px 12px 10px 36px;border:1.5px solid #9d957f;border-radius:9px;font-size:15px;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="%239d957f" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>') no-repeat 10px center}
+.btn-import{background:#1f4a6d;color:#fff;border:none;border-radius:9px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.toolnote{font-size:11.5px;color:#8a857a;margin-top:7px}
+.toolnote b{color:#2f6b2f}
+.hqbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 2px 8px}
+.hqname{font-size:16px;font-weight:800;color:#7a4e12}
+.hid{font-size:10.5px;color:#8a857a;background:#efeee8;border:1px solid #e0dccf;border-radius:5px;padding:1px 6px}
+.grand{margin-left:auto;font-size:12px;color:#7a4e12}
+.grand b{font-size:19px;color:#8a5a00}
+.revbox{font-size:12px;color:#9a958a}
+.revbox b{font-size:14px;color:#7a7568;font-weight:700}
+
+.wrap{overflow-x:auto;background:#fff;border:1px solid #e2ddce;border-radius:11px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:900px}
+th,td{border-bottom:1px solid #f1ece0;padding:8px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;vertical-align:top}
+th{background:#faf8f2;font-size:11px;color:#5c574c;font-weight:700;vertical-align:bottom}
+th.name,td.name{text-align:left;font-weight:700;min-width:150px}
+th.grp{text-align:left;background:#eef0e5;color:#55622e;font-weight:800;font-size:12px}
+th.tot{background:#f4e7c9;color:#7a4e12}
+td.tot{background:#fbf3e0;font-weight:800;color:#8a5a00;font-size:15px}
+th.rev{background:#f4f3ef;color:#9a958a;font-weight:500}
+td.rev{background:#faf9f6;font-weight:500;color:#9a958a;font-size:12px}
+td.stk{background:#f6f5f0;color:#3a362e;font-weight:700}
+th.adjust-h{background:#fff3df;color:#8a5a12}
+td.adjust{text-align:left;background:#fffdf6;min-width:230px;border-left:2px solid #ecdcb6;border-right:2px solid #ecdcb6}
+.pxsub{display:block;font-size:10.5px;color:#8a857a;font-weight:600;margin-top:1px}
+input.num{width:62px;padding:5px 7px;border:1.5px solid #9dc0e0;border-radius:7px;font-size:16px;text-align:right;font-weight:800;color:#1f4a6d;font-variant-numeric:tabular-nums;background:#fff}
+input.num:focus{outline:none;border-color:#1f4a6d;box-shadow:0 0 0 3px rgba(31,74,109,.12)}
+input.hin{border-color:#d9a441;color:#8a5a12}
+input.hin:focus{border-color:#b5761c;box-shadow:0 0 0 3px rgba(181,118,28,.15)}
+input.kin{border-color:#3f9c5a;color:#256b3a}
+input.kin:focus{border-color:#1f7a34;box-shadow:0 0 0 3px rgba(31,122,52,.15)}
+input.fac{width:52px;border-color:#cfd8e2;color:#2b2a26;font-size:14px}
+
+.adj-row{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:2px 0}
+.adj-row .lbl{font-size:11.5px;color:#7a7568}
+.resv{font-weight:800;color:#0c447c;font-size:16px}
+.keeprow{border-top:1px solid #efe6cf;margin-top:2px;padding-top:4px}
+.keeprow .lbl{color:#256b3a;font-weight:700}
+.adj-check{font-size:10.5px;color:#1f7a34;border-top:1px dashed #e6ddc9;margin-top:4px;padding-top:3px;text-align:right}
+.adj-check b{color:#7a4e12}
+.adj-check.bad{color:#c1281a;font-weight:800}
+.conf{margin-top:6px}
+.btn-conf{width:100%;background:#55622e;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:800;cursor:pointer}
+.btn-conf:hover{background:#48521f}
+.done{width:100%;text-align:center;background:#eef5ea;border:1.5px solid #8bbf8b;color:#2f6b2f;border-radius:8px;padding:6px;font-size:12px;font-weight:800}
+.done span{display:block;font-weight:500;font-size:10.5px;color:#5c6b4a}
+.done.refl{background:#eaf1fb;border-color:#9dc0e0;color:#1f4a6d}
+.done.refl span{color:#5b7288}
+.doneMini{text-align:center;color:#2f6b2f;font-size:11px;font-weight:800;margin-bottom:5px}
+.conf-btns{display:flex;gap:6px}
+.btn-refl{flex:1;background:#1f4a6d;color:#fff;border:none;border-radius:8px;padding:8px 6px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.btn-refl:hover{background:#173a56}
+.btn-redo{background:#eee9df;color:#6b6558;border:1px solid #d8d1c2;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-redo:hover{background:#e5dfd2}
+.stk-src{display:block;font-size:9.5px;color:#a49e90;font-weight:500;margin-top:2px}
+.stk-src.refl{color:#5b7288}
+
+tfoot td{background:#f6f4ee;font-weight:800;color:#4a463c;border-top:2px solid #e6ddc9}
+tfoot td.tot{background:#f4e7c9;color:#7a4e12}
+tfoot td.rev{background:#f0efe9;color:#8a857a;font-weight:600;font-size:12px}
+tfoot td.adjust{background:#fff3df;font-size:11.5px}
+
+.legend{font-size:11.5px;color:#6b6558;background:#fbfaf6;border:1px solid #ece7db;border-radius:9px;padding:9px 13px;margin:12px 0}
+.legend b{color:#33421f}
+.hist{background:#fff;border:1px solid #ecdfc4;border-radius:10px;padding:9px 13px;font-size:12px;color:#8a6d3f;min-height:20px}
+.hist b{color:#7a5a1e}
+.hitem{background:#fbf6ea;border:1px solid #ecdfc4;border-radius:6px;padding:2px 8px;display:inline-block;margin:3px 5px 0 0}
+.hnone{color:#b7ad98}
+
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:18px;max-height:88vh;overflow:auto}
+.modal h3{font-size:16px;margin-bottom:8px}
+.m-actions{display:flex;gap:8px;margin-top:10px}
+.m-actions button{flex:1;padding:11px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer}
+.ok{background:#1f4a6d;color:#fff}.cancel{background:#eee9df;color:#4a463c}
+.diff{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0}
+.diff th,.diff td{border-bottom:1px solid #eef0ea;padding:6px 7px;text-align:right;white-space:nowrap}
+.diff th{background:#f7fafd;color:#5c6b7a;font-size:10.5px}
+.diff td:first-child,.diff th:first-child,.diff td:nth-child(2),.diff th:nth-child(2){text-align:left}
+.diff .up{color:#1f7a34;font-weight:800}.diff .dn{color:#c1281a;font-weight:800}
+.diff tr.newrow td{background:#f2fbf3}
+.tagnew{font-size:9.5px;background:#dff3e2;border:1px solid #b6e0bd;color:#1f7a34;border-radius:5px;padding:0 5px;margin-left:4px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="mockbar">🧪 <b>動くモック</b>。表の中の数字は<b>そのまま打ち替えできます</b>（編集ONは不要）。🔒取置 か 🛒残す を打つと相手と予約が自動計算 → <b>［確定］</b>で統合マスタの取置・予約へ。実ブラウザで操作を。</div>
+
+  <div class="oos-header">🏛 RT 取り置き・予約（振り分け）　<span style="font-weight:500;font-size:13px">リゾートトラスト専用</span></div>
+  <div class="oos-sub">
+    <div class="toolrow">
+      <input class="search" id="q" placeholder="商品名で検索…" oninput="render()">
+      <button class="btn-import" onclick="openImport()">📥 予約シート取込</button>
+    </div>
+    <div class="toolnote">この表で自由に：<b>🔒取置</b>か<b>🛒手元に残す</b>を打つ（どちらからでもOK・在庫の範囲で連動）→ <b>予約(要輸入)＝予約合計−取置</b> が自動 → <b>［確定］</b>で統合マスタNの<b>取置列・予約列</b>へ。</div>
+  </div>
+
+  <div class="hqbar">
+    <span class="hqname">🏨 施設ごとの予約</span><span class="hid">系列3施設</span>
+    <span class="grand">総合計 <b id="grand">—</b> 本</span>
+    <span class="revbox">💴 金額（予約合計×単価・税抜）：<b id="grandrev">—</b></span>
+  </div>
+
+  <div class="wrap">
+    <table>
+      <thead><tr>
+        <th class="name">商品（予約）</th>
+        <th>🏨 鳴門</th><th>🏨 京都</th><th>🏨 トラスティ</th>
+        <th class="tot">予約合計</th>
+        <th class="rev">金額<br><span style="font-weight:400;font-size:9.5px">予約合計×単価</span></th>
+        <th class="stk">販売可能在庫<br><span style="font-weight:400;font-size:9.5px">◀在庫マスター在庫リスト</span></th>
+        <th class="adjust-h">◀ ここで振り分け ▶<br><span style="font-weight:400;font-size:9.5px">取置か残すを打つ→確定</span></th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot>
+        <tr>
+          <td class="name">施設別 合計（本）</td>
+          <td id="f0">—</td><td id="f1">—</td><td id="f2">—</td>
+          <td class="tot" id="ftot">—</td><td class="rev" id="frev">—</td><td class="stk"></td>
+          <td class="adjust" id="fadjust">—</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="legend">
+    <b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［✅確定］</b>→ 取置・予約が<b>統合マスタNの取置列・予約列</b>へ。③ <b>［📦在庫マスターに反映］</b>→ 取置分を在庫マスターで確保＝<b>販売可能在庫が取置分だけ減る</b>（他チャネルに出さない）。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>（＝そこを見ている。ここを間違えない）。金額は予約合計×単価。
+  </div>
+
+  <div class="hist" id="hist"><b>🕘 変更履歴：</b><span class="hnone">まだありません</span></div>
+
+</div>
+
+<div class="ov" id="ov-imp">
+  <div class="modal">
+    <h3>📋 取込確認プレビュー</h3>
+    <div style="font-size:12px;color:#6b6558;margin-bottom:4px">最新の予約シートを読み込みました。<b>確定するまで反映されません</b>。</div>
+    <div style="font-size:11.5px;color:#256b3a;background:#f2faf4;border:1px solid #cce7d3;border-radius:7px;padding:6px 9px;margin-bottom:8px">🔒 取り込むのは <b>商品・施設・数量だけ</b>。金額はExcelから取り込みません（統合マスタNの価格を使用）。</div>
+    <table class="diff">
+      <thead><tr><th>商品</th><th>施設</th><th>今</th><th>取込後</th><th>差</th></tr></thead>
+      <tbody id="diffbody"></tbody>
+    </table>
+    <div class="m-actions"><button class="cancel" onclick="closeOv('ov-imp')">やめる</button><button class="ok" onclick="applyImport()">この内容で確定</button></div>
+  </div>
+</div>
+
+<script>
+var FACS=['鳴門','京都','トラスティ'];
+// keep＝手元に残す（既定＝在庫全部＝取置0）。confirmed＝統合マスタへ確定済みか。
+var DATA=[
+  {name:'オルガニック 250ml', grp:'オルガニック', q:[60,90,60], stock:150, price:3800},
+  {name:'オルガニック 500ml', grp:'オルガニック', q:[30,16,10], stock:11,  price:6884},
+  {name:'メメジック 250ml',   grp:'メメジック',   q:[30,30,30], stock:107, price:3800},
+  {name:'シェフズブレンド 250ml', grp:'シェフズブレンド', q:[10,10,10], stock:43,  price:3800},
+  {name:'シェフズブレンド 100ml', grp:'シェフズブレンド', q:[24,0,0],  stock:519, price:1920}
+];
+// stock＝在庫マスターの在庫リストから来る「販売可能在庫」。反映すると取置分を master 側で確保＝ここが減る想定。
+DATA.forEach(function(r){ r.keep=r.stock; r.confirmed=false; r.reflected=false; r.reflHold=0; });
+var HIST=[];
+
+function total(r){ return r.q[0]+r.q[1]+r.q[2]; }
+function minKeep(r){ return Math.max(0, r.stock-total(r)); }
+function clampKeep(r){ if(r.keep>r.stock)r.keep=r.stock; if(r.keep<minKeep(r))r.keep=minKeep(r); }
+function holdOf(r){ clampKeep(r); return r.stock-r.keep; }      // 取置＝在庫−残す
+function needOf(r){ return total(r)-holdOf(r); }               // 予約＝予約合計−取置
+function yen(n){ return '¥'+Number(n).toLocaleString('ja-JP'); }
+
+function availStock(r){ return r.reflected ? (r.stock-r.reflHold) : r.stock; }  // 表示する販売可能在庫
+function confCell(ri,r){
+  if(r.reflected) return '<div class="done refl">📦 在庫マスターに反映済み<span>取置'+r.reflHold+'本を確保／販売可能 '+r.stock+'→'+(r.stock-r.reflHold)+'</span></div>';
+  if(r.confirmed) return '<div class="doneMini">✅ 確定済み（取置'+holdOf(r)+'・予約'+needOf(r)+' → 統合マスタN）</div><div class="conf-btns"><button class="btn-refl" onclick="reflectRow('+ri+')">📦 在庫に反映</button><button class="btn-redo" onclick="redoRow('+ri+')">↩ やり直す</button></div>';
+  return '<button class="btn-conf" onclick="confirmRow('+ri+')">✅ この振り分けで確定</button>';
+}
+function render(){
+  var q=(document.getElementById('q').value||'').trim();
+  var tb=document.getElementById('tbody'); tb.innerHTML=''; var lastGrp=null;
+  DATA.forEach(function(r,ri){
+    if(q && r.name.indexOf(q)<0 && r.grp.indexOf(q)<0) return;
+    if(r.grp!==lastGrp){ lastGrp=r.grp; var g=document.createElement('tr'); g.innerHTML='<th class="grp" colspan="8">'+r.grp+'</th>'; tb.appendChild(g); }
+    var tot=total(r), hold=holdOf(r), need=needOf(r), rev=tot*r.price, ok=(hold+need)===tot, R=r.reflected;
+    var fac=function(ci){ return R ? '<span class="locked">'+r.q[ci]+'</span>' : '<input class="num fac" type="number" min="0" data-ri="'+ri+'" data-f="q" data-ci="'+ci+'" value="'+r.q[ci]+'">'; };
+    var holdCell = R ? '<span class="hold-d">'+r.reflHold+'</span>' : '<input class="num hin" type="number" min="0" max="'+Math.min(r.stock,tot)+'" data-ri="'+ri+'" data-f="hold" value="'+hold+'">';
+    var keepCell = R ? '<span class="locked keep">'+(r.stock-r.reflHold)+'</span>' : '<input class="num kin" type="number" min="'+minKeep(r)+'" max="'+r.stock+'" data-ri="'+ri+'" data-f="keep" value="'+r.keep+'">';
+    var needShow = R ? (tot-r.reflHold) : need;
+    var stkNote = R ? '<span class="stk-src refl">取置'+r.reflHold+'反映済・在庫マスター</span>' : '<span class="stk-src">在庫マスター在庫リストより</span>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="name">'+r.name+'<span class="pxsub">RT卸 '+yen(r.price)+'/本 ◀統合マスタN</span></td>'+
+      '<td>'+fac(0)+'</td><td>'+fac(1)+'</td><td>'+fac(2)+'</td>'+
+      '<td class="tot" id="tot-'+ri+'">'+tot+'</td>'+
+      '<td class="rev" id="rev-'+ri+'">'+yen(rev)+'</td>'+
+      '<td class="stk">'+availStock(r)+stkNote+'</td>'+
+      '<td class="adjust">'+
+        '<div class="adj-row"><span class="lbl">🔒取置（在庫から確保）</span>'+holdCell+'</div>'+
+        '<div class="adj-row"><span class="lbl">🗓予約(要輸入)</span><span class="resv" id="resv-'+ri+'">'+needShow+'</span></div>'+
+        '<div class="adj-row keeprow"><span class="lbl">🛒手元に残す</span>'+keepCell+'</div>'+
+        '<div class="adj-check'+(ok?'':' bad')+'" id="chk-'+ri+'">取置'+(R?r.reflHold:hold)+'＋予約'+needShow+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗')+'</div>'+
+        '<div class="conf" id="conf-'+ri+'">'+confCell(ri,r)+'</div>'+
+      '</td>';
+    tb.appendChild(tr);
+  });
+  recalcFooter();
+}
+
+document.getElementById('tbody').addEventListener('input', function(e){
+  var el=e.target; if(el.tagName!=='INPUT') return;
+  var ri=+el.dataset.ri, r=DATA[ri]; var v=parseInt(el.value); if(isNaN(v))v=0; if(v<0)v=0;
+  var f=el.dataset.f;
+  if(f==='q'){ r.q[+el.dataset.ci]=v; clampKeep(r); }
+  else if(f==='hold'){ var h=v; if(h>Math.min(r.stock,total(r)))h=Math.min(r.stock,total(r)); r.keep=r.stock-h; clampKeep(r); }
+  else { r.keep=v; clampKeep(r); }
+  r.confirmed=false;
+  recalcRow(ri, f); recalcFooter();
+});
+document.getElementById('tbody').addEventListener('focusin', function(e){ if(e.target.tagName==='INPUT') e.target.dataset.orig=e.target.value; });
+document.getElementById('tbody').addEventListener('change', function(e){
+  var el=e.target; if(el.tagName!=='INPUT') return;
+  var ri=+el.dataset.ri, r=DATA[ri]; var orig=el.dataset.orig; var v=parseInt(el.value); if(isNaN(v))v=0;
+  if(orig!==undefined && String(v)!==orig){
+    if(el.dataset.f==='q') HIST.push(FACS[+el.dataset.ci]+' '+r.name+' '+orig+'→'+v+'本');
+    else if(el.dataset.f==='hold') HIST.push('🔒 '+r.name+' 取置→'+holdOf(r)+'本（予約'+needOf(r)+'／残す'+r.keep+'）');
+    else HIST.push('🛒 '+r.name+' 残す→'+r.keep+'本（取置'+holdOf(r)+'／予約'+needOf(r)+'）');
+    el.dataset.orig=String(v); renderHist();
+  }
+});
+
+function confirmRow(ri){
+  var r=DATA[ri]; r.confirmed=true;
+  HIST.push('✅ 確定 '+r.name+'：取置'+holdOf(r)+'・予約'+needOf(r)+' → 統合マスタN');
+  document.getElementById('conf-'+ri).innerHTML=confCell(ri,r);
+  renderHist();
+}
+function redoRow(ri){
+  var r=DATA[ri]; r.confirmed=false;
+  HIST.push('↩ やり直す '+r.name+'（確定を取り消し・もう一度調整）');
+  document.getElementById('conf-'+ri).innerHTML=confCell(ri,r);
+  renderHist();
+}
+function reflectRow(ri){
+  var r=DATA[ri]; if(!r.confirmed||r.reflected) return;
+  r.reflHold=holdOf(r); r.reflected=true;
+  HIST.push('📦 在庫マスターへ反映 '+r.name+'：取置'+r.reflHold+'本（販売可能 '+r.stock+'→'+(r.stock-r.reflHold)+'）');
+  render(); renderHist();   // 反映後は行をロック（在庫マスターに確保済み）
+}
+
+function recalcRow(ri, editedF){
+  var r=DATA[ri], tot=total(r), hold=holdOf(r), need=needOf(r), rev=tot*r.price, ok=(hold+need)===tot;
+  var set=function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  set('tot-'+ri,tot); set('rev-'+ri,yen(rev)); set('resv-'+ri,need);
+  var c=document.getElementById('chk-'+ri); if(c){ c.className='adj-check'+(ok?'':' bad'); c.innerHTML='取置'+hold+'＋予約'+need+' = 予約合計 <b>'+tot+'</b> '+(ok?'✓':'✗'); }
+  // 相手側の入力欄を更新（今打っている欄は触らない）
+  var hin=document.querySelector('input.hin[data-ri="'+ri+'"]'); var kin=document.querySelector('input.kin[data-ri="'+ri+'"]');
+  if(hin && document.activeElement!==hin){ hin.value=hold; hin.max=Math.min(r.stock,tot); }
+  if(kin && document.activeElement!==kin){ kin.value=r.keep; kin.min=minKeep(r); }
+  var cf=document.getElementById('conf-'+ri); if(cf) cf.innerHTML=confCell(ri,r);
+}
+function recalcFooter(){
+  var colT=[0,0,0], colR=[0,0,0], grand=0, needT=0, revT=0, holdT=0, keepT=0;
+  DATA.forEach(function(r){ var tot=total(r);
+    r.q.forEach(function(v,ci){ colT[ci]+=v; colR[ci]+=v*r.price; });
+    grand+=tot; needT+=needOf(r); revT+=tot*r.price; holdT+=holdOf(r); keepT+=r.keep;
+  });
+  var set=function(id,v){ document.getElementById(id).textContent=v; };
+  set('f0',colT[0]); set('f1',colT[1]); set('f2',colT[2]);
+  set('ftot',grand); set('frev',yen(revT)); set('grand',grand); set('grandrev',yen(revT));
+  document.getElementById('fadjust').innerHTML='🔒取置 '+holdT+' ＋予約 '+needT+' = <b>'+grand+'</b> '+((holdT+needT)===grand?'✓':'✗')+'　／　🛒残す 計 '+keepT;
+}
+function renderHist(){
+  var h=document.getElementById('hist');
+  h.innerHTML = HIST.length ? '<b>🕘 変更履歴：</b>'+HIST.slice().reverse().map(function(x){return '<span class="hitem">'+x+'</span>';}).join('')
+                            : '<b>🕘 変更履歴：</b><span class="hnone">まだありません</span>';
+}
+
+var IMPORT=[{name:'オルガニック 250ml',ci:0,to:50},{name:'オルガニック 250ml',ci:1,to:100},{name:'メメジック 250ml',ci:2,to:45},{name:'シェフズブレンド 100ml',ci:0,to:0}];
+function findRow(nm){ for(var i=0;i<DATA.length;i++){ if(DATA[i].name===nm) return i; } return -1; }
+function openImport(){
+  var db=document.getElementById('diffbody'); db.innerHTML='';
+  IMPORT.forEach(function(d){ var ri=findRow(d.name); var cur=ri>=0?DATA[ri].q[d.ci]:0; var diff=d.to-cur;
+    db.innerHTML+='<tr><td>'+d.name+'</td><td>'+FACS[d.ci]+'</td><td>'+cur+'</td><td>'+d.to+'</td><td class="'+(diff>0?'up':'dn')+'">'+(diff>0?'+':'')+diff+(d.to===0?'（取消）':'')+'</td></tr>';
+  });
+  db.innerHTML+='<tr class="newrow"><td>オルガニック 500ml</td><td>淡路島<span class="tagnew">新規施設</span></td><td>—</td><td>12</td><td class="up">+12</td></tr>';
+  document.getElementById('ov-imp').classList.add('on');
+}
+function applyImport(){
+  IMPORT.forEach(function(d){ var ri=findRow(d.name); if(ri<0) return; var cur=DATA[ri].q[d.ci];
+    if(d.to!==cur){ HIST.push('【取込】'+FACS[d.ci]+' '+DATA[ri].name+' '+cur+'→'+d.to+'本'); DATA[ri].q[d.ci]=d.to; DATA[ri].confirmed=false; clampKeep(DATA[ri]); }
+  });
+  closeOv('ov-imp'); render(); renderHist();
+}
+function closeOv(id){ document.getElementById(id).classList.remove('on'); }
+document.querySelectorAll('.ov').forEach(function(o){ o.addEventListener('click',function(e){ if(e.target===o) o.classList.remove('on'); }); });
+render();
+</script>
+</body>
+</html>

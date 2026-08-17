@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>【モック】取り置き・予約を取引先／本部ごとに見る（受注A）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px;line-height:1.5}
+.app{max-width:920px;margin:0 auto;padding:1rem 1rem 4rem}
+.mockbar{background:#3f3a2e;color:#fff;font-size:12px;padding:7px 13px;border-radius:8px;margin-bottom:12px}
+.mockbar b{color:#ffd88a}
+.oos-header{background:#a3b18a;color:#33421f;padding:12px 16px;font-size:16px;font-weight:bold;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.oos-sub{background:#fff;border:1px solid #e8e2d8;border-top:none;border-radius:0 0 12px 12px;padding:11px 14px;margin-bottom:12px}
+.searchbox{width:100%;padding:10px 12px 10px 36px;border:1.5px solid #9d957f;border-radius:9px;font-size:16px;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="%239d957f" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>') no-repeat 10px center}
+.subnote{font-size:11.5px;color:#8a857a;margin-top:6px}
+.legend{font-size:11.5px;color:#6b6558;background:#fbfaf6;border:1px solid #ece7db;border-radius:8px;padding:8px 12px;margin-bottom:12px}
+.legend b{color:#33421f}
+
+/* 本部／取引先ブロック */
+.block{background:#fff;border:1px solid #e2ddce;border-radius:12px;margin-bottom:12px;overflow:hidden}
+.block.hq{border:2px solid #b6813c}
+.block > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:11px 14px;flex-wrap:wrap}
+.block > summary::-webkit-details-marker{display:none}
+.tw{font-size:12px;color:#8a857a;transition:.15s}
+.block[open] .tw{transform:rotate(90deg)}
+.hq > summary{background:linear-gradient(180deg,#fff7ea,#fdefd7)}
+.hqname{font-size:16px;font-weight:800;color:#7a4e12}
+.hname{font-size:15px;font-weight:800;color:#33421f}
+.hid{font-size:10.5px;color:#8a857a;background:#efeee8;border:1px solid #e0dccf;border-radius:5px;padding:1px 6px}
+.hsum{font-size:11.5px;color:#7a7568;flex:1;min-width:150px}
+.grand{margin-left:auto;font-size:12px;color:#7a4e12}
+.grand b{font-size:20px;color:#8a5a00}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:2px}
+.b-red{background:#fee2e2;color:#991b1b}
+.b-amber{background:#fef3c7;color:#92400e}
+
+/* 列位置を全表で固定（table-layout:fixed＋同一colgroup） */
+table.grid{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+table.grid col.c-name{width:36%}
+table.grid col.c-held{width:12%}
+table.grid col.c-res{width:14%}
+table.grid col.c-total{width:13%}
+table.grid col.c-date{width:25%}
+.grid thead th{font-size:10.5px;font-weight:700;color:#8a857a;text-align:right;padding:5px 8px;border-top:1px solid #eee7d8;border-bottom:1px solid #eee7d8;background:#faf8f2}
+.grid thead th.l{text-align:left}
+.grid td{padding:7px 8px;border-bottom:1px solid #f1ece0;text-align:right;vertical-align:top;overflow:hidden;text-overflow:ellipsis}
+.grid td.l{text-align:left}
+.pname{font-weight:700}
+.pset{font-size:10px;color:#7a6b3f;background:#f6efdd;border:1px solid #e6d9b4;border-radius:5px;padding:0 5px;margin-left:4px}
+.num{font-variant-numeric:tabular-nums}
+.held{color:#7a3a0e;font-weight:700}
+.res{color:#0c447c;font-weight:700}
+.zero{color:#c9c3b6}
+.total{font-weight:800;font-size:15px}
+.date{font-size:11px;color:#6b6558}
+.ord{font-size:10.5px;color:#8a857a;font-family:monospace}
+.over{color:#b91c1c;font-weight:700}
+.soon{color:#b45309;font-weight:700}
+.imp{font-size:9.5px;color:#0c447c;background:#eaf1fb;border:1px solid #cfe0f4;border-radius:5px;padding:0 4px;margin-left:4px}
+.comp{font-size:10.5px;color:#6b6558;font-weight:400}
+
+/* 帯（グループ合計／ホテル小見出し） */
+.band td{background:#f4efe3;font-weight:800;color:#5c4a24;font-size:12px;text-align:left;padding:6px 10px}
+.band.total-band td{background:#fbf3e0;color:#7a4e12}
+.hotelrow td{background:#f6f7f2;font-weight:800;color:#33421f;font-size:12.5px;text-align:left;padding:6px 10px}
+tr.gtot td{background:#fffdf4}
+tr.gtot td.total{color:#8a5a00}
+tr.grand-total td{background:#fbf3e0;border-top:2px solid #e6cfa0}
+tr.grand-total td.l{font-weight:800;color:#7a4e12}
+tr.grand-total td.total{font-size:17px;color:#8a5a00}
+tr.split td.total{color:#8a5a00}
+.mini{font-size:10.5px;color:#9a3b3b;border:1px solid #e6b4b4;border-radius:6px;padding:0 6px;background:#fff;margin-left:5px}
+
+.cmp{background:#fff;border:1px solid #e8e2d8;border-radius:11px;margin-top:14px}
+.cmp > summary{cursor:pointer;padding:11px 14px;font-weight:700;color:#4a463c;list-style:none;font-size:13px}
+.cmp > summary::-webkit-details-marker{display:none}
+.cmp-body{padding:2px 14px 12px;font-size:12px;color:#5c574c}
+.cmp-body .oline{padding:4px 0;border-bottom:1px solid #f1ece0}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="mockbar">🧪 提案モック（静的サンプル）／数字は仕様書シナリオの再現。<b>index.html は未変更</b>。</div>
+
+  <div class="oos-header">🗄🗓 取り置き・予約　<span style="font-weight:500;font-size:13px">本部（系列合計）＋取引先ごと</span></div>
+  <div class="oos-sub">
+    <input class="searchbox" placeholder="本部名・取引先名で検索（例：リゾートトラスト／エクシブ鳴門）　※本実装で有効化">
+    <div class="subnote">列位置は全ホテルで固定＝取置・予約・合計が同じ縦位置。本部は系列合計を先頭に、下に各ホテルの内訳。</div>
+  </div>
+
+  <div class="legend">
+    <b>読み方</b>：<span class="held">取置</span>＝在庫を確保／<span class="res">予約</span>＝入荷前の先約（＝<b>要輸入＝統合マスタ必須数</b>）／<b>合計</b>＝約束する総数。
+    <span style="background:#fbf3e0;border:1px solid #e6cfa0;padding:0 4px;border-radius:4px">🏛 本部</span>＝系列ホテルの合算。<span style="background:#fffdf4;border:1px solid #eadfb8;padding:0 4px;border-radius:4px">黄色い行</span>＝取置と予約に分かれた商品（要件8）。
+  </div>
+
+  <!-- ===== 本部：リゾートトラスト ===== -->
+  <details class="block hq" open>
+    <summary>
+      <span class="tw">▶</span><span class="hqname">🏛 リゾートトラスト（本部）</span><span class="hid">系列3ホテル</span>
+      <span class="grand">総合計 <b>106</b> 本（取置70／予約36）</span>
+    </summary>
+    <table class="grid">
+      <colgroup><col class="c-name"><col class="c-held"><col class="c-res"><col class="c-total"><col class="c-date"></colgroup>
+      <thead><tr><th class="l">商品</th><th>🗄取置</th><th>🗓予約<br><span style="font-weight:400">=要輸入</span></th><th>合計</th><th class="l">期限／予定・注文</th></tr></thead>
+      <tbody>
+        <!-- グループ合計 -->
+        <tr class="band"><td colspan="5">■ 本部と話す用：系列ホテル合計</td></tr>
+        <tr class="gtot"><td class="l"><span class="pname">オルガニック 500ml</span></td>
+          <td class="num held">56</td><td class="num res">16</td><td class="num total">72<span class="imp">要輸入16</span></td>
+          <td class="l date">系列3ホテル合計</td></tr>
+        <tr class="gtot"><td class="l"><span class="pname">メメジック 250ml</span></td>
+          <td class="num held">14</td><td class="num zero">–</td><td class="num total">14</td>
+          <td class="l date">系列2ホテル合計</td></tr>
+        <tr class="gtot"><td class="l"><span class="pname">シェフズブレンド 100ml</span></td>
+          <td class="num zero">–</td><td class="num res">12</td><td class="num total">12</td>
+          <td class="l date">1ホテル</td></tr>
+        <tr class="gtot"><td class="l"><span class="pname">シェフズブレンド 250ml</span></td>
+          <td class="num zero">–</td><td class="num res">8</td><td class="num total">8</td>
+          <td class="l date">1ホテル</td></tr>
+        <tr class="grand-total"><td class="l">総合計（全商品）</td>
+          <td class="num held">70</td><td class="num res">36</td><td class="num total">106</td>
+          <td class="l date">本</td></tr>
+
+        <!-- エクシブ鳴門 -->
+        <tr class="hotelrow"><td colspan="5">🏨 エクシブ鳴門　<span class="hid">RT-01</span></td></tr>
+        <tr class="split"><td class="l"><span class="pname">オルガニック 500ml</span></td>
+          <td class="num held">50</td><td class="num res">10</td><td class="num total">60<span class="imp">要輸入10</span></td>
+          <td class="l date">取置 8-20 <span class="ord">#N-101</span>／予約 9月上旬 <span class="ord">#N-101</span></td></tr>
+        <tr><td class="l"><span class="pname">メメジック 250ml</span></td>
+          <td class="num held">4</td><td class="num zero">–</td><td class="num total">4</td>
+          <td class="l date">取置 8-25 <span class="ord">#N-118</span> <span class="mini">−減らす</span></td></tr>
+        <tr><td class="l"><span class="pname">シェフズブレンド 100ml</span></td>
+          <td class="num zero">–</td><td class="num res">12</td><td class="num total">12</td>
+          <td class="l date">予約 9月上旬 <span class="ord">#N-125</span></td></tr>
+
+        <!-- エクシブ京都 -->
+        <tr class="hotelrow"><td colspan="5">🏨 エクシブ京都八瀬離宮　<span class="hid">RT-02</span></td></tr>
+        <tr><td class="l"><span class="pname">オルガニック 500ml</span></td>
+          <td class="num held">6</td><td class="num zero">–</td><td class="num total">6</td>
+          <td class="l date">取置 8-24 <span class="ord">#K-30</span></td></tr>
+        <tr><td class="l"><span class="pname">シェフズブレンド 250ml</span></td>
+          <td class="num zero">–</td><td class="num res">8</td><td class="num total">8</td>
+          <td class="l date">予約 8-30 <span class="ord">#K-31</span></td></tr>
+
+        <!-- ホテルトラスティ -->
+        <tr class="hotelrow"><td colspan="5">🏨 ホテルトラスティ大阪　<span class="hid">RT-03</span>　<span class="badge b-amber">📅間近1</span></td></tr>
+        <tr><td class="l"><span class="pname">オルガニック 500ml</span></td>
+          <td class="num zero">–</td><td class="num res">6</td><td class="num total">6</td>
+          <td class="l date">予約 9-15 <span class="ord">#T-90</span></td></tr>
+        <tr><td class="l"><span class="pname soon">メメジック 250ml</span></td>
+          <td class="num held">10</td><td class="num zero">–</td><td class="num total">10</td>
+          <td class="l date"><span class="soon">取置 8-12（間近）</span> <span class="ord">#T-77</span></td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <!-- ===== 独立取引先 ===== -->
+  <details class="block" open>
+    <summary>
+      <span class="tw">▶</span><span class="hname">🏨 リストランテ・ソレイユ（独立）</span><span class="hid">IND-1</span>
+      <span class="hsum">取置 250ml 6</span><span class="badge b-red">⏰期限切れ1</span>
+    </summary>
+    <table class="grid">
+      <colgroup><col class="c-name"><col class="c-held"><col class="c-res"><col class="c-total"><col class="c-date"></colgroup>
+      <thead><tr><th class="l">商品</th><th>🗄取置</th><th>🗓予約</th><th>合計</th><th class="l">期限／予定・注文</th></tr></thead>
+      <tbody>
+        <tr><td class="l"><span class="pname over">オルガニック 250ml</span></td>
+          <td class="num held">6</td><td class="num zero">–</td><td class="num total">6</td>
+          <td class="l date"><span class="over">取置 8-08（期限切れ）</span> <span class="ord">#C-30</span></td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <!-- 比較用 -->
+  <details class="cmp">
+    <summary>🧾 従来の「注文ごと」表示（比較用・タップで開く）</summary>
+    <div class="cmp-body">
+      <div style="color:#8a857a;margin:4px 0 8px">※ 今の見せ方。本部でまとめられず、系列ホテルの分が個別に散らばる。</div>
+      <div class="oline">エクシブ鳴門 ｜ #N-101 取置 8-20 ｜ オルガニック 500ml × 50本</div>
+      <div class="oline">エクシブ鳴門 ｜ #N-101 予約 9月上旬 ｜ オルガニック 500ml × 10本</div>
+      <div class="oline">エクシブ京都 ｜ #K-30 取置 8-24 ｜ オルガニック 500ml × 6本</div>
+      <div class="oline">ホテルトラスティ ｜ #T-90 予約 9-15 ｜ オルガニック 500ml × 6本</div>
+      <div style="color:#8a857a;padding-top:6px">…本部合計を出すには、これを全部足し算しないと分からない。</div>
+    </div>
+  </details>
+
+</div>
+</body>
+</html>
