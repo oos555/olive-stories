@@ -30,7 +30,7 @@
 (function(global){
   'use strict';
 
-  var VERSION = '2026-08-13';
+  var VERSION = '2026-08-18';
 
   // 不良が「生きている（数に入れるべき）」か
   function isActiveDefect(d){
@@ -131,10 +131,112 @@
     return calc(sku);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     ★2026-08-18 追加：注文から「予約の本数」を数える（ひろみさん承認）
+     承認済みモック：mocks/mock_juchuA_zaiko_tarinai_2026-08-18.html（第2版）
+
+     予約とは、次の2つです。
+       ① 状態が 'reserved' の注文（RTの分＝rtmOwned も含みます）
+       ② 在庫が足りなくて出荷できず、待っている注文
+          （状態 'pending' ／ 倉庫へ未送信 ／ まだ在庫を引いていない ／ いま足りない）
+
+     ひろみさんの言葉：「予約一覧に、登録するしない関係なく、予約がそこに集まって行ってて、
+     そこから予約の数の列のカウントが始まっていく」
+
+     ★アプリ側に同じ数え方を書き写さないでください。ここが親です。
+     ══════════════════════════════════════════════════════════════════════ */
+  function findById(products, id){ for(var i=0;i<products.length;i++){ if(products[i] && products[i].id == id) return products[i]; } return null; }
+  function findBySku(products, sku){ for(var i=0;i<products.length;i++){ if(products[i] && products[i].sku === sku) return products[i]; } return null; }
+  function lineQty(l, p){ return num(l.bottles) + num(l.boxes) * (num(l.boxQty) || num(p && p.boxQty) || 1); }
+
+  // その商品の「旧ロットの良品」（セットは中身の少ないほうに合わせる）
+  function oldGoodFor(p, data, products){
+    if(p.isSet && p.components && p.components.length){
+      return Math.min.apply(null, p.components.map(function(c){
+        var cp = findBySku(products, c.sku);
+        return Math.floor((cp ? numbers(cp.id, data).old.avail : 0) / (num(c.qty) || 1));
+      }));
+    }
+    return numbers(p.id, data).old.avail;
+  }
+  // その商品の「不良（程度 × 現/旧ロット）」（セットは中身の少ないほうに合わせる）
+  function defectGoodFor(p, lv, lk, data, products){
+    function one(id){
+      var n = numbers(id, data), t = (lk === 'old') ? n.old : n.cur;
+      return (lv === 'lv1') ? t.defLight : (lv === 'lv3') ? t.defHeavy : t.defMid;
+    }
+    if(p.isSet && p.components && p.components.length){
+      return Math.min.apply(null, p.components.map(function(c){
+        var cp = findBySku(products, c.sku);
+        return Math.floor((cp ? one(cp.id) : 0) / (num(c.qty) || 1));
+      }));
+    }
+    return one(p.id);
+  }
+  /* 注文1件の「足りていない行」を返す。状態は見ず、数だけ見る。 */
+  function shortages(o, data, products){
+    products = products || [];
+    var out = [], need = {};
+    ((o && o.lines) || []).forEach(function(l){
+      var p = findById(products, l.productId); if(!p) return;
+      var q = lineQty(l, p); if(q <= 0) return;
+      var cond = l.condition || 'normal';
+      var key = p.id + '|' + cond + '|' + (l.defectLevel || '') + '|' + (l.defectLotKind || '');
+      if(!need[key]) need[key] = { p:p, cond:cond, lv:(l.defectLevel||''), lk:(l.defectLotKind||''), qty:0 };
+      need[key].qty += q;
+    });
+    Object.keys(need).forEach(function(k){
+      var r = need[k], have;
+      if(r.cond === 'old'){ have = oldGoodFor(r.p, data, products); }
+      else if(r.cond === 'defect'){
+        if(!r.lv || !r.lk) return;                        // 程度が未指定の古い注文は判定しない
+        have = defectGoodFor(r.p, r.lv, r.lk, data, products);
+      } else {
+        var a = availableForSku(r.p.sku, data, products);
+        if(a === null) return;                            // 商品マスタに無いものは判定しない
+        have = a;
+      }
+      if(have < r.qty) out.push({ pid:r.p.id, sku:r.p.sku, name:r.p.name, cond:r.cond,
+                                  level:r.lv, lotKind:r.lk, need:r.qty, have:have, short:(r.qty - have) });
+    });
+    return out;
+  }
+  /* 在庫が足りなくて待っている注文か */
+  function isWaitingForStock(o, data, products){
+    if(!o || o.status !== 'pending' || o.notified || o.stockDeducted) return false;
+    return shortages(o, data, products).length > 0;
+  }
+  /* 商品ID → 予約の本数（セットは中身に展開する） */
+  function reservedByPid(orders, data, products){
+    products = products || [];
+    var m = {};
+    function add(o){
+      (o.lines || []).forEach(function(l){
+        var p = findById(products, l.productId); if(!p) return;
+        var q = lineQty(l, p); if(q <= 0) return;
+        if(p.isSet && p.components){
+          p.components.forEach(function(c){
+            var cp = findBySku(products, c.sku);
+            if(cp) m[cp.id] = (m[cp.id] || 0) + q * (num(c.qty) || 1);
+          });
+        } else { m[p.id] = (m[p.id] || 0) + q; }
+      });
+    }
+    (orders || []).forEach(function(o){
+      if(!o) return;
+      if(o.status === 'reserved'){ add(o); return; }       // ① ふつうの予約（RTの分も含む）
+      if(isWaitingForStock(o, data, products)) add(o);      // ② 在庫が足りなくて待っている注文
+    });
+    return m;
+  }
+
   global.OOS_ZAIKO = {
     VERSION: VERSION,
     isActiveDefect: isActiveDefect,
     numbers: numbers,
-    availableForSku: availableForSku
+    availableForSku: availableForSku,
+    shortages: shortages,
+    isWaitingForStock: isWaitingForStock,
+    reservedByPid: reservedByPid
   };
 })(window);

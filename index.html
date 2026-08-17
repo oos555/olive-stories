@@ -266,7 +266,7 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=20260813"></script>
+<script src="oos-zaiko.js?v=20260818"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-12">
+<meta name="oos-version" content="2026-08-18-13">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2989,33 +2989,17 @@ function condRemainFor(pid, val){
    　　→ 在庫が入れば札もアラートも ひとりでに消える（消し忘れが起きない）
    　　→ データの形は1つも変えていないので、他のアプリ・GASに影響が無い
    ══════════════════════════════════════════════════════════════════════ */
-function zaikoHaveFor(pid, sku, val){
-  if(val === 'normal'){
-    var a = (typeof computeAvailable === 'function') ? computeAvailable(sku) : null;
-    return (a === null || a === undefined) ? Infinity : a;   // 商品マスタに無いものは判定しない
-  }
-  return condRemainFor(pid, val);
-}
-/* いま足りていない行を返す（状態は見ない。純粋に数だけ見る） */
+/* いま足りていない行を返す（状態は見ない。純粋に数だけ見る）。
+   ★2026-08-18 数え方は【親＝oos-zaiko.js】に置いた。ここに書き写してはいけない。
+     統合マスタＮの「予約」の列も同じ親を見るので、数がずれようがない。 */
 function shortagesNow(o){
-  var out = [];
-  if(!o) return out;
-  var need = {};
-  (o.lines || []).forEach(function(l){
-    var p = findProduct(l.productId); if(!p) return;
-    var q = lineTotal(l); if(q <= 0) return;
-    var val = condValueOfLine(l);
-    var k = p.id + '|' + val;                                  // 同じ商品・同じ状態は足し合わせて見る
-    if(!need[k]) need[k] = { pid:p.id, sku:p.sku, name:p.name, val:val, label:condLabelOfLine(l), qty:0 };
-    need[k].qty += q;
-  });
-  Object.keys(need).forEach(function(k){
-    var r = need[k];
-    var have = zaikoHaveFor(r.pid, r.sku, r.val);
-    if(have === Infinity) return;
-    if(have < r.qty) out.push({ name:r.name, label:r.label, need:r.qty, have:have, short:(r.qty - have) });
-  });
-  return out;
+  if(!o || typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.shortages) return [];
+  return OOS_ZAIKO.shortages(o, { lots: lots, defects: defects, holds: buildHoldsForZaiko() }, PRODUCTS)
+    .map(function(s){
+      return { name: s.name,
+               label: condLabelOfLine({ condition:s.cond, defectLevel:s.level, defectLotKind:s.lotKind }),
+               need: s.need, have: s.have, short: s.short };
+    });
 }
 /* カードに出す用。送信済み・キャンセル・取り消し・在庫確保ずみの注文には出さない。 */
 function orderShortages(o){

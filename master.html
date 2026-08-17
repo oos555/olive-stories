@@ -449,7 +449,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-18-08">
+<meta name="oos-version" content="2026-08-18-09">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1058,7 +1058,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 </div><!-- /.app -->
 
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=20260813"></script>
+<script src="oos-zaiko.js?v=20260818"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -1826,14 +1826,29 @@ function moveToDiscard(pid, qty, lotKind){
   return moved;
 }
 
+/* ★2026-08-18 予約の本数を親（oos-zaiko.js）に数えてもらう。
+   表を1回描くあいだに49商品ぶん呼ばれるので、その1回のあいだだけ answer を使い回す
+   （描き終わったら捨てるので、古い数字が残ることはない）。 */
+var _resCache = null;
+function reservedByPidCache(){
+  if(_resCache) return _resCache;
+  if(typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.reservedByPid) return {};
+  _resCache = OOS_ZAIKO.reservedByPid(orders, { lots: lots, defects: defects, holds: holds }, PRODUCTS);
+  setTimeout(function(){ _resCache = null; }, 0);
+  return _resCache;
+}
 // ── 在庫計算（セット商品はコンポーネントの最小値）────────────────────────
 function computeStockNumbers(pid){
   // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
   //   ここに計算式を書き写してはいけない（独自のコピーを持たない）。
   var n = OOS_ZAIKO.numbers(pid, { lots: lots, defects: defects, holds: holds });
-  var preQty = 0;
-  preorders.forEach(function(r){ if(r.pid==pid) preQty += (r.qty||r.bottles||0); });  // 予約はマスタNだけが持つ
-  n.preQty = preQty;
+  /* ★2026-08-18 ひろみさん指示で「予約」の親を受注Ａに移した。
+     　　　「予約一覧に、登録するしない関係なく、予約がそこに集まって行ってて、
+     　　　　そこから予約の数の列のカウントが始まっていく」
+     ここでは自分で数えず、親（oos-zaiko.js）に聞く。RTの予約も、在庫が足りなくて
+     待っている注文も、親が同じ数え方で拾う。
+     ★preorders（マスタが独自に持っていた予約の表）に戻さないでください。 */
+  n.preQty = (reservedByPidCache() || {})[pid] || 0;
   return n;
 }
 function computeAvailable(sku){
