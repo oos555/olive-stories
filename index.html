@@ -3039,8 +3039,11 @@ function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale
    なぜ連番をやめたか：連番は「その日の何件目か」を数えて作るため、作る場所ごとに
    数え方がズレると同じ番号ができる。2026-08-17にバサラで BA-20260817-1 が2件できた。
    ランダムなら、どこで作っても衝突しにくい。念のため、すでにある番号と同じなら引き直す。 */
-function nextOrderNum(offset, ctype){
-  const ymd = todayYmd();
+/* ★2026-08-17 ymdOverride を足した。番号を「付け直す」ときに今日の日付を使うと、
+   受注日と食い違う番号ができてしまう（決まりは「暗号－受注した日－ランダム4桁」）。
+   付け直しのときだけ、その注文の受注日を渡す。渡さなければ今日の日付（今までどおり）。 */
+function nextOrderNum(offset, ctype, ymdOverride){
+  const ymd = ymdOverride || todayYmd();
   const code = orderNumCode(ctype);
   const used = {};
   (orders||[]).forEach(function(o){ if(o && o.num) used[String(o.num)] = true; });
@@ -5815,7 +5818,18 @@ function renumberOrder(id){
   var o = orders.find(function(x){ return x.id===id; }); if(!o) return;
   if(o.notified){ alert('すでに倉庫へ送っているため、番号は変えられません。'); return; }
   var old = o.num;
-  var neo = nextOrderNum(0, o.customerType||'basara');
+  /* ★2026-08-17 付け直しても受注日は変えない（決まりは「暗号－受注した日－ランダム4桁」）。
+     日付は①いまの番号の真ん中 ②無ければ受注日時（日本時間）から取る。今日の日付は使わない。 */
+  var _m = String(old||'').match(/-(\d{8})-/);
+  var _ymd = _m ? _m[1] : '';
+  if(!_ymd && o.registeredAt){
+    var _d = new Date(o.registeredAt);
+    if(!isNaN(_d)){
+      var _j = new Date(_d.getTime() + 9*60*60*1000);   // 日本時間に直す
+      _ymd = ''+_j.getUTCFullYear()+String(_j.getUTCMonth()+1).padStart(2,'0')+String(_j.getUTCDate()).padStart(2,'0');
+    }
+  }
+  var neo = nextOrderNum(0, o.customerType||'basara', _ymd);
   if(!confirm('管理番号を付け直します。\n\n'+old+'　→　'+neo+'\n\n'
     +'※ 出荷依頼書・請求はこの新しい番号になります。\n※ すでに紙に印刷した分があれば、番号が変わることにご注意ください。\n\nよろしいですか？')) return;
   o.num = neo;
