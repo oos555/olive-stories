@@ -449,7 +449,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-18-04">
+<meta name="oos-version" content="2026-08-18-07">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -655,7 +655,9 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
         <th rowspan="2">取置 <span class="help-ic" onclick="showHelp('hold')">ⓘ</span></th>
         <th rowspan="2">廃棄 <span class="help-ic" onclick="showHelp('discard')">ⓘ</span></th>
         <th colspan="3" style="text-align:center">輸入 <span style="font-weight:400;font-size:10px">（旧ロットに輸入はありません）</span></th>
-        <th rowspan="2">備考</th>
+        <!-- ★2026-08-18 ひろみさん指示：旧ロットの備考は「賞味期限」と「自由なメモ」を入れる欄に。
+             ★「備考」だけに戻さないでください。 -->
+        <th rowspan="2">賞味期限・メモ<br><span style="font-weight:400;font-size:10px">（この旧ロットのもの）</span></th>
       </tr>
       <tr>
         <th style="text-align:right">軽</th>
@@ -2220,6 +2222,84 @@ function addOldLotRow(){
 }
 function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 旧ロットの「賞味期限」「自由なメモ」「消すボタン」（ひろみさん指示）
+   ひろみさんの言葉：「旧ロットの備考欄、これ、何を言ってるのかわからないから消して、
+   賞味期限を入力する欄にして。ただの自由なメモにして。旧ロットは在庫が0になったら
+   ここから消したい。消すボタンも欲しい。」
+
+   ・賞味期限とメモは【その旧ロットのもの】です（上の現ロットの備考とは別）。
+   ・同じ商品に旧ロットが2つあるとき（賞味期限がちがう分）は、2行に分けて出します。
+   ・🗑 消す は【在庫が0の旧ロットだけ】に出ます。0でないものは消せません。
+   ★「書くのは上の現ロットの表で」に戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function oldLotsOf(pid){
+  return (lots||[]).filter(function(l){ return l && l.pid == pid && l.status === 'old'; })
+    .sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); });
+}
+function oldLotNoteCell(p, canEdit){
+  var arr = oldLotsOf(p.id);
+  if(!arr.length){
+    return '<div class="boxnote" style="color:#b9b3a8">—</div>';
+  }
+  return arr.map(function(l){
+    var st = parseInt(l.stock)||0;
+    if(!canEdit){
+      var exp = l.expiry ? escHtml(l.expiry) : '<span style="color:#b9b3a8">賞味期限なし</span>';
+      var nt  = l.note ? escHtml(l.note) : '';
+      return '<div style="line-height:1.5;margin-bottom:3px"><b style="color:#8a5a12">'+exp+'</b>'
+           + (nt ? '<div class="boxnote" style="color:#6b6459">'+nt+'</div>' : '') + '</div>';
+    }
+    return '<div style="margin-bottom:5px">'
+      + '<input type="text" value="'+escHtml(l.expiry||'')+'" placeholder="賞味期限（例 2026.12）" '
+      + 'onchange="saveOldLotExpiry(\''+escHtml(l.id)+'\',this.value)" '
+      + 'style="width:100%;box-sizing:border-box;padding:5px 7px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px;font-weight:700;color:#8a5a12;margin-bottom:3px">'
+      + '<input type="text" value="'+escHtml(l.note||'')+'" placeholder="自由にメモ" '
+      + 'onchange="saveOldLotNote(\''+escHtml(l.id)+'\',this.value)" '
+      + 'style="width:100%;box-sizing:border-box;padding:5px 7px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px">'
+      + (st === 0
+          ? '<button type="button" onclick="deleteOldLot(\''+escHtml(l.id)+'\')" '
+            + 'style="margin-top:4px;background:#fff;border:1.5px solid #b91c1c;color:#b91c1c;border-radius:7px;padding:4px 9px;font-size:11.5px;font-weight:800;cursor:pointer">🗑 この旧ロットを消す</button>'
+          : '<div class="boxnote" style="color:#8a8578">在庫が0になると「🗑 消す」が出ます（いま '+st+'本）</div>')
+      + '</div>';
+  }).join('');
+}
+function saveOldLotExpiry(lotId, val){
+  var l = (lots||[]).find(function(x){ return String(x.id)===String(lotId); });
+  if(!l) return;
+  l.expiry = String(val||'').trim();
+  var p = findProduct(l.pid);
+  if(typeof addLog==='function') addLog('旧ロットの賞味期限', (p?p.name:l.pid)+'　→ '+(l.expiry||'（空）'));
+  scheduleAutoSave();
+  showSyncStatus('✅ 賞味期限を直しました：'+(p?p.name:'')+'　'+(l.expiry||'（空）'));
+}
+function saveOldLotNote(lotId, val){
+  var l = (lots||[]).find(function(x){ return String(x.id)===String(lotId); });
+  if(!l) return;
+  l.note = String(val||'');
+  scheduleAutoSave();
+  showSyncStatus('✅ 旧ロットのメモを保存しました');
+}
+function deleteOldLot(lotId){
+  var l = (lots||[]).find(function(x){ return String(x.id)===String(lotId); });
+  if(!l) return;
+  var st = parseInt(l.stock)||0;
+  if(st !== 0){ alert('在庫が '+st+'本 残っています。0本にしてから消してください。'); return; }
+  var p = findProduct(l.pid);
+  if(!confirm('この旧ロットを消します。\n\n'+(p?p.name:'')+'　賞味期限 '+(l.expiry||'（なし）')+'\n\n'
+    + '・在庫は0本なので、数字は動きません\n'
+    + '・同じ商品の旧ロットが他にもあれば、そちらは残ります\n\nよろしいですか？')) return;
+  var i = lots.indexOf(l);
+  if(i >= 0) lots.splice(i, 1);
+  delete oldForcedPids[l.pid];
+  if(typeof addLog==='function') addLog('旧ロットを消した', (p?p.name:l.pid)+'　賞味期限 '+(l.expiry||'なし'));
+  renderInvTable(); refreshOldAddSelect();
+  if(typeof renderLotList==='function') renderLotList();
+  if(typeof renderInvLogs==='function') renderInvLogs();
+  scheduleAutoSave();
+  showSyncStatus('🗑 旧ロットを消しました：'+(p?p.name:''));
+}
+
 function renderInvTable(){
   if(invLoading){
     const _tb = document.getElementById('inv-tbl-body');
@@ -2301,9 +2381,17 @@ function renderInvTable(){
                '<td class="c-i3"><span class="num">'+freeInc+'</span></td>'+
                '<td class="c-note">'+memoCell(p)+'</td>';
         } else {
+          /* ★2026-08-18 ひろみさん指示：
+             「旧ロットの備考欄、これ、何を言ってるのかわからないから消して、賞味期限を入力する欄に
+               して。ただの自由なメモにして。旧ロットは在庫が0になったらここから消したい。
+               消すボタンも欲しい。」
+             → 「書くのは上の『現ロット』の表で」は消しました。
+             → 旧ロットごとに【賞味期限】と【自由なメモ】を打てるようにしました（旧ロット専用。
+                上の現ロットの備考とは別です）。
+             → 在庫が0の旧ロットには【🗑 消す】が出ます（0本でないときは出しません）。
+             ★この欄を「書くのは上の現ロットの表で」に戻さないでください。 */
           h += '<td class="c-i1"><span class="num">—</span></td><td class="c-i2"><span class="num">—</span></td><td class="c-i3"><span class="num">—</span></td>'+
-               '<td class="c-note"><div class="iv-memo-ro">'+(invMemoOf(p) ? String(invMemoOf(p)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '<span style="color:#b9b3a8">—</span>')+
-               '</div><div class="boxnote">書くのは上の「現ロット」の表で</div></td>';
+               '<td class="c-note">'+oldLotNoteCell(p, canEdit)+'</td>';
         }
         return h + '</tr>';
       }
