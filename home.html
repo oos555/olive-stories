@@ -7,8 +7,10 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-18-02">
 <script src="oos-version.js"></script>
+<!-- ★2026-08-18 玄関でも在庫を数えるため、親を読む。★消さないでください -->
+<script src="oos-zaiko.js?v=20260818"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
@@ -512,11 +514,14 @@
       renderAlerts(DEMO_ALERTS); // 見本の数字でお庭を出す（GASが無くても見える）
       return;
     }
-    const cached = alertsFromCache();
-    if(cached) renderAlerts(cached); // まず前回の内容をすぐ出す
-    loadAlerts();                    // そのあと最新を取りに行く
+    /* ★2026-08-18 loadAlerts() は呼びません。GASにその機能が無く、代わりに注文一覧が返るため、
+       「取れた」と誤解して【空のアラート】で上書きしていました（＝出るはずのものが出ない原因）。
+       ★loadAlerts() を復活させないでください。GASに本物の頭脳ができたときだけ戻します。 */
+    renderMihari();                  // ★見張っているものを先に出す（0件でも必ず出す）
+    oosGenkanSelfCheck();            // ★玄関の自己点検（壊れていれば赤い帯）
     computeOverdueAndMerge();        // 売上C（M請求書）の支払期限ごえ・未入金
     computeHoldAlerts();             // 注文から「取り置き期限」を算出して玄関に出す（GAS非依存）
+    computeStockAlerts();            // ★在庫がない／引いていない注文（GAS非依存）
   }
   async function loadAlerts(){
     try{
@@ -532,6 +537,7 @@
   window.__oosExtraNow = window.__oosExtraNow || [];
   window.__oosHoldNow  = window.__oosHoldNow || [];   // 取り置き期限切れ（玄関に注入）
   window.__oosHoldSoon = window.__oosHoldSoon || [];  // 取り置き期限3日前（玄関に注入）
+  window.__oosZaikoNow = window.__oosZaikoNow || [];  // ★2026-08-18 在庫がない・引いていない（玄関に注入）
   function __oosDateJa(s){ var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
   async function computeOverdueAndMerge(){
     try{
@@ -550,7 +556,9 @@
       window.__oosExtraNow = overdue.length
         ? [{ label:'支払期限ごえ・未入金 '+overdue.length+'件（売上C）', href:'billing.html', count:overdue.length }]
         : [];
+      window.__oosMihariCount.overdue = overdue.length;   /* ★2026-08-18 見張り一覧に数を出す */
       renderAlerts(window.__lastAlertBase || {});
+      renderMihari();
     }catch(e){ /* GASが未応答のときはそっと従来通り */ }
   }
   // 取り置き・予約が今いくつあるか（常設・小さな黒文字）。期限が迫る/過ぎたものは括弧で添える。
@@ -584,15 +592,168 @@
       });
       window.__oosHoldNow  = overdue>0 ? [{href:'index.html', label:'取り置き期限が過ぎています', count:overdue}] : [];
       window.__oosHoldSoon = soon>0    ? [{href:'index.html', label:'取り置き期限3日前が迫っています', count:soon}] : [];
+      window.__oosMihariCount.holdOver = overdue;   /* ★2026-08-18 見張り一覧に数を出す */
+      window.__oosMihariCount.holdSoon = soon;
       renderAlerts(window.__lastAlertBase || {});
+      renderMihari();
       renderHoldNote(heldCount, reservedCount, overdue, soon);
     }catch(e){ /* 取れなければ玄関は今まで通り（壊れない） */ }
   }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ★2026-08-18 玄関のアラートを「本物」にする（ひろみさん指示）
+
+     ひろみさんの言葉：「アラート対象があってもまったく機能していない」
+     「あると、アラートがないと思い、安心してしまう」
+     「これもまた何度もお願いしてもいつも消えるから…」
+
+     ── 何が起きていたか（2026-08-18に実測）──────────────────────
+     GAS に loadAlerts という機能は【そもそも作られていませんでした】。
+     それなのに玄関は ?action=loadAlerts を呼びに行き、GASは知らない命令なので
+     代わりに「注文一覧」を返していました。玄関は status:'ok' を見て「取れた」と
+     判断し、【中身が空のアラート】として描画し、その空を端末に保存していました。
+     だから、在庫が無くて出荷できない注文が実際にあっても「しずかなお庭」でした。
+
+     ── 消えないようにするための3つの仕掛け ─────────────────────
+     ① 見張っているものを【必ず名乗る】。0件でも「0件」と出す。
+        → 機能が消えたら、その行ごと消えるので、見ればすぐ分かる
+     ② 玄関を開くたびに【自己点検】する。作り物のデータを流して
+        「出るはずのものが出るか」を確かめ、出なければ画面の上に赤い帯を出す
+     ③ GASに無い loadAlerts は呼ばない（空で上書きするのをやめる）
+
+     ★この3つを外さないでください。外すと「アラートが無い＝安心」が嘘になります。
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* 見張っているもの。★増やしたらここに1行足す。ここに無いものは見張っていません。 */
+  const OOS_MIHARI = [
+    { key:'zaikoNashi', bucket:'now',  icon:'🔵', label:'在庫がなくて出荷できない注文', href:'index.html' },
+    { key:'notHikare',  bucket:'now',  icon:'🔴', label:'倉庫へ送ったのに在庫を引いていない注文', href:'index.html' },
+    { key:'holdOver',   bucket:'now',  icon:'🗄', label:'取り置き期限が過ぎている', href:'index.html' },
+    { key:'holdSoon',   bucket:'soon', icon:'🗄', label:'取り置き期限が3日以内', href:'index.html' },
+    { key:'overdue',    bucket:'now',  icon:'💰', label:'支払期限ごえ・未入金（売上C）', href:'billing.html' }
+  ];
+  window.__oosMihariCount = window.__oosMihariCount || {};   // key → いま何件
+
+  /* 見張っているものを、必ず画面に出す（0件でも出す＝これが「安心の根拠」になる） */
+  function renderMihari(){
+    var host = document.getElementById('alert-bar');
+    if(!host) return;
+    var el = document.getElementById('oos-mihari');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'oos-mihari';
+      el.style.cssText = 'margin-top:10px;background:#fff;border:1px solid #e2dcd0;border-radius:11px;padding:11px 13px';
+      host.parentNode.insertBefore(el, host.nextSibling);
+    }
+    var rows = OOS_MIHARI.map(function(m){
+      var n = window.__oosMihariCount[m.key];
+      var known = (typeof n === 'number');
+      var col = !known ? '#a8a298' : (n > 0 ? '#b91c1c' : '#6b6459');
+      var num = !known ? '確認中…' : (n + '件');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
+        + '<span style="width:18px">' + m.icon + '</span>'
+        + '<span style="flex:1;color:#2b2a26">' + m.label + '</span>'
+        + '<span style="font-weight:800;color:' + col + '">' + num + '</span></div>';
+    }).join('');
+    el.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:#4a5a1f;margin-bottom:6px">'
+      + '👁 いま見張っているもの（' + OOS_MIHARI.length + '個）</div>'
+      + rows
+      + '<div style="font-size:11.5px;color:#8a857c;margin-top:7px;line-height:1.6">'
+      + 'ここに書いていないものは見張っていません。<br>'
+      + 'この一覧が減っていたら、機能が消えています。すぐ知らせてください。</div>';
+  }
+
+  /* 在庫まわりのアラートを、玄関が自分で計算する（GASの頭脳に頼らない） */
+  async function computeStockAlerts(){
+    try{
+      var r1 = await fetch(GAS_URL + '?action=loadBundleForOrders&_=' + Date.now(), {cache:'no-store'});
+      var d1 = await r1.json();
+      var r2 = await fetch(GAS_URL + '?action=loadProducts&_=' + Date.now(), {cache:'no-store'});
+      var d2 = await r2.json();
+      var orders   = (d1 && d1.orders) || [];
+      var dd       = (d1 && d1.data) || {};
+      var PRODUCTS = (d2 && (d2.products || (d2.data && d2.data.products))) || [];
+      var data = { lots: dd.lots || [], defects: dd.defects || [], holds: [] };
+      // 取り置きは注文から作る（受注Aと同じやり方）
+      var hm = {};
+      orders.forEach(function(o){
+        if(!o || o.status !== 'held') return;
+        (o.lines||[]).forEach(function(l){
+          var p = PRODUCTS.find(function(x){ return x.id == l.productId; }); if(!p) return;
+          var q = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
+          if(p.isSet && p.components){ p.components.forEach(function(c){ var cp=PRODUCTS.find(function(x){return x.sku===c.sku;}); if(cp) hm[cp.id]=(hm[cp.id]||0)+q*(c.qty||1); }); }
+          else hm[p.id] = (hm[p.id]||0) + q;
+        });
+      });
+      data.holds = Object.keys(hm).map(function(k){ return { pid: parseInt(k), qty: hm[k] }; });
+
+      var zaikoNashi = [], notHikare = [];
+      orders.forEach(function(o){
+        if(!o) return;
+        if(typeof OOS_ZAIKO !== 'undefined' && OOS_ZAIKO.isWaitingForStock && OOS_ZAIKO.isWaitingForStock(o, data, PRODUCTS)) zaikoNashi.push(o);
+        if(o.status === 'pending' && o.notified && !o.stockDeducted) notHikare.push(o);
+      });
+      window.__oosMihariCount.zaikoNashi = zaikoNashi.length;
+      window.__oosMihariCount.notHikare  = notHikare.length;
+      window.__oosZaikoNow = []
+        .concat(zaikoNashi.length ? [{ href:'index.html', label:'🔵 在庫がなくて出荷できない注文', count:zaikoNashi.length }] : [])
+        .concat(notHikare.length  ? [{ href:'index.html', label:'🔴 倉庫へ送ったのに在庫を引いていない注文', count:notHikare.length }] : []);
+      renderAlerts(window.__lastAlertBase || {});
+      renderMihari();
+    }catch(e){
+      /* 取れなかったときは「確認中…」のままにする（0件と嘘をつかない） */
+      renderMihari();
+    }
+  }
+
+  /* ★玄関の自己点検：作り物のデータを流して「出るはずのものが出るか」を確かめる。
+     本物のデータには一切触りません。1つでも違えば画面の上に赤い帯を出します。 */
+  function oosGenkanSelfCheck(){
+    var fails = [];
+    try{
+      if(typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.isWaitingForStock){
+        fails.push('在庫の数え方（oos-zaiko.js）が読み込めていません');
+      } else {
+        var P = [{ id:1, sku:'TEST', name:'点検用', boxQty:1 }];
+        var D0 = { lots:[{ pid:1, status:'new', stock:0 }], defects:[], holds:[] };
+        var D5 = { lots:[{ pid:1, status:'new', stock:5 }], defects:[], holds:[] };
+        var o  = { status:'pending', notified:false, stockDeducted:false,
+                   lines:[{ productId:1, bottles:1, boxes:0, boxQty:1, condition:'normal' }] };
+        if(!OOS_ZAIKO.isWaitingForStock(o, D0, P)) fails.push('在庫0の注文を「出荷できない」と判定できていません');
+        if(OOS_ZAIKO.isWaitingForStock(o, D5, P))  fails.push('在庫があるのに「出荷できない」と判定しています');
+        var sent = { status:'pending', notified:true, stockDeducted:false, lines:o.lines };
+        if(!(sent.status==='pending' && sent.notified && !sent.stockDeducted)) fails.push('「送ったのに引いていない」の見分けが壊れています');
+      }
+      if(typeof renderMihari !== 'function' || !OOS_MIHARI || OOS_MIHARI.length < 5){
+        fails.push('見張っているものの一覧が減っています（' + ((OOS_MIHARI&&OOS_MIHARI.length)||0) + '個）');
+      }
+      if(typeof renderAlerts !== 'function') fails.push('アラートを描く仕組みがありません');
+    }catch(err){
+      fails.push('点検そのものが動きませんでした：' + (err && err.message));
+    }
+    if(fails.length) oosGenkanAlarm(fails);
+    return fails;
+  }
+  function oosGenkanAlarm(fails){
+    if(document.getElementById('oos-genkan-alarm')) return;
+    var b = document.createElement('div');
+    b.id = 'oos-genkan-alarm';
+    b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+      + 'padding:13px 18px;font-size:15px;font-weight:800;line-height:1.8;text-align:left';
+    b.innerHTML = '⚠ 玄関のアラートが正しく働いていません。<b>「アラートが無い＝大丈夫」と思わないでください。</b>'
+      + '<div style="font-weight:600;font-size:13px;margin-top:6px">'
+      + fails.map(function(s){ return '・' + s; }).join('<br>') + '</div>'
+      + '<div style="font-weight:600;font-size:12.5px;margin-top:7px">この画面のまま知らせてください。</div>';
+    document.body.appendChild(b);
+    document.body.style.paddingTop = '110px';
+  }
+
   function alertBucketCount(list){ let n=0; (list||[]).forEach(function(x){ n += (parseInt(x.count,10)||1); }); return n; }
   function renderAlerts(d){
     d = d || {};
     window.__lastAlertBase = d;
-    const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]);
+    /* ★2026-08-18 在庫のアラートも混ぜる（__oosZaikoNow）。★消さないでください */
+    const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]).concat(window.__oosZaikoNow||[]);
     const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]);
     const watch = d.watch||[];
     const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
