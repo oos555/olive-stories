@@ -847,8 +847,12 @@ async function init(){
     await renderDefectForm();
   } else if(mode==='notes'){
     await loadNotesScreen();
-  } else if(mode==='materials'){
-    await loadMaterialsScreen();
+  /* ★2026-08-17 ひろみさん指示で「資材カタログ」を取り除きました。
+     ひろみさんの言葉：「資材カタログも取り除いて。多分自分たちでメモしてるから、二重管理になりそう」
+     入口（ボタン）と、この行き先（mode=materials）の両方を外しています。
+     ★スプレッドシートの記録（warehouseMaterials）は消していません。
+     ★また出したくなったら、ここに mode==='materials' の行を戻してください
+       （loadMaterialsScreen などの中身はファイルの下のほうに残してあります）。 */
   } else if(mode==='stock'){
     await loadStockScreen();
   } else {
@@ -1155,11 +1159,13 @@ function renderList(){
   html += '</div>';
   html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 出荷依頼書を更新</button>';
   html += '<details class="tools-box no-print">';
-  html += '<summary><span>🧰 その他のボタン（不良品・メモ・資材・在庫）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
+  html += '<summary><span>🧰 その他のボタン（不良品・メモ・在庫）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
   html += '<div class="tool-grid">';
   html += '<div class="tool-tile" style="background:#fef2f2;border-color:#dc2626" onclick="location.href=\'pickup.html?mode=defect\'"><div class="tt-ic" style="color:#991b1b">🔴</div><div class="tt-tx" style="color:#991b1b">不良品ほうこく</div></div>';
   html += '<div class="tool-tile" style="background:#f1ecfb;border-color:#7c3aed" onclick="location.href=\'pickup.html?mode=notes\'"><div class="tt-ic" style="color:#6d28d9">📝</div><div class="tt-tx" style="color:#5b21b6">メモ</div></div>';
-  html += '<div class="tool-tile" style="background:#fbeede0;border-color:#b45309" onclick="location.href=\'pickup.html?mode=materials\'"><div class="tt-ic" style="color:#b45309">📦</div><div class="tt-tx" style="color:#7a3a0e">資材カタログ</div></div>';
+  /* ★2026-08-17 ひろみさん指示で「📦 資材カタログ」のボタンを外しました（二重管理になるため）。
+     戻したくなったときの元の行：
+     html += '<div class="tool-tile" style="background:#fbeede0;border-color:#b45309" onclick="location.href=\'pickup.html?mode=materials\'"><div class="tt-ic" style="color:#b45309">📦</div><div class="tt-tx" style="color:#7a3a0e">資材カタログ</div></div>'; */
   html += '<div class="tool-tile" style="background:#eef3e0;border-color:#6b7a3a" onclick="location.href=\'pickup.html?mode=stock\'"><div class="tt-ic" style="color:#4a5a1f">🫒</div><div class="tt-tx" style="color:#3b4a1a">在庫を見る</div></div>';
   html += '</div>';
   html += '</details>';
@@ -1448,7 +1454,9 @@ function renderOrder(){
 
 // ── 不良品の報告（倉庫アプリから直接） ────────────────────────────
 const DEFECT_LEVELS = [
-  { code:'relabel', name:'貼り替えればOK',      seal:'青', hex:'#2563eb', bg:'#eaf1fc', tx:'#0c447c', desc:'ラベルを貼り替えればOK。通常品在庫としてカウント' },
+  /* ★2026-08-17 ひろみさん指示：青は「貼り替えればOK」ではなく「貼り替えれば通常販売可能のレベル」。
+     「OK」だけでは、そのまま売れるのか作り直しが要るのかが倉庫さんに伝わらないため。 */
+  { code:'relabel', name:'貼り替えれば通常販売可能のレベル', seal:'青', hex:'#2563eb', bg:'#eaf1fc', tx:'#0c447c', desc:'ラベルを貼り替えれば、通常の商品として販売できます（通常品在庫としてカウント）' },
   { code:'lv1',     name:'レベル1・軽い',       seal:'緑', hex:'#16a34a', bg:'#eef7ea', tx:'#166534', desc:'小さな難あり。通常発送および卸で、ご理解いただければそのまま出荷できる' },
   { code:'lv2',     name:'レベル2・中くらい',   seal:'黄', hex:'#eab308', bg:'#fdf6e3', tx:'#854d0e', desc:'へこみ・キャップやラベルのやや目立つ不良。ご理解いただいた上での卸し、または値引き・特価対象' },
   { code:'lv3',     name:'レベル3・重い',       seal:'赤', hex:'#dc2626', bg:'#fceaea', tx:'#991b1b', desc:'オイル漏れ・瓶のヒビ。発送は難しいがカップオイル加工に使える' },
@@ -1654,14 +1662,42 @@ async function renderDefectForm(){
   let html = '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>';
   html += '<div class="card">';
   html += '<div class="sec-title" style="margin-top:0">🔴 不良品の報告</div>';
-  html += '<div style="background:#f5f8ef;border:2px solid #6b7a3a;border-radius:10px;padding:12px 14px;margin-bottom:12px"><div style="font-size:15px;font-weight:900;color:#33421f;line-height:1.5">📮 不良品のご報告は、この画面からのみお願いします。</div><div style="font-size:13px;color:#2b2a26;line-height:1.8;margin-top:7px"><b>実在庫と管理表がずれてしまうのを避けるため</b>です。<br>LINE・お電話でのご連絡ですと、事務所で手入力することになり、記録が残らないため数が合わなくなってしまいます。<br><b>お手数をおかけしますが、ご協力よろしくお願いします。</b></div></div>';
-  html += '<div style="font-size:13px;color:#2b2a26;line-height:1.6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 11px;margin-bottom:12px">報告すると、事務所（中村さん）に届きます。在庫の数字への反映は、中村さんが内容を確認したあとです。報告した直後に数字が変わっていなくても大丈夫です。</div>';
+  /* ══════════════════════════════════════════════════════════════════
+     ★★★ この案内文は 2026-08-17 にひろみさんが決めた文言です。変えないでください。★★★
+
+     ひろみさんの言葉（2026-08-17）：
+     「『この画面からのみお願いします』となると LINE で言ったらいけないのかなと思わせてしまうので、
+       もう少し柔らかく書きましょう。」
+     「報告すると事務所に届きますっていうところも一つの枠の中に入れちゃってください。
+       中村さんが内容を確認した後とかその辺は要らないです。事務所でいいです。」
+     「前にもここのことをあなたにお願いして、LINE電話での連絡だと事務所が手入力することになるとか、
+       なんか圧があるからやめてって言って直してもらったけどまた戻っているので、
+       今度直したら戻らないようにしてください。」
+
+     ★戻してはいけない古い文（二度と書かないこと）：
+       「不良品のご報告は、この画面からのみお願いします。」
+       「LINE・お電話でのご連絡ですと、事務所で手入力することになり、記録が残らないため
+         数が合わなくなってしまいます。」
+       「お手数をおかけしますが、ご協力よろしくお願いします。」
+       「事務所（中村さん）に届きます」「中村さんが内容を確認したあとです」
+     ★理由：倉庫さんに「LINEで言ってはいけない」と思わせる／圧に感じる書き方だから。
+       個人名（中村さん）も出さない。「事務所」でよい。
+     ★枠は1つにまとめる（前は緑の枠＋青い枠の2つに分かれていた）。
+     ══════════════════════════════════════════════════════════════════ */
+  html += '<div style="background:#f5f8ef;border:2px solid #6b7a3a;border-radius:10px;padding:13px 15px;margin-bottom:12px">'
+        + '<div style="font-size:15px;font-weight:900;color:#33421f;line-height:1.5">📮 不良品のご報告はこの画面からお願いします。</div>'
+        + '<div style="font-size:13.5px;color:#2b2a26;line-height:1.9;margin-top:8px">'
+        + '在庫と管理表がずれるのを避けるため、ボトルにシールを貼りながら倉庫内の管理をお願いします。<br>'
+        + '報告すると事務所に届きます。'
+        + '</div></div>';
   html += '<div class="form-group"><label>商品</label><select id="df-product" onchange="renderDefectLotPick()">'+productOptionsHtml()+'</select></div>';
   html += '<div class="form-group" id="df-lot-wrap"><label>どちらのロットですか？<span style="color:#dc2626">（えらんでください）</span></label>';
   html += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">瓶のラベルの<b>賞味期限</b>を見てえらんでください。</div>';
   html += '<div id="df-lot"></div></div>';
-  html += '<div class="form-group"><label>どのくらいの状態？<span style="color:#dc2626">（えらんでください）</span></label>';
-  html += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">えらぶと、貼るシールの色が出ます。迷ったら近いほうでOK。</div>';
+  /* ★2026-08-17 ひろみさん指示：「えらぶと、貼るシールの色が出ます」の一文を消しました。
+     もう画面にシールの色が出ているので、言わなくても分かる（読ませる文字を減らす）。
+     ★この一文を戻さないでください。見出しは「状態をえらんでください」だけでよい。 */
+  html += '<div class="form-group"><label>状態をえらんでください</label>';
   html += '<div id="df-levels" style="display:flex;flex-direction:column;gap:8px">';
   DEFECT_LEVELS.forEach(function(l){
     html += '<label class="df-lv" style="display:block;border:2px solid '+l.hex+';background:'+l.bg+';border-radius:9px;padding:10px 11px;cursor:pointer">'
@@ -1674,12 +1710,15 @@ async function renderDefectForm(){
   html += '</div></div>';
   html += '<div id="df-srcwrap"></div>';
   html += '<div class="form-group"><label>本数（同じ状態なら、まとめて何本でもOK）</label><input type="number" id="df-qty" min="1" value="1" onchange="updateDefectSubmit()" oninput="updateDefectSubmit()"><div style="font-size:12px;color:#57534e;margin-top:4px">同じ商品が3本なら「3」と入力でOK（1本ずつ登録しなくて大丈夫）</div></div>';
-  html += '<div class="form-group"><label>メモ（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた、オイル漏れ など"></textarea></div>';
-  html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()" disabled>状態をえらぶと報告できます</button>';
+  /* ★2026-08-17 ひろみさん指示：「メモ」ではなく「本部へ伝達事項」。
+     倉庫さんが書いた内容は本部に届くものなので、そう分かる名前にする。★戻さないでください。 */
+  html += '<div class="form-group"><label>本部へ伝達事項（任意）</label><textarea id="df-note" placeholder="例：段ボールの底が濡れていた、オイル漏れ など"></textarea></div>';
+  html += '<button class="btn-big btn-blue" id="df-submit-btn" onclick="submitDefect()" disabled>▲ 状態をえらんでください</button>';
   html += '</div>';
   // これまでに倉庫から報告した不良品（状態のなおしをここから出せる）
   html += '<div class="card" id="df-history-card"><div class="sec-title" style="margin-top:0">📋 これまでに報告した不良品</div>'
-    + '<div style="font-size:13px;color:#57534e;line-height:1.6;margin-bottom:10px">「やっぱり状態がちがった」ときは、ここで<b>なおして報告</b>できます。在庫の数字は中村さんがそろえます。</div>'
+    /* ★2026-08-17 ひろみさん指示：個人名（中村さん）は出さない。「事務所」でよい。★戻さないでください。 */
+    + '<div style="font-size:13px;color:#57534e;line-height:1.6;margin-bottom:10px">「やっぱり状態がちがった」ときは、ここで<b>なおして報告</b>できます。在庫の数字は事務所でそろえます。</div>'
     + '<div id="df-history"><div class="spinner" style="font-size:13px">読み込み中...</div></div></div>';
   document.getElementById('content').innerHTML = html;
   renderDefectLotPick();
@@ -1790,9 +1829,11 @@ function openDefectFix(id){
       + '<span style="font-size:14px;font-weight:700;color:'+l.tx+'">'+esc(l.name)+'（'+esc(l.seal)+'シール）</span></label>';
   });
   html += '</div>'
-    + '<textarea id="df-fix-note-'+esc(d.id)+'" placeholder="なおす理由メモ（任意）例：よく見たらヒビがあった" style="margin-top:9px"></textarea>'
+    /* ★2026-08-17 ひろみさん指示：「メモ」ではなく「本部へ伝達事項」。★戻さないでください。 */
+    + '<textarea id="df-fix-note-'+esc(d.id)+'" placeholder="本部へ伝達事項（任意）例：よく見たらヒビがあった" style="margin-top:9px"></textarea>'
     + '<button class="btn-big btn-blue" style="margin-top:9px" onclick="submitDefectFix(\''+esc(d.id)+'\')">この状態で本部に報告する</button>'
-    + '<div style="font-size:11px;color:#9a958c;margin-top:7px">※ 在庫の数字は本部（中村さん）が直します。本数を変えたいときは事務所へ連絡を。</div>'
+    /* ★2026-08-17 ひろみさん指示：個人名（中村さん）は出さない。「事務所」でよい。★戻さないでください。 */
+    + '<div style="font-size:11px;color:#9a958c;margin-top:7px">※ 在庫の数字は事務所でそろえます。本数を変えたいときは事務所へご連絡ください。</div>'
     + '</div>';
   wrap.innerHTML = html;
 }
@@ -1875,11 +1916,13 @@ function updateDefectSubmit(){
   const qtyEl = document.getElementById('df-qty');
   const qty = qtyEl ? (parseInt(qtyEl.value)||0) : 0;
   if(btn){
-    if(needLot && !lotSel){ btn.disabled = true; btn.textContent = 'ロットをえらぶと報告できます'; }
-    else if(!sel){ btn.disabled = true; btn.textContent = '状態をえらぶと報告できます'; }
-    else if(needSrc && !srcSel){ btn.disabled = true; btn.textContent = 'どこから出したかをえらんでください'; }
-    else if(qty<=0){ btn.disabled = true; btn.textContent = '本数を入れてください'; }
-    else { btn.disabled = false; btn.textContent = 'この内容で報告する'; }
+    /* ★2026-08-17 ひろみさん指示：ボタンの文字は「◯◯をえらぶと報告できます」ではなく
+       「ボタンを押して報告する」。まだ足りないときは、足りないものだけを短く出す。★戻さないでください。 */
+    if(needLot && !lotSel){ btn.disabled = true; btn.textContent = '▲ ロットをえらんでください'; }
+    else if(!sel){ btn.disabled = true; btn.textContent = '▲ 状態をえらんでください'; }
+    else if(needSrc && !srcSel){ btn.disabled = true; btn.textContent = '▲ どこから出したかをえらんでください'; }
+    else if(qty<=0){ btn.disabled = true; btn.textContent = '▲ 本数を入れてください'; }
+    else { btn.disabled = false; btn.textContent = 'ボタンを押して報告する'; }
   }
   document.querySelectorAll('#df-levels .df-lv').forEach(function(el){
     const r = el.querySelector('input[name="df-level"]');
@@ -1926,16 +1969,21 @@ async function submitDefect(){
     status: 'pending', shippedQty: 0, processedAt: '', reportedAt: new Date().toISOString(), source: 'warehouse'
   };
 
+  /* ★2026-08-17 ひろみさん指示：
+     「報告が終わると『報告ありがとうございました』とお礼のメッセージを出して、
+       出荷依頼書一覧に戻るボタンだけ出して。」
+     ★「続けて報告する」ボタンは出しません。
+     ★「LINEでの重ねてのご連絡は不要です」は書きません（圧に感じさせるため）。
+     ★戻さないでください。 */
   function showDone(){
     try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
     document.getElementById('content').innerHTML =
-      '<div class="done-banner">✅ 不良品を報告しました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
-      '<div style="background:#f5f8ef;border:1px solid #cdd7b8;border-radius:8px;padding:10px 12px;font-size:13px;color:#2b2a26;line-height:1.75;margin-bottom:10px">ご報告ありがとうございます。事務所に届きました。<br><b>LINEでの重ねてのご連絡は不要です。</b>いつもご協力ありがとうございます。</div>'+
-      '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html?mode=defect\'">続けて報告する</button>'+
+      '<div class="done-banner">報告ありがとうございました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
+      '<div style="background:#f5f8ef;border:1px solid #cdd7b8;border-radius:8px;padding:11px 13px;font-size:13.5px;color:#2b2a26;line-height:1.85;margin-bottom:12px">事務所に届きました。いつもありがとうございます。</div>'+
       '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
   }
   function showFail(msg){
-    btn.disabled = false; btn.textContent = 'この内容で報告する';
+    btn.disabled = false; btn.textContent = 'ボタンを押して報告する';
     alert('送信に失敗しました：'+(msg||''));
   }
 
