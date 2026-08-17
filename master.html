@@ -449,7 +449,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-18-02">
+<meta name="oos-version" content="2026-08-18-04">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -617,7 +617,30 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   </div>
 
   <div id="inv-old-sec" style="display:none">
-  <div class="lotsec old">旧ロット <small>旧ロットが残っている商品だけ出ます（0本になれば自動で消えます）</small></div>
+  <div class="lotsec old">旧ロット <small>旧ロットのある商品が出ます</small></div>
+  <!-- ★2026-08-18 ひろみさん指示：「旧ロットはどうやったら旧ロットを追加できるの？
+       他にも旧ロットのオイルがある。商品追加ができない。追加したものが消えないようにして」
+       それまでは「旧ロットが残っている商品だけ」出す作りだったため、0本の商品は行が出ず、
+       打ち込む欄がありませんでした（＝旧ロットを新しく作れなかった）。
+       「旧ロットにする」ボタンは隠したロット管理タブの中にあり、そこからも行けませんでした。
+       → ここで商品をえらんで追加できるようにしました。
+       ★追加すると旧ロットの入れ物（0本・賞味期限つき）を作って保存するので、
+         画面を開き直しても消えません。この欄を消さないでください。 -->
+  <div style="background:#fdf6ee;border:1.5px solid #e0b45f;border-radius:9px;padding:10px 12px;margin:0 0 10px">
+    <div style="font-size:12.5px;font-weight:800;color:#8a5a12;margin-bottom:6px">＋ 旧ロットの商品を追加する</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="old-add-pid" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #d5cfc3;border-radius:7px;font-size:13px"></select>
+      <input type="text" id="old-add-exp" placeholder="賞味期限（例 2026.12）" style="width:180px;padding:8px 10px;border:1px solid #d5cfc3;border-radius:7px;font-size:13px">
+      <button type="button" onclick="addOldLotRow()" style="background:#b9741a;color:#fff;border:none;border-radius:8px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer">この商品の旧ロットを追加</button>
+    </div>
+    <div style="font-size:11.5px;color:#8a7a5a;margin-top:6px;line-height:1.6">
+      追加すると下の表に0本の行が出ます。<b>「在庫をさわる（編集）：ON」にして、棚の良品に本数を打ち込んでください。</b><br>
+      賞味期限は空でもかまいません（あとで 📒 名簿（商品登録）から直せます）。
+    </div>
+  </div>
+  <div id="inv-old-empty" style="display:none;font-size:13px;color:#8a7a5a;background:#fbf7f0;border:1px dashed #ddc9a0;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+    いま旧ロットのある商品はありません。上の「＋ 旧ロットの商品を追加する」から追加できます。
+  </div>
   <div class="tbl-wrap" id="inv-old-scroll">
     <table id="inv-old-tbl">
       <colgroup><col style="width:14%"><col style="width:6%"><col style="width:8%"><col style="width:9%"><col style="width:8%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:5%"><col style="width:5%"><col style="width:12%"></colgroup>
@@ -2135,6 +2158,68 @@ function memoCell(p){
   if(!invEditMode) return '<div class="iv-memo-ro">'+(v ? esc2(v) : '<span style="color:#b9b3a8">—</span>')+'</div>';
   return '<textarea class="iv-memo" placeholder="自由に書けます" onchange="saveInvMemo('+p.id+',this.value)">'+esc2(v)+'</textarea>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 旧ロットの商品を追加できるようにする（ひろみさん指示）
+   ひろみさんの言葉：「旧ロットはどうやったら旧ロットを追加できるの？ 他にも旧ロットのオイルが
+   ある。商品追加ができない。追加したものが消えないようにして。」
+
+   それまでの問題：旧ロットの表は「本数が残っている商品」しか出さないため、
+   0本の商品には打ち込む欄がなく、旧ロットを新しく作れませんでした。
+   （「旧ロットにする」ボタンは隠したロット管理タブの中にしか無かった）
+
+   ★追加＝旧ロットの入れ物（status:'old'・0本・賞味期限）を作って保存する。
+     入れ物が残るので、画面を開き直しても行は消えません。
+   ★GASの変更は不要です（在庫データのシートは status で現/旧を持っているため）。
+   ══════════════════════════════════════════════════════════════════════ */
+var oldForcedPids = {};
+function hasOldLotRecord(pid){
+  return (lots||[]).some(function(l){
+    return l && l.pid == pid && (l.status==='old' || l.status==='hold_old' || l.status==='discard_old');
+  });
+}
+function refreshOldAddSelect(){
+  var sel = document.getElementById('old-add-pid');
+  if(!sel) return;
+  var keep = sel.value;
+  var opts = (PRODUCTS||[]).filter(function(p){ return p && !p.isSet; })
+    .filter(function(p){ return !(hasOldLotRecord(p.id) || oldForcedPids[p.id]); })
+    .map(function(p){ return '<option value="'+p.id+'">'+escHtml(p.name)+'（'+escHtml(p.sku||'')+'）</option>'; });
+  sel.innerHTML = opts.length
+    ? '<option value="">商品をえらんでください…</option>' + opts.join('')
+    : '<option value="">追加できる商品はありません（すべて旧ロットの行があります）</option>';
+  if(keep) sel.value = keep;
+}
+function addOldLotRow(){
+  var sel = document.getElementById('old-add-pid');
+  var pid = sel ? sel.value : '';
+  if(!pid){ alert('先に商品をえらんでください。'); return; }
+  var p = findProduct(pid);
+  if(!p){ alert('その商品が見つかりませんでした。'); return; }
+  var exp = (document.getElementById('old-add-exp')||{}).value || '';
+  exp = String(exp).trim();
+  if(hasOldLotRecord(p.id)){
+    oldForcedPids[p.id] = true;
+    renderInvTable(); refreshOldAddSelect();
+    alert(p.name+' の旧ロットの行は、すでに下の表にあります。');
+    return;
+  }
+  if(!confirm(p.name+' の旧ロットを追加します。\n\n'
+    + (exp ? ('賞味期限：'+exp+'\n') : '賞味期限：（あとで入れる）\n')
+    + '\n0本の行が下の表に出ます。「在庫をさわる（編集）：ON」にして本数を打ち込んでください。\n\nよろしいですか？')) return;
+  // 旧ロットの入れ物を作る（0本。ここに打ち込めば増える）
+  lots.push({ id: nextId(), pid: parseInt(p.id), lotCode:'-', expiry: exp, stock: 0, status:'old',
+              note:'旧ロットとして追加（'+new Date().toLocaleDateString('ja-JP')+'）' });
+  oldForcedPids[p.id] = true;
+  if(typeof addLog==='function') addLog('旧ロット追加', p.name+(exp?('　賞味期限 '+exp):''));
+  renderInvTable(); refreshOldAddSelect();
+  if(typeof renderLotList==='function') renderLotList();
+  if(typeof renderInvLogs==='function') renderInvLogs();
+  scheduleAutoSave();
+  var exEl = document.getElementById('old-add-exp'); if(exEl) exEl.value = '';
+  showSyncStatus('✅ '+p.name+' の旧ロットを追加しました（0本）。編集ONにして本数を入れてください');
+}
+function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function renderInvTable(){
   if(invLoading){
     const _tb = document.getElementById('inv-tbl-body');
@@ -2180,7 +2265,12 @@ function renderInvTable(){
       // ── 2026-08-17：現ロットと旧ロットは別々の表に出す。合計行は出さない ──
       // ★2026-08-17：旧ロットの表には「旧ロットが残っている商品」だけを出す（承認済みモック）。
       //   以前は編集中に全商品の旧ロット行を出していたが、別表にしたので全部並ぶと見にくくなるためやめた。
-      var showOld = n.hasOld;
+      /* ★2026-08-18 ひろみさん指示：旧ロットを新しく追加できるようにした。
+         ①本数が残っている（hasOld）　②旧ロットの入れ物がある（0本でも・追加した証拠）
+         ③この画面で今追加した　のどれかで出す。
+         ②があるので、画面を開き直しても追加した商品は消えません。
+         ★hasOld だけに戻さないでください（戻すと追加できなくなります）。 */
+      var showOld = n.hasOld || hasOldLotRecord(p.id) || !!oldForcedPids[p.id];
       function lotRow(kind, side, isOld){
         // 「棚の良品」＝打ち込む欄。「販売可能数」＝棚の良品−受注Aの取り置き（自動）。
         var shelfCell = canEdit
@@ -2224,7 +2314,14 @@ function renderInvTable(){
   document.getElementById('inv-tbl-body').innerHTML = rows || '<tr><td colspan="14" style="color:#2b2a26;text-align:center;padding:20px">該当する商品がありません</td></tr>';
   var _ob = document.getElementById('inv-old-body'), _os = document.getElementById('inv-old-sec');
   if(_ob) _ob.innerHTML = oldRows;
-  if(_os) _os.style.display = oldRows ? '' : 'none';
+  /* ★2026-08-18 ひろみさん指示：旧ロットが1件も無いときも「＋ 旧ロットの商品を追加する」を
+     出さないと、いつまでも追加できません。だから枠はいつも出し、表だけ隠します。
+     ★display:none に戻さないでください（戻すと追加できなくなります）。 */
+  if(_os) _os.style.display = '';
+  var _ow = document.getElementById('inv-old-scroll');
+  if(_ow) _ow.style.display = oldRows ? '' : 'none';
+  var _oe = document.getElementById('inv-old-empty');
+  if(_oe) _oe.style.display = oldRows ? 'none' : '';
   var _iab = document.getElementById('imp-all-btn');
   if(_iab){
     _iab.disabled = (totalIncoming <= 0);
@@ -2239,6 +2336,8 @@ function renderInvTable(){
   document.getElementById('s-avail').textContent = totalAvail;
   document.getElementById('s-old').textContent = totalOld;
   var ro=document.getElementById('old-remain'); if(ro) ro.textContent = '残り '+totalOld+'本';
+  /* ★2026-08-18 旧ロット追加のえらび欄を、いまの状態にあわせて作り直す */
+  try{ refreshOldAddSelect(); }catch(e){}
   var rd=document.getElementById('defect-remain'); if(rd) rd.textContent = '残り '+totalDefect+'本';
   document.getElementById('s-defect').textContent = totalDefect;
   document.getElementById('s-hold-inv').textContent = totalHold;
