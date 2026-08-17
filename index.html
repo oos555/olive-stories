@@ -67,6 +67,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .ack-go{background:#7b2fa0;color:#fff;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:800;width:100%;margin-top:11px;cursor:pointer}
 .ack-go:disabled{background:#c9c9c9;cursor:not-allowed}
 .ack-can{background:#fff;border:1px solid #d5cfc3;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;width:100%;margin-top:7px;cursor:pointer}
+/* ★2026-08-17 バサラ案件の簡易編集 */
+.bedit-note{font-size:12px;font-weight:700;color:#7b2fa0;background:#f8f2fc;border:1.5px solid #d9bce8;border-radius:8px;padding:6px 10px;margin-top:8px;line-height:1.6}
+.bedit-num{font-size:13.5px;font-weight:800;background:#faf9f5;border:1.5px solid #d5cfc3;border-radius:8px;padding:9px 12px;margin-bottom:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bedit-dup{color:#b91c1c;font-weight:900;font-size:12.5px}
+.bedit-renum{background:#fff;border:2px solid #b45309;color:#b45309;border-radius:7px;padding:5px 11px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.bedit-g{display:flex;flex-wrap:wrap;gap:10px}
+.bedit-g label{flex:1 1 200px;font-size:12.5px;font-weight:800;color:#6b6459;display:flex;flex-direction:column;gap:4px}
+.bedit-g label.w2{flex:1 1 100%}
+.bedit-g input,.bedit-g select{font-family:inherit;font-size:15px;font-weight:700;color:#2b2a26;border:2px solid #d5cfc3;border-radius:8px;padding:9px 10px;background:#fff}
+.bedit-g input:focus,.bedit-g select:focus{border-color:#7b2fa0;outline:none}
+.bedit-warn{background:#fff8ea;border:1.5px solid #ecc964;border-radius:9px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#7a5410;margin-top:12px;line-height:1.75}
+.bedit-ro{background:#f6f5f1;border:1.5px solid #e5e0d6;border-radius:9px;padding:10px 12px;font-size:12px;color:#6b6459;margin-top:9px;line-height:1.7;word-break:break-all}
 .tab{flex:1;padding:8px 4px;font-size:12px;color:#2b2a26;background:transparent;border:none;cursor:pointer;border-right:1px solid #e8e2d8;text-align:center;min-width:70px}
 .tab:last-child{border-right:none}
 .tab.active{background:#fff;color:#2b2a26;font-weight:700;border-bottom:2px solid #55622e}
@@ -1302,6 +1314,28 @@ body{background:#fff}
     </div>
   </div>
   <div id="order-list"></div>
+</div>
+
+<!-- ★2026-08-17 バサラ案件の簡易編集パネル（この場で直す） -->
+<div class="ack-pan" id="bedit-pan">
+  <div class="ack-in">
+    <div class="ack-h">✏️ この場で編集（バサラ案件）</div>
+    <div class="ack-s">バサラの顧客は<b>OOSの顧客ではないため登録しません</b>。ここで直します。<br>
+      <b>受注は差し戻されません。この注文のまま内容が書き換わります。</b></div>
+    <div class="bedit-num" id="bedit-num"></div>
+    <div class="bedit-g">
+      <label>お名前（宛名）<input type="text" id="bedit-name" placeholder="例）岸田 ゆか 様"></label>
+      <label>郵便番号<input type="text" id="bedit-zip" placeholder="例）472-0026"></label>
+      <label class="w2">住所<input type="text" id="bedit-addr"></label>
+      <label>電話番号<input type="text" id="bedit-tel"></label>
+      <label>本数<input type="number" id="bedit-bottles" min="0"></label>
+      <label class="w2">商品<select id="bedit-product"></select></label>
+    </div>
+    <div class="bedit-warn" id="bedit-warn"></div>
+    <div class="bedit-ro" id="bedit-ro"></div>
+    <button class="ack-go" id="bedit-go" onclick="saveBasaraEdit()">✔ この内容で直す</button>
+    <button class="ack-can" onclick="closeBasaraEdit()">やめる</button>
+  </div>
 </div>
 
 <!-- ★2026-08-17 お礼返信を編集して送るパネル -->
@@ -5133,11 +5167,20 @@ function renderOrderCard(o, sentGroup){
         (o.status==='pending' && locked && !appPre ? '<button class="btn-sm" style="background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')+
         (o.status==='pending' && !locked ? '<button class="btn-sm" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')+
         (o.status==='pending' ? '<button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')+
-        (o.status==='pending' && !o.notified ? '<button class="btn-sm" style="background:#b45309;color:#fff;border-color:#b45309;font-weight:700" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')+
+        /* ★2026-08-17 ひろみさん指示：バサラ案件は「差し戻す」を使えない。
+           差し戻すと元の受注がキャンセル扱いになり、受注登録から入れ直しになる。
+           バサラのお客様はOOSのお客様ではないので、こちらで顧客登録できない
+           （他社のお客様に案内メールを出せないため）。だからこの画面で直す。 */
+        (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="btn-sm" style="background:#b45309;color:#fff;border-color:#b45309;font-weight:700" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')+
+        (o.status==='pending' && !o.notified && isBasaraOrder(o) ? '<button class="btn-sm" style="background:#7b2fa0;color:#fff;border-color:#7b2fa0;font-weight:700" onclick="openBasaraEdit(\''+o.id+'\')">✏️ この場で編集</button>' : '')+
         (!locked ? '<button class="btn-sm" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')+
         /* ★2026-08-17 ひろみさん指示：どの発注にも「消す」を付ける（取込ミス・二重取込・注文変更のとき） */
         '<button class="btn-sm" style="background:#fff;border-color:#b91c1c;color:#b91c1c;font-weight:800" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注から消す</button>'+
       '</div>'+
+      /* ★2026-08-17 バサラ案件に、差し戻しが無い理由をその場に書いておく */
+      (o.status==='pending' && !o.notified && isBasaraOrder(o)
+        ? '<div class="bedit-note no-print">✏️ <b>この場で編集</b>：バサラの顧客は、OOS顧客ではないため登録しないので、この画面で簡易編集します（差し戻しは使いません）</div>'
+        : '')+
     '</div>';
 }
 
@@ -5634,6 +5677,85 @@ async function notifyWarehouseOne(id){
     renderList(); updateSummary(); syncOrdersToGAS([o]);
     showSyncStatus('✅ 倉庫へ送りました（送り先：OOS出荷依頼グループ）：'+o.num);
   }catch(e){ alert('通信できませんでした：'+e.message+'\n\n※倉庫には届いていません。'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ★2026-08-17 バサラ案件の「この場で編集」（ひろみさん指示）
+//
+//   なぜ差し戻しを使わないか：
+//   差し戻すと元の受注がキャンセル扱いになり、受注登録から入れ直しになる。
+//   バサラのお客様は OOS のお客様ではないので、こちらで顧客登録できない
+//   （他社のお客様に案内メールを出せないため）。だからこの画面で直す。
+//
+//   2026-08-17、バサラの取込で「お名前の欄に住所が入る」読み取りミスが初めて起きた。
+//   受注は差し戻さず、この注文のまま中身を書き換える。
+// ══════════════════════════════════════════════════════════════════════
+function openBasaraEdit(id){
+  var o = orders.find(function(x){ return x.id===id; }); if(!o) return;
+  if(o.notified){ alert('この注文はすでに倉庫へ送っているため、この場では直せません。\n倉庫に連絡してからにしてください。'); return; }
+  var pan = document.getElementById('bedit-pan');
+  pan.dataset.oid = id;
+  var l = (o.lines && o.lines[0]) || {};
+  document.getElementById('bedit-name').value    = o.recipientName || o.personName || '';
+  document.getElementById('bedit-zip').value     = o.zip  || '';
+  document.getElementById('bedit-addr').value    = o.addr || '';
+  document.getElementById('bedit-tel').value     = o.tel  || '';
+  document.getElementById('bedit-bottles').value = l.bottles || 0;
+  // 商品のえらび（いまの商品が選ばれた状態にする）
+  var sel = document.getElementById('bedit-product');
+  sel.innerHTML = (PRODUCTS||[]).filter(function(p){ return !p.isSet; })
+    .map(function(p){ return '<option value="'+p.id+'"'+(String(p.id)===String(l.productId)?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+  // 管理番号（同じ番号が他にもあれば知らせる）
+  var same = orders.filter(function(x){ return x.num===o.num && x.status!=='deleted'; }).length;
+  document.getElementById('bedit-num').innerHTML =
+    '管理番号：<b>'+esc(o.num||'')+'</b>'
+    + (same > 1
+        ? ' <span class="bedit-dup">⚠ 同じ番号が'+same+'件あります</span>'
+          + '<button type="button" class="bedit-renum" onclick="renumberOrder(\''+o.id+'\')">番号を付け直す</button>'
+        : '');
+  document.getElementById('bedit-warn').innerHTML =
+    '⚠ <b>ここで直せるのは、お届け先と商品・本数だけ</b>です。<br>'
+    + '発注番号・発注日・二重取込の目印（#B…）は、バサラのメールから取り込んだ記録なので変えません。';
+  document.getElementById('bedit-ro').innerHTML =
+    '<b>バサラからの取込メモ（変えません）</b><br>' + esc(o.note||'（なし）');
+  pan.classList.add('show');
+}
+function closeBasaraEdit(){ document.getElementById('bedit-pan').classList.remove('show'); }
+function saveBasaraEdit(){
+  var id = document.getElementById('bedit-pan').dataset.oid;
+  var o = orders.find(function(x){ return x.id===id; }); if(!o) return;
+  var name = document.getElementById('bedit-name').value.trim();
+  if(!name){ alert('お名前（宛名）を入れてください'); return; }
+  var bottles = parseInt(document.getElementById('bedit-bottles').value, 10);
+  if(isNaN(bottles) || bottles < 0){ alert('本数を正しく入れてください'); return; }
+  var pid = document.getElementById('bedit-product').value;
+  var p = (PRODUCTS||[]).filter(function(x){ return String(x.id)===String(pid); })[0];
+  if(!p){ alert('商品を選んでください'); return; }
+  if(!confirm('この内容で直します。よろしいですか？\n\nお名前：'+name+'\n商品：'+p.name+' × '+bottles+'本')) return;
+
+  o.recipientName = name; o.personName = name;
+  o.zip  = document.getElementById('bedit-zip').value.trim();
+  o.addr = document.getElementById('bedit-addr').value.trim();
+  o.tel  = document.getElementById('bedit-tel').value.trim();
+  o.lines = [{ productId: p.id, productName: p.name, boxQty: p.boxQty||1,
+               giftType: (o.lines&&o.lines[0]&&o.lines[0].giftType)||'normal',
+               bottles: bottles, boxes: 0, memo: (o.lines&&o.lines[0]&&o.lines[0].memo)||'' }];
+  closeBasaraEdit();
+  updateSummary(); renderList(); syncOrdersToGAS([o]);
+  showSyncStatus('✏️ 直しました：'+o.num+'　'+name);
+}
+// 管理番号を付け直す（同じ番号の注文が2件できてしまったときに使う）
+function renumberOrder(id){
+  var o = orders.find(function(x){ return x.id===id; }); if(!o) return;
+  if(o.notified){ alert('すでに倉庫へ送っているため、番号は変えられません。'); return; }
+  var old = o.num;
+  var neo = nextOrderNum(0, o.customerType||'basara');
+  if(!confirm('管理番号を付け直します。\n\n'+old+'　→　'+neo+'\n\n'
+    +'※ 出荷依頼書・請求はこの新しい番号になります。\n※ すでに紙に印刷した分があれば、番号が変わることにご注意ください。\n\nよろしいですか？')) return;
+  o.num = neo;
+  updateSummary(); renderList(); syncOrdersToGAS([o]);
+  showSyncStatus('🔢 管理番号を付け直しました：'+old+' → '+neo);
+  closeBasaraEdit();
 }
 
 // ── 🗑 発注から消す（一覧から消える。記録はスプレッドシートに残る）────────
