@@ -411,6 +411,23 @@ input.inv-editnum{-moz-appearance:textfield;appearance:textfield}
 .imp-go{background:#12406e;color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:15px;font-weight:800;width:100%;margin-top:12px;cursor:pointer}
 .imp-go:disabled{background:#c9c9c9;cursor:not-allowed}
 .imp-can{background:#fff;border:1px solid #d5cfc3;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;width:100%;margin-top:7px;cursor:pointer}
+/* ★2026-08-17 バサラに入荷の連絡をする（人が押したときだけ送る） */
+.rst-btn{background:#1d7a2e;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;
+  cursor:pointer;margin-left:8px;box-shadow:0 2px 0 #14561f;white-space:nowrap}
+.rst-btn:disabled{background:#d5d1c8;color:#8a8578;box-shadow:none;cursor:not-allowed}
+.rst-pan{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:140}
+.rst-pan.show{display:flex}
+.rst-in{background:#fff;border-radius:14px;padding:18px 20px;max-width:700px;width:100%;max-height:86vh;overflow:auto}
+.rst-h{font-size:18px;font-weight:800;color:#14561f;margin-bottom:6px}
+.rst-s{font-size:13px;color:#6b6459;margin-bottom:10px;line-height:1.7}
+.rst-row{display:flex;gap:10px;align-items:flex-start;border:1.5px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:8px;background:#faf9f5}
+.rst-row input{width:19px;height:19px;margin-top:3px;flex:0 0 auto}
+.rst-row .nm{font-size:15px;font-weight:800}
+.rst-row .de{font-size:12px;color:#6b6459;font-weight:700;margin-top:2px}
+.rst-prev{border:1.5px solid #d5cfc3;border-radius:9px;padding:11px 13px;font-size:12.5px;line-height:1.85;background:#faf9f5;white-space:pre-wrap;margin:8px 0 10px}
+.rst-go{background:#1d7a2e;color:#fff;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:800;width:100%;cursor:pointer}
+.rst-go:disabled{background:#c9c9c9;cursor:not-allowed}
+.rst-can{background:#fff;border:1px solid #d5cfc3;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;width:100%;margin-top:7px;cursor:pointer}
 .disc-can{background:#fff;border:1px solid #d5cfc3;color:#2b2a26;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:7px}
 /* 旧ロットの行と不良の列は赤文字。旧ロットの数字は細字（現ロットを主役に） */
 tr.lotrow-new td{border-bottom:none}
@@ -566,7 +583,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
         <th colspan="3" style="text-align:center">不良 <span class="help-ic" onclick="showHelp('defect')">ⓘ</span></th>
         <th rowspan="2">取置 <span class="help-ic" onclick="showHelp('hold')">ⓘ</span></th>
         <th rowspan="2">廃棄 <span class="help-ic" onclick="showHelp('discard')">ⓘ</span></th>
-        <th colspan="3" style="text-align:center"><div class="import-warn">輸入が確定したら、<br>ロット番号と賞味期限の更新を！</div>輸入 <span class="help-ic" onclick="showHelp('incoming')">ⓘ</span><button type="button" class="impall" id="imp-all-btn" onclick="openImportAllPanel()">📦 輸入が届いた → 一気に在庫へ入れる</button></th>
+        <th colspan="3" style="text-align:center"><div class="import-warn">輸入が確定したら、<br>ロット番号と賞味期限の更新を！</div>輸入 <span class="help-ic" onclick="showHelp('incoming')">ⓘ</span><button type="button" class="impall" id="imp-all-btn" onclick="openImportAllPanel()">📦 輸入が届いた → 一気に在庫へ入れる</button><button type="button" class="rst-btn" id="rst-btn" disabled onclick="openRestockPanel()">📧 バサラに入荷の連絡をする</button></th>
         <th rowspan="2">備考<br><span style="font-weight:400;font-size:10px">（自由に書ける）</span></th>
       </tr>
       <tr>
@@ -1057,6 +1074,31 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   </div>
 </div>
 
+<!-- ★2026-08-17 バサラに入荷の連絡をする（人が押したときだけ送る） -->
+<div class="rst-pan" id="rst-pan">
+  <div class="rst-in">
+    <div class="rst-h">📧 バサラに入荷の連絡をする</div>
+    <div class="rst-s">下の商品について、原様へ<b>「入荷しました」</b>のメールを送ります。<br>
+      チェックを外せば、その商品は送りません。<b>押すまで、原様には何も届きません。</b></div>
+    <div id="rst-list"></div>
+    <div class="rst-prev">宛先：hara@basarastar.com（控え：office@oliveoilstories.net）
+件名：【欠品分入荷のお知らせ】（株）オリーブオイル・ストーリーズより
+
+原様、
+いつもありがとうございます！
+
+欠品しておりました◯◯が入荷いたしました。
+本日より販売可能です。
+
+欠品中はご迷惑をおかけいたしましたが、
+引き続きどうぞよろしくお願いいたします。
+
+（株）オリーブオイル・ストーリーズ</div>
+    <button class="rst-go" id="rst-go" onclick="doRestockSend()">✉️ この内容で送る</button>
+    <button class="rst-can" onclick="closeRestockPanel()">やめる</button>
+  </div>
+</div>
+
 <!-- ★2026-08-17 画面の下にはりつく横スクロールバー -->
 <div class="inv-sticky" id="inv-sticky">
   <div class="lbl">← 表を左右に動かす</div>
@@ -1460,6 +1502,7 @@ function loadAllDataFromGAS(){
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     { var _lab = document.getElementById('lot-add-btn'); if(_lab){ _lab.disabled = false; _lab.style.opacity = '1'; _lab.textContent = '登録する'; } } /* ★2026-07-24 */
     renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderNewProductAlert();
+    try{ refreshRestockBtn(); }catch(e){}   // ★2026-08-17 入荷の連絡ボタンの出し分け
     renderHoldList(); renderPreList(); renderReportList(); renderInvLogs();
     /* ★2026-07-24 中村様のご指示で停止。
        ここで「棚卸しの数字に入れ替えますか？」を毎回出していた。
@@ -2361,6 +2404,8 @@ function doImportAll(){
   closeImportAllPanel();
   renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
   showImportUndoToast(done.length+'商品を在庫に入れました');
+  // ★2026-08-17 在庫に入れたので、「バサラに入荷の連絡をする」が押せるようになるか見に行く
+  try{ refreshRestockBtn(); }catch(e){}
 }
 function undoImportAll(){
   if(!lastImportAll) return;
@@ -2386,6 +2431,72 @@ function showImportUndoToast(msg){
   el.style.display = 'flex';
   clearTimeout(el._t);
   el._t = setTimeout(function(){ el.style.display='none'; lastImportAll=null; }, 12000);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ★2026-08-17 バサラに入荷の連絡をする（ひろみさん指示・人が押したときだけ送る）
+//
+//   押せるのは「欠品の連絡をした商品に、いま在庫が戻っている」ときだけ。
+//   そうでないときはグレー。だから物が入る前に「入荷しました」とは言えない。
+//   対象があるかどうかはGASに聞く（画面を開き直しても状態が消えないように）。
+// ══════════════════════════════════════════════════════════════════════
+var restockList = [];
+async function refreshRestockBtn(){
+  var b = document.getElementById('rst-btn');
+  if(!b) return;
+  if(!gasSyncEnabled){ b.disabled = true; b.textContent = '📧 バサラに入荷の連絡をする'; return; }
+  try{
+    var res = await fetch(GAS_URL + '?action=basaraRestockList');
+    var d = await res.json();
+    restockList = (d && d.status === 'ok' && d.data && d.data.list) ? d.data.list : [];
+  }catch(e){ restockList = []; }
+  b.disabled = (restockList.length === 0);
+  b.textContent = restockList.length
+    ? ('📧 バサラに入荷の連絡をする（' + restockList.length + '商品）')
+    : '📧 バサラに入荷の連絡をする（対象なし）';
+  b.title = restockList.length
+    ? '欠品の連絡をした商品に在庫が戻っています。押すと確認パネルが出ます。'
+    : '欠品の連絡をした商品に、まだ在庫が戻っていません。「📦 一気に在庫へ入れる」で物を入れると押せるようになります。';
+}
+function openRestockPanel(){
+  if(!restockList.length){ alert('入荷の連絡が必要な商品はありません'); return; }
+  var esc2 = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  document.getElementById('rst-list').innerHTML = restockList.map(function(x, i){
+    return '<label class="rst-row"><input type="checkbox" checked data-sku="'+esc2(x.sku)+'">'+
+      '<span class="info"><span class="nm">'+esc2(x.name)+'</span>'+
+      '<span class="de">欠品の連絡：'+esc2(x.outAt||'（記録なし）')+'　／　いまの販売可能数：<b>'+x.available+'本</b></span></span></label>';
+  }).join('');
+  var go = document.getElementById('rst-go');
+  go.disabled = false; go.textContent = '✉️ この内容で送る（'+restockList.length+'商品）';
+  document.getElementById('rst-pan').classList.add('show');
+}
+function closeRestockPanel(){ document.getElementById('rst-pan').classList.remove('show'); }
+async function doRestockSend(){
+  var skus = Array.prototype.slice.call(document.querySelectorAll('#rst-list input:checked'))
+    .map(function(cb){ return cb.getAttribute('data-sku'); });
+  if(!skus.length){ alert('送る商品にチェックを入れてください'); return; }
+  if(!confirm('原様へ「入荷しました」のメールを送ります（'+skus.length+'商品）。よろしいですか？')) return;
+  var go = document.getElementById('rst-go');
+  go.disabled = true; go.textContent = '送っています…';
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'basaraSendRestock', skus:skus, who:'統合マスタＮから' }) });
+    var d = await res.json();
+    if(d && d.status === 'ok'){
+      var sent = (d.data && d.data.sent) || [];
+      showSyncStatus('✅ 入荷の連絡を送りました：' + (sent.join('、') || '（0件）'));
+      addLog('バサラへ入荷の連絡', sent.join('、'));
+      closeRestockPanel();
+      renderInvLogs();
+      await refreshRestockBtn();
+    } else {
+      alert('送れませんでした：' + ((d && d.message) || '不明なエラー'));
+      go.disabled = false; go.textContent = '✉️ この内容で送る';
+    }
+  }catch(e){
+    alert('通信できませんでした：' + e.message);
+    go.disabled = false; go.textContent = '✉️ この内容で送る';
+  }
 }
 
 // ★2026-08-17 画面の下にはりつく横スクロールバー（表が横に長いので）
