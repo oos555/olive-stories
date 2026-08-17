@@ -119,6 +119,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .form-group label{display:block;font-size:12px;color:#2b2a26;font-weight:600;margin-bottom:5px}
 .form-group select,.form-group input,.form-group textarea{width:100%;padding:11px;border:1px solid #d5cfc3;border-radius:8px;font-size:15px;background:#fff;color:#2b2a26}
 .form-group textarea{resize:vertical;min-height:60px;font-family:inherit}
+/* ★2026-08-17 ひろみさん指示：倉庫のメモ欄が小さすぎて「見づらい・書きづらい・確認しづらい」。
+   原因：#note-global は .form-group の外にあるため上のCSSがまったく当たらず、
+   ブラウザの初期サイズ（2行ぶん・横20文字ぶん）のままだった。
+   ★この指定を消すと、また極小の窓に戻ります。消さないでください。 */
+#note-global{
+  width:100%; box-sizing:border-box;
+  padding:14px 15px;
+  border:1.5px solid #6b7a3a; border-radius:8px; background:#fff; color:#2b2a26;
+  font-family:inherit; font-size:16px; line-height:1.9;
+  min-height:190px; resize:vertical;
+}
+#note-global:focus{ outline:none; border-color:#4a5a1f; box-shadow:0 0 0 3px rgba(107,122,58,.18) }
 .material-card{display:flex;gap:12px;background:#f9f8f5;border-radius:10px;padding:12px;margin-bottom:10px;align-items:flex-start}
 .material-photo{width:72px;height:72px;border-radius:8px;object-fit:cover;background:#eee;flex-shrink:0}
 .material-photo-empty{width:72px;height:72px;border-radius:8px;background:#eee;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#bbb}
@@ -1472,24 +1484,19 @@ function renderNotesScreen(customerSearch){
   html += '<textarea id="note-global" placeholder="例：本日16時以降は出荷締切です">'+esc(globalNote)+'</textarea>';
   html += '<button class="btn-big btn-blue" style="margin-top:10px" onclick="saveGlobalNoteFromScreen()">このメモを保存</button>';
   html += '</div>';
-  html += '<div class="card">';
-  html += '<div class="sec-title" style="margin-top:0">📝 お客様ごとの注意メモ</div>';
-  html += '<div style="font-size:13px;color:#57534e;margin-bottom:8px;line-height:1.6">お客様ごとに注意することがあれば、お客様名と注意事項を書いてください。（例：置き配希望、割れ物注意）</div>';
-  html += '<input type="text" id="note-cust-search" placeholder="お客様名で検索・新規追加" value="'+esc(search)+'" oninput="renderNotesScreen(this.value)" style="width:100%;padding:11px;border:1px solid #d5cfc3;border-radius:8px;font-size:15px;margin-bottom:10px">';
-  if(search){
-    const existing = warehouseNotes.find(n=>n.type==='customer' && n.key===search);
-    html += '<div class="form-group"><label>「'+esc(search)+'」様へのメモ</label><textarea id="note-cust-text" placeholder="例：いつも玄関前に置き配希望">'+esc(existing?existing.note:'')+'</textarea></div>';
-    html += '<button class="btn-big btn-blue" onclick="saveCustomerNoteFromScreen(\''+esc(search).replace(/'/g,"\\'")+'\')">「'+esc(search)+'」様のメモを保存</button>';
-    if(existing) html += '<button class="btn-big btn-print" onclick="deleteCustomerNoteFromScreen(\''+esc(search).replace(/'/g,"\\'")+'\')">このメモを削除</button>';
-  }
-  if(customerNotesList.length){
-    html += '<div class="sec-title">登録済みの顧客メモ一覧</div>';
-    customerNotesList.forEach(function(n){
-      html += '<div class="item" style="cursor:pointer" onclick="document.getElementById(\'note-cust-search\').value=\''+esc(n.key).replace(/'/g,"\\'")+'\';renderNotesScreen(\''+esc(n.key).replace(/'/g,"\\'")+'\')">'+
-        '<div class="info"><div class="pname">'+esc(n.key)+'</div><div class="psub">'+esc(n.note)+'</div></div></div>';
-    });
-  }
-  html += '</div>';
+  /* ★2026-08-17 ひろみさん指示で「📝 お客様ごとの注意メモ」の枠を消しました。
+     ひろみさんの言葉：「この窓、消して。検索機能つけると重くなるよね？ しかも検索になってない。
+     メモだけでいいと思う」
+     ・あの入力欄は名前を1文字ずつ打つたびに画面を作り直しており、そのうえ
+       「お客様名がぴったり同じ」でないと出てこない＝検索として役に立っていなかった。
+     ・検索の窓を消すと相手を選ぶ手段が無くなるので、枠ごと外した。
+     ・★スプレッドシートの記録は消していません（type='customer' の行はそのまま残ります）。
+       消したときの実測：お客様ごとのメモは0件でした。
+     ・出荷依頼書の中に出る「お客様ごとの注意メモ」の表示（custNoteFor）はそのままにしてあるので、
+       もし過去のメモが残っていれば今までどおり出ます。
+     ★もう一度この枠を出したくなったときは、この場所に作り直してください。
+     （上の 1486 行の '</div>' が「倉庫みんなで見るメモ」の枠を閉じているので、
+       ここで閉じ直してはいけません。閉じ過ぎると画面の枠がずれます。） */
   document.getElementById('content').innerHTML = html;
 }
 async function saveGlobalNoteFromScreen(){
