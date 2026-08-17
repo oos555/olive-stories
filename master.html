@@ -449,7 +449,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-18-07">
+<meta name="oos-version" content="2026-08-18-08">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -580,6 +580,13 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   <div class="editbar">
     <button id="inv-edit-btn" class="editbtn" onclick="toggleInvEdit()"><span id="inv-edit-icon">🔒</span><span id="inv-edit-text">在庫をさわる（編集）：OFF</span></button>
     <span style="font-size:12px;color:#2b2a26">ふだんはロック。数を直す時だけONにします。</span>
+    <!-- ★2026-08-18 ひろみさん指示で追加。
+         この画面は「開いたときに一度だけ」在庫を読みます。そのあと受注Aで出荷依頼書を
+         倉庫へ送って在庫が減っても、この画面を開きっぱなしだと古い数字のままでした。
+         （実際に「メメジック500mlが93のまま減っていない」と見えた原因がこれです）
+         ★このボタンを消さないでください。 -->
+    <button id="inv-reload-btn" class="editbtn" onclick="reloadStockNow()">🔄 最新の在庫数にする</button>
+    <span style="font-size:12px;color:#2b2a26">受注Aで在庫が動いたあとは、これを押すと今の数になります。</span>
   </div>
   <!-- ★2026-08-17 現ロットと旧ロットを別々の表に（承認済みモック mock_master_在庫リスト_2026-08-17_3.html） -->
   <div class="lotsec">現ロット <small>ふだん見るのはこの表だけです</small></div>
@@ -1504,7 +1511,8 @@ function onProdChange(prodId, lotId, allowNew){
 // ── GAS 読み込み・保存 ────────────────────────────────────────────
 function loadAllDataFromGAS(){
   if(!gasSyncEnabled){ invLoading = false; renderInvTable(); return; }
-  Promise.all([
+  /* ★2026-08-18「🔄 最新の在庫数にする」が、読み終わりを待てるように return を足した（動きは同じ） */
+  return Promise.all([
     fetch(GAS_URL + '?action=loadAllData').then(r=>r.json()).catch(()=>null),
     fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
   ]).then(function(res){
@@ -1556,6 +1564,25 @@ function loadAllDataFromGAS(){
   }).catch(function(){ invLoading = false; renderInvTable();
     { var _lab2 = document.getElementById('lot-add-btn'); if(_lab2){ _lab2.disabled = false; _lab2.style.opacity = '1'; _lab2.textContent = '登録する'; } }
     showSyncStatus('⚠️ 接続エラー（オフライン？初回起動時は正常です）', true); });
+}
+
+/* ★2026-08-18 ひろみさん指示「最新の在庫数にする、という言葉が分かりやすい」で追加。
+   この画面は開いたときに一度だけ在庫を読む。そのあと受注Aが在庫を減らしても、
+   開きっぱなしだと古い数字のまま。このボタンで、その場で読み直す。
+   ・まだ保存していない変更があるときは、読み直さない（打った数が消えるため）
+   ・編集ONのときは、打ちかけが消えることを断ってから読み直す
+   ★このボタンと、この関数を消さないでください。 */
+function reloadStockNow(){
+  if(autoSaveTimer){
+    alert('まだ保存していない変更があります。\n\n数秒お待ちください（自動で保存されます）。\n保存が終わってから、もう一度押してください。');
+    return;
+  }
+  if(invEditMode && !confirm('「在庫をさわる（編集）」がONです。\n打ちかけの数字があれば消えます。\n\n最新の在庫数にしますか？')) return;
+  var b = document.getElementById('inv-reload-btn');
+  if(b){ b.disabled = true; b.textContent = '取り直しています…'; }
+  function done(){ if(b){ b.disabled = false; b.textContent = '🔄 最新の在庫数にする'; } }
+  var p = loadAllDataFromGAS();
+  if(p && p.then){ p.then(done, done); } else { setTimeout(done, 3000); }
 }
 
 let autoSaveTimer = null;
