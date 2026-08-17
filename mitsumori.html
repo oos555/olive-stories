@@ -4993,8 +4993,12 @@ function makeOrderUrl(record){
     return { id: (p.id||''), sku: it.sku, name: (p.name||it.name), boxQty: (p.boxQty||1),
       unitPrice: it.unitPrice, taxRate: it.taxRate, boxes: (it.boxes||0), bottles: (it.bottles||0) };
   });
+  /* ★2026-08-17 ひろみさん承認：注文ページに渡す番号も「暗号 － 受注した日 － ランダム4桁」にそろえる。
+     ここだけ暗号が無く、日付も世界標準時だったため、朝9時より前に作ると前日の日付になっていた。 */
+  var _d = new Date();
+  var _ymd = ''+_d.getFullYear()+String(_d.getMonth()+1).padStart(2,'0')+String(_d.getDate()).padStart(2,'0');
   var payload = {
-    orderNum: (new Date()).toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000+Math.random()*9000)),
+    orderNum: orderNumCode(c.type||record.customerType)+'-'+_ymd+'-'+String(Math.floor(1000+Math.random()*9000)),
     customer: { name:c.name, type:(c.type||record.customerType), custId:(c.id||record.customerId||''),
       zip:(c.zip||''), addr:(c.addr||''), tel:(c.tel||''), isCompany:true },
     items: items
