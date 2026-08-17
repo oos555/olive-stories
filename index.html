@@ -55,6 +55,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rk-ed2{background:#fff;border:2px solid #4a6d8c;color:#35506b;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
 .rk-why{font-size:11.5px;font-weight:700;color:#6b6459;margin-top:6px;line-height:1.65}
 .rk-why b{color:#2b2a26}
+/* ★2026-08-17 ひろみさん指示：説明文がボタンの右へ回り込んで3行になっていた。
+   .rk-acts が横並び（flex）なので、説明文だけ1行まるごと使ってボタンの下に落とす。 */
+.rk-acts .rk-why{flex:0 0 100%;margin-top:3px}
+/* ②の枠の小さな案内（出荷依頼書の備考欄・LINEの送り先） */
+.rk-hint{font-size:11.5px;color:#7a746a;line-height:1.6;margin-top:6px}
 /* 枠の中に入れる小さめのボタン（出荷まわり・その他） */
 .rk-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e0d6}
 .rk-sub{background:#fff;border:1.5px solid #d5cfc3;color:#4a4438;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
@@ -168,6 +173,8 @@ tr:last-child td{border-bottom:none}
 .os-pending{background:#fef3c7;color:#78350f}
 .os-shipped{background:#dcfce7;color:#14532d}
 .os-cancelled{background:#f1f5f9;color:#64748b;text-decoration:line-through}
+/* ★2026-08-17 ひろみさん指示：受注を取り消しても過去の受注一覧には残す */
+.os-void{background:#6b6b6b;color:#fff}
 .alert-bar{border-radius:8px;padding:8px 12px;display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px}
 .alert-warn{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}
 .alert-danger{background:#fee2e2;border:1px solid #f87171;color:#991b1b}
@@ -1298,6 +1305,7 @@ body{background:#fff}
         <option value="all">すべて（キャンセル済みを除く）</option>
         <option value="shipped">出荷済み</option>
         <option value="cancelled">キャンセル</option>
+        <option value="deleted">受注取り消し（受注無し）</option>
       </select>
       <select id="list-ctype" onchange="renderList()" style="padding:5px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:12px">
         <option value="all">すべての区分</option>
@@ -5057,7 +5065,9 @@ function renderList(){
   const sort = document.getElementById('list-sort').value;
   const search = (document.getElementById('list-search').value||'').toLowerCase();
   let list = orders.slice();
-  list = list.filter(o=>o.status!=='deleted');   // ★2026-08-17「🗑 発注から消す」で消したものは一覧に出さない
+  /* ★2026-08-17 ひろみさん指示：取り消した受注も「受注取り消し」として過去の受注一覧に残す。
+     ふだんの一覧には出さないが、絞り込みで「受注取り消し（受注無し）」を選べば見られる。 */
+  if(filter!=='deleted') list = list.filter(o=>o.status!=='deleted');
   if(filter==='all') list = list.filter(o=>o.status!=='cancelled');
   else if(filter!=='all') list = list.filter(o=>o.status===filter);
   if(ctypeFilter!=='all') list = list.filter(o=>o.customerType===ctypeFilter);
@@ -5131,14 +5141,30 @@ function resendToWarehouse(id){
   notifyLineShort([o]);
 }
 
+/* ★2026-08-17 ひろみさん指示：カードのメモの言葉を分かりやすくする。
+   ・「発注番号」はバサラ側が付けた番号なので「バサラの発注番号」と書く
+   ・「発注日」は私たちから見れば受注日と同じ日なので「受注日」と書く
+   ・「#B19/2026/8/17」は同じ注文を2回取り込んでいないか機械が見分けるための目印なので画面に出さない
+   ★変えるのは見せ方だけ。スプレッドシートに入っている note の中身は1文字も変えない
+   （#B の目印は倉庫Dの二重取込チェックが読んでいるので、消すと壊れる）。 */
+function noteForDisplay(note){
+  var s = String(note||'');
+  s = s.replace(/\s*／?\s*#B[^／]*/g, '');
+  s = s.replace(/発注番号/g, 'バサラの発注番号');
+  s = s.replace(/発注日/g, '受注日');
+  return s.replace(/^\s*／\s*/, '').replace(/\s*／\s*$/, '').trim();
+}
+
 function renderOrderCard(o, sentGroup){
-    const statusCls = {pending:'os-pending',shipped:'os-shipped',cancelled:'os-cancelled'}[o.status]||'os-pending';
-    const statusLabel = {pending:'出荷待ち',shipped:'出荷済み',cancelled:'キャンセル'}[o.status]||o.status;
+    const statusCls = {pending:'os-pending',shipped:'os-shipped',cancelled:'os-cancelled',deleted:'os-void'}[o.status]||'os-pending';
+    const statusLabel = {pending:'出荷待ち',shipped:'出荷済み',cancelled:'キャンセル',deleted:'受注取り消し'}[o.status]||o.status;
     const badge = CTYPE_BADGE[o.customerType] ? '<span class="pill pill-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
     const basaraBadge = o.source==='basara' ? '<span class="pill" style="background:#7b2fa0;color:#fff">📧バサラ</span>' : '';
-    const basaraCls = (o.source==='basara' && !basaraAcked(o.id)) ? ' basara-glow' : '';
+    /* ★2026-08-17 「🔔 確認済みにする（光を消す）」を廃止したので、押す場所が無いまま光り続けないよう
+       ①の連絡を済ませた（送った／送らない）時点、または倉庫へ送った時点で光を消す。 */
+    const basaraCls = (o.source==='basara' && !basaraAcked(o.id) && !o.notified && ackStateOf(o)==='wait') ? ' basara-glow' : '';
     const overdueBadge = isOverdue(o) ? '<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限超過</span>' : '';
     const locked = (o.paymentMode==='prepay' && !o.paymentConfirmed);
     const appPre = (o.source==='app' && !o.paymentClaimed);
@@ -5154,7 +5180,10 @@ function renderOrderCard(o, sentGroup){
     const whBadge = o.status==='pending' ? (o.notified
       ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
       : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>') : '';
-    const shippedInfo = (o.status==='shipped' && o.shippedAt) ? '　<b style="color:#2b2a26">発送：'+esc(fmtShipTime(o.shippedAt))+'</b>' : '';
+    /* ★2026-08-17 ひろみさん指示：ここに入る時刻は倉庫さんが梱包を終えて押した時刻なので、
+       「発送」ではなく「梱包完了」と正直に書く。お客様から問い合わせがあったときに、
+       この時刻を出荷時刻として答えてしまうと嘘になるため。 */
+    const shippedInfo = (o.status==='shipped' && o.shippedAt) ? '　<b style="color:#2b2a26">梱包完了：'+esc(fmtShipTime(o.shippedAt))+'</b>' : '';
     const trackRow = o.status==='shipped'
       ? '<div class="no-print" style="display:flex;align-items:center;gap:8px;border-top:1px dashed #d8d0c2;margin-top:6px;padding-top:7px">'
         + '<span style="font-size:12.5px;font-weight:700;color:#55524a">🚚 追跡番号</span>'
@@ -5170,26 +5199,28 @@ function renderOrderCard(o, sentGroup){
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
-      (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+o.note+'</div>' : '')+
+      (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+noteForDisplay(o.note)+'</div>' : '')+
       payMsg+
       /* ★2026-08-17 ひろみさん指示：ボタンを枠の外に置かない。
          「枠の外に出ていると、何のボタンか分からない」。①②の枠の中に全部入れる。 */
       renrakuBox(o, {
-        /* ①の枠に入れるもの（バサラの注文そのものを直す・光を消す） */
+        /* ①の枠に入れるもの（バサラの注文そのものを直す）
+           ★2026-08-17 ひろみさん指示：「🔔 確認済みにする（光を消す）」は廃止した。
+           光は①の連絡を済ませた時点で消える（上の basaraCls を参照）。 */
         one: (o.status==='pending' && !o.notified && isBasaraOrder(o)
                ? '<button class="rk-ed2" onclick="openBasaraEdit(\''+o.id+'\')">✏️ この場で編集（お届け先・商品・本数）</button>'
                  + '<div class="rk-why">バサラの顧客は<b>OOS顧客ではないため登録しません</b>。差し戻しは使わず、この画面で直します。</div>'
-               : '')
-             + (o.source==='basara' && !basaraAcked(o.id)
-               ? '<button class="rk-sub" onclick="ackBasara(\''+o.id+'\')">🔔 確認済みにする（光を消す）</button>' : ''),
-        /* ②の枠に入れるもの（倉庫・出荷まわり。ひろみさん指示でここへ集約） */
+               : ''),
+        /* ★2026-08-17 ひろみさん指示：②は「出荷依頼書を確認・編集する」を先、「倉庫にLINEで送る」をあと。
+           LINEが先だと、出荷依頼書を作る前に送ってしまい、流れが分からなくなる。 */
+        twoTop: (!locked && o.status!=='deleted' ? '<button class="rk-sub" onclick="gotoSlip(\''+o.id+'\')">📄 出荷依頼書を確認・編集する</button>' : ''),
+        /* ②の枠に入れるもの（倉庫・出荷まわり。ひろみさん指示でここへ集約）
+           ★2026-08-17 廃止：「出荷済みにする」（倉庫Ｄで倉庫さんが梱包完了を押せば終わるため）
+           ★2026-08-17 廃止：「キャンセル」（残すのは「発注を取り消す（受注無し）」だけ） */
         two: (sentGroup ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
              + (o.status==='pending' && locked && !appPre ? '<button class="rk-sub green" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')
-             + (!locked ? '<button class="rk-sub" onclick="gotoSlip(\''+o.id+'\')">出荷依頼書へ</button>' : '')
-             + (o.status==='pending' && !locked ? '<button class="rk-sub" onclick="markShipped(\''+o.id+'\')">出荷済みにする</button>' : '')
              + (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="rk-sub orange" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')
-             + (o.status==='pending' ? '<button class="rk-sub" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button>' : '')
-             + '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注から消す</button>'
+             + (o.status!=='deleted' ? '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注を取り消す（受注無し）</button>' : '')
       })+
       trackRow+
     '</div>';
@@ -5569,45 +5600,55 @@ function basaraOrderNoOf(o){                   // メモから発注番号を取
 function renrakuBox(o, acts){
   acts = acts || {one:'', two:''};
   // ★出荷待ち以外（出荷済み・キャンセル等）は、①②を出さずに操作だけを枠に入れる
+  //   ★2026-08-17 twoTop（出荷依頼書を確認・編集する）もここに入れる。入れないと、
+  //     出荷済みの注文から出荷依頼書を見られなくなってしまう（今までは見られた）。
   if(o.status !== 'pending'){
-    if(!acts.two && !acts.one) return '';
+    if(!acts.two && !acts.one && !acts.twoTop) return '';
     return '<div class="rk"><div class="rk-step"><div class="rk-no">操作</div><div class="rk-b">'+
-      '<div class="rk-l">この受注にできること</div><div class="rk-row">'+(acts.one||'')+(acts.two||'')+'</div>'+
+      '<div class="rk-l">この受注にできること</div><div class="rk-row">'+(acts.one||'')+(acts.twoTop||'')+(acts.two||'')+'</div>'+
       '</div></div></div>';
   }
   var wh = o.notified
     ? '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>'
     : '<button class="rk-wh" '+(ackDone(o)?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
-      + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「送らない」を押してください）</div>');
+      + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>');
+
+  /* ★2026-08-17 ひろみさん指示：出荷依頼書に備考欄があることを、ここで案内する。 */
+  var whHint = '<div class="rk-hint">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも出ます）。</div>';
 
   var actsTwo = acts.two ? '<div class="rk-acts">'+acts.two+'</div>' : '';
   var actsOne = acts.one ? '<div class="rk-acts">'+acts.one+'</div>' : '';
+  /* ★2026-08-17 「📄 出荷依頼書を確認・編集する」は倉庫へ送る前に置く（順番が分かるように） */
+  var twoTop  = acts.twoTop ? '<div class="rk-row" style="margin-bottom:7px">'+acts.twoTop+'</div>' : '';
   if(!isBasaraOrder(o)){
     return '<div class="rk"><div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼</div>'+wh+actsTwo+'</div></div></div>';
+      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+actsTwo+'</div></div></div>';
   }
   var st = ackStateOf(o), a = o.ack || {};
   var one;
+  /* ★2026-08-17 ひろみさん指示でボタンの名前を変えた（何をするボタンかを名前で分かるように）
+       バサラに受注の連絡をする → バサラに受注確定のメールを送る
+       ✏️ 編集する            → ✏️ メール文章編集
+       送らない               → メールを送らない */
+  var oneRow = '<div class="rk-row"><button class="rk-ba" onclick="ackSend(\''+o.id+'\')">✉️ バサラに受注確定のメールを送る</button>'
+             + '<button class="rk-ed" onclick="ackEdit(\''+o.id+'\')">✏️ メール文章編集</button>'
+             + '<button class="rk-sk" onclick="ackSkip(\''+o.id+'\')">メールを送らない</button></div>';
   if(renrakuBefore_(o) && st === 'wait'){
     one = '<div class="rk-skip">この決まりを入れる前の注文です（'+esc(String(o.registeredAt||'').slice(0,10))+'）。②はすぐ押せます。<br>'
         + 'お礼返信を送るときは、下のボタンからどうぞ。</div>'
-        + '<div class="rk-row"><button class="rk-ba" onclick="ackSend(\''+o.id+'\')">✉️ バサラに受注の連絡をする</button>'
-        + '<button class="rk-ed" onclick="ackEdit(\''+o.id+'\')">✏️ 編集する</button>'
-        + '<button class="rk-sk" onclick="ackSkip(\''+o.id+'\')">送らない</button></div>';
+        + oneRow;
   } else if(st === 'sent'){
-    one = '<div class="rk-ok">✅ 送りました　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+(a.edited?'　<b>（一言追記あり）</b>':'')+'</div>';
+    one = '<div class="rk-ok">✅ 受注確定のメールを送りました　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+(a.edited?'　<b>（一言追記あり）</b>':'')+'</div>';
   } else if(st === 'skip'){
-    one = '<div class="rk-skip">🚫 送りませんでした　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+'</div>';
+    one = '<div class="rk-skip">🚫 メールを送りませんでした　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+'</div>';
   } else {
-    one = '<div class="rk-row"><button class="rk-ba" onclick="ackSend(\''+o.id+'\')">✉️ バサラに受注の連絡をする</button>'
-        + '<button class="rk-ed" onclick="ackEdit(\''+o.id+'\')">✏️ 編集する</button>'
-        + '<button class="rk-sk" onclick="ackSkip(\''+o.id+'\')">送らない</button></div>';
+    one = oneRow;
   }
   return '<div class="rk">'+
     '<div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
       '<div class="rk-l">バサラへ「受注しました」の連絡</div>'+one+actsOne+'</div></div>'+
     '<div class="rk-step"><div class="rk-no'+(ackDone(o)?'':' off')+'">②</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼・出荷まわり</div>'+wh+actsTwo+'</div></div>'+
+      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+actsTwo+'</div></div>'+
   '</div>';
 }
 
@@ -5670,7 +5711,7 @@ const ACK_FALLBACK_BODY = '原様、\n\nいつもありがとうございます�
 // ── ②倉庫へ出荷依頼（1件ずつ・サーバーから倉庫グループへ直接送る）──────
 async function notifyWarehouseOne(id){
   var o = orders.find(x=>x.id===id); if(!o) return;
-  if(!ackDone(o)){ alert('先に①バサラへの連絡を済ませてください（または「送らない」を押してください）'); return; }
+  if(!ackDone(o)){ alert('先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）'); return; }
   if(o.paymentMode==='prepay' && !o.paymentConfirmed){
     alert('⚠️ 先払いで、まだ入金確認が済んでいません。\n請求アプリC（billing.html）で入金確認を済ませてから、もう一度お試しください。');
     return;
@@ -5692,8 +5733,13 @@ async function notifyWarehouseOne(id){
     var d = await res.json();
     if(!d || d.status !== 'ok'){ alert('送れませんでした：'+((d&&d.message)||'不明なエラー')+'\n\n※倉庫には届いていません。'); return; }
     o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString();
-    // ★在庫はここでは動かさない。いままでの倉庫通知（notifyLineShort）も動かしていない。
-    //   在庫が減るのは「出荷依頼書に届いた時点」（convertToShipping）。ここで減らすと二重に減る。
+    /* ★2026-08-17 ひろみさん指示で追加：出荷依頼書を送ったこの時点で在庫を減らす。
+       それまで、バサラの注文だけ在庫がどこでも減っていなかった（GASが作る注文は
+       convertToShipping を通らず、この倉庫通知も在庫を動かしていなかったため）。
+       実データで「倉庫へ送信済みなのに在庫を引いていない」注文が見つかって分かった。
+       二重に減る心配はない：applyStockDeductOnSend は stockDeducted の印を見て、
+       すでに引いてある注文には何もしない（手入力・STORES・取り置きは登録時に引いてある）。 */
+    if(!o.stockDeducted){ applyStockDeductOnSend(o); persistStockDeduct([o]); }
     renderList(); updateSummary(); syncOrdersToGAS([o]);
     showSyncStatus('✅ 倉庫へ送りました（送り先：OOS出荷依頼グループ）：'+o.num);
   }catch(e){ alert('通信できませんでした：'+e.message+'\n\n※倉庫には届いていません。'); }
@@ -5778,13 +5824,16 @@ function renumberOrder(id){
   closeBasaraEdit();
 }
 
-// ── 🗑 発注から消す（一覧から消える。記録はスプレッドシートに残る）────────
+/* ── 🗑 発注を取り消す（受注無し）──────────────────────────────
+   ★2026-08-17 ひろみさん指示：
+     ・ボタン名は「発注を取り消す（受注無し）」
+     ・アラートは「本当に取り消しますか？　受注無しになります。」
+     ・取り消しても記録は残し、絞り込み「受注取り消し（受注無し）」で過去の一覧に出す  */
 function deleteOrderSoft(id){
   var o = orders.find(x=>x.id===id); if(!o) return;
-  if(!confirm('この発注を一覧から消します。\n\n'+o.num+'　'+(o.recipientName||o.client)+'\n\n'
-    +'・取込ミス、二重取込、注文が変わったときに使います\n'
-    +'・記録はスプレッドシートに残ります（完全には消しません）\n'
-    +'・在庫を引いていた場合は自動で戻します\n\nよろしいですか？')) return;
+  if(!confirm('本当に取り消しますか？\n受注無しになります。\n\n'+o.num+'　'+(o.recipientName||o.client)+'\n\n'
+    +'・記録は残ります（過去の受注一覧の「受注取り消し（受注無し）」で見られます）\n'
+    +'・在庫を引いていた場合は自動で戻します')) return;
   if(o.stockDeducted){
     var _d = buildStockDeltas([o], 'restore');
     undoStockForOrder(o);
@@ -5793,7 +5842,7 @@ function deleteOrderSoft(id){
   o.status = 'deleted';
   o.deletedAt = new Date().toISOString();
   updateSummary(); renderList(); syncOrdersToGAS([o]);
-  showSyncStatus('🗑 発注から消しました：'+o.num);
+  showSyncStatus('🗑 発注を取り消しました（受注無し）：'+o.num);
 }
 
 function toggleSelectAllOrders(){
@@ -5977,6 +6026,10 @@ function notifyLineShort(listArg){
   try{ lineWin = window.open('about:blank','_blank'); }catch(e){}
   if(lineWin){ try{ lineWin.document.write('<meta charset="utf-8"><div style="font-family:sans-serif;padding:28px;font-size:16px;color:#333;line-height:1.8">LINEを準備しています…<br>この画面は自動でLINEに切り替わります。<br><span style="font-size:13px;color:#888">（受注一覧のタブはそのまま残っています）</span></div>'); }catch(e){} }
   list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
+  /* ★2026-08-17 上の notifyWarehouseOne と同じ理由：出荷依頼書を送った時点で在庫を減らす。
+     すでに引いてある注文は素通りする（二重に減らない）。 */
+  var _notYet = list.filter(function(o){ return !o.stockDeducted; });
+  if(_notYet.length){ _notYet.forEach(applyStockDeductOnSend); persistStockDeduct(_notYet); }
   // 別タブでLINEを開く場合はこの画面が残るので、一覧の「未送信→📮倉庫へ送信」をすぐ反映する
   if(typeof renderList==='function') renderList();
   if(typeof updateSummary==='function') updateSummary();

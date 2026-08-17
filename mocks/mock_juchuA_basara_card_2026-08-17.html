@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>モック：受注A バサラのカード（第2版）2026-08-17</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:18px;background:#faf7f5;
+       font-family:"Yu Gothic UI","Meiryo","Hiragino Kaku Gothic ProN",sans-serif;color:#333}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:17px;margin:0 0 4px}
+  .lead{font-size:12.5px;color:#777;margin:0 0 16px;line-height:1.7}
+  .stateTag{display:inline-block;font-size:12px;font-weight:bold;color:#7a4a10;
+            background:#fff4e0;border:1px solid #e8c793;border-radius:6px;padding:3px 10px;margin:20px 0 8px}
+
+  .card{border:2px solid #f0b6b6;border-radius:14px;background:#fff;padding:14px 16px}
+  .card.gone{border-color:#d8d8d8;background:#fafafa;opacity:.92}
+  .cardTop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cname{font-size:15px;font-weight:bold}
+  .csub{font-size:12px;color:#666}
+  .chip{font-size:11px;border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .chip.oro{background:#eef1fa;color:#3f4a6b;border:1px solid #c9d1e8}
+  .chip.hurry{background:#ffeaea;color:#c0392b;border:1px solid #f0b6b6}
+  .chip.basara{background:#7b5ea7;color:#fff}
+  .badgeSend{background:#e14b4b;color:#fff;font-size:13px;font-weight:bold;border-radius:7px;padding:5px 11px}
+  .badgeSent{background:#eaf6ea;color:#2e7d32;font-size:13px;font-weight:bold;border:1px solid #b7dab9;border-radius:7px;padding:5px 11px}
+  .badgeGone{background:#6b6b6b;color:#fff;font-size:13px;font-weight:bold;border-radius:7px;padding:5px 11px}
+  .badgeWait{margin-left:auto;background:#fdf3c7;color:#8a6d00;font-size:12px;border-radius:6px;padding:3px 9px}
+  .badgeEnd{margin-left:auto;background:#eee;color:#777;font-size:12px;border-radius:6px;padding:3px 9px}
+  .line2{font-size:12.5px;color:#555;margin:8px 0 2px}
+  .line2 .num{font-weight:bold;color:#333}
+  .line2 .hurry{color:#c0392b}
+  .items{font-size:13px;margin:4px 0 8px}
+  .meta{border:1px solid #f2c9c9;background:#fffafa;border-radius:8px;
+        font-size:12px;color:#a24a4a;padding:6px 10px}
+  .meta.gone{border-color:#ddd;background:#f4f4f4;color:#888}
+
+  .box{border:1px solid #ecdcdc;background:#fffdfd;border-radius:12px;padding:12px 14px;margin-top:12px}
+  .sec{display:flex;align-items:center;gap:8px;margin:0 0 9px}
+  .sec .no{width:22px;height:22px;border-radius:50%;background:#eee;color:#555;
+           font-size:12px;font-weight:bold;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .sec .t{font-size:13.5px;font-weight:bold;color:#444}
+  .sec2{margin-top:16px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+
+  .btn{font-size:13px;border-radius:8px;padding:9px 14px;background:#fff;
+       border:1px solid #cfcfcf;color:#555;cursor:default;white-space:nowrap}
+  .btn.pri{background:#3f4a6b;border-color:#3f4a6b;color:#fff;font-weight:bold}
+  .btn.ora{border-color:#e59b3a;color:#7a4a10}
+  .btn.line{background:#06c755;border-color:#06c755;color:#fff;font-weight:bold}
+  .btn.off{background:#e6e6e6;border-color:#dcdcdc;color:#9a9a9a}
+  .btn.del{border-color:#e5a8a8;color:#c0392b}
+  .btn.done{background:#f2f7f2;border-color:#bcd9bd;color:#2e7d32}
+
+  .note{font-size:11.5px;color:#8a8a8a;margin:-2px 0 10px 2px;line-height:1.55}
+  .lock{font-size:12px;color:#c0392b;margin:2px 0 10px 2px}
+  .tail{border-top:1px dashed #eddede;margin-top:12px;padding-top:10px}
+
+  /* アラートの見本 */
+  .dlg{max-width:430px;margin:10px 0 0 26px;border:1px solid #c9c9c9;border-radius:10px;
+       background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.13);overflow:hidden}
+  .dlg .h{background:#f4f4f4;border-bottom:1px solid #e2e2e2;font-size:11.5px;color:#777;padding:5px 12px}
+  .dlg .b{padding:13px 14px;font-size:13.5px;line-height:1.75;color:#333}
+  .dlg .f{display:flex;gap:8px;justify-content:flex-end;padding:0 14px 13px}
+  .dlg .f button{font-size:12.5px;padding:6px 16px;border-radius:6px;border:1px solid #bbb;background:#fff;color:#444;cursor:default}
+  .dlg .f button.ok{background:#3f4a6b;border-color:#3f4a6b;color:#fff;font-weight:bold}
+
+  .ann{border-left:4px solid #e8c793;background:#fffdf5;font-size:12.5px;
+       padding:9px 13px;margin:10px 0 0;line-height:1.8;color:#6b5a33}
+  .ann.ok{border-left-color:#8fbf8f;background:#f7fdf7;color:#3f6b3f}
+  .ann.ask{border-left-color:#e14b4b;background:#fff6f6;color:#8c3b3b}
+  table.chg{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0 8px;background:#fff}
+  table.chg th,table.chg td{border:1px solid #e8dede;padding:6px 9px;text-align:left;vertical-align:top}
+  table.chg th{background:#fbf3f3;color:#8c5a5a;white-space:nowrap}
+  del{color:#a06;background:#fdf0f5}
+  ins{color:#0a6;background:#f0fbf5;text-decoration:none;font-weight:bold}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>モック：受注Ａ バサラのカード（第2版）</h1>
+<p class="lead">2026-08-17 ひろみさんの2回目のご指示ぶんを入れました。絵だけのモックで、押しても動きません。<br>
+カードは3枚。①がまだ／①を送ったあと／<b>取り消したあと（過去の受注一覧での見え方）</b>です。</p>
+
+<table class="chg">
+  <tr><th>2回目のご指示</th><th>直したこと</th></tr>
+  <tr><td>管理番号は日付のあと必ずランダム4桁</td><td><del>BA-20260817-1</del> → <ins>BA-20260817-4823</ins>（形の見本）</td></tr>
+  <tr><td>出荷依頼書を確認する</td><td><del>確認する</del> → <ins>📄 出荷依頼書を確認・編集する</ins></td></tr>
+  <tr><td>備考欄はあるか</td><td><ins>あります。</ins>「出荷時の備考」欄で、<ins>倉庫Ｄにも黄色い枠で出ます</ins>。ボタンの下に小さく案内を付けました</td></tr>
+  <tr><td>キャンセル不要</td><td><del>キャンセル</del> → <ins>消しました</ins></td></tr>
+  <tr><td>発注から消す のボタン名</td><td><del>🗑 発注から消す</del> → <ins>🗑 発注を取り消す（受注無し）</ins></td></tr>
+  <tr><td>アラートを出して</td><td><ins>「本当に取り消しますか？　受注無しになります。」</ins>を出します（見本を下に置きました）</td></tr>
+  <tr><td>取り消しても一覧に残す</td><td><ins>3枚目のカード</ins>のとおり、灰色＋「受注取り消し」の札で<ins>過去の受注一覧に残ります</ins></td></tr>
+  <tr><td>発注番号・発注日・#20 は何か</td><td>ぜんぶ<ins>バサラのメールに書いてある文字の写し</ins>です。言葉を直し、#B… は<ins>隠す案</ins>にしました（下の説明をごらんください）</td></tr>
+</table>
+
+
+<!-- ================= 状態1 ================= -->
+<div class="stateTag">① まだメールを送っていないとき（②はまだ押せない）</div>
+
+<div class="card">
+  <div class="cardTop">
+    <span class="cname">岸田 ゆか</span>
+    <span class="csub">（ご注文者：バサラ）</span>
+    <span class="chip oro">卸◆</span>
+    <span class="chip hurry">⚠ 急ぎ</span>
+    <span class="chip basara">✉ バサラ</span>
+    <span class="badgeSend">未送信</span>
+    <span class="badgeWait">出荷待ち</span>
+  </div>
+  <div class="line2"><span class="num">BA-20260817-4823</span>　2026-08-17 03:42　<span class="hurry">⚠ 急ぎ（8月18日までに出荷）</span></div>
+  <div class="items">オルガニック 250ml × 1本</div>
+  <div class="meta">📄 バサラ（楽天）自動取込 ／ バサラの発注番号 20 ／ 受注日 2026/8/17 ／ 🚚 最速発送（なるはや）</div>
+
+  <div class="box">
+    <div class="sec"><span class="no">①</span><span class="t">バサラへ「受注しました」の連絡</span></div>
+    <div class="row">
+      <button class="btn pri">✉ バサラに受注確定のメールを送る</button>
+      <button class="btn ora">✏️ メール文章編集</button>
+      <button class="btn">メールを送らない</button>
+    </div>
+    <div class="row" style="margin-bottom:2px">
+      <button class="btn ora">✏️ この場で編集（お届け先・商品・本数）</button>
+    </div>
+    <div class="note">バサラの顧客はOOS顧客ではないため登録しません。差し戻しは使わず、この画面で直します。</div>
+
+    <div class="sec sec2"><span class="no">②</span><span class="t">倉庫へ出荷依頼書を送る</span></div>
+    <div class="row">
+      <button class="btn off">📄 出荷依頼書を確認・編集する</button>
+      <button class="btn off">📮 倉庫にLINEで送る</button>
+    </div>
+    <div class="note">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも黄色い枠で出ます）。</div>
+    <div class="lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>
+
+    <div class="tail">
+      <div class="row" style="margin-bottom:0">
+        <button class="btn del">🗑 発注を取り消す（受注無し）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ann">「🗑 発注を取り消す（受注無し）」を押したときに出るアラートの見本 ↓</div>
+<div class="dlg">
+  <div class="h">olive-stories のページ</div>
+  <div class="b">本当に取り消しますか？<br>受注無しになります。</div>
+  <div class="f"><button>キャンセル</button><button class="ok">OK</button></div>
+</div>
+
+
+<!-- ================= 状態2 ================= -->
+<div class="stateTag">② メールを送ったあと（②が押せるようになる）</div>
+
+<div class="card">
+  <div class="cardTop">
+    <span class="cname">岸田 ゆか</span>
+    <span class="csub">（ご注文者：バサラ）</span>
+    <span class="chip oro">卸◆</span>
+    <span class="chip hurry">⚠ 急ぎ</span>
+    <span class="chip basara">✉ バサラ</span>
+    <span class="badgeSent">送信済み</span>
+    <span class="badgeWait">出荷待ち</span>
+  </div>
+  <div class="line2"><span class="num">BA-20260817-4823</span>　2026-08-17 03:42　<span class="hurry">⚠ 急ぎ（8月18日までに出荷）</span></div>
+  <div class="items">オルガニック 250ml × 1本</div>
+  <div class="meta">📄 バサラ（楽天）自動取込 ／ バサラの発注番号 20 ／ 受注日 2026/8/17 ／ 🚚 最速発送（なるはや）</div>
+
+  <div class="box">
+    <div class="sec"><span class="no">①</span><span class="t">バサラへ「受注しました」の連絡</span></div>
+    <div class="row">
+      <button class="btn done">✅ 受注確定のメールを送りました（8/17 10:12）</button>
+      <button class="btn ora">✏️ メール文章編集</button>
+    </div>
+    <div class="row" style="margin-bottom:2px">
+      <button class="btn ora">✏️ この場で編集（お届け先・商品・本数）</button>
+    </div>
+    <div class="note">バサラの顧客はOOS顧客ではないため登録しません。差し戻しは使わず、この画面で直します。</div>
+
+    <div class="sec sec2"><span class="no">②</span><span class="t">倉庫へ出荷依頼書を送る</span></div>
+    <div class="row">
+      <button class="btn ora">📄 出荷依頼書を確認・編集する</button>
+      <button class="btn line">📮 倉庫にLINEで送る</button>
+    </div>
+    <div class="note">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも黄色い枠で出ます）。<br>
+      送り先：OOS出荷依頼グループ（倉庫）</div>
+
+    <div class="tail">
+      <div class="row" style="margin-bottom:0">
+        <button class="btn del">🗑 発注を取り消す（受注無し）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ================= 状態3 ================= -->
+<div class="stateTag">③ 取り消したあと（過去の受注一覧での見え方）</div>
+
+<div class="card gone">
+  <div class="cardTop">
+    <span class="cname" style="color:#777">岸田 ゆか</span>
+    <span class="csub">（ご注文者：バサラ）</span>
+    <span class="chip basara" style="background:#a49ab8">✉ バサラ</span>
+    <span class="badgeGone">受注取り消し</span>
+    <span class="badgeEnd">おわり</span>
+  </div>
+  <div class="line2" style="color:#888"><span class="num" style="color:#777">BA-20260817-4823</span>　2026-08-17 03:42　／　取り消し 2026-08-17 11:40</div>
+  <div class="items" style="color:#888">オルガニック 250ml × 1本</div>
+  <div class="meta gone">📄 バサラ（楽天）自動取込 ／ バサラの発注番号 20 ／ 受注日 2026/8/17</div>
+  <div class="note" style="margin:10px 0 0">受注取り消し（受注無し）として記録に残しています。数には入りません。引いていた在庫は戻しました。</div>
+</div>
+
+<div class="ann ok">
+  <b>取り消しても消えません。</b>ふだんの「受注一覧」からは外れますが、<b>過去の受注一覧には「受注取り消し」の札つきで残ります</b>。
+  スプレッドシートの行も消しません。売上や本数の数には入りません。
+</div>
+
+
+<div class="ann">
+  <b>「発注番号 20」「発注日」「#B20/2026/8/17」は何か（調べました）</b><br>
+  3つとも<b>ひろみさんが作ったものではありません。バサラ（楽天・原さん）から届くメールに書いてある文字を、そのまま写しているだけ</b>です。<br>
+  ・<b>バサラの発注番号 20</b>… バサラ側が付けている番号。原さんに問い合わせるとき「発注番号20の件」と言えば話が通ります。<b>管理番号（BA-20260817-4823）はこちらの番号</b>で、別のものです。<br>
+  ・<b>発注日</b>… バサラのメールの「発注日」の写し。<b>私たちから見れば受注日と同じ日</b>なので、モックでは「受注日」と書き直しました。<br>
+  ・<b>#B20/2026/8/17</b>… 発注番号と発注日をくっつけた<b>「同じ注文を2回取り込んでいないか」を見分けるための目印</b>。機械が見るためのもので、人が読む必要はありません。<b>モックでは画面から隠しました</b>（記録には残ります）。
+</div>
+
+<div class="ann ask">
+  <b>1つだけ確認させてください</b><br>
+  「出荷済みにする」を消したあと、出荷待ちの注文は<b>倉庫Ｄで倉庫さんが押したら自動で終わる</b>形にします。
+  倉庫Ｄに今その仕組みが本当にあるかを、実装の前に私が確かめます（無ければ「出荷待ち」のまま残ってしまうので）。
+</div>
+
+</div>
+</body>
+</html>
