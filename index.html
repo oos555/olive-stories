@@ -6010,7 +6010,7 @@ function generateSlip(){
   document.getElementById('slip-area').innerHTML = buildSlipHtml(o);
   document.getElementById('line-notify-btn').style.display = 'flex';
 }
-function notifyLineShort(listArg){
+async function notifyLineShort(listArg){
   const list = listArg || window._currentSlipOrders || (window._currentSlipOrder ? [window._currentSlipOrder] : []);
   if(!list.length) return;
   const unpaidPrepay = list.filter(o=>o.paymentMode==='prepay' && !o.paymentConfirmed);
@@ -6020,20 +6020,6 @@ function notifyLineShort(listArg){
   }
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
-  // ★このアプリの画面を離れずに済むよう、LINEは別タブで開く（クリック操作の中で先に開いておく）。
-  //   ポップアップがブロックされた時だけ、従来どおりこの画面を切り替える。
-  var lineWin = null;
-  try{ lineWin = window.open('about:blank','_blank'); }catch(e){}
-  if(lineWin){ try{ lineWin.document.write('<meta charset="utf-8"><div style="font-family:sans-serif;padding:28px;font-size:16px;color:#333;line-height:1.8">LINEを準備しています…<br>この画面は自動でLINEに切り替わります。<br><span style="font-size:13px;color:#888">（受注一覧のタブはそのまま残っています）</span></div>'); }catch(e){} }
-  list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
-  /* ★2026-08-17 上の notifyWarehouseOne と同じ理由：出荷依頼書を送った時点で在庫を減らす。
-     すでに引いてある注文は素通りする（二重に減らない）。 */
-  var _notYet = list.filter(function(o){ return !o.stockDeducted; });
-  if(_notYet.length){ _notYet.forEach(applyStockDeductOnSend); persistStockDeduct(_notYet); }
-  // 別タブでLINEを開く場合はこの画面が残るので、一覧の「未送信→📮倉庫へ送信」をすぐ反映する
-  if(typeof renderList==='function') renderList();
-  if(typeof updateSummary==='function') updateSummary();
-  var saving = syncOrdersToGAS(list);          // ① 通知済みにした注文だけを最新にマージ（★終わるまで待つ）
   const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
   let text = '📦 新しい出荷依頼：'+list.length+'件';
   const parts = [];
@@ -6041,41 +6027,48 @@ function notifyLineShort(listArg){
   if(gift) parts.push('🎁ギフト'+gift+'件');
   if(parts.length) text += '（'+parts.join('・')+'）';
   text += 'あります。\nアプリを開いて確認してください\n'+pickupUrl;
-  // ゆかさん要望⑩：LINEと同時にメール通知（宛先はスプレッドシート「設定」シートで管理）。
-  // keepalive付きなので、直後にLINEへ画面が移っても送信は完了する。失敗してもLINEは止めない。
-  try{
-    var mailLines = list.map(function(o){
-      var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
-      return '・'+(o.recipientName||o.client)+'（'+o.num+'）'+lead;
-    }).join('\n');
-    fetch(GAS_URL, {
-      method:'POST', keepalive:true,
-      body: JSON.stringify({ action:'sendShipNotifyMail', subject: text.split('\n')[0], body: '出荷依頼を送りました。\n'+mailLines+'\n\n倉庫アプリで確認 → '+pickupUrl }),
-      headers: {'Content-Type':'text/plain;charset=utf-8'}
-    }).catch(function(){});
-  }catch(e){}
-  navigator.clipboard.writeText(text).catch(function(){});
+  var mailLines = list.map(function(o){
+    var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
+    return '・'+(o.recipientName||o.client)+'（'+o.num+'）'+lead;
+  }).join('\n');
 
-  /* ★2026-07-23 修正：以前はここですぐLINEへ画面が飛んでいたため、
-     「倉庫へ送りました」の記録が保存し終わる前に中断されていた。
-     （通知は届くのに、受注一覧では「まだ送っていません」のまま／
-       倉庫Dのピッキング画面にも出てこない、という不具合）
-     保存が終わるのを待ってからLINEを開く。
-     万一つながらない時のために、最長8秒で必ず先へ進む。 */
+  /* ★2026-08-17 ひろみさん指示でここを作り直した。
+     もとは https://line.me/R/msg/text/?… を開くだけだった。あれは LINE の「共有」画面を出すだけで、
+     送り先はコードのどこにも書かれておらず、毎回ひろみさんが指で選んでいた。
+     LINEは直前のトークを出しがちなので、本部のトークに送られて倉庫に届かない事故が起きていた
+     （倉庫スタッフが「どうしたんだろう」とあれこれ触ってしまう原因）。
+     いまは GAS の shipNotifyWarehouse から、サーバーが倉庫グループへ直接プッシュする。
+     ★送れなかったときは「送信済み」にしない・在庫も引かない（届いていないのに済みにしないため）。 */
   var btn = document.getElementById('line-notify-btn');
   var btnHtml = btn ? btn.innerHTML : '';
-  if(btn){ btn.disabled = true; btn.innerHTML = '保存しています…'; }
-  var goLine = function(){
+  if(btn){ btn.disabled = true; btn.innerHTML = '倉庫へ送っています…'; }
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'shipNotifyWarehouse', text:text,
+        subject: text.split('\n')[0],
+        mailBody: '出荷依頼を送りました。\n'+mailLines+'\n\n倉庫アプリで確認 → '+pickupUrl }) });
+    var d = await res.json();
+    if(!d || d.status !== 'ok'){
+      alert('送れませんでした：'+((d&&d.message)||'不明なエラー')+'\n\n※倉庫には届いていません。「送信済み」にもしていません。');
+      return;
+    }
+  }catch(e){
+    alert('通信エラーで送れませんでした：'+e.message+'\n\n※倉庫には届いていません。「送信済み」にもしていません。');
+    return;
+  }finally{
     if(btn){ btn.disabled = false; btn.innerHTML = btnHtml; }
-    var url = 'https://line.me/R/msg/text/?'+encodeURIComponent(text);
-    if(lineWin){ try{ lineWin.location.href = url; if(lineWin.focus) lineWin.focus(); return; }catch(e){} }
-    // 別タブを開けなかった時（ポップアップブロック等）は従来どおりこの画面で開く。
-    // 戻ってきたときに「受注一覧」タブが開くよう目印を残す。
-    try{ localStorage.setItem('oos_return_tab','list'); }catch(e){}
-    location.href = url;
-  };
-  var timeout = new Promise(function(res){ setTimeout(res, 8000); });
-  Promise.race([ Promise.resolve(saving).catch(function(){}), timeout ]).then(goLine);
+  }
+
+  // ここまで来たら倉庫に届いている。ここで初めて「送信済み」にして在庫を引く。
+  list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
+  /* ★2026-08-17 notifyWarehouseOne と同じ理由：出荷依頼書を送った時点で在庫を減らす。
+     すでに引いてある注文は素通りする（二重に減らない）。 */
+  var _notYet = list.filter(function(o){ return !o.stockDeducted; });
+  if(_notYet.length){ _notYet.forEach(applyStockDeductOnSend); persistStockDeduct(_notYet); }
+  if(typeof renderList==='function') renderList();
+  if(typeof updateSummary==='function') updateSummary();
+  await syncOrdersToGAS(list);
+  showSyncStatus('📮 倉庫へ出荷依頼を送りました（'+list.length+'件）　送り先：OOS出荷依頼グループ（倉庫）');
 }
 
 // ── STORES CSV取込 ────────────────────────────────────────────
