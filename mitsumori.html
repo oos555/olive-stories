@@ -4914,8 +4914,18 @@ async function registerOrderFromQuote(rid){
     }
     const freshOrders = fresh.data.orders;
     const ymd = now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
-    const todays = freshOrders.filter(function(o){ return (o.num||'').indexOf('-'+ymd+'-')>=0; }).length;
-    order.num = orderNumCode(r.customerType)+'-'+ymd+'-'+String(todays+1).padStart(3,'0');
+    /* ★2026-08-17 ひろみさん決定：注文番号は「暗号 － 受注した日 － ランダム4桁」で統一。
+       受注Ａ・見積М・お客様の注文ページ・GAS（バサラ取込）を同じルールにそろえた。
+       連番だと作る場所ごとに数え方がズレて同じ番号ができる（2026-08-17にバサラで発生）。
+       すでにある番号と同じになったら引き直す。 */
+    const _used = {};
+    freshOrders.forEach(function(o){ if(o && o.num) _used[String(o.num)] = true; });
+    let _num = '';
+    for(let _i=0; _i<300; _i++){
+      _num = orderNumCode(r.customerType)+'-'+ymd+'-'+String(Math.floor(1000+Math.random()*9000));
+      if(!_used[_num]) break;
+    }
+    order.num = _num;
     const merged = freshOrders.concat([order]);
     const saveRes = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOrders', orders: merged }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     const saveData = await saveRes.json();
