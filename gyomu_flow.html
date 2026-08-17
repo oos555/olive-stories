@@ -703,6 +703,106 @@
     </div>
   </div>
 
+  <!-- ★2026-08-17 自動のスイッチ（ひろみさん指示：勝手に送られるのを止められるように） -->
+  <style>
+  #tab-renraku .autosw{background:#fff;border:3px solid #b91c1c;border-radius:14px;padding:16px 18px;margin-bottom:22px}
+  #tab-renraku .autosw h2{margin:0 0 4px;font-size:19px;font-weight:900;color:#b91c1c}
+  #tab-renraku .autosw .lead{font-size:13.5px;font-weight:700;color:#4a4438;line-height:1.8;margin:0 0 12px}
+  #tab-renraku .asw-state{border:1.5px solid #d5cfc3;border-radius:10px;padding:11px 13px;background:#faf9f5;margin-bottom:13px}
+  #tab-renraku .asw-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;font-weight:800;padding:4px 0}
+  #tab-renraku .asw-row+.asw-row{border-top:1px dashed #e5e0d6}
+  #tab-renraku .asw-on{color:#1d7a2e}
+  #tab-renraku .asw-off{color:#b91c1c}
+  #tab-renraku .asw-when{font-size:11.5px;font-weight:700;color:#8a8578;margin-top:7px;padding-top:7px;border-top:1px dashed #e5e0d6}
+  #tab-renraku .asw-btns{display:flex;gap:10px;flex-wrap:wrap}
+  #tab-renraku .asw-btns button{flex:1 1 220px;border:none;border-radius:10px;padding:15px 12px;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit}
+  #tab-renraku .asw-stop{background:#b91c1c;color:#fff;box-shadow:0 3px 0 #7f1313}
+  #tab-renraku .asw-start{background:#1d7a2e;color:#fff;box-shadow:0 3px 0 #14561f}
+  #tab-renraku .asw-btns button:disabled{background:#c9c9c9;color:#fff;box-shadow:none;cursor:not-allowed}
+  #tab-renraku .asw-sub{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+  #tab-renraku .asw-sub button{flex:1 1 200px;background:#fff;border:2px solid #d5cfc3;border-radius:9px;padding:10px;font-size:13px;font-weight:800;color:#4a4438;cursor:pointer;font-family:inherit}
+  #tab-renraku .asw-note{margin-top:13px;background:#fff8ea;border:1.5px solid #ecc964;border-radius:10px;padding:11px 13px;font-size:12.5px;font-weight:700;color:#7a5410;line-height:1.8}
+  #tab-renraku .asw-msg{margin-top:10px;font-size:13px;font-weight:800;min-height:20px}
+  </style>
+  <div class="autosw">
+    <h2>🛑 自動のスイッチ</h2>
+    <p class="lead">いま自動で動いているのは、<b>30分おき</b>のこの2つだけです。<br>
+      勝手に送られては困るときは、ここで止められます。</p>
+
+    <div class="asw-state" id="asw-state">読み込み中…</div>
+
+    <div class="asw-btns">
+      <button type="button" class="asw-stop"  id="asw-b-stop"  onclick="autoSw('all', false)">⛔ 自動を全部止める</button>
+      <button type="button" class="asw-start" id="asw-b-start" onclick="autoSw('all', true)">▶ 自動を再開する</button>
+    </div>
+    <div class="asw-sub">
+      <button type="button" onclick="autoSw('stock', false)">📧 欠品・入荷メールだけ止める</button>
+      <button type="button" onclick="autoSw('order', false)">📥 バサラ受注の取込だけ止める</button>
+    </div>
+
+    <div class="asw-msg" id="asw-msg"></div>
+
+    <div class="asw-note">
+      <b>「再開する」を押しても、たまっていたお知らせが一斉に飛ぶことはありません。</b><br>
+      再開のときに、いまの在庫を基準にし直します。次の1回は「今の状態を記録するだけ」で、メールは送りません。
+      そのあとから、欠品・入荷が<b>変わった瞬間</b>を見張り直します。<br><br>
+      <b>止めている間は、バサラの注文が自動で受注Aに入りません。</b>「全部止める」にしたときは、
+      バサラからの注文メールを見て、受注Aに手で入れてください（受注A →「データ取込」→「📧 バサラのメールを手動で取り込む」）。
+    </div>
+  </div>
+
+  <script>
+  /* ★2026-08-17 自動のスイッチ */
+  const ASW_GAS = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+  function aswDraw(st){
+    function w(b){ return b ? '<span class="asw-on">▶ 動いています</span>' : '<span class="asw-off">⛔ 止まっています</span>'; }
+    document.getElementById('asw-state').innerHTML =
+      '<div class="asw-row"><span>全体</span><span>'+w(st.all)+'</span></div>'+
+      '<div class="asw-row"><span>バサラ受注の自動取込</span><span>'+w(st.all && st.order)+'</span></div>'+
+      '<div class="asw-row"><span>欠品・入荷の自動メール（原様あて）</span><span>'+w(st.all && st.stock)+'</span></div>'+
+      '<div class="asw-when">最後に切り替えたのは：'+(st.changedAt || '（記録なし）')+'　'+(st.changedBy || '')+'</div>';
+    document.getElementById('asw-b-stop').disabled  = !st.all;
+    document.getElementById('asw-b-start').disabled = (st.all && st.order && st.stock);
+  }
+  function aswMsg(t, ok){
+    var el = document.getElementById('asw-msg');
+    el.textContent = t; el.style.color = (ok === false) ? '#b91c1c' : '#1d7a2e';
+  }
+  async function aswLoad(){
+    try{
+      const r = await fetch(ASW_GAS + '?action=getAutoState');
+      const d = await r.json();
+      if(d && d.status === 'ok'){ aswDraw(d.data); }
+      else { document.getElementById('asw-state').textContent = '状態を読めませんでした（GASの更新がまだかもしれません）'; }
+    }catch(e){
+      document.getElementById('asw-state').textContent = '状態を読めませんでした：' + e.message;
+    }
+  }
+  async function autoSw(key, on){
+    const NAME = { all:'自動ぜんぶ', order:'バサラ受注の取込', stock:'欠品・入荷の自動メール' };
+    const word = on ? '再開します' : '止めます';
+    if(!confirm(NAME[key] + 'を' + word + '。よろしいですか？')) return;
+    aswMsg('切り替えています…');
+    try{
+      const r = await fetch(ASW_GAS, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'setAutoState', key:key, on:on, who:'業務フローの画面から' })
+      });
+      const d = await r.json();
+      if(d && d.status === 'ok'){
+        aswDraw(d.data);
+        aswMsg(on ? '▶ 再開しました。次の1回はメールを送りません（今の在庫を基準にし直しました）。'
+                  : '⛔ 止めました。次の30分後も何も送りません。');
+      } else {
+        aswMsg('切り替えられませんでした：' + ((d && d.message) || '不明なエラー'), false);
+      }
+    }catch(e){ aswMsg('通信できませんでした：' + e.message, false); }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', aswLoad);
+  else aswLoad();
+  </script>
+
   <!-- 共通のしくみ -->
   <div class="hy">
     <h2>📋 連絡の早見表（時系列マス目）</h2>
@@ -1023,7 +1123,85 @@
 
   <!-- ══ バサラ ══ -->
   <div class="sec"><div class="no">入口 ②</div><h2>🛒 バサラ（楽天／原さん）</h2>
-    <p class="sub">原さんからのメール注文。ほとんど自動で進み、私たちは最後に確認ボタンを押すだけ。後払い（月末まとめ請求）。</p>
+    <p class="sub">原さんからのメール注文。<b>外に出る連絡は、欠品のお知らせ以外すべて人が押してから送ります（2026-08-17 変更）。</b>後払い（月末まとめ請求）。</p>
+  </div>
+
+  <!-- ★2026-08-17 半手動に変更（ひろみさん決定）。ここが最新の決まりです -->
+  <style>
+  #tab-renraku .kime{background:#fff;border:3px solid #b91c1c;border-radius:14px;padding:16px 18px;margin:0 0 22px}
+  #tab-renraku .kime h3{margin:0 0 3px;font-size:19px;font-weight:900;color:#b91c1c}
+  #tab-renraku .kime .kd{font-size:12.5px;font-weight:700;color:#8a8578;margin:0 0 12px}
+  #tab-renraku .ktbl{width:100%;border-collapse:collapse;font-size:13px}
+  #tab-renraku .ktbl th{background:#f6f5f1;color:#57534e;font-weight:900;font-size:11.5px;text-align:left;padding:8px 9px;border-bottom:2px solid var(--line-d)}
+  #tab-renraku .ktbl td{padding:11px 9px;border-bottom:1px solid #f0efe9;vertical-align:top;line-height:1.75}
+  #tab-renraku .ktbl td.nm{font-weight:900;font-size:14px;white-space:nowrap}
+  #tab-renraku .ktbl td.aite{font-weight:800;color:#57534e;white-space:nowrap}
+  #tab-renraku .kauto{color:#1d7a2e;font-weight:900;white-space:nowrap}
+  #tab-renraku .khand{color:#b91c1c;font-weight:900;white-space:nowrap}
+  #tab-renraku .kapp{display:inline-block;background:#41492a;color:#fff;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:900;margin-right:3px;white-space:nowrap}
+  #tab-renraku .ktab{display:inline-block;background:#e9e5da;color:#4a4438;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:900;margin-right:3px;white-space:nowrap}
+  #tab-renraku .kbtn{display:inline-block;background:#fff;border:1.5px solid #b9741a;color:#8a5a12;border-radius:6px;padding:1px 8px;font-size:11.5px;font-weight:900;white-space:nowrap}
+  #tab-renraku .kbtn.g{border-color:#06c755;color:#0b6b2c}
+  #tab-renraku .kbtn.p{border-color:#7b2fa0;color:#7b2fa0}
+  #tab-renraku .kmemo{margin-top:13px;background:#fff8ea;border:1.5px solid #ecc964;border-radius:10px;padding:11px 13px;font-size:12.5px;font-weight:700;color:#7a5410;line-height:1.85}
+  </style>
+  <div class="kime">
+    <h3>📌 バサラの連絡：いつ・誰が決めるか</h3>
+    <p class="kd">2026-08-17 決定（ひろみさん）。<b>この表が最新です。</b>下の図と①〜の見本は、文面の見た目を確かめるためのものです。</p>
+    <table class="ktbl">
+      <thead><tr><th style="width:15%">連絡</th><th style="width:9%">相手</th><th style="width:16%">いつ送るか</th><th>決め方（どのアプリの・どこで・どうする）</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="nm">欠品のお知らせ</td><td class="aite">原様</td>
+          <td class="kauto">すぐ・自動</td>
+          <td><b>操作はいりません。</b>販売可能数が0になった時点でシステムが送ります。<br>
+            <b>1商品1回だけ。</b>在庫が0↔1を行き来しても二度と送りません。<br>
+            送ったら<b>本部LINEに「送りました」と事後報告</b>が届きます。<br>
+            <span style="color:#8a8578">かぎが外れるのは、下の「入荷のお知らせ」を送ったときだけです。</span></td>
+        </tr>
+        <tr>
+          <td class="nm">お礼返信<br><span style="font-size:11px;font-weight:700;color:#8a8578">（受注しました）</span></td><td class="aite">バサラ</td>
+          <td class="khand">本部が見てから</td>
+          <td><span class="kapp">受注Ａ</span><span class="ktab">受注一覧</span>その注文のカードの
+            <span class="kbtn p">① ✉️ バサラに受注の連絡をする</span> を押す → <b>その場で送信</b>。<br>
+            直したいときは <span class="kbtn">✏️ 編集する</span> → 文面を開いて追記 → 送る。<br>
+            送らないときは <span class="kbtn">送らない</span> → 記録に残り、②が押せるようになります。</td>
+        </tr>
+        <tr>
+          <td class="nm">出荷依頼</td><td class="aite">倉庫</td>
+          <td class="khand">お礼返信のあと</td>
+          <td><span class="kapp">受注Ａ</span><span class="ktab">受注一覧</span>同じカードの
+            <span class="kbtn g">② 📮 倉庫にLINEで送る</span> を押す。<br>
+            <b>①が済むまでグレーで押せません</b>（倉庫を先に送ってしまう事故を防ぐため）。<br>
+            <b>倉庫グループへ直接送ります。送り先を選ぶ画面は出ません。</b>送ったカードに「送り先：OOS出荷依頼グループ（倉庫）」と出ます。<br>
+            <span style="color:#8a8578">一括送信（選択した受注をまとめて通知）は廃止しました。1件ずつです。</span></td>
+        </tr>
+        <tr>
+          <td class="nm">入荷のお知らせ</td><td class="aite">原様</td>
+          <td class="khand">物が入ってから</td>
+          <td><span class="kapp">統合マスタＮ</span><span class="ktab">在庫リスト</span>
+            <span class="kbtn">📦 輸入が届いた → 一気に在庫へ入れる</span> を押す →
+            <span class="kbtn g">📧 バサラに入荷の連絡をする</span> が<b>押せるようになります</b>。<br>
+            それまでは<b>グレーで押せません</b>（物が入る前に「入荷しました」と言わないため）。<br>
+            押すと確認パネルが出て、<b>どの商品に・どんな文面で送るか</b>を見てから確定します。</td>
+        </tr>
+        <tr>
+          <td class="nm">発注を消す</td><td class="aite">—</td>
+          <td class="khand">間違い・変更のとき</td>
+          <td><span class="kapp">受注Ａ</span><span class="ktab">受注一覧</span>どの注文にも
+            <span class="kbtn">🗑 発注から消す</span> があります。<br>
+            <b>一覧から消えます。</b>取込ミス・二重取込・注文内容が変わったときに使います。<br>
+            <span style="color:#8a8578">記録はスプレッドシートに残ります（完全には消しません）。在庫を引いていた場合は自動で戻します。</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="kmemo">
+      <b>なぜこうしたか（2026-08-17）</b>：在庫を直しただけで「入荷しました」が原様へ自動送信され、お客様に混乱をおかけしました。
+      <b>人が止められない作りだったのが原因</b>です。これからは、外に出る連絡は<b>欠品以外すべて人が押してから</b>にします。<br>
+      <b>順番を強制する理由</b>：倉庫の緑のボタンを押すと「終わった」と思ってしまうため、<b>バサラへの連絡を先に</b>済ませないと押せないようにしました。<br>
+      <b>この決まりを入れる前からある注文</b>は、②がすぐ押せます（止まってしまわないように）。<br>
+      <b>非常停止</b>：📮 連絡自動化の種類タブのいちばん上「🛑 自動のスイッチ」で、欠品の自動送信も含めて全部止められます。
+    </div>
   </div>
 
   <div class="lane">
@@ -1031,9 +1209,9 @@
     <div class="ar">→</div>
     <div class="cell">見張って<br>自動登録<br><span class="chan">🤖自動</span></div>
     <div class="ar">→</div>
-    <div class="cell">私たち＆原さんへ<br>お知らせ<br><span class="chan"><span class="g">🟢</span>＋✉️</span></div>
+    <div class="cell act"><span class="hu">👤</span>①バサラへ<br>お礼返信<br><span class="chan">✉️ 押して送る</span></div>
     <div class="ar">→</div>
-    <div class="cell act"><span class="hu">👤</span>中身を確認して<br>出荷依頼書へ</div>
+    <div class="cell act"><span class="hu">👤</span>②倉庫へ<br>出荷依頼<br><span class="chan"><span class="g">🟢</span> 押して送る</span></div>
     <div class="ar">→</div>
     <div class="cell wh">🏭 倉庫が<br>荷造り・発送</div>
     <div class="ar">→</div>
@@ -1044,9 +1222,9 @@
 
   <div class="step-lbl">
     <span class="n">①</span>
-    <span class="who-line">システム<span class="arw">→</span>原さん</span>
-    <span class="tagmail">✉️ メール</span><span class="tagauto">🤖 自動</span>
-    <span class="meta">注文メールを取り込んだ直後</span>
+    <span class="who-line">私たち<span class="arw">→</span>バサラ</span>
+    <span class="tagmail">✉️ メール</span><span class="tagact">👤 押して送る</span>
+    <span class="meta">受注Ａ「受注一覧」の①ボタンを押したとき（2026-08-17 自動送信をやめました）</span>
   </div>
   <div class="email">
     <div class="email-head">
