@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-06">
+<meta name="oos-version" content="2026-08-18-08">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1777,6 +1777,19 @@ body{background:#fff}
    ════════════════════════════════════════════════════════════════ */
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 倉庫へ送るLINEに入れる「倉庫Ｄを開くリンク」を固定にしました。
+   ひろみさん報告：「ラインで倉庫に送られた後、スマホではこのリンクを開くと404が出た。
+   PCでみると倉庫Dは開けた。前はスマホでもみれていた。」
+
+   それまでは location.href（いま開いている受注Aのアドレス）から作っていたため、
+   開き方によって作られるリンクが変わりました。
+   例）?__v=… が付いていたり、index.html を省いて開いていたりすると、
+   　　できあがるリンクがずれて 404 になることがあります。
+   → 決まったリンクを1つだけ書いておく形にしました。もう変わりません。
+   ★location.href から作る形に戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+const OOS_PICKUP_URL = 'https://oos555.github.io/olive-stories/pickup.html';
 let gasSyncEnabled = true;
 // GASからの読み取りは毎回ちがう印を付けて、ブラウザ・回線が古い返事を使い回すのを防ぐ。
 // （倉庫Dに最新が出ない／保存時に古いデータを取り直して上書きしてしまう、を防ぐ）
@@ -6049,7 +6062,7 @@ async function notifyWarehouseOne(id){
   }
   if(!confirm('倉庫グループへ出荷依頼を送ります。よろしいですか？\n\n送り先：OOS出荷依頼グループ（倉庫）\n（送り先を選ぶ画面は出ません）')) return;
 
-  var pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
+  var pickupUrl = OOS_PICKUP_URL;   /* ★2026-08-18 固定URLに変更（下の定義を参照）。★location.href から作る形に戻さないこと */
   var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
   var text = '📦 新しい出荷依頼です\n\n'
     + '　'+(o.recipientName||o.client)+'　'+lead+'\n'
@@ -6534,7 +6547,7 @@ async function notifyLineShort(listArg){
   }
   const urgent = list.filter(o=>o.leadType==='urgent').length;
   const gift = list.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
-  const pickupUrl = location.href.replace(/index\.html.*$/,'') + 'pickup.html';
+  const pickupUrl = OOS_PICKUP_URL;   /* ★2026-08-18 固定URLに変更（下の定義を参照）。★location.href から作る形に戻さないこと */
   let text = '📦 新しい出荷依頼：'+list.length+'件';
   const parts = [];
   if(urgent) parts.push('🚨急ぎ'+urgent+'件');
