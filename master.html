@@ -371,8 +371,15 @@ input.inv-editnum{-moz-appearance:textfield;appearance:textfield}
   font-family:inherit;background:#fff;color:#2b2a26;resize:vertical;box-sizing:border-box}
 .iv-memo[readonly]{background:#f6f4ee;color:#8a8478}
 .iv-memo-ro{font-size:12px;color:#6b6459;white-space:pre-wrap;text-align:left}
-.impall{background:#12406e;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;
-  cursor:pointer;margin-left:8px;box-shadow:0 2px 0 #0a2b4b;white-space:nowrap}
+/* ★2026-08-18 ひろみさん指示：「輸入のところが枠が大きすぎる。文章が長いから、という理由と
+   思うけど、これは2行になってもいい」
+   原因：white-space:nowrap（折り返し禁止）だったので、ボタンが1行に伸びて列幅を押し広げていた。
+   → 折り返しを許し、幅の上限を決め、2つのボタンを【縦に積んだ】（横並びだと列が360pxになる）。
+   ★nowrap に戻さない・横並び（display:inline）に戻さないでください。 */
+.impall{background:#12406e;color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:800;
+  cursor:pointer;box-shadow:0 2px 0 #0a2b4b;
+  white-space:normal;line-height:1.45;text-align:center;
+  display:block;width:100%;max-width:200px;margin:5px auto 0}
 .impall:disabled{background:#c9c9c9;box-shadow:none;cursor:not-allowed}
 .lotsec{font-size:15px;font-weight:800;margin:16px 0 7px;padding-left:10px;border-left:5px solid #6b7a3a}
 .lotsec.old{border-left-color:#b91c1c;color:#b91c1c}
@@ -412,8 +419,12 @@ input.inv-editnum{-moz-appearance:textfield;appearance:textfield}
 .imp-go:disabled{background:#c9c9c9;cursor:not-allowed}
 .imp-can{background:#fff;border:1px solid #d5cfc3;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;width:100%;margin-top:7px;cursor:pointer}
 /* ★2026-08-17 バサラに入荷の連絡をする（人が押したときだけ送る） */
-.rst-btn{background:#1d7a2e;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;
-  cursor:pointer;margin-left:8px;box-shadow:0 2px 0 #14561f;white-space:nowrap}
+/* ★2026-08-18 ひろみさん指示：2行になってよいので折り返す。上のボタンの下に縦に積む。
+   ★nowrap に戻さない・横並びに戻さないでください。 */
+.rst-btn{background:#1d7a2e;color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:800;
+  cursor:pointer;box-shadow:0 2px 0 #14561f;
+  white-space:normal;line-height:1.45;text-align:center;
+  display:block;width:100%;max-width:200px;margin:6px auto 0}
 .rst-btn:disabled{background:#d5d1c8;color:#8a8578;box-shadow:none;cursor:not-allowed}
 .rst-pan{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:140}
 .rst-pan.show{display:flex}
@@ -438,7 +449,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-18-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -592,9 +603,13 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
         <th style="text-align:right">軽</th>
         <th style="text-align:right">中</th>
         <th style="text-align:right">重</th>
-        <th style="text-align:right">予定<br><span style="font-weight:400;font-size:10px">（実在庫に入る数）</span></th>
-        <th style="text-align:right">予約<br><span style="font-weight:400;font-size:10px">（取り置きに入る数）</span></th>
-        <th style="text-align:right">フリー<br><span style="font-weight:400;font-size:10px">（販売可能数に入る数）</span></th>
+        <!-- ★2026-08-18 ひろみさん指示「輸入のところが枠が大きすぎる」。
+             列幅を決めていたのは、この3つの長い説明文でした（1つで120px×3＝360px）。
+             短くして、くわしくは輸入のⓘで読めるようにしました。
+             ★長い説明（（実在庫に入る数）など）に戻さないでください。 -->
+        <th style="text-align:right">予定<br><span style="font-weight:400;font-size:10px">→実在庫</span></th>
+        <th style="text-align:right">予約<br><span style="font-weight:400;font-size:10px">→取置</span></th>
+        <th style="text-align:right">フリー<br><span style="font-weight:400;font-size:10px">→販売可能</span></th>
       </tr>
       </thead>
       <tbody id="inv-tbl-body"></tbody>
@@ -2213,8 +2228,10 @@ function renderInvTable(){
   var _iab = document.getElementById('imp-all-btn');
   if(_iab){
     _iab.disabled = (totalIncoming <= 0);
+    /* ★2026-08-18 ひろみさん指示：「1商品70本って何？ いらないよね？ 消して」→ 消しました。
+       ★（◯商品 ◯本）を書き戻さないでください。 */
     _iab.textContent = (totalIncoming > 0)
-      ? ('📦 輸入が届いた → 一気に在庫へ入れる（'+incomingCount+'商品 '+totalIncoming+'本）')
+      ? '📦 輸入が届いた → 一気に在庫へ入れる'
       : '📦 輸入が届いた → 一気に在庫へ入れる（予定はありません）';
   }
   invStickySync();
@@ -2453,12 +2470,20 @@ async function refreshRestockBtn(){
     restockList = (d && d.status === 'ok' && d.data && d.data.list) ? d.data.list : [];
   }catch(e){ restockList = []; }
   b.disabled = (restockList.length === 0);
+  /* ★2026-08-18 ひろみさん指摘：「（対象なし）」では何が対象なのか分からない。
+     「対象」＝ 原様へ欠品のお知らせを送った商品で、いま在庫が戻っているもの。
+     押せないときは、その理由が読めば分かる言い方にする。★「（対象なし）」に戻さないでください。 */
   b.textContent = restockList.length
     ? ('📧 バサラに入荷の連絡をする（' + restockList.length + '商品）')
-    : '📧 バサラに入荷の連絡をする（対象なし）';
+    : '📧 バサラに入荷の連絡をする（いま対象はありません）';
+  /* ★2026-08-18 ひろみさんの質問「何があれば対象？」への答えを、そのままここに書いておく。
+     対象＝ ①原様へ「欠品のお知らせ」を送った商品で、②いま在庫が戻っているもの。
+     ①がなければ対象になりません（欠品を知らせていない商品に「入荷しました」とは言わないため）。 */
   b.title = restockList.length
-    ? '欠品の連絡をした商品に在庫が戻っています。押すと確認パネルが出ます。'
-    : '欠品の連絡をした商品に、まだ在庫が戻っていません。「📦 一気に在庫へ入れる」で物を入れると押せるようになります。';
+    ? '原様へ欠品のお知らせを送った商品に、在庫が戻っています。押すと確認パネルが出ます。'
+    : '対象＝「原様へ欠品のお知らせを送った商品」で「いま在庫が戻っているもの」です。\n'
+      + 'いまは、欠品のお知らせを送った商品がない（または在庫がまだ戻っていない）ため押せません。\n'
+      + '「📦 輸入が届いた → 一気に在庫へ入れる」で在庫を入れると、押せるようになります。';
 }
 function openRestockPanel(){
   if(!restockList.length){ alert('入荷の連絡が必要な商品はありません'); return; }
