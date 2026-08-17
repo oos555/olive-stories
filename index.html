@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-09">
+<meta name="oos-version" content="2026-08-18-10">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5712,6 +5712,23 @@ function oosZaikoSelfCheck(){
     want('不良・軽（旧ロット）は旧ロットの不良から減る', D('ZC-old-lv1'), 2);
     want('不良・軽（旧ロット）のとき現ロットの不良は動かない', D('ZC-cur-lv1'), 4);
     want('不良・軽（旧ロット）のとき良品は動かない', L('ZC-old'), 8);
+
+    /* ★2026-08-18 在庫が足りない注文の決めごとも見張る（承認済みモック第2版）。
+       ひろみさん：「この決めたルールが勝手に変わらないようにして」
+       ここで見ているのは【読むだけの判定】なので、在庫も注文も1つも動きません。
+       ★この見張りを消さないでください。消すと、在庫のないものを倉庫へ送れてしまう
+         変更が入っても、誰も気づけなくなります。 */
+    setup();
+    var z1 = ord('normal','','',3);
+    want('在庫があるうちは「在庫待ち」にしない', isZaikoMachi(z1), false);
+    var z2 = ord('normal','','',9999);
+    want('在庫より多い注文は「在庫待ち」にする', isZaikoMachi(z2), true);
+    want('足りない本数を出す', ((orderShortages(z2)[0]||{}).short > 0), true);
+    z2.notified = true;
+    want('倉庫へ送った注文には「在庫待ち」を出さない', isZaikoMachi(z2), false);
+    want('送ったのに在庫を引いていない注文は見つける', isSentButNotDeducted(z2), true);
+    z2.notified = false; z2.stockDeducted = true;
+    want('在庫を確保ずみの注文には「在庫待ち」を出さない', isZaikoMachi(z2), false);
   }catch(err){
     fails.push('見張りそのものが動きませんでした：'+(err&&err.message));
   }finally{
