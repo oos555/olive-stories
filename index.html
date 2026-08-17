@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-08">
+<meta name="oos-version" content="2026-08-18-09">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2959,6 +2959,90 @@ function condRemainFor(pid, val){
   }
   return Infinity;                                          // 正規は在庫が無くても選べる（今までどおり）
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★在庫が足りない注文の扱い（2026-08-18 ひろみさん承認）
+   承認済みモック：mocks/mock_juchuA_zaiko_tarinai_2026-08-18.html（第2版）
+
+   なぜ：バサラなどの販売先がサイトの品切れ表示を忘れると、在庫が無いのに
+   注文が入り、そのまま受注一覧に並ぶ。それを倉庫へ送ると倉庫が混乱する。
+   ひろみさんの言葉：「出荷できないわけだから、倉庫に送っちゃうと倉庫混乱するから」
+
+   決めたこと（★変えないでください）
+   　・受注一覧から消さない。「🗓 予約（在庫待ち）」の札を付けるだけ
+   　・青いアラートで「在庫がありません（出荷できません）」と何本たりないかを出す
+   　・倉庫ボタンはグレー（在庫が入るまで押せない）
+   　・予約リストにも同じ注文を出す。ただし「予約数にカウント済み」と両側に書いて
+   　　二重に見えないようにする（同じ1件です）
+   　・足りるかどうかは【その場で計算】する。保存しない。
+   　　→ 在庫が入れば札もアラートも ひとりでに消える（消し忘れが起きない）
+   　　→ データの形は1つも変えていないので、他のアプリ・GASに影響が無い
+   ══════════════════════════════════════════════════════════════════════ */
+function zaikoHaveFor(pid, sku, val){
+  if(val === 'normal'){
+    var a = (typeof computeAvailable === 'function') ? computeAvailable(sku) : null;
+    return (a === null || a === undefined) ? Infinity : a;   // 商品マスタに無いものは判定しない
+  }
+  return condRemainFor(pid, val);
+}
+/* いま足りていない行を返す（状態は見ない。純粋に数だけ見る） */
+function shortagesNow(o){
+  var out = [];
+  if(!o) return out;
+  var need = {};
+  (o.lines || []).forEach(function(l){
+    var p = findProduct(l.productId); if(!p) return;
+    var q = lineTotal(l); if(q <= 0) return;
+    var val = condValueOfLine(l);
+    var k = p.id + '|' + val;                                  // 同じ商品・同じ状態は足し合わせて見る
+    if(!need[k]) need[k] = { pid:p.id, sku:p.sku, name:p.name, val:val, label:condLabelOfLine(l), qty:0 };
+    need[k].qty += q;
+  });
+  Object.keys(need).forEach(function(k){
+    var r = need[k];
+    var have = zaikoHaveFor(r.pid, r.sku, r.val);
+    if(have === Infinity) return;
+    if(have < r.qty) out.push({ name:r.name, label:r.label, need:r.qty, have:have, short:(r.qty - have) });
+  });
+  return out;
+}
+/* カードに出す用。送信済み・キャンセル・取り消し・在庫確保ずみの注文には出さない。 */
+function orderShortages(o){
+  if(!o || o.status !== 'pending' || o.notified) return [];   // 送信済み・キャンセル・取り消しは対象外
+  if(o.stockDeducted) return [];                               // もう在庫を確保してある
+  return shortagesNow(o);
+}
+function isZaikoMachi(o){ return orderShortages(o).length > 0; }
+/* 倉庫へ送ったのに在庫を引いていない注文（新しい保存項目は作らない。既にある2つで分かる） */
+function isSentButNotDeducted(o){
+  return !!(o && o.status === 'pending' && o.notified && !o.stockDeducted);
+}
+/* 予約の数に入れる本数（在庫待ちの注文が押さえている本数） */
+function zaikoMachiQty(o){
+  var n = 0;
+  (o.lines || []).forEach(function(l){ n += lineTotal(l); });
+  return n;
+}
+/* 受注一覧のカードに出す青いアラート */
+function zaikoAlertHtml(o){
+  var sh = orderShortages(o);
+  if(!sh.length) return '';
+  var rows = sh.map(function(s){
+    var nm = esc(s.name) + ((s.label && s.label !== '正規') ? '（' + esc(s.label) + '）' : '');
+    return '<tr><td style="padding:2px 12px 2px 0">' + nm + '</td>'
+      + '<td style="padding:2px 12px 2px 0">必要 ' + s.need + '本</td>'
+      + '<td style="padding:2px 12px 2px 0">いま ' + s.have + '本</td>'
+      + '<td style="padding:2px 0;color:#b45309;font-weight:800">' + s.short + '本たりません</td></tr>';
+  }).join('');
+  return '<div style="background:#e9f1fa;border:2px solid #7fa8d4;border-left-width:7px;border-radius:9px;padding:11px 13px;margin-top:6px">'
+    + '<div style="font-weight:800;font-size:15px;color:#12406e;margin-bottom:5px">🔵 在庫がありません（出荷できません）</div>'
+    + '<table style="border-collapse:collapse;font-size:13px;margin:6px 0 9px">' + rows + '</table>'
+    + '<div style="display:inline-block;background:#0c447c;color:#fff;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px">'
+    +   '✓ 予約リストに入っています ／ 予約数に カウント済み（' + zaikoMachiQty(o) + '本）</div>'
+    + '<div style="font-size:12px;color:#0c447c;background:#f2f7fd;border:1px dashed #85b7eb;border-radius:7px;padding:6px 9px;margin-top:8px">'
+    +   '🗓 予約リストにも同じ注文が出ます。<b>二重ではありません。同じ1件です。</b></div>'
+    + '</div>';
+}
 function conditionOptionsHtml(pid, selected){
   var a = condAvail(pid);
   var b = defectBuckets(pid);
@@ -5113,7 +5197,13 @@ function addGeneralHold(){
 function renderHoldPreLists(){
   renderHoldPreAlerts();
   const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned);
-  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned);
+  /* ★2026-08-18 在庫が足りなくて出荷できない注文も、予約リストに出す（承認済みモック第2版）。
+     ひろみさん：「予約リストにも同じ注文が出るがいい。二重に見えないように、
+     予約数にカウント済であることがわかるようにしてほしい」
+     → 受注一覧のカードには「予約数にカウント済み」、こちらには「受注一覧にも出ています」と両側に書く。
+     ★同じ1件です。数を二重に数えてはいけません。 */
+  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned)
+    .concat(orders.filter(function(o){ return isZaikoMachi(o); }));
   document.getElementById('held-count').textContent = heldOrders.length;
   document.getElementById('reserved-count').textContent = reservedOrders.length;
 
@@ -5157,7 +5247,11 @@ function renderHoldPreLists(){
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰予定超過</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅予定間近</span>':'')+
       '<div class="oc-num">'+o.num+'　お届け予定：'+(o.expectedDate||'指定なし')+'</div></div></div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
-      '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
+      /* ★2026-08-18 在庫待ちで入っている注文は、受注一覧にも同じものが出ていることを書く（同じ1件） */
+      (isZaikoMachi(o)
+        ? '<div style="font-size:12px;color:#0c447c;background:#f2f7fd;border:1px dashed #85b7eb;border-radius:7px;padding:6px 9px;margin-top:6px">📋 この注文は<b>受注一覧にも出ています</b>（同じ1件です）。在庫が入るまで、ここで待ちます。</div>'
+          + '<div class="oc-actions"><button class="btn-sm" disabled style="opacity:.45">📦 出荷依頼書へ</button><span style="font-size:12px;color:#6b6459">在庫が入るまで押せません</span></div>'
+        : '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>')+
       '</div>';
   }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>');
 
@@ -5187,6 +5281,17 @@ function convertSelectedHoldToShipping(){
 function convertToShipping(id){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
+  /* ★2026-08-18 在庫が足りないまま出荷依頼書へ移すと、1本も引けていないのに
+     「在庫を引いた」印だけが付き、あとで入荷しても永久に引かれない。ここで止める。
+     ★このガードを外さないでください（承認済みモック mocks/mock_juchuA_zaiko_tarinai_2026-08-18.html）。 */
+  var _sh = shortagesNow(o);
+  if(_sh.length){
+    alert('🔵 在庫がありません（出荷できません）。\n\n'
+      + _sh.map(function(s){ return '　・'+s.name+((s.label&&s.label!=='正規')?'（'+s.label+'）':'')
+          +'　必要 '+s.need+'本／いま '+s.have+'本（'+s.short+'本たりません）'; }).join('\n')
+      + '\n\n在庫が入ってから、もう一度押してください。');
+    return;
+  }
   o.status = 'pending';
   applyStockDeductOnSend(o);   // ★出荷依頼を送った時点で在庫を減らす（案A）
   persistStockDeduct([o]);     // ① 減らした分だけを最新在庫に反映
@@ -5371,6 +5476,8 @@ function renderOrderCard(o, sentGroup){
     const payMsg = !locked ? '' : (appPre
       ? '<div style="font-size:12px;color:#6b5a10;background:#faf3e4;border:1px solid #eeddb8;padding:4px 8px;border-radius:6px;margin-top:2px">🕓 入金前です（お客様がお支払い手続き中）</div>'
       : '<div style="font-size:12px;color:#7c2d12;background:#fff4ed;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;margin-top:2px">💰 入金を確認の上、出荷依頼書へ進んでください</div>');
+    /* ★2026-08-18 在庫が足りない注文の札（承認済みモック第2版）。その場で計算するので、在庫が入れば消えます */
+    const zaikoBadge = isZaikoMachi(o) ? '<span class="pill" style="background:#dbeafe;color:#0c447c;border:1px solid #85b7eb">🗓 予約（在庫待ち）</span>' : '';
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     const whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
@@ -5392,12 +5499,18 @@ function renderOrderCard(o, sentGroup){
     return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified)?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+zaikoBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+noteForDisplay(o.note)+'</div>' : '')+
       payMsg+
+      /* ★2026-08-18 在庫が足りないときの青いお知らせ（承認済みモック第2版）。★消さないでください */
+      zaikoAlertHtml(o)+
+      /* ★2026-08-18 倉庫へ送ったのに在庫を引いていない注文は、赤で残す。
+         新しい保存項目は作っていない（「送信済み」と「引いた印」の2つだけで分かるため）。
+         ★これで、昔からある「送信済みなのに引いていない」注文も拾える。 */
+      (isSentButNotDeducted(o) ? '<div style="font-size:12.5px;color:#7f1d1d;font-weight:700;background:#fef3f2;border:1px solid #f0a9a2;border-left:6px solid #b91c1c;padding:7px 10px;border-radius:7px;margin-top:5px">⚠ 倉庫へ送りましたが、<b>この注文はまだ在庫から引いていません。</b><br>在庫が入ったら下の「📉 在庫を引く」を押してください。</div>' : '')+
       /* ★2026-08-17 不良の出どころ（程度×現/旧）が未指定のまま在庫を引いた注文は、黙って進めない。 */
       (o.defectSrcUnknown ? '<div style="font-size:12px;color:#8c1d1d;font-weight:700;background:#fff1f1;border:1.5px solid #e8a0a0;padding:5px 9px;border-radius:6px;margin-top:3px">⚠ 不良の出どころ（軽・中・重／現ロット・旧ロット）が未指定のまま在庫を引きました。マスターNで数を確認してください。</div>' : '')+
       /* ★2026-08-17 ひろみさん指示：ボタンを枠の外に置かない。
@@ -5416,7 +5529,8 @@ function renderOrderCard(o, sentGroup){
         /* ②の枠に入れるもの（倉庫・出荷まわり。ひろみさん指示でここへ集約）
            ★2026-08-17 廃止：「出荷済みにする」（倉庫Ｄで倉庫さんが梱包完了を押せば終わるため）
            ★2026-08-17 廃止：「キャンセル」（残すのは「発注を取り消す（受注無し）」だけ） */
-        two: (sentGroup ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
+        two: (isSentButNotDeducted(o) ? '<button class="rk-sub" style="background:#b91c1c;border-color:#b91c1c;color:#fff" onclick="deductNowForOrder(\''+o.id+'\')">📉 在庫を引く</button>' : '')
+             + (sentGroup ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
              + (o.status==='pending' && locked && !appPre ? '<button class="rk-sub green" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')
              + (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="rk-sub orange" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')
              + (o.status!=='deleted' ? '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注を取り消す（受注無し）</button>' : '')
@@ -5952,10 +6066,17 @@ function renrakuBox(o, acts){
       '<div class="rk-l">この受注にできること</div><div class="rk-row">'+(acts.one||'')+(acts.twoTop||'')+(acts.two||'')+'</div>'+
       '</div></div></div>';
   }
+  /* ★2026-08-18 在庫が足りないときは倉庫ボタンをグレーにする（承認済みモック第2版）。
+     ひろみさん：「出荷できないわけだから、倉庫に送っちゃうと倉庫混乱するから」
+     ★このロックを外さないでください。どうしてもの逃げ道は下の小さなリンクだけです。 */
+  var zkShort = orderShortages(o);
+  var canWh = ackDone(o) && !zkShort.length;
   var wh = o.notified
     ? '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>'
-    : '<button class="rk-wh" '+(ackDone(o)?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
-      + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>');
+    : '<button class="rk-wh" '+(canWh?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
+      + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>')
+      + (zkShort.length ? '<div class="rk-lock">🔒 在庫が入るまで押せません（在庫がありません）</div>'
+          + '<div style="margin-top:5px"><span onclick="forceWarehouseShort(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">在庫がないまま、どうしても倉庫へ送る</span></div>' : '');
 
   /* ★2026-08-17 ひろみさん指示：出荷依頼書に備考欄があることを、ここで案内する。 */
   var whHint = '<div class="rk-hint">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも出ます）。</div>';
@@ -6053,14 +6174,22 @@ async function ackSkip(id){
 const ACK_FALLBACK_BODY = '原様、\n\nいつもありがとうございます！\n（株）オリーブオイル・ストーリーズです。\n\n以下のご発注、承りました。\n\nどうぞよろしくお願いいたします。\n\n（株）オリーブオイル・ストーリーズ';
 
 // ── ②倉庫へ出荷依頼（1件ずつ・サーバーから倉庫グループへ直接送る）──────
-async function notifyWarehouseOne(id){
+async function notifyWarehouseOne(id, force){
   var o = orders.find(x=>x.id===id); if(!o) return;
   if(!ackDone(o)){ alert('先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）'); return; }
+  /* ★2026-08-18 在庫が足りない注文は、ここで止める（承認済みモック第2版）。
+     どうしても送るときだけ、カードの小さなリンク（forceWarehouseShort）から force で来る。 */
+  if(!force && orderShortages(o).length){
+    alert('🔵 在庫がありません（出荷できません）。\n\n在庫が入ってから送ってください。\nどうしても送るときは、ボタンの下の「在庫がないまま、どうしても倉庫へ送る」から進めます。');
+    return;
+  }
   if(o.paymentMode==='prepay' && !o.paymentConfirmed){
     alert('⚠️ 先払いで、まだ入金確認が済んでいません。\n請求アプリC（billing.html）で入金確認を済ませてから、もう一度お試しください。');
     return;
   }
   if(!confirm('倉庫グループへ出荷依頼を送ります。よろしいですか？\n\n送り先：OOS出荷依頼グループ（倉庫）\n（送り先を選ぶ画面は出ません）')) return;
+  /* ★2026-08-18 送る前に、在庫が足りているかを見ておく（送ると notified が立って見えなくなるため） */
+  var _shortNow = shortagesNow(o).length > 0;
 
   var pickupUrl = OOS_PICKUP_URL;   /* ★2026-08-18 固定URLに変更（下の定義を参照）。★location.href から作る形に戻さないこと */
   var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
@@ -6083,10 +6212,47 @@ async function notifyWarehouseOne(id){
        実データで「倉庫へ送信済みなのに在庫を引いていない」注文が見つかって分かった。
        二重に減る心配はない：applyStockDeductOnSend は stockDeducted の印を見て、
        すでに引いてある注文には何もしない（手入力・STORES・取り置きは登録時に引いてある）。 */
-    if(!o.stockDeducted){ applyStockDeductOnSend(o); persistStockDeduct([o]); }
+    /* ★2026-08-18 在庫が足りないまま送った場合は、ここでは引かない。
+       引ける分だけ引くと「引いた印」は付くのに実際は足りていない、という食い違いが残るため。
+       在庫が入ってからカードの「📉 在庫を引く」で、まとめて正しく引く。 */
+    if(!o.stockDeducted && !_shortNow){ applyStockDeductOnSend(o); persistStockDeduct([o]); }
     renderList(); updateSummary(); syncOrdersToGAS([o]);
     showSyncStatus('✅ 倉庫へ送りました（送り先：OOS出荷依頼グループ）：'+o.num);
   }catch(e){ alert('通信できませんでした：'+e.message+'\n\n※倉庫には届いていません。'); }
+}
+
+/* ★2026-08-18 どうしても在庫がないまま倉庫へ送るとき（承認済みモック第2版 ⑥）。
+   ふだんは使いません。押すと必ず中身を見せて確認します。★この確認を省かないでください。 */
+function forceWarehouseShort(id){
+  var o = orders.find(function(x){ return String(x.id)===String(id); }); if(!o) return;
+  var sh = orderShortages(o);
+  if(!sh.length){ notifyWarehouseOne(id); return; }
+  var txt = sh.map(function(s){
+    return '　・'+s.name+((s.label && s.label!=='正規')?'（'+s.label+'）':'')
+      +'　必要 '+s.need+'本／いま '+s.have+'本（'+s.short+'本たりません）';
+  }).join('\n');
+  if(!confirm('⚠ 在庫がありません。\n\n'+txt+'\n\nこのまま倉庫へ送りますか？\n\n'
+    +'・在庫は引きません（引くと数が合わなくなるため）\n'
+    +'・カードに赤い注意が残ります\n'
+    +'・在庫が入ったら「📉 在庫を引く」を押してください')) return;
+  notifyWarehouseOne(id, true);
+}
+/* ★2026-08-18 在庫が足りないまま送った注文を、あとから引く。足りていなければ引かない。 */
+function deductNowForOrder(id){
+  var o = orders.find(function(x){ return String(x.id)===String(id); }); if(!o) return;
+  if(o.stockDeducted){ alert('この注文は、すでに在庫を引いています。'); return; }
+  var sh = shortagesNow(o);
+  if(sh.length){
+    var t = sh.map(function(s){ return '　・'+s.name+'　必要 '+s.need+'本／いま '+s.have+'本（'+s.short+'本たりません）'; }).join('\n');
+    alert('まだ在庫が足りません。\n\n'+t+'\n\n在庫が入ってから、もう一度押してください。');
+    return;
+  }
+  var lines = (o.lines||[]).map(function(l){ return '　・'+l.productName+' × '+lineTotal(l)+'本'; }).join('\n');
+  if(!confirm('この注文の分を、いま在庫から引きます。\n\n'+lines+'\n\nよろしいですか？')) return;
+  applyStockDeductOnSend(o);                      // 引くと印が付き、赤い注意は自動で消える
+  persistStockDeduct([o]);
+  renderList(); updateSummary(); syncOrdersToGAS([o]);
+  showSyncStatus('✅ 在庫を引きました：'+o.num);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -6590,7 +6756,10 @@ async function notifyLineShort(listArg){
   list.forEach(function(o){ o.notified = true; o.notifyCount = (o.notifyCount||0)+1; o.notifiedAt = new Date().toISOString(); });
   /* ★2026-08-17 notifyWarehouseOne と同じ理由：出荷依頼書を送った時点で在庫を減らす。
      すでに引いてある注文は素通りする（二重に減らない）。 */
-  var _notYet = list.filter(function(o){ return !o.stockDeducted; });
+  /* ★2026-08-18 在庫が足りない注文は、ここでも引かない。
+     引ける分だけ引くと、印は付くのに実際は足りていない、という食い違いが残るため。
+     足りるようになったら、カードの「📉 在庫を引く」でまとめて正しく引く。 */
+  var _notYet = list.filter(function(o){ return !o.stockDeducted && !shortagesNow(o).length; });
   if(_notYet.length){ _notYet.forEach(applyStockDeductOnSend); persistStockDeduct(_notYet); }
   if(typeof renderList==='function') renderList();
   if(typeof updateSummary==='function') updateSummary();
