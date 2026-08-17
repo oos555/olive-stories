@@ -289,7 +289,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-03">
+<meta name="oos-version" content="2026-08-18-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1366,6 +1366,38 @@ body{background:#fff}
         <option value="caution">🟡特別注意</option>
       </select></label>
       <label id="bedit-leaddate-wrap" style="display:none">お届け希望日<input type="date" id="bedit-leaddate"></label>
+      <!-- ★2026-08-18 ひろみさん指示：「今後もバサラの発注ミスもありうるので、全部編集できるように
+           しておいて。お客様の名前も、〒も、商品名、数、状態…」「同梱書類も」
+           → 状態（正規／旧ロット／不良の程度×現旧）と同梱書類を足しました。
+           状態のえらび方は受注登録と同じ conditionOptionsHtml を使うので、
+           残り本数が出て、0本は選べません（不良の出どころの決まりを守るため）。
+           ★この2つを消さないでください。 -->
+      <label class="w2">状態（正規・旧ロット・不良）<select id="bedit-cond"></select></label>
+      <label class="w2">同梱書類<select id="bedit-enc">
+        <option value="納品書">納品書</option>
+        <option value="納品書兼請求書">納品書兼請求書</option>
+        <option value="請求書">請求書</option>
+        <option value="領収書">領収書</option>
+        <option value="納品書兼領収書">納品書兼領収書</option>
+        <option value="なし">同梱書類なし</option>
+        <option value="__other">その他（自分で書く）</option>
+      </select></label>
+      <label class="w2" id="bedit-enc-other-wrap" style="display:none">同梱書類（自分で書く）<input type="text" id="bedit-enc-other" placeholder="例）納品書 ＋ ごあいさつ状"></label>
+      <label class="w2"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="bedit-pamph" style="width:auto;margin:0">パンフレットを入れる</span></label>
+      <!-- ★2026-08-18 ひろみさん指示「注文番号以外全部修正できるようにして」 -->
+      <label>種別<select id="bedit-gift">
+        <option value="normal">通常</option>
+        <option value="gift">ギフト</option>
+      </select></label>
+      <label>配達時間指定<select id="bedit-time">
+        <option value="">指定なし</option>
+        <option value="午前中">午前中</option>
+        <option value="14-16">14〜16時</option>
+        <option value="16-18">16〜18時</option>
+        <option value="18-20">18〜20時</option>
+        <option value="19-21">19〜21時</option>
+      </select></label>
+      <label class="w2">配達時間指定（そのほか・自分で書く）<input type="text" id="bedit-time-other" placeholder="上の一覧に無いときだけ書いてください"></label>
     </div>
     <div class="bedit-warn" id="bedit-warn"></div>
     <div class="bedit-ro" id="bedit-ro"></div>
@@ -6080,6 +6112,39 @@ function openBasaraEdit(id){
   var _ld = document.getElementById('bedit-leaddate');
   if(_ld){ _ld.value = o.leadDate || ''; }
   beditLeadChanged();
+  /* ★2026-08-18 ひろみさん指示「注文番号以外全部修正できるようにして」
+     状態・同梱書類・パンフレット・種別・配達時間指定 も、ここで直せるようにした。★消さないでください。 */
+  var _cs = document.getElementById('bedit-cond');
+  if(_cs){
+    _cs.innerHTML = conditionOptionsHtml(l.productId, condValueOfLine(l));
+    _cs.value = condValueOfLine(l);
+  }
+  var _es = document.getElementById('bedit-enc');
+  var _eo = document.getElementById('bedit-enc-other');
+  var _ew = document.getElementById('bedit-enc-other-wrap');
+  if(_es){
+    /* バサラは書類なしが決まり。空のときは「なし」を選んだ形にする（勝手に納品書にしない） */
+    var _enc = o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書');
+    var _known = Array.prototype.some.call(_es.options, function(op){ return op.value === _enc; });
+    _es.value = _known ? _enc : '__other';
+    if(_eo) _eo.value = _known ? '' : _enc;
+    if(_ew) _ew.style.display = _known ? 'none' : '';
+    _es.onchange = function(){
+      if(_ew) _ew.style.display = (_es.value === '__other') ? '' : 'none';
+    };
+  }
+  var _pm = document.getElementById('bedit-pamph');
+  if(_pm) _pm.checked = (o.includePamphlet !== false);
+  var _gf = document.getElementById('bedit-gift');
+  if(_gf) _gf.value = (l.giftType === 'gift') ? 'gift' : 'normal';
+  var _tm = document.getElementById('bedit-time');
+  var _to = document.getElementById('bedit-time-other');
+  if(_tm){
+    var _t = o.delivTime || '';
+    var _tk = Array.prototype.some.call(_tm.options, function(op){ return op.value === _t; });
+    _tm.value = _tk ? _t : '';
+    if(_to) _to.value = _tk ? '' : _t;
+  }
   document.getElementById('bedit-warn').innerHTML =
     '⚠ <b>ここで直せるのは、お届け先・商品・本数・発送区分</b>です。<br>'
     + '発注番号・発注日・二重取込の目印（#B…）は、バサラのメールから取り込んだ記録なので変えません。';
@@ -6111,9 +6176,36 @@ function saveBasaraEdit(){
   o.zip  = document.getElementById('bedit-zip').value.trim();
   o.addr = document.getElementById('bedit-addr').value.trim();
   o.tel  = document.getElementById('bedit-tel').value.trim();
+  /* ★2026-08-18 状態（正規／旧ロット／不良の程度×現旧）も直せるようにした。★消さないでください。 */
+  var _cv = (document.getElementById('bedit-cond')||{}).value || 'normal';
+  var _cp = String(_cv).split('|');
+  var _gt = (document.getElementById('bedit-gift')||{}).value || 'normal';
   o.lines = [{ productId: p.id, productName: p.name, boxQty: p.boxQty||1,
-               giftType: (o.lines&&o.lines[0]&&o.lines[0].giftType)||'normal',
+               giftType: (_gt==='gift' ? 'gift' : 'normal'),
+               condition: (_cp[0] || 'normal'),
+               defectLevel:   (_cp[0]==='defect' ? (_cp[1]||'') : ''),
+               defectLotKind: (_cp[0]==='defect' ? (_cp[2]||'') : ''),
                bottles: bottles, boxes: 0, memo: (o.lines&&o.lines[0]&&o.lines[0].memo)||'' }];
+  /* ★2026-08-18 同梱書類・パンフレット・配達時間指定も直せるようにした。★消さないでください。 */
+  var _es = document.getElementById('bedit-enc');
+  if(_es){
+    if(_es.value === '__other'){
+      var _eo = document.getElementById('bedit-enc-other');
+      var _v = _eo ? String(_eo.value||'').trim() : '';
+      if(!_v){ alert('同梱書類を「その他」にしたときは、中身を書いてください。'); return; }
+      o.enclosedDoc = _v;
+    } else {
+      o.enclosedDoc = _es.value;
+    }
+  }
+  var _pm = document.getElementById('bedit-pamph');
+  if(_pm) o.includePamphlet = !!_pm.checked;
+  var _tm = document.getElementById('bedit-time');
+  var _to = document.getElementById('bedit-time-other');
+  if(_tm){
+    var _tv = String((_to && _to.value ? _to.value : _tm.value) || '').trim();
+    o.delivTime = _tv;
+  }
   /* ★2026-08-18 ひろみさん指示：発送区分もここで直せるようにした。★消さないでください。 */
   var _ls = document.getElementById('bedit-lead');
   if(_ls && _ls.value){
@@ -6236,6 +6328,57 @@ function lineCodeHtmlA(l){
     ? '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'-</span>'+esc(tail)+'</div>'
     : '<div class="slip-code"><span class="sc-sku">'+esc(sku)+'</span></div>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 出荷依頼書に賞味期限を出す（ひろみさん指示）
+   ひろみさんの言葉：「倉庫の人が賞味期限をとてもきをつけてくれているので、記載が欲しいと
+   言われると思う」「賞味期限は 2027.10 のものもあり、前にあなたが勝手に 2027.10.10 にした。
+   これだとほかの商品だと思って倉庫は倉庫中を探してしまうので、マスターの名簿にある通りの
+   賞味期限を記載して」
+
+   ★大事：名簿（在庫データ）に入っている文字を【そのまま】出す。
+     日付の形をそろえたり、日を足したりしてはいけません（2027.10 は 2027.10 と出す）。
+   ★どのロットの期限を出すか：
+     正規  → 現ロット（status が old 以外）
+     旧ロット → 旧ロット（status='old'）
+     不良  → その不良が現ロット側か旧ロット側か（defectLotKind）に合わせる
+     在庫が残っているロットを、賞味期限の早い順に出す（＝実際に引かれる順と同じ）。
+     複数あれば「／」でつなぐ。1本も無ければ、期限の入っているロットを出す。
+   ★見つからないときは赤字で「名簿に賞味期限が入っていません」と出す（黙って空欄にしない）。
+   ══════════════════════════════════════════════════════════════════════ */
+function expiryTextForLine(l){
+  if(!l) return '';
+  var p = (typeof findProduct==='function' && l.productId!=null) ? findProduct(l.productId) : null;
+  if(!p && l.sku && typeof findProductBySku==='function') p = findProductBySku(l.sku);
+  if(!p || typeof lots==='undefined' || !lots) return '';
+  var cond = l.condition || 'normal';
+  var wantOld = (cond === 'old') || (cond === 'defect' && l.defectLotKind === 'old');
+  function isOldLot(s){ return s === 'old' || s === 'hold_old' || s === 'discard_old'; }
+  var mine = lots.filter(function(x){
+    if(!x || x.pid != p.id) return false;
+    if(x.status === 'incoming') return false;              // まだ倉庫にない分は出さない
+    return wantOld ? isOldLot(x.status) : !isOldLot(x.status);
+  });
+  function pick(arr){
+    var seen = {}, out = [];
+    arr.sort(function(a,b){ return String(a.expiry||'').localeCompare(String(b.expiry||'')); })
+       .forEach(function(x){
+          var e = String(x.expiry||'').trim();
+          if(!e || seen[e]) return;
+          seen[e] = 1; out.push(e);
+       });
+    return out;
+  }
+  var withStock = pick(mine.filter(function(x){ return (parseInt(x.stock)||0) > 0; }));
+  var list = withStock.length ? withStock : pick(mine);
+  return list.join('／');
+}
+function expiryHtmlForLine(l){
+  var t = expiryTextForLine(l);
+  if(!t){
+    return '<div class="slip-code" style="color:#b91c1c;font-weight:700">賞味期限：名簿に入っていません</div>';
+  }
+  return '<div class="slip-code" style="color:#1f4a2c;font-weight:800">賞味期限 '+esc(t)+'</div>';
+}
 /* ★2026-07-25 送り主とお届け先の名前くらべ用。空白（半角・全角）と語尾の「様」を無視して比べる。 */
 function nameKeyA(s){
   return String(s||'').replace(/[\s\u3000]/g,'').replace(/様$/,'');
@@ -6311,7 +6454,8 @@ function buildSlipHtml(o){
     const condHtml = cond==='old' ? '<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>'
       : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+esc(condLabelOfLine(l))+'</span>'
       : '<span style="color:#2b2a26">正規</span>';
-    html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    /* ★2026-08-18 商品名のうしろに賞味期限を出す（名簿の文字をそのまま）。★消さないでください。 */
+    html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+expiryHtmlForLine(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
     var _sp = findProduct(l.productId);
     if(_sp && _sp.isSet && _sp.components && _sp.components.length){
       var _cnt = (l.bottles||0) + (l.boxes||0)*(l.boxQty||_sp.boxQty||1);
@@ -6333,8 +6477,19 @@ function buildSlipHtml(o){
   else if(_bagGift){ _bagLine = '紙袋：あり　／　赤シール 貼る　<span style="font-weight:400;font-size:12px;color:#2b2a26">（合うサイズを倉庫でお選びください・確認不要）</span>'; }
   else { _bagLine = '紙袋：なし'; }
   html += '<div style="background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:8px 13px;margin:10px 0;font-size:14px;font-weight:700;color:#2b2a26">🛍 '+_bagLine+'</div>';
-  const encDoc = o.enclosedDoc || '納品書兼請求書';
-  const pamph = (o.includePamphlet !== false);
+  /* ══════════════════════════════════════════════════════════════
+     ★2026-08-18 ひろみさん指示：「バサラの場合は納品書は同梱しない設定だったはず。
+     確認して直して！ パンフレットを同梱してほしい」
+
+     調べた結果：GAS（basaraBuildOrder_）は enclosedDoc:'' ＝【書類なしのつもり】で作っていたが、
+     ここが「空なら納品書兼請求書」で埋めてしまい、書類なしの指定が消えていた。
+     → バサラは、書類が入っていなければ【なし】と出す。勝手に納品書を入れない。
+     　 パンフレットは入れる（ひろみさん指示）。
+     ★バサラで '納品書兼請求書' を出す形に戻さないでください（後払い・月末まとめ請求のため）。
+     ══════════════════════════════════════════════════════════════ */
+  var _isBasara = (typeof isBasaraOrder==='function') ? isBasaraOrder(o) : (o.source==='basara');
+  const encDoc = o.enclosedDoc || (_isBasara ? 'なし' : '納品書兼請求書');
+  const pamph = (o.includePamphlet !== false);   // 人が編集で外したときは、その通り外す
   var _isGiftSlip = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
   html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(o.customerType==='rt'
     ? '<div style="margin-top:6px;background:#eef4f9;border:2px solid #1f4a6d;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#1f4a6d">🏨 RTのため、ギフトでも金額の入った書類（'+esc(encDoc)+'）を必ず入れてください</div>'
