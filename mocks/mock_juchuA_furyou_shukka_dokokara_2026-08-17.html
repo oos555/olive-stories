@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>承認済みモック：不良品の出荷は「どこから出すか」を選ぶ 2026-08-17</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:18px;background:#faf7f5;
+       font-family:"Yu Gothic UI","Meiryo","Hiragino Kaku Gothic ProN",sans-serif;color:#333}
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-size:17px;margin:0 0 4px}
+  .lead{font-size:12.5px;color:#777;margin:0 0 14px;line-height:1.75}
+  .stateTag{display:inline-block;font-size:12px;font-weight:bold;color:#7a4a10;
+            background:#fff4e0;border:1px solid #e8c793;border-radius:6px;padding:3px 10px;margin:18px 0 8px}
+  .panel{border:1.5px solid #d5cfc3;border-radius:11px;background:#fff;padding:13px 15px}
+  .lbl{font-size:11.5px;font-weight:bold;color:#6b6459;margin-bottom:5px}
+  select{font-family:inherit;font-size:13px;font-weight:bold;padding:8px 10px;
+         border:1.5px solid #d5cfc3;border-radius:7px;background:#fff;color:#2b2a26;min-width:330px}
+  select.def{background:#fcebeb;color:#a32d2d;border-color:#e89a9a}
+  .opts{margin:8px 0 0;border:1px solid #e8dede;border-radius:8px;overflow:hidden}
+  .opts div{font-size:12.5px;padding:6px 11px;border-bottom:1px solid #f0e8e8;display:flex;gap:8px}
+  .opts div:last-child{border-bottom:none}
+  .opts .g{color:#3b5310;background:#f5f9ee}
+  .opts .o{color:#633806;background:#fdf6ea}
+  .opts .d{color:#a32d2d;background:#fdf1f1}
+  .opts .x{color:#aaa;background:#f6f6f6;text-decoration:line-through}
+  .opts b{margin-left:auto;font-weight:bold}
+  table.t{border-collapse:collapse;width:100%;font-size:12.5px;margin:8px 0 6px;background:#fff}
+  table.t th,table.t td{border:1px solid #e8dede;padding:6px 9px;text-align:left;vertical-align:top}
+  table.t th{background:#fbf3f3;color:#8c5a5a;white-space:nowrap}
+  .ann{border-left:4px solid #e8c793;background:#fffdf5;font-size:12.5px;
+       padding:9px 13px;margin:10px 0 0;line-height:1.8;color:#6b5a33}
+  .ann.no{border-left-color:#e14b4b;background:#fff6f6;color:#8c3b3b}
+  code{background:#f3f0ea;padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>承認済みモック：不良品の出荷は「どこから出すか」を選ぶ</h1>
+<p class="lead"><b>承認日 2026-08-17／ひろみさん</b>　（口頭で「あなたの提案通りに直してください」と承認）<br>
+なぜ作ったか：不良品を出荷依頼したとき、<b>程度（軽・中・重）を選べず</b>、システムが勝手に「処理が古い順」で
+減らしていた。実測で「不良2本」を出荷したら<b>軽は減らず重が3→1本</b>になり、さらに
+<b>現ロットの不良ではなく旧ロットの不良から減った</b>（現と旧は絶対に混ぜないという決めごとに反する）。<br>
+送った瓶と減る数字が食い違うと、あとで「誰が間違えたのか」の犯人探しになる。それを止めるためのモック。</p>
+
+<div class="ann">
+<b>考え方は廃棄とまったく同じにする。</b>
+マスターNの廃棄は <code>master.html:1845「廃棄の出どころ（2026-08-13確定・変更禁止）」</code> で
+「どこから捨てるか」を必ず選ばせ、残り本数を出し、0本は選べない。<b>出荷もこれに合わせる。</b>
+</div>
+
+<div class="stateTag">受注登録の「状態」欄 ── 選択肢をこの8つにする</div>
+
+<div class="panel">
+  <div class="lbl">状態（1商品ごとに選ぶ）</div>
+  <select class="def"><option>不良・軽（現ロット）（残 4）</option></select>
+  <div class="opts">
+    <div class="g">正規<b>（現ロットの良品から。賞味期限の早い順）</b></div>
+    <div class="o">旧ロット（残 8）<b>旧ロットの良品から</b></div>
+    <div class="d">不良・軽（現ロット）（残 4）<b>ここだけ減る</b></div>
+    <div class="x">不良・中（現ロット）（残 0）<b>0本なので選べない</b></div>
+    <div class="d">不良・重（現ロット）（残 3）<b>ここだけ減る</b></div>
+    <div class="d">不良・軽（旧ロット）（残 5）<b>ここだけ減る</b></div>
+    <div class="x">不良・中（旧ロット）（残 0）<b>0本なので選べない</b></div>
+    <div class="x">不良・重（旧ロット）（残 0）<b>0本なので選べない</b></div>
+  </div>
+</div>
+
+<div class="ann">
+・<b>残り本数を（残 N）で出す。</b>0本の行は<b>選べない</b>（グレーで押せない）＝廃棄パネルと同じ。<br>
+・<b>現ロットと旧ロットは別の選択肢</b>にする。混ぜない。<br>
+・色は今のまま（正規＝緑／旧ロット＝茶／不良＝赤）。
+</div>
+
+<div class="stateTag">減らし方 ── 選んだところからだけ減らす</div>
+
+<table class="t">
+  <tr><th>選んだもの</th><th>どこから減るか</th><th>販売可能</th><th>実在庫</th></tr>
+  <tr><td>正規</td><td>現ロットの良品（賞味期限の早い順）</td><td>減る</td><td>減る</td></tr>
+  <tr><td>旧ロット</td><td>旧ロットの良品（賞味期限の早い順）</td><td>減る（旧の分）</td><td>減る</td></tr>
+  <tr><td>不良・軽（現ロット）</td><td><b>現ロットの「軽」の不良だけ</b></td><td>動かない</td><td>減る</td></tr>
+  <tr><td>不良・中（現ロット）</td><td><b>現ロットの「中」の不良だけ</b></td><td>動かない</td><td>減る</td></tr>
+  <tr><td>不良・重（現ロット）</td><td><b>現ロットの「重」の不良だけ</b></td><td>動かない</td><td>減る</td></tr>
+  <tr><td>不良・軽/中/重（旧ロット）</td><td><b>旧ロットの同じ程度の不良だけ</b></td><td>動かない</td><td>減る</td></tr>
+</table>
+
+<div class="ann no">
+<b>やってはいけないこと（この行を消さない）</b><br>
+・程度を指定せずに「不良から」まとめて減らす。<b>これが今回の不具合そのもの。</b><br>
+・現ロットの不良と旧ロットの不良を、どちらからでも減らせるようにする。<br>
+・在庫が足りないとき、黙って足りないまま進む。<b>足りない本数は画面に赤で出す。</b>
+</div>
+
+<div class="stateTag">出荷依頼書 ── 倉庫さんが正しい瓶を取れるように書く</div>
+
+<div class="panel">
+  <div style="font-size:13px;line-height:1.9">
+    メメジック 500ml　× 2本
+    <span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:2px 9px;border-radius:99px">不良・軽（現ロット）</span>
+  </div>
+</div>
+
+<div class="ann">
+倉庫Ｄの画面と紙の出荷依頼書に、<b>「不良・軽（現ロット）」まで書く。</b>
+「不良」だけだと、倉庫さんがどの箱から取るか分からず、結局数字と合わなくなる。
+</div>
+
+<div class="stateTag">古い注文（程度が入っていないもの）の扱い</div>
+
+<div class="ann">
+すでに入っている注文で「不良」だけしか記録が無いものは、<b>数字を勝手に決めない</b>。
+今までどおり処理の古い順に減らすが、<b>カードに赤で「不良の出どころが未指定です。マスターNで確認してください」と出す</b>。
+黙って進めない。
+</div>
+
+</div>
+</body>
+</html>

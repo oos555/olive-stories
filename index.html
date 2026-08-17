@@ -2116,6 +2116,9 @@ let csvParsedRows = null;
 
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();
+  /* ★2026-08-17 在庫の決めごとの見張り。データを取る前に自己点検する（本物のデータには触りません）。
+     ここを消すと、減らし方が壊れても誰も気づけません。消さないでください。 */
+  try{ oosZaikoSelfCheck(); }catch(e){}
   addRecipient();
   loadInitialData();
   loadHolidays();
@@ -2779,13 +2782,92 @@ function condAvail(pid){
   }
   return { old: lotStockFor(pid,'old'), defect: defectStockFor(pid) };
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★不良品の出荷は「どこから出すか」を必ず選ばせる
+   承認済みモック：mocks/mock_juchuA_furyou_shukka_dokokara_2026-08-17.html
+   （2026-08-17 ひろみさん承認・変更禁止）
+
+   なぜ：前は「不良」の1択しかなく、程度（軽・中・重）も現/旧ロットも選べなかった。
+   減らす側も見ておらず「処理が古い順」で減らしていたため、実測で
+   　・「不良2本」出荷 → 軽は減らず【重】が3→1本
+   　・現ロットの不良ではなく【旧ロットの不良】から減った（現と旧は混ぜない決めごとに反する）
+   送った瓶と数字が食い違うと、あとで犯人探しになる。マスターNの廃棄
+   （master.html「廃棄の出どころ・2026-08-13確定・変更禁止」）と同じ形にそろえた。
+
+   ★この関数と deductFromDefects の「絞り込み」を外してはいけない。
+   ★起動時の自己点検（oosZaikoSelfCheck）がここを見張っている。
+   ══════════════════════════════════════════════════════════════════════ */
+var DEFECT_LEVELS = [ {lv:'lv1', label:'軽'}, {lv:'lv2', label:'中'}, {lv:'lv3', label:'重'} ];
+
+/* 不良を「程度 × 現ロット/旧ロット」の6つに分けて残り本数を出す。
+   計算は自分でせず、親（oos-zaiko.js）の numbers() を呼ぶだけ。 */
+function defectBuckets(pid){
+  var zero = {'lv1|cur':0,'lv2|cur':0,'lv3|cur':0,'lv1|old':0,'lv2|old':0,'lv3|old':0};
+  var p = findProduct(pid);
+  if(!p || typeof OOS_ZAIKO==='undefined' || !OOS_ZAIKO.numbers) return zero;
+  function one(id){
+    var n = OOS_ZAIKO.numbers(id, { lots:lots, defects:defects, holds:[] });
+    return {'lv1|cur':n.cur.defLight, 'lv2|cur':n.cur.defMid, 'lv3|cur':n.cur.defHeavy,
+            'lv1|old':n.old.defLight, 'lv2|old':n.old.defMid, 'lv3|old':n.old.defHeavy};
+  }
+  if(p.isSet && p.components && p.components.length){
+    var out = null;
+    p.components.forEach(function(c){
+      var cp = findProductBySku(c.sku), per = (c.qty||1);
+      var b = cp ? one(cp.id) : zero;
+      if(!out){ out = {}; Object.keys(zero).forEach(function(k){ out[k] = Math.floor((b[k]||0)/per); }); }
+      else Object.keys(zero).forEach(function(k){ out[k] = Math.min(out[k], Math.floor((b[k]||0)/per)); });
+    });
+    return out || zero;
+  }
+  return one(p.id);
+}
+/* 選択肢の値は「defect|程度|現or旧」。表示や保存では condition/defectLevel/defectLotKind に分ける
+   （データの形は変えない。condition は今までどおり normal / old / defect のまま）。 */
+function condValueOfLine(l){
+  if(!l) return 'normal';
+  if(l.condition==='defect'){
+    return (l.defectLevel && l.defectLotKind) ? ('defect|'+l.defectLevel+'|'+l.defectLotKind) : 'defect';
+  }
+  return l.condition || 'normal';
+}
+/* ★2026-08-17 画面と出荷依頼書に出す状態の名前。
+   「不良」だけだと倉庫さんがどの箱から取るか分からず、結局数字と合わなくなるので、
+   必ず「不良・軽（現ロット）」まで書く。 */
+function condLabelOfLine(l){
+  var c = (l && l.condition) || 'normal';
+  if(c==='old') return '旧ロット';
+  if(c!=='defect') return '正規';
+  var lv = { lv1:'軽', lv2:'中', lv3:'重' }[l.defectLevel||''] || '';
+  var lk = (l.defectLotKind==='old') ? '旧ロット' : (l.defectLotKind==='cur' ? '現ロット' : '');
+  if(!lv || !lk) return '不良（程度が未指定）';
+  return '不良・'+lv+'（'+lk+'）';
+}
+function condRemainFor(pid, val){
+  if(val==='old') return condAvail(pid).old;
+  if(val==='defect') return condAvail(pid).defect;          // 程度が未指定の古い注文
+  if(String(val).indexOf('defect|')===0){
+    var p = String(val).split('|');
+    return (defectBuckets(pid)[p[1]+'|'+p[2]] || 0);
+  }
+  return Infinity;                                          // 正規は在庫が無くても選べる（今までどおり）
+}
 function conditionOptionsHtml(pid, selected){
   var a = condAvail(pid);
+  var b = defectBuckets(pid);
   var sel = selected||'normal';
   function opt(val,label,dis){ return '<option value="'+val+'"'+(sel===val?' selected':'')+(dis?' disabled':'')+'>'+label+'</option>'; }
-  return opt('normal','正規',false)
-    + opt('old','旧ロット（残'+a.old+'）', a.old<=0)
-    + opt('defect','不良（残'+a.defect+'）', a.defect<=0);
+  var html = opt('normal','正規',false)
+           + opt('old','旧ロット（残'+a.old+'）', a.old<=0);
+  [['cur','現ロット'],['old','旧ロット']].forEach(function(k){
+    DEFECT_LEVELS.forEach(function(d){
+      var have = b[d.lv+'|'+k[0]] || 0;
+      html += opt('defect|'+d.lv+'|'+k[0], '不良・'+d.label+'（'+k[1]+'）（残'+have+'）', have<=0);
+    });
+  });
+  // 程度が入っていない古い注文を開いたときだけ、その値を残すための選択肢を足す（勝手に正規へ変えない）
+  if(sel==='defect') html += opt('defect','不良（程度が未指定・古い注文）', false);
+  return html;
 }
 function refreshLineCondition(row){
   if(!row) return;
@@ -2794,11 +2876,11 @@ function refreshLineCondition(row){
   if(!prodSel || !condSel) return;
   var pid = prodSel.value;
   var cur = condSel.value || 'normal';
-  var a = condAvail(pid);
-  if((cur==='old' && a.old<=0) || (cur==='defect' && a.defect<=0)) cur='normal';
+  /* ★2026-08-17 残り0本の選択肢は選べないので、正規に戻す（不良は程度×現/旧ごとに見る） */
+  if(condRemainFor(pid, cur) <= 0) cur = 'normal';
   condSel.innerHTML = conditionOptionsHtml(pid, cur);
   condSel.value = cur;
-  condSel.setAttribute('data-cond', cur);
+  condSel.setAttribute('data-cond', String(cur).split('|')[0]);
 }
 function addRecipientLine(cardId){
   const id = 'rline'+(++recipientLineCounter);
@@ -2863,12 +2945,17 @@ function getRecipientLines(cardId){
   return Array.from(card.querySelector('[data-role=lines]').children).map(function(row){
     const pid = row.querySelector('[data-role=product]').value;
     const p = findProduct(pid);
+    const _cv = (row.querySelector('[data-role=condition]')||{}).value || 'normal';
     return {
       productId: p?p.id:'', productName: p?p.name:'', boxQty: p?(p.boxQty||1):1,
       giftType: (p&&p.isSet) ? 'gift' : row.querySelector('[data-role=gift]').value,
       bottles: parseInt(row.querySelector('[data-role=bottles]').value)||0,
       boxes: parseInt(row.querySelector('[data-role=boxes]').value)||0,
-      condition: (row.querySelector('[data-role=condition]')||{}).value || 'normal',
+      /* ★2026-08-17 「defect|程度|現or旧」を3つに分けて持つ。
+         condition の中身（normal/old/defect）は今までどおりなので、他のアプリは何も変わらない。 */
+      condition: String(_cv).split('|')[0] || 'normal',
+      defectLevel:   (String(_cv).indexOf('defect|')===0 ? String(_cv).split('|')[1] : ''),
+      defectLotKind: (String(_cv).indexOf('defect|')===0 ? String(_cv).split('|')[2] : ''),
       memo: row.querySelector('[data-role=memo]').value
     };
   }).filter(l=>l.productId && (l.bottles>0 || l.boxes>0));
@@ -2878,7 +2965,7 @@ function updateCardGiftSummary(cardId){
   const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
   if(!lines.length){ el.innerHTML = '<span style="color:#2b2a26">商品を追加すると内訳が表示されます</span>'; return; }
   el.innerHTML = lines.map(function(l){
-    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 7px;border-radius:99px">正規</span>');
+    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+condLabelOfLine(l)+'</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 7px;border-radius:99px">正規</span>');
     var sp = findProduct(l.productId);
     if(sp && sp.isSet && sp.components && sp.components.length){
       var cnt = (l.bottles||0)+(l.boxes||0)*(l.boxQty||sp.boxQty||1);
@@ -3254,7 +3341,7 @@ function previewOrder(){
         var cond = (l.condition==='old')
           ? '　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 9px;border-radius:99px">旧ロット</span>'
           : (l.condition==='defect')
-          ? '　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 9px;border-radius:99px">不良</span>'
+          ? '　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 9px;border-radius:99px">'+condLabelOfLine(l)+'</span>'
           : '　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 9px;border-radius:99px">正規</span>';
         var gift = (l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'');
         var memo = (l.memo && String(l.memo).trim())
@@ -5204,6 +5291,8 @@ function renderOrderCard(o, sentGroup){
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+noteForDisplay(o.note)+'</div>' : '')+
       payMsg+
+      /* ★2026-08-17 不良の出どころ（程度×現/旧）が未指定のまま在庫を引いた注文は、黙って進めない。 */
+      (o.defectSrcUnknown ? '<div style="font-size:12px;color:#8c1d1d;font-weight:700;background:#fff1f1;border:1.5px solid #e8a0a0;padding:5px 9px;border-radius:6px;margin-top:3px">⚠ 不良の出どころ（軽・中・重／現ロット・旧ロット）が未指定のまま在庫を引きました。マスターNで数を確認してください。</div>' : '')+
       /* ★2026-08-17 ひろみさん指示：ボタンを枠の外に置かない。
          「枠の外に出ていると、何のボタンか分からない」。①②の枠の中に全部入れる。 */
       renrakuBox(o, {
@@ -5245,9 +5334,25 @@ function deductFromLots(pid, status, qty, log){
     remain -= take;
   });
 }
-function deductFromDefects(pid, qty, log){
+/* ★2026-08-17 承認済みモック mocks/mock_juchuA_furyou_shukka_dokokara_2026-08-17.html
+   level（'lv1'軽／'lv2'中／'lv3'重）と lotKind（'cur'現／'old'旧）で絞り込んでから減らす。
+   ★この絞り込みを外すと、軽を売ったのに重が減る／現ロットのつもりが旧ロットから減る、が復活する。
+     実測で起きていた不具合そのものなので、外してはいけない。
+   ★程度の見分け方は親（oos-zaiko.js）と同じ：lv1=軽／lv3=重／それ以外=中。ここを変えるなら親も変える。 */
+function deductFromDefects(pid, qty, log, level, lotKind){
   let remain = qty;
-  const matching = defects.filter(d=>d.pid==pid && isActiveDefect(d))
+  const matching = defects.filter(function(d){
+      if(!(d.pid==pid && isActiveDefect(d))) return false;
+      if(level){
+        var lv = (d.level==='lv1') ? 'lv1' : (d.level==='lv3' ? 'lv3' : 'lv2');
+        if(lv !== level) return false;
+      }
+      if(lotKind){
+        var lk = (d.lotKind==='old') ? 'old' : 'cur';
+        if(lk !== lotKind) return false;
+      }
+      return true;
+    })
     .sort((a,b)=>String(a.processedAt||'').localeCompare(String(b.processedAt||'')));
   matching.forEach(function(d){
     if(remain<=0) return;
@@ -5275,7 +5380,17 @@ function deductStockForOrder(o){
     targets.forEach(function(t){
       const prod = findProductBySku(t.sku);
       if(!prod) return;
-      if(cond==='defect') deductFromDefects(prod.id, t.qty, log);
+      if(cond==='defect'){
+        /* ★2026-08-17 選んだ「程度×現/旧」からだけ減らす。
+           古い注文で程度が入っていない場合だけ、今までどおり（古い順）で減らし、
+           あとで人が気づけるように印を付ける（黙って進めない）。 */
+        if(l.defectLevel && l.defectLotKind){
+          deductFromDefects(prod.id, t.qty, log, l.defectLevel, l.defectLotKind);
+        } else {
+          deductFromDefects(prod.id, t.qty, log);
+          o.defectSrcUnknown = true;
+        }
+      }
       else deductFromLots(prod.id, cond==='old' ? 'old' : 'new', t.qty, log);
     });
   });
@@ -5307,6 +5422,97 @@ function undoStockForOrder(o){
   if(!o.stockDeducted) return;
   restoreStockForOrder(o);
   o.stockDeducted = false;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★在庫の決めごとの「見張り」（2026-08-17 ひろみさん指示）
+   ひろみさんの言葉：「もう毎日決めたルールが壊れていく、変わっていく、戻っていく。
+   今日決めたルールは、明日も明後日も来週も来月も来年もずっと使っていけるようにして」
+
+   この関数は、画面を開くたびに【本物の関数】に【作り物の在庫】を流し、
+   決めごとが守られているかを自分で採点します。1つでも違えば画面の上に赤い帯を出します。
+   ＝あとで誰かが減らし方を書き換えても、その日のうちに気づけます。
+
+   ・本物の在庫データには触りません（先に控えを取り、必ず元に戻します）
+   ・保存もしません（persistStockDeduct などは呼びません）
+   ・画面を開いた直後（データ取得前）に走るので、業務の邪魔をしません
+
+   ★この関数を消してはいけません。消すと見張りがいなくなります。
+   ══════════════════════════════════════════════════════════════════════ */
+function oosZaikoSelfCheck(){
+  var fails = [];
+  var snapL = JSON.stringify(lots), snapD = JSON.stringify(defects);
+  try{
+    var p = null;
+    for(var i=0;i<PRODUCTS.length;i++){ if(PRODUCTS[i] && PRODUCTS[i].sku && !PRODUCTS[i].isSet){ p = PRODUCTS[i]; break; } }
+    if(!p) return fails;
+    var pid = p.id;
+    function setup(){
+      lots.length=0; defects.length=0;
+      lots.push({id:'ZC-new-early', pid:pid, status:'new', expiry:'2026-12-01', stock:5});
+      lots.push({id:'ZC-new-late',  pid:pid, status:'new', expiry:'2027-01-01', stock:10});
+      lots.push({id:'ZC-old',       pid:pid, status:'old', expiry:'2026-06-01', stock:8});
+      defects.push({id:'ZC-cur-lv1', pid:pid, qty:4, shippedQty:0, level:'lv1', status:'pending', source:'', reviewed:true, processedAt:'2026-08-01T00:00:00Z', lotKind:''});
+      defects.push({id:'ZC-cur-lv3', pid:pid, qty:3, shippedQty:0, level:'lv3', status:'pending', source:'', reviewed:true, processedAt:'2026-07-01T00:00:00Z', lotKind:''});
+      defects.push({id:'ZC-old-lv1', pid:pid, qty:5, shippedQty:0, level:'lv1', status:'pending', source:'', reviewed:true, processedAt:'2026-06-01T00:00:00Z', lotKind:'old'});
+    }
+    function L(id){ var l=lots.find(function(x){return x.id===id;}); return l?(l.stock||0):-1; }
+    function D(id){ var d=defects.find(function(x){return x.id===id;}); return d?((d.qty||0)-(d.shippedQty||0)):-1; }
+    function ord(cond, lv, lk, n){ return { id:'ZC-test', status:'pending', stockDeducted:false, stockLog:[],
+      lines:[{ productId:pid, bottles:n, boxes:0, boxQty:1, condition:cond, defectLevel:lv||'', defectLotKind:lk||'' }] }; }
+    function want(name, got, exp){ if(String(got)!==String(exp)) fails.push(name+'　→ いま '+got+'／正しくは '+exp); }
+
+    setup(); var a=ord('normal','','',3); applyStockDeductOnSend(a);
+    want('正規は賞味期限の早い現ロットから減る', L('ZC-new-early'), 2);
+    want('正規のとき旧ロットは動かない', L('ZC-old'), 8);
+    want('正規のとき不良は動かない', D('ZC-cur-lv1')+'/'+D('ZC-cur-lv3'), '4/3');
+
+    setup(); var b=ord('old','','',4); applyStockDeductOnSend(b);
+    want('旧ロット指定は旧ロットから減る', L('ZC-old'), 4);
+    want('旧ロット指定のとき現ロットは動かない', L('ZC-new-early')+'/'+L('ZC-new-late'), '5/10');
+    want('旧ロット指定のとき不良は動かない', D('ZC-cur-lv1'), 4);
+
+    setup(); var c=ord('defect','lv1','cur',2); applyStockDeductOnSend(c);
+    want('不良・軽（現ロット）は現ロットの軽から減る', D('ZC-cur-lv1'), 2);
+    want('不良・軽（現ロット）のとき重は動かない', D('ZC-cur-lv3'), 3);
+    want('不良・軽（現ロット）のとき旧ロットの不良は動かない', D('ZC-old-lv1'), 5);
+    want('不良を出しても良品は動かない', L('ZC-new-early')+'/'+L('ZC-old'), '5/8');
+    applyStockDeductOnSend(c); applyStockDeductOnSend(c);
+    want('同じ注文を何回押しても1回分しか減らない', D('ZC-cur-lv1'), 2);
+    undoStockForOrder(c);
+    want('取り消すと引いたのと同じ場所に戻る', D('ZC-cur-lv1'), 4);
+    want('取り消しても別の場所は増えない', D('ZC-cur-lv3')+'/'+D('ZC-old-lv1'), '3/5');
+
+    setup(); var d=ord('defect','lv3','cur',1); applyStockDeductOnSend(d);
+    want('不良・重（現ロット）は重から減る', D('ZC-cur-lv3'), 2);
+    want('不良・重（現ロット）のとき軽は動かない', D('ZC-cur-lv1'), 4);
+
+    setup(); var e=ord('defect','lv1','old',3); applyStockDeductOnSend(e);
+    want('不良・軽（旧ロット）は旧ロットの不良から減る', D('ZC-old-lv1'), 2);
+    want('不良・軽（旧ロット）のとき現ロットの不良は動かない', D('ZC-cur-lv1'), 4);
+    want('不良・軽（旧ロット）のとき良品は動かない', L('ZC-old'), 8);
+  }catch(err){
+    fails.push('見張りそのものが動きませんでした：'+(err&&err.message));
+  }finally{
+    try{ var rl=JSON.parse(snapL); lots.length=0; rl.forEach(function(x){lots.push(x);}); }catch(e){}
+    try{ var rd=JSON.parse(snapD); defects.length=0; rd.forEach(function(x){defects.push(x);}); }catch(e){}
+  }
+  if(fails.length) oosZaikoRuleAlarm(fails);
+  return fails;
+}
+function oosZaikoRuleAlarm(fails){
+  if(document.getElementById('oos-zaiko-alarm')) return;
+  var b = document.createElement('div');
+  b.id = 'oos-zaiko-alarm';
+  b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+    + 'padding:13px 18px;font-size:15px;font-weight:800;line-height:1.8;text-align:left';
+  b.innerHTML = '⚠ 在庫の決めごとが壊れています。<b>このまま出荷依頼を出さないでください。</b>'
+    + '<div style="font-weight:600;font-size:13px;margin-top:6px">'
+    + fails.map(function(s){ return '・'+s; }).join('<br>') + '</div>'
+    + '<div style="font-weight:600;font-size:12.5px;margin-top:7px">'
+    + 'この画面のまま知らせてください（在庫の引き方が決めごとと違う動きをしています）。</div>';
+  document.body.appendChild(b);
+  document.body.style.paddingTop = '110px';
 }
 function withProductNameForLots(arr){
   return arr.map(function(l){ const p = findProduct(l.pid); return Object.assign({}, l, { productName: p?p.name:(l.productName||'') }); });
@@ -5544,7 +5750,9 @@ function reopenOrderForEdit(id){
     var gsel = row.querySelector('[data-role=gift]'); if(gsel && srcLines[i].giftType){ gsel.value=srcLines[i].giftType; }
     var bn = row.querySelector('[data-role=bottles]'); if(bn){ bn.value=srcLines[i].bottles||0; }
     var bx = row.querySelector('[data-role=boxes]'); if(bx){ bx.value=srcLines[i].boxes||0; }
-    var cs = row.querySelector('[data-role=condition]'); if(cs && srcLines[i].condition){ cs.value=srcLines[i].condition; cs.setAttribute('data-cond', srcLines[i].condition); }
+    /* ★2026-08-17 不良は「程度×現/旧」まで持つので、その形で選び直す（程度が消えないように） */
+    var cs = row.querySelector('[data-role=condition]');
+    if(cs && srcLines[i].condition){ var _v = condValueOfLine(srcLines[i]); cs.value=_v; cs.setAttribute('data-cond', String(_v).split('|')[0]); }
     var mm = row.querySelector('[data-role=memo]'); if(mm){ mm.value=srcLines[i].memo||''; }
   }
   if(typeof renumberRecipients==='function') renumberRecipients();
@@ -5967,8 +6175,9 @@ function buildSlipHtml(o){
   html += '<table class="slip-table"><thead><tr><th>商品名</th><th>種別</th><th>状態</th><th>本数</th><th>箱数</th><th>メモ</th></tr></thead><tbody>';
   (o.lines||[]).forEach(function(l){
     const cond = l.condition || 'normal';
+    /* ★2026-08-17 出荷依頼書には「不良・軽（現ロット）」まで書く（倉庫さんがどの箱から取るか分かるように） */
     const condHtml = cond==='old' ? '<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>'
-      : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">不良</span>'
+      : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+esc(condLabelOfLine(l))+'</span>'
       : '<span style="color:#2b2a26">正規</span>';
     html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
     var _sp = findProduct(l.productId);
