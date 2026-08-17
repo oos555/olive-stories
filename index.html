@@ -289,7 +289,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-18-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1356,6 +1356,16 @@ body{background:#fff}
       <label>電話番号<input type="text" id="bedit-tel"></label>
       <label>本数<input type="number" id="bedit-bottles" min="0"></label>
       <label class="w2">商品<select id="bedit-product"></select></label>
+      <!-- ★2026-08-18 ひろみさん指示：「発送区分も選べるようにして」→ ここで選べるようにした。
+           日程指定をえらんだときだけ、日付の欄が出ます。★消さないでください。 -->
+      <label>発送区分<select id="bedit-lead" onchange="beditLeadChanged()">
+        <option value="normal">通常（3日以内）</option>
+        <option value="urgent">🚨急ぎ（明日まで）</option>
+        <option value="scheduled">🗓 日程指定</option>
+        <option value="defect">🔵不良在庫出荷</option>
+        <option value="caution">🟡特別注意</option>
+      </select></label>
+      <label id="bedit-leaddate-wrap" style="display:none">お届け希望日<input type="date" id="bedit-leaddate"></label>
     </div>
     <div class="bedit-warn" id="bedit-warn"></div>
     <div class="bedit-ro" id="bedit-ro"></div>
@@ -1641,11 +1651,19 @@ body{background:#fff}
 
 <!-- 出荷依頼書・納品書 -->
 <div id="panel-slip" class="panel">
+  <!-- ★2026-08-18 ひろみさん指示：
+       ・「出荷依頼書を開いた後、受注一覧に戻るボタンがない」→ 付けた
+       ・「作成ボタンではなく編集ボタンにして」→ 選ぶだけで出荷依頼書が出るようにし、
+         ボタンは「✏️ この注文を編集する（お名前・発送区分など）」にした
+       ★戻さないでください。 -->
+  <div class="no-print" style="margin-bottom:10px">
+    <button class="btn-sm" style="font-size:13px;font-weight:800;padding:8px 14px" onclick="backToOrderList()">← 受注一覧にもどる</button>
+  </div>
   <div class="no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
-    <select id="slip-select" style="flex:1;padding:7px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:13px">
-      <option value="">出荷依頼書を作成する受注を選択...</option>
+    <select id="slip-select" onchange="generateSlip()" style="flex:1;min-width:240px;padding:7px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:13px">
+      <option value="">出荷依頼書を出す受注をえらんでください...</option>
     </select>
-    <button class="btn btn-primary" onclick="generateSlip()">作成</button>
+    <button class="btn" id="slip-edit-btn" style="background:#b9741a;border-color:#b9741a;color:#fff;font-weight:800" onclick="editSelectedSlipOrder()">✏️ この注文を編集する（お名前・発送区分など）</button>
   </div>
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
     <button class="btn-line" id="line-notify-btn" onclick="notifyLineShort()" style="display:none">
@@ -5807,6 +5825,32 @@ function reopenOrderForEdit(id){
   var po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
   showSyncStatus('✏️ '+o.num+' を受注登録に戻しました。直したら、もう一度「受注一覧に登録する」を押してください。');
 }
+/* ★2026-08-18 ひろみさん指示：出荷依頼書から受注一覧へ戻れるようにする。★消さないでください。 */
+function backToOrderList(){
+  document.querySelectorAll('.tab-row .tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  var t = document.getElementById('tab-list'), p = document.getElementById('panel-list');
+  if(t) t.classList.add('active');
+  if(p) p.classList.add('active');
+  if(typeof renderList==='function') renderList();
+  window.scrollTo(0,0);
+}
+/* ★2026-08-18 ひろみさん指示：出荷依頼書のタブからも注文を編集できるようにする。
+   （それまでは受注一覧のカードにしか編集ボタンが無く、この画面からは直せなかった）
+   バサラの注文は「この場で編集」の窓、それ以外は受注登録に差し戻して直す。★消さないでください。 */
+function editSelectedSlipOrder(){
+  var sel = document.getElementById('slip-select');
+  var id = sel ? sel.value : '';
+  if(!id){ alert('先に、直したい受注をえらんでください。'); return; }
+  var o = orders.find(function(x){ return String(x.id)===String(id); });
+  if(!o){ alert('その受注が見つかりませんでした。'); return; }
+  if(o.notified){
+    alert('この注文はすでに倉庫へ送っているため、ここでは直せません。\n\n直すときは、受注一覧で「↩ 未送信にもどす」…は無いので、倉庫へ連絡してから直してください。');
+    return;
+  }
+  if(isBasaraOrder(o)) openBasaraEdit(o.id);
+  else reopenOrderForEdit(o.id);
+}
 function gotoSlip(id){
   const o = orders.find(x=>x.id===id);
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
@@ -6030,14 +6074,27 @@ function openBasaraEdit(id){
         ? ' <span class="bedit-dup">⚠ 同じ番号が'+same+'件あります</span>'
           + '<button type="button" class="bedit-renum" onclick="renumberOrder(\''+o.id+'\')">番号を付け直す</button>'
         : '');
+  /* ★2026-08-18 ひろみさん指示：発送区分も選べるようにした */
+  var _ls = document.getElementById('bedit-lead');
+  if(_ls){ _ls.value = o.leadType || 'normal'; }
+  var _ld = document.getElementById('bedit-leaddate');
+  if(_ld){ _ld.value = o.leadDate || ''; }
+  beditLeadChanged();
   document.getElementById('bedit-warn').innerHTML =
-    '⚠ <b>ここで直せるのは、お届け先と商品・本数だけ</b>です。<br>'
+    '⚠ <b>ここで直せるのは、お届け先・商品・本数・発送区分</b>です。<br>'
     + '発注番号・発注日・二重取込の目印（#B…）は、バサラのメールから取り込んだ記録なので変えません。';
   document.getElementById('bedit-ro').innerHTML =
     '<b>バサラからの取込メモ（変えません）</b><br>' + esc(o.note||'（なし）');
   pan.classList.add('show');
 }
 function closeBasaraEdit(){ document.getElementById('bedit-pan').classList.remove('show'); }
+/* ★2026-08-18 日程指定をえらんだときだけ、日付の欄を出す。★消さないでください。 */
+function beditLeadChanged(){
+  var s = document.getElementById('bedit-lead');
+  var w = document.getElementById('bedit-leaddate-wrap');
+  if(!s || !w) return;
+  w.style.display = (s.value === 'scheduled') ? '' : 'none';
+}
 function saveBasaraEdit(){
   var id = document.getElementById('bedit-pan').dataset.oid;
   var o = orders.find(function(x){ return x.id===id; }); if(!o) return;
@@ -6057,8 +6114,20 @@ function saveBasaraEdit(){
   o.lines = [{ productId: p.id, productName: p.name, boxQty: p.boxQty||1,
                giftType: (o.lines&&o.lines[0]&&o.lines[0].giftType)||'normal',
                bottles: bottles, boxes: 0, memo: (o.lines&&o.lines[0]&&o.lines[0].memo)||'' }];
+  /* ★2026-08-18 ひろみさん指示：発送区分もここで直せるようにした。★消さないでください。 */
+  var _ls = document.getElementById('bedit-lead');
+  if(_ls && _ls.value){
+    o.leadType = _ls.value;
+    var _ld = document.getElementById('bedit-leaddate');
+    o.leadDate = (_ls.value === 'scheduled' && _ld) ? (_ld.value || '') : '';
+  }
   closeBasaraEdit();
-  updateSummary(); renderList(); syncOrdersToGAS([o]);
+  updateSummary(); renderList(); renderSlipSelect(); syncOrdersToGAS([o]);
+  /* ★出荷依頼書を開いたまま直したときは、その場で作り直して新しい内容にする */
+  try{
+    var _ss = document.getElementById('slip-select');
+    if(_ss && String(_ss.value)===String(o.id) && typeof generateSlip==='function'){ _ss.value = o.id; generateSlip(); }
+  }catch(e){}
   showSyncStatus('✏️ 直しました：'+o.num+'　'+name);
 }
 // 管理番号を付け直す（同じ番号の注文が2件できてしまったときに使う）
@@ -6185,7 +6254,30 @@ function buildSlipHtml(o){
   if(_sender && _recip && nameKeyA(_sender) !== nameKeyA(_recip)){
     const _buyerNote = (o.buyerName && nameKeyA(o.buyerName) !== nameKeyA(_recip))
       ? ' <span style="color:#9a7b3a;font-size:12px">（ご購入：'+esc(o.buyerName)+' 様）</span>' : '';
-    html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px"><div style="font-size:13.5px;font-weight:700;color:#8a5a1c">📮 送り主とお届け先が別です</div><div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.7">送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong><br>お届け先 → <strong>'+esc(_recip)+' 様</strong>'+_buyerNote+'</div></div>';
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-08-18 ひろみさん指示で直しました。★戻さないでください。
+       ひろみさんの言葉：「バサラからの依頼の場合は、出荷元がバサラになる。
+       〒、住所、社名、連絡先・・この前直したものがまた戻っている。」
+
+       それまでは【送り主の名前だけ】を出していて、〒・住所・電話を出していなかった。
+       送り状を書く倉庫さんは、ご依頼主の住所と電話がないと書けません。
+       データ（senderZip / senderAddr / senderTel）はバサラのメールから取り込んで
+       ちゃんと入っているのに、画面に出していなかっただけです。
+       ★senderName だけを出す形に戻さないでください。
+       ══════════════════════════════════════════════════════════════ */
+    var _sZip  = (o.senderZip||'').trim();
+    var _sAddr = (o.senderAddr||'').trim();
+    var _sTel  = (o.senderTel||'').trim();
+    var _sLines = '送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong>';
+    if(_sZip || _sAddr) _sLines += '<br>　　〒'+esc(_sZip)+' '+esc(_sAddr);
+    if(_sTel)           _sLines += '<br>　　TEL '+esc(_sTel);
+    if(!_sZip && !_sAddr && !_sTel){
+      _sLines += '<br><span style="color:#b91c1c;font-weight:700">　　⚠ ご依頼主の住所・電話が入っていません。受注Aで「✏️ この注文を編集する」から入れてください。</span>';
+    }
+    html += '<div style="background:#fdf6ee;border:2px solid #d9a441;border-radius:9px;padding:10px 13px;margin-bottom:12px">'
+          + '<div style="font-size:13.5px;font-weight:700;color:#8a5a1c">📮 送り主とお届け先が別です</div>'
+          + '<div style="font-size:13.5px;color:#6b4a12;margin-top:5px;line-height:1.85">'+_sLines
+          + '<br>お届け先 → <strong>'+esc(_recip)+' 様</strong>'+_buyerNote+'</div></div>';
   }
   if(wasHeld) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#fef3c7;color:#78350f;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗄 取り置き商品（期限：'+o.holdUntilDate+'）</span></div>';
   if(wasReserved) html += '<div class="center" style="margin-bottom:8px"><span class="badge" style="background:#dbeafe;color:#1e3a8a;font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700">🗓 予約商品（予定：'+o.expectedDate+'）</span></div>';
