@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-10">
+<meta name="oos-version" content="2026-08-18-11">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4297,7 +4297,8 @@ function rtmRender(){
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
        '<button class="rtm-btn rtm-b-imp" onclick="rtmChooseImport()">📥 予約シート取込</button>'+
        '<button class="rtm-btn rtm-b-ghost" onclick="rtmExportExcel()">⬇ Excelに書き出す</button>'+
-       '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 受注Aに反映（共有保存）</button>'+
+       /* ★2026-08-18 ひろみさん決定の文言：「確定して予約を登録する」。★勝手に戻さないでください */
+       '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 確定して予約を登録する</button>'+
      '</div>'+
      '<div class="rtm-tool">'+addFacSel+addProdSel+
        '<span class="rtm-boxcalc">📦 箱を計算：'+
@@ -5081,7 +5082,14 @@ function rtmPushToOrders(){
   if(typeof renderHoldPreLists==='function') renderHoldPreLists();
   rtmPushHist('📤 受注Aに反映：予約'+totalBottles+'本／'+facCount+'施設を登録（既存'+supersede.length+'件を置換）');
   rtmSave(st);
-  alert('✅ 受注Aに反映しました（予約'+totalBottles+'本／'+facCount+'施設）。\nこの表の予約が受注Aの“正”になりました。');
+  /* ★2026-08-18 ひろみさん指示：「どこに、どう反映されたか」が読めるようにする。
+     ★「在庫が減ります」と書かないこと。予約は在庫に効かない（2026-08-13の決めごと）。
+       在庫が減るのは「📦 在庫を確保」のほうです。 */
+  alert('✅ 予約を登録しました（'+totalBottles+'本／'+facCount+'施設）\n\n'
+    + '・受注Ａの「取り置き・予約」タブの予約リストに出ました\n'
+    + '・統合マスタＮの「予約」の列に出ます\n'
+    + '・販売可能数は変わっていません（減るのは「📦 在庫を確保」のほうです）\n\n'
+    + 'この表の予約が、これからの“正”になりました。');
   rtmRender();
 }
 
@@ -5243,7 +5251,13 @@ function renderHoldPreLists(){
   resEl.innerHTML = resSummary + (reservedOrders.length ? reservedOrders.map(function(o){
     const overdue = isReservedOverdue(o), soon = isReservedDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+
-      '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
+      /* ★2026-08-18 在庫待ちの注文は、まとめて進める対象にしない（チェックを出さない）。
+         ひろみさん：「これを押しちゃうと二重になっちゃうんじゃないかなってみんな思っちゃう」
+         ★このチェックを復活させないでください。在庫が無いまま出荷の列に入ってしまいます。 */
+      '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start">'
+      + (isZaikoMachi(o) ? '<span style="width:24px;flex:none;text-align:center;font-size:15px" title="在庫が入るまで選べません">🔒</span>'
+                         : '<input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px">')
+      + '<div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰予定超過</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅予定間近</span>':'')+
       '<div class="oc-num">'+o.num+'　お届け予定：'+(o.expectedDate||'指定なし')+'</div></div></div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -5268,8 +5282,22 @@ function updateHoldSelected(){
 
 function convertSelectedHoldToShipping(){
   const ids = Array.from(document.querySelectorAll('.hold-select-cb:checked')).map(cb=>cb.value);
-  if(!ids.length){ alert('出荷依頼書へ進めたい取り置き・予約にチェックを入れてください'); return; }
-  const list = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
+  if(!ids.length){ alert('出荷の準備に進めたい取り置き・予約にチェックを入れてください'); return; }
+  const picked = ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
+  /* ★2026-08-18 ここは convertToShipping を通らない別の道だった。
+     在庫の守りが効かず、1本も引けていないのに「引いた」印だけが付いてしまうため、
+     ここにも同じ守りを入れる。★このガードを外さないでください。 */
+  const short = picked.filter(function(o){ return shortagesNow(o).length; });
+  const list  = picked.filter(function(o){ return !shortagesNow(o).length; });
+  if(short.length){
+    alert('🔵 在庫がありません（出荷できません）。この'+short.length+'件は進めませんでした。\n\n'
+      + short.map(function(o){
+          return '　・'+(o.recipientName||o.client)+'（'+o.num+'）\n'
+            + shortagesNow(o).map(function(s){ return '　　　'+s.name+'　必要 '+s.need+'本／いま '+s.have+'本（'+s.short+'本たりません）'; }).join('\n');
+        }).join('\n')
+      + '\n\n在庫が入ってから、もう一度お願いします。');
+  }
+  if(!list.length) return;
   list.forEach(function(o){ o.status='pending'; applyStockDeductOnSend(o); });
   persistStockDeduct(list);                  // ① 減らした分だけを最新在庫に反映
   updateSummary(); renderList(); renderSlipSelect();
