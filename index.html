@@ -2979,10 +2979,24 @@ function toggleCardTimeOther(cardId){
 function todayYmd(){ const t=new Date(); return t.getFullYear()+String(t.getMonth()+1).padStart(2,'0')+String(t.getDate()).padStart(2,'0'); }
 /* 注文番号の頭の暗号（見積書・請求書と同じ暗号表）：TK=定価／OS1=卸①／OS2=卸②／RT／FT=不良特価。連番はその日の通し番号（暗号ごとに分けない）。※A・M・orderの3ファイルで完全一致させること */
 function orderNumCode(ctype){ return ({general:'TK', wholesale1:'OS1', wholesale2:'OS2', basara:'BA', special:'IT', rt:'RT', rtgc:'RTG', defectprice:'FT'})[ctype] || 'TK'; }
+/* ★2026-08-17 ひろみさん決定：注文番号は「暗号 － 受注した日 － ランダム4桁」で統一する。
+   受注Ａ・見積М・お客様の注文ページ・GAS（バサラ取込）の4つを同じルールにそろえた。
+   なぜ連番をやめたか：連番は「その日の何件目か」を数えて作るため、作る場所ごとに
+   数え方がズレると同じ番号ができる。2026-08-17にバサラで BA-20260817-1 が2件できた。
+   ランダムなら、どこで作っても衝突しにくい。念のため、すでにある番号と同じなら引き直す。 */
 function nextOrderNum(offset, ctype){
   const ymd = todayYmd();
-  const todays = orders.filter(o=>(o.num||'').indexOf('-'+ymd+'-')>=0).length;
-  return orderNumCode(ctype)+'-'+ymd+'-'+String(todays+1+offset).padStart(3,'0');
+  const code = orderNumCode(ctype);
+  const used = {};
+  (orders||[]).forEach(function(o){ if(o && o.num) used[String(o.num)] = true; });
+  (window.__numTaken||[]).forEach(function(n){ used[n] = true; });   // 同じ画面で続けて作る分
+  let num = '';
+  for(let i=0; i<300; i++){
+    num = code+'-'+ymd+'-'+String(Math.floor(1000+Math.random()*9000));
+    if(!used[num]) break;
+  }
+  window.__numTaken = (window.__numTaken||[]).concat([num]);
+  return num;
 }
 function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
 
