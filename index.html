@@ -2120,8 +2120,10 @@ document.addEventListener('DOMContentLoaded', function(){
      ここを消すと、減らし方が壊れても誰も気づけません。消さないでください。 */
   try{ oosZaikoSelfCheck(); }catch(e){}
   addRecipient();
-  loadInitialData();
-  loadHolidays();
+  /* ★2026-08-17 開くのが遅い件（ひろみさん指示）。
+     GASは同じスクリプトへの同時アクセスを順番待ちさせるので、5本投げても足し算になる。
+     1回で全部もらう口（loadBundleForOrders）を使う。失敗したら今までの5本方式に自動で戻る。 */
+  loadInitialDataFast();
   // LINE送信でこの画面を離れて戻ってきた場合は「受注一覧」タブを開く（読み込み中表示のあと自動で埋まる）
   try{
     if(localStorage.getItem('oos_return_tab')==='list'){
@@ -2143,13 +2145,46 @@ function showSyncStatus(msg,isError){
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
-function loadInitialData(retry){
+/* ★2026-08-17 起動を速くする道。1回の通信で全部もらう。
+   ・うまくいけば通信は【2本】（商品マスタ＋これ）だけ。前は5本で13秒かかっていた。
+   ・少しでもおかしければ、今までの5本方式（loadInitialData／loadHolidays）に自動で戻る。
+     ＝速さのために正しさを捨てない。
+   ★この関数を消すときは、DOMContentLoaded の呼び出しも元に戻すこと。 */
+async function loadInitialDataFast(){
+  if(!gasSyncEnabled){ ordersLoaded = true; return; }
+  try{
+    var res = await fetch(bust(GAS_URL + '?action=loadBundleForOrders'), {cache:'no-store'});
+    var b = await res.json();
+    if(b && b.status==='ok' && b.data && Array.isArray(b.orders)){
+      // お休みカレンダー（親は送料・約束ごとS。ここは読むだけ）
+      if(Array.isArray(b.holidays) && b.holidays.length){
+        specialHolidays = b.holidays.map(normalizeHoliday); holidaysLoaded = true;
+        if(typeof refreshAllDeliveryMins==='function') refreshAllDeliveryMins();
+      } else {
+        loadHolidays();                                   // 空のときだけ今までどおり取り直す
+      }
+      // RT施設マスタ（親はRTシェフ台帳。ここは読むだけ）
+      if(Array.isArray(b.facilities) && b.facilities.length){
+        RT_FAC_MASTER = {};
+        b.facilities.forEach(function(f){ if(f&&f.name) RT_FAC_MASTER[rtfNorm(f.name)] = f; });
+        RT_FAC_MASTER_LOADED = true;                      // これで追加の通信をしなくなる
+      }
+      loadInitialData(0, { data:{status:'ok', data:b.data}, orders:{status:'ok', data:{orders:b.orders}} });
+      return;
+    }
+  }catch(e){ console.warn('まとめ読みに失敗したので、今までの方法で読み込みます', e); }
+  loadInitialData();
+  loadHolidays();
+}
+function loadInitialData(retry, pre){
   if(!gasSyncEnabled){ ordersLoaded = true; return; }
   retry = retry || 0;
-  Promise.all([
+  /* ★2026-08-17 pre が渡されたときは、すでに1回でもらった中身をそのまま使う（通信しない）。
+     渡されなければ今までどおり2本取りに行く。 */
+  (pre ? Promise.resolve([pre.data, pre.orders]) : Promise.all([
     fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null),
     fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null)
-  ]).then(function(results){
+  ])).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
     const dOk = !!(dataRes && dataRes.status==='ok' && dataRes.data);
     const oOk = !!(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders));
