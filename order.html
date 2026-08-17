@@ -834,10 +834,30 @@ function buildOrder(claimed, method, ref){
 /* ───────── GAS（先祖返り防止つき）───────── */
 function gasGet(action){ return fetch(GAS_URL+'?action='+action).then(function(r){ return r.json(); }); }
 function gasPost(obj){ return fetch(GAS_URL,{ method:'POST', body:JSON.stringify(obj), headers:{'Content-Type':'text/plain;charset=utf-8'} }).then(function(r){ return r.json(); }); }
+/* ★2026-08-18 ひろみさん指示「振り直してください」で追加。
+   決まりは「暗号 － 受注した日 － ランダム4桁。すでにある番号と同じなら引き直す」。
+   受注Ａ（nextOrderNum）とGAS（basaraUniqueNum_）は引き直していたが、
+   このページと、見積・請求Мが作って注文URLに埋める番号は引き直していなかった。
+   その2つは【番号を作る瞬間には、他の注文がまだ見えない】ので、作るところでは直せない。
+   保存の直前だけは最新の注文一覧を取り直しているので、ここで照らして引き直す。
+   ここを直すと、見積・請求Мが埋めた番号（PAYLOAD.orderNum）も一緒に救われる。
+   ★この引き直しを外さないでください。外すと違う注文に同じ番号がつきます。 */
+function reissueNumIfTaken(order, freshOrders){
+  var used = {};
+  freshOrders.forEach(function(o){ if(o && o.num && o.id !== order.id) used[String(o.num)] = true; });
+  if(!used[String(order.num)]) return;                 // かぶっていない＝そのまま
+  var parts = String(order.num).split('-');
+  var head  = (parts.length >= 3) ? (parts[0]+'-'+parts[1]) : '';
+  for(var i=0; i<300; i++){
+    var cand = head ? (head+'-'+String(Math.floor(1000+Math.random()*9000))) : genOrderNum();
+    if(!used[cand]){ order.num = cand; ORDER_NUM = cand; return; }
+  }
+}
 function saveOrderMerged(order){
   return gasGet('loadAll').then(function(fresh){
     var base;
     if(fresh && fresh.status==='ok' && fresh.data && Array.isArray(fresh.data.orders)){
+      reissueNumIfTaken(order, fresh.data.orders);     // ★かぶっていたら引き直す
       var byId={}; fresh.data.orders.forEach(function(o){ byId[o.id]=o; }); byId[order.id]=order;
       base=Object.keys(byId).map(function(k){ return byId[k]; });
     } else { base=[order]; }
