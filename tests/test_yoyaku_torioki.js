@@ -262,8 +262,8 @@ ok('⑨-2 いままでの4つも残っている',
   eq('⑨-3 メメジック 2L',    cont('MEM2L','メメジック'),  'デザイン缶');
   eq('⑨-3 プリモ 3L',   cont('PRI3L','プリモ'),     '缶');
   eq('⑨-3 アグリ 3L',   cont('AGR3L','アグリ'),     '缶');
-  eq('⑨-3 ★アルモニア 3L（bag in box はやめた）', cont('ARM3L','アルモニア'), '缶');
-  ok('⑨-3 ★コードから bag in box が消えている', src.indexOf("return 'bag in box'") < 0);
+  eq('⑨-3 ★アルモニア 3L は bag in box（変えない）', cont('ARM3L','アルモニア'), 'bag in box');
+  ok('⑨-3 ★bag in box の行が残っている', src.indexOf("if(sku==='ARM3L') return 'bag in box';") >= 0);
   /* ★人が手で入れた容器は書き換えない（生産地と同じときだけ「混入」とみなす） */
   eq('⑨-3 手で入れた容器はそのまま',
      r.box.containerFor({ sku:'ORG750', group:'オルガニック', container:'特別な缶' }), '特別な缶');
