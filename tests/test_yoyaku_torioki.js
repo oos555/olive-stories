@@ -277,6 +277,22 @@ ok('⑨-2 いままでの4つも残っている',
 })();
 ok('⑨-3 容器を直すとき、空の生産地も戻す', src.indexOf('origin: (p.origin || originOf(p) ||') >= 0);
 
+/* ══════ ⑨-4 「この画面は古い」の見張り（2026-08-18） ══════
+   輸入Ｅの転記などでサーバーの在庫が変わったのに、この画面が気づかないまま
+   在庫をさわると、古い数字で上書きしてしまう。ときどき読むだけで見に行って知らせる。
+   ★読むだけ。数字は1つも書き換えない。★消さないでください */
+ok('⑨-4 見張りの関数がある',       src.indexOf('function oosCheckStale') >= 0);
+ok('⑨-4 在庫の指紋で見くらべる',   src.indexOf('function oosLotsFingerprint') >= 0);
+ok('⑨-4 知らせる帯がある',         src.indexOf('oos-stale-bar') >= 0);
+ok('⑨-4 帯から取り直せる',         src.indexOf('onclick="reloadStockNow()"') >= 0);
+(function(){
+  var body = '';
+  try{ body = H.cut(src, 'oosCheckStale'); }catch(e){ fail++; fails.push('★ oosCheckStale が消えています'); }
+  ok('⑨-4 ★読むだけ（保存を呼ばない）',   body.indexOf('saveAllData') < 0 && body.indexOf('setValue') < 0);
+  ok('⑨-4 ★在庫を書き換えない',           body.indexOf('lots =') < 0 && body.indexOf('lots=') < 0);
+  ok('⑨-4 まだ保存していない変更があるときは邪魔しない', body.indexOf('if(autoSaveTimer) return;') >= 0);
+})();
+
 /* ══════ ⑩ GAS側（手元にあるときだけ） ══════ */
 const gasPath = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
 if(fs.existsSync(gasPath)){
