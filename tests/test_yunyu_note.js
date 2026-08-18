@@ -73,13 +73,22 @@ ok('①750mlの合計 < 500mlの合計（缶のほうが軽い）',
   eq('②'+r[0]+' も同じ合計g', w.total, r[1]);
 });
 /* ★3L は 2L の1.5倍（2026-08-18 ひろみさん「3LTは2LTの1.5倍しておいて」） */
-['PRI3L','AGR3L','ARM3L'].forEach(function(s){
+['PRI3L','AGR3L'].forEach(function(s){
   const w = box.ynWeightFor(s) || {};
   eq('②'+s+' ml',      w.ml,    3000);
   eq('②'+s+' オイルg', w.oil,   2760);
   eq('②'+s+' 容器g',   w.cont,  490.5);
   eq('②'+s+' 合計g',   w.total, 3250.5);
 });
+/* ★アルモニア3L は bag in box。容器だけ半分（2026-08-18 ひろみさん「バッグインボックスは重量半分にしておいて」） */
+const arm = box.ynWeightFor('ARM3L') || {};
+eq('②ARM3L ml',      arm.ml,    3000);
+eq('②ARM3L オイルg', arm.oil,   2760);
+eq('②ARM3L 容器g（缶の半分）', arm.cont,  245.25);
+eq('②ARM3L 合計g',   arm.total, 3005.25);
+eq('②ARM3Lの容器は缶の3Lのちょうど半分', arm.cont, box.ynWeightFor('PRI3L').cont / 2);
+ok('②ARM3Lのオイルは半分にしない（3Lは3L）', arm.oil === box.ynWeightFor('PRI3L').oil);
+
 const w2L = box.ynWeightFor('ORG2L'), w3L = box.ynWeightFor('PRI3L');
 eq('②3Lのオイルは2Lの1.5倍', w3L.oil,   w2L.oil  * 1.5);
 eq('②3Lの容器は2Lの1.5倍',   w3L.cont,  w2L.cont * 1.5);
