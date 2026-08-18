@@ -54,6 +54,14 @@ W.forEach(function(r){
 const zk = box.ynWeightFor('ZAKURO') || {};
 eq('①ザクロソース 合計g', zk.total, 604);
 eq('①ザクロソース ml',    zk.ml,    250);
+/* ★2026-08-18 名簿に登録して品番が ETC-001 になった。古い ZAKURO も残す */
+const zk2 = box.ynWeightFor('ETC-001') || {};
+eq('①ザクロソース（ETC-001）合計g', zk2.total, 604);
+eq('①ザクロソース（ETC-001）ml',    zk2.ml,    250);
+ok('①輸入準備計算室の品番も ETC-001 になっている',
+   src.indexOf('"id": "ZAKURO", "sku": "ETC-001"') >= 0);
+ok('①保存に残った古い品番も差し替える仕掛けがある',
+   src.indexOf("p.id==='ZAKURO' && p.sku==='ZAKURO'") >= 0);
 ok('①ザクロソースは内訳が無い（オイルg）', zk.oil == null);
 ok('①ザクロソースは内訳が無い（容器g）', zk.cont == null);
 const kb = box.ynWeightFor('MISC002') || {};
