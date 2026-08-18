@@ -3013,6 +3013,28 @@ function condRemainFor(pid, val){
 /* いま足りていない行を返す（状態は見ない。純粋に数だけ見る）。
    ★2026-08-18 数え方は【親＝oos-zaiko.js】に置いた。ここに書き写してはいけない。
      統合マスタＮの「予約」の列も同じ親を見るので、数がずれようがない。 */
+
+/* ★2026-08-18 在庫はそろっているのに、まだ予約のままの注文（＝取りこぼし）を数える。
+   読むだけ。在庫も注文も1つも動かさない。★消さないでください
+   ふだんは統合マスタＮの「📦 輸入が届いた → 一気に在庫へ入れる」で一緒に取り置きに変わるので0件。
+   棚卸しで数を直した・キャンセルで在庫が戻った など、輸入以外の理由で在庫が入ったときに出る。 */
+function yoyakuArrivedList(list){
+  if(typeof ordersLoaded !== 'undefined' && !ordersLoaded) return [];   /* 読み込み中は数えない */
+  return (list||[]).filter(function(o){
+    return o && o.status === 'reserved' && !o.rtmOwned && shortagesNow(o).length === 0;
+  });
+}
+/* ★知らせるだけの青い帯。押すボタンは付けない（2026-08-18 ひろみさん決定【い】） */
+function renderYoyakuArrivedBar(list){
+  var hit = yoyakuArrivedList(list);
+  if(!hit.length) return '';
+  return '<div style="background:#e8effb;border:2px solid #2563eb;border-radius:12px;padding:11px 14px;margin-bottom:12px">'
+    + '<div style="font-size:14px;font-weight:800;color:#1d4ed8">📦 入荷ずみの予約が ' + hit.length + '件 あります</div>'
+    + '<div style="font-size:11.5px;color:#1d4ed8;margin-top:5px;line-height:1.7">'
+    + '在庫はそろっているのに、まだ予約のままの注文です。<br>'
+    + '統合マスタＮで「<b>📦 輸入が届いた → 一気に在庫へ入れる</b>」を押すと、取り置きに変わります。'
+    + '</div></div>';
+}
 function shortagesNow(o){
   if(!o || typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.shortages) return [];
   return OOS_ZAIKO.shortages(o, { lots: lots, defects: defects, holds: buildHoldsForZaiko() }, PRODUCTS)
@@ -5456,6 +5478,16 @@ function renderHoldPreLists(){
   var resSummary = reservedOrders.length
     ? '<div style="background:#eef4fb;border:2px solid #85b7eb;border-radius:12px;padding:12px 15px;margin-bottom:12px"><div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap"><span style="font-size:16px;font-weight:800;color:#0c447c">🗓 予約リスト</span><span style="font-size:24px;font-weight:800;color:#0c447c;line-height:1">'+reservedOrders.length+'</span><span style="font-size:14px;font-weight:700;color:#0c447c">件</span></div></div>'
     : '';
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-18 「入荷ずみの予約」を知らせるだけの青い帯（ひろみさん決定【い】）
+     承認済みモック mocks/mock_master_yoyaku_to_torioki_2026-08-18.html
+     ・在庫はそろっているのに、まだ予約のままの注文があると出る
+     ・★押すボタンは付けない（ボタンを増やさないと決めた）。知らせるだけ
+     ・ふだんは統合マスタＮの「📦 輸入が届いた → 一気に在庫へ入れる」で一緒に変わるので出ない。
+       棚卸しで数を直した・キャンセルで在庫が戻った など、輸入以外の理由で在庫が入ったときの
+       取りこぼしに気づくための帯。★消さないでください
+     ══════════════════════════════════════════════════════════════════ */
+  resSummary += renderYoyakuArrivedBar(reservedOrders);
   resEl.innerHTML = resSummary + (reservedOrders.length ? reservedOrders.map(function(o){
     const overdue = isReservedOverdue(o), soon = isReservedDueSoon(o);
     return '<div class="order-card" style="'+(overdue?'border-color:#dc2626;border-width:2px':soon?'border-color:#f59e0b;border-width:2px':'')+'">'+

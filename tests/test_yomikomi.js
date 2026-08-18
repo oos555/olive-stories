@@ -24,6 +24,7 @@ function makeDom(){
 const NAMES=['findProduct','findProductBySku','isActiveDefect','buildHoldsForZaiko','computeAvailable',
   'lotStockFor','defectStockFor','condAvail','defectBuckets','condValueOfLine','condLabelOfLine','condRemainFor',
   'shortagesNow','orderShortages','isZaikoMachi','zaikoMachiQty','lineTotal',
+  'yoyakuArrivedList','renderYoyakuArrivedBar',
   'daysUntil','isHeldOverdue','isHeldDueSoon','isReservedOverdue','isReservedDueSoon',
   'updateHoldSelected','renderHoldPreLists'];
 let code=''; NAMES.forEach(n=>{ try{ code += H.cut(src,n)+'\n'; }catch(e){ code += '/* '+n+' なし */\n'; } });

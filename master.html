@@ -1135,6 +1135,8 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
     </table>
     <div class="imp-s" style="margin-top:10px">実在庫は、フリーと予約を入れた結果として<b>自動で増えます</b>（別に足しません）。<br>
       入れたあと、その商品の「予定・予約・フリー」は 0 に戻ります。</div>
+    <!-- ★2026-08-18 あわせて予約を取り置きに変える（承認済みモック mocks/mock_master_yoyaku_to_torioki_2026-08-18.html）★消さないでください -->
+    <div id="imp-conv"></div>
     <button class="imp-go" id="imp-go" onclick="doImportAll()">この内容で入れる</button>
     <button class="imp-can" onclick="closeImportAllPanel()">やめる</button>
   </div>
@@ -2614,6 +2616,7 @@ function confirmIncomingFromList(pid){
 //   ここで予定を別に足すと同じ本数が2回入って倍になる（2026-08-17 検算で確認済み）。
 // ══════════════════════════════════════════════════════════════════════
 var lastImportAll = null;
+var lastImportConv = [];   /* ★2026-08-18 このとき取り置きに変えた予約（取り消し用） */
 function importAllList(){
   var list = [];
   PRODUCTS.forEach(function(p){
@@ -2628,6 +2631,158 @@ function importAllList(){
   });
   return list;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 一気に在庫へ入れたとき、全部そろった予約を「取り置き」に変える
+   承認済みモック mocks/mock_master_yoyaku_to_torioki_2026-08-18.html
+   ひろみさん：「このボタンがきっかけとなって一緒に変わっていけばいい。
+                 二つも三つもボタンを増やす必要ないんじゃない?」
+
+   ★決めごと（戻さないでください）
+   ・きっかけは「📦 輸入が届いた → 一気に在庫へ入れる」1つだけ。ボタンを増やさない
+   ・注文は分けない。全部そろった注文だけ取り置きへ。1つでも足りなければ丸ごと予約のまま
+     （ひろみさん：「注文分けると管理番号も変わるし、ばらばらに届くと問い合わせが来ちゃう」）
+   ・判定は親 OOS_ZAIKO.shortages を呼ぶだけ。計算を書き写さない
+   ・2026-08-17の動き（フリー→棚の良品／予約→よけた箱／予定→0）は変えない。そのあとに1手順足すだけ
+   ・注文の保存は setOrderStatusOnly（その行だけ書き換える）を使う。
+     ★saveOrders（シートを全部消してから書き直す）を統合マスタから絶対に呼ばない。
+       呼ぶと、この画面を開いたあとに受注Ａで入った注文が消える。
+
+   なぜ「よけた箱 → 棚の良品」に引っ越すのか
+     よけた箱（手入力の取置）は棚の良品の外にあるので、出荷で在庫を引く処理
+     （受注Ａの deductFromLots は 'new' からしか引かない）が届かない。
+     引っ越さずに注文だけ取り置きにすると、ほかのお客様ぶんの棚の良品が減り、
+     よけた箱がずっと残って実在庫が多いままになる。
+   ══════════════════════════════════════════════════════════════════════ */
+/* 「入れたあと」の在庫を、本物に触らずコピーの上だけで作る（読むだけ・保存しない）
+   ★フリーも予約ぶんも、判定のときは「棚の良品」に置く。
+     予約ぶんは実際には「よけた箱」に入るが、よけた箱は販売可能数に入らないため、
+     そのまま判定すると【いつも足りない】ことになり、1件も取り置きに変わらない。
+     よけた箱はまさにこの予約のためのものなので、判定では棚の良品として数える。
+     ★ここを「よけた箱」に戻さないでください（2026-08-18 テストで見つけた落とし穴）。 */
+function impSimLots(){
+  var copy = JSON.parse(JSON.stringify(lots||[]));
+  copy.forEach(function(l){ if(l && l.status === 'incoming') l.stock = 0; });
+  importAllList().forEach(function(x){
+    var add = (x.free||0) + (x.pre||0);
+    if(add > 0) copy.push({ id:'sim-in-'+x.pid, pid:x.pid, status:lotStatusFor('cur','avail'), stock:add });
+  });
+  return copy;
+}
+/* 今回の輸入で「よけた箱」に入る本数（ここからだけ引っ越す） */
+function impPreLeft(){
+  var left = {};
+  importAllList().forEach(function(x){ if(x.pre > 0) left[x.pid] = (left[x.pid]||0) + x.pre; });
+  return left;
+}
+/* 受注Ａの予約注文（古い順） */
+function impReservedOrders(){
+  return (orders||[]).filter(function(o){ return o && o.status === 'reserved' && !o.rtmOwned; })
+    .slice().sort(function(a,b){ return String(a.num||'').localeCompare(String(b.num||'')); });
+}
+/* 指定した注文を取り置きにしたときの holds を、本物の buildHoldsFromOrders で作る */
+function impHoldsWith(heldIds){
+  var snap = orders;
+  try{
+    orders = (orders||[]).map(function(o){
+      if(!o || heldIds.indexOf(o.id) < 0) return o;
+      var c = {}; for(var k in o) c[k] = o[k]; c.status = 'held'; return c;
+    });
+    return buildHoldsFromOrders();
+  } finally { orders = snap; }
+}
+/* この注文が押さえる本数（商品ごと・セットは中身に展開） */
+function impNeedsOf(o){
+  var by = {};
+  (impHoldsWith([o.id]) || []).forEach(function(h){
+    if(h && h.orderId === o.id) by[h.pid] = (by[h.pid]||0) + (h.qty||0);
+  });
+  return Object.keys(by).map(function(pid){ return { pid:parseInt(pid,10), qty:by[pid] }; });
+}
+/* 誰が取り置きに変わって、誰が予約のまま残るか（在庫は1本も動かさない・読むだけ）
+   古い注文から順に見て、1件決めるたびに取り置きを足して数え直すので、二重に押さえない。 */
+function impConvertPlan(){
+  var out = { go:[], stay:[] };
+  if(typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.shortages) return out;
+  var simLots = impSimLots(), preLeft = impPreLeft(), heldIds = [];
+  impReservedOrders().forEach(function(o){
+    var data = { lots:simLots, defects:defects, holds:impHoldsWith(heldIds) };
+    var sh = OOS_ZAIKO.shortages(o, data, PRODUCTS) || [];
+    if(sh.length){ out.stay.push({ o:o, short:sh }); return; }
+    var moves = [];
+    impNeedsOf(o).forEach(function(n){
+      var m = Math.min(n.qty, preLeft[n.pid] || 0);
+      if(m > 0){ moves.push({ pid:n.pid, qty:m }); preLeft[n.pid] -= m; }
+    });
+    heldIds.push(o.id);
+    out.go.push({ o:o, moves:moves });
+  });
+  return out;
+}
+function impOrderWho(o){ return esc(o.recipientName || o.client || ''); }
+function impOrderLines(o){
+  return ((o.lines)||[]).map(function(l){
+    var p = PRODUCTS.filter(function(x){ return x.id == l.productId; })[0];
+    var bq = l.boxQty || (p && p.boxQty) || 1;
+    var q = (l.bottles||0) + (l.boxes||0)*bq;
+    return esc(l.productName||'') + ' × ' + q + '本';
+  }).join('<br>');
+}
+function renderImportConvPanel(){
+  var box = document.getElementById('imp-conv'); if(!box) return;
+  var plan = impConvertPlan();
+  window.__impConvCount = plan.go.length;
+  if(!plan.go.length && !plan.stay.length){ box.innerHTML = ''; return; }
+  var h = '<div style="background:#eef4fb;border:2px solid #2563eb;border-radius:9px;padding:11px 13px;margin:12px 0">'
+    + '<div style="font-size:13.5px;font-weight:800;color:#1d4ed8;margin-bottom:6px">🗓 あわせて、この予約が「取り置き」に変わります</div>'
+    + '<table class="imp-tbl"><thead><tr><th>お客様</th><th>注文番号</th><th>中身</th><th>どうなるか</th></tr></thead><tbody>';
+  plan.go.forEach(function(g){
+    h += '<tr><td>'+impOrderWho(g.o)+'</td><td>'+esc(g.o.num||'')+'</td><td style="text-align:left">'+impOrderLines(g.o)+'</td>'
+      +  '<td style="color:#166534;font-weight:800">✅ 取り置きへ</td></tr>';
+  });
+  plan.stay.forEach(function(s){
+    var why = s.short.map(function(x){ return esc(x.name)+' が '+x.short+'本たりません'; }).join('<br>');
+    h += '<tr style="background:#fffaf3"><td>'+impOrderWho(s.o)+'</td><td>'+esc(s.o.num||'')+'</td>'
+      +  '<td style="text-align:left">'+impOrderLines(s.o)+'<div style="color:#b91c1c;font-size:11px;margin-top:3px">'+why+'</div></td>'
+      +  '<td style="color:#b45309;font-weight:800">⏸ 予約のまま</td></tr>';
+  });
+  h += '</tbody></table>'
+    +  '<div style="font-size:11.5px;color:#1d4ed8;margin-top:6px;line-height:1.6">'
+    +  '<b>全部そろった注文だけ</b>が取り置きに変わります。<b>まだ届いていない商品がある注文は、予約のまま残ります。</b><br>'
+    +  '届いていないぶんを待っている商品は<b>よけた箱に置いたまま</b>なので、その間にほかのお客様へ売られてしまうことはありません。'
+    +  '</div></div>';
+  box.innerHTML = h;
+}
+/* 決めたとおりに動かす（在庫を入れ終わったあとに呼ぶ） */
+function impApplyConvert(conv){
+  if(!conv || !conv.go || !conv.go.length) return [];
+  var items = [], undo = [];
+  conv.go.forEach(function(g){
+    g.moves.forEach(function(m){
+      bucketAdjustLots(m.pid, lotStatusFor('cur','hold'),  -m.qty, '予約→取り置き（よけた箱から）');
+      bucketAdjustLots(m.pid, lotStatusFor('cur','avail'),  m.qty, '予約→取り置き（棚の良品へ）');
+    });
+    undo.push({ id:g.o.id, status:g.o.status, holdUntilDate:(g.o.holdUntilDate||''), moves:g.moves });
+    var d = g.o.expectedDate || '';
+    g.o.status = 'held';
+    g.o.holdUntilDate = d;
+    items.push({ id:g.o.id, status:'held', holdUntilDate:d });
+    addLog('予約→取り置き', impOrderWho(g.o)+'　'+(g.o.num||'')+'（入荷したため）');
+  });
+  holds = buildHoldsFromOrders();
+  impSaveOrderStatus(items);
+  return undo;
+}
+/* ★その行だけ書き換える。saveOrders は呼ばない */
+function impSaveOrderStatus(items){
+  if(!items || !items.length) return;
+  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'setOrderStatusOnly', items: items }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.status !== 'ok'){ alert('⚠️ 予約→取り置きの保存に失敗しました。画面を開き直して確かめてください。'); }
+    })
+    .catch(function(){ alert('⚠️ 予約→取り置きの保存で通信に失敗しました。画面を開き直して確かめてください。'); });
+}
 function openImportAllPanel(){
   if(!invEditMode){ alert('先に「在庫をさわる（編集）」をONにしてください'); return; }
   renderImportAllPanel();
@@ -2640,6 +2795,7 @@ function renderImportAllPanel(){
   if(!list.length){
     tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#8a8478;padding:14px">輸入予定が入っている商品はありません</td></tr>';
     go.disabled = true; go.textContent = '入れるものがありません';
+    var cbox = document.getElementById('imp-conv'); if(cbox) cbox.innerHTML = '';
     return;
   }
   var tf = 0, tp = 0, ts = 0, html = '';
@@ -2652,11 +2808,19 @@ function renderImportAllPanel(){
   });
   html += '<tr class="tot"><td>合計</td><td>＋'+tf+'</td><td>＋'+tp+'</td><td>＋'+ts+'</td></tr>';
   tb.innerHTML = html;
-  go.disabled = false; go.textContent = 'この内容で入れる（'+list.length+'商品 '+ts+'本）';
+  /* ★2026-08-18 あわせて予約→取り置きに変わる分を出す（在庫は1本も動かさない・読むだけ） */
+  try{ renderImportConvPanel(); }catch(e){ var cb=document.getElementById('imp-conv'); if(cb) cb.innerHTML=''; }
+  var cn = window.__impConvCount || 0;
+  go.disabled = false;
+  go.textContent = 'この内容で入れる（'+list.length+'商品 '+ts+'本'+(cn? '／予約 '+cn+'件を取り置きに' : '')+'）';
 }
 function doImportAll(){
   var list = importAllList();
   if(!list.length){ closeImportAllPanel(); return; }
+  /* ★2026-08-18 誰を取り置きに変えるかは、在庫を入れる「前」に決める
+     （impSimLots が「入れたあと」を仮に作って判定しているため。あとで呼ぶと二重に数える） */
+  var conv = { go:[], stay:[] };
+  try{ conv = impConvertPlan(); }catch(e){ conv = { go:[], stay:[] }; }
   var done = [];
   list.forEach(function(x){
     // フリー → 棚の良品／予約 → 手入力の取置（予定は実在庫に足さない）
@@ -2670,14 +2834,21 @@ function doImportAll(){
     addLog('輸入を在庫へ', x.name+'　フリー'+x.free+'本→販売可能／予約'+x.pre+'本→取り置き（実在庫＋'+x.inc+'本）');
   });
   lastImportAll = done;
+  /* ★2026-08-18 在庫を入れ終わったので、全部そろった予約を取り置きに変える */
+  var convUndo = [];
+  try{ convUndo = impApplyConvert(conv) || []; }catch(e){ convUndo = []; }
+  lastImportConv = convUndo;
   closeImportAllPanel();
   renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
-  showImportUndoToast(done.length+'商品を在庫に入れました');
+  showImportUndoToast(done.length+'商品を在庫に入れました'
+    + (convUndo.length ? '（予約 '+convUndo.length+'件を取り置きにしました）' : ''));
   // ★2026-08-17 在庫に入れたので、「バサラに入荷の連絡をする」が押せるようになるか見に行く
   try{ refreshRestockBtn(); }catch(e){}
 }
 function undoImportAll(){
   if(!lastImportAll) return;
+  /* ★2026-08-18 先に「予約→取り置き」を戻す。あとにすると、よけた箱から引きすぎる */
+  try{ undoImportConv(); }catch(e){}
   lastImportAll.forEach(function(x){
     if(x.free > 0) bucketAdjustLots(x.pid, lotStatusFor('cur','avail'), -x.free, '輸入到着を取り消し');
     if(x.pre  > 0) bucketAdjustLots(x.pid, lotStatusFor('cur','hold'),  -x.pre,  '輸入到着を取り消し');
@@ -2687,6 +2858,27 @@ function undoImportAll(){
   lastImportAll = null;
   renderInvTable(); renderLotList(); renderCatSummary(); renderDefectGroups(); renderInvLogs(); scheduleAutoSave();
   var el = document.getElementById('imp-undo-toast'); if(el) el.style.display = 'none';
+}
+function undoImportConv(){
+  /* ★2026-08-18 このとき取り置きに変えた予約も、いっしょに予約へ戻す
+     （在庫だけ取り消して札を残すと、二重に押さえたままになるため）★消さないでください
+     ★必ず輸入の取り消しより【先】に呼ぶこと。あとにすると、よけた箱から引きすぎる。 */
+  if(lastImportConv && lastImportConv.length){
+    var back = [];
+    lastImportConv.forEach(function(u){
+      (u.moves||[]).forEach(function(m){
+        bucketAdjustLots(m.pid, lotStatusFor('cur','avail'), -m.qty, '予約→取り置き を取り消し');
+        bucketAdjustLots(m.pid, lotStatusFor('cur','hold'),   m.qty, '予約→取り置き を取り消し');
+      });
+      var o = (orders||[]).filter(function(x){ return x && x.id === u.id; })[0];
+      if(o){ o.status = u.status; o.holdUntilDate = u.holdUntilDate; }
+      back.push({ id:u.id, status:u.status, holdUntilDate:u.holdUntilDate });
+    });
+    holds = buildHoldsFromOrders();
+    impSaveOrderStatus(back);
+    addLog('予約→取り置き を取り消し', back.length + '件を予約に戻しました');
+    lastImportConv = [];
+  }
 }
 function showImportUndoToast(msg){
   var el = document.getElementById('imp-undo-toast');

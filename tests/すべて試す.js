@@ -30,7 +30,8 @@ const FILES = [
   ['test_bihin.js',        '備品も在庫として数えるか'],
   ['test_yomikomi.js',     '読み込み中に「ありません」と言わないか'],
   ['test_rt_1button.js',   'RTのボタン1つで取置と予約を登録'],
-  ['test_yunyu_note.js',   '輸入準備計算から輸入ノートへ流れるか']
+  ['test_yunyu_note.js',   '輸入準備計算から輸入ノートへ流れるか'],
+  ['test_yoyaku_torioki.js','入荷したら予約が取り置きに変わるか']
 ];
 
 let total = 0, ngFiles = [];

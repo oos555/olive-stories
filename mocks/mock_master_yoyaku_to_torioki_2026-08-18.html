@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>モック：一気に在庫へ入れる → 予約も取り置きに（2026-08-18・案A）</title>
+<style>
+ body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:#f7f5f0;color:#3a3a2a;margin:0;padding:18px;line-height:1.7}
+ .wrap{max-width:1020px;margin:0 auto}
+ h1{font-size:19px;margin:0 0 4px}
+ .lead{font-size:13px;color:#57534e;margin:0 0 18px}
+ .step{background:#fff;border:1px solid #e8e2d8;border-radius:12px;padding:16px 18px;margin-bottom:18px}
+ .stepno{display:inline-block;background:#7a3a0e;color:#fff;font-size:12px;font-weight:800;border-radius:99px;padding:2px 12px;margin-bottom:8px}
+ .sec{font-size:14px;font-weight:800;color:#6b7a3a;margin:0 0 8px}
+ .btn{border:none;border-radius:8px;font-weight:700;cursor:default;font-size:14px;padding:9px 18px}
+ .btn-go{background:#0f7a4a;color:#fff}
+ .btn-can{background:#f0ede6;color:#57534e;border:1px solid #d8cfc4}
+ .btn-sm{background:#f0ede6;color:#57534e;border:1px solid #d8cfc4;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700}
+ .btn-grey{background:#e7e5e0;color:#a8a29e;border:1px solid #d6d3ce}
+ table{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff}
+ th,td{border:1px solid #e2ddd2;padding:5px 8px}
+ th{background:#f3f1ea;font-weight:700;font-size:11.5px}
+ td.num{text-align:right} td.mid{text-align:center}
+ tr.tot td{background:#f3f1ea;font-weight:800}
+ .plus{color:#166534;font-weight:800}
+ .after{color:#8a867c;font-size:11px;margin-left:7px}
+ .dn{color:#b91c1c;font-weight:800}
+ .same{color:#57534e;font-weight:800}
+ .warn{font-size:12.5px;background:#fbf0ef;border:2px solid #dc2626;border-radius:8px;padding:10px 12px;margin:10px 0;color:#8a2b1c}
+ .note{font-size:12px;background:#fdf6ec;border:1px solid #e8d9bc;border-radius:8px;padding:8px 11px;margin:8px 0;color:#78350f}
+ .ok{font-size:12.5px;background:#eef7ef;border:1px solid #bfe0cb;border-radius:8px;padding:9px 12px;margin:8px 0;color:#1f5136}
+ .panel{background:#fbfaf7;border:2px solid #6b7a3a;border-radius:10px;padding:15px 17px}
+ .imp-h{font-size:16px;font-weight:800;color:#33421f;margin-bottom:5px}
+ .imp-s{font-size:12px;color:#57534e;line-height:1.7}
+ .newpart{background:#eef4fb;border:2px solid #2563eb;border-radius:9px;padding:11px 13px;margin:12px 0}
+ .card{background:#fff;border:1px solid #e0d8cc;border-radius:10px;padding:11px 13px;margin:8px 0}
+ .card.res{border-left:5px solid #2563eb} .card.hold{border-left:5px solid #d9a441}
+ .pill{font-size:10.5px;font-weight:800;border-radius:99px;padding:2px 9px;display:inline-block}
+ .pill-res{background:#e8effb;color:#1d4ed8;border:1px solid #93b4f5}
+ .pill-hold{background:#fff4e2;color:#7a3a0e;border:1px solid #e3b169}
+ .legend{font-size:11.5px;color:#57534e;margin-top:6px}
+ h2.q{font-size:14px;color:#8a2b1c;margin:22px 0 6px}
+ ul{margin:6px 0 6px 20px;padding:0} li{margin:3px 0}
+ code{background:#f3f1ea;border-radius:4px;padding:1px 5px;font-size:11.5px}
+</style></head><body><div class="wrap">
+
+<h1>モック：一気に在庫へ入れる →（同時に）予約も取り置きに　【案A】</h1>
+<p class="lead">2026-08-18／統合マスタＮ（在庫リスト）＋受注Ａ／ひろみさん「<b>このボタンがきっかけとなって一緒に変わっていけばいい。二つも三つもボタンを増やす必要ないんじゃない?</b>」<br>
+※これは<b>絵</b>です。押しても動きません。中身を見て「これで」と言っていただけたら実装します。</p>
+
+<!-- ───────── なぜ ───────── -->
+<div class="step" style="border:2px solid #dc2626">
+  <div class="sec" style="color:#8a2b1c">🔎 いま起きていること（コードで確認ずみ）</div>
+  <p style="font-size:13px;margin:6px 0">「一気に在庫へ入れる」で<b>予約ぶんは「よけた箱」に入ります</b>。ここまでは正しく動いています。ところが——</p>
+  <div class="warn">
+    <b>① 同じ本数が2つの列に出る</b>　受注Ａの注文は「予約」のまま残るので、<b>予約 60本</b> と <b>取置 60本</b> が同時に出ます。実際は同じ60本です。<br>
+    <b>② 出荷すると在庫が合わなくなる（こちらが重い）</b>　出荷で在庫を引く処理は<b>棚の良品からしか引きません</b>（<code>deductFromLots(… 'new' …)</code>）。
+    よけた箱には手をつけないので、<b>ほかのお客様ぶんが減り</b>、よけた60本は<b>ずっと残って実在庫が多いまま</b>になります。
+  </div>
+  <p style="font-size:13px;margin:6px 0"><b>この2つとも、ボタンを押したときに「予約→取り置き」も一緒にやれば直ります。ボタンは増やしません。</b></p>
+</div>
+
+<!-- ───────── STEP 1 ───────── -->
+<div class="step">
+  <span class="stepno">STEP 1</span>
+  <div class="sec">📊 統合マスタＮ「在庫リスト」── ボタンは今までどおり1つだけ</div>
+  <div style="background:#f3f6ec;border:1px solid #cfe0c0;border-radius:8px;padding:10px 12px;font-size:12.5px">
+    輸入　<button class="btn-sm" style="background:#6b7a3a;color:#fff;border-color:#6b7a3a">📦 輸入が届いた → 一気に在庫へ入れる</button>
+    <button class="btn-sm btn-grey">📧 バサラに入荷の連絡をする</button>
+  </div>
+  <div class="ok">✅ <b>新しいボタンは1つも増やしません。</b>いま押しているボタンが、そのまま予約の札も変えます。</div>
+</div>
+
+<!-- ───────── STEP 2 ───────── -->
+<div class="step">
+  <span class="stepno">STEP 2</span>
+  <div class="sec">押すと出る確認パネル（上は今までどおり・下が新しく増えるところ）</div>
+
+  <div class="panel">
+    <div class="imp-h">📦 輸入が届いた → 一気に在庫へ入れる</div>
+    <div class="imp-s">下のとおりに動きます。<b>（計◯）は、入れたあとにその数字がいくつになるか</b>です。</div>
+
+    <table style="margin-top:8px">
+      <thead><tr><th>商品</th><th>フリー → 販売可能数</th><th>予約 → 取り置き</th><th>実在庫</th></tr></thead>
+      <tbody>
+        <tr><td>オルガニック 250ml</td>
+          <td><span class="plus">＋20</span><span class="after">計 120</span></td>
+          <td><span class="plus">＋80</span><span class="after">計 80</span></td>
+          <td><span class="plus">＋100</span><span class="after">計 200</span></td></tr>
+        <tr><td>メメジック 500ml</td>
+          <td><span class="plus">＋30</span><span class="after">計 93</span></td>
+          <td><span class="plus">＋0</span><span class="after">計 0</span></td>
+          <td><span class="plus">＋30</span><span class="after">計 93</span></td></tr>
+        <tr class="tot"><td>合計</td><td>＋50</td><td>＋80</td><td>＋130</td></tr>
+      </tbody>
+    </table>
+    <div class="imp-s" style="margin-top:9px">実在庫は、フリーと予約を入れた結果として<b>自動で増えます</b>（別に足しません）。<br>
+      入れたあと、その商品の「予定・予約・フリー」は 0 に戻ります。</div>
+
+    <!-- ★ここから新しい -->
+    <div class="newpart">
+      <div style="font-size:13.5px;font-weight:800;color:#1d4ed8;margin-bottom:6px">🗓 あわせて、この予約が「取り置き」に変わります</div>
+      <table>
+        <thead><tr><th style="text-align:left">お客様</th><th style="text-align:left">注文番号</th><th style="text-align:left">中身</th><th>どうなるか</th></tr></thead>
+        <tbody>
+          <tr><td>田中 花子 様</td><td>TK-20260805-3312</td><td>オルガニック 250ml × 60本</td>
+              <td class="mid" style="color:#166534;font-weight:800">✅ 取り置きへ</td></tr>
+          <tr style="background:#fffaf3"><td>佐藤 美咲 様</td><td>TK-20260808-5140</td>
+              <td>オルガニック 250ml × 20本<br><span style="color:#b91c1c">プリモ 500ml × 12本（12本たりません）</span></td>
+              <td class="mid" style="color:#b45309;font-weight:800">⏸ 予約のまま</td></tr>
+        </tbody>
+      </table>
+      <div class="legend"><b>全部そろった注文だけ</b>が取り置きに変わります。<b>まだ届いていない商品がある注文は、予約のまま残ります。</b><br>
+      佐藤様のオルガニック20本は<b>よけた箱に置いたまま</b>なので、イタリア便を待つあいだに<b>ほかのお客様へ売られてしまうことはありません</b>。<br>
+      取り置きの「送る目安の日」には、その注文の<b>入荷予定日</b>を入れます（あとから受注Ａで直せます）。</div>
+    </div>
+
+    <div style="margin-top:12px">
+      <button class="btn btn-go">この内容で入れる（2商品 130本／予約 1件を取り置きに）</button>
+      <button class="btn btn-can">やめる</button>
+    </div>
+    <div class="imp-s" style="margin-top:7px">倉庫にもお客様にも連絡は行きません。原価データにも触りません。</div>
+  </div>
+</div>
+
+<!-- ───────── STEP 3 ───────── -->
+<div class="step">
+  <span class="stepno">STEP 3</span>
+  <div class="sec">📊 数字の動き（オルガニック 250ml）</div>
+  <p style="font-size:12.5px;margin:4px 0">はじめの状態：棚の良品 100／取置 0／実在庫 100／販売可能 100／<b>予約 80本</b>（田中様60＋佐藤様20）／輸入 予定100（予約80・フリー20）</p>
+  <table>
+    <thead><tr><th></th><th>予約</th><th>取置</th><th>棚の良品</th><th>販売可能数</th><th>実在庫</th><th>輸入予定</th></tr></thead>
+    <tbody>
+      <tr><td>押す前</td><td class="num">80</td><td class="num">0</td><td class="num">100</td><td class="num">100</td><td class="num">100</td><td class="num">100</td></tr>
+      <tr style="background:#eef7ef"><td><b>押したあと</b></td>
+        <td class="num dn">20</td><td class="num plus">80</td><td class="num">180</td>
+        <td class="num plus">120</td><td class="num plus">200</td><td class="num">0</td></tr>
+    </tbody>
+  </table>
+  <div class="ok">✅ <b>2026-08-17に決めた動きと、数字は完全に同じです。</b>
+    販売可能は<b>フリーの20だけ</b>増えて 120。実在庫は<b>予定の100だけ</b>増えて 200。取置は<b>予約の80</b>。<br>
+    ちがうのは<b>予約が 80 → 20 に減る</b>ところだけ（田中様の60が取り置きに移り、佐藤様の20だけ予約に残る）。<br>
+    <b>取置80の中身</b>＝ 田中様の取り置き 60（注文にひもづく）＋ よけた箱 20（佐藤様のぶん・待ち）。</div>
+  <div class="ok" style="background:#eef4fb;border-color:#93b4f5;color:#1d4ed8">✅ <b>出荷したときも正しくなります。</b>
+    田中様の60本は棚の良品に入っているので、出荷で在庫を引くとその注文の分がきちんと減ります。
+    <b>ほかのお客様ぶんが減る問題も、実在庫が多いまま残る問題も、これで直ります。</b></div>
+</div>
+
+<!-- ───────── STEP 4 ───────── -->
+<div class="step">
+  <span class="stepno">STEP 4</span>
+  <div class="sec">📋 受注Ａの見え方（自動でこうなります・押すことはありません）</div>
+  <div class="card hold">
+    <div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:800">田中 花子 様</span><span class="pill pill-hold">🗄 取り置き</span>
+    </div>
+    <div style="font-size:11.5px;color:#8a867c">TK-20260805-3312　送る目安：2026-08-25</div>
+    <div style="font-size:12.5px;margin:5px 0">オルガニック 250ml × 60本</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb">📦 出荷依頼書へ</button>
+      <button class="btn-sm">キャンセル</button>
+    </div>
+  </div>
+  <div class="card res">
+    <div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:800">佐藤 美咲 様</span><span class="pill pill-res">🗓 予約</span>
+      <span style="font-size:11.5px;color:#b45309;font-weight:700">⏸ 一部だけ入荷（保留のまま）</span>
+    </div>
+    <div style="font-size:11.5px;color:#8a867c">TK-20260808-5140</div>
+    <div style="font-size:12.5px;margin:5px 0">オルガニック 250ml × 20本　／　プリモ 500ml × 12本</div>
+    <div style="font-size:12px;background:#fffaf3;border:1px solid #e3b169;border-radius:7px;padding:7px 10px;margin:6px 0;color:#7a3a0e">
+      🇹🇷 オルガニック 250ml … <b>入荷ずみ</b>（20本 よけてあります）<br>
+      🇮🇹 プリモ 500ml … <b>12本 たりません</b>（イタリア便まち）<br>
+      <b>→ 全部そろうまで、この注文は予約のままです。</b>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn-sm btn-grey">📦 出荷依頼書へ</button>
+      <button class="btn-sm">キャンセル</button>
+    </div>
+  </div>
+  <div class="ok">✅ 1週間後にイタリア便が届いて「一気に在庫へ入れる」を押せば、<b>そのとき佐藤様も取り置きに変わります</b>。
+  便名も日付も覚えません。<b>その場で在庫を見て決める</b>ので、順番が入れ替わっても分納になっても正しく動きます。</div>
+
+  <div style="margin-top:14px;background:#e8effb;border:2px solid #2563eb;border-radius:10px;padding:11px 14px">
+    <div style="font-size:13.5px;font-weight:800;color:#1d4ed8">📦 入荷ずみの予約が 1件 あります</div>
+    <div style="font-size:11.5px;color:#1d4ed8;margin-top:5px;line-height:1.6">
+      在庫はそろっているのに、まだ予約のままの注文です。<br>
+      統合マスタＮで「<b>📦 輸入が届いた → 一気に在庫へ入れる</b>」を押すと、取り置きに変わります。
+    </div>
+  </div>
+  <div class="ok">✅ <b>これは「知らせるだけ」の帯です。押すボタンは付けません</b>（2026-08-18 ひろみさん決定【い】）。<br>
+  ふだんは輸入を入れたときに一緒に変わるので、この帯は出ません。<b>棚卸しで数を直した・キャンセルで在庫が戻った</b>ときなど、
+  輸入以外の理由で在庫が入ったときだけ出ます。<b>忘れていても気づけます。</b></div>
+</div>
+
+<!-- ───────── GAS ───────── -->
+<div class="step" style="border:2px solid #b45309">
+  <div class="sec" style="color:#7a3a0e">⚙ GAS（サーバー側）に足すもの ── ここだけ工事が要ります</div>
+  <div class="warn" style="border-color:#f59e0b;background:#fffaf3;color:#7a3a0e">
+    <b>いまの注文の保存（<code>saveOrdersMain</code>）は「シートを全部消してから書き直す」形です。</b>
+    統合マスタは画面を開いたときに1回だけ注文を読むので、そのまま保存すると
+    <b>読んだあとに受注Ａで入った注文が消えます</b>。<b>絶対にこの道は使いません。</b>
+  </div>
+  <div class="ok">✅ かわりに <b>「指定した注文の状態だけを書き換える」小さな入り口を1つ足します。</b>
+    <ul style="margin-top:5px">
+      <li>シートは<b>全部消しません</b>。番号が一致する行だけを書き換えます</li>
+      <li>書き換えるのは <b>状態（予約→取り置き）</b> と <b>送る目安の日</b> の2つだけ</li>
+      <li>既存の <code>saveOrdersMain</code> は<b>1行も触りません</b></li>
+      <li>押す直前に注文をもう一度読み直してから判定します（古い一覧で決めないため）</li>
+      <li><b>デプロイは既存のものを新バージョンにするだけ。URLは変わりません</b>（「新しいデプロイ」は作りません）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ───────── 変えないこと ───────── -->
+<div class="step" style="background:#f2f9f5;border:2px solid #0f7a4a">
+  <div class="sec" style="color:#0f5a4a">この工事で 変えないこと（お約束）</div>
+  <ul style="font-size:13px">
+    <li><b>2026-08-17に決めた動きは1文字も変えません</b>（フリー→棚の良品／予約→よけた箱／予定→0）。そのあとに1つ手順が足されるだけです</li>
+    <li><b>在庫の計算式（<code>oos-zaiko.js</code>）は変えません。</b>新しい計算は1つも足しません</li>
+    <li><b>注文に新しい保存項目を作りません</b>（使うのは今ある <code>status</code> と <code>holdUntilDate</code> だけ）</li>
+    <li><b>ボタンを1つも増やしません</b></li>
+    <li>倉庫にもお客様にも<b>連絡は行きません</b>。<b>原価データにも触りません</b></li>
+    <li>「一気に在庫へ入れる」は今までどおり<b>「在庫をさわる（編集）」がONのときだけ</b>押せます</li>
+  </ul>
+</div>
+
+<h2 class="q">決まっていること（2026-08-18）</h2>
+<ul style="font-size:13px">
+  <li><b>きっかけは「📦 輸入が届いた → 一気に在庫へ入れる」1つだけ</b>（案A）</li>
+  <li><b>注文は分けない。</b>全部そろった注文だけ取り置きへ。1つでも足りなければ、まるごと予約のまま</li>
+  <li>判定は<b>商品ごとの在庫を、その場で見る</b>。便名も日付も覚えない</li>
+  <li><b>「↩ 予約にもどす」は作らない</b></li>
+  <li>先に届いたぶんは<b>よけた箱で守られる</b>（ほかのお客様へ売られない）</li>
+  <li><b>受注Ａには「知らせるだけ」の青い帯を出す</b>【い】。<b>押すボタンは付けない</b>。
+      棚卸しやキャンセルなど、輸入以外の理由で在庫が入ったときの取りこぼしに気づくため</li>
+</ul>
+
+<div class="ok" style="font-size:13px">✅ <b>これで決めごとは全部そろいました。</b>（2026-08-18 ひろみさん「これでいってみよ」）</div>
+
+</div></body></html>
