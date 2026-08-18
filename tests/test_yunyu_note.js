@@ -150,7 +150,10 @@ ok('⑥保存済みの古い「瓶」も缶に直す仕掛けがある',
    src.indexOf("String(p.vol||'')==='750ml' && p.cont==='瓶'") >= 0);
 
 /* ── ⑦ 画面の決めごと（消えたら気づけるように） ─────────────── */
-ok('⑦ボタンの文言',            src.indexOf('✅ この内容で輸入を確定して、輸入ノートに送る') >= 0);
+/* ★2026-08-18 ボタンは短くして、何が起きるかは下の説明に書く（ひろみさん了承） */
+ok('⑦ボタンの文言',            src.indexOf('✅ この内容で輸入を確定する') >= 0);
+ok('⑦ボタンの下の説明',        src.indexOf('統合マスタの在庫リストの「輸入」の予定列に数を転記します') >= 0);
+ok('⑦タブの名前は輸入準備計算室', src.indexOf('🧮 輸入準備計算室') >= 0);
 ok('⑦送る前の確認パネルがある', src.indexOf('prep-send-panel') >= 0);
 ok('⑦確認パネルで農園を選べる', src.indexOf('prepSendSetFarm') >= 0);
 ok('⑦確認パネルで年月を選べる', src.indexOf('prepSendSetYm') >= 0);
@@ -167,6 +170,36 @@ ok('⑦承認済みモックがある',
 ok('⑧EMPTY_GUARD の呼び名が残っている',   src.indexOf('costLoadedOk') >= 0);
 ok('⑧確定したときだけ原価に反映する道が残っている', src.indexOf('✅ 確定する → 原価データに反映') >= 0);
 ok('⑧送るだけでは原価に触らない（確認パネルに明記）', src.indexOf('原価データには何も入りません') >= 0);
+
+/* ══════ ⑨ 統合マスタの「輸入」の予定列への転記（2026-08-18） ══════
+   ★ひろみさん「すでに入ってる数は絶対に消さないように、
+     計算式も絶対に絶対に絶対に変えないように、そこだけは気を付けてください」 */
+ok('⑨転記の一覧を作る関数がある',   src.indexOf('function prepIncomingList') >= 0);
+ok('⑨その行だけ書き換える入り口を使う', src.indexOf("action:'setIncomingOnly'") >= 0);
+ok('⑨★輸入Ｅは「在庫まるごと保存」を呼ばない',
+   src.indexOf("action:'saveAllData'") < 0 && src.indexOf("action: 'saveAllData'") < 0);
+ok('⑨いまの予定は読むだけ（GETで読む）', src.indexOf("?action=loadAllData") >= 0);
+ok('⑨「置き換え」だと画面に書いてある', src.indexOf('足し算ではなく「置き換え」です') >= 0);
+ok('⑨ほかの商品はさわらないと書いてある', src.indexOf('ほかの商品の予定は<b>1本もさわりません</b>') >= 0);
+ok('⑨販売可能・実在庫は動かないと書いてある', src.indexOf('販売可能数と実在庫は1本も動きません') >= 0);
+ok('⑨ノートがある場合も転記だけできる', src.indexOf('function prepSendIncomingOnly') >= 0);
+ok('⑨★在庫の計算式（oos-zaiko.js）を輸入Ｅに書き写していない',
+   src.indexOf("status==='hold'") < 0 && src.indexOf('sellable') < 0);
+
+const gasPath2 = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
+if(fs.existsSync(gasPath2)){
+  const gas2 = fs.readFileSync(gasPath2, 'utf8');
+  ok('⑨setIncomingOnly がある', gas2.indexOf('function setIncomingOnly') >= 0);
+  ok('⑨doPost につながっている', gas2.indexOf("action === 'setIncomingOnly'") >= 0);
+  const f2 = gas2.slice(gas2.indexOf('function setIncomingOnly'));
+  const b2 = f2.slice(0, f2.indexOf('\n}') + 2);
+  ok('⑨★シートを全部消していない',        b2.indexOf('clearContents') < 0);
+  ok('⑨★書き換えるのは incoming の行だけ', b2.indexOf("!== 'incoming'") >= 0);
+  ok('⑨★頼まれていない商品は飛ばす',      b2.indexOf('if (!it) continue;') >= 0);
+  ok('⑨在庫数の列だけ書き換える',          b2.indexOf('COL_STOCK') >= 0);
+} else {
+  console.log('（GASのファイルが手元にないので ⑨のGAS分 は飛ばしました）');
+}
 
 /* ── 結果 ───────────────────────────────────────── */
 console.log('\n輸入ノートへ流す  PASS ' + pass + ' / FAIL ' + fail);

@@ -128,7 +128,11 @@ tr:last-child td{border-bottom:none}
 .iv-availbox{font-size:11px;font-weight:500;color:#15803d;margin-top:1px;line-height:1.2}
 #inv-scroll{max-height:70vh}
 #inv-scroll th{font-size:13px}
-#inv-scroll thead th{position:sticky;z-index:2}
+/* ★2026-08-18 見出しは2段とも固定する。2段目（軽・中・重／予定・フリー）の top は
+   1段目の実際の高さを測って入れる（invStickHead）。1段目にボタンや注意書きが入っていて
+   背が高いため、32px の決め打ちだと2段目が1段目の裏に隠れて消えてしまう。
+   ★ここを決め打ちに戻さないでください（ひろみさんに何度も同じ思いをさせています）。 */
+#inv-scroll thead th{position:sticky;z-index:2;background:#f0ead8}
 #inv-scroll thead tr:first-child th{top:0;z-index:3}
 #inv-scroll thead tr:nth-child(2) th{top:32px}
 .iv-num.amber{color:#b45309}.iv-num.red{color:#dc2626}.iv-num.brown{color:#92400e}.iv-num.blue{color:#185fa5}.iv-num.green{color:#15803d}.iv-num.zero{color:#dc2626}.iv-num.warn{color:#b45309}.iv-num.z{color:#b4b2a9;font-weight:400}
@@ -401,7 +405,8 @@ input.inv-editnum{-moz-appearance:textfield;appearance:textfield}
 .oldmark{display:block;font-size:11px;font-weight:800;color:#b91c1c}
 #inv-old-scroll{max-height:50vh}
 #inv-old-scroll th{font-size:13px}
-#inv-old-scroll thead th{position:sticky;z-index:2}
+/* ★2026-08-18 旧ロットの表も同じ。2段目の top は invStickHead が測って入れる */
+#inv-old-scroll thead th{position:sticky;z-index:2;background:#f0ead8}
 #inv-old-scroll thead tr:first-child th{top:0;z-index:3}
 #inv-old-scroll thead tr:nth-child(2) th{top:32px}
 /* 旧ロットの表：数字は赤・細字（今までどおり） */
@@ -2485,6 +2490,8 @@ function renderInvTable(){
       : '📦 輸入が届いた → 一気に在庫へ入れる（予定はありません）';
   }
   invStickySync();
+  /* ★2026-08-18 見出しの2段目が1段目の裏に隠れないように、高さを測って合わせる */
+  try{ invStickHead(); setTimeout(invStickHead, 0); }catch(e){}
   document.getElementById('s-stock').textContent = totalStock;
   document.getElementById('s-avail').textContent = totalAvail;
   document.getElementById('s-old').textContent = totalOld;
@@ -2981,6 +2988,31 @@ function invStickySync(){
   inner.style.width = t1.scrollWidth + 'px';
 }
 function invStickyHide(){ var b = document.getElementById('inv-sticky'); if(b) b.classList.remove('on'); }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 見出しの2段目（軽・中・重／予定・フリー）が消えないようにする
+   ひろみさん：「不良の軽・中・重いとか輸入の予定とかフリーとか、ここは全部動いて
+                 消えてしまうので、ここまで固定をしてください」
+
+   原因：見出しの1段目には注意書きとボタンが入っていて背が高い（60〜90px）のに、
+         2段目は top:32px の決め打ちだったので、1段目の裏に隠れて見えなくなっていた。
+   直し：1段目の高さをその場で測って、2段目の top に入れる。
+   ★決め打ちの数字に戻さないでください。表の中身が変わると高さも変わります。
+   ══════════════════════════════════════════════════════════════════════ */
+function invStickHead(){
+  ['inv-scroll','inv-old-scroll'].forEach(function(id){
+    var box = document.getElementById(id); if(!box) return;
+    var rows = box.querySelectorAll('thead tr');
+    if(rows.length < 2) return;
+    var h = rows[0].getBoundingClientRect().height;
+    if(!h) return;                       /* まだ描かれていないときは何もしない */
+    var top = Math.round(h) + 'px';
+    rows[1].querySelectorAll('th').forEach(function(th){ th.style.top = top; });
+  });
+}
+(function(){
+  /* 窓の大きさが変わると1段目の高さも変わるので、測り直す */
+  window.addEventListener('resize', function(){ try{ invStickHead(); }catch(e){} });
+})();
 (function(){
   function bind(){
     var track = document.getElementById('inv-sticky-track');

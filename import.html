@@ -221,7 +221,7 @@ tr:last-child td{border-bottom:none}
 
   <div class="tab-row">
     <button class="tab active" onclick="showPanel('note',this)">📦 輸入ノート</button>
-    <button class="tab" onclick="showPanel('prep',this)" style="color:#0f5a4a;font-weight:700">🧮 輸入準備計算</button>
+    <button class="tab" onclick="showPanel('prep',this)" style="color:#0f5a4a;font-weight:700">🧮 輸入準備計算室</button>
     <button class="tab" onclick="showPanel('trouble',this)" style="color:#33421f;font-weight:700">🌿 農園とのやり取り記録と改善</button>
     <button class="tab" onclick="showPanel('new',this)" style="display:none">輸入を記録する</button>
     <button class="tab" onclick="showPanel('history',this)" style="display:none">輸入履歴・年次比較</button>
@@ -390,7 +390,11 @@ tr:last-child td{border-bottom:none}
       <div style="font-size:12px;color:#3a5a48;line-height:1.7;margin-bottom:10px">この輸入準備計算は、ここから<strong>輸入ノートのもと</strong>になる大事な計算書です。内容が固まって輸入が決まったら、下のボタンを押してください。<strong>押した日付といまの発注内容が、まるごと下の記録に残ります</strong>（年に何度でも。あとから「いつ・何を・何本」振り返れます）。</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <label style="font-size:12px">この輸入の時期・メモ <input id="prep-fin-memo" placeholder="例：2026年8月分（ノヴァヴェラ）" style="width:230px;padding:6px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>
-        <button class="btn btn-green" onclick="prepFinalize()" style="font-size:14px;padding:9px 18px">✅ この内容で輸入を確定して、輸入ノートに送る</button>
+        <button class="btn btn-green" onclick="prepFinalize()" style="font-size:14px;padding:9px 18px">✅ この内容で輸入を確定する</button>
+      </div>
+      <!-- ★2026-08-18 ボタンに全部書くと2行になって押しにくいので、下に説明を置く（ひろみさん了承）★消さないでください -->
+      <div style="font-size:12px;color:#3a5a48;margin-top:7px;line-height:1.7">
+        押すと、<b>輸入ノートに送り</b>、<b>統合マスタの在庫リストの「輸入」の予定列に数を転記します。</b>
       </div>
     </div>
     <!-- ★2026-08-18 送る前の確認パネル（ひろみさん承認モック mock_importE_prep_to_note_2026-08-18）★消さないでください -->
@@ -3860,6 +3864,7 @@ function prepSendDefaultYm(){ var d=new Date(); return d.getFullYear()+'-'+('0'+
 function prepSendOpen(){
   var box=document.getElementById('prep-send-panel'); if(!box) return;
   if(!prepSendYm) prepSendYm=prepSendDefaultYm();
+  prepIncNow = null;              /* ★開くたびに「いま」の輸入予定を読み直す（古い数字で見せないため） */
   box.style.display='block';
   prepSendRender();
   try{ box.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ box.scrollIntoView(); }
@@ -3879,11 +3884,83 @@ function prepSendGoToNoteTab(){
   var tb=document.querySelector('.tab-row .tab[onclick*="showPanel(\'note\'"]');
   if(tb && typeof showPanel==='function') showPanel('note', tb);
 }
+/* ★2026-08-18 ノートはすでにある場合に、輸入予定への転記だけを行う */
+function prepSendIncomingOnly(){
+  var items = prepIncomingList();
+  if(!items.length){ alert('転記できる商品がありません（商品マスタで見つかりませんでした）。'); return; }
+  var tot = 0; items.forEach(function(x){ tot += x.qty; });
+  if(!confirm('統合マスタの「輸入」の予定列に転記します。\n\n'+items.length+'品 / 合計 '+tot+'本\n\n'
+    + '※この'+items.length+'品の予定だけを、この数に置き換えます。\n'
+    + '※ほかの商品の予定にはさわりません。\n'
+    + '※輸入ノートのカードは増えません。')) return;
+  prepSaveIncoming(items).then(function(d){
+    if(d && d.status === 'ok'){
+      if(typeof showSyncStatus==='function') showSyncStatus('📊 輸入予定に '+items.length+'品 を転記しました');
+      prepIncNow = null; prepSendRender();
+    }
+  });
+}
 function prepSendOpenExisting(id){
   prepSendClose();
   prepSendGoToNoteTab();
   if(typeof ynOpenNote==='function') ynOpenNote(id);
   if(typeof ynScrollToDetail==='function') ynScrollToDetail();
+}
+/* ══════ ★2026-08-18 統合マスタの「輸入」の予定列へ転記する ══════
+   ★ひろみさん：「すでに入ってる数は絶対に消さないように、計算式も絶対に絶対に絶対に変えないように」
+   ・書き換えるのは、確定した商品の【輸入予定】だけ。ほかの商品・ほかの数字には一切さわらない
+   ・在庫の計算式（oos-zaiko.js）には手を入れていない。統合マスタの計算も変えていない
+   ・GASは setIncomingOnly（その行だけ書き換える）を使う。「在庫まるごと保存」は絶対に呼ばない
+   ★この決めごとを戻さないでください */
+var prepIncNow = null;   /* {pid: いまの輸入予定の本数}。読むだけ */
+function prepPidOf(sku){
+  var p = (OOS_PRODUCTS||[]).filter(function(x){ return x && String(x.sku) === String(sku); })[0];
+  return (p && p.id != null) ? p.id : null;
+}
+/* 転記する中身（商品マスタで見つかったものだけ） */
+function prepIncomingList(){
+  var out = [];
+  prepOrderRows().forEach(function(r){
+    var pid = prepPidOf(r.p.sku);
+    if(pid == null) return;                       /* 商品マスタに無いものは転記しない */
+    out.push({ pid:pid, sku:r.p.sku, name:r.p.name, qty:r.finalN });
+  });
+  return out;
+}
+/* いまの「輸入予定」を読みに行く（読むだけ・1文字も書かない） */
+function prepFetchIncoming(){
+  prepIncNow = {};                                 /* 二重に読みに行かないよう先に置く */
+  fetch(GAS_URL + '?action=loadAllData')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var by = {};
+      if(d && d.status === 'ok' && d.data && d.data.lots){
+        d.data.lots.forEach(function(l){
+          if(l && String(l.status) === 'incoming') by[String(l.pid)] = (by[String(l.pid)]||0) + (parseInt(l.stock)||0);
+        });
+      }
+      prepIncNow = by;
+      var box = document.getElementById('prep-send-panel');
+      if(box && box.style.display !== 'none') prepSendRender();
+    })
+    .catch(function(){ /* 読めなくても転記はできる（「いま」が「…」のままになるだけ） */ });
+}
+/* ★その商品の輸入予定だけを書き換える。「在庫まるごと保存」は呼ばない */
+function prepSaveIncoming(items){
+  if(!items || !items.length) return Promise.resolve(null);
+  return fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'setIncomingOnly', items: items }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.status !== 'ok'){
+        alert('⚠️ 輸入予定への転記に失敗しました。統合マスタの在庫リストを見て確かめてください。');
+      }
+      return d;
+    })
+    .catch(function(){
+      alert('⚠️ 輸入予定への転記で通信に失敗しました。統合マスタの在庫リストを見て確かめてください。');
+      return null;
+    });
 }
 function prepSendRender(){
   var box=document.getElementById('prep-send-panel'); if(!box) return;
@@ -3903,20 +3980,80 @@ function prepSendRender(){
     +'<label style="font-size:12px">輸入年月 <input value="'+prepAttr(prepSendYm)+'" oninput="prepSendSetYm(this.value)" placeholder="2026-08" style="width:110px;font-size:14px;font-weight:700;padding:5px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>'
     +'<span style="font-size:12px;color:#57534e">確定日：'+dateStr+(memo?('／メモ：'+prepAttr(memo)):'')+'</span>'
     +'</div>';
-  h+='<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin:8px 0 4px">🫒 この'+rows.length+'品が、輸入ノートの商品明細に乗ります</div>';
-  h+='<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>商品</th><th style="text-align:right">箱</th><th style="text-align:right">本数</th></tr></thead><tbody>';
+  /* ★2026-08-18 ひろみさん「このリストがすごく横が開きすぎてて見づらい。もう少し左に全体的に寄せて、
+     文字をもう少し大きくして。もう少し近づけないとすごく目が動きます」
+     → 幅は中身の分だけ（width:auto）・左寄せ・文字を大きく。★横に伸ばさないでください */
+  var TB = 'width:auto;border-collapse:collapse;background:#fff;font-size:14px';
+  var TH = 'border:1px solid #e2ddd2;padding:5px 10px;background:#f3f1ea;font-size:12.5px;font-weight:700';
+  var TD = 'border:1px solid #e2ddd2;padding:5px 10px';
+  var TN = TD+';text-align:right;font-weight:700;font-variant-numeric:tabular-nums';
+  h+='<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin:10px 0 5px">🫒 この'+rows.length+'品が、輸入ノートの商品明細に乗ります</div>';
+  h+='<div style="overflow-x:auto"><table style="'+TB+'"><thead><tr>'
+    +'<th style="'+TH+';text-align:left;min-width:170px">商品</th>'
+    +'<th style="'+TH+';text-align:right;width:64px">箱</th>'
+    +'<th style="'+TH+';text-align:right;width:64px">本数</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    h+='<tr><td style="text-align:left">'+prepAttr(r.p.name||'')+'</td><td style="text-align:right">'+(r.finalBox!=null?r.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+r.finalN+'</td></tr>';
+    h+='<tr><td style="'+TD+';text-align:left;font-weight:600;white-space:nowrap">'+prepAttr(r.p.name||'')+'</td>'
+      +'<td style="'+TN+'">'+(r.finalBox!=null?r.finalBox:'—')+'</td>'
+      +'<td style="'+TN+'">'+r.finalN+'</td></tr>';
   });
-  h+='<tr style="background:#f3f1ea;font-weight:800"><td>合計</td><td style="text-align:right">'+totB+'箱</td><td style="text-align:right">'+totN+'本</td></tr>';
+  h+='<tr><td style="'+TD+';background:#f3f1ea;font-weight:800">合計</td>'
+    +'<td style="'+TN+';background:#f3f1ea;font-weight:800">'+totB+'</td>'
+    +'<td style="'+TN+';background:#f3f1ea;font-weight:800">'+totN+'</td></tr>';
   h+='</tbody></table></div>';
+
+  /* ══════ ★2026-08-18 統合マスタの「輸入」の予定列へ転記する枠 ══════
+     ひろみさん：「すでに入ってる数は絶対に消さないように、計算式も絶対に絶対に絶対に変えないように」
+     ・書き換えるのは、この表に出ている商品の【輸入予定】だけ
+     ・足し算ではなく置き換え（同じ内容で2回押しても倍にならない）
+     ・販売可能数・実在庫は1本も動かない（まだ倉庫に無いため）
+     ・予約とフリーは統合マスタが自動で計算する。渡すのは「予定」の本数だけ
+     ★この枠を消さないでください */
+  var inc = prepIncomingList();
+  h+='<div style="background:#f3f6ec;border:2px solid #6b7a3a;border-radius:9px;padding:11px 13px;margin:14px 0">';
+  h+='<div style="font-size:13.5px;font-weight:800;color:#33421f;margin-bottom:6px">📊 統合マスタの在庫リスト「輸入」の予定列に、この本数を入れます</div>';
+  if(!inc.length){
+    h+='<div style="font-size:12.5px;color:#8a5a12">商品マスタで見つからなかったため、転記できる商品がありません。</div>';
+  } else {
+    var tn=0, ta=0;
+    h+='<div style="overflow-x:auto"><table style="'+TB+'"><thead><tr>'
+      +'<th style="'+TH+';text-align:left;min-width:170px">商品</th>'
+      +'<th style="'+TH+';text-align:right;width:64px">いま</th>'
+      +'<th style="'+TH+';text-align:right;width:64px">入れる</th>'
+      +'<th style="'+TH+';text-align:right;width:78px;background:#e6efdd">入れたあと</th></tr></thead><tbody>';
+    inc.forEach(function(x){
+      var now = (prepIncNow && prepIncNow[String(x.pid)] != null) ? prepIncNow[String(x.pid)] : null;
+      tn += (now||0); ta += x.qty;
+      h+='<tr><td style="'+TD+';text-align:left;font-weight:600;white-space:nowrap">'+prepAttr(x.name)+'</td>'
+        +'<td style="'+TN+'">'+(now==null?'<span style="color:#b8b2a6;font-weight:400">…</span>':now)+'</td>'
+        +'<td style="'+TN+'">'+x.qty+'</td>'
+        +'<td style="'+TN+';background:#eef7ef">'+x.qty+'</td></tr>';
+    });
+    h+='<tr><td style="'+TD+';background:#f3f1ea;font-weight:800">合計</td>'
+      +'<td style="'+TN+';background:#f3f1ea;font-weight:800">'+(prepIncNow?tn:'…')+'</td>'
+      +'<td style="'+TN+';background:#f3f1ea;font-weight:800">'+ta+'</td>'
+      +'<td style="'+TN+';background:#f3f1ea;font-weight:800">'+ta+'</td></tr>';
+    h+='</tbody></table></div>';
+    h+='<div style="font-size:11.5px;color:#57534e;margin-top:6px;line-height:1.7">'
+      +'🔁 <b>足し算ではなく「置き換え」です。</b>同じ内容で2回押しても倍になりません。<br>'
+      +'⚠️ すでに「いま」に数が入っている商品は、<b>その数が消えて新しい数に変わります</b>（上の表で見てから確定できます）。<br>'
+      +'✅ <b>この表に出ている商品だけ</b>を書き換えます。ほかの商品の予定は<b>1本もさわりません</b>。<br>'
+      +'✅ <b>販売可能数と実在庫は1本も動きません</b>（まだ倉庫に無いため）。予約とフリーは統合マスタが自動で計算します。'
+      +'</div>';
+  }
+  h+='</div>';
+  if(prepIncNow === null) prepFetchIncoming();   /* 「いま」の数を1回だけ読みに行く（読むだけ） */
   if(dup){
     h+='<div style="margin-top:10px;background:#fffdf5;border:2px solid #f59e0b;border-radius:8px;padding:10px 12px">'
       +'<div style="font-size:14px;font-weight:800;color:#78350f">⚠️ この輸入は、もう輸入ノートに送ってあります</div>'
       +'<div style="font-size:12.5px;margin-top:5px;color:#78350f">'+(FARM_LABEL[dup.farm]||dup.farm)+'　'+prepAttr(dup.yearMonth||'')+' のカードが、すでに1枚あります。<b>もう1枚は作りません。</b></div>'
       +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+      /* ★2026-08-18 ノートは作らないが、輸入予定への転記だけはできるようにする
+         （ノートを先に作ってあった場合に、予定が入れられなくなるため）★消さないでください */
+      +'<button class="btn btn-green" onclick="prepSendIncomingOnly()">📊 輸入予定への転記だけ行う</button>'
       +'<button class="btn" style="background:#2563eb;color:#fff" onclick="prepSendOpenExisting(\''+dup.id+'\')">📂 そのカードを開く</button>'
-      +'<button class="btn-sm" onclick="prepSendClose()">やめる</button></div></div>';
+      +'<button class="btn-sm" onclick="prepSendClose()">やめる</button></div>'
+      +'<div style="font-size:11px;color:#78350f;margin-top:6px">「転記だけ行う」を押しても、<b>輸入ノートのカードは増えません</b>。上の表のとおり予定の数だけが入ります。</div></div>';
   } else {
     h+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
       +'<button class="btn btn-green" onclick="prepSendGo()" style="font-size:14px;padding:9px 18px">✅ 確定して、輸入ノートに送る</button>'
@@ -3948,6 +4085,10 @@ function prepSendGo(){
     createdAt:new Date().toISOString(), fromPrepId:snap.id };
   snap.sentToNote={ noteId:note.id, farm:prepSendFarm, yearMonth:ym };
   prepSaveLocal(); prepRenderHistory();
+  /* ★2026-08-18 統合マスタの「輸入」の予定列へ転記（この商品の予定だけを書き換える） */
+  var incItems = prepIncomingList();
+  prepSaveIncoming(incItems);
+  if(typeof showSyncStatus==='function' && incItems.length) showSyncStatus('📊 輸入予定に '+incItems.length+'品 を転記しました');
   ynCurrent=note; ynOldViewId=null;
   prepSendClose();
   prepSendGoToNoteTab();
