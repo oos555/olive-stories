@@ -228,6 +228,50 @@ ok('⑨-2 いままでの4つも残っている',
    src.indexOf("label:'🫒 オイル'") >= 0 && src.indexOf("label:'📦 箱・ギフトボックス'") >= 0 &&
    src.indexOf("label:'🛍 紙袋'") >= 0 && src.indexOf("label:'🧰 その他の備品'") >= 0);
 
+/* ══════ ⑨-3 容器のルール（2026-08-18 ひろみさん確認） ══════
+   ★容器は農園ごとに違う。ひろみさん「これはトルコ産においては、です。
+     それぞれの農園によって違います」→ 分からない農園に勝手なルールを当てない。
+   トルコ産：100〜500ml＝遮光瓶／750ml＝デザイン缶／2L＝デザイン缶／5L＝缶
+   イタリアの3L：プリモ・アグリ・アルモニア とも【缶】（bag in box はやめた） */
+(function(){
+  var ccode = '';
+  ['containerVolumeMl','containerFor','originOf','meiboFieldOf'].forEach(function(n){
+    try{ ccode += H.cut(src, n) + '\n'; }catch(e){ fail++; fails.push('★ 関数が消えています: ' + n); }
+  });
+  var spec = { ORG100:{origin:'トルコ'}, ORG250:{origin:'トルコ'}, ORG500:{origin:'トルコ'},
+               ORG750:{origin:'トルコ'}, ORG2L:{origin:'トルコ'},  ORG5L:{origin:'トルコ'},
+               MEM750:{origin:'トルコ'}, MEM2L:{origin:'トルコ'},
+               PRI250:{origin:'イタリア'}, PRI3L:{origin:'イタリア'},
+               AGR3L:{origin:'イタリア'},  ARM3L:{origin:'イタリア'},
+               ARM500:{origin:'イタリア'}, CAS5L:{origin:'イタリア'} };
+  var r = H.makeSandbox({ PRODUCT_SPEC:spec, mIsSet:function(){ return false; } });
+  r.box.window.PRODUCT_SPEC = spec;
+  try{ vm.runInContext(ccode, r.ctx); }catch(e){ fail++; fails.push('★ 容器のルールが動きません: ' + e.message); }
+  /* 容器の欄に生産地が紛れ込んでいる状態から、直すと何になるか */
+  function cont(sku, group){
+    var o = spec[sku].origin;
+    return r.box.containerFor({ sku:sku, group:group, container:o });
+  }
+  eq('⑨-3 トルコ 100ml',  cont('ORG100','オルガニック'), '遮光瓶');
+  eq('⑨-3 トルコ 250ml',  cont('ORG250','オルガニック'), '遮光瓶');
+  eq('⑨-3 トルコ 500ml',  cont('ORG500','オルガニック'), '遮光瓶');
+  eq('⑨-3 トルコ 750ml',  cont('ORG750','オルガニック'), 'デザイン缶');
+  eq('⑨-3 トルコ 2L',     cont('ORG2L','オルガニック'),  'デザイン缶');
+  eq('⑨-3 トルコ 5L',     cont('ORG5L','オルガニック'),  '缶');
+  eq('⑨-3 メメジック 750ml', cont('MEM750','メメジック'), 'デザイン缶');
+  eq('⑨-3 メメジック 2L',    cont('MEM2L','メメジック'),  'デザイン缶');
+  eq('⑨-3 プリモ 3L',   cont('PRI3L','プリモ'),     '缶');
+  eq('⑨-3 アグリ 3L',   cont('AGR3L','アグリ'),     '缶');
+  eq('⑨-3 ★アルモニア 3L（bag in box はやめた）', cont('ARM3L','アルモニア'), '缶');
+  ok('⑨-3 ★コードから bag in box が消えている', src.indexOf("return 'bag in box'") < 0);
+  /* ★人が手で入れた容器は書き換えない（生産地と同じときだけ「混入」とみなす） */
+  eq('⑨-3 手で入れた容器はそのまま',
+     r.box.containerFor({ sku:'ORG750', group:'オルガニック', container:'特別な缶' }), '特別な缶');
+  eq('⑨-3 ザクロソースの遮光瓶もそのまま',
+     r.box.containerFor({ sku:'ETC-001', group:'その他', container:'遮光瓶' }), '遮光瓶');
+})();
+ok('⑨-3 容器を直すとき、空の生産地も戻す', src.indexOf('origin: (p.origin || originOf(p) ||') >= 0);
+
 /* ══════ ⑩ GAS側（手元にあるときだけ） ══════ */
 const gasPath = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
 if(fs.existsSync(gasPath)){
