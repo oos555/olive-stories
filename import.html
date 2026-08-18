@@ -390,9 +390,11 @@ tr:last-child td{border-bottom:none}
       <div style="font-size:12px;color:#3a5a48;line-height:1.7;margin-bottom:10px">この輸入準備計算は、ここから<strong>輸入ノートのもと</strong>になる大事な計算書です。内容が固まって輸入が決まったら、下のボタンを押してください。<strong>押した日付といまの発注内容が、まるごと下の記録に残ります</strong>（年に何度でも。あとから「いつ・何を・何本」振り返れます）。</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <label style="font-size:12px">この輸入の時期・メモ <input id="prep-fin-memo" placeholder="例：2026年8月分（ノヴァヴェラ）" style="width:230px;padding:6px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>
-        <button class="btn btn-green" onclick="prepFinalize()" style="font-size:14px;padding:9px 18px">✅ この内容で輸入を確定する</button>
+        <button class="btn btn-green" onclick="prepFinalize()" style="font-size:14px;padding:9px 18px">✅ この内容で輸入を確定して、輸入ノートに送る</button>
       </div>
     </div>
+    <!-- ★2026-08-18 送る前の確認パネル（ひろみさん承認モック mock_importE_prep_to_note_2026-08-18）★消さないでください -->
+    <div id="prep-send-panel" style="display:none"></div>
     <div class="card">
       <div class="sec">📋 輸入確定の記録（新しい順・年ごと）</div>
       <div id="prep-history"></div>
@@ -2913,6 +2915,12 @@ function ynNewNote(){
     adjEur:'', adjMemo:'', notes:'', createdAt:new Date().toISOString() };
   ynAddLine(); ynAddLine(); ynAddLine();
   ynRenderDetail(); ynRenderCards();
+  ynScrollToDetail();   /* ★2026-08-18「押しても何も起きない」と言われた対策。入力欄まで画面を動かす */
+}
+/* ★2026-08-18 新しいノートを出したら、そこまで画面を動かす。★消さないでください */
+function ynScrollToDetail(){
+  var d=document.getElementById('yn-detail');
+  if(d && d.style.display!=='none'){ try{ d.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){ d.scrollIntoView(); } }
 }
 function ynOpenNote(id){
   ynAllFromBatches();
@@ -2973,6 +2981,54 @@ function ynCalc(n){
   return out;
 }
 
+/* ══════ ★2026-08-18 1本の重さ（ひろみさん確定・変更禁止・★戻さないでください） ══════
+   ひろみさんの言葉:「オイルのグラムと瓶の重さはいつも一緒なので、もうこれは入力するも何もっていう感じです。
+   いつも決まった数字になるはず。あとは本数によって全体的な重さが変わるっていうぐらいです。」
+   → オイル g ＋ 容器 g ＝ 合計 g。容量(ml)で決まる決まった数字なので、輸入ノートに入力欄を出さない。
+   → 本数で変わるのは「この行の総重量 g（本数 × 合計 g）」だけ。
+   ★ノバベラのオイル(ORG/MEM/CHF)と、下の2つの特別な品だけにあてる。
+     他の農園(モジカート PRI/ZAI・レ・トレ・コロンネ AGR/TGR/ARM 等)は瓶が違うので、
+     勝手な重さを入れない＝空のままにして手で打っていただく。原価がずれるほうが怖い。 */
+var YN_W_PREFIX = ['ORG','MEM','CHF'];
+var YN_W_ML  = { 100:{oil:92,cont:158}, 250:{oil:230,cont:262}, 500:{oil:460,cont:507},
+                 750:{oil:690,cont:162}, 2000:{oil:1840,cont:327}, 5000:{oil:4600,cont:819} };
+var YN_W_SKU = { 'ZAKURO':{ml:250,oil:null,cont:null,total:604},   /* 瓶が別もの。内訳は不明 */
+                 'MISC002':{ml:500,oil:0,cont:470} };              /* 500ml用空瓶。中身が入っていない */
+function ynMlOfSku(sku){
+  var s=String(sku||'').toUpperCase();
+  var mL=s.match(/(\d+)L$/); if(mL){ var v=parseInt(mL[1],10)*1000; return (v===2000||v===5000)?v:null; }
+  var mM=s.match(/(\d{3})$/); if(mM){ var w=parseInt(mM[1],10); return ([100,250,500,750].indexOf(w)>=0)?w:null; }
+  return null;
+}
+function ynWeightFor(sku){
+  var s=String(sku||'').toUpperCase();
+  var sp=YN_W_SKU[s];
+  if(sp) return { ml:sp.ml, oil:sp.oil, cont:sp.cont,
+                  total:(sp.total!=null?sp.total:((sp.oil||0)+(sp.cont||0))) };
+  var ok=false; YN_W_PREFIX.forEach(function(pf){ if(s.indexOf(pf)===0) ok=true; });
+  if(!ok) return null;
+  var ml=ynMlOfSku(s); if(ml==null) return null;
+  var w=YN_W_ML[ml]; if(!w) return null;
+  return { ml:ml, oil:w.oil, cont:w.cont, total:w.oil+w.cont };
+}
+/* ルールのある商品だけ、ml・オイルg・容器g・合計g を入れる。
+   ★すでに手で入れた重さ（ルールと違う数字）は書き換えない。古いノートの原価を動かさないため。 */
+function ynApplyWeightRule(n){
+  if(!n || !n.lines) return;
+  n.lines.forEach(function(l){
+    var w=ynWeightFor(l.sku); if(!w || !(w.total>0)) return;
+    var stored=parseFloat(l.g);
+    if(!isNaN(stored) && stored>0 && stored!==w.total) return;  /* ★手で入れた数字は触らない */
+    if(w.ml!=null) l.ml=w.ml;
+    l.oilG=(w.oil==null?'':w.oil); l.contG=(w.cont==null?'':w.cont); l.g=w.total;
+  });
+}
+function ynWeightLocked(l){
+  var w=ynWeightFor(l&&l.sku); if(!w || !(w.total>0)) return false;
+  var stored=parseFloat(l.g);
+  return isNaN(stored) || stored<=0 || stored===w.total;
+}
+
 /* ── 詳細画面 ── */
 function ynField(label, id, val, w, ph){
   return '<div><div style="font-size:11px;color:#57534e">'+label+'</div><input id="'+id+'" value="'+esc(val==null?'':val)+'"'+(ph?(' placeholder="'+ph+'"'):'')+' oninput="ynSync()" style="width:'+(w||'100%')+';padding:5px 7px;border:1px solid #d8cfc4;border-radius:6px;font-size:13px;font-weight:700"></div>';
@@ -2981,6 +3037,7 @@ function ynRenderDetail(){
   const box = document.getElementById('yn-detail');
   if(!box || !ynCurrent){ if(box) box.style.display='none'; return; }
   const n = ynCurrent;
+  ynApplyWeightRule(n);   /* ★2026-08-18 重さは決まった数字。打たせない（上のルールを参照） */
   const fixed = n.status==='fixed';
   const prev = ynPrevNote();
   const prevBySku = {};
@@ -3030,22 +3087,54 @@ function ynRenderDetail(){
 
   /* 明細 */
   html += '<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:4px">🫒 商品明細（0本のまま残すと「今回は見送り」の記録になります）</div>';
-  html += '<div style="overflow-x:auto"><table style="min-width:680px;font-size:12px"><thead><tr>'
-    + '<th>商品</th><th style="text-align:right">€単価<br><span style="font-weight:400;font-size:9px">🟡前回</span></th><th style="text-align:right">本数<br><span style="font-weight:400;font-size:9px">🟡前回</span></th><th style="text-align:right">1本の重さg<br><span style="font-weight:400;font-size:9px">パッキングリスト</span></th><th style="text-align:right">ml</th><th style="text-align:right;background:#eef7ef">本当の原価</th></tr></thead><tbody>';
+  /* ★2026-08-18 重さのマスを ml／オイル g／容器 g／合計 g に分けた（ひろみさん指示）。
+     計算式を文字で入れると足し算ができなくなるため、1つずつ別のマスにしてある。★戻さないでください */
+  html += '<div style="overflow-x:auto"><table style="min-width:820px;font-size:12px"><thead>'
+    + '<tr><th rowspan="2">商品</th>'
+    + '<th rowspan="2" style="text-align:right">€単価<br><span style="font-weight:400;font-size:9px">🟡前回</span></th>'
+    + '<th rowspan="2" style="text-align:right">本数<br><span style="font-weight:400;font-size:9px">🟡前回</span></th>'
+    + '<th colspan="4" style="background:#e6efdd">1本あたり（🔒 ひとりでに出ます）</th>'
+    + '<th rowspan="2" style="text-align:right;background:#e6efdd">この行の<br>総重量 g</th>'
+    + '<th rowspan="2" style="text-align:right;background:#eef7ef">本当の原価</th></tr>'
+    + '<tr><th style="text-align:right;background:#eef3e6">ml</th><th style="text-align:right;background:#eef3e6">オイル g</th>'
+    + '<th style="text-align:right;background:#eef3e6">容器 g</th><th style="text-align:right;background:#e6efdd">合計 g</th></tr>'
+    + '</thead><tbody>';
+  let ynTotQty = 0;
   (n.lines||[]).forEach(function(l, i){
     const p = prevBySku[l.sku];
     const cl = c.lines[i]||{};
     const q = parseFloat(l.qty)||0;
+    ynTotQty += q;
+    const locked = ynWeightLocked(l);
+    const w = ynWeightFor(l.sku);
+    const rowG = (parseFloat(l.g)||0) * q;
+    const numCell = function(v){ return '<td style="text-align:right;background:#eef7ef;font-weight:700">'+(v===''||v==null?'<span style="color:#b8b2a6">—</span>':esc(v))+'</td>'; };
     html += '<tr>'
       + '<td style="min-width:170px"><select onchange="ynLineSku('+i+',this.value)" style="width:100%;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-size:12px">'+ynProductOptions(l.sku)+'</select></td>'
       + '<td style="text-align:right"><input value="'+esc(l.eur)+'" oninput="ynLine('+i+',\'eur\',this.value)" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700">'+(p&&p.eur?('<div style="font-size:10px;color:#57534e">🟡'+p.eur+'</div>'):'')+'</td>'
-      + '<td style="text-align:right"><input value="'+esc(l.qty)+'" oninput="ynLine('+i+',\'qty\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700">'+(p&&p.qty?('<div style="font-size:10px;color:#57534e">🟡'+p.qty+'</div>'):'')+'</td>'
-      + '<td style="text-align:right"><input value="'+esc(l.g)+'" oninput="ynLine('+i+',\'g\',this.value)" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
-      + '<td style="text-align:right"><input value="'+esc(l.ml)+'" oninput="ynLine('+i+',\'ml\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
+      + '<td style="text-align:right"><input value="'+esc(l.qty)+'" oninput="ynLine('+i+',\'qty\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700">'+(p&&p.qty?('<div style="font-size:10px;color:#57534e">🟡'+p.qty+'</div>'):'')+'</td>';
+    if(locked){
+      html += numCell(w&&w.ml!=null?w.ml:'')
+            + numCell(w&&w.oil!=null?w.oil:'')
+            + numCell(w&&w.cont!=null?w.cont:'')
+            + numCell(w&&w.total!=null?w.total:'');
+    } else {
+      /* ルールに無い商品／手で入れた重さ（古いノート）は、今までどおり打てる */
+      html += '<td style="text-align:right"><input value="'+esc(l.ml)+'" oninput="ynLine('+i+',\'ml\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
+            + '<td style="text-align:center;color:#b8b2a6">—</td><td style="text-align:center;color:#b8b2a6">—</td>'
+            + '<td style="text-align:right"><input value="'+esc(l.g)+'" oninput="ynLine('+i+',\'g\',this.value)" title="パッキングリストの1本の重さ" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700"></td>';
+    }
+    html += '<td style="text-align:right;background:#eef7ef;font-weight:700">'+(rowG>0?Math.round(rowG).toLocaleString():'<span style="color:#b8b2a6">—</span>')+'</td>'
       + '<td style="text-align:right;background:#eef7ef;font-weight:800" id="yn-cost-'+i+'">'+(cl.skip? (q<=0?'<span style="font-size:10px;background:#f0ede6;border-radius:4px;padding:1px 6px;color:#8a867c">見送り</span>':'—') : ynFmt(cl.cost))+'</td>'
       + '</tr>';
   });
+  html += '<tr style="background:#f3f1ea;font-weight:800">'
+    + '<td>合計</td><td style="text-align:center">—</td><td style="text-align:right">'+ynTotQty.toLocaleString()+'</td>'
+    + '<td colspan="4" style="text-align:center">—</td>'
+    + '<td style="text-align:right">'+(c.totalG?Math.round(c.totalG).toLocaleString():'—')+'</td>'
+    + '<td style="text-align:center">—</td></tr>';
   html += '</tbody></table></div>';
+  html += '<div style="font-size:11px;color:#57534e;margin-top:4px;line-height:1.6">🔒 <b>ml・オイル g・容器 g・合計 g は、商品ごとにいつも同じ決まった数字</b>なので打つ欄を出していません。本数で変わるのは「この行の総重量 g」だけです。<br>ルールに無い商品（他の農園の品など）だけ、mlと合計 g を手で打てます。<b>すでに手で入れてある古いノートの数字は書き換えません。</b></div>';
   html += '<button class="btn-sm" onclick="ynAddLine()" style="margin-top:6px">＋ 行を追加</button>';
 
   /* 集計とボタン */
@@ -3067,10 +3156,16 @@ function ynRenderDetail(){
   box.style.display = 'block';
 }
 function ynLineSku(i, sku){
-  if(!ynCurrent) return; ynCurrent.lines[i].sku = sku;
+  if(!ynCurrent) return;
+  const line = ynCurrent.lines[i];
+  const changed = (line.sku !== sku);
+  line.sku = sku;
+  /* ★2026-08-18 商品を選び直したら、前の商品の重さを引きずらないように一度きれいにする。
+     そのあと ynApplyWeightRule が新しい商品の決まった数字を入れる。★消さないでください */
+  if(changed){ line.g=''; line.ml=''; line.oilG=''; line.contG=''; }
   const name = (function(){ const p=(OOS_PRODUCTS||[]).find(function(x){return x.sku===sku;}); return p? p.name : sku; })();
   const ml = mlFromName_(name||'');
-  if(ml && !parseFloat(ynCurrent.lines[i].ml)) ynCurrent.lines[i].ml = ml;
+  if(ml && !parseFloat(line.ml)) line.ml = ml;
   ynMarkDirty(); ynRenderDetail();
 }
 function ynLine(i, key, v){ if(!ynCurrent) return; ynCurrent.lines[i][key] = v; ynMarkDirty(); ynRecalcInline(); }
@@ -3187,7 +3282,7 @@ async function ynDelete(){
 
 
 /* ===== 🧮 輸入準備計算タブ（2026-07 追加・自己完結／編集ガードあり） ===== */
-var PREP_PRODUCTS = [{"id": "ORG100", "sku": "ORG100", "name": "オルガニック 100ml", "cat": "オーガニック", "vol": "100ml", "cont": "瓶", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "sku": "ORG250", "name": "オルガニック 250ml", "cat": "オーガニック", "vol": "250ml", "cont": "瓶", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "sku": "ORG500", "name": "オルガニック 500ml", "cat": "オーガニック", "vol": "500ml", "cont": "瓶", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "sku": "ORG750", "name": "オルガニック 750ml", "cat": "オーガニック", "vol": "750ml", "cont": "瓶", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "sku": "ORG2L", "name": "オルガニック 2000ml", "cat": "オーガニック", "vol": "2000ml", "cont": "缶", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "sku": "ORG5L", "name": "オルガニック 5000ml", "cat": "オーガニック", "vol": "5000ml", "cont": "缶", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "sku": "MEM100", "name": "メメジック 100ml", "cat": "メメジック", "vol": "100ml", "cont": "瓶", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "sku": "MEM250", "name": "メメジック 250ml", "cat": "メメジック", "vol": "250ml", "cont": "瓶", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "sku": "MEM500", "name": "メメジック 500ml", "cat": "メメジック", "vol": "500ml", "cont": "瓶", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "sku": "MEM750", "name": "メメジック 750ml", "cat": "メメジック", "vol": "750ml", "cont": "瓶", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "sku": "MEM2L", "name": "メメジック 2000ml", "cat": "メメジック", "vol": "2000ml", "cont": "缶", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "sku": "MEM5L", "name": "メメジック 5000ml", "cat": "メメジック", "vol": "5000ml", "cont": "缶", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "sku": "CHF250", "name": "シェフズブレンド 250ml", "cat": "シェフズブレンド", "vol": "250ml", "cont": "瓶", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "sku": "CHF100", "name": "シェフズブレンド 100ml", "cat": "シェフズブレンド", "vol": "100ml", "cont": "瓶", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "sku": "YS100", "name": "your story 100ml×3本セット", "cat": "3本セット(箱入り)100ml", "vol": "100ml×3", "cont": "箱", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199, "noFarm": true}, {"id": "YS250A", "sku": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "cat": "2本セット(250ml)", "vol": "250ml×2", "cont": "箱", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0, "noFarm": true}, {"id": "MISC002", "sku": "MISC002", "name": "500ml用空瓶", "cat": "空瓶(500ml用)", "vol": "500ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "sku": "ZAKURO", "name": "ザクロソース 250ml", "cat": "ザクロソース", "vol": "250ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
+var PREP_PRODUCTS = [{"id": "ORG100", "sku": "ORG100", "name": "オルガニック 100ml", "cat": "オーガニック", "vol": "100ml", "cont": "瓶", "rt": "4101229", "box": 24, "res": 120, "stock": 525, "target": 385}, {"id": "ORG250", "sku": "ORG250", "name": "オルガニック 250ml", "cat": "オーガニック", "vol": "250ml", "cont": "瓶", "rt": "4101118", "box": 20, "res": 300, "stock": -14, "target": 40}, {"id": "ORG500", "sku": "ORG500", "name": "オルガニック 500ml", "cat": "オーガニック", "vol": "500ml", "cont": "瓶", "rt": "4101043", "box": 12, "res": 48, "stock": 11, "target": 20}, {"id": "ORG750", "sku": "ORG750", "name": "オルガニック 750ml", "cat": "オーガニック", "vol": "750ml", "cont": "缶", "rt": "4101156", "box": 12, "res": 24, "stock": 12, "target": 0}, {"id": "ORG2L", "sku": "ORG2L", "name": "オルガニック 2000ml", "cat": "オーガニック", "vol": "2000ml", "cont": "缶", "rt": "4101097", "box": 6, "res": 18, "stock": 36, "target": 18}, {"id": "ORG5L", "sku": "ORG5L", "name": "オルガニック 5000ml", "cat": "オーガニック", "vol": "5000ml", "cont": "缶", "rt": "4101346", "box": 4, "res": 4, "stock": 14, "target": 10}, {"id": "MEM100", "sku": "MEM100", "name": "メメジック 100ml", "cat": "メメジック", "vol": "100ml", "cont": "瓶", "rt": "4101230", "box": 24, "res": 72, "stock": 520, "target": 428}, {"id": "MEM250", "sku": "MEM250", "name": "メメジック 250ml", "cat": "メメジック", "vol": "250ml", "cont": "瓶", "rt": "4101231", "box": 20, "res": 100, "stock": 107, "target": 40}, {"id": "MEM500", "sku": "MEM500", "name": "メメジック 500ml", "cat": "メメジック", "vol": "500ml", "cont": "瓶", "rt": "4101243", "box": 12, "res": 48, "stock": 63, "target": 20}, {"id": "MEM750", "sku": "MEM750", "name": "メメジック 750ml", "cat": "メメジック", "vol": "750ml", "cont": "缶", "rt": "4101233", "box": 12, "res": 24, "stock": 0, "target": 0}, {"id": "MEM2L", "sku": "MEM2L", "name": "メメジック 2000ml", "cat": "メメジック", "vol": "2000ml", "cont": "缶", "rt": "4101244", "box": 6, "res": 6, "stock": 48, "target": 42}, {"id": "MEM5L", "sku": "MEM5L", "name": "メメジック 5000ml", "cat": "メメジック", "vol": "5000ml", "cont": "缶", "rt": "4101345", "box": 4, "res": 4, "stock": 7, "target": 3}, {"id": "CHF250", "sku": "CHF250", "name": "シェフズブレンド 250ml", "cat": "シェフズブレンド", "vol": "250ml", "cont": "瓶", "rt": "4101234", "box": 20, "res": 40, "stock": 43, "target": 20}, {"id": "CHF100", "sku": "CHF100", "name": "シェフズブレンド 100ml", "cat": "シェフズブレンド", "vol": "100ml", "cont": "瓶", "rt": "4101306", "box": 24, "res": 24, "stock": 519, "target": 475}, {"id": "YS100", "sku": "YS100", "name": "your story 100ml×3本セット", "cat": "3本セット(箱入り)100ml", "vol": "100ml×3", "cont": "箱", "rt": "4101321", "box": 1, "res": 20, "stock": 219, "target": 199, "noFarm": true}, {"id": "YS250A", "sku": "YS250A", "name": "your story 250ml×2本セットA(オルガ+メメ)", "cat": "2本セット(250ml)", "vol": "250ml×2", "cont": "箱", "rt": "4101322", "box": 1, "res": 0, "stock": 0, "target": 0, "noFarm": true}, {"id": "MISC002", "sku": "MISC002", "name": "500ml用空瓶", "cat": "空瓶(500ml用)", "vol": "500ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 24}, {"id": "ZAKURO", "sku": "ZAKURO", "name": "ザクロソース 250ml", "cat": "ザクロソース", "vol": "250ml", "cont": "瓶", "rt": null, "box": null, "res": 0, "stock": null, "target": 12}];
 var PREP_SETS = [{"set": "4101321", "comp": "4101229", "qty": 1}, {"set": "4101321", "comp": "4101230", "qty": 1}, {"set": "4101321", "comp": "4101306", "qty": 1}, {"set": "4101322", "comp": "4101118", "qty": 1}, {"set": "4101322", "comp": "4101231", "qty": 1}];
 var prepMode = {};
 var prepHistory = [];
@@ -3383,6 +3478,10 @@ function prepApplyState(st){
     if('manual' in s)p.manual=s.manual; if('manualBoxes' in s)p.manualBoxes=s.manualBoxes; if('manualN' in s)p.manualN=s.manualN;
     if('noFarm' in s)p.noFarm=s.noFarm;
   }); }
+  /* ★2026-08-18 ひろみさん確定「750mlは常に缶です」。
+     保存済みの古い「瓶」だけを「缶」に直す（手で入れた他の言葉には触らない）。
+     ここを直さないと、農園への英語オーダー表に Bottle と出てしまう。★戻さないでください */
+  PREP_PRODUCTS.forEach(function(p){ if(String(p.vol||'')==='750ml' && p.cont==='瓶') p.cont='缶'; });
 }
 function prepSaveLocal(){
   try{ localStorage.setItem(PREP_LS_KEY, JSON.stringify(prepBuildState())); }catch(err){}
@@ -3722,11 +3821,15 @@ function prepONoteDel(i){ prepOrderNotes.splice(i,1); prepSaveLocal(); if(typeof
 function prepFinalize(){
   var rows=prepOrderRows();
   if(!rows.length){ alert('輸入する商品がありません（発注が0本です）。'); return; }
+  prepSendOpen();   /* ★2026-08-18 いきなり確定せず、まず確認パネルを出す（承認モックのSTEP2） */
+}
+/* 「輸入確定の記録」に残す部分。中身は今までと同じ。★消さないでください */
+function prepFinalizeSnapshot(){
+  var rows=prepOrderRows();
   var memo=(document.getElementById('prep-fin-memo')||{}).value||'';
   var d=new Date();
   var dateStr=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
   var tot=rows.reduce(function(a,r){return a+r.finalN;},0);
-  if(!confirm('この内容で輸入を確定して記録しますか？\n\n'+dateStr+(memo?('（'+memo+'）'):'')+'\n合計 '+tot+'本 / '+rows.length+'品\n\n※下の「輸入確定の記録」に残ります。')) return;
   var snap={ id:'imp_'+d.getTime(), date:d.toISOString(), dateStr:dateStr, memo:memo, folderUrl:prepFolderUrl, orderNotes:prepOrderNotes.map(function(n){return {cat:n.cat,tr:n.tr,ja:(n.ja!=null?n.ja:(n.t||'')),c:n.c};}), labelLinks:prepLabelLinks.map(function(x){return {t:x.t,u:x.u};}), total:tot,
     items: rows.map(function(r){ return {jpname:r.p.name, enName:prepEnName(r.p), sku:r.p.sku, vol:r.p.vol, cont:r.p.cont,
       box:r.box, finalBox:r.finalBox, finalN:r.finalN, exp:prepExpOf(r.p), lang:prepLangOf(r.p), print:prepPrintOf(r.p), color:prepColorOf(r.p), url:prepUrlOf(r.p)}; }) };
@@ -3734,6 +3837,117 @@ function prepFinalize(){
   prepSaveLocal();
   prepRenderHistory();
   if(typeof showSyncStatus==='function') showSyncStatus('✅ 輸入を確定して記録しました');
+  return snap;
+}
+
+/* ══════ ★2026-08-18 輸入準備計算 →（確定）→ 輸入ノートへ送る ══════
+   ひろみさんのご依頼:「商品明細のところを一個一個手入力するのを省きたい」
+   承認済みモック: mocks/mock_importE_prep_to_note_2026-08-18.html
+   ・農園と輸入年月は、送るときにこのパネルで選ぶ
+   ・同じ農園・同じ年月のカードがすでにあるときは、もう1枚作らない（そのカードを開くだけ）
+   ・€単価は空のまま。重さは決まった数字がひとりでに入る
+   ・原価データには何も入らない（輸入ノートで「✅ 確定する」を押したときだけ）
+   ★この決めごとを戻さないでください */
+var prepSendFarm='novavera', prepSendYm='';
+function prepSendDefaultYm(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+function prepSendOpen(){
+  var box=document.getElementById('prep-send-panel'); if(!box) return;
+  if(!prepSendYm) prepSendYm=prepSendDefaultYm();
+  box.style.display='block';
+  prepSendRender();
+  try{ box.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ box.scrollIntoView(); }
+}
+function prepSendClose(){ var box=document.getElementById('prep-send-panel'); if(box){ box.style.display='none'; box.innerHTML=''; } }
+function prepSendSetFarm(v){ prepSendFarm=v; prepSendRender(); }
+function prepSendSetYm(v){ prepSendYm=v; prepSendRender(); }
+function prepSendFindNote(farm, ym){
+  try{ if(typeof ynAllFromBatches==='function') ynAllFromBatches(); }catch(e){}
+  var list=(typeof ynNotes!=='undefined' && ynNotes)?ynNotes:[];
+  for(var i=0;i<list.length;i++){
+    if(list[i].farm===farm && String(list[i].yearMonth||'')===String(ym)) return list[i];
+  }
+  return null;
+}
+function prepSendGoToNoteTab(){
+  var tb=document.querySelector('.tab-row .tab[onclick*="showPanel(\'note\'"]');
+  if(tb && typeof showPanel==='function') showPanel('note', tb);
+}
+function prepSendOpenExisting(id){
+  prepSendClose();
+  prepSendGoToNoteTab();
+  if(typeof ynOpenNote==='function') ynOpenNote(id);
+  if(typeof ynScrollToDetail==='function') ynScrollToDetail();
+}
+function prepSendRender(){
+  var box=document.getElementById('prep-send-panel'); if(!box) return;
+  var rows=prepOrderRows();
+  var memo=(document.getElementById('prep-fin-memo')||{}).value||'';
+  var d=new Date(); var dateStr=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+  var totN=0, totB=0;
+  rows.forEach(function(r){ totN+=r.finalN; totB+=(r.finalBox||0); });
+  var ymT=String(prepSendYm||'').trim();
+  var dup=prepSendFindNote(prepSendFarm, ymT);
+  var opts='';
+  Object.keys(FARM_LABEL).forEach(function(f){ opts+='<option value="'+f+'"'+(f===prepSendFarm?' selected':'')+'>'+FARM_LABEL[f]+'</option>'; });
+  var h='<div class="card" style="border:2px solid #0f7a4a;background:#f9f7f2">';
+  h+='<div style="font-size:15px;font-weight:800;color:#0f5a4a;margin-bottom:10px">この内容で輸入を確定して、輸入ノートに送ります</div>';
+  h+='<div style="margin-bottom:9px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">'
+    +'<label style="font-size:12px">農園 <select onchange="prepSendSetFarm(this.value)" style="font-size:14px;font-weight:700;padding:5px 8px;border:1px solid #d8cfc4;border-radius:6px">'+opts+'</select></label>'
+    +'<label style="font-size:12px">輸入年月 <input value="'+prepAttr(prepSendYm)+'" oninput="prepSendSetYm(this.value)" placeholder="2026-08" style="width:110px;font-size:14px;font-weight:700;padding:5px 8px;border:1px solid #d8cfc4;border-radius:6px"></label>'
+    +'<span style="font-size:12px;color:#57534e">確定日：'+dateStr+(memo?('／メモ：'+prepAttr(memo)):'')+'</span>'
+    +'</div>';
+  h+='<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin:8px 0 4px">🫒 この'+rows.length+'品が、輸入ノートの商品明細に乗ります</div>';
+  h+='<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>商品</th><th style="text-align:right">箱</th><th style="text-align:right">本数</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    h+='<tr><td style="text-align:left">'+prepAttr(r.p.name||'')+'</td><td style="text-align:right">'+(r.finalBox!=null?r.finalBox:'—')+'</td><td style="text-align:right;font-weight:700">'+r.finalN+'</td></tr>';
+  });
+  h+='<tr style="background:#f3f1ea;font-weight:800"><td>合計</td><td style="text-align:right">'+totB+'箱</td><td style="text-align:right">'+totN+'本</td></tr>';
+  h+='</tbody></table></div>';
+  if(dup){
+    h+='<div style="margin-top:10px;background:#fffdf5;border:2px solid #f59e0b;border-radius:8px;padding:10px 12px">'
+      +'<div style="font-size:14px;font-weight:800;color:#78350f">⚠️ この輸入は、もう輸入ノートに送ってあります</div>'
+      +'<div style="font-size:12.5px;margin-top:5px;color:#78350f">'+(FARM_LABEL[dup.farm]||dup.farm)+'　'+prepAttr(dup.yearMonth||'')+' のカードが、すでに1枚あります。<b>もう1枚は作りません。</b></div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+      +'<button class="btn" style="background:#2563eb;color:#fff" onclick="prepSendOpenExisting(\''+dup.id+'\')">📂 そのカードを開く</button>'
+      +'<button class="btn-sm" onclick="prepSendClose()">やめる</button></div></div>';
+  } else {
+    h+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+      +'<button class="btn btn-green" onclick="prepSendGo()" style="font-size:14px;padding:9px 18px">✅ 確定して、輸入ノートに送る</button>'
+      +'<button class="btn-sm" onclick="prepSendClose()">やめる</button></div>';
+    h+='<div style="font-size:11px;color:#57534e;margin-top:7px;line-height:1.6">€単価は空のまま送ります（インボイスが届いてから入れてください）。重さは商品ごとの決まった数字がひとりでに入ります。<br><b>原価データには何も入りません。</b>輸入ノートで「✅ 確定する」を押したときだけ反映されます。</div>';
+  }
+  h+='</div>';
+  box.innerHTML=h;
+}
+function prepSendGo(){
+  var rows=prepOrderRows();
+  if(!rows.length){ alert('輸入する商品がありません（発注が0本です）。'); return; }
+  var ym=String(prepSendYm||'').trim();
+  if(!/^\d{4}-\d{2}$/.test(ym)){ alert('輸入年月を「2026-08」の形で入れてください（例 2026-08）。'); return; }
+  if(prepSendFindNote(prepSendFarm, ym)){ prepSendRender(); return; }   /* 念のためもう一度見る */
+  var snap=prepFinalizeSnapshot();
+  var note={ id:'note_'+Date.now(), kind:'note', farm:prepSendFarm, status:'draft', yearMonth:ym,
+    exchangeRate:'', invoiceNo:'', shipInvoiceNo:'', blNo:'',
+    lines: rows.map(function(r){
+      var w=ynWeightFor(r.p.sku)||{};
+      return { sku:r.p.sku, eur:'', qty:r.finalN,
+               ml:(w.ml!=null?w.ml:''), oilG:(w.oil!=null?w.oil:''), contG:(w.cont!=null?w.cont:''),
+               g:(w.total!=null?w.total:'') };
+    }),
+    exp:{ airEur:'', airDiscEur:'', airDiscMemo:'', taxImport:'', taxCustoms:'', taxOther:'',
+          sagawaAirport:'', sagawaTransport:'', warehouse:'', otherJp:'', otherJpMemo:'' },
+    adjEur:'', adjMemo:'',
+    notes:'輸入準備計算から送りました（'+snap.dateStr+(snap.memo?('／'+snap.memo):'')+'）',
+    createdAt:new Date().toISOString(), fromPrepId:snap.id };
+  snap.sentToNote={ noteId:note.id, farm:prepSendFarm, yearMonth:ym };
+  prepSaveLocal(); prepRenderHistory();
+  ynCurrent=note; ynOldViewId=null;
+  prepSendClose();
+  prepSendGoToNoteTab();
+  if(typeof ynRenderDetail==='function') ynRenderDetail();
+  if(typeof ynRenderCards==='function') ynRenderCards();
+  if(typeof ynScrollToDetail==='function') ynScrollToDetail();
+  if(typeof ynSave==='function') ynSave();
 }
 function prepRenderHistory(){
   var box=document.getElementById('prep-history'); if(!box) return;
