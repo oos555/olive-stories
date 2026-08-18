@@ -209,6 +209,20 @@ if(fs.existsSync(gasPath2)){
   console.log('（GASのファイルが手元にないので ⑨のGAS分 は飛ばしました）');
 }
 
+/* ══════ ⑨-4 名簿に登録した商品が、その場で選べること（2026-08-18） ══════
+   ひろみさん「ここにザクロソースが出てこない（輸入Ｅの輸入ノート）」
+   原因：商品一覧をいつも同じ住所で読むので、ブラウザが古い返事を覚えたままになっていた。
+   ★毎回ちがう住所にして、届いたら画面を描き直す。★戻さないでください */
+ok('⑨-4 商品一覧を毎回読み直す（輸入Ｅ）',
+   src.indexOf("'?action=loadProducts&t=' + Date.now()") >= 0);
+ok('⑨-4 届いたら輸入ノートの明細を描き直す',
+   src.indexOf('typeof ynRenderDetail === \'function\') ynRenderDetail();') >= 0);
+(function(){
+  const m = H.read('master.html'), i2 = H.read('index.html');
+  ok('⑨-4 統合マスタも毎回読み直す', m.indexOf("'?action=loadProducts&t=' + Date.now()") >= 0);
+  ok('⑨-4 受注Ａも毎回読み直す',     i2.indexOf("'?action=loadProducts&t=' + Date.now()") >= 0);
+})();
+
 /* ══════ ⑩ 横スクロールバー（2026-08-18 ひろみさん依頼） ══════ */
 ok('⑩画面の一番下に貼り付く横スクロールバーがある', src.indexOf('id="imp-xbar"') >= 0);
 ok('⑩見えている表につながる仕掛けがある',           src.indexOf('function wideBoxes') >= 0);

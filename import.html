@@ -764,12 +764,19 @@ function applyProductsE(products){
   if(!products || !products.length) return;
   OOS_PRODUCTS = products;
   if(typeof renderProfitHeatmap === 'function') renderProfitHeatmap();
+  /* ★2026-08-18 商品一覧があとから届いたら、開いている輸入ノートの明細も描き直す。
+     これが無いと、名簿に登録したばかりの商品（ザクロソースなど）が
+     商品のえらび一覧に出てこないままになる。★消さないでください */
+  try{
+    var d = document.getElementById('yn-detail');
+    if(d && d.style.display !== 'none' && typeof ynRenderDetail === 'function') ynRenderDetail();
+  }catch(e){}
 }
 async function initializeProductsE(){
   const cache = oosLoadProductsCache();
   if(cache && cache.products && cache.products.length) applyProductsE(cache.products);
   try{
-    const res = await fetch(GAS_URL + '?action=loadProducts');
+    const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
     const data = await res.json();
     if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
       oosSaveProductsCache(data.products, data.extraFields);
