@@ -217,6 +217,17 @@ ok('⑨受注Ａの帯の文言', idx.indexOf('入荷ずみの予約が') >= 0);
 ok('⑨承認済みモックがある',
    fs.existsSync(path.join(__dirname, '..', 'mocks', 'mock_master_yoyaku_to_torioki_2026-08-18.html')));
 
+/* ══════ ⑨-2 名簿の「種類」（2026-08-18 ひろみさん指示） ══════
+   オイル以外の【売り物】（ザクロソースなど）を登録できる種類。
+   「その他の備品」は備品なので、売り物とは別。★消さないでください */
+ok('⑨-2 その他オイル以外の商品がある', src.indexOf("{ code:'ETC',  label:'🍯 その他オイル以外の商品' }") >= 0);
+ok('⑨-2 オイルのすぐ下にある',
+   src.indexOf("label:'🫒 オイル'") < src.indexOf("label:'🍯 その他オイル以外の商品'") &&
+   src.indexOf("label:'🍯 その他オイル以外の商品'") < src.indexOf("label:'📦 箱・ギフトボックス'"));
+ok('⑨-2 いままでの4つも残っている',
+   src.indexOf("label:'🫒 オイル'") >= 0 && src.indexOf("label:'📦 箱・ギフトボックス'") >= 0 &&
+   src.indexOf("label:'🛍 紙袋'") >= 0 && src.indexOf("label:'🧰 その他の備品'") >= 0);
+
 /* ══════ ⑩ GAS側（手元にあるときだけ） ══════ */
 const gasPath = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
 if(fs.existsSync(gasPath)){
