@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-17">
+<meta name="oos-version" content="2026-08-18-18">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4246,21 +4246,29 @@ function rtmYen(n){ return '¥'+Number(n||0).toLocaleString('ja-JP'); }
 // 反映後は取置分が held 注文として computeAvailable に反映済みなので、そのまま実在庫を表示（二重に引かない）
 function rtmAvailShow(sku){ return rtmStock(sku); }
 
+/* ★2026-08-18 ひろみさん指示でボタンを1つにまとめました。
+   「確定して在庫を抑えるボタンと、確定して予約を登録するボタンが こんなに離れていると
+     スタッフは絶対に予約を登録するを忘れます。ボタン一個にしてください」
+
+   ★あわせて直したズレ（大事）
+     もとの「📤 確定して予約を登録する」は【予約合計ぜんぶ】を予約として登録していました。
+     取り置きに回した分まで予約に入るので、統合マスタで
+     　取置160 ＋ 予約160 ＝ 320　（実際は160本）
+     と二重に見えてしまいます。
+     このボタンでは【取置ぶんは取り置きに／要輸入ぶんだけを予約に】分けて登録します。
+     画面に出ている「取置＋予約＝予約合計 ✓」とぴったり合います。
+   ★2つのボタンに戻さないでください。 */
 function rtmConfCell(sku){
   var a=rtmAlloc(sku);
-  if(a.reflected){ var rh=(+a.reflHold||0), cur=rtmStock(sku), before=cur+rh;
-    return '<div class="done refl">📦 受注Aに取り置き登録済み<span>取置'+rh+'本を確保／販売可能 '+before+'→'+cur+'</span></div><div class="conf-btns" style="margin-top:5px"><button class="btn-redo" style="flex:1" onclick="rtmRedo(\''+sku+'\')">↩ 取り置きを取り消す</button></div>'; }
-  /* ★2026-08-18 ひろみさん決定の文言：「📦 確定して在庫を押さえる」＋小さく「販売可能数が減ります」。
-     ★戻さないでください。ここは実際に販売可能数が減る唯一のボタンです。 */
-  /* ★2026-08-18 ひろみさん決定（案C）：2段階をやめて1段階にした。
-     もとは「✅ この振り分けで決定」を押してから「📦 在庫を確保」が押せる形だったが、
-     1段階目は【何も動かない】ボタンで、スタッフに何のためのボタンか伝わらず、
-     押されないまま在庫にも予約にも入っていかない、という状態になっていた。
-     ★2段階に戻さないでください。押す前の確認は、押したあとの確認パネルで足ります。 */
-  return '<div class="conf-btns"><button class="btn-refl" onclick="rtmReflect(\''+sku+'\')">📦 確定して在庫を押さえる</button><button class="btn-redo" onclick="rtmReconsider(\''+sku+'\')">🔄 やり直す</button></div><div class="btn-note">販売可能数が減ります（押すと内容を確認する画面が出ます）</div>';
-}
-// 🔄 もう一度考え直す：この商品の振り分け（倉庫に残す＝取り置き/要輸入の分け方）を初期に戻す
-function rtmReconsider(sku){
+  if(a.reflected){
+    var rh=(+a.reflHold||0), rn=(+a.reflNeed||0), cur=rtmStock(sku), before=cur+rh;
+    return '<div class="done refl">📦 受注Ａに登録済み<span>取置 '+rh+'本を確保／予約(要輸入) '+rn+'本を登録<br>販売可能 '+before+'→'+cur+'</span></div>'+
+      '<div class="conf-btns" style="margin-top:5px"><button class="btn-redo" style="flex:1" onclick="rtmRedo(\''+sku+'\')">↩ 取り消す（在庫を戻す）</button></div>';
+  }
+  return '<div class="conf-btns"><button class="btn-refl" onclick="rtmCommitOne(\''+sku+'\')">📦 確定して在庫を押さえ、予約を登録する</button>'+
+    '<button class="btn-redo" onclick="rtmReconsider(\''+sku+'\')">🔄 やり直す</button></div>'+
+    '<div class="btn-note">これ1回で両方すみます（押すと内容を確認する画面が出ます）</div>';
+}function rtmReconsider(sku){
   var st=rtmS(); var a=rtmAlloc(sku);
   if(a.reflected){ alert('この商品は在庫を確保済みです。先に「↩ 取り置きを取り消す」で戻してください。'); return; }
   a.keep=undefined;      // 倉庫に残すを初期（＝在庫を全部残す）に戻す→取り置き0・要輸入＝予約合計
@@ -4326,8 +4334,10 @@ function rtmRender(){
        '<input class="rtm-search" id="rtm-q" placeholder="商品名で検索…" oninput="rtmFilter()" value="'+esc(q)+'">'+
        '<button class="rtm-btn rtm-b-imp" onclick="rtmChooseImport()">📥 予約シートを外部から取り込む</button>'+
        '<button class="rtm-btn rtm-b-ghost" onclick="rtmExportExcel()">⬇ Excelに書き出す</button>'+
-       /* ★2026-08-18 ひろみさん決定の文言：「確定して予約を登録する」。★勝手に戻さないでください */
-       '<button class="rtm-btn rtm-b-seed" onclick="rtmPushToOrders()">📤 確定して予約を登録する</button>'+
+       /* ★2026-08-18 ひろみさん指示でこのボタンは外しました。
+          「ボタンが離れていると、スタッフは絶対に予約を登録するのを忘れます」
+          → 商品の行の「📦 確定して在庫を押さえ、予約を登録する」1つにまとめました。
+          ★このボタンを戻さないでください（2回押す形に逆戻りします）。 */
      '</div>'+
      '<div class="rtm-tool">'+addFacSel+addProdSel+
        '<span class="rtm-boxcalc">📦 箱を計算：'+
@@ -4374,7 +4384,7 @@ function rtmRender(){
     '<div class="rtm-scrolltop" id="rtm-scrolltop"><div></div></div>'+
     '<div class="rtm-wrap" id="rtm-wrap"><table class="rtm-t">'+thead+'<tbody id="rtm-tbody"></tbody>'+tfoot+'</table></div>'+
     '<div id="rtm-supply"></div>'+
-    '<div class="rtm-guide"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［📦確定して在庫を押さえる］</b>→ 取置分が<b>受注Aの取り置きに入り、販売可能数が取置分だけ減ります</b>（他のお客様に売れなくなります）。押すと内容を確認する画面が出ます。<b>↩取り消す</b>でいつでも戻せます。③ 予約は <b>［📤確定して予約を登録する］</b>で受注Aの予約になり、<b>統合マスタＮの「予約」の列</b>に出ます（販売可能数は減りません）。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※施設ごとの予約本数（青枠）はこの端末に保存。📥予約シート取込で受注Aの予約から取り込めます。</span></div>'+
+    '<div class="rtm-guide"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［📦 確定して在庫を押さえ、予約を登録する］</b>を押す。<b>これ1回で両方すみます</b>。<br>　・<b>取置</b>ぶん → 受注Ａの取り置きになり、<b>統合マスタの販売可能数が減ります</b>（他のお客様に売れなくなります）<br>　・<b>予約(要輸入)</b>ぶん → 受注Ａの予約になり、<b>統合マスタＮの「予約」の列</b>に出ます（販売可能数は減りません）<br>　押すと内容を確認する画面が出ます。<b>↩取り消す</b>でいつでも戻せます。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※施設ごとの予約本数（青枠）はこの端末に保存。📥予約シート取込で受注Aの予約から取り込めます。</span></div>'+
     '<div class="rtm-hist" id="rtm-hist"></div>';
 
   rtmRenderBody();
@@ -4836,22 +4846,63 @@ function rtmRedo(sku){
   }
   a.confirmed=false; rtmSave(rtmS()); rtmRender();
 }
-function rtmReflect(sku){
-  var a=rtmAlloc(sku); if(a.reflected) return;   /* ★2026-08-18 1段階にしたので confirmed は見ない */
-  var H=rtmHold(sku);
-  if(H<=0){
-    if(!confirm(rtmProdName(sku)+' は取置0本です。取り置きは作らず「確保済み（取置0）」にします。よろしいですか？')) return;
-    a.reflected=true; a.reflHold=0; a.reflOrderIds=[]; rtmSave(rtmS());
-    rtmPushHist('📦 在庫確保 '+rtmProdName(sku)+'：取置0本（登録なし）'); rtmRender(); return;
-  }
-  var stock=rtmStock(sku);
-  if(!confirm('【受注Aに取り置きを登録します】\n\n商品：'+rtmProdName(sku)+'\n取置：'+H+'本を在庫から確保\n\n・受注Aの「取り置き」に施設ごとの取り置きが入ります\n・販売可能在庫が '+stock+'→'+(stock-H)+'本 に減ります（他チャネルに出さない）\n・「↩やり直す」でいつでも取り消せます\n\nよろしいですか？')) return;
-  var ids=rtmBuildHeldOrders(sku, H);
-  a.reflected=true; a.reflHold=H; a.reflOrderIds=ids; a.confirmed=true; rtmSave(rtmS());
-  rtmPushHist('📦 受注Aに取り置き登録 '+rtmProdName(sku)+'：取置'+H+'本を確保（'+ids.length+'施設）');
+/* ★2026-08-18 1回で「取置（在庫を押さえる）」と「予約（要輸入ぶん）」の両方を登録する。
+   ★取置ぶんを予約にも入れてはいけません（二重になります）。 */
+function rtmCommitOne(sku){
+  var a=rtmAlloc(sku); if(a.reflected) return;
+  var H=rtmHold(sku), N=rtmNeed(sku), tot=rtmTotal(sku), stock=rtmStock(sku);
+  if(tot<=0){ alert(rtmProdName(sku)+' は本数が入っていません。'); return; }
+  var msg='【この商品を受注Ａに登録します】\n\n商品：'+rtmProdName(sku)+'\n\n'
+    + '　🔒 取り置き（いまの在庫から確保）　'+H+'本\n'
+    + '　🗓 予約（これから輸入する分）　　　'+N+'本\n'
+    + '　　　　　　　　　　　　合計　'+tot+'本\n\n'
+    + '・販売可能数が '+stock+' → '+(stock-H)+' に減ります（取り置きの分だけ）\n'
+    + '・予約は統合マスタＮの「予約」の列に出ます（販売可能数は減りません）\n'
+    + '・「↩ 取り消す」でいつでも戻せます\n\nよろしいですか？';
+  if(!confirm(msg)) return;
+  var made=rtmBuildSplitOrders(sku, H, N);
+  a.reflected=true; a.reflHold=H; a.reflNeed=N;
+  a.reflOrderIds=made.map(function(o){ return o.id; }); a.confirmed=true;
+  rtmSave(rtmS());
+  rtmPushHist('📦 受注Ａに登録 '+rtmProdName(sku)+'：取置'+H+'本・予約(要輸入)'+N+'本');
   rtmRender();
+  alert('✅ 受注Ａに登録しました\n\n'
+    + '・取り置き '+H+'本 → 統合マスタの販売可能数が その分だけ減りました\n'
+    + '・予約 '+N+'本 → 統合マスタＮの「予約」の列に出ます（販売可能数は減りません）');
 }
-// 取置Hを施設(列)へ按分して held 注文を作成（addGeneralHostと同じ形）。作成した注文idの配列を返す。
+
+/* 施設ごとに、取置ぶんと予約ぶんに分けて注文を作る。
+   施設の本数を「先に取置、残りを予約」に割り当てるので、取置＋予約＝予約合計 が必ず合う。 */
+function rtmBuildSplitOrders(sku, H, N){
+  var st=rtmS(), p=findProductBySku(sku), bq=(p&&p.boxQty)||1;
+  var hRem=H, nRem=N, made=[];
+  function mk(cid, qty, kind){
+    if(qty<=0) return;
+    var c=(customers||[]).find(function(x){ return String(x.id)===String(cid); }) || {name:cid,id:cid};
+    var o={
+      id: generateOrderId(), num: nextOrderNum(0, c.type||'rt'),
+      client:c.name, custId:c.id||'', customerType:c.type||'rt',
+      recipientName:c.name, isCompany:false,
+      zip:c.zip||'', addr:c.addr||'', tel:c.tel||'',
+      lines:[{productId:p?p.id:null, productName:p?p.name:sku, bottles:qty, boxes:0, boxQty:bq, giftType:'none'}],
+      status:(kind==='held' ? 'held' : 'reserved'), holdUntilDate:'', expectedDate:'',
+      paymentMode:'later', paymentConfirmed:false, notified:false,
+      note:'RT振り分け・'+(kind==='held'?'取り置き':'予約（要輸入）')+'（系列RT全体）', source:'rtm',
+      rtmOwned:true, rtmKind:kind, rtmSku:sku, rtmFac:String(cid),
+      registeredAt:new Date().toISOString()
+    };
+    orders.push(o); made.push(o);
+  }
+  st.cols.forEach(function(cid){
+    var q=rtmEffCell(sku,cid); if(q<=0) return;
+    var h=Math.min(hRem,q); hRem-=h;
+    var n=Math.min(nRem, q-h); nRem-=n;
+    mk(cid,h,'held'); mk(cid,n,'reserved');
+  });
+  if(made.length && typeof syncOrdersToGAS==='function') syncOrdersToGAS(made);
+  if(typeof renderHoldPreLists==='function') renderHoldPreLists();
+  return made;
+}// 取置Hを施設(列)へ按分して held 注文を作成（addGeneralHostと同じ形）。作成した注文idの配列を返す。
 function rtmBuildHeldOrders(sku, H){
   var st=rtmS(); var p=findProductBySku(sku);
   var remaining=H; var made=[]; var bq=(p&&p.boxQty)||1;
@@ -4882,7 +4933,8 @@ function rtmBuildHeldOrders(sku, H){
 function rtmCancelHeldOrders(sku){
   var changed=[];
   (orders||[]).forEach(function(o){
-    if(o && o.rtmOwned && o.rtmSku===sku && o.status==='held'){
+    /* ★2026-08-18 取り置きだけでなく、同じ商品の予約も一緒に取り消す（1回で登録したため） */
+    if(o && o.rtmOwned && o.rtmSku===sku && (o.status==='held' || o.status==='reserved')){
       o.status='cancelled'; o.cancelledAt=new Date().toISOString(); o.rtmCancelled=true; changed.push(o);
     }
   });
@@ -5097,7 +5149,7 @@ function rtmRenderExcelPreview(){
   });
   var warn='';
   var adhocs=S.facCols.filter(function(f){ return f.adhoc; });
-  if(adhocs.length) warn+='<div class="rtm-xl-warn">⚠️ お客様マスタ（系列＝RT全体）に見つからない施設があります：<b>'+adhocs.map(function(f){ return esc(f.dispName); }).join('、')+'</b>。<br>取り込みはできますが、<b>「📤 確定して予約を登録する」を押す前に「🛒顧客管理」で施設を登録</b>してください（登録しないと宛先が仮のままになります）。</div>';
+  if(adhocs.length) warn+='<div class="rtm-xl-warn">⚠️ お客様マスタ（系列＝RT全体）に見つからない施設があります：<b>'+adhocs.map(function(f){ return esc(f.dispName); }).join('、')+'</b>。<br>取り込みはできますが、<b>「📦 確定して在庫を押さえ、予約を登録する」を押す前に「🛒顧客管理」で施設を登録</b>してください（登録しないと宛先が仮のままになります）。</div>';
   if(S.unmapped.length) warn+='<div class="rtm-xl-warn">⚠️ 商品マスタに一致せず取り込めなかった行：<b>'+S.unmapped.map(esc).join(' ／ ')+'</b>。<br>（セット商品などは施設別の表には入りません。必要なら「＋商品を追加」で手入力してください）</div>';
   if(skippedReflect.length) warn+='<div class="rtm-xl-warn">🔒 すでに取り置き登録済みのため取込しない商品：<b>'+skippedReflect.map(esc).join('、')+'</b>。<br>（変更したい時は、その商品の「↩やり直す」で取り置きを取り消してから取り込んでください）</div>';
   document.getElementById('rtm-xl-warnbox').innerHTML=warn;
