@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-16">
+<meta name="oos-version" content="2026-08-18-17">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1452,9 +1452,10 @@ body{background:#fff}
       <div style="font-size:11.5px;color:#6b6459;margin-top:3px">倉庫にはまだ送りません</div>
     </div>
   </div>
-  <div class="sec">🗄 取り置き中（<span id="held-count">0</span>件）</div>
+  <!-- ★2026-08-18 最初は「0」ではなく「…」。読み込む前に0件と見せると「消えた」と思うため。★0に戻さないでください -->
+  <div class="sec">🗄 取り置き中（<span id="held-count">…</span>件）</div>
   <div id="held-order-list"></div>
-  <div class="sec" style="margin-top:1.5rem">🗓 予約中（<span id="reserved-count">0</span>件）</div>
+  <div class="sec" style="margin-top:1.5rem">🗓 予約中（<span id="reserved-count">…</span>件）</div>
   <div id="reserved-order-list"></div>
   </div><!-- /holdview-list -->
 
@@ -5357,8 +5358,18 @@ function renderHoldPreLists(){
      ★同じ1件です。数を二重に数えてはいけません。 */
   const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned)
     .concat(orders.filter(function(o){ return isZaikoMachi(o); }));
-  document.getElementById('held-count').textContent = heldOrders.length;
-  document.getElementById('reserved-count').textContent = reservedOrders.length;
+  /* ★2026-08-18 ひろみさん指示：読み込みが終わる前に「ありません」と出ると
+     「あれ、また消えた」と思ってしまう。読み込み中は、はっきりそう書く。
+     ひろみさん：「更新中とか、読み込み中とか、そういう文字に変えてもらえないかな」
+     ★「0件」「ありません」を先に出さないでください。 */
+  var _loading = (typeof ordersLoaded !== 'undefined') && !ordersLoaded;
+  var _loadMsg = '<div style="display:flex;align-items:center;gap:9px;color:#5a5346;font-size:13px;'
+    + 'background:#f6f5f1;border:1px solid #e2dcd0;border-radius:9px;padding:11px 13px">'
+    + '<span style="font-size:17px">⏳</span><span><b>読み込み中です…</b>　少しお待ちください。<br>'
+    + '<span style="font-size:12px;color:#8a857c">（まだ数えていません。消えたわけではありません）</span>'
+    + '</span></div>';
+  document.getElementById('held-count').textContent     = _loading ? '…' : heldOrders.length;
+  document.getElementById('reserved-count').textContent = _loading ? '…' : reservedOrders.length;
 
   const heldEl = document.getElementById('held-order-list');
   // ★取り置きの見出し：件数＋いちばん近い予定出荷日（忘れ防止）
@@ -5386,7 +5397,7 @@ function renderHoldPreLists(){
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
       '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
-  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>');
+  }).join('') : (_loading ? _loadMsg : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>'));
 
   const resEl = document.getElementById('reserved-order-list');
   // ★予約の見出し：件数だけ（予定はこちらで把握しているため日付は出さない）
@@ -5412,7 +5423,7 @@ function renderHoldPreLists(){
           + '<div class="oc-actions"><button class="btn-sm" disabled style="opacity:.45">📦 出荷依頼書へ</button><span style="font-size:12px;color:#6b6459">在庫が入るまで押せません</span></div>'
         : '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>')+
       '</div>';
-  }).join('') : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>');
+  }).join('') : (_loading ? _loadMsg : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、予約中の受注はありません。</div>'));
 
   updateHoldSelected();
 }
