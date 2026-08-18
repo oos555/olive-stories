@@ -241,7 +241,7 @@ ok('⑨-2 いままでの4つも残っている',
   var spec = { ORG100:{origin:'トルコ'}, ORG250:{origin:'トルコ'}, ORG500:{origin:'トルコ'},
                ORG750:{origin:'トルコ'}, ORG2L:{origin:'トルコ'},  ORG5L:{origin:'トルコ'},
                MEM750:{origin:'トルコ'}, MEM2L:{origin:'トルコ'},
-               PRI250:{origin:'イタリア'}, PRI3L:{origin:'イタリア'},
+               PRI100:{origin:'イタリア'}, PRI250:{origin:'イタリア'}, PRI3L:{origin:'イタリア'},
                AGR3L:{origin:'イタリア'},  ARM3L:{origin:'イタリア'},
                ARM500:{origin:'イタリア'}, CAS5L:{origin:'イタリア'} };
   var r = H.makeSandbox({ PRODUCT_SPEC:spec, mIsSet:function(){ return false; } });
@@ -260,6 +260,10 @@ ok('⑨-2 いままでの4つも残っている',
   eq('⑨-3 トルコ 5L',     cont('ORG5L','オルガニック'),  '缶');
   eq('⑨-3 メメジック 750ml', cont('MEM750','メメジック'), 'デザイン缶');
   eq('⑨-3 メメジック 2L',    cont('MEM2L','メメジック'),  'デザイン缶');
+  /* ★2026-08-18 ひろみさん「イタリアの100ml、250ml、500mlは遮光瓶です」 */
+  eq('⑨-3 イタリア 100ml', cont('PRI100','プリモ'),   '遮光瓶');
+  eq('⑨-3 イタリア 250ml', cont('PRI250','プリモ'),   '遮光瓶');
+  eq('⑨-3 イタリア 500ml', cont('ARM500','アルモニア'), '遮光瓶');
   eq('⑨-3 プリモ 3L',   cont('PRI3L','プリモ'),     '缶');
   eq('⑨-3 アグリ 3L',   cont('AGR3L','アグリ'),     '缶');
   eq('⑨-3 ★アルモニア 3L は bag in box（変えない）', cont('ARM3L','アルモニア'), 'bag in box');
