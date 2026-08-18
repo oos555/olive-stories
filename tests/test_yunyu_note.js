@@ -66,8 +66,14 @@ eq('①500ml用空瓶 ml',      kb.ml,    500);
 ok('①750mlの合計 < 500mlの合計（缶のほうが軽い）',
    box.ynWeightFor('ORG750').total < box.ynWeightFor('ORG500').total);
 
-/* ── ② 他の農園の品に勝手な重さを入れない ───────────────── */
-['PRI250','PRI500','ZAI250','ZAI500','AGR100','AGR250','TGR100','ARM500','ARM3L','YS100','YS250A'].forEach(function(s){
+/* ── ② 他の農園（モジカート・レ・トレ・コロンネ）も同じ重さ（2026-08-18 ひろみさん「同じ重さでOK！」） ── */
+[['PRI100',250],['PRI250',492],['PRI500',967],['ZAI250',492],['ZAI500',967],
+ ['AGR100',250],['AGR250',492],['TGR100',250],['ARM500',967]].forEach(function(r){
+  const w = box.ynWeightFor(r[0]) || {};
+  eq('②'+r[0]+' も同じ合計g', w.total, r[1]);
+});
+/* ★セット商品と、ルールに無い容量（3Lなど）は空のまま＝手で打つ */
+['YS100','YS250A','PRI3L','AGR3L','ARM3L'].forEach(function(s){
   ok('②'+s+' はルールに無い＝空のまま（手で打つ）', box.ynWeightFor(s) === null);
 });
 
@@ -85,13 +91,13 @@ let n2 = { lines:[ line({sku:'ORG500', qty:60, g:970}) ] };
 box.ynApplyWeightRule(n2);
 eq('③★手で入れた重さは書き換えない', n2.lines[0].g, 970);
 
-let n3 = { lines:[ line({sku:'PRI250', qty:10}) ] };
+let n3 = { lines:[ line({sku:'ARM3L', qty:10}) ] };
 box.ynApplyWeightRule(n3);
 eq('③ルールに無い商品の重さは空のまま', n3.lines[0].g, '');
 
 ok('③合計gがルールどおりなら打てない（鍵つき）', box.ynWeightLocked(line({sku:'ORG500', g:967})) === true);
 ok('③合計gが手入力なら打てる',                   box.ynWeightLocked(line({sku:'ORG500', g:970})) === false);
-ok('③ルールに無い商品は打てる',                   box.ynWeightLocked(line({sku:'PRI250', g:500})) === false);
+ok('③ルールに無い商品は打てる',                   box.ynWeightLocked(line({sku:'ARM3L', g:500})) === false);
 ok('③重さがまだ空なら鍵つき（ルールが入る）',      box.ynWeightLocked(line({sku:'ORG500', g:''}))  === true);
 
 /* ── ④ 総重量は「本数 × 合計g」で足し算できる ─────────────── */
