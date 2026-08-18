@@ -501,7 +501,9 @@
     now:  [{href:'index.html',   label:'🔵 在庫がなくて出荷できない注文', count:2},
            {href:'index.html',   label:'🔴 倉庫へ送ったのに在庫を引いていない注文', count:1},
            {href:'index.html',   label:'🗄 取り置き期限が過ぎています', count:1},
-           {href:'billing.html', label:'💰 支払期限ごえ・未入金（売上C）', count:1}],
+           {href:'billing.html', label:'💰 支払期限ごえ・未入金（売上C）', count:1},
+           /* ★2026-08-19 バサラの送り状No.（承認済みモック mock_basara_okurijou_2026-08-18.html） */
+           {href:'basara.html',  label:'📮 発送したのに送り状No.が入っていない', count:2}],
     soon: [{href:'index.html',   label:'🗄 取り置き期限3日前が迫っています', count:2},
            /* ★2026-08-18 ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」 */
            {href:'master.html',  label:'⏳ 賞味期限まで残り8か月を切った商品', count:3}],
@@ -548,6 +550,7 @@
   window.__oosHoldSoon = window.__oosHoldSoon || [];  // 取り置き期限3日前（玄関に注入）
   window.__oosZaikoNow = window.__oosZaikoNow || [];  // ★2026-08-18 在庫がない・引いていない（玄関に注入）
   window.__oosExpSoon  = window.__oosExpSoon  || [];  // ★2026-08-18 賞味期限まで残り8か月を切った商品
+  window.__oosTrackingNow = window.__oosTrackingNow || [];  // ★2026-08-19 送り状No.が入っていない（バサラ）
 
   /* ══════════════════════════════════════════════════════════════════
      ★2026-08-18 賞味期限まで残り8か月を切った【商品】を数える
@@ -622,6 +625,39 @@
     el.innerHTML = 'いま ' + parts.join('・') + ' があります。' + extra;
     el.style.display = 'block';
   }
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-19 発送したのに【送り状No.】が入っていない注文を数える
+     承認済みモック：mocks/mock_basara_okurijou_2026-08-18.html（STEP 3）
+
+     ・出すのは【梱包完了の連絡があった翌日】になっても入っていないものだけ
+       （2026-08-18 ひろみさん決定）。当日は出しません＝倉庫さんを急かしません
+     ・送り状No.を入れるのは【バサラの注文だけ】なので、数えるのもバサラの注文だけ
+     ・キャンセル・発注から消した注文は数えません
+     ★読むだけ。注文も在庫も1つも動かしません。★消さないでください
+     ══════════════════════════════════════════════════════════════════ */
+  function oosTrackingIsBasara(o){
+    return !!(o && (o.source === 'basara' || /バサラ/.test(String(o.client||'')) || /バサラ/.test(String(o.customerType||''))));
+  }
+  function oosTrackingDay(v){          // 「2026/8/18 14:30:00」でも ISO でも読む
+    if(!v) return null;
+    var s = String(v).trim();
+    var m = s.match(/(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/);
+    if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+    var d = new Date(s);
+    if(isNaN(d.getTime())) return null;
+    d.setHours(0,0,0,0);
+    return d;
+  }
+  function oosTrackingMissing(o, today){
+    if(!o || !oosTrackingIsBasara(o)) return false;
+    if(o.status === 'cancelled' || o.status === 'deleted') return false;
+    if(String(o.trackingNo||'').trim() !== '') return false;   // 入っていればよい
+    var day = oosTrackingDay(o.shippedAt);
+    if(!day) return false;                                     // まだ梱包完了していない
+    var t = new Date(today.getTime()); t.setHours(0,0,0,0);
+    return day.getTime() < t.getTime();                        // 【翌日】以降だけ出す
+  }
+
   async function computeHoldAlerts(){
     try{
       const res = await fetch(GAS_URL + '?action=loadAll&_=' + new Date().getTime(), {cache:'no-store'});
@@ -636,6 +672,11 @@
           if(o.holdUntilDate){ var due=new Date(o.holdUntilDate); if(!isNaN(due)){ due.setHours(0,0,0,0); var d=Math.round((due-today)/86400000); if(d<0) overdue++; else if(d<=3) soon++; } }
         } else if(o.status==='reserved'){ reservedCount++; }
       });
+      /* ★2026-08-19 発送したのに送り状No.が入っていない（バサラ・梱包完了の翌日から） */
+      var trackNone = orders.filter(function(o){ return oosTrackingMissing(o, today); }).length;
+      window.__oosTrackingNow = trackNone > 0
+        ? [{href:'basara.html', label:'📮 発送したのに送り状No.が入っていない', count:trackNone}] : [];
+      window.__oosMihariCount.trackNone = trackNone;
       window.__oosHoldNow  = overdue>0 ? [{href:'index.html', label:'取り置き期限が過ぎています', count:overdue}] : [];
       window.__oosHoldSoon = soon>0    ? [{href:'index.html', label:'取り置き期限3日前が迫っています', count:soon}] : [];
       window.__oosMihariCount.holdOver = overdue;   /* ★2026-08-18 見張り一覧に数を出す */
@@ -679,7 +720,10 @@
     { key:'overdue',    bucket:'now',  icon:'💰', label:'支払期限ごえ・未入金（売上C）', href:'billing.html' },
     /* ★2026-08-18 ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」
        数えるのは【商品の数】（ロットの数ではない）。★消さないでください */
-    { key:'expSoon',    bucket:'soon', icon:'⏳', label:'賞味期限まで残り8か月を切った商品', href:'master.html' }
+    { key:'expSoon',    bucket:'soon', icon:'⏳', label:'賞味期限まで残り8か月を切った商品', href:'master.html' },
+    /* ★2026-08-19 バサラの送り状No.（承認済みモック mock_basara_okurijou_2026-08-18.html のSTEP3）
+       梱包完了の【翌日】になっても入っていないものだけ数える。★消さないでください */
+    { key:'trackNone',  bucket:'now',  icon:'📮', label:'発送したのに送り状No.が入っていない', href:'basara.html' }
   ];
   window.__oosMihariCount = window.__oosMihariCount || {};   // key → いま何件
 
@@ -778,6 +822,20 @@
         var sent = { status:'pending', notified:true, stockDeducted:false, lines:o.lines };
         if(!(sent.status==='pending' && sent.notified && !sent.stockDeducted)) fails.push('「送ったのに引いていない」の見分けが壊れています');
       }
+      /* ★2026-08-19 送り状No.の見張りが本当に働くか、作り物で確かめる */
+      if(typeof oosTrackingMissing !== 'function'){
+        fails.push('送り状No.の見張り（発送したのに入っていない）が消えています');
+      } else {
+        var _today = new Date(2026, 7, 20);                       // 2026-08-20 のつもり
+        var _kinou = { source:'basara', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'' };
+        var _kyou  = { source:'basara', status:'shipped', shippedAt:'2026/8/20 9:00:00',  trackingNo:'' };
+        var _ari   = { source:'basara', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'4712-3390-8845' };
+        var _yoso  = { source:'manual', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'' };
+        if(!oosTrackingMissing(_kinou, _today)) fails.push('送り状No.が翌日まで入っていない注文を見つけられていません');
+        if(oosTrackingMissing(_kyou, _today))   fails.push('梱包完了した当日なのに送り状No.を催促しています');
+        if(oosTrackingMissing(_ari, _today))    fails.push('送り状No.が入っているのに催促しています');
+        if(oosTrackingMissing(_yoso, _today))   fails.push('バサラ以外の注文まで送り状No.を催促しています');
+      }
       if(typeof renderMihari !== 'function' || !OOS_MIHARI || OOS_MIHARI.length < 5){
         fails.push('見張っているものの一覧が減っています（' + ((OOS_MIHARI&&OOS_MIHARI.length)||0) + '個）');
       }
@@ -807,7 +865,8 @@
     d = d || {};
     window.__lastAlertBase = d;
     /* ★2026-08-18 在庫のアラートも混ぜる（__oosZaikoNow）。★消さないでください */
-    const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]).concat(window.__oosZaikoNow||[]);
+    /* ★2026-08-19 送り状No.が入っていない（__oosTrackingNow）も混ぜる。★消さないでください */
+    const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]).concat(window.__oosZaikoNow||[]).concat(window.__oosTrackingNow||[]);
     /* ★2026-08-18 賞味期限まで残り8か月を切った商品も混ぜる（__oosExpSoon）。★消さないでください */
     const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]).concat(window.__oosExpSoon||[]);
     const watch = d.watch||[];

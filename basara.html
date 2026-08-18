@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>発送のご案内｜（株）オリーブオイル・ストーリーズ</title>
+<!--
+  ══════════════════════════════════════════════════════════════════════
+  バサラスター様が自分で見る「送り状No.のページ」（読むだけ）
+  承認済みモック：mocks/mock_basara_okurijou_2026-08-18.html（2026-08-18 ひろみさん承認）
+
+  決まっていること（★変えないでください）
+   ・出す列は6つだけ：バサラ発注No./ご注文日/ご購入者/発送日/送り状No./状態
+   ・出すのは【ご購入者】だけ。お届け先とご住所は出さない（2026-08-18 ひろみさん決定）
+   ・パスワードは付けない（倉庫Ｄと同じ・URLを知っている人だけ）
+   ・読むだけの画面。ここから書き換えることはできない
+   ・並びはモックと同じ「ご注文日の古い順」（#20 → #21 → #23）
+   ・バサラの注文だけが出る。よその注文が混ざらないように、
+     【GAS側（basaraOrders）でバサラの分だけに絞ってから】送ってもらう。
+     ★この画面から loadAll（ぜんぶ読む窓口）を呼ばないでください。
+      呼ぶと、よそのお客様の名前や住所までこの画面に届いてしまいます。
+  ══════════════════════════════════════════════════════════════════════
+-->
+<style>
+ body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:#f7f5f0;color:#3a3a2a;margin:0;padding:18px;line-height:1.7}
+ .wrap{max-width:1020px;margin:0 auto}
+ .screen{background:#fbfaf7;border:2px solid #12406e;border-radius:10px;padding:14px 16px;max-width:840px}
+ .scr-title{font-size:16px;font-weight:800;color:#12406e;margin-bottom:3px}
+ .scr-sub{font-size:12px;color:#57534e;margin-bottom:10px}
+ .tbl-wrap{overflow-x:auto}
+ table{border-collapse:collapse;background:#fff;width:auto;font-size:14px}
+ th,td{border:1px solid #e2ddd2;padding:6px 11px;white-space:nowrap}
+ th{background:#f3f1ea;font-size:12.5px;font-weight:700}
+ .no{font-weight:800}
+ .yet{color:#b45309}
+ .row-yet{background:#fffaf3}
+ .pill{font-size:10.5px;font-weight:800;border-radius:99px;padding:2px 9px;display:inline-block}
+ .p-y{background:#fff4e2;color:#7a3a0e;border:1px solid #e3b169}
+ .p-g{background:#e1efe3;color:#166534;border:1px solid #4ade80}
+ .foot{font-size:11.5px;color:#57534e;margin-top:8px}
+ a.trk{color:#12406e;font-weight:800;text-decoration:underline}
+ .msg{font-size:13px;color:#57534e;padding:10px 2px}
+ .msg-err{font-size:13px;background:#fbf0ef;border:1px solid #dc2626;border-radius:8px;padding:10px 12px;color:#8a2b1c}
+</style>
+</head>
+<body><div class="wrap">
+
+<div class="screen">
+  <div class="scr-title">📦 発送のご案内　バサラスター 御中</div>
+  <div class="scr-sub" id="asof">（株）オリーブオイル・ストーリーズ</div>
+  <!-- 列の名前と並びは、承認済みモックのとおり【HTMLに直に】書いています。
+       （こう書いておくと、モックとの突き合わせが機械で確かめられます。★変えないでください） -->
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>バサラ発注No.</th><th>ご注文日</th><th>ご購入者</th><th>発送日</th><th>送り状No.</th><th>状態</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6" class="msg">読み込んでいます…</td></tr></tbody>
+  </table></div>
+  <div class="foot">送り状No.をクリックすると、佐川急便の追跡ページが開きます。</div>
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+/* 佐川急便の追跡ページ（送り状No.をそのまま渡す。ハイフンは外す） */
+function sagawaUrl(no){
+  return 'https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=' + encodeURIComponent(String(no).replace(/[^0-9]/g,''));
+}
+
+/* 1行ぶんの HTML（モックの並びのまま：発注No./ご注文日/ご購入者/発送日/送り状No./状態） */
+function rowHtml(o){
+  var shipped = !!o.shipped;
+  var trk = String(o.trackingNo||'').trim();
+  var tds = ''
+    + '<td class="no">' + (o.basaraNo ? '#' + esc(o.basaraNo) : '—') + '</td>'
+    + '<td>' + (o.orderDate ? esc(o.orderDate) : '—') + '</td>'
+    + '<td>' + (o.purchaser ? esc(o.purchaser) + ' 様' : '—') + '</td>'
+    + '<td>' + (o.shipDate ? esc(o.shipDate) : '—') + '</td>'
+    + '<td>' + (trk
+        ? '<a class="trk" href="' + esc(sagawaUrl(trk)) + '" target="_blank" rel="noopener">' + esc(trk) + '</a>'
+        : '<span class="yet">（まだ）</span>') + '</td>'
+    + '<td>' + (shipped
+        ? '<span class="pill p-g">発送ずみ</span>'
+        : '<span class="pill p-y">準備中</span>') + '</td>';
+  return '<tr' + (shipped ? '' : ' class="row-yet"') + '>' + tds + '</tr>';
+}
+
+function render(orders){
+  document.getElementById('rows').innerHTML = orders.length
+    ? orders.map(rowHtml).join('')
+    : '<tr><td colspan="6" class="msg">いまお出しできるご注文はありません。</td></tr>';
+}
+
+async function load(){
+  try{
+    const res = await fetch(GAS_URL + '?action=basaraOrders&_=' + new Date().getTime(), {cache:'no-store'});
+    const d = await res.json();
+    if(!d || d.status !== 'ok' || !Array.isArray(d.orders)) throw new Error('読めませんでした');
+    document.getElementById('asof').textContent =
+      '（株）オリーブオイル・ストーリーズ　／　' + (d.at || '') + ' 現在';
+    render(d.orders);
+  }catch(e){
+    document.getElementById('rows').innerHTML =
+      '<tr><td colspan="6" class="msg-err">ただいま読み込めませんでした。少し時間をおいて、この画面を開き直してください。'
+      + '<br>何度も出るときは（株）オリーブオイル・ストーリーズまでご連絡ください。</td></tr>';
+  }
+}
+load();
+</script>
+
+</div></body></html>

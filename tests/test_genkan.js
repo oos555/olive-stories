@@ -33,7 +33,10 @@ function build(){
   const { box, ctx } = H.makeSandbox({ document: dom, GAS_URL:'x', location:{ search:'' } });
   H.runZaiko(ctx);
   vm.runInContext(H.cutVar(src, 'OOS_MIHARI'), ctx);
-  ['renderMihari','oosGenkanSelfCheck','oosGenkanAlarm'].forEach(n => vm.runInContext(H.cut(src, n), ctx));
+  ['renderMihari','oosGenkanSelfCheck','oosGenkanAlarm',
+   /* ★2026-08-19 送り状No.の見張り（バサラ）も自己点検の対象になった */
+   'oosTrackingIsBasara','oosTrackingDay','oosTrackingMissing'
+  ].forEach(n => vm.runInContext(H.cut(src, n), ctx));
   vm.runInContext('window.__oosMihariCount = {};', ctx);
   vm.runInContext('function renderAlerts(){}', ctx);
   return { box, dom };
@@ -41,7 +44,7 @@ function build(){
 
 /* ── ① 見張っているものが一覧に出るか ─────────────────── */
 let { box, dom } = build();
-eq('① 見張っているものの数', box.OOS_MIHARI.length, 6);   /* ★2026-08-18 賞味期限8か月を追加。減らしてはいけない */
+eq('① 見張っているものの数', box.OOS_MIHARI.length, 7);   /* ★2026-08-18 賞味期限8か月／★2026-08-19 送り状No.未入力を追加。減らしてはいけない */
 box.renderMihari();
 const html = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('① 一覧が画面に作られる', html.length > 0, true);
@@ -54,7 +57,7 @@ eq('① 「ここに書いていないものは見張っていません」と断
 
 /* ── ② 0件でも「0件」と出す（＝安心の根拠になる）───────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0 };
+box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0 };
 box.renderMihari();
 const h2 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('② 0件のときも「0件」と数字が出る', (h2.match(/0件/g)||[]).length >= 5, true);
@@ -62,7 +65,7 @@ eq('② 「確認中…」は消えている', h2.indexOf('確認中…') < 0, t
 
 /* ── ③ 件数があれば赤い数字で出る ───────────────────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0 };
+box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0 };
 box.renderMihari();
 const h3 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('③ 2件と出る', h3.indexOf('2件') >= 0, true);
