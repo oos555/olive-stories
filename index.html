@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-14">
+<meta name="oos-version" content="2026-08-18-15">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1801,6 +1801,11 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
    ★location.href から作る形に戻さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const OOS_PICKUP_URL = 'https://oos555.github.io/olive-stories/pickup.html';
+/* ★2026-08-18 ひろみさん指示：RTの出荷依頼メールの送り先URLを、端末ごとの記憶（localStorage）
+   から【コードに固定】に変えた。端末を変えるたびに貼り直しを聞かれ、貼り間違えると
+   倉庫に届かないため（LINEの送り先を固定したのと同じ考え方）。
+   ★localStorage に戻さないでください。URLが変わったときは、ここだけ直します。 */
+const OOS_RT_MAILER_URL = 'https://script.google.com/macros/s/AKfycbznrivsTTyx15wYrc9hAWkfjKukcSnbuucVUL4uxf2q2vZZHZ286D1YAVNXj_jrnDkp/exec';
 let gasSyncEnabled = true;
 // GASからの読み取りは毎回ちがう印を付けて、ブラウザ・回線が古い返事を使い回すのを防ぐ。
 // （倉庫Dに最新が出ない／保存時に古いデータを取り直して上書きしてしまう、を防ぐ）
@@ -4231,8 +4236,12 @@ function rtmConfCell(sku){
     return '<div class="done refl">📦 受注Aに取り置き登録済み<span>取置'+rh+'本を確保／販売可能 '+before+'→'+cur+'</span></div><div class="conf-btns" style="margin-top:5px"><button class="btn-redo" style="flex:1" onclick="rtmRedo(\''+sku+'\')">↩ 取り置きを取り消す</button></div>'; }
   /* ★2026-08-18 ひろみさん決定の文言：「📦 確定して在庫を押さえる」＋小さく「販売可能数が減ります」。
      ★戻さないでください。ここは実際に販売可能数が減る唯一のボタンです。 */
-  if(a.confirmed) return '<div class="doneMini">✅ 決定（取置'+rtmHold(sku)+'・予約(要輸入)'+rtmNeed(sku)+'）</div><div class="conf-btns"><button class="btn-refl" onclick="rtmReflect(\''+sku+'\')">📦 確定して在庫を押さえる</button><button class="btn-redo" onclick="rtmRedo(\''+sku+'\')">↩ やり直す</button></div><div class="btn-note">販売可能数が減ります</div>';
-  return '<div class="conf-btns"><button class="btn-conf" onclick="rtmConfirm(\''+sku+'\')">✅ この振り分けで決定</button><button class="btn-redo" onclick="rtmReconsider(\''+sku+'\')">🔄 もう一度考え直す</button></div>';
+  /* ★2026-08-18 ひろみさん決定（案C）：2段階をやめて1段階にした。
+     もとは「✅ この振り分けで決定」を押してから「📦 在庫を確保」が押せる形だったが、
+     1段階目は【何も動かない】ボタンで、スタッフに何のためのボタンか伝わらず、
+     押されないまま在庫にも予約にも入っていかない、という状態になっていた。
+     ★2段階に戻さないでください。押す前の確認は、押したあとの確認パネルで足ります。 */
+  return '<div class="conf-btns"><button class="btn-refl" onclick="rtmReflect(\''+sku+'\')">📦 確定して在庫を押さえる</button><button class="btn-redo" onclick="rtmReconsider(\''+sku+'\')">🔄 やり直す</button></div><div class="btn-note">販売可能数が減ります（押すと内容を確認する画面が出ます）</div>';
 }
 // 🔄 もう一度考え直す：この商品の振り分け（倉庫に残す＝取り置き/要輸入の分け方）を初期に戻す
 function rtmReconsider(sku){
@@ -4349,7 +4358,7 @@ function rtmRender(){
     '<div class="rtm-scrolltop" id="rtm-scrolltop"><div></div></div>'+
     '<div class="rtm-wrap" id="rtm-wrap"><table class="rtm-t">'+thead+'<tbody id="rtm-tbody"></tbody>'+tfoot+'</table></div>'+
     '<div id="rtm-supply"></div>'+
-    '<div class="rtm-guide"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［✅この振り分けで決定］</b>（この端末に記録）。③ <b>［📦在庫を確保（受注Aに取り置き登録）］</b>→ 取置分が<b>受注Aの取り置きに入り、販売可能在庫が取置分だけ減ります</b>（他チャネルに出さない）。<b>↩やり直す</b>で取り消せます。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※施設ごとの予約本数（青枠）はこの端末に保存。📥予約シート取込で受注Aの予約から取り込めます。</span></div>'+
+    '<div class="rtm-guide"><b>使い方</b>：① <b>🔒取置</b>か <b>🛒手元に残す</b>を打つ → もう一方＝在庫−、<b>予約(要輸入)＝予約合計−取置</b>が自動（取置＋予約＝予約合計 ✓）。② <b>［📦確定して在庫を押さえる］</b>→ 取置分が<b>受注Aの取り置きに入り、販売可能数が取置分だけ減ります</b>（他のお客様に売れなくなります）。押すと内容を確認する画面が出ます。<b>↩取り消す</b>でいつでも戻せます。③ 予約は <b>［📤確定して予約を登録する］</b>で受注Aの予約になり、<b>統合マスタＮの「予約」の列</b>に出ます（販売可能数は減りません）。<br><b>販売可能在庫は「在庫マスターの在庫リスト」から来ています</b>。金額は予約合計×単価（統合マスタN）。<br><span style="color:#a08b57">※施設ごとの予約本数（青枠）はこの端末に保存。📥予約シート取込で受注Aの予約から取り込めます。</span></div>'+
     '<div class="rtm-hist" id="rtm-hist"></div>';
 
   rtmRenderBody();
@@ -4681,7 +4690,8 @@ function rtmExportExcel(){
 }
 
 // ── 確定・在庫反映・やり直し ──
-function rtmConfirm(sku){ var a=rtmAlloc(sku); a.confirmed=true; rtmSave(rtmS()); rtmPushHist('✅ 決定 '+rtmProdName(sku)+'：取置'+rtmHold(sku)+'・予約(要輸入)'+rtmNeed(sku)); rtmRenderBody(); }
+/* ★2026-08-18 rtmConfirm（「この振り分けで決定」）は廃止しました（ひろみさん決定・案C）。
+   1段階にしたので、この関数はもうありません。★復活させないでください。 */
 function rtmRedo(sku){
   var a=rtmAlloc(sku);
   if(a.reflected){
@@ -4695,7 +4705,7 @@ function rtmRedo(sku){
   a.confirmed=false; rtmSave(rtmS()); rtmRender();
 }
 function rtmReflect(sku){
-  var a=rtmAlloc(sku); if(!a.confirmed||a.reflected) return;
+  var a=rtmAlloc(sku); if(a.reflected) return;   /* ★2026-08-18 1段階にしたので confirmed は見ない */
   var H=rtmHold(sku);
   if(H<=0){
     if(!confirm(rtmProdName(sku)+' は取置0本です。取り置きは作らず「確保済み（取置0）」にします。よろしいですか？')) return;
@@ -8037,12 +8047,7 @@ async function rtBuildNotePdfB64(){
 }
 async function rtDoSendDocs(){
   var p=rtParsed; if(!p) return;
-  var url=''; try{ url=localStorage.getItem('oos_rt_mailer_url')||''; }catch(e){}
-  if(!url){
-    url=prompt('倉庫へ送る準備（初回だけ）：\n送信用スクリプト（RT mailer）のウェブアプリURL（末尾 /exec）を貼ってください。');
-    if(!url){ return; } url=url.trim();
-    try{ localStorage.setItem('oos_rt_mailer_url',url); }catch(e){}
-  }
+  var url = OOS_RT_MAILER_URL;   /* ★2026-08-18 コードに固定。もう貼り直しは聞きません */
   var btn=document.getElementById('rt-send-go-btn');
   if(btn){ btn.disabled=true; btn.textContent='📄 納品書PDFを作成中…'; }
   if(typeof showSyncStatus==='function') showSyncStatus('📄 納品書PDFを作成中…');
@@ -8068,12 +8073,10 @@ async function rtDoSendDocs(){
     .catch(function(err){ alert('送信結果を受け取れませんでした（通信）。\nメールは届いている場合があります。\n\n'+err); })
     .then(function(){ if(btn){ btn.disabled=false; btn.textContent='✅ この内容で倉庫へ送る'; } });
 }
+/* ★2026-08-18 URLはコードに固定したので、貼り直しは要りません（押しても何も聞きません）。
+   ★prompt と localStorage に戻さないでください。 */
 function rtResetMailerUrl(){
-  var cur=''; try{ cur=localStorage.getItem('oos_rt_mailer_url')||''; }catch(e){}
-  var u = prompt('倉庫へ送る 送信用スクリプトのURL（末尾 /exec）を貼り直します。', cur);
-  if(u===null) return;
-  try{ localStorage.setItem('oos_rt_mailer_url', (u||'').trim()); }catch(e){}
-  if(typeof showSyncStatus==='function') showSyncStatus('✅ 送信先URLを更新しました');
+  alert('倉庫への送り先は、もうこの画面に固定されています。\n貼り直す必要はありません。\n\n送り先：RT出荷依頼メール（倉庫）\n\n※もしURLが変わったときは、直しますのでお知らせください。');
 }
 function rtMakeDeliveryNote(){
   if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
