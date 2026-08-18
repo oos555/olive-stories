@@ -72,8 +72,21 @@ ok('①750mlの合計 < 500mlの合計（缶のほうが軽い）',
   const w = box.ynWeightFor(r[0]) || {};
   eq('②'+r[0]+' も同じ合計g', w.total, r[1]);
 });
-/* ★セット商品と、ルールに無い容量（3Lなど）は空のまま＝手で打つ */
-['YS100','YS250A','PRI3L','AGR3L','ARM3L'].forEach(function(s){
+/* ★3L は 2L の1.5倍（2026-08-18 ひろみさん「3LTは2LTの1.5倍しておいて」） */
+['PRI3L','AGR3L','ARM3L'].forEach(function(s){
+  const w = box.ynWeightFor(s) || {};
+  eq('②'+s+' ml',      w.ml,    3000);
+  eq('②'+s+' オイルg', w.oil,   2760);
+  eq('②'+s+' 容器g',   w.cont,  490.5);
+  eq('②'+s+' 合計g',   w.total, 3250.5);
+});
+const w2L = box.ynWeightFor('ORG2L'), w3L = box.ynWeightFor('PRI3L');
+eq('②3Lのオイルは2Lの1.5倍', w3L.oil,   w2L.oil  * 1.5);
+eq('②3Lの容器は2Lの1.5倍',   w3L.cont,  w2L.cont * 1.5);
+eq('②3Lの合計は2Lの1.5倍',   w3L.total, w2L.total * 1.5);
+
+/* ★セット商品（箱に何本も入るもの）は空のまま＝手で打つ */
+['YS100','YS250A'].forEach(function(s){
   ok('②'+s+' はルールに無い＝空のまま（手で打つ）', box.ynWeightFor(s) === null);
 });
 
@@ -91,13 +104,13 @@ let n2 = { lines:[ line({sku:'ORG500', qty:60, g:970}) ] };
 box.ynApplyWeightRule(n2);
 eq('③★手で入れた重さは書き換えない', n2.lines[0].g, 970);
 
-let n3 = { lines:[ line({sku:'ARM3L', qty:10}) ] };
+let n3 = { lines:[ line({sku:'YS100', qty:10}) ] };
 box.ynApplyWeightRule(n3);
 eq('③ルールに無い商品の重さは空のまま', n3.lines[0].g, '');
 
 ok('③合計gがルールどおりなら打てない（鍵つき）', box.ynWeightLocked(line({sku:'ORG500', g:967})) === true);
 ok('③合計gが手入力なら打てる',                   box.ynWeightLocked(line({sku:'ORG500', g:970})) === false);
-ok('③ルールに無い商品は打てる',                   box.ynWeightLocked(line({sku:'ARM3L', g:500})) === false);
+ok('③ルールに無い商品は打てる',                   box.ynWeightLocked(line({sku:'YS100', g:500})) === false);
 ok('③重さがまだ空なら鍵つき（ルールが入る）',      box.ynWeightLocked(line({sku:'ORG500', g:''}))  === true);
 
 /* ── ④ 総重量は「本数 × 合計g」で足し算できる ─────────────── */
