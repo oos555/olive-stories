@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-15">
+<meta name="oos-version" content="2026-08-18-16">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1505,7 +1505,22 @@ body{background:#fff}
     #rtm-root .rtm-note b{color:#ffd88a}
     #rtm-root .rtm-tool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
     #rtm-root .rtm-search{flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #9d957f;border-radius:9px;font-size:14px}
-    #rtm-root .rtm-btn{border:none;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+    /* ★2026-08-18 その他備品（在庫として数える）。足りないものはオレンジ。★色を変えないでください
+       （オイルの青＝出荷できません／備品のオレンジ＝仕入れれば手に入る、の区別です） */
+    #rtm-root .rtm-supbox.warn{border-color:#e0a44a;background:#fffaf2}
+    #rtm-root .rtm-suprow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:5px 0;border-bottom:1px dashed #eee7db;font-size:12.5px}
+    #rtm-root .rtm-suprow:last-child{border-bottom:none}
+    #rtm-root .rtm-suprow.short{background:#fffaf2}
+    #rtm-root .rtm-supname{font-weight:800;min-width:230px}
+    #rtm-root .rtm-suptot,#rtm-root .rtm-supstock{font-weight:800;background:#f3f0e8;border-radius:6px;padding:2px 8px;white-space:nowrap}
+    #rtm-root .rtm-sup-ng{color:#b45309;font-weight:800;white-space:nowrap}
+    #rtm-root .rtm-sup-ok{color:#15803d;font-weight:800;white-space:nowrap}
+    #rtm-root .rtm-sup-fine{color:#6b6459;white-space:nowrap}
+    #rtm-root .rtm-supper{color:#8a857c;font-size:11.5px}
+    #rtm-root .rtm-supfoot{display:flex;align-items:flex-start;gap:11px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid #eee7db}
+    #rtm-root .rtm-supbtn{background:#1f4a6d;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+    #rtm-root .rtm-supbtn.redo{background:#eee9df;color:#6b6558;border:1px solid #d8d1c2}
+    #rtm-root .rtm-supnote2{font-size:11.5px;color:#6b6459;line-height:1.6;flex:1;min-width:220px}    #rtm-root .rtm-btn{border:none;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
     #rtm-root .rtm-b-imp{background:#1f4a6d;color:#fff}
     #rtm-root .rtm-b-seed{background:#55622e;color:#fff}
     #rtm-root .rtm-b-add{background:#eef1e6;color:#33421f;border:1px solid #c9d3b4}
@@ -4480,31 +4495,147 @@ function rtmRemoveRow(sku){
   rtmPushHist('－商品を消す：'+rtmProdName(sku));
   rtmSave(st); rtmRender();
 }
-// ── その他備品（セットの金箱・紙袋など）：必要数を自動集計して表示（取り置き/要輸入の計算には入れない）──
-function rtmRenderSupplies(){
-  var host=document.getElementById('rtm-supply'); if(!host) return;
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 その他備品（紙袋・ギフト箱）も在庫として数える（ひろみさん承認）
+   承認済みモック：mocks/mock_rt_bihin_zaiko_2026-08-18.html
+
+   ひろみさん：「備品も数から減らしておかないと、在庫管理ができないから、
+   オイル同様に取り置きや予約でカウントできるようにして。マスタの在庫と連動するように」
+
+   決めたこと（ひろみさんの回答・★変えないでください）
+   　・足りない備品は【オレンジ】で知らせる（オイルの青＝出荷できません、と区別）
+   　・備品が足りなくても【倉庫へ送るのは止めない】（すぐ整えられるため）
+   　・備品は【統合マスタの予約列には出さない】
+   　・発注のアラートは今は作らない
+
+   数の動き（オイルと同じ）
+   　「📦 備品の在庫を押さえる」→ 受注Ａの取り置きになり、統合マスタの販売可能数が減る
+   　「↩ 取り消す」→ 取り置きをキャンセルして在庫が戻る
+   計算は1つも足していません（オイルの取り置きと同じ仕組みを使っています）。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 備品ごとの「必要数・施設ごとの内訳・在庫・たりない本数」 */
+function rtmSupplyList(){
   var st=rtmS(); var d=rtmDerived();
   var skus={}; Object.keys(d.sup).forEach(function(s){ skus[s]=true; });
   Object.keys(st.q).forEach(function(s){ if(rtmIsSupplySku(s)) skus[s]=true; });
-  var list=Object.keys(skus);
-  if(!list.length){ host.innerHTML=''; return; }
-  list.sort(function(a,b){ var pa=findProductBySku(a),pb=findProductBySku(b); return ((pa&&pa.id)||9999)-((pb&&pb.id)||9999); });
-  var rows=list.map(function(s){
-    var per={}, tot=0;
+  var out=[];
+  Object.keys(skus).forEach(function(s){
+    var per={}, need=0;
     st.cols.forEach(function(cid){
       var dv=(d.sup[s]&&+d.sup[s][cid])||0;
       var man=(+((st.q[s]||{})[cid])||0);
-      var v=dv+man; if(v>0){ per[cid]=v; tot+=v; }
+      var v=dv+man; if(v>0){ per[cid]=v; need+=v; }
     });
-    if(tot<=0) return '';
-    var perTxt=Object.keys(per).map(function(cid){ return esc(rtmFacName(cid))+' '+per[cid]; }).join('・');
-    return '<div class="rtm-suprow"><span class="rtm-supname">🎁 '+esc(rtmProdName(s))+'</span>'+
-      '<span class="rtm-suptot">合計 '+tot+'</span>'+
+    if(need<=0) return;
+    var refl=(+((st.supRefl||{})[s])||0);
+    var stock=rtmStock(s);                       // いま販売可能な本数（押さえた分はもう引かれている）
+    var short=Math.max(0, need - (refl>0 ? refl : stock));
+    out.push({ sku:s, name:rtmProdName(s), per:per, need:need, stock:stock, refl:refl, short:short });
+  });
+  out.sort(function(a,b){ var pa=findProductBySku(a.sku),pb=findProductBySku(b.sku); return ((pa&&pa.id)||9999)-((pb&&pb.id)||9999); });
+  return out;
+}
+
+function rtmRenderSupplies(){
+  var host=document.getElementById('rtm-supply'); if(!host) return;
+  var list=rtmSupplyList();
+  if(!list.length){ host.innerHTML=''; return; }
+  var anyShort=false, anyRefl=false, canHold=false;
+  var rows=list.map(function(r){
+    if(r.short>0) anyShort=true;
+    if(r.refl>0) anyRefl=true;
+    if(r.refl<=0 && Math.min(r.need, r.stock)>0) canHold=true;
+    var perTxt=Object.keys(r.per).map(function(cid){ return esc(rtmFacName(cid))+' '+r.per[cid]; }).join('・');
+    var state = r.refl>0
+      ? '<span class="rtm-sup-ok">📦 '+r.refl+'本 押さえ済み</span>'
+      : (r.short>0 ? '<span class="rtm-sup-ng">'+r.short+'本 たりません（発注が必要）</span>'
+                   : '<span class="rtm-sup-fine">在庫でOK</span>');
+    return '<div class="rtm-suprow'+(r.short>0?' short':'')+'">'+
+      '<span class="rtm-supname">🧰 '+esc(r.name)+'</span>'+
+      '<span class="rtm-suptot">必要 '+r.need+'</span>'+
+      '<span class="rtm-supstock">在庫 '+r.stock+'</span>'+
+      state+
       '<span class="rtm-supper">'+perTxt+'</span></div>';
-  }).filter(Boolean).join('');
-  if(!rows){ host.innerHTML=''; return; }
-  host.innerHTML='<div class="rtm-supbox"><div class="rtm-suphd">🧰 その他備品（セット分から自動集計）'+
-    '<span class="rtm-supnote">箱・紙袋などの必要数です。取り置き・要輸入（オイルの輸入）には入れていません。</span></div>'+rows+'</div>';
+  }).join('');
+  var btn = anyRefl
+    ? '<button type="button" class="rtm-supbtn redo" onclick="rtmRedoSupplies()">↩ 備品の取り置きを取り消す</button>'
+    : (canHold ? '<button type="button" class="rtm-supbtn" onclick="rtmReflectSupplies()">📦 備品の在庫を押さえる</button>'
+               : '');
+  var note = anyRefl
+    ? '押さえた分は<b>受注Ａの取り置き</b>に入り、統合マスタの販売可能数から引かれています。'
+    : '押すと<b>受注Ａの取り置き</b>になり、<b>統合マスタの販売可能数が減ります</b>（在庫のある分だけ）。';
+  host.innerHTML='<div class="rtm-supbox'+(anyShort?' warn':'')+'"><div class="rtm-suphd">🧰 その他備品（セット分から自動集計）'+
+    '<span class="rtm-supnote">箱・紙袋などの必要数です。'+(anyShort?'<b class="rtm-sup-ng">足りないものがあります（オレンジ）。仕入れの手配をしてください。</b>':'')+'</span></div>'+
+    rows+
+    '<div class="rtm-supfoot">'+btn+'<span class="rtm-supnote2">'+note+'<br>'+
+    '備品が足りなくても<b>倉庫への出荷依頼は止めません</b>（すぐ整えられるため）。備品は<b>統合マスタの「予約」の列には出しません</b>。</span></div>'+
+    '</div>';
+}
+
+/* 備品の取り置きを作る（施設ごとに按分。オイルの rtmBuildHeldOrders と同じ形） */
+function rtmBuildSupplyHeld(r, H){
+  var p=findProductBySku(r.sku);
+  var remaining=H, made=[], bq=(p&&p.boxQty)||1;
+  Object.keys(r.per).forEach(function(cid){
+    if(remaining<=0) return;
+    var amt=Math.min(remaining, r.per[cid]); if(amt<=0) return;
+    remaining-=amt;
+    var c=(customers||[]).find(function(x){ return String(x.id)===String(cid); }) || {name:cid,id:cid};
+    orders.push({
+      id: generateOrderId(), num: nextOrderNum(0, c.type||'rt'),
+      client:c.name, custId:c.id||'', customerType:c.type||'rt',
+      recipientName:c.name, isCompany:false,
+      zip:c.zip||'', addr:c.addr||'', tel:c.tel||'',
+      lines:[{productId:p?p.id:null, productName:p?p.name:r.sku, bottles:amt, boxes:0, boxQty:bq, giftType:'none'}],
+      status:'held', holdUntilDate:'', expectedDate:'',
+      paymentMode:'later', paymentConfirmed:false, notified:false,
+      note:'RT振り分け・備品の取り置き（系列RT全体）', source:'rtm',
+      rtmOwned:true, rtmKind:'held', rtmSku:r.sku, rtmFac:String(cid),
+      registeredAt:new Date().toISOString()
+    });
+    made.push(orders[orders.length-1]);
+  });
+  return made;
+}
+
+function rtmReflectSupplies(){
+  var st=rtmS(); var list=rtmSupplyList().filter(function(r){ return r.refl<=0; });
+  var plan=list.map(function(r){ return { r:r, take:Math.min(r.need, r.stock) }; }).filter(function(x){ return x.take>0; });
+  if(!plan.length){ alert('押さえられる備品がありません（在庫が0のため）。'); return; }
+  var msg='【備品の在庫を押さえます】\n\n'
+    + plan.map(function(x){
+        return '　・'+x.r.name+'　'+x.take+'本'
+          + (x.take<x.r.need ? '（必要 '+x.r.need+'本のうち。'+(x.r.need-x.take)+'本は在庫がありません）' : '')
+          + '\n　　　販売可能 '+x.r.stock+' → '+(x.r.stock-x.take);
+      }).join('\n')
+    + '\n\n・受注Ａの「取り置き」に施設ごとに入ります\n'
+    + '・統合マスタの販売可能数が、その分だけ減ります\n'
+    + '・「↩ 取り消す」でいつでも戻せます\n\nよろしいですか？';
+  if(!confirm(msg)) return;
+  var made=[];
+  st.supRefl = st.supRefl || {};
+  plan.forEach(function(x){
+    var m=rtmBuildSupplyHeld(x.r, x.take);
+    if(m.length){ st.supRefl[x.r.sku]=x.take; made=made.concat(m); }
+  });
+  if(made.length && typeof syncOrdersToGAS==='function') syncOrdersToGAS(made);
+  if(typeof renderHoldPreLists==='function') renderHoldPreLists();
+  rtmSave(st);
+  rtmPushHist('📦 備品の在庫を押さえた：'+plan.map(function(x){ return x.r.name+' '+x.take+'本'; }).join('・'));
+  rtmRender();
+  alert('✅ 備品の在庫を押さえました。\n\n・受注Ａの「取り置き」に入りました\n・統合マスタの販売可能数が、その分だけ減りました');
+}
+
+function rtmRedoSupplies(){
+  var st=rtmS(); var keys=Object.keys(st.supRefl||{});
+  if(!keys.length) return;
+  if(!confirm('備品の取り置きを取り消します。\n受注Ａに登録した取り置きをキャンセルし、販売可能数が元に戻ります。\n\nよろしいですか？')) return;
+  var n=0;
+  keys.forEach(function(sku){ n += rtmCancelHeldOrders(sku); });
+  st.supRefl={}; rtmSave(st);
+  rtmPushHist('↩ 備品の取り置きを取り消した（受注Ａの取り置き'+n+'件をキャンセル・在庫を戻す）');
+  rtmRender();
 }
 
 function rtmRecalcRow(sku){

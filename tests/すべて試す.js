@@ -26,7 +26,8 @@ const FILES = [
   ['test_cancel.js',       'キャンセルで在庫が戻るか'],
   ['test_zaikomachi.js',   '在庫がない注文は倉庫へ送れないか'],
   ['test_yoyaku_count.js', '予約の数え方（親に一本化）'],
-  ['test_genkan.js',       '玄関のアラートが本当に働くか']
+  ['test_genkan.js',       '玄関のアラートが本当に働くか'],
+  ['test_bihin.js',        '備品も在庫として数えるか']
 ];
 
 let total = 0, ngFiles = [];
