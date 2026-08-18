@@ -502,7 +502,9 @@
            {href:'index.html',   label:'🔴 倉庫へ送ったのに在庫を引いていない注文', count:1},
            {href:'index.html',   label:'🗄 取り置き期限が過ぎています', count:1},
            {href:'billing.html', label:'💰 支払期限ごえ・未入金（売上C）', count:1}],
-    soon: [{href:'index.html',   label:'🗄 取り置き期限3日前が迫っています', count:2}],
+    soon: [{href:'index.html',   label:'🗄 取り置き期限3日前が迫っています', count:2},
+           /* ★2026-08-18 ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」 */
+           {href:'master.html',  label:'⏳ 賞味期限まで残り8か月を切った商品', count:3}],
     watch:[]
   };
   function alertEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -545,6 +547,43 @@
   window.__oosHoldNow  = window.__oosHoldNow || [];   // 取り置き期限切れ（玄関に注入）
   window.__oosHoldSoon = window.__oosHoldSoon || [];  // 取り置き期限3日前（玄関に注入）
   window.__oosZaikoNow = window.__oosZaikoNow || [];  // ★2026-08-18 在庫がない・引いていない（玄関に注入）
+  window.__oosExpSoon  = window.__oosExpSoon  || [];  // ★2026-08-18 賞味期限まで残り8か月を切った商品
+
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-18 賞味期限まで残り8か月を切った【商品】を数える
+     ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」
+     ・数えるのは【商品の数】。同じ商品にロットが2つあっても1と数える
+     ・在庫が1本もないロットは数えない（もう無いものを気にしても仕方がない）
+     ・廃棄・輸入予定のロットは数えない（棚にない／まだ来ていない）
+     ・賞味期限が読めないロットは数えない（当てずっぽうで騒がない）
+     ★読むだけ。在庫も注文も1つも動かさない。★消さないでください
+     ══════════════════════════════════════════════════════════════════ */
+  var OOS_EXP_MONTHS = 8;                      /* ★ここが「8か月」。変えるときはひろみさんに聞く */
+  function oosParseExpiry(v){
+    var s = String(v == null ? '' : v).trim();
+    if(!s) return null;
+    var m = s.match(/^(\d{4})\D+(\d{1,2})(?:\D+(\d{1,2}))?/);   /* 2027.11.11 / 2027-01 / 2027年11月 */
+    if(!m) return null;
+    var y = +m[1], mo = +m[2], d = m[3] ? +m[3] : 1;
+    if(mo < 1 || mo > 12) return null;
+    var dt = new Date(y, mo - 1, d);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  function oosExpSoonProducts(lots, products){
+    var limit = new Date();
+    limit.setMonth(limit.getMonth() + OOS_EXP_MONTHS);
+    var hit = {};
+    (lots || []).forEach(function(l){
+      if(!l) return;
+      var st = String(l.status || '');
+      if(st === 'discard' || st === 'discard_old' || st === 'incoming') return;
+      if((parseInt(l.stock, 10) || 0) <= 0) return;
+      var dt = oosParseExpiry(l.expiry);
+      if(!dt || dt > limit) return;
+      hit[String(l.pid)] = true;
+    });
+    return Object.keys(hit);
+  }
   function __oosDateJa(s){ var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
   async function computeOverdueAndMerge(){
     try{
@@ -637,7 +676,10 @@
     { key:'notHikare',  bucket:'now',  icon:'🔴', label:'倉庫へ送ったのに在庫を引いていない注文', href:'index.html' },
     { key:'holdOver',   bucket:'now',  icon:'🗄', label:'取り置き期限が過ぎている', href:'index.html' },
     { key:'holdSoon',   bucket:'soon', icon:'🗄', label:'取り置き期限が3日以内', href:'index.html' },
-    { key:'overdue',    bucket:'now',  icon:'💰', label:'支払期限ごえ・未入金（売上C）', href:'billing.html' }
+    { key:'overdue',    bucket:'now',  icon:'💰', label:'支払期限ごえ・未入金（売上C）', href:'billing.html' },
+    /* ★2026-08-18 ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」
+       数えるのは【商品の数】（ロットの数ではない）。★消さないでください */
+    { key:'expSoon',    bucket:'soon', icon:'⏳', label:'賞味期限まで残り8か月を切った商品', href:'master.html' }
   ];
   window.__oosMihariCount = window.__oosMihariCount || {};   // key → いま何件
 
@@ -702,9 +744,14 @@
       });
       window.__oosMihariCount.zaikoNashi = zaikoNashi.length;
       window.__oosMihariCount.notHikare  = notHikare.length;
+      /* ★2026-08-18 賞味期限まで残り8か月を切った【商品】の数を数える（ロットの数ではない） */
+      var expSoon = oosExpSoonProducts(data.lots, PRODUCTS);
+      window.__oosMihariCount.expSoon = expSoon.length;
       window.__oosZaikoNow = []
         .concat(zaikoNashi.length ? [{ href:'index.html', label:'🔵 在庫がなくて出荷できない注文', count:zaikoNashi.length }] : [])
         .concat(notHikare.length  ? [{ href:'index.html', label:'🔴 倉庫へ送ったのに在庫を引いていない注文', count:notHikare.length }] : []);
+      window.__oosExpSoon = expSoon.length
+        ? [{ href:'master.html', label:'⏳ 賞味期限まで残り8か月を切った商品', count:expSoon.length }] : [];
       renderAlerts(window.__lastAlertBase || {});
       renderMihari();
     }catch(e){
@@ -761,7 +808,8 @@
     window.__lastAlertBase = d;
     /* ★2026-08-18 在庫のアラートも混ぜる（__oosZaikoNow）。★消さないでください */
     const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]).concat(window.__oosZaikoNow||[]);
-    const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]);
+    /* ★2026-08-18 賞味期限まで残り8か月を切った商品も混ぜる（__oosExpSoon）。★消さないでください */
+    const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]).concat(window.__oosExpSoon||[]);
     const watch = d.watch||[];
     const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
     const total = cNow + cSoon + cWatch;

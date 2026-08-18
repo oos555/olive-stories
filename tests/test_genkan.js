@@ -41,7 +41,7 @@ function build(){
 
 /* ── ① 見張っているものが一覧に出るか ─────────────────── */
 let { box, dom } = build();
-eq('① 見張っているものの数', box.OOS_MIHARI.length, 5);
+eq('① 見張っているものの数', box.OOS_MIHARI.length, 6);   /* ★2026-08-18 賞味期限8か月を追加。減らしてはいけない */
 box.renderMihari();
 const html = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('① 一覧が画面に作られる', html.length > 0, true);
@@ -54,7 +54,7 @@ eq('① 「ここに書いていないものは見張っていません」と断
 
 /* ── ② 0件でも「0件」と出す（＝安心の根拠になる）───────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0 };
+box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0 };
 box.renderMihari();
 const h2 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('② 0件のときも「0件」と数字が出る', (h2.match(/0件/g)||[]).length >= 5, true);
@@ -62,7 +62,7 @@ eq('② 「確認中…」は消えている', h2.indexOf('確認中…') < 0, t
 
 /* ── ③ 件数があれば赤い数字で出る ───────────────────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0 };
+box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0 };
 box.renderMihari();
 const h3 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('③ 2件と出る', h3.indexOf('2件') >= 0, true);
@@ -103,6 +103,39 @@ const P=[{id:1,sku:'T',name:'点検用',boxQty:1}];
 const o={status:'pending',notified:false,stockDeducted:false,lines:[{productId:1,bottles:1,boxes:0,boxQty:1,condition:'normal'}]};
 eq('⑧ 在庫0なら「出荷できない」', box.OOS_ZAIKO.isWaitingForStock(o,{lots:[{pid:1,status:'new',stock:0}],defects:[],holds:[]},P), true);
 eq('⑧ 在庫があれば出さない',     box.OOS_ZAIKO.isWaitingForStock(o,{lots:[{pid:1,status:'new',stock:5}],defects:[],holds:[]},P), false);
+
+
+/* ══════ ⑨ 賞味期限まで残り8か月を切った商品（2026-08-18 ひろみさん指示） ══════
+   「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」
+   数えるのは【商品の数】。ロットの数ではない。★消さないでください */
+(function(){
+  var ecode = '';
+  ['oosParseExpiry','oosExpSoonProducts'].forEach(function(n){
+    try{ ecode += H.cut(src, n) + String.fromCharCode(10); }catch(e){ fail++; fails.push('★ 関数が消えています: '+n); }
+  });
+  var er = H.makeSandbox({}); var ectx = er.ctx; var ebox = er.box;
+  try{ vm.runInContext(H.cutVar(src, 'OOS_EXP_MONTHS'), ectx); }catch(e){ fail++; fails.push('★ OOS_EXP_MONTHS が消えています'); }
+  try{ vm.runInContext(ecode, ectx); }catch(e){ fail++; fails.push('★ 賞味期限の関数が動きません: '+e.message); }
+  eq('⑨ 8か月のままか', ebox.OOS_EXP_MONTHS, 8);
+  function ym(mo){ var d=new Date(); d.setMonth(d.getMonth()+mo); return d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate(); }
+  var P=[{id:1,sku:'A'},{id:2,sku:'B'}];
+  eq('⑨ 7か月後は数える',   ebox.oosExpSoonProducts([{pid:1,status:'new',stock:10,expiry:ym(7)}],P).length, 1);
+  eq('⑨ 9か月後は数えない', ebox.oosExpSoonProducts([{pid:1,status:'new',stock:10,expiry:ym(9)}],P).length, 0);
+  eq('⑨ すでに切れたものも数える', ebox.oosExpSoonProducts([{pid:1,status:'new',stock:10,expiry:ym(-2)}],P).length, 1);
+  eq('⑨ 在庫0は数えない',   ebox.oosExpSoonProducts([{pid:1,status:'new',stock:0,expiry:ym(1)}],P).length, 0);
+  eq('⑨ 廃棄は数えない',     ebox.oosExpSoonProducts([{pid:1,status:'discard',stock:9,expiry:ym(1)}],P).length, 0);
+  eq('⑨ 輸入予定は数えない', ebox.oosExpSoonProducts([{pid:1,status:'incoming',stock:9,expiry:ym(1)}],P).length, 0);
+  eq('⑨ 期限が読めないものは数えない', ebox.oosExpSoonProducts([{pid:1,status:'new',stock:9,expiry:''}],P).length, 0);
+  eq('⑨ ★同じ商品にロットが2つでも1商品',
+     ebox.oosExpSoonProducts([{pid:1,status:'new',stock:9,expiry:ym(1)},{pid:1,status:'old',stock:9,expiry:ym(2)}],P).length, 1);
+  eq('⑨ 商品が2つなら2',
+     ebox.oosExpSoonProducts([{pid:1,status:'new',stock:9,expiry:ym(1)},{pid:2,status:'new',stock:9,expiry:ym(2)}],P).length, 2);
+  eq('⑨ 2027-01 の形も読める', !!ebox.oosParseExpiry('2027-01'), true);
+  eq('⑨ 2028.9.15 の形も読める', !!ebox.oosParseExpiry('2028.9.15'), true);
+  eq('⑨ 見張り一覧に入っている', src.indexOf("key:'expSoon'") >= 0, true);
+  eq('⑨ 見本にも入っている', src.indexOf('⏳ 賞味期限まで残り8か月を切った商品') >= 0, true);
+  eq('⑨ お庭に混ぜている', src.indexOf('__oosExpSoon') >= 0, true);
+})();
 
 console.log('===== 玄関のアラート =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
