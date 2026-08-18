@@ -201,6 +201,12 @@ if(fs.existsSync(gasPath2)){
   console.log('（GASのファイルが手元にないので ⑨のGAS分 は飛ばしました）');
 }
 
+/* ══════ ⑩ 横スクロールバー（2026-08-18 ひろみさん依頼） ══════ */
+ok('⑩画面の一番下に貼り付く横スクロールバーがある', src.indexOf('id="imp-xbar"') >= 0);
+ok('⑩見えている表につながる仕掛けがある',           src.indexOf('function wideBoxes') >= 0);
+ok('⑩横に長くないときは出さない',                   src.indexOf('scrollWidth > el.clientWidth + 4') >= 0);
+ok('⑩表の入れ物をまとめて拾う',                     src.indexOf('.tbl-wrap, .tr-tblwrap') >= 0);
+
 /* ── 結果 ───────────────────────────────────────── */
 console.log('\n輸入ノートへ流す  PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('\n--- 直すところ ---'); fails.forEach(function(f){ console.log('  ★ ' + f); }); }

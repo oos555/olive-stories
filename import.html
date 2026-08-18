@@ -60,6 +60,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .btn-sm{font-size:11px;padding:4px 10px;border:1px solid #d8cfc4;border-radius:6px;background:#fff;color:#2b2a26;cursor:pointer}
 .btn-sm:hover{background:#f7f3ed}
 .tbl-wrap{background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:auto;margin-bottom:1.25rem}
+/* ★2026-08-18 横スクロールバー（統合マスタの在庫リストと同じ形）
+   ひろみさん「輸入ノートもそうだし、輸入の準備計算室の方もそうだし、横にスクロールバーを
+   いろいろと作ってもらえると助かります」
+   画面の一番下に貼り付くので、表の下まで行かなくても横に動かせる。★消さないでください */
+.imp-xbar{position:fixed;left:0;right:0;bottom:0;background:#f3f0e8;border-top:2px solid #d5cfc3;
+  padding:3px 10px 5px;z-index:900;display:none;box-shadow:0 -2px 6px rgba(0,0,0,.08)}
+.imp-xbar.on{display:block}
+.imp-xbar .lbl{font-size:11px;font-weight:800;color:#6b6459;margin-bottom:2px}
+.imp-xbar .track{overflow-x:auto;overflow-y:hidden;height:17px}
 table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 #profit-heatmap-table,#rate-sim-panel table{min-width:0}
 /* ★2026-07-17 直接入力の枠はみ出し修正／★2026-07-20 「直接入れる」と「500ml換算」を縦積みに変更（右列だと枠が狭く見づらいため） */
@@ -4364,6 +4373,71 @@ async function trGasLoad(){
   if(__trMut){ trSaveLocal(); try{ trGasSave(); }catch(e){} __trMut=false; }
   trRender();
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-18 横スクロールバー（統合マスタの在庫リストと同じ形）
+   ひろみさん「輸入ノートもそうだし、輸入の準備計算室の方もそうだし、
+               横にスクロールバーをいろいろと作ってもらえると助かります」
+
+   ・画面の一番下に貼り付くので、長い表の下まで行かなくても横に動かせる
+   ・いま画面に見えている「横に長い表」に自動でつながる（タブを変えても追いかける）
+   ・横に長くない表しか無いときは、出てこない
+   ・見た目だけの仕掛け。数字にもデータにも一切さわらない
+   ★消さないでください
+   ══════════════════════════════════════════════════════════════════════ */
+(function(){
+  var bar, track, inner, cur = null, lock = false;
+  function wideBoxes(){
+    var p = document.querySelector('.panel.active');
+    if(!p) return [];
+    var list = p.querySelectorAll('.tbl-wrap, .tr-tblwrap, [style*="overflow-x:auto"]');
+    return Array.prototype.filter.call(list, function(el){
+      return el.offsetParent && (el.scrollWidth > el.clientWidth + 4);
+    });
+  }
+  /* いちばん大きく画面に見えている表を選ぶ */
+  function pick(){
+    var list = wideBoxes(); if(!list.length) return null;
+    var best = null, bestVis = 0, vh = window.innerHeight || 800;
+    list.forEach(function(el){
+      var r = el.getBoundingClientRect();
+      var vis = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+      if(vis > bestVis){ bestVis = vis; best = el; }
+    });
+    return bestVis > 40 ? best : null;
+  }
+  function sync(){
+    if(!bar) return;
+    var el = pick();
+    cur = el;
+    if(!el){ bar.classList.remove('on'); return; }
+    bar.classList.add('on');
+    inner.style.width = el.scrollWidth + 'px';
+    if(!lock){ lock = true; track.scrollLeft = el.scrollLeft; lock = false; }
+  }
+  window.impXbarSync = sync;
+  function boot(){
+    bar = document.getElementById('imp-xbar');
+    if(!bar){ setTimeout(boot, 300); return; }   /* 帯はこの script のあとに置いてあるので、待って拾う */
+    track = document.getElementById('imp-xbar-track');
+    inner = document.getElementById('imp-xbar-inner');
+    track.addEventListener('scroll', function(){
+      if(lock || !cur) return; lock = true; cur.scrollLeft = track.scrollLeft; lock = false;
+    });
+    window.addEventListener('scroll', sync, { passive:true });
+    window.addEventListener('resize', sync);
+    /* 表が描き直されたときにも追いつくように、ときどき見に行く（軽い処理） */
+    setInterval(sync, 800);
+    sync();
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
 </script>
+<!-- ★2026-08-18 画面の一番下に貼り付く横スクロールバー ★消さないでください -->
+<div class="imp-xbar" id="imp-xbar">
+  <div class="lbl">← 横にスクロール →</div>
+  <div class="track" id="imp-xbar-track"><div id="imp-xbar-inner" style="height:1px"></div></div>
+</div>
 </body>
 </html>
