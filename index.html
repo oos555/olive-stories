@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-20-02">
+<meta name="oos-version" content="2026-08-20-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -6526,9 +6526,43 @@ async function ackSkip(id){
 const ACK_FALLBACK_BODY = '原様、\n\nいつもありがとうございます！\n（株）オリーブオイル・ストーリーズです。\n\n以下のご発注、承りました。\n\nどうぞよろしくお願いいたします。\n\n（株）オリーブオイル・ストーリーズ';
 
 // ── ②倉庫へ出荷依頼（1件ずつ・サーバーから倉庫グループへ直接送る）──────
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-20 2人が同時に開いていても、倉庫へ二重に送らない（ひろみさん指示）
+   ひろみさん：「ゆかちゃんと私、二人で同時に同じファイルを開いて作業してしまう」
+
+   困る形：同じ注文の「② 倉庫へ送る」を2人が押すと、
+     ・倉庫のLINEに【同じ出荷依頼が2回】届く
+     ・それぞれの画面が「まだ送っていない」と思っているので【在庫が2回減る】
+   （手元の o.notified だけを見ていたため。相手が送ったことは自分の画面には出ていない）
+
+   直し方：送る直前に、その注文だけ最新を読み直して、もう送られていたら止める。
+   ★この見張りを外さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+async function fetchOrderFresh(id){
+  try{
+    var r = await fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'});
+    var d = await r.json();
+    var list = (d && d.status==='ok' && d.data && d.data.orders) ? d.data.orders : null;
+    if(!list) return null;
+    return list.find(function(x){ return String(x.id) === String(id); }) || null;
+  }catch(e){ return null; }
+}
 async function notifyWarehouseOne(id, force){
   var o = orders.find(x=>x.id===id); if(!o) return;
   if(!ackDone(o)){ alert('先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）'); return; }
+  /* ★最新を読み直して、もう送られていないか確かめる（二重送信・二重減算よけ） */
+  var _fresh = await fetchOrderFresh(id);
+  if(_fresh && _fresh.notified){
+    o.notified = true;
+    o.notifiedAt = _fresh.notifiedAt || o.notifiedAt;
+    o.stockDeducted = !!_fresh.stockDeducted;
+    if(typeof renderList === 'function') renderList();
+    alert('この注文は、すでに倉庫へ送られています。\n\n送った日時：'
+      + String(_fresh.notifiedAt||'').slice(0,16).replace('T',' ')
+      + '\n\nもう1人の画面から送られたようです。二重には送っていません。'
+      + '\n画面を新しくしました。');
+    return;
+  }
   /* ★2026-08-18 在庫が足りない注文は、ここで止める（承認済みモック第2版）。
      どうしても送るときだけ、カードの小さなリンク（forceWarehouseShort）から force で来る。 */
   if(!force && orderShortages(o).length){
