@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-04">
+<meta name="oos-version" content="2026-08-19-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7942,6 +7942,11 @@ function readRtPdf(file){
     }).then(function(pagesLines){
       const allLines = [].concat.apply([], pagesLines);
       rtParsed = parseRtSlip(allLines);
+      /* ★2026-08-19 ゆかさんの提案：②では商品を選び直さない。
+         ①（まず計算する）に明細が入っていれば、それをそのまま使う（送料も一緒）。
+         ②から読むのは【お届け先・伝票番号・納品日】だけ。★戻さないでください */
+      var _calc = rtCalcLines();
+      if(_calc.length){ rtParsed.lines = _calc; rtParsed.shipFee = rtCalcShipFee(); rtParsed.fromCalc = true; }
       document.getElementById('rt-loading').style.display = 'none';
       renderRtPreview();
       /* ★2026-08-19 ひろみさん指示：倉庫が【発注伝票と納品書の両方】を印刷して梱包する。
@@ -8124,6 +8129,44 @@ function rtToggleEc(on){
 }
 /* ★2026-08-19 RT伝票の商品1行ぶん。何品でも並べられるように、番号（i）で持つ。
    ★rtParsed.lines[0] 固定の書き方に戻さないでください（ゆかさん報告の原因でした） */
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-19 ゆかさんの提案どおり：【商品と送料の親は①（まず計算する）】。
+   ②（発注伝票の取込）は、お届け先・伝票番号・納品日を読むだけ。
+   ここは①の明細を②へそのまま引き継ぐ道具です。★消さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function rtCalcLines(){
+  var out = [];
+  document.querySelectorAll('#rtc-rows > [id^="rtc-row-"]').forEach(function(r){
+    var sel = r.querySelector('.rtc-prod');
+    var qty = parseInt((r.querySelector('.rtc-qty')||{}).value) || 0;
+    var price = parseInt((r.querySelector('.rtc-price')||{}).value) || 0;
+    if(!sel || !sel.value || qty <= 0) return;
+    var p = (PRODUCTS||[]).find(function(x){ return String(x.id)===String(sel.value); });
+    out.push({ rawCode:'①計算', productId: sel.value, productName: (p?p.name:''), matched: true,
+               bottles: qty, unitPrice: price, taxRate: 8 });
+  });
+  return out;
+}
+function rtCalcShipFee(){
+  var el = document.getElementById('rtc-shipping');
+  return el ? (parseInt(el.value)||0) : 0;
+}
+function rtPullFromCalc(silent){
+  var lines = rtCalcLines();
+  if(!lines.length){
+    if(!silent) alert('①「まず計算する」に、商品と本数が入っていません。\n先に①で計算してから取り込んでください。');
+    return false;
+  }
+  if(!rtParsed) rtParsed = { lines:[], recipientName:'', dept:'', zip:'', addr:'', tel:'', slipNo:'', deliveryDate:'', nouhinNo:'' };
+  rtParsed.lines = lines;
+  rtParsed.shipFee = rtCalcShipFee();   /* ★送料も一緒に持っていく（ゆかさん報告：納品書に送料が出ない） */
+  if(typeof renderRtPreview==='function') renderRtPreview();
+  if(!silent && typeof showSyncStatus==='function'){
+    showSyncStatus('①の明細を入れました（商品' + lines.length + '品' + (rtParsed.shipFee?'／送料 ¥'+rtParsed.shipFee.toLocaleString():'') + '）');
+  }
+  return true;
+}
+
 function rtLineRowHtml(ln, i){
   ln = ln || {};
   var sel = '<select onchange="rtParsed.lines['+i+'].productId=this.value;rtParsed.lines['+i+'].matched=!!this.value;renderRtPreview()" style="width:100%;padding:6px 9px;border:1.5px solid '+(ln.matched?'#d5cfc3':'#dc2626')+';border-radius:6px;font-size:13px;font-weight:700">'+productOptionsHtml(ln.productId)+'</select>';
@@ -8191,8 +8234,17 @@ function renderRtPreview(){
       +'<div style="font-size:13px;font-weight:700;color:#33421f;margin:14px 0 6px">商品明細</div>'
       /* ★2026-08-19 ゆかさん要望：商品は何品でも入れられる（＋ 商品を追加）。
          以前は伝票の1品目だけしか出せなかった。★1品固定に戻さないでください */
+      +(p.fromCalc
+          ? '<div style="background:#eef7ef;border:1.5px solid #bfe0cb;border-radius:8px;padding:8px 11px;margin-bottom:9px;font-size:12.5px;color:#1f5136;line-height:1.7">'
+            + '✅ <b>①「まず計算する」の明細をそのまま入れています</b>（商品・本数・単価・送料）。ここで選び直す必要はありません。<br>'
+            + '②の伝票からは <b>お届け先・伝票番号・納品日</b> を読み取っています。'
+            + '</div>'
+          : '')
       +(p.lines||[]).map(function(_l,_i){ return rtLineRowHtml(_l,_i); }).join('')
-      +'<div style="margin-top:6px"><button class="btn-sm" style="background:#eef4f9;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:7px 14px" onclick="rtAddLine()">＋ 商品を追加</button>'
+      +(p.shipFee ? '<div style="display:flex;justify-content:space-between;align-items:center;background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:7px 11px;margin:2px 0 8px;font-size:13.5px;font-weight:700;color:#2b2a26"><span>🚚 送料（税抜・10%）</span><span>¥'+Number(p.shipFee).toLocaleString()+'</span></div>' : '')
+      +'<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      +'<button class="btn-sm" style="background:#eef4f9;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:7px 14px" onclick="rtAddLine()">＋ 商品を追加</button>'
+      +'<button class="btn-sm" style="background:#eef7ef;border:1.5px solid #0f7a4a;color:#0f5a4a;font-weight:800;padding:7px 14px" onclick="rtPullFromCalc()">🔄 ①の明細を入れ直す（送料も）</button>'
         +'<span style="font-size:12px;color:#57534e;margin-left:9px">伝票に無い商品（同じ納品でまとめて送るもの）も、ここで足せます</span></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
         +'<span style="background:#1f4a6d;color:#fff;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">RT（後払い・入金確認なし）</span>'
@@ -8228,6 +8280,14 @@ function rtDeliveryNoteHtml(){
     rows += '<tr><td class="d-tekiyo">'+esc(name)+mark+'</td><td class="d-qty">'+qty+' 本</td><td class="d-num">'+unit.toLocaleString()+'</td><td class="d-num">'+amt.toLocaleString()+'</td></tr>';
   });
   var need = Math.max(0, 8 - lines.length);
+  /* ★2026-08-19 ゆかさん報告：納品書に送料が出ていなかった。①で入れた送料を1行足す（10%対象）。
+     ★この行を消さないでください */
+  if(p.shipFee){
+    var _sf = Number(p.shipFee)||0;
+    rateSub[10] = (rateSub[10]||0) + _sf;
+    rows += '<tr><td class="d-tekiyo">送料</td><td class="d-qty">1 式</td><td class="d-num">'+_sf.toLocaleString()+'</td><td class="d-num">'+_sf.toLocaleString()+'</td></tr>';
+    need = Math.max(0, need - 1);
+  }
   for(var i=0;i<need;i++) rows += '<tr><td class="d-tekiyo">&nbsp;</td><td></td><td></td><td></td></tr>';
   var subtotal=0, tax=0, uchiwake='';
   Object.keys(rateSub).sort().forEach(function(r){

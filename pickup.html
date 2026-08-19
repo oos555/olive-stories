@@ -315,7 +315,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-19-05">
+<meta name="oos-version" content="2026-08-19-06">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1553,17 +1553,21 @@ function renderOrder(){
           + '<div style="font-size:15px;font-weight:700">🏨 RT（ホテル・レストラン）の注文です</div>'
           + '<div style="font-size:13.5px;font-weight:500;line-height:1.6;margin-top:3px">ギフトでも、金額の入った書類を<b>必ず</b>入れてください（RTのお約束です）。</div></div>';
       }
-      html += '<div class="rt-docs-t">🖨 印刷して入れる書類（'+(o.extraDocUrl?'3':'2')+'枚）</div>'
-        + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">① RT発注伝票（端末の伝票）を入れた</label>'
+      /* ★2026-08-19 伝票は【1か所】にまとめる。PDFが付いていればそれを刷る。
+         ①（端末の紙）と③（PDF）を両方出すと、倉庫が2枚あると勘違いします。★戻さないでください */
+      html += '<div class="rt-docs-t">🖨 印刷して入れる書類（2枚）</div>'
+        + (o.extraDocUrl
+            ? '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;background:#fff">'
+              + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="rtOpenExtraDoc()">🖨 ① RT発注伝票（PDF）を開いて印刷する</button>'
+              + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">① RT発注伝票を入れた</label>'
+              + (o.extraDocName ? '<div style="font-size:11.5px;color:#57534e;margin-top:4px">ファイル名：' + esc(o.extraDocName) + '</div>' : '')
+              + '</div>'
+            : '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">① RT発注伝票（端末の伝票）を入れた</label>'
+              + '<div class="rt-doc-item" style="font-size:12px;color:#8a4b0b;background:#fff7ed;border:1px solid #f0cfa0;border-radius:6px;padding:6px 9px;margin-top:4px">※ この注文にはPDFが付いていません。本部から届いたメールの添付を印刷してください。</div>')
         + '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
         + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="printInvoice()">🖨 ② 納品書を印刷する</button>'
         + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">② 納品書を入れた</label></div>'
-        + (o.extraDocUrl ? '<div style="border:1px solid #ead9c2;border-radius:8px;padding:10px;margin-top:8px;background:#fff">'
-            /* ★2026-08-19 RTでは、ここに入るのは【RT発注伝票のPDF】。名前を分かるようにする */
-            + '<button class="btn-big btn-print no-print" style="margin:0 0 8px" onclick="rtOpenExtraDoc()">🖨 ③ RT発注伝票（PDF）を開いて印刷する</button>'
-            + '<label class="rt-doc-item"><input type="checkbox" class="pack-check" onchange="updateCompleteBtn()">③ RT発注伝票を入れた</label>'
-            + (o.extraDocName ? '<div style="font-size:11.5px;color:#57534e;margin-top:4px">ファイル名：' + esc(o.extraDocName) + '</div>' : '')
-            + '</div>' : '');
+        ;
     } else if(isBasaraOrder(o)){
       html += '<div class="rt-docs-t" style="color:#57534e">🚫 納品書は同梱しません（バサラの注文）</div>';
     } else if(encDoc && encDoc!=='なし'){

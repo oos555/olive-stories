@@ -263,6 +263,69 @@ eq("⑤ 何件待っているか画面に出す", idxSrc.indexOf("まだ倉庫�
 eq("⑤ RT取込に「＋ 商品を追加」がある", idxSrc.indexOf("＋ 商品を追加") >= 0, true);
 eq("⑤ 商品行は番号で作る（1品固定でない）", idxSrc.indexOf("function rtLineRowHtml(ln, i)") >= 0, true);
 eq("⑤ 増やす・減らすがある", idxSrc.indexOf("function rtAddLine()") >= 0 && idxSrc.indexOf("function rtRemoveLine(i)") >= 0, true);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⑥ RTの流れ（★2026-08-19 ゆかさんの設計提案どおり）
+     ① まず計算する … 商品・本数・単価・送料（明細の親）
+     ② 発注伝票を取り込む … お届け先・伝票番号・納品日だけを読む
+     納品書 … ①の明細＋送料 ＋ ②の宛先
+   ══════════════════════════════════════════════════════════════════════ */
+eq('⑥ ①の明細を②へ引き継ぐ道具がある', idxSrc.indexOf('function rtPullFromCalc(silent)') >= 0, true);
+eq('⑥ 送料も一緒に引き継ぐ', idxSrc.indexOf('rtParsed.shipFee = rtCalcShipFee();') >= 0, true);
+eq('⑥ 伝票を読んだら①の明細を自動で入れる', idxSrc.indexOf('if(_calc.length){ rtParsed.lines = _calc;') >= 0, true);
+eq('⑥ 納品書に送料の行を出す', idxSrc.indexOf("rows += '<tr><td class=\"d-tekiyo\">送料</td>") >= 0, true);
+eq('⑥ 送料は10%対象で数える', idxSrc.indexOf('rateSub[10] = (rateSub[10]||0) + _sf;') >= 0, true);
+eq('⑥ ①から来たことを②の画面に出す', idxSrc.indexOf('①「まず計算する」の明細をそのまま入れています') >= 0, true);
+eq('⑥ 倉庫Ｄの伝票は1か所だけ（①と③に分けない）',
+   (pkSrc2.match(/RT発注伝票（PDF）を開いて印刷する/g)||[]).length === 1, true);
+eq('⑥ PDFが無い注文にはメールを見るよう案内する',
+   pkSrc2.indexOf('本部から届いたメールの添付を印刷してください') >= 0, true);
+
+/* ①→② の引き継ぎを、本物の関数で動かして確かめる */
+try{
+  function calcRow(pid, qty, price){
+    return { querySelector: function(sel){
+      if(sel === '.rtc-prod') return { value: String(pid) };
+      if(sel === '.rtc-qty')  return { value: String(qty) };
+      if(sel === '.rtc-price') return { value: String(price) };
+      return null; } };
+  }
+  var CALC = [], SHIP = 0;
+  var dom = {
+    getElementById: function(id){
+      if(id === 'rtc-shipping') return { value: String(SHIP) };
+      return { value:'', style:{}, innerHTML:'', textContent:'', appendChild:function(){}, querySelector:function(){ return null; } };
+    },
+    querySelectorAll: function(sel){ return sel.indexOf('rtc-rows') >= 0 ? CALC : []; },
+    querySelector: function(){ return null; },
+    createElement: function(){ return { style:{}, innerHTML:'', appendChild:function(){}, querySelector:function(){ return null; } }; },
+    body:{ appendChild:function(){}, removeChild:function(){}, style:{} }, addEventListener:function(){}
+  };
+  var R = H.makeSandbox({ document: dom, alert: function(){} });
+  vm.runInContext(H.cutVar(idxSrc, 'PRODUCTS'), R.ctx);
+  vm.runInContext('function esc(s){ return String(s==null?"":s); } function productOptionsHtml(){ return ""; } function showSyncStatus(){} function renderRtPreview(){} var rtParsed = null; var RT_SEAL_IMG = "";', R.ctx);
+  ['rtCalcLines','rtCalcShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
+  var pr = R.box.PRODUCTS.filter(function(p){ return !p.isSet; });
+  CALC = [ calcRow(pr[0].id, 20, 7110), calcRow(pr[1].id, 10, 2613) ];
+  SHIP = 3906;
+  eq('⑥ ①から②へ引き継げる', R.box.rtPullFromCalc(true), true);
+  eq('⑥ 商品が2品とも入る', R.box.rtParsed.lines.length, 2);
+  eq('⑥ 本数がそのまま入る', R.box.rtParsed.lines[0].bottles, 20);
+  eq('⑥ 単価がそのまま入る', R.box.rtParsed.lines[0].unitPrice, 7110);
+  eq('⑥ 送料がそのまま入る', R.box.rtParsed.shipFee, 3906);
+  R.box.rtParsed.recipientName = 'テストホテル'; R.box.rtParsed.slipNo = '360774'; R.box.rtParsed.nouhinNo = '360774';
+  var note = R.box.rtDeliveryNoteHtml();
+  eq('⑥ 納品書に1品目が載る', note.indexOf(pr[0].name) >= 0, true);
+  eq('⑥ 納品書に2品目が載る', note.indexOf(pr[1].name) >= 0, true);
+  eq('⑥ 納品書に送料が載る', note.indexOf('>送料<') >= 0 && note.indexOf('3,906') >= 0, true);
+  var y8 = 20*7110 + 10*2613;
+  var total = y8 + Math.round(y8*0.08) + 3906 + Math.round(3906*0.10);
+  eq('⑥ 合計が 商品＋8% ＋ 送料＋10% になる', note.indexOf(total.toLocaleString()) >= 0, true);
+  CALC = []; SHIP = 0;
+  R.box.rtParsed.lines = [{ productId:pr[0].id, productName:pr[0].name, bottles:5, unitPrice:1000, matched:true, taxRate:8 }];
+  eq('⑥ ①が空のときは②の中身をこわさない', R.box.rtPullFromCalc(true), false);
+  eq('⑥ そのとき明細も消えない', R.box.rtParsed.lines.length, 1);
+}catch(e){ fails.push('⑥ RTの流れを動かせませんでした: ' + e.message); fail++; }
 eq("⑤ 何品渡したか画面に出す",
    idxSrc.indexOf("（商品 ' + rtLines.length + ' 品）") >= 0, true);
 /* ★版の番号を上げ忘れない（今日いちばんの反省） */
