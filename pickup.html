@@ -290,7 +290,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 <script src="oos-zaiko.js?v=20260818"></script>
 <!-- ★2026-08-19 お客様にお渡しする書類（納品書・納品書兼請求書）の体裁。
      見積・請求書Ｍで決めた見た目をそのまま使うための共有ファイル。★消さないでください -->
-<script src="oos-doc.js?v=20260819"></script>
+<!-- 書類をPDFにするための道具（見積・請求書Ｍと同じもの） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="oos-doc.js?v=20260819b"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -825,6 +828,16 @@ function buildInvoiceHtml(o){
   return html;
 }
 
+/* ★2026-08-19 いま見ている書類を、そのままPDFファイルとして保存する（確認用）。
+   ファイル名は「納品書兼請求書_注文番号.pdf」。★消さないでください */
+function downloadDocPdf(){
+  var o = currentOrder;
+  if(!o) return;
+  var docName = (o.enclosedDoc && o.enclosedDoc !== 'なし') ? String(o.enclosedDoc).split(' ＋ ')[0] : '納品書';
+  var el = document.querySelector('#doc-preview .invoice-doc') || document.getElementById('doc-preview');
+  OOS_DOC.downloadPdf(el, docName + '_' + (o.num || '') + '.pdf');
+}
+
 function rtOpenExtraDoc(){
   if(!currentOrder || !currentOrder.extraDocUrl){ alert('この注文には追加の説明PDFがありません。'); return; }
   if(isInAppBrowser()){ alert('このアプリ内のブラウザでは開けないことがあります。\n右上の「…」メニューから「Safari／Chromeで開く」を選んでから、もう一度お試しください。'); }
@@ -1331,7 +1344,11 @@ function renderDocPreview(){
     + '</div>'
     + ((encDoc && encDoc !== 'なし')
         ? '<div id="doc-preview">' + buildInvoiceHtml(o) + '</div>'
-          + '<button class="btn-big btn-print no-print" onclick="printInvoice()">🖨 この書類を印刷する</button>'
+          + '<div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'
+          + '<button class="btn-big btn-print" style="flex:1;min-width:200px;margin:0" onclick="printInvoice()">🖨 この書類を印刷する</button>'
+          /* ★2026-08-19 ひろみさん指示：中身を確かめられるよう、PDFとして保存できるようにする */
+          + '<button class="btn-big" style="flex:1;min-width:200px;margin:0;background:#1f4a6d;color:#fff" onclick="downloadDocPdf()">📥 PDFで保存する</button>'
+          + '</div>'
         : '<div class="note-box no-print" style="background:#f6f4ee">この注文は<b>書類を同梱しません</b>（' + (pamph ? 'パンフレットだけ入れます' : '何も入れません') + '）。</div>');
 }
 

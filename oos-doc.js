@@ -121,7 +121,55 @@
     return h;
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+     書類をPDFファイルとして保存する。
+     ★見積・請求書Ｍ（mitsumori.html の rasterizeDocToPdf）と同じやり方です。
+     A4縦1枚に収まるように、はみ出すときは全体を少し縮めて貼ります。
+     ══════════════════════════════════════════════════════════════════ */
+  async function downloadPdf(el, filename){
+    if(!el){ alert('書類が見つかりませんでした'); return; }
+    if(typeof html2canvas === 'undefined' || typeof jspdf === 'undefined'){
+      alert('PDFを作る道具が読み込めませんでした。電波の良い場所でページを開き直してください。');
+      return;
+    }
+    const TARGET_W = 800;   // A4縦に組み直す横幅（px）
+    const SCALE = 2;        // きれいさ
+    const saved = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding };
+    el.style.width = TARGET_W + 'px';
+    el.style.maxWidth = 'none';
+    el.style.padding = '0';
+    el.getBoundingClientRect();
+    const fullH = el.offsetHeight;
+    const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    const usableW = pdfW - margin*2;
+    const usableH = pdfH - margin*2;
+    try{
+      const canvas = await html2canvas(el, {
+        scale: SCALE, backgroundColor:'#ffffff', useCORS:true,
+        width: TARGET_W, height: fullH, x:0, y:0,
+        windowWidth: TARGET_W, windowHeight: fullH, scrollX:0, scrollY:0
+      });
+      const img = canvas.toDataURL('image/png');
+      let imgW = usableW;
+      let imgH = imgW * (canvas.height / canvas.width);
+      if(imgH > usableH){ const k = usableH / imgH; imgW *= k; imgH *= k; } // 縦がはみ出すなら縮めて1枚に収める
+      const x = margin + (usableW - imgW)/2;
+      pdf.addImage(img, 'PNG', x, margin, imgW, imgH);
+      pdf.save(filename || '書類.pdf');
+    }catch(e){
+      alert('PDFを作れませんでした：' + (e && e.message));
+    }finally{
+      el.style.width = saved.width;
+      el.style.maxWidth = saved.maxWidth;
+      el.style.padding = saved.padding;
+    }
+  }
+
   window.OOS_DOC = {
+    downloadPdf: downloadPdf,
     COMPANY_INFO: COMPANY_INFO,
     BANK_ACCOUNTS: BANK_ACCOUNTS,
     companyBlockHtml: companyBlockHtml,
