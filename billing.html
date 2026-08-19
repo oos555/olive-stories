@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-01">
+<meta name="oos-version" content="2026-08-19-03">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1099,7 +1099,28 @@ function isSalesListTarget(o){ return salesExcludeReason(o) === ''; }
 // 同じお客様・同じ受注日・同じ金額が2件以上あるとき。
 // ★売上一覧に出す・出さないと関係なく、注文ぜんぶを見る。
 //   （片方が未送信だと一覧に出ないので、一覧だけ見ていると二重に気づけないため）
+//
+// ★RT（リゾートトラスト）は【伝票番号】で見分ける（2026-08-19 ひろみさん指示・変更禁止）
+//   「同じホテルが何度も発注してくることがあるので、RTは伝票番号で管理する」。
+//   同じホテル・同じ日・同じ金額でも、伝票番号が違えば**正しい別々の注文**である。
+//   お客様の名前と金額で見ると、RTだけで9件のまちがったお知らせが出た（2026-08-19 実機）。
+//   → RTは「伝票番号が同じものが2件以上」のときだけ、うたがいに出す。
+//   伝票番号は受注Ａの RT伝票取込 がメモに「伝票番号 12345」の形で入れる（index.html の memoText）。
+//   受注Ａ → GASの「特別指示」列 → 売上Ｃ の o.note と渡ってくる。
+//   ★番号が読み取れないRTは、判定しない（まちがったお知らせを出さない側に倒す）。
+function isRtOrder(o){
+  return !!(o && (o.customerType === 'rt' || o.customerType === 'rtgc'
+    || /^RTG?-/.test(String(o.num || ''))));
+}
+function rtSlipNoOf(o){
+  const m = String((o && o.note) || '').match(/伝票番号\s*([0-9０-９A-Za-z\-]+)/);
+  return m ? m[1] : '';
+}
 function salesDupKey(o){
+  if(isRtOrder(o)){
+    const slip = rtSlipNoOf(o);
+    return slip ? ('RT伝票|' + slip) : '';   // '' ＝ 判定しない
+  }
   return (o.recipientName||o.client||'') + '|' + String(o.registeredAt||'').slice(0,10) + '|' + orderAmount(o);
 }
 function findSalesDuplicates(){
@@ -1108,6 +1129,7 @@ function findSalesDuplicates(){
     if(!o) return;
     if(o.status === 'cancelled' || o.status === 'deleted') return;  // 片づいたものは対象外
     const k = salesDupKey(o);
+    if(!k) return;                                                  // RTなど、判定しないもの
     (map[k] = map[k] || []).push(o);
   });
   return Object.keys(map).map(function(k){ return map[k]; })
@@ -1130,9 +1152,14 @@ function renderSalesDupAlert(){
   if(!groups.length){ el.innerHTML = ''; return; }
   const body = groups.map(function(g){
     const sentCount = g.filter(salesWasSentToWarehouse).length;
+    const slip = isRtOrder(g[0]) ? rtSlipNoOf(g[0]) : '';
     const head = '<div style="margin-top:8px"><b>' + esc(g[0].recipientName||g[0].client||'') + '</b> 様　'
-      + esc(String(g[0].registeredAt||'').slice(0,10)) + ' 受注　<b>¥' + orderAmount(g[0]).toLocaleString()
-      + '</b>　が <b>' + g.length + '件</b>あります。</div>';
+      + (slip
+          ? '<b>伝票番号 ' + esc(slip) + '</b>　'
+          : esc(String(g[0].registeredAt||'').slice(0,10)) + ' 受注　<b>¥' + orderAmount(g[0]).toLocaleString() + '</b>　')
+      + 'が <b>' + g.length + '件</b>あります。'
+      + (slip ? '<span style="font-size:11px;color:#8a8578">（同じ伝票番号が2件以上あります。RTは伝票番号で見分けます）</span>' : '')
+      + '</div>';
     const rows = g.map(function(o){
       const isSent = salesWasSentToWarehouse(o);
       const when = String(o.notifiedAt || o.shippedAt || '').slice(0,16).replace('T',' ');

@@ -23,7 +23,7 @@ const VARS  = ['DEFAULT_PRICES', 'SALES_HIDE_INFO', 'SALES_DUP_BADGE', 'SALES_TH
 const NAMES = ['findProduct', 'findProductBySku', 'defaultTaxRateForGroup', 'effectiveCustomerType',
   'lineTierType', 'priceForSku', 'taxRateForSku', 'orderAmount',
   'salesWasSentToWarehouse', 'salesExcludeReason', 'isSalesListTarget',
-  'salesDupKey', 'findSalesDuplicates', 'salesDupIds',
+  'isRtOrder', 'rtSlipNoOf', 'salesDupKey', 'findSalesDuplicates', 'salesDupIds',
   'renderSalesDupAlert', 'renderSalesHiddenList'];
 let code = '';
 VARS.forEach(n => { code += H.cutVar(src, n) + '\n'; });
@@ -51,7 +51,16 @@ const ORDERS = [
   o({id:'I', num:'TK-20260819-5555', recipientName:'両方送った',  status:'pending', notified:true, notifiedAt:'2026-08-19T11:00:00Z'}),
   o({id:'J', num:'TK-20260819-6666', recipientName:'両方送った',  status:'pending', notified:true, notifiedAt:'2026-08-19T11:05:00Z'}),
   o({id:'K', num:'TK-20260819-7777', recipientName:'両方未送信',  status:'pending', notified:false}),
-  o({id:'L', num:'TK-20260819-8888', recipientName:'両方未送信',  status:'pending', notified:false})
+  o({id:'L', num:'TK-20260819-8888', recipientName:'両方未送信',  status:'pending', notified:false}),
+  /* ★RTは対象外。同じホテルが同じ日に同じ金額で何度も発注してくるのは正常（伝票番号で管理する） */
+  o({id:'M', num:'RT-20260818-6432', recipientName:'東京ベイコート倶楽部', customerType:'rt', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z', note:'RT伝票取込 ／ 伝票番号 904211 ／ 納品予定日 2026-08-25'}),
+  o({id:'N', num:'RT-20260818-5644', recipientName:'東京ベイコート倶楽部', customerType:'rt', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z', note:'RT伝票取込 ／ 伝票番号 904298 ／ 納品予定日 2026-08-26'}),
+  /* 同じ伝票番号が2件 ＝ 本物の二重（取込を2回してしまった） */
+  o({id:'S', num:'RT-20260818-1212', recipientName:'ラグーナベイコート倶楽部', customerType:'rt', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z', note:'RT伝票取込 ／ 伝票番号 277285 ／ 納品予定日 2026-08-25'}),
+  o({id:'T', num:'RT-20260818-3434', recipientName:'ラグーナベイコート倶楽部', customerType:'rt', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z', note:'RT伝票取込 ／ 伝票番号 277285 ／ 納品予定日 2026-08-25'}),
+  /* 注文番号が RTG- で始まるものも同じ扱い */
+  o({id:'P', num:'RTG-20260818-1111', recipientName:'RTゴルフ場', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z'}),
+  o({id:'Q', num:'RTG-20260818-2222', recipientName:'RTゴルフ場', status:'pending', notified:false, registeredAt:'2026-08-18T10:00:00Z'})
 ];
 
 const boxes = {};
@@ -92,10 +101,18 @@ const monthCount = ORDERS.filter(box.isSalesListTarget)
 eq('③ 今月の件数＝一覧の件数', monthCount, shown.length);
 
 /* ── ④ 二重登録のうたがい ── */
-eq('④ うたがいは3組', box.findSalesDuplicates().length, 3);
+eq('④ うたがいは4組（個人3組＋同じ伝票番号のRT1組）', box.findSalesDuplicates().length, 4);
 const ids = box.salesDupIds();
 eq('④ C（消した）は二重の相手に数えない', !!ids['C'], false);
 eq('④ B は一覧に出ないが二重には出る',    !!ids['B'], true);
+/* ★RTは対象外（2026-08-19 ひろみさん指示）：同じホテルが何度も発注してくるのは正常 */
+eq('④ 伝票番号が違えば、同じホテル・同じ日・同じ金額でも出さない', (!!ids['M'] || !!ids['N']), false);
+eq('④ 注文番号が RTG- で始まるものも対象外',                   (!!ids['P'] || !!ids['Q']), false);
+eq('④ 伝票番号が違うRTは、別々の注文として扱う',              box.salesDupKey(ORDERS[12]) === box.salesDupKey(ORDERS[13]), false);
+eq('④ 同じ伝票番号のRTは、二重として扱う',                    (!!ids['S'] && !!ids['T']), true);
+eq('④ 伝票番号が読めないRTは判定しない',                      box.salesDupKey(ORDERS[16]), '');
+eq('④ 伝票番号をメモから読み取れる',                          box.rtSlipNoOf(ORDERS[12]), '904211');
+eq('④ 個人（TK）は今までどおり判定する',                      box.salesDupKey(ORDERS[1]).length > 0, true);
 
 box.renderSalesDupAlert();
 const dup = boxes['sales-dup-alert'].innerHTML;
@@ -105,12 +122,14 @@ inc('④ 送った日時と送り先を出す',               dup, 'OOS出荷依
 inc('④ 両方送信済み → 倉庫へ連絡の警告',        dup, '消す前に、必ず倉庫へ連絡してください', true);
 inc('④ 両方未送信 → どちらを消してもよい',      dup, 'どちらを消してもかまいません', true);
 inc('④ 消した注文は二重に出さない',             dup, 'RT-20260819-3528', false);
-inc('④ 件数を見出しに出す',                     dup, '二重登録のうたがいが 3件あります', true);
+inc('④ 件数を見出しに出す',                     dup, '二重登録のうたがいが 4件あります', true);
+inc('④ RTの見出しは伝票番号で書く',            dup, '伝票番号 277285', true);
+inc('④ 伝票番号が違うホテルは出ない',          dup, '東京ベイコート倶楽部', false);
 
 /* ── ⑤ 出していないものの一覧（消えたと思わせない） ── */
 box.renderSalesHiddenList();
 const hid = boxes['sales-hidden-list'].innerHTML;
-inc('⑤ 出していないのは8件',            hid, '出していないもの（8件）', true);
+inc('⑤ 出していないのは14件',           hid, '出していないもの（14件）', true);
 inc('⑤ 消した注文も理由つきで残る',     hid, '🗑 発注から消した', true);
 inc('⑤ 取り置きの直し方',               hid, '出荷依頼書を作って倉庫へ送ったとき', true);
 inc('⑤ 未送信の直し方',                 hid, '「② 倉庫へ送る」を押したとき', true);
