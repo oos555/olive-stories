@@ -476,7 +476,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-20-04">
+<meta name="oos-version" content="2026-08-20-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2506,21 +2506,71 @@ function labSaveOne(pid, i, kind, val){
   var one = {}; one[key] = o[key];
   labSaveFields(pid, one, '裏ラベル' + (i+1) + 'を保存しました').then(function(){ renderInvTable(); });
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2人が同時に開いていても二重に入らないようにする（2026-08-20 ひろみさん指示）
+   ひろみさん：「ゆかちゃんと私、二人で同時に同じファイルを開いて作業してしまうことがある」
+
+   困る形：ひろみさんが「📥 入れる」を押して＋500枚が入ったあと、
+           ゆかさんの【古い画面】にはまだ「予定500枚」が出ているので、もう一度押せてしまう。
+           → 1000枚入ってしまう（数がずれる）。
+
+   直し方：**押した瞬間に、その商品だけ最新を読み直す。**
+           画面の数と食い違っていたら、入れずに止めて、画面を新しくする。
+   ★この見張りを外さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function labFetchFresh(sku){
+  return fetch(GAS_URL + '?action=loadProducts&t=' + Date.now(), {cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var list = (d && (d.products || (d.data && d.data.products))) || null;
+      if(!list) return null;
+      return list.find(function(x){ return x && String(x.sku) === String(sku); }) || null;
+    })
+    .catch(function(){ return null; });
+}
 /* 📥 届いた分を倉庫在庫へ合算する（人が押したときだけ動く） */
 function labArrive(pid, i){
   var p = findProduct(pid); if(!p) return;
   var add = labInc(p, i); if(add <= 0) return;
-  var before = labQty(p, i), after = before + add;
-  if(!confirm('【' + p.name + '　' + (labName(p,i) || ('ラベル'+(i+1))) + '】\n\n'
-    + '倉庫のラベル在庫　' + before + '枚 → ' + after + '枚（＋' + add + '枚）\n'
-    + '追加購入予定は 0 枚になります。\n\nこの内容で入れますか？')) return;
-  var o = {};
-  o[LAB_KEYS[i].qty] = String(after);
-  o[LAB_KEYS[i].inc] = '0';
-  o[LAB_KEYS[i].day] = '';
-  labSaveFields(pid, o, '裏ラベル＋' + add + '枚を入れました（計' + after + '枚）').then(function(){
-    try{ addLog('裏ラベルを在庫へ', p.name + '　' + (labName(p,i) || ('ラベル'+(i+1))) + '　＋' + add + '枚（' + before + '→' + after + '）'); }catch(e){}
-    renderInvTable();
+  var before = labQty(p, i);
+  var btns = document.querySelectorAll('.lab-go');
+  for(var b = 0; b < btns.length; b++) btns[b].disabled = true;   /* 連打よけ */
+  labFetchFresh(p.sku).then(function(fresh){
+    for(var b = 0; b < btns.length; b++) btns[b].disabled = false;
+    if(fresh){
+      var freshInc = OOS_ZAIKO.LABEL.incoming(fresh, i);
+      var freshQty = OOS_ZAIKO.LABEL.qty(fresh, i);
+      if(freshInc !== add || freshQty !== before){
+        /* ★もう1人が先に入れていた（または数を直していた）。二重に入れない。 */
+        alert('【' + p.name + '】\n\nほかの画面で先に入れられたようです。\n\n'
+          + 'この画面：追加購入予定 ' + add + '枚／倉庫在庫 ' + before + '枚\n'
+          + 'いまの本当の数：追加購入予定 ' + freshInc + '枚／倉庫在庫 ' + freshQty + '枚\n\n'
+          + '二重には入れていません。画面を新しくします。');
+        /* 手元を最新に直す（保存はしない） */
+        OOS_ZAIKO.LABEL.KEYS.forEach(function(k){
+          [k.name, k.qty, k.inc, k.day].forEach(function(key){
+            var v = OOS_ZAIKO.LABEL.raw(fresh, key);
+            p[key] = v; p.extras = p.extras || {}; p.extras[key] = v;
+          });
+        });
+        try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS !== 'undefined' ? EXTRA_FIELDS : [])); }catch(e){}
+        renderInvTable();
+        return;
+      }
+    }
+    var after = before + add;
+    var warn = fresh ? '' : '\n\n⚠ 最新の数を確かめられませんでした（通信）。もう1人が先に入れていないか、声をかけてください。';
+    if(!confirm('【' + p.name + '　' + (labName(p,i) || ('ラベル'+(i+1))) + '】\n\n'
+      + '倉庫のラベル在庫　' + before + '枚 → ' + after + '枚（＋' + add + '枚）\n'
+      + '追加購入予定は 0 枚になります。' + warn + '\n\nこの内容で入れますか？')) return;
+    var o = {};
+    o[LAB_KEYS[i].qty] = String(after);
+    o[LAB_KEYS[i].inc] = '0';
+    o[LAB_KEYS[i].day] = '';
+    labSaveFields(pid, o, '裏ラベル＋' + add + '枚を入れました（計' + after + '枚）').then(function(){
+      try{ addLog('裏ラベルを在庫へ', p.name + '　' + (labName(p,i) || ('ラベル'+(i+1))) + '　＋' + add + '枚（' + before + '→' + after + '）'); }catch(e){}
+      renderInvTable();
+    });
   });
 }
 function labCell(p, i){
@@ -3030,9 +3080,45 @@ function renderImportAllPanel(){
   go.disabled = false;
   go.textContent = 'この内容で入れる（'+list.length+'商品 '+ts+'本'+(cn? '／予約 '+cn+'件を取り置きに' : '')+'）';
 }
+/* ★2026-08-20 こちらも二重よけ。押した瞬間に最新の在庫を読み直し、
+   画面に出ている輸入予定と食い違っていたら入れずに止める（ひろみさん指示）。
+   ★この見張りを外さないでください。 */
+function impFetchFreshIncoming(){
+  return fetch(GAS_URL + '?action=loadAllData&skip=productLabels&t=' + Date.now(), {cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var lt = (d && d.data && Array.isArray(d.data.lots)) ? d.data.lots : null;
+      if(!lt) return null;
+      var m = {};
+      lt.forEach(function(l){ if(l && l.status === 'incoming') m[l.pid] = (m[l.pid] || 0) + (parseInt(l.stock,10) || 0); });
+      return m;
+    })
+    .catch(function(){ return null; });
+}
 function doImportAll(){
   var list = importAllList();
   if(!list.length){ closeImportAllPanel(); return; }
+  var go = document.getElementById('imp-go'); if(go) go.disabled = true;
+  impFetchFreshIncoming().then(function(fresh){
+    if(go) go.disabled = false;
+    if(fresh){
+      var ng = list.filter(function(x){ return (fresh[x.pid] || 0) !== x.inc; });
+      if(ng.length){
+        alert('ほかの画面で先に入れられたようです。\n\n'
+          + ng.slice(0,5).map(function(x){ return '・' + x.name + '：この画面 ' + x.inc + '本／いま ' + (fresh[x.pid]||0) + '本'; }).join('\n')
+          + (ng.length>5 ? '\n…ほか' + (ng.length-5) + '件' : '')
+          + '\n\n二重には入れていません。画面を新しくしてから、もう一度お試しください。');
+        closeImportAllPanel();
+        if(typeof loadAllDataFromGAS === 'function') loadAllDataFromGAS(); else location.reload();
+        return;
+      }
+    } else {
+      if(!confirm('⚠ 最新の在庫を確かめられませんでした（通信）。\n\nもう1人が先に入れていないか、声をかけてから進めてください。\n\nこのまま進めますか？')) { closeImportAllPanel(); return; }
+    }
+    doImportAllApply(list);
+  });
+}
+function doImportAllApply(list){
   /* ★2026-08-18 誰を取り置きに変えるかは、在庫を入れる「前」に決める
      （impSimLots が「入れたあと」を仮に作って判定しているため。あとで呼ぶと二重に数える） */
   var conv = { go:[], stay:[] };

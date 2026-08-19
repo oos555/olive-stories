@@ -136,6 +136,17 @@ const logS = [];
 box.labDeductForProduct(setP, 3, logS);
 eq('⑦ セット3個 → セットのラベルが3枚減る', LAB.qty(setP, 0), 17);
 
+/* ── ⑧ 2人が同時に開いても二重に入らない見張り（2026-08-20 ひろみさん指示） ── */
+eq('⑧ ラベルの📥は押す前に最新を読み直す', master.indexOf('function labFetchFresh') >= 0, true);
+eq('⑧ 食い違ったら入れずに止める',         master.indexOf('二重には入れていません') >= 0, true);
+eq('⑧ 連打よけがある',                     master.indexOf('btns[b].disabled = true') >= 0, true);
+eq('⑧ 輸入の一気入れも読み直す',           master.indexOf('function impFetchFreshIncoming') >= 0, true);
+eq('⑧ 在庫を動かす本体が分かれている',     master.indexOf('function doImportAllApply') >= 0, true);
+eq('⑧ ボタンは今までどおり doImportAll を呼ぶ', (master.match(/onclick="doImportAll\(\)"/g)||[]).length, 1);
+eq('⑧ 読み直せなかったときは声かけを促す', master.indexOf('もう1人が先に入れていないか、声をかけて') >= 0, true);
+eq('⑧ 統合マスタＮに無い bust() を使っていない', master.indexOf('bust(') >= 0, false);
+eq('⑧ 読み直しは統合マスタＮのやり方（&t=）', master.indexOf("action=loadProducts&t=") >= 0, true);
+
 /* ── ⑧ 玄関のアラート（50枚を切ったら出す） ── */
 const genkan = fs.readFileSync(P_('home.html'), 'utf8');
 eq('⑧ 玄関に受け口がある',       genkan.indexOf('window.__oosLabelLow') >= 0, true);

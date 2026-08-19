@@ -7,7 +7,7 @@ const src = H.read('master.html');
 const NAMES = ['findProduct','findProductBySku','nextId','addLog','isActiveDefect','moveToDiscard',
   'reservedByPidCache','computeStockNumbers','computeAvailable','lotStatusFor','bucketAdjustLots','defectAdjust',
   'discardHave','discardFrom','discardSrcLabel','discBackHave','discBackAll','renderDiscardDst',
-  'discBackDstLabel','restoreFromDiscard','setBucketDirect','applyReport','importAllList','doImportAll',
+  'discBackDstLabel','restoreFromDiscard','setBucketDirect','applyReport','importAllList','doImportAll','doImportAllApply',
   'buildHoldsFromOrders'];
 
 let code = '';
@@ -231,7 +231,9 @@ eq('輸入 前 輸入予定 24',  n.incoming,     24);
 const li = box.importAllList();
 eq('輸入 一覧 フリー 18', li[0].free, 18);
 eq('輸入 一覧 予約 6',    li[0].pre,  6);
-box.doImportAll();
+/* ★2026-08-20 二重よけ（最新の読み直し）が入ったので、在庫を動かす本体を直接呼ぶ。
+   読み直しは通信なのでテストでは動かせない。見張りが消えていないかは下で別に確かめる。 */
+box.doImportAllApply(box.importAllList());
 n = N();
 eq('輸入 後 棚の良品 63',           n.cur.avail,    63);
 eq('輸入 後 販売可能 53',           n.cur.sellable, 53);

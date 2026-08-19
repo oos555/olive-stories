@@ -19,7 +19,7 @@ function ok(l, cond){ if(cond) pass++; else { fail++; fails.push(l); } }
 /* ══════ 統合マスタＮ側 ══════ */
 const NAMES = ['findProduct','findProductBySku','nextId','addLog','isActiveDefect',
   'reservedByPidCache','computeStockNumbers','computeAvailable','lotStatusFor','bucketAdjustLots',
-  'importAllList','doImportAll','undoImportAll','undoImportConv','buildHoldsFromOrders',
+  'importAllList','doImportAll','doImportAllApply','undoImportAll','undoImportConv','buildHoldsFromOrders',
   'impSimLots','impPreLeft','impReservedOrders','impHoldsWith','impNeedsOf',
   'impConvertPlan','impApplyConvert','impOrderWho','impOrderLines'];
 
@@ -102,7 +102,8 @@ eq('②下見だけでは予約が動かない',     b.preQty,     80);
 
 /* ── ③ 押したあとの数字（モックの「押したあと」の行） ────────── */
 setup();
-box.doImportAll();
+/* ★2026-08-20 二重よけが入ったので、在庫を動かす本体を直接呼ぶ */
+box.doImportAllApply(box.importAllList());
 let c = n1();
 eq('③押したあと 棚の良品',   c.cur.avail,    180);
 eq('③押したあと 販売可能数', c.cur.sellable, 120);
