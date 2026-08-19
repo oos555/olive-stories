@@ -271,6 +271,7 @@ try{
   vm.runInContext(H.cutVar(pkSrc2, 'PRODUCTS'), D.ctx);
   vm.runInContext(H.cutVar(pkSrc2, 'CTYPE_BADGE'), D.ctx);
   vm.runInContext("var COMPANY_WEBSITE='x'; var COMPANY_EMAIL='y'; var PRICE_MASTER=[];", D.ctx);
+  vm.runInContext(H.cutVar(pkSrc2, 'BULK_UPGRADE_BOXES'), D.ctx);
   ['esc','findProduct','lineTotal','recipientAddressBlock','findProductBySku','defaultTaxRateForGroup',
    'taxRateForSku','effectiveCustomerType','lineTierType','priceForSku','invoiceNeedsAmount','buildInvoiceHtml']
     .forEach(n => vm.runInContext(H.cut(pkSrc2, n), D.ctx));
@@ -308,7 +309,12 @@ try{
   eq('⑤ 「破損による返品の際は」と書く', h.indexOf('破損による返品の際は') >= 0, true);
   eq('⑤ ギフトの案内は決めた文言', h.indexOf('大切な人にお贈りする最高のギフトをご用意しています') >= 0, true);
   eq('⑤ 休業日の一文は入れない', h.indexOf('お休みをいただいております') < 0, true);
-  eq('⑤ 印鑑（社判）は出さない', h.indexOf('alt="社判"') < 0, true);
+  eq('⑤ 一般のお客様には印鑑（社判）を出さない', h.indexOf('alt="社判"') < 0, true);
+  /* ★2026-08-19 ひろみさん指示：卸のお客様には社印が必須 */
+  const hOroshi = D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"wholesale1", enclosedDoc:"納品書兼請求書"}));
+  eq("⑤ 卸のお客様には社印を押す", hOroshi.indexOf("alt=\"社判\"") >= 0, true);
+  const hRt = D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"納品書兼請求書"}));
+  eq("⑤ RTのお客様にも社印を押す", hRt.indexOf("alt=\"社判\"") >= 0, true);
   eq('⑤ お振込先に色の背景を付けない（倉庫が白黒で刷れるように）',
      H.read('oos-doc.js').indexOf('class="invoice-doc-note" style="background:#f7f5f0"') < 0, true);
 }catch(e){ fails.push('⑤ 書類を作れませんでした: ' + e.message); fail++; }
