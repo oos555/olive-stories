@@ -7004,11 +7004,24 @@ function buildSlipHtml(o){
   html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(o.customerType==='rt'
     ? '<div style="margin-top:6px;background:#eef4f9;border:2px solid #1f4a6d;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#1f4a6d">🏨 RTのため、ギフトでも金額の入った書類（'+esc(encDoc)+'）を必ず入れてください</div>'
     : (_isGiftSlip?'<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#a32d2d">🎁 ギフトのため、金額の入った書類は入れないでください</div>':''))+'</div>';
+  /* ★2026-08-19 ひろみさん指示：パンフレット以外の書類を入れるときは、
+     LINEを送る前に中身を確認できるようにする。倉庫Ｄの確認画面（読むだけ）を別の窓で開く。
+     ★このボタンを消さないでください */
+  if(encDoc && encDoc !== 'なし'){
+    html += '<div class="no-print" style="margin:-4px 0 10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
+      + '<button class="btn-sm" style="background:#eef4f9;border:2px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:8px 14px;font-size:13.5px" onclick="openDocPreview(\''+o.id+'\')">👀 '+esc(encDoc)+'の中身を見る</button>'
+      + '<span style="font-size:12.5px;color:#57534e">LINEで倉庫へ送る前に、この目で確かめられます（別の窓が開きます）</span></div>';
+  }
   html += '<div class="slip-section-title no-print">出荷時の備考（プレゼント追加・パンフレット同封など）</div>';
   html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input-'+o.id+'" value="'+(o.shipNote||'').replace(/"/g,'&quot;')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:7px 10px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px"><button class="btn-sm" onclick="saveShipNote(\''+o.id+'\')">保存</button></div>';
   if(o.shipNote) html += '<div class="alert-bar alert-warn"><strong>📦 出荷時の備考：</strong>'+o.shipNote+'</div>';
   html += '</div>';
   return html;
+}
+/* ★2026-08-19 同梱する書類の中身を、倉庫Ｄの確認画面（読むだけ）で開く。
+   倉庫が印刷するのと同じ画面なので、見たものと入るものが必ず一致します。 */
+function openDocPreview(orderId){
+  window.open(OOS_PICKUP_URL + '?id=' + encodeURIComponent(orderId) + '&doc=1', '_blank');
 }
 function saveShipNote(orderId){
   const o = orders.find(x=>x.id===orderId);

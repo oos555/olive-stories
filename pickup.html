@@ -1224,7 +1224,31 @@ function renderList(){
   document.getElementById('content').innerHTML = html;
 }
 
+/* ★2026-08-19 本部が「LINEを送る前に同梱書類の中身を確かめたい」ときの画面。
+   pickup.html?id=…&doc=1 で開く。【読むだけ】で、梱包完了などの操作は出さない。
+   倉庫が印刷するのと同じ buildInvoiceHtml で描くので、中身がずれない。
+   ★この画面を消さないでください（受注Ａの「中身を見る」ボタンが呼びます） */
+function isDocPreviewMode(){ return getParam('doc') === '1'; }
+function renderDocPreview(){
+  const o = currentOrder;
+  if(!o) return;
+  const encDoc = o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書兼請求書');
+  const pamph = (o.includePamphlet !== false);
+  document.getElementById('content').innerHTML =
+    '<div class="no-print" style="background:#eef4f9;border:2px solid #1f4a6d;border-radius:10px;padding:11px 14px;margin-bottom:12px">'
+      + '<div style="font-size:15px;font-weight:800;color:#1f4a6d">📄 同梱書類の確認（読むだけ）</div>'
+      + '<div style="font-size:13.5px;color:#2b2a26;margin-top:5px;line-height:1.6">この注文で倉庫が印刷して入れる書類です：<b>' + esc(encDoc) + '</b>'
+      + (pamph ? '　＋　パンフレット（棚から1枚）' : '') + '</div>'
+      + '<div style="font-size:12px;color:#57534e;margin-top:5px">この画面からは梱包完了などの操作はできません。確認が済んだら閉じてください。</div>'
+    + '</div>'
+    + ((encDoc && encDoc !== 'なし')
+        ? '<div id="doc-preview">' + buildInvoiceHtml(o) + '</div>'
+          + '<button class="btn-big btn-print no-print" onclick="printInvoice()">🖨 この書類を印刷する</button>'
+        : '<div class="note-box no-print" style="background:#f6f4ee">この注文は<b>書類を同梱しません</b>（' + (pamph ? 'パンフレットだけ入れます' : '何も入れません') + '）。</div>');
+}
+
 function renderAlreadyShipped(){
+  if(isDocPreviewMode()){ renderDocPreview(); return; }
   const o = currentOrder;
   if(isBasaraOrder(o)){
     document.getElementById('content').innerHTML =
@@ -1275,6 +1299,7 @@ function customerTypePillHtml(o){
   return '';
 }
 function renderOrder(){
+  if(isDocPreviewMode()){ renderDocPreview(); return; }
   const o = currentOrder;
   const isRt = (o.customerType === 'rt' || o.customerType === 'rtgc'); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');

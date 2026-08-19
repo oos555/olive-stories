@@ -210,6 +210,16 @@ eq('④ バサラのメール取込は「同梱書類なし」を選んだ形',
    idxSrc.indexOf("cb.checked = (cb.getAttribute('data-doc')==='none')") >= 0, true);
 eq('④ 出荷依頼書の表示も、空なら「納品書兼請求書」',
    idxSrc.indexOf("const encDoc = o.enclosedDoc || (_isBasara ? 'なし' : '納品書兼請求書');") >= 0, true);
+/* ★2026-08-19 LINEを送る前に同梱書類の中身を確認できること（ひろみさん指示） */
+const pkSrc = H.read('pickup.html');
+eq('④ 受注Ａに「中身を見る」ボタンがある', idxSrc.indexOf('の中身を見る</button>') >= 0, true);
+eq('④ そのボタンは倉庫Ｄの確認画面を開く', idxSrc.indexOf("'?id=' + encodeURIComponent(orderId) + '&doc=1'") >= 0, true);
+eq('④ 書類なしのときはボタンを出さない', idxSrc.indexOf("if(encDoc && encDoc !== 'なし'){") >= 0, true);
+eq('④ 倉庫Ｄに確認だけの画面がある', pkSrc.indexOf('function renderDocPreview()') >= 0, true);
+const _docFn = pkSrc.slice(pkSrc.indexOf('function renderDocPreview()'), pkSrc.indexOf('function renderAlreadyShipped()'));
+eq('④ 確認画面は倉庫と同じ関数で書類を描く', _docFn.indexOf('buildInvoiceHtml(o)') >= 0, true);
+eq('④ 確認画面には梱包完了ボタンを出さない', _docFn.indexOf('completeOrder') < 0, true);
+
 eq('④ 倉庫Ｄでも、空なら「納品書兼請求書」を印刷する',
    H.read('pickup.html').indexOf("const encDoc = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
 
