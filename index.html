@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-03">
+<meta name="oos-version" content="2026-08-19-04">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -6799,10 +6799,26 @@ function notifySelectedOrders(){
 function renderSlipSelect(){
   const sel = document.getElementById('slip-select');
   const current = sel.value;
-  const pending = orders.filter(o=>o.status==='pending');
+  /* ★2026-08-19 ひろみさん指示：【倉庫へ送信ずみの受注は出さない】。
+     もう手配が終わった人まで並ぶと、まだ送っていない人が分からなくなるため。
+     ★notified を無視して全部出す形に戻さないでください。
+     送信ずみの受注を見たいときは「受注一覧」から開きます。 */
+  const machi = orders.filter(function(o){ return o.status==='pending' && !o.notified; });
   sel.innerHTML = '<option value="">出荷依頼書を作成する受注を選択...</option>' +
-    pending.map(o=>'<option value="'+o.id+'">'+o.num+'　'+(o.recipientName||o.client)+'</option>').join('');
-  if(current) sel.value = current;
+    machi.map(o=>'<option value="'+o.id+'">'+o.num+'　'+(o.recipientName||o.client)+'</option>').join('');
+  if(current && machi.some(function(o){ return o.id===current; })) sel.value = current;
+  /* まだ送っていない件数と、送信ずみを外していることを、その場に出す */
+  var note = document.getElementById('slip-select-note');
+  if(!note){
+    note = document.createElement('div');
+    note.id = 'slip-select-note';
+    note.className = 'no-print';
+    note.style.cssText = 'font-size:12px;color:#57534e;margin:-6px 0 10px;line-height:1.6';
+    if(sel.parentNode && sel.parentNode.parentNode) sel.parentNode.parentNode.insertBefore(note, sel.parentNode.nextSibling);
+  }
+  var sumi = orders.filter(function(o){ return o.status==='pending' && o.notified; }).length;
+  note.innerHTML = 'まだ倉庫へ送っていない受注：<b>' + machi.length + '件</b>'
+    + (sumi ? '　／　倉庫へ送信ずみの ' + sumi + '件はここに出していません（受注一覧から開けます）' : '');
 }
 function recipientAddressBlock(o){
   if(o.isCompany){

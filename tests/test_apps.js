@@ -255,6 +255,10 @@ eq("⑤ 2品目からは行を足して入れる",
    idxSrc.indexOf("if(i > 0 && typeof addRecipientLine === 'function') addRecipientLine(card.id);") >= 0, true);
 eq("⑤ p.lines[0] だけを見る書き方が残っていない",
    idxSrc.indexOf("const ln = p.lines[0] || {};") < 0, true);
+/* ★2026-08-19 出荷依頼書の選択に、倉庫へ送信ずみの受注を出さない（ひろみさん指示） */
+eq("⑤ 出荷依頼書の選択は未送信だけ", idxSrc.indexOf("o.status==='pending' && !o.notified") >= 0, true);
+eq("⑤ 送信ずみを全部出す書き方が残っていない", idxSrc.indexOf("const pending = orders.filter(o=>o.status==='pending');") < 0, true);
+eq("⑤ 何件待っているか画面に出す", idxSrc.indexOf("まだ倉庫へ送っていない受注：") >= 0, true);
 /* ★2026-08-19 ゆかさん要望：RT取込の②で商品を何品でも足せること */
 eq("⑤ RT取込に「＋ 商品を追加」がある", idxSrc.indexOf("＋ 商品を追加") >= 0, true);
 eq("⑤ 商品行は番号で作る（1品固定でない）", idxSrc.indexOf("function rtLineRowHtml(ln, i)") >= 0, true);
