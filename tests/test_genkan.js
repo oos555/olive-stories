@@ -44,7 +44,7 @@ function build(){
 
 /* ── ① 見張っているものが一覧に出るか ─────────────────── */
 let { box, dom } = build();
-eq('① 見張っているものの数', box.OOS_MIHARI.length, 7);   /* ★2026-08-18 賞味期限8か月／★2026-08-19 送り状No.未入力を追加。減らしてはいけない */
+eq('① 見張っているものの数', box.OOS_MIHARI.length, 8);   /* ★2026-08-18 賞味期限8か月／★2026-08-19 送り状No.未入力／★2026-08-20 裏ラベル50枚切れ を追加。減らしてはいけない */
 box.renderMihari();
 const html = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('① 一覧が画面に作られる', html.length > 0, true);
@@ -57,7 +57,7 @@ eq('① 「ここに書いていないものは見張っていません」と断
 
 /* ── ② 0件でも「0件」と出す（＝安心の根拠になる）───────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0 };
+box.window.__oosMihariCount = { zaikoNashi:0, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0, labelLow:0 };
 box.renderMihari();
 const h2 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('② 0件のときも「0件」と数字が出る', (h2.match(/0件/g)||[]).length >= 5, true);
@@ -65,7 +65,7 @@ eq('② 「確認中…」は消えている', h2.indexOf('確認中…') < 0, t
 
 /* ── ③ 件数があれば赤い数字で出る ───────────────────── */
 ({ box, dom } = build());
-box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0 };
+box.window.__oosMihariCount = { zaikoNashi:2, notHikare:0, holdOver:0, holdSoon:0, overdue:0, expSoon:0, trackNone:0, labelLow:0 };
 box.renderMihari();
 const h3 = (dom.made['oos-mihari'] || {}).innerHTML || '';
 eq('③ 2件と出る', h3.indexOf('2件') >= 0, true);
@@ -136,6 +136,10 @@ eq('⑧ 在庫があれば出さない',     box.OOS_ZAIKO.isWaitingForStock(o,{
   eq('⑨ 2027-01 の形も読める', !!ebox.oosParseExpiry('2027-01'), true);
   eq('⑨ 2028.9.15 の形も読める', !!ebox.oosParseExpiry('2028.9.15'), true);
   eq('⑨ 見張り一覧に入っている', src.indexOf("key:'expSoon'") >= 0, true);
+  /* ★2026-08-20 裏ラベル（シール）が50枚を切ったら玄関に出す（ひろみさん指示） */
+  eq('⑩ 裏ラベルも見張り一覧に入っている', src.indexOf("key:'labelLow'") >= 0, true);
+  eq('⑩ 裏ラベルの受け口がある',           src.indexOf('window.__oosLabelLow') >= 0, true);
+  eq('⑩ 裏ラベルもアラートに混ぜている',   src.indexOf('.concat(window.__oosLabelLow||[])') >= 0, true);
   eq('⑨ 見本にも入っている', src.indexOf('⏳ 賞味期限まで残り8か月を切った商品') >= 0, true);
   eq('⑨ お庭に混ぜている', src.indexOf('__oosExpSoon') >= 0, true);
 })();

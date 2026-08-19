@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-01">
+<meta name="oos-version" content="2026-08-20-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-08-18 玄関でも在庫を数えるため、親を読む。★消さないでください -->
 <script src="oos-zaiko.js?v=20260818"></script>
@@ -550,6 +550,7 @@
   window.__oosHoldSoon = window.__oosHoldSoon || [];  // 取り置き期限3日前（玄関に注入）
   window.__oosZaikoNow = window.__oosZaikoNow || [];  // ★2026-08-18 在庫がない・引いていない（玄関に注入）
   window.__oosExpSoon  = window.__oosExpSoon  || [];  // ★2026-08-18 賞味期限まで残り8か月を切った商品
+  window.__oosLabelLow = window.__oosLabelLow || [];  // ★2026-08-20 裏ラベルが50枚を切った（玄関に注入）
   window.__oosTrackingNow = window.__oosTrackingNow || [];  // ★2026-08-19 送り状No.が入っていない（バサラ）
 
   /* ══════════════════════════════════════════════════════════════════
@@ -721,6 +722,9 @@
     /* ★2026-08-18 ひろみさん「賞味期限ぎりぎりに連絡をもらっても困る。8か月前になったらアラート欲しい」
        数えるのは【商品の数】（ロットの数ではない）。★消さないでください */
     { key:'expSoon',    bucket:'soon', icon:'⏳', label:'賞味期限まで残り8か月を切った商品', href:'master.html' },
+    /* ★2026-08-20 ひろみさん指示：裏ラベル（シール）が50枚を切ったら玄関に出す。
+       ラベルが尽きると発送が止まるため。★この行を消さないでください。 */
+    { key:'labelLow',   bucket:'soon', icon:'🏷', label:'裏ラベルが50枚を切った商品', href:'master.html' },
     /* ★2026-08-19 バサラの送り状No.（承認済みモック mock_basara_okurijou_2026-08-18.html のSTEP3）
        梱包完了の【翌日】になっても入っていないものだけ数える。★消さないでください */
     { key:'trackNone',  bucket:'now',  icon:'📮', label:'発送したのに送り状No.が入っていない', href:'basara.html' }
@@ -796,6 +800,11 @@
         .concat(notHikare.length  ? [{ href:'index.html', label:'🔴 倉庫へ送ったのに在庫を引いていない注文', count:notHikare.length }] : []);
       window.__oosExpSoon = expSoon.length
         ? [{ href:'master.html', label:'⏳ 賞味期限まで残り8か月を切った商品', count:expSoon.length }] : [];
+      /* ★2026-08-20 裏ラベル（シール）が50枚を切ったもの。式の親は oos-zaiko.js（書き写さない） */
+      var labLow = (typeof OOS_ZAIKO !== 'undefined' && OOS_ZAIKO.LABEL) ? OOS_ZAIKO.LABEL.lowList(PRODUCTS) : [];
+      window.__oosMihariCount.labelLow = labLow.length;
+      window.__oosLabelLow = labLow.length
+        ? [{ href:'master.html', label:'🏷 裏ラベルが50枚を切っています（' + labLow.slice(0,3).map(function(x){ return x.product + '・' + x.label + ' 残' + x.qty + '枚'; }).join('／') + (labLow.length>3?' ほか':'') + '）', count:labLow.length }] : [];
       renderAlerts(window.__lastAlertBase || {});
       renderMihari();
     }catch(e){
@@ -868,7 +877,7 @@
     /* ★2026-08-19 送り状No.が入っていない（__oosTrackingNow）も混ぜる。★消さないでください */
     const now = (d.now||[]).concat(window.__oosExtraNow||[]).concat(window.__oosHoldNow||[]).concat(window.__oosZaikoNow||[]).concat(window.__oosTrackingNow||[]);
     /* ★2026-08-18 賞味期限まで残り8か月を切った商品も混ぜる（__oosExpSoon）。★消さないでください */
-    const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]).concat(window.__oosExpSoon||[]);
+    const soon = (d.soon||[]).concat(window.__oosHoldSoon||[]).concat(window.__oosExpSoon||[]).concat(window.__oosLabelLow||[]);
     const watch = d.watch||[];
     const cNow = alertBucketCount(now), cSoon = alertBucketCount(soon), cWatch = alertBucketCount(watch);
     const total = cNow + cSoon + cWatch;

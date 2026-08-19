@@ -230,8 +230,59 @@
     return m;
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+     ★裏ラベル（シール）2026-08-20 ひろみさん指示
+       オイル1本につき1枚使う。ラベルが尽きると出荷が止まる。
+       置き場所は【商品マスタの列】。**在庫データ(lots)には絶対に入れない**
+       （下の numbers() は知らない status を「棚の良品」に足すので、
+         ラベルの枚数がオイルの販売可能数に混ざってしまう）。
+       ★ここが親。統合マスタＮも受注Ａも、この式を書き写さずに呼ぶだけにする。
+     ══════════════════════════════════════════════════════════════════ */
+  var LABEL_KEYS = [
+    { name:'ラベル１名前', qty:'ラベル１枚数', inc:'ラベル１予定数', day:'ラベル１予定日' },
+    { name:'ラベル２名前', qty:'ラベル２枚数', inc:'ラベル２予定数', day:'ラベル２予定日' }
+  ];
+  var LABEL_WARN = 50;                       /* ★50枚を切ったら警告（ひろみさん指定） */
+  function labelRaw(p, key){
+    if(!p) return '';
+    if(p[key] !== undefined && p[key] !== null) return String(p[key]);
+    if(p.extras && p.extras[key] !== undefined && p.extras[key] !== null) return String(p.extras[key]);
+    return '';
+  }
+  function labelToday(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function labelName(p, i){ return labelRaw(p, LABEL_KEYS[i].name).trim(); }
+  function labelQty(p, i){ return num(labelRaw(p, LABEL_KEYS[i].qty)); }
+  function labelIncoming(p, i){ return num(labelRaw(p, LABEL_KEYS[i].inc)); }
+  function labelDay(p, i){ return labelRaw(p, LABEL_KEYS[i].day).trim().slice(0,10); }
+  /* ★名前が空の欄は「その商品では使わない」＝減らない・警告も出ない */
+  function labelUsed(p, i){ return labelName(p, i) !== ''; }
+  function labelIsLow(p, i){ return labelUsed(p, i) && labelQty(p, i) < LABEL_WARN; }
+  function labelIsDue(p, i){ var d = labelDay(p, i); return !!d && labelIncoming(p, i) > 0 && d <= labelToday(); }
+  /* 50枚を切っているラベルの一覧（玄関・統合マスタＮが使う） */
+  function labelLowList(products){
+    var out = [];
+    /* ★2026-08-20 ひろみさん指示：セット商品にもラベルは要る（セット用の箱ラベル等）。
+       ★セット商品を外さないでください。 */
+    (products || []).forEach(function(p){
+      if(!p) return;
+      for(var i = 0; i < LABEL_KEYS.length; i++){
+        if(labelIsLow(p, i)) out.push({ sku:p.sku, product:p.name, index:i, label:labelName(p, i),
+                                        qty:labelQty(p, i), incoming:labelIncoming(p, i), day:labelDay(p, i) });
+      }
+    });
+    return out;
+  }
+
   global.OOS_ZAIKO = {
     VERSION: VERSION,
+    LABEL: {
+      KEYS: LABEL_KEYS, WARN: LABEL_WARN, today: labelToday, raw: labelRaw,
+      name: labelName, qty: labelQty, incoming: labelIncoming, day: labelDay,
+      used: labelUsed, isLow: labelIsLow, isDue: labelIsDue, lowList: labelLowList
+    },
     isActiveDefect: isActiveDefect,
     numbers: numbers,
     availableForSku: availableForSku,

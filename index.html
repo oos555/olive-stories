@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-05">
+<meta name="oos-version" content="2026-08-20-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5882,12 +5882,57 @@ function deductStockForOrder(o){
         }
       }
       else deductFromLots(prod.id, cond==='old' ? 'old' : 'new', t.qty, log);
+      /* ★2026-08-20 裏ラベル（シール）も、オイルと同じタイミング・同じ本数だけ減らす。
+         ひろみさん：「オイル一つに対して一枚ラベルが使われていく」
+         ・使うかどうかは「名前が入っているか」で決まる（親 OOS_ZAIKO.LABEL.used）
+         ・不良品でも旧ロットでも、瓶が出ていく以上ラベルは使うので同じように減らす
+         ・0枚を下回っても止めない（ひろみさん：無いときは倉庫に作成を依頼するため）。
+           マイナスのまま記録して、あとで気づけるようにする
+         ★log に残すので、キャンセル・🗑発注から消したときは自動で戻る */
+      if(typeof labDeductForProduct === 'function') labDeductForProduct(prod, t.qty, log);
     });
+    /* ★2026-08-20 セット商品は、中身（構成品）のラベルに加えて、セットそのもののラベルも使う
+       （セット用の箱ラベルなど。ひろみさん指示）。名前が空なら減らない。 */
+    if(p.isSet && typeof labDeductForProduct === 'function') labDeductForProduct(p, totalQty, log);
   });
   o.stockLog = log;
 }
+/* ── 裏ラベルを減らす／戻す（式の親は oos-zaiko.js。ここは呼ぶだけ） ── */
+var __labDirty = {};
+function labDeductForProduct(prod, qty, log){
+  if(!prod || !qty || typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.LABEL) return;
+  OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){
+    if(!OOS_ZAIKO.LABEL.used(prod, i)) return;          // 名前が空＝この商品では使わない
+    labSetQty(prod, i, OOS_ZAIKO.LABEL.qty(prod, i) - qty);
+    if(log) log.push({ kind:'label', pid:prod.id, i:i, qty:qty });
+  });
+}
+function labSetQty(prod, i, v){
+  var key = OOS_ZAIKO.LABEL.KEYS[i].qty, s = String(v);
+  prod[key] = s; prod.extras = prod.extras || {}; prod.extras[key] = s;
+  __labDirty[prod.id] = true;
+}
+/* 減らした（戻した）ラベルを商品マスタへ保存する。★在庫データ(lots)には触らない */
+function labPersistDirty(){
+  var ids = Object.keys(__labDirty); if(!ids.length) return;
+  __labDirty = {};
+  ids.forEach(function(pid){
+    var p = findProduct(pid); if(!p || !p.sku) return;
+    var prod = { sku: p.sku };
+    OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){ prod[k.qty] = String(OOS_ZAIKO.LABEL.qty(p, i)); });
+    try{
+      fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }),
+                       headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    }catch(e){}
+  });
+}
 function restoreStockForOrder(o){
   (o.stockLog||[]).forEach(function(e){
+    if(e.kind==='label'){                    /* ★2026-08-20 裏ラベルも戻す */
+      var lp = findProduct(e.pid);
+      if(lp && typeof OOS_ZAIKO !== 'undefined' && OOS_ZAIKO.LABEL) labSetQty(lp, e.i, OOS_ZAIKO.LABEL.qty(lp, e.i) + (e.qty||0));
+      return;
+    }
     if(e.kind==='lot'){
       const l = lots.find(x=>x.id===e.id);
       if(l) l.stock = (l.stock||0) + e.qty;
@@ -5932,6 +5977,19 @@ function undoStockForOrder(o){
 function oosZaikoSelfCheck(){
   var fails = [];
   var snapL = JSON.stringify(lots), snapD = JSON.stringify(defects);
+  /* ★2026-08-20 見張りは本物の関数を動かすので、裏ラベルの枚数も控えて必ず戻す
+     （控えないと、画面を開くたびに見張りがラベルを減らしてしまう） */
+  var snapLab = [];
+  try{
+    if(typeof OOS_ZAIKO !== 'undefined' && OOS_ZAIKO.LABEL){
+      PRODUCTS.forEach(function(pp){
+        OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){
+          snapLab.push({ p:pp, key:k.qty, v: (pp[k.qty] !== undefined ? pp[k.qty] : undefined),
+                         ev: (pp.extras ? pp.extras[k.qty] : undefined) });
+        });
+      });
+    }
+  }catch(e){}
   try{
     var p = null;
     for(var i=0;i<PRODUCTS.length;i++){ if(PRODUCTS[i] && PRODUCTS[i].sku && !PRODUCTS[i].isSet){ p = PRODUCTS[i]; break; } }
@@ -6003,6 +6061,12 @@ function oosZaikoSelfCheck(){
   }finally{
     try{ var rl=JSON.parse(snapL); lots.length=0; rl.forEach(function(x){lots.push(x);}); }catch(e){}
     try{ var rd=JSON.parse(snapD); defects.length=0; rd.forEach(function(x){defects.push(x);}); }catch(e){}
+    /* ★2026-08-20 裏ラベルの枚数を必ず元に戻す（見張りが在庫を減らしたままにしない） */
+    try{ snapLab.forEach(function(r){
+      if(r.v === undefined) delete r.p[r.key]; else r.p[r.key] = r.v;
+      if(r.p.extras){ if(r.ev === undefined) delete r.p.extras[r.key]; else r.p.extras[r.key] = r.ev; }
+    }); }catch(e){}
+    try{ __labDirty = {}; }catch(e){}   /* 見張りのぶんは保存しない */
   }
   if(fails.length) oosZaikoRuleAlarm(fails);
   return fails;
@@ -6055,6 +6119,7 @@ function buildStockDeltas(list, mode){
 // 増減リストを、取り直した最新データに適用して保存する
 function persistStockDeltas(deltas){
   if(!gasSyncEnabled) return;
+  labPersistDirty();               /* ★2026-08-20 裏ラベルも同じタイミングで保存する */
   if(!deltas || !deltas.length) return;
   fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(data){
     var freshLots, freshDefects, gotFresh = false;

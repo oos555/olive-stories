@@ -476,7 +476,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-20-01">
+<meta name="oos-version" content="2026-08-20-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2469,40 +2469,20 @@ function deleteOldLot(lotId){
      ・在庫の数字は人が押したときだけ動かす、というこのシステムの決めごとに合わせた
      （倉庫からの不良報告・輸入の一気入れも、すべて人が押してから動く）
    ══════════════════════════════════════════════════════════════════════ */
-const LAB_KEYS = [
-  { name:'ラベル１名前', qty:'ラベル１枚数', inc:'ラベル１予定数', day:'ラベル１予定日' },
-  { name:'ラベル２名前', qty:'ラベル２枚数', inc:'ラベル２予定数', day:'ラベル２予定日' }
-];
-const LAB_WARN = 50;                       /* ★50枚を切ったら警告（ひろみさん指定） */
-function labToday(){
-  var d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-function labRaw(p, key){
-  if(!p) return '';
-  if(p[key] !== undefined && p[key] !== null) return String(p[key]);
-  if(p.extras && p.extras[key] !== undefined && p.extras[key] !== null) return String(p.extras[key]);
-  return '';
-}
-function labName(p, i){ return labRaw(p, LAB_KEYS[i].name).trim(); }
-function labQty(p, i){ return parseInt(labRaw(p, LAB_KEYS[i].qty), 10) || 0; }
-function labInc(p, i){ return parseInt(labRaw(p, LAB_KEYS[i].inc), 10) || 0; }
-function labDay(p, i){ return labRaw(p, LAB_KEYS[i].day).trim().slice(0,10); }
-function labUsed(p, i){ return labName(p, i) !== ''; }          /* 名前が空＝使わない */
-function labDue(p, i){ var d = labDay(p,i); return !!d && labInc(p,i) > 0 && d <= labToday(); }
-function labLow(p, i){ return labUsed(p,i) && labQty(p,i) < LAB_WARN; }
-/* 玄関などから使う：50枚を切っているラベルの一覧 */
-function labLowList(){
-  var out = [];
-  (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).forEach(function(p){
-    if(!p || p.isSet) return;
-    [0,1].forEach(function(i){
-      if(labLow(p,i)) out.push({ sku:p.sku, product:p.name, label:labName(p,i), qty:labQty(p,i),
-                                 incoming:labInc(p,i), day:labDay(p,i) });
-    });
-  });
-  return out;
-}
+/* ★式は親（oos-zaiko.js の OOS_ZAIKO.LABEL）にしかありません。ここは呼ぶだけ。
+   ★同じ式をここに書き写さないでください（親を変えたらまたずれるため）。 */
+const LAB_KEYS = OOS_ZAIKO.LABEL.KEYS;
+const LAB_WARN = OOS_ZAIKO.LABEL.WARN;
+function labToday(){ return OOS_ZAIKO.LABEL.today(); }
+function labRaw(p, key){ return OOS_ZAIKO.LABEL.raw(p, key); }
+function labName(p, i){ return OOS_ZAIKO.LABEL.name(p, i); }
+function labQty(p, i){ return OOS_ZAIKO.LABEL.qty(p, i); }
+function labInc(p, i){ return OOS_ZAIKO.LABEL.incoming(p, i); }
+function labDay(p, i){ return OOS_ZAIKO.LABEL.day(p, i); }
+function labUsed(p, i){ return OOS_ZAIKO.LABEL.used(p, i); }
+function labDue(p, i){ return OOS_ZAIKO.LABEL.isDue(p, i); }
+function labLow(p, i){ return OOS_ZAIKO.LABEL.isLow(p, i); }
+function labLowList(){ return OOS_ZAIKO.LABEL.lowList(typeof PRODUCTS !== 'undefined' ? PRODUCTS : []); }
 async function labSaveFields(pid, obj, msg){
   var p = findProduct(pid); if(!p || !p.sku) return;
   var prod = { sku: p.sku };
@@ -2544,7 +2524,8 @@ function labArrive(pid, i){
   });
 }
 function labCell(p, i){
-  if(!p || p.isSet) return '<td class="c-lab">' + ivNum('-') + '</td>';
+  /* ★2026-08-20 ひろみさん指示：セット商品にもラベルの枠を出す（ハイフンにしない） */
+  if(!p) return '<td class="c-lab">' + ivNum('-') + '</td>';
   var e = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
   var nm = labName(p,i), q = labQty(p,i), inc = labInc(p,i), day = labDay(p,i);
   var used = labUsed(p,i), low = labLow(p,i), due = labDue(p,i);
