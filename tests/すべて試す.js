@@ -37,7 +37,8 @@ const FILES = [
   ['test_uriage_list.js',  '売上一覧に載せるタイミング'],
   ['test_yunyu_free.js',   '輸入のフリー（予定−予約）'],
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
-  ['test_kienai.js',      '通しの動きと「消えない」の見張り']
+  ['test_kienai.js',      '通しの動きと「消えない」の見張り'],
+  ['test_shorui.js',      '倉庫Ｄの書類（A4縦・社内の言葉なし）']
 ];
 
 let total = 0, ngFiles = [];
