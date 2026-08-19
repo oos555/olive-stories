@@ -315,7 +315,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-19-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -769,7 +769,9 @@ function buildInvoiceHtml(o){
      （納品書／納品書兼請求書／請求書／領収書…）。「納品書」で固定しないでください。
      体裁は見積・請求書Ｍで決めたもの（oos-doc.js）を使います。 */
   const docName = (o.enclosedDoc && o.enclosedDoc !== 'なし') ? String(o.enclosedDoc).split(' ＋ ')[0] : '納品書';
-  const withAmount = invoiceNeedsAmount(docName);
+  /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
+     お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
+  const withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
   const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
 
   var items = [], unknown = false;
@@ -1345,6 +1347,14 @@ function renderDocPreview(){
       + '<div style="font-size:13.5px;color:#2b2a26;margin-top:5px;line-height:1.6">この注文で倉庫が印刷して入れる書類です：<b>' + esc(encDoc) + '</b>'
       + (pamph ? '　＋　パンフレット（棚から1枚）' : '') + '</div>'
       + '<div style="font-size:12px;color:#57534e;margin-top:5px">この画面からは梱包完了などの操作はできません。確認が済んだら閉じてください。</div>'
+      /* ★2026-08-19 「RT発注伝票＋納品書」のように、この画面で出せない紙が含まれるときは、そう書く */
+      + (String(encDoc).indexOf('RT発注伝票') >= 0
+          ? '<div style="margin-top:7px;background:#fff;border:1px solid #1f4a6d;border-radius:6px;padding:7px 10px;font-size:12.5px;color:#1f4a6d">'
+            + '📌 <b>RT発注伝票</b>は、リゾートトラスト様の端末から出る紙です。この画面には出せません（倉庫Ｄで「① RT発注伝票を入れた」として確認します）。<br>'
+            + 'ここに出ているのは <b>納品書</b> の中身です。'
+            + (o.extraDocUrl ? '　<a href="' + esc(o.extraDocUrl) + '" target="_blank" rel="noopener" style="font-weight:700">追加の説明PDFを開く</a>' : '')
+            + '</div>'
+          : '')
     + '</div>'
     + ((encDoc && encDoc !== 'なし')
         ? '<div id="doc-preview">' + buildInvoiceHtml(o) + '</div>'
