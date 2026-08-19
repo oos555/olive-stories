@@ -28,9 +28,12 @@
   function yen(n){ return '¥' + Math.round(n||0).toLocaleString('ja-JP'); }
 
   /* 会社の名前・住所・登録番号・社判・ロゴ（Ｍの docCompanyBlockHtml と同じ） */
-  function companyBlockHtml(){
+  function companyBlockHtml(opt){
+    /* ★2026-08-19 ひろみさん指示：一般のお客様あての納品書に印鑑（社判）は入れない。
+       必要な書類だけ {seal:true} で出す。★勝手に常時表示に戻さないでください */
+    opt = opt || {};
     var h = '<div style="margin-top:8px;font-weight:700;position:relative">'+esc(COMPANY_INFO.name);
-    h += '<img src="data:image/png;base64,'+SEAL_B64+'" alt="社判" style="position:absolute;right:-14px;top:-16px;width:66px;height:66px;opacity:.95">';
+    if(opt.seal) h += '<img src="data:image/png;base64,'+SEAL_B64+'" alt="社判" style="position:absolute;right:4px;top:-8px;width:62px;height:62px;opacity:.95">';
     h += '</div>';
     h += '<div>〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
     h += '<div>登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
@@ -71,7 +74,7 @@
     h += '</div>';
     h += '<div style="text-align:right;font-size:11px;line-height:1.7">';
     (opt.metaRight||[]).forEach(function(line){ h += '<div>'+line+'</div>'; });
-    h += companyBlockHtml();
+    h += companyBlockHtml({ seal: !!opt.seal });
     h += '</div></div>';
     if(opt.lead) h += '<div style="margin-bottom:10px;font-size:13px">'+esc(opt.lead)+'</div>';
 
@@ -100,8 +103,12 @@
       if(sub10){ h += '<tr><td>10%対象（税抜）</td><td>'+yen(sub10)+'</td></tr><tr><td>消費税（10%）</td><td>'+yen(tax10)+'</td></tr>'; }
       h += '<tr class="doc2-total"><td>合計（税込）</td><td>'+yen(total)+'</td></tr>';
       h += '</table></div>';
+      /* ★2026-08-19 ひろみさん指示：※印の断り書きは、合計（税込）のすぐ下に置く。
+         いちばん下の備考に混ぜないでください（読み手がすぐ結びつけられるように） */
+      if(sub8) h += '<div style="text-align:right;font-size:11px;color:#57534e;margin:-10px 0 14px">※印は軽減税率対象商品です。</div>';
       var bank = BANK_ACCOUNTS[opt.bankIndex||0] || BANK_ACCOUNTS[0];
-      h += '<div class="invoice-doc-note" style="background:#f7f5f0"><strong>【お振込先】</strong><br>'
+      /* ★2026-08-19 ひろみさん指示：倉庫が白黒で印刷できるよう、色の背景は付けない */
+      h += '<div class="invoice-doc-note"><strong>【お振込先】</strong><br>'
          + esc(bank.bank)+' '+esc(bank.branch)+'　'+esc(bank.type)+'　'+esc(bank.number)+'<br>'
          + '口座名義：'+esc(bank.holder)+'<br>'
          + '<span style="color:#57534e">恐れ入りますが、お振込手数料はお客様のご負担にてお願いいたします。</span></div>';
