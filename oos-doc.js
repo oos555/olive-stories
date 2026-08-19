@@ -50,7 +50,7 @@
        画面用の飾りだったが、PDFにすると枠まで写り、用紙のふちで切れて見えるため。
        ★border を戻さないでください（ひろみさん「へんな枠がでてる」） */
     const NOFRAME = '.invoice-doc{border:none!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}';
-    const PRINT_TIGHT = "/* ★2026-08-19 A4縦1枚に収めるための印刷用の詰め。\n   pickup.html 側に書くと、このファイルがあとから読み込まれて上書きしてしまうため、\n   ここ（いちばん最後）に置いています。★消さないでください（1枚に収まらなくなります） */\n@media print{\n  /* ★2026-08-19 倉庫Ｄの画面は .app{max-width:520px} でスマホ幅に絞ってある。\n     印刷のときにもこれが効いていて、書類が真ん中に細く出ていた（ひろみさん指摘）。\n     印刷のときだけ、この幅の制限を外して紙いっぱいに使う。★消さないでください */\n  .app{max-width:none!important;width:100%!important;padding:0!important;margin:0!important}\n  #invoice-print-area,#doc-preview{max-width:none!important;width:100%!important;padding:0!important;margin:0!important}\n  .invoice-doc{max-width:none!important;width:100%!important}\n  .invoice-doc{font-size:11pt!important}\n  .doc2-title{font-size:19pt!important;margin-bottom:4mm!important}\n  .invoice-doc-top{margin-bottom:4mm!important;font-size:11pt!important}\n  .doc2-grand{margin-bottom:4mm!important}\n  .doc2-grand .amt{font-size:22pt!important}\n  .doc2-items{font-size:10pt!important;margin:4mm 0!important}\n  .doc2-items th{padding:4px 6px!important}\n  .doc2-items td{padding:5px 6px!important}\n  .doc2-breakdown{margin:0 0 3mm!important}\n  .invoice-doc-note{font-size:9pt!important;line-height:1.55!important;padding:5px 8px!important;margin-top:3mm!important}\n}";
+    const PRINT_TIGHT = "/* ★2026-08-19 A4縦1枚に収めるための印刷用の詰め。\n   pickup.html 側に書くと、このファイルがあとから読み込まれて上書きしてしまうため、\n   ここ（いちばん最後）に置いています。★消さないでください（1枚に収まらなくなります） */\n@media print{\n  /* ★2026-08-19 商品が多いときの詰め（実機で刷って決めた3段階）。\n     5品以上／9品以上／13品以上。★この3段階を消すと2枚になります */\n  .doc-dense1{font-size:10pt!important}\n  .doc-dense1 .doc2-title{font-size:17pt!important;margin-bottom:3mm!important}\n  .doc-dense1 .doc2-grand{margin-bottom:3mm!important}\n  .doc-dense1 .doc2-grand .amt{font-size:19pt!important}\n  .doc-dense1 .doc2-items{font-size:9pt!important;margin:3mm 0!important}\n  .doc-dense1 .doc2-items th{padding:3px 5px!important}\n  .doc-dense1 .doc2-items td{padding:3px 5px!important}\n  .doc-dense1 .invoice-doc-note{font-size:8pt!important;line-height:1.45!important;padding:4px 7px!important;margin-top:2mm!important}\n  .doc-dense1 .invoice-doc-top{margin-bottom:3mm!important;font-size:10pt!important}\n  .doc-dense2{font-size:8pt!important}\n  .doc-dense2 .doc2-title{font-size:14pt!important;margin-bottom:1.5mm!important}\n  .doc-dense2 .doc2-grand .amt{font-size:17pt!important}\n  .doc-dense2 .doc2-items{font-size:7.5pt!important;margin:1.5mm 0!important}\n  .doc-dense2 .doc2-items th{padding:2px 4px!important}\n  .doc-dense2 .doc2-items td{padding:2px 4px!important}\n  .doc-dense2 .invoice-doc-note{font-size:7pt!important;line-height:1.35!important;padding:3px 5px!important;margin-top:1mm!important}\n  .doc-dense2 .invoice-doc-top{margin-bottom:2mm!important;font-size:9pt!important}\n  .doc-dense2 .doc2-grand{margin-bottom:2mm!important}\n  .doc-dense3{font-size:7pt!important}\n  .doc-dense3 .doc2-title{font-size:14pt!important;margin-bottom:2mm!important}\n  .doc-dense3 .doc2-grand .amt{font-size:15pt!important}\n  .doc-dense3 .doc2-items{font-size:6.5pt!important;margin:1mm 0!important}\n  .doc-dense3 .doc2-items th{padding:1px 3px!important}\n  .doc-dense3 .doc2-items td{padding:1px 3px!important}\n  .doc-dense3 .invoice-doc-note{font-size:6.5pt!important;line-height:1.3!important;padding:2px 4px!important;margin-top:1mm!important}\n  .doc-dense3 .invoice-doc-top{margin-bottom:1.5mm!important;font-size:8pt!important}\n  .doc-dense3 .doc2-grand{margin-bottom:1.5mm!important}\n  /* ★2026-08-19 倉庫Ｄの画面は .app{max-width:520px} でスマホ幅に絞ってある。\n     印刷のときにもこれが効いていて、書類が真ん中に細く出ていた（ひろみさん指摘）。\n     印刷のときだけ、この幅の制限を外して紙いっぱいに使う。★消さないでください */\n  .app{max-width:none!important;width:100%!important;padding:0!important;margin:0!important}\n  #invoice-print-area,#doc-preview{max-width:none!important;width:100%!important;padding:0!important;margin:0!important}\n  .invoice-doc{max-width:none!important;width:100%!important}\n  .invoice-doc{font-size:11pt!important}\n  .doc2-title{font-size:19pt!important;margin-bottom:4mm!important}\n  .invoice-doc-top{margin-bottom:4mm!important;font-size:11pt!important}\n  .doc2-grand{margin-bottom:4mm!important}\n  .doc2-grand .amt{font-size:22pt!important}\n  .doc2-items{font-size:10pt!important;margin:4mm 0!important}\n  .doc2-items th{padding:4px 6px!important}\n  .doc2-items td{padding:5px 6px!important}\n  .doc2-breakdown{margin:0 0 3mm!important}\n  .invoice-doc-note{font-size:9pt!important;line-height:1.55!important;padding:5px 8px!important;margin-top:3mm!important}\n}";
     st.textContent = CSS + NOFRAME + PRINT_TIGHT + '\n@media print{ .invoice-doc{max-width:100%!important;width:100%!important;margin:0!important;border:none!important;border-radius:0!important;padding:11mm 12mm!important} }';
     document.head.appendChild(st);
   }
@@ -69,7 +69,10 @@
     });
     var total = sub8 + sub10 + tax8 + tax10;
 
-    var h = '<div class="invoice-doc">';
+    /* ★2026-08-19 品数が多いと1枚に収まらないので、印刷のときだけ詰める印を付ける
+       （実機で164通り刷って確かめた結果、6品以上ではみ出していました）。★消さないでください */
+    var dense = items.length >= 11 ? ' doc-dense3' : (items.length >= 8 ? ' doc-dense2' : (items.length >= 5 ? ' doc-dense1' : ''));
+    var h = '<div class="invoice-doc' + dense + '">';
     h += '<div class="doc2-title">'+esc(opt.title||'納品書')+'</div>';
     h += '<div class="invoice-doc-top">';
     h += '<div><div style="font-size:15px;font-weight:700">'+(opt.addressee||'')+'</div>';
@@ -112,8 +115,11 @@
          いちばん下の備考に混ぜないでください（読み手がすぐ結びつけられるように） */
       if(sub8) h += '<div style="text-align:right;font-size:11px;color:#57534e;margin:-10px 0 14px">※印は軽減税率対象商品です。</div>';
       var bank = BANK_ACCOUNTS[opt.bankIndex||0] || BANK_ACCOUNTS[0];
+      /* ★2026-08-19 ゆかさん報告：納品書に振込先を出さない。
+         お振込先は【請求書・領収書を兼ねるとき】だけ。★戻さないでください */
+      if(opt.showBank === false) bank = null;
       /* ★2026-08-19 ひろみさん指示：倉庫が白黒で印刷できるよう、色の背景は付けない */
-      h += '<div class="invoice-doc-note"><strong>【お振込先】</strong><br>'
+      if(bank) h += '<div class="invoice-doc-note"><strong>【お振込先】</strong><br>'
          + esc(bank.bank)+' '+esc(bank.branch)+'　'+esc(bank.type)+'　'+esc(bank.number)+'<br>'
          + '口座名義：'+esc(bank.holder)+'<br>'
          + '<span style="color:#57534e">恐れ入りますが、お振込手数料はお客様のご負担にてお願いいたします。</span></div>';

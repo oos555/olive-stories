@@ -270,6 +270,13 @@ eq("⑤ pickup.html の版が今日のものになっている", /content="2026-
 eq("⑤ version.json と pickup.html の版が一致", JSON.parse(H.read("version.json")).pages["pickup.html"] === (/name="oos-version" content="([^"]+)"/.exec(pkSrc2)||[])[1], true);
 eq("⑤ version.json と index.html の版が一致", JSON.parse(H.read("version.json")).pages["index.html"] === (/name="oos-version" content="([^"]+)"/.exec(idxSrc)||[])[1], true);
 eq('⑤ 印刷用の詰めが体裁ファイルの最後にある', H.read('oos-doc.js').indexOf('const PRINT_TIGHT') >= 0, true);
+/* ★2026-08-19 実機で164通り刷って分かったこと：商品が多いと2枚になっていた。
+   商品の数で3段階に詰める仕掛けを入れ、11品までA4縦1枚に収まることを実機で確認。
+   ★この3段階を消すと2枚に戻ります */
+eq('⑤ 商品が多いときの詰めが3段階ある',
+   H.read('oos-doc.js').indexOf('.doc-dense1') >= 0 && H.read('oos-doc.js').indexOf('.doc-dense2') >= 0 && H.read('oos-doc.js').indexOf('.doc-dense3') >= 0, true);
+eq('⑤ 品数で詰め方を切り替えている', H.read('oos-doc.js').indexOf('items.length >= 11') >= 0, true);
+eq('⑤ 12品以上は2枚になると先に知らせる', pkSrc2.indexOf('A4で2枚</b>になります') >= 0, true);
 eq('⑤ 外枠を出さない', H.read('oos-doc.js').indexOf('const NOFRAME') >= 0, true);
 /* ★2026-08-19 書類をPDFファイルとして保存できること（ひろみさん「ダウンロードできるスタイルに」） */
 eq('⑤ PDFで保存するボタンがある', pkSrc2.indexOf('📥 PDFで保存する') >= 0, true);
@@ -341,6 +348,15 @@ try{
   eq("⑤ 卸のお客様には社印を押す", hOroshi.indexOf("alt=\"社判\"") >= 0, true);
   const hRt = D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"納品書兼請求書"}));
   eq("⑤ RTのお客様にも社印を押す", hRt.indexOf("alt=\"社判\"") >= 0, true);
+  /* ★2026-08-19 ゆかさん報告：納品書に振込先を出さない／RTは三井住友（法人） */
+  eq("⑤ RTの納品書にお振込先を出さない",
+     D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"RT発注伝票＋納品書"})).indexOf("お振込先") < 0, true);
+  eq("⑤ RTでも金額は出す（RTのお約束）",
+     D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"RT発注伝票＋納品書"})).indexOf("合計（税込）") >= 0, true);
+  eq("⑤ RTの請求書は三井住友（法人口座）",
+     D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"納品書兼請求書"})).indexOf("三井住友銀行") >= 0, true);
+  eq("⑤ RTの請求書に三菱UFJを出さない",
+     D.box.buildInvoiceHtml(Object.assign({}, ord, {customerType:"rt", enclosedDoc:"納品書兼請求書"})).indexOf("三菱UFJ") < 0, true);
   eq('⑤ お振込先に色の背景を付けない（倉庫が白黒で刷れるように）',
      H.read('oos-doc.js').indexOf('class="invoice-doc-note" style="background:#f7f5f0"') < 0, true);
 }catch(e){ fails.push('⑤ 書類を作れませんでした: ' + e.message); fail++; }
