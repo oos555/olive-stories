@@ -50,7 +50,8 @@
        画面用の飾りだったが、PDFにすると枠まで写り、用紙のふちで切れて見えるため。
        ★border を戻さないでください（ひろみさん「へんな枠がでてる」） */
     const NOFRAME = '.invoice-doc{border:none!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}';
-    st.textContent = CSS + NOFRAME + '\n@media print{ .invoice-doc{max-width:100%!important;width:100%!important;margin:0!important;border:none!important;border-radius:0!important;padding:11mm 12mm!important} }';
+    const PRINT_TIGHT = "/* ★2026-08-19 A4縦1枚に収めるための印刷用の詰め。\n   pickup.html 側に書くと、このファイルがあとから読み込まれて上書きしてしまうため、\n   ここ（いちばん最後）に置いています。★消さないでください（1枚に収まらなくなります） */\n@media print{\n  .invoice-doc{font-size:11pt!important}\n  .doc2-title{font-size:19pt!important;margin-bottom:4mm!important}\n  .invoice-doc-top{margin-bottom:4mm!important;font-size:11pt!important}\n  .doc2-grand{margin-bottom:4mm!important}\n  .doc2-grand .amt{font-size:22pt!important}\n  .doc2-items{font-size:10pt!important;margin:4mm 0!important}\n  .doc2-items th{padding:4px 6px!important}\n  .doc2-items td{padding:5px 6px!important}\n  .doc2-breakdown{margin:0 0 3mm!important}\n  .invoice-doc-note{font-size:9pt!important;line-height:1.55!important;padding:5px 8px!important;margin-top:3mm!important}\n}";
+    st.textContent = CSS + NOFRAME + PRINT_TIGHT + '\n@media print{ .invoice-doc{max-width:100%!important;width:100%!important;margin:0!important;border:none!important;border-radius:0!important;padding:11mm 12mm!important} }';
     document.head.appendChild(st);
   }
 

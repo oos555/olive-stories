@@ -240,6 +240,11 @@ eq('⑤ 印刷はA4縦', pkSrc2.indexOf('@page{size:A4 portrait') >= 0, true);
 eq('⑤ 紙の余白は0（ヘッダー・フッターを出さないため）', pkSrc2.indexOf('@page{size:A4 portrait;margin:0}') >= 0, true);
 eq('⑤ 余白は書類側のpaddingで作る', H.read('oos-doc.js').indexOf('padding:11mm 12mm!important') >= 0, true);
 eq('⑤ 本文は11pt', pkSrc2.indexOf('.invoice-doc{font-size:11pt}') >= 0, true);
+/* ★2026-08-19 QRコードは出さない（ひろみさん「QRはつけてない」）／
+   印刷用の詰めは oos-doc.js のいちばん最後に置く（pickup.html 側だと上書きされて2枚になる） */
+eq('⑤ QRコードを出さない', pkSrc2.indexOf('id="gift-qr"') < 0, true);
+eq('⑤ 印刷用の詰めが体裁ファイルの最後にある', H.read('oos-doc.js').indexOf('const PRINT_TIGHT') >= 0, true);
+eq('⑤ 外枠を出さない', H.read('oos-doc.js').indexOf('const NOFRAME') >= 0, true);
 /* ★2026-08-19 書類をPDFファイルとして保存できること（ひろみさん「ダウンロードできるスタイルに」） */
 eq('⑤ PDFで保存するボタンがある', pkSrc2.indexOf('📥 PDFで保存する') >= 0, true);
 eq('⑤ PDFにする道具を読み込んでいる', pkSrc2.indexOf('jspdf.umd.min.js') >= 0 && pkSrc2.indexOf('html2canvas.min.js') >= 0, true);
