@@ -134,12 +134,22 @@
     }
     const TARGET_W = 800;   // A4縦に組み直す横幅（px）
     const SCALE = 2;        // きれいさ
-    const saved = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding };
+    /* ★2026-08-19 PDFにすると外側の枠が写り、はしが切れて見えるので、
+       写しをとるあいだだけ枠・角丸・影・余白を外す（終わったら元に戻す）。★戻す処理を消さないでください */
+    const saved = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding,
+                    border: el.style.border, borderRadius: el.style.borderRadius,
+                    boxShadow: el.style.boxShadow, background: el.style.background, margin: el.style.margin };
     el.style.width = TARGET_W + 'px';
     el.style.maxWidth = 'none';
     el.style.padding = '0';
+    el.style.border = 'none';
+    el.style.borderRadius = '0';
+    el.style.boxShadow = 'none';
+    el.style.background = '#ffffff';
+    el.style.margin = '0';
     el.getBoundingClientRect();
     const fullH = el.offsetHeight;
+    const fullW = Math.max(TARGET_W, Math.ceil(el.scrollWidth));   // はしが切れないよう、実際の横幅で写す
     const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
     const pdfW = pdf.internal.pageSize.getWidth();
     const pdfH = pdf.internal.pageSize.getHeight();
@@ -149,8 +159,8 @@
     try{
       const canvas = await html2canvas(el, {
         scale: SCALE, backgroundColor:'#ffffff', useCORS:true,
-        width: TARGET_W, height: fullH, x:0, y:0,
-        windowWidth: TARGET_W, windowHeight: fullH, scrollX:0, scrollY:0
+        width: fullW, height: fullH, x:0, y:0,
+        windowWidth: fullW, windowHeight: fullH, scrollX:0, scrollY:0
       });
       const img = canvas.toDataURL('image/png');
       let imgW = usableW;
@@ -165,6 +175,11 @@
       el.style.width = saved.width;
       el.style.maxWidth = saved.maxWidth;
       el.style.padding = saved.padding;
+      el.style.border = saved.border;
+      el.style.borderRadius = saved.borderRadius;
+      el.style.boxShadow = saved.boxShadow;
+      el.style.background = saved.background;
+      el.style.margin = saved.margin;
     }
   }
 
