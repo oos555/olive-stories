@@ -188,7 +188,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 @media print{
   .no-print{display:none!important}
   body{background:#fff}
-  @page{size:A4 landscape;margin:0}
+  /* ★2026-08-19 ふだんの印刷は【A4 縦】。ここが landscape 固定だったため、納品書が
+     2枚に分かれて出ていました（倉庫の印刷代が倍になる）。★portrait を消さないでください。
+     のし（横）を刷るときだけ、printNoshi が一時的に横向きの設定を足します。 */
+  @page{size:A4 portrait;margin:10mm}
+  .invoice-doc{font-size:10pt}
+  .doc2-title{font-size:20pt;margin-bottom:6mm}
+  .doc2-items{font-size:9.5pt}
+  .invoice-doc-note{font-size:8.5pt;line-height:1.6;padding:6px 9px;margin-top:6px}
   #noshi-print-area{display:block}
   #noshi-print-area .noshi-sheet{width:297mm;height:210mm;aspect-ratio:auto;page-break-after:avoid}
   #noshi-print-area .noshi-title{font-size:44pt;top:9%}
@@ -278,6 +285,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
 <script src="oos-zaiko.js?v=20260818"></script>
+<!-- ★2026-08-19 お客様にお渡しする書類（納品書・納品書兼請求書）の体裁。
+     見積・請求書Ｍで決めた見た目をそのまま使うための共有ファイル。★消さないでください -->
+<script src="oos-doc.js?v=20260819"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -556,6 +566,7 @@ async function ensureLotsLoaded(){
       });
       LOTS_BY_PID = map; LOTS_LOADED = true;
     }
+    if(data && data.data && Array.isArray(data.data.priceMaster)) PRICE_MASTER = data.data.priceMaster;
   }catch(e){}
 }
 function resolveProduct(l){
@@ -706,41 +717,103 @@ function basaraOrderNoOf(o){
   return m ? String(m[1]).trim() : ((o&&o.basaraOrderNo)||'');
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   単価と消費税の出し方。★売上Ｃ（billing.html）からそのまま写しています。
+   金額が2つのアプリで食い違うと請求の事故になるため、
+   tests/test_apps.js が「売上Ｃと同じか」を毎回見張っています。
+   ★ここだけ書き換えないでください（直すときは billing.html と両方）。
+   価格マスタに単価が無い商品は 0 が返ります。そのときは金額を出さず「―」と出します。
+   ══════════════════════════════════════════════════════════════════════ */
+var PRICE_MASTER = [];
+const BULK_UPGRADE_BOXES = 6; // 卸①のお客様が、同じ商品を1回の注文でこの箱数以上買うと、その行だけ自動的に卸②価格になる
+function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+function defaultTaxRateForGroup(group){
+  return (group==='ギフト箱・備品' || group==='その他') ? 0.10 : 0.08;
+}
+function taxRateForSku(sku){
+  const p = PRICE_MASTER.find(x=>x.sku===sku);
+  if(p && p.taxRate!=null && p.taxRate!=='') return parseFloat(p.taxRate);
+  const prod = findProductBySku(sku);
+  return defaultTaxRateForGroup(prod?prod.group:'');
+}
+function effectiveCustomerType(customerType, boxes){
+  if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
+  return customerType;
+}
+function lineTierType(o, l){
+  if(l && l.giftType==='w1') return 'wholesale1';
+  if(l && l.giftType==='w2') return 'wholesale2';
+  return effectiveCustomerType(o.customerType, (l&&l.boxes)||0);
+}
+function priceForSku(sku, customerType){
+  const p = PRICE_MASTER.find(x=>x.sku===sku);
+  if(!p) return 0;
+  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };
+  const key = map[customerType] || 'priceGeneral';
+  return parseFloat(p[key])||0;
+}
+/* この書類に金額を入れるか（請求書・領収書を兼ねるときだけ入れる） */
+function invoiceNeedsAmount(encDoc){
+  var d = String(encDoc||'');
+  return d.indexOf('請求書') >= 0 || d.indexOf('領収書') >= 0;
+}
+
 function buildInvoiceHtml(o){
+  /* ★2026-08-19 表題は、受注Ａで選んだ同梱書類の名前をそのまま出す
+     （納品書／納品書兼請求書／請求書／領収書…）。「納品書」で固定しないでください。
+     体裁は見積・請求書Ｍで決めたもの（oos-doc.js）を使います。 */
+  const docName = (o.enclosedDoc && o.enclosedDoc !== 'なし') ? String(o.enclosedDoc).split(' ＋ ')[0] : '納品書';
+  const withAmount = invoiceNeedsAmount(docName);
   const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
-  let html = '<div class="invoice">';
-  html += '<div class="invoice-title" style="margin-bottom:.6rem">納　品　書'+badge+'</div>';
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">';
-  html += '<div class="invoice-box" style="flex:1.3;margin-bottom:0"><div class="invoice-box-label">お届け先</div>'+recipientAddressBlock(o)+' 様　〒'+esc(o.zip)+' '+esc(o.addr)+'　'+esc(o.tel)+'</div>';
-  html += '<div class="invoice-box" style="flex:1;margin-bottom:0">注文番号：'+esc(o.num)+'　発行日：'+new Date().toLocaleDateString('ja-JP')+'</div>';
-  html += '</div>';
-  html += '<div style="font-size:11.5px;color:#2b2a26;margin:0 0 8px">この度はご購入いただき、誠にありがとうございます。</div>';
-  if(o.senderName){
-    html += '<div class="invoice-box" style="padding:6px 10px;font-size:12px">送り主：'+esc(o.senderName)+'　'+esc(o.senderTel)+'　〒'+esc(o.senderZip)+' '+esc(o.senderAddr)+'</div>';
+
+  var items = [], unknown = false;
+  (o.lines||[]).forEach(function(l){
+    var prod = findProduct(l.productId);
+    var sku = prod ? prod.sku : '';
+    var qty = lineTotal(l);
+    var unit = (withAmount && sku) ? priceForSku(sku, lineTierType(o, l)) : 0;
+    if(withAmount && !unit) unknown = true;
+    items.push({
+      name: l.productName,
+      qty: qty,
+      qtyText: qty + '本' + (l.boxes ? '（バラ'+l.bottles+'＋'+l.boxes+'箱）' : ''),
+      unitPrice: unit,
+      amount: unit * qty,
+      taxRate: sku ? taxRateForSku(sku) : 0.08
+    });
+  });
+
+  var notes = [];
+  notes.push('<div style="font-weight:700;margin-bottom:2px">■ キャンセル・変更について</div>'
+    + '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございます。'
+    + '<div style="font-weight:700;margin:5px 0 2px">■ 破損していた場合</div>'
+    + 'ご迷惑をおかけし、大変申し訳ございません。到着後5日以内に、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡ください。'
+    + '到着から1週間以上経過したもの、および商品を廃棄された後のご連絡は、状態を確認できないため対応いたしかねる場合がございます。'
+    + '破損以外のお客様都合による変更は承れません。返品の際は返品先倉庫住所を別途お知らせいたしますので、<strong>弊社宛には返品なさらないようご注意ください</strong>。');
+  var foot = (withAmount ? '※印は軽減税率対象商品です。<br>' : '')
+    + '<strong>🎁 ギフトのご用命はこちら</strong>　複数のお届け先へのギフト発送も承っております。'
+    + '<span id="gift-qr" style="float:right"></span><br>'
+    + '<span style="color:#57534e">お問い合わせ：'+COMPANY_EMAIL+'　／　'+COMPANY_WEBSITE+'　／　※水・土・日・祝日はお休みをいただいております</span>';
+  notes.push(foot);
+
+  var html = OOS_DOC.buildDoc({
+    title: docName + (badge ? '' : ''),
+    addressee: recipientAddressBlock(o) + '　様',
+    zip: o.zip, addr: o.addr, tel: o.tel,
+    metaRight: ['発行日：' + new Date().toLocaleDateString('ja-JP'), '注文番号：' + esc(o.num)],
+    lead: withAmount
+      ? '下記の通りお納めいたします。本書はご請求書を兼ねております。'
+      : '下記の通りお納めいたします。この度はお買い上げいただき、誠にありがとうございます。',
+    items: items,
+    showAmount: withAmount,
+    notes: notes
+  });
+  if(unknown){
+    html += '<div class="no-print" style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:6px">⚠ 単価が登録されていない商品があります（統合マスタＮの価格マスタをご確認ください）。金額は「―」で出しています。</div>';
   }
-  html += '<table class="invoice-table"><thead><tr><th>商品名</th><th>数量</th></tr></thead><tbody>';
-  (o.lines||[]).forEach(function(l){ html += '<tr><td>'+esc(l.productName)+'</td><td>'+lineTotal(l)+'本'+(l.boxes?'（バラ'+esc(l.bottles)+'＋'+esc(l.boxes)+'箱）':'')+'</td></tr>'; });
-  html += '</tbody></table>';
-  if(o.useRecycle) html += '<span class="badge b-recycle">♻ リサイクル箱</span>';
-  html += '<div class="invoice-notice">';
-  html += '<div style="font-weight:700;margin-bottom:3px">■キャンセル・変更について</div>';
-  html += '商品到着後5日以内にご連絡ください（弊社側に不備があった場合も同様です）。5日を超えますと、対応いたしかねる場合がございますので、あらかじめご了承ください。<br>';
-  html += '<div style="font-weight:700;margin:5px 0 3px">■破損していた場合</div>';
-  html += 'ご迷惑をおかけし、大変申し訳ございません。お手数をおかけいたしますが、商品到着後は速やかに（到着後5日以内に）ご連絡ください。配送会社がお分かりの場合は、配送会社へご連絡いただいても構いません。恐れ入りますが、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡をお願いいたします。<br>';
-  html += 'なお、商品到着から1週間以上経過したもの、および商品を廃棄された後のご連絡につきましては、状態を確認できる証拠が残っていないため、配送会社・弊社のいずれも対応いたしかねる場合がございます。あらかじめご了承ください。<br>';
-  html += 'なお、破損以外のお客様都合による変更は承ることができません。あらかじめご了承ください。<br><br>';
-  html += '返品の際は、返品先倉庫住所を別途お知らせいたしますので、<strong>弊社宛には返品なさらないようご注意ください</strong>。';
-  html += '</div>';
-  html += '<div style="background:#fef9f0;border:1px solid #f3d9a8;border-radius:6px;padding:8px 10px;margin:8px 0;display:flex;align-items:center;gap:8px">';
-  html += '<div style="font-size:11px"><div style="font-weight:700;color:#78350f;margin-bottom:1px">🎁 ギフトのご用命はこちら</div>複数のお届け先へのギフト発送も承っております。</div>';
-  html += '<div id="gift-qr" style="margin-left:auto"></div>';
-  html += '</div>';
-  html += '<div style="font-size:11px">';
-  html += '<div style="font-weight:700">株式会社オリーブオイル・ストーリーズ</div>';
-  html += '<div style="color:#57534e;font-size:9.5px;margin:1px 0">※水・土・日・祝日はお休みをいただいております</div>';
-  html += COMPANY_WEBSITE+'　E-mail: '+COMPANY_EMAIL;
-  html += '</div>';
-  html += '</div>';
+  if(badge){
+    html = html.replace('<div class="doc2-title">', '<div class="no-print" style="text-align:right;font-size:11px">'+badge+'</div><div class="doc2-title">');
+  }
   return html;
 }
 
@@ -827,7 +900,12 @@ function printNoshi(){
   document.getElementById('content').style.display = 'none';
   document.getElementById('inapp-banner').style.display = 'none';
   document.getElementById('noshi-print-area').style.display = 'block';
+  /* ★のしだけはA4横。印刷のあいだだけ横向きの設定を足して、終わったら外す */
+  var _land = document.createElement('style');
+  _land.textContent = '@page{size:A4 landscape;margin:0}';
+  document.head.appendChild(_land);
   window.print();
+  _land.remove();
   document.getElementById('noshi-print-area').style.display = 'none';
   document.getElementById('content').style.display = '';
   noshiPrinted = true;
@@ -868,6 +946,8 @@ async function fetchWarehouseNotes(){
     const data = await res.json();
     if(data.status==='ok' && data.data){
       if(Array.isArray(data.data.warehouseNotes)) warehouseNotes = data.data.warehouseNotes;
+      /* ★2026-08-19 納品書兼請求書の金額に使う。★消さないでください */
+      if(Array.isArray(data.data.priceMaster)) PRICE_MASTER = data.data.priceMaster;
       if(Array.isArray(data.data.lots)){
         var map = {};
         data.data.lots.forEach(function(l){ var pid=parseInt(l.pid); if(isNaN(pid)) return; if(!map[pid]) map[pid]=[]; map[pid].push({ expiry:l.expiry, status:l.status, stock:parseInt(l.stock)||0 }); });

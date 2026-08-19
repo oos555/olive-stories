@@ -223,6 +223,62 @@ eq('④ 確認画面には梱包完了ボタンを出さない', _docFn.indexOf(
 eq('④ 倉庫Ｄでも、空なら「納品書兼請求書」を印刷する',
    H.read('pickup.html').indexOf("const encDoc = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
 
+/* ══════════════════════════════════════════════════════════════════════
+   ⑤ お客様にお渡しする書類（★2026-08-19 ひろみさん指示）
+
+   ・表題は、受注Ａで選んだ同梱書類の名前をそのまま出す（「納品書」で固定しない）
+   ・請求書・領収書を兼ねるときは【金額】と【お振込先】を入れる
+   ・印刷は【A4 縦 1枚】（landscape 固定に戻すと倉庫の印刷代が倍になる）
+   ・体裁は見積・請求書Ｍで決めたもの（oos-doc.js）を使う
+   ══════════════════════════════════════════════════════════════════════ */
+const pkSrc2 = H.read('pickup.html');
+const docSrc = H.read('oos-doc.js');
+
+eq('⑤ 印刷はA4縦', pkSrc2.indexOf('@page{size:A4 portrait') >= 0, true);
+eq('⑤ 横向き固定に戻っていない', /@page\{size:A4 landscape;margin:0\}\s*\n/.test(pkSrc2), false);
+eq('⑤ のしのときだけ横にする', pkSrc2.indexOf("_land.textContent = '@page{size:A4 landscape;margin:0}'") >= 0, true);
+eq('⑤ 共有の体裁ファイルを読んでいる', pkSrc2.indexOf('oos-doc.js?v=') >= 0, true);
+eq('⑤ 体裁ファイルがある（Ｍと同じ見た目）', docSrc.indexOf('.doc2-title') >= 0 && docSrc.indexOf('.doc2-grand') >= 0, true);
+eq('⑤ 会社の登録番号が入っている', docSrc.indexOf('T9012801020687') >= 0, true);
+eq('⑤ お振込先を持っている', docSrc.indexOf('三井住友銀行') >= 0, true);
+eq('⑤ 表題は選んだ書類名から作る', pkSrc2.indexOf("String(o.enclosedDoc).split(' ＋ ')[0]") >= 0, true);
+eq('⑤ 請求書・領収書のときだけ金額を入れる',
+   pkSrc2.indexOf("return d.indexOf('請求書') >= 0 || d.indexOf('領収書') >= 0;") >= 0, true);
+eq('⑤ 単価の出し方は売上Ｃと同じ（写し）',
+   pkSrc2.indexOf("const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };") >= 0
+   && H.read('billing.html').indexOf("const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };") >= 0, true);
+eq('⑤ 箱数での卸②昇格も売上Ｃと同じ',
+   pkSrc2.indexOf('const BULK_UPGRADE_BOXES = 6;') >= 0 && H.read('billing.html').indexOf('const BULK_UPGRADE_BOXES = 6;') >= 0, true);
+
+/* 本物の関数で「納品書兼請求書」を1枚作ってみる */
+try{
+  const D = H.makeSandbox({});
+  vm.runInContext(docSrc, D.ctx);
+  vm.runInContext(H.cutVar(pkSrc2, 'PRODUCTS'), D.ctx);
+  vm.runInContext(H.cutVar(pkSrc2, 'CTYPE_BADGE'), D.ctx);
+  vm.runInContext("var COMPANY_WEBSITE='x'; var COMPANY_EMAIL='y'; var PRICE_MASTER=[];", D.ctx);
+  ['esc','findProduct','lineTotal','recipientAddressBlock','findProductBySku','defaultTaxRateForGroup',
+   'taxRateForSku','effectiveCustomerType','lineTierType','priceForSku','invoiceNeedsAmount','buildInvoiceHtml']
+    .forEach(n => vm.runInContext(H.cut(pkSrc2, n), D.ctx));
+  vm.runInContext("PRICE_MASTER = [{sku:'MEM2L', priceGeneral:24300, taxRate:0.08}];", D.ctx);
+  const pid = (D.box.PRODUCTS.find(p => p.sku === 'MEM2L') || {}).id;
+  const ord = { id:'t1', num:'TK-1', recipientName:'テスト 花子', client:'テスト 花子',
+    customerType:'general', zip:'100-0001', addr:'東京都', tel:'03-0000-0000',
+    enclosedDoc:'納品書兼請求書',
+    lines:[{ productId:pid, productName:'メメジック 2L', bottles:1, boxes:0, boxQty:1 }] };
+  const h = D.box.buildInvoiceHtml(ord);
+  eq('⑤ 表題が「納品書兼請求書」になる', /class="doc2-title">納品書兼請求書</.test(h), true);
+  eq('⑤ 単価が出る（24,300円）', h.indexOf('¥24,300') >= 0, true);
+  eq('⑤ 消費税8%が出る（1,944円）', h.indexOf('¥1,944') >= 0, true);
+  eq('⑤ 合計（税込）が出る（26,244円）', h.indexOf('¥26,244') >= 0, true);
+  eq('⑤ お振込先が出る', h.indexOf('お振込先') >= 0, true);
+  ord.enclosedDoc = '納品書';
+  const h2 = D.box.buildInvoiceHtml(ord);
+  eq('⑤ 「納品書」のときは表題も納品書', /class="doc2-title">納品書</.test(h2), true);
+  eq('⑤ 「納品書」のときは金額を出さない', h2.indexOf('ご請求金額') < 0, true);
+  eq('⑤ 「納品書」のときはお振込先を出さない', h2.indexOf('お振込先') < 0, true);
+}catch(e){ fails.push('⑤ 書類を作れませんでした: ' + e.message); fail++; }
+
 console.log('===== 4アプリ突き合わせ／不良出荷／注文番号 =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
