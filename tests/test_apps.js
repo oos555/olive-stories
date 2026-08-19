@@ -329,7 +329,9 @@ try{
 eq("⑤ 何品渡したか画面に出す",
    idxSrc.indexOf("（商品 ' + rtLines.length + ' 品）") >= 0, true);
 /* ★版の番号を上げ忘れない（今日いちばんの反省） */
-eq("⑤ pickup.html の版が今日のものになっている", /content="2026-08-19-\d\d"/.test(pkSrc2), true);
+/* ★2026-08-20 ここは日付を決め打ちしていたため、日が変わるたびに落ちて他の見張りが読めなくなった。
+   すぐ下の「version.json と pickup.html の版が一致」で版の上げ忘れは捕まえられるので、この行はやめた。
+   ★版の見張り自体を消したわけではありません（下の行が本体です）。 */
 eq("⑤ version.json と pickup.html の版が一致", JSON.parse(H.read("version.json")).pages["pickup.html"] === (/name="oos-version" content="([^"]+)"/.exec(pkSrc2)||[])[1], true);
 eq("⑤ version.json と index.html の版が一致", JSON.parse(H.read("version.json")).pages["index.html"] === (/name="oos-version" content="([^"]+)"/.exec(idxSrc)||[])[1], true);
 eq('⑤ 印刷用の詰めが体裁ファイルの最後にある', H.read('oos-doc.js').indexOf('const PRINT_TIGHT') >= 0, true);
