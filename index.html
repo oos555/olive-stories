@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-01">
+<meta name="oos-version" content="2026-08-19-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7928,12 +7928,47 @@ function readRtPdf(file){
       rtParsed = parseRtSlip(allLines);
       document.getElementById('rt-loading').style.display = 'none';
       renderRtPreview();
+      /* ★2026-08-19 ひろみさん指示：倉庫が【発注伝票と納品書の両方】を印刷して梱包する。
+         伝票PDFはこれまで読み取りに使うだけで保存されておらず、倉庫Ｄのアプリからは
+         開けなかった（メール添付では届いていた）。ここでDriveに保存して注文に付ける。
+         ★この保存を消さないでください（倉庫が伝票を刷れなくなります） */
+      rtSaveSlipToDrive();
     }).catch(function(err){
       document.getElementById('rt-loading').style.display = 'none';
       alert('伝票の読み取りに失敗しました：'+err.message);
     });
   };
   reader.readAsArrayBuffer(file);
+}
+
+/* ★2026-08-19 取り込んだ発注伝票PDFを、そのままDriveに保存して倉庫Ｄへ渡す。
+   保存できたら、画面の「追加PDF」の欄にその名前が出る（倉庫Ｄでは印刷ボタンになる）。 */
+function rtSaveSlipToDrive(){
+  if(!rtSlipPdfB64) return;
+  var empty=document.getElementById('rt-extradoc-empty'), load=document.getElementById('rt-extradoc-loading'), on=document.getElementById('rt-extradoc-on');
+  if(empty) empty.style.display='none';
+  if(on) on.style.display='none';
+  if(load) load.style.display='block';
+  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'saveExtraDoc', base64:rtSlipPdfB64, filename:(rtSlipPdfName||'RT発注伝票.pdf')}) })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(load) load.style.display='none';
+      if(res && res.status==='ok' && res.url){
+        rtExtraDocUrl = res.url; rtExtraDocName = res.name || rtSlipPdfName || 'RT発注伝票.pdf';
+        var nm=document.getElementById('rt-extradoc-name'); if(nm) nm.textContent = rtExtraDocName;
+        if(on) on.style.display='block';
+        if(typeof showSyncStatus==='function') showSyncStatus('📎 発注伝票PDFを倉庫Ｄに渡せるようにしました（' + rtExtraDocName + '）');
+      } else {
+        if(empty) empty.style.display='block';
+        if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注伝票PDFを保存できませんでした。倉庫Ｄからは開けません（メールには添付されます）');
+      }
+    })
+    .catch(function(){
+      if(load) load.style.display='none';
+      if(empty) empty.style.display='block';
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注伝票PDFの保存で通信エラー。倉庫Ｄからは開けません（メールには添付されます）');
+    });
 }
 
 // ── 追加の説明PDF（ある時だけ）：選ぶ→Driveに保存→URLを覚える ──

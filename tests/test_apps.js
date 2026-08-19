@@ -243,6 +243,14 @@ eq('⑤ 本文は11pt', pkSrc2.indexOf('.invoice-doc{font-size:11pt}') >= 0, tru
 /* ★2026-08-19 QRコードは出さない（ひろみさん「QRはつけてない」）／
    印刷用の詰めは oos-doc.js のいちばん最後に置く（pickup.html 側だと上書きされて2枚になる） */
 eq('⑤ QRコードを出さない', pkSrc2.indexOf('id="gift-qr"') < 0, true);
+/* ★2026-08-19 RT発注伝票のPDFを倉庫Ｄからも印刷できること（メールだけでなくアプリでも） */
+eq("⑤ 発注伝票PDFをDriveに保存している", idxSrc.indexOf("function rtSaveSlipToDrive()") >= 0, true);
+eq("⑤ 伝票を読み取ったあと保存を呼んでいる", idxSrc.indexOf("rtSaveSlipToDrive();") >= 0, true);
+eq("⑤ 倉庫Ｄのボタン名がRT発注伝票になっている", pkSrc2.indexOf("RT発注伝票（PDF）を開いて印刷する") >= 0, true);
+/* ★版の番号を上げ忘れない（今日いちばんの反省） */
+eq("⑤ pickup.html の版が今日のものになっている", /content="2026-08-19-\d\d"/.test(pkSrc2), true);
+eq("⑤ version.json と pickup.html の版が一致", JSON.parse(H.read("version.json")).pages["pickup.html"] === (/name="oos-version" content="([^"]+)"/.exec(pkSrc2)||[])[1], true);
+eq("⑤ version.json と index.html の版が一致", JSON.parse(H.read("version.json")).pages["index.html"] === (/name="oos-version" content="([^"]+)"/.exec(idxSrc)||[])[1], true);
 eq('⑤ 印刷用の詰めが体裁ファイルの最後にある', H.read('oos-doc.js').indexOf('const PRINT_TIGHT') >= 0, true);
 eq('⑤ 外枠を出さない', H.read('oos-doc.js').indexOf('const NOFRAME') >= 0, true);
 /* ★2026-08-19 書類をPDFファイルとして保存できること（ひろみさん「ダウンロードできるスタイルに」） */
