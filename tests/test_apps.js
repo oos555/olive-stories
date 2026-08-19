@@ -235,6 +235,11 @@ const pkSrc2 = H.read('pickup.html');
 const docSrc = H.read('oos-doc.js');
 
 eq('⑤ 印刷はA4縦', pkSrc2.indexOf('@page{size:A4 portrait') >= 0, true);
+/* ★2026-08-19 ブラウザが勝手に足す【日付・ページ名・URL】を印刷に出さない
+   （お客様に倉庫アプリのURLが渡ってしまうため）。紙の余白は0にして、書類側のpaddingで作る */
+eq('⑤ 紙の余白は0（ヘッダー・フッターを出さないため）', pkSrc2.indexOf('@page{size:A4 portrait;margin:0}') >= 0, true);
+eq('⑤ 余白は書類側のpaddingで作る', H.read('oos-doc.js').indexOf('padding:11mm 12mm!important') >= 0, true);
+eq('⑤ 本文は11pt', pkSrc2.indexOf('.invoice-doc{font-size:11pt}') >= 0, true);
 eq('⑤ 横向き固定に戻っていない', /@page\{size:A4 landscape;margin:0\}\s*\n/.test(pkSrc2), false);
 eq('⑤ のしのときだけ横にする', pkSrc2.indexOf("_land.textContent = '@page{size:A4 landscape;margin:0}'") >= 0, true);
 eq('⑤ 共有の体裁ファイルを読んでいる', pkSrc2.indexOf('oos-doc.js?v=') >= 0, true);
