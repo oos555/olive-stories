@@ -186,6 +186,33 @@ try{
   eq('③ order.html で重複した数（3,000本）', d2, 0);
 }catch(e){ fails.push('③ order.html を動かせず: ' + e.message); fail++; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   ④ 同梱書類の既定は「納品書兼請求書」か（★2026-08-19 ひろみさん指示）
+
+   ひろみさんの言葉:「納品書兼請求書を同梱したい。前に作ったのに、また消えてる」
+   原因は、既定値が「納品書」のままだったこと。新規登録・画面のリセット・編集で開いたとき、
+   いずれも「納品書」に戻るので、納品書兼請求書の指定が上書きされて消えていた。
+   ★「納品書」に戻さないでください。バサラだけは「なし」（2026-08-18 決定）。
+   ══════════════════════════════════════════════════════════════════════ */
+const idxSrc = H.read('index.html');
+
+eq('④ 登録画面で最初からチェックが入っているのは「納品書兼請求書」',
+   /value="納品書兼請求書"[^>]*checked>/.test(idxSrc), true);
+eq('④ 「納品書」には最初からチェックを入れない',
+   /value="納品書"[^>]*checked>/.test(idxSrc), false);
+eq('④ 画面をまっさらに戻したときも「納品書兼請求書」',
+   idxSrc.indexOf("x.checked = (x.value==='納品書兼請求書' && !x.getAttribute('data-doc'))") >= 0, true);
+eq('④ 受注を編集で開いたとき、空なら「納品書兼請求書」',
+   idxSrc.indexOf("var enc = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
+eq('④ バサラのカード編集は、空なら「なし」',
+   idxSrc.indexOf("o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書兼請求書')") >= 0, true);
+eq('④ バサラのメール取込は「同梱書類なし」を選んだ形',
+   idxSrc.indexOf("cb.checked = (cb.getAttribute('data-doc')==='none')") >= 0, true);
+eq('④ 出荷依頼書の表示も、空なら「納品書兼請求書」',
+   idxSrc.indexOf("const encDoc = o.enclosedDoc || (_isBasara ? 'なし' : '納品書兼請求書');") >= 0, true);
+eq('④ 倉庫Ｄでも、空なら「納品書兼請求書」を印刷する',
+   H.read('pickup.html').indexOf("const encDoc = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
+
 console.log('===== 4アプリ突き合わせ／不良出荷／注文番号 =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

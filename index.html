@@ -607,12 +607,12 @@ body{background:#fff}
       <div id="o-enclosed-doc-list">
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
           <label style="flex:1;min-width:120px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" data-doc="none" value="なし" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">同梱書類なし</label>
-          <label style="flex:1;min-width:90px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="納品書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px" checked>納品書</label>
+          <label style="flex:1;min-width:90px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="納品書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">納品書</label>
           <label style="flex:1;min-width:90px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="請求書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">請求書</label>
           <label style="flex:1;min-width:90px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="領収書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">領収書</label>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          <label style="flex:1;min-width:150px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="納品書兼請求書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">納品書兼請求書</label>
+          <label style="flex:1;min-width:150px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="納品書兼請求書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px" checked>納品書兼請求書</label>
           <label style="flex:1;min-width:150px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" value="納品書兼領収書" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">納品書兼領収書</label>
           <label style="flex:1;min-width:150px;display:flex;align-items:center;gap:7px;background:#fff;border:1.5px solid #d5cfc3;border-radius:8px;padding:8px 9px;font-size:14.5px;font-weight:700;color:#2b2a26;cursor:pointer;white-space:nowrap"><input type="checkbox" class="enc-doc" data-doc="other" value="その他" onchange="onEnclosedDocToggle(this)" style="width:17px;height:17px">その他（自分で書く）</label>
         </div>
@@ -3738,7 +3738,8 @@ function clearForm(){
   document.getElementById('o-memo').value = '';
   document.getElementById('o-save-customer').checked = false;
   var _lbl2=document.getElementById('o-save-customer-label'); if(_lbl2) _lbl2.textContent='新規お客様として保存';
-  Array.prototype.slice.call(document.querySelectorAll('.enc-doc')).forEach(function(x){ x.checked = (x.value==='納品書' && !x.getAttribute('data-doc')); });
+  /* ★2026-08-19 既定は「納品書兼請求書」。★「納品書」に戻さないでください（ひろみさん指示） */
+  Array.prototype.slice.call(document.querySelectorAll('.enc-doc')).forEach(function(x){ x.checked = (x.value==='納品書兼請求書' && !x.getAttribute('data-doc')); });
   if(document.getElementById('o-enclosed-doc-custom')){ document.getElementById('o-enclosed-doc-custom').value = ''; }
   if(document.getElementById('o-enclosed-doc-custom-wrap')){ document.getElementById('o-enclosed-doc-custom-wrap').style.display = 'none'; }
   if(document.getElementById('o-include-pamphlet')){ document.getElementById('o-include-pamphlet').checked = true; }
@@ -6177,7 +6178,8 @@ function reopenOrderForEdit(id){
 
   // 同梱書類を復元（ここで区分の自動セットを上書き）
   document.querySelectorAll('.enc-doc').forEach(function(cb){ cb.checked=false; });
-  var enc = o.enclosedDoc || '納品書';
+  /* ★2026-08-19 空のときの既定は「納品書兼請求書」。★「納品書」に戻さないでください */
+  var enc = o.enclosedDoc || '納品書兼請求書';
   var custWrap = document.getElementById('o-enclosed-doc-custom-wrap');
   var custInput = document.getElementById('o-enclosed-doc-custom');
   if(enc==='なし'){ var nb=document.querySelector('.enc-doc[data-doc=none]'); if(nb) nb.checked=true; }
@@ -6632,7 +6634,7 @@ function openBasaraEdit(id){
   var _ew = document.getElementById('bedit-enc-other-wrap');
   if(_es){
     /* バサラは書類なしが決まり。空のときは「なし」を選んだ形にする（勝手に納品書にしない） */
-    var _enc = o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書');
+    var _enc = o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書兼請求書');
     var _known = Array.prototype.some.call(_es.options, function(op){ return op.value === _enc; });
     _es.value = _known ? _enc : '__other';
     if(_eo) _eo.value = _known ? '' : _enc;
@@ -8691,7 +8693,10 @@ function applyBasaraToOrderForm(){
   }
   if(typeof renumberRecipients==='function') renumberRecipients();
 
-  document.querySelectorAll('.enc-doc').forEach(function(cb){ cb.checked = (cb.value==='納品書' && !cb.getAttribute('data-doc')); });
+  /* ★2026-08-19 バサラは納品書を同梱しない（2026-08-18 ひろみさん決定）。
+     ここが「納品書」を選んだ形になっていたため、取込から登録すると書類なしの指定が消えていた。
+     ★「納品書」に戻さないでください。パンフレットは入れます。 */
+  document.querySelectorAll('.enc-doc').forEach(function(cb){ cb.checked = (cb.getAttribute('data-doc')==='none'); });
 
   cancelBasaraImport();
   showPanel('order', document.getElementById('tab-order'));

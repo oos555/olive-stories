@@ -133,7 +133,7 @@ eq('⑥ わざと壊すと自己点検が気づく',
 /* ══ ⑦ 倉庫Ｄ：送り状No.の欄はバサラの注文だけ ═════════════════ */
 eq('⑦ 入力欄がある', pickup.indexOf('id="tracking-input"') >= 0, true);
 eq('⑦ 入力欄はバサラの注文のときだけ出す',
-   /if\(isBasaraOrder\(o\)\)\{\s*\n\s*html \+= '<div class="sec-title" style="margin-top:16px">🚚 追跡番号/.test(pickup), true);
+   /if\(isBasaraOrder\(o\)\)\{\s*\n\s*html \+= '<div class="sec-title" style="margin-top:16px">🚚 送り状No./.test(pickup), true);
 eq('⑦ 保存の仕組みが残っている（ほかの注文を消さないマージ保存）',
    pickup.indexOf('async function mergeSaveTracking(val)') >= 0, true);
 eq('⑦ 梱包完了のときにも一緒に保存する', pickup.indexOf('await mergeSaveTracking(String(_tEl.value||\'\').trim())') >= 0, true);
