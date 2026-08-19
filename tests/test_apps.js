@@ -272,6 +272,12 @@ try{
   eq('⑤ 消費税8%が出る（1,944円）', h.indexOf('¥1,944') >= 0, true);
   eq('⑤ 合計（税込）が出る（26,244円）', h.indexOf('¥26,244') >= 0, true);
   eq('⑤ お振込先が出る', h.indexOf('お振込先') >= 0, true);
+  /* ★2026-08-19 個人のお客様は三菱UFJ（ナカムラヒロミ）。会社は三井住友。★入れ替えない */
+  eq('⑤ 個人のお客様の振込先は三菱UFJ', h.indexOf('三菱UFJ銀行') >= 0, true);
+  eq('⑤ 個人のお客様に三井住友を出さない', h.indexOf('三井住友') < 0, true);
+  const hK = D.box.buildInvoiceHtml(Object.assign({}, ord, {isCompany:true, companyName:'テスト株式会社', enclosedDoc:'納品書兼請求書'}));
+  eq('⑤ 会社のお客様の振込先は三井住友', hK.indexOf('三井住友銀行') >= 0, true);
+  eq('⑤ 内訳（消費税・合計）は右に寄せる', H.read('oos-doc.js').indexOf('.doc2-breakdown{display:flex;justify-content:flex-end') >= 0, true);
   ord.enclosedDoc = '納品書';
   const h2 = D.box.buildInvoiceHtml(ord);
   eq('⑤ 「納品書」のときは表題も納品書', /class="doc2-title">納品書</.test(h2), true);
