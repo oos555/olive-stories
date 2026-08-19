@@ -468,7 +468,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-19-01">
+<meta name="oos-version" content="2026-08-19-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2450,18 +2450,32 @@ function renderInvTable(){
       }
       var canEdit = (!p.isSet && invEditMode);
       var incNum = (typeof n.incoming === 'number') ? n.incoming : 0;
-      /* ★2026-08-19 ひろみさん指示・変更禁止：
-         「フリー」は 予定 − 予約 をそのまま出す。**マイナスになるならマイナスで出す。**
-         それまでは preInc = Math.min(予約, 予定) と切り詰めていたため、
-         予約が予定より多いと フリーが必ず 0 になり、
-         表の「予約」列（切り詰めない n.preQty）と引き算が合わなかった。
-         例）予定10・予約15 → 正しくは フリー −5。以前は 0 と出ていた。
-         マイナスは「予約に対して輸入が足りない」という意味で、見えないといけない数字である。
-         ★ここに Math.min を戻さないでください。
-         ※「📦 一気に在庫へ入れる」(importAllList) は今までどおり Math.min のままにしてある。
-           あちらは実際に在庫を動かすので、マイナスを入れてはいけない。 */
-      var preInc, freeInc;
-      if(typeof n.incoming === 'number'){ preInc = n.preQty || 0; freeInc = incNum - preInc; }
+      /* ★2026-08-19 ひろみさん指示・変更禁止：「フリー」の出し方
+           いまの販売可能数（棚にあって売れる本数）でまかなえる予約は、輸入から取らなくてよい。
+             輸入で埋めるべき数（必須数） ＝ 予約 − 販売可能数（0本より下にはしない）
+             フリー                       ＝ 予定 − 必須数    ★マイナスならマイナスで出す
+
+           ひろみさんの検算（オルガニック750ml・2026-08-19）：
+             予定12／予約24／販売可能12 → 必須数 24−12＝12 → フリー 12−12＝**0**
+
+           【なぜ2回直したか】
+           ①はじめは preInc = Math.min(予約, 予定) と切り詰めていた。予約が予定より多いと
+             フリーが必ず0で止まり、となりの「予約」列（切り詰めない n.preQty）と引き算が合わなかった。
+           ②次に 予定−予約 にしたが、**いまの販売可能数を数えていなかった**（ひろみさん指摘）。
+             売れる在庫が棚にあるなら、その分の予約は輸入を待たなくてよい。
+
+           ★Math.min には戻さない。★販売可能数を引くのをやめない。
+           ※販売可能数は、この行（現ロット）の販売可能数を使う（画面に出ている数字と同じもの）。
+           ※「📦 一気に在庫へ入れる」(importAllList) は今までどおり。
+             あちらは実際に在庫を動かすので、マイナスを入れてはいけない。 */
+      var availNow = (n.cur && typeof n.cur.sellable === 'number') ? n.cur.sellable : 0;
+      var preInc, freeInc, coveredByStock = 0;
+      if(typeof n.incoming === 'number'){
+        var yoyaku = n.preQty || 0;
+        coveredByStock = Math.min(yoyaku, availNow);   // いまの在庫でまかなえる予約
+        preInc = Math.max(0, yoyaku - availNow);       // 輸入で埋めるべき数（必須数）
+        freeInc = incNum - preInc;
+      }
       else { preInc = '-'; freeInc = '-'; }
       // セット商品は従来どおり1行（構成品で管理）
       if(p.isSet){
@@ -2517,7 +2531,8 @@ function renderInvTable(){
         if(!isOld){
           h += '<td class="c-i1">'+(canEdit?editNumCell(p.id,'cur','incoming',n.incoming,56):'<span class="num">'+n.incoming+'</span>')+'</td>'+
                '<td class="c-i3"><span class="num"'+((typeof freeInc==='number' && freeInc<0)?' style="color:#dc2626"':'')+'>'+freeInc+'</span>'
-                 + ((typeof freeInc==='number' && freeInc<0) ? '<div class="boxnote" style="color:#dc2626">予約に対して輸入が'+Math.abs(freeInc)+'本たりません</div>' : '')+'</td>'+
+                 + ((typeof freeInc==='number' && freeInc<0) ? '<div class="boxnote" style="color:#dc2626">予約に対して輸入が'+Math.abs(freeInc)+'本たりません</div>' : '')
+                 + ((typeof freeInc==='number' && coveredByStock>0) ? '<div class="boxnote">予約'+(n.preQty||0)+'のうち'+coveredByStock+'本は今の販売可能数でまかなえます</div>' : '')+'</td>'+
                '<td class="c-note">'+memoCell(p)+'</td>';
         } else {
           /* ★2026-08-18 ひろみさん指示：
