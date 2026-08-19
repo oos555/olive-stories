@@ -46,7 +46,11 @@
     if(document.getElementById('oos-doc-css')) return;
     var st = document.createElement('style');
     st.id = 'oos-doc-css';
-    st.textContent = CSS + '\n@media print{ .invoice-doc{max-width:100%!important;width:100%!important;margin:0!important;border:none!important;border-radius:0!important;padding:11mm 12mm!important} }';
+    /* ★2026-08-19 書類の外枠（角丸の線）はここでは付けない。
+       画面用の飾りだったが、PDFにすると枠まで写り、用紙のふちで切れて見えるため。
+       ★border を戻さないでください（ひろみさん「へんな枠がでてる」） */
+    const NOFRAME = '.invoice-doc{border:none!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}';
+    st.textContent = CSS + NOFRAME + '\n@media print{ .invoice-doc{max-width:100%!important;width:100%!important;margin:0!important;border:none!important;border-radius:0!important;padding:11mm 12mm!important} }';
     document.head.appendChild(st);
   }
 
