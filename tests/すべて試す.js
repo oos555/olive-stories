@@ -33,7 +33,8 @@ const FILES = [
   ['test_yunyu_note.js',   '輸入準備計算から輸入ノートへ流れるか'],
   ['test_yoyaku_torioki.js','入荷したら予約が取り置きに変わるか'],
   ['test_basara_okurijou.js','バサラの送り状No.のページ'],
-  ['test_uriage_list.js',  '売上一覧に載せるタイミング']
+  ['test_uriage_list.js',  '売上一覧に載せるタイミング'],
+  ['test_yunyu_free.js',   '輸入のフリー（予定−予約）']
 ];
 
 let total = 0, ngFiles = [];
