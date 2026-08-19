@@ -293,7 +293,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-19-02">
+<meta name="oos-version" content="2026-08-19-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -8106,16 +8106,39 @@ function rtToggleEc(on){
   var lab=document.getElementById('rt-ec-label');
   if(lab){ lab.style.background = on ? '#fff3e6' : '#f7f6f2'; lab.style.borderColor = on ? '#c2761f' : '#d5cfc3'; }
 }
+/* ★2026-08-19 RT伝票の商品1行ぶん。何品でも並べられるように、番号（i）で持つ。
+   ★rtParsed.lines[0] 固定の書き方に戻さないでください（ゆかさん報告の原因でした） */
+function rtLineRowHtml(ln, i){
+  ln = ln || {};
+  var sel = '<select onchange="rtParsed.lines['+i+'].productId=this.value;rtParsed.lines['+i+'].matched=!!this.value;renderRtPreview()" style="width:100%;padding:6px 9px;border:1.5px solid '+(ln.matched?'#d5cfc3':'#dc2626')+';border-radius:6px;font-size:13px;font-weight:700">'+productOptionsHtml(ln.productId)+'</select>';
+  return '<div style="display:grid;grid-template-columns:84px 1.5fr 66px 104px 44px;gap:8px;align-items:end;margin-bottom:9px">'
+    +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">伝票コード</div>'+esc(ln.rawCode||'—')+'</div>'
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>'+sel+(ln.matched?'':'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ 商品を選んでください</div>')+'</div>'
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="0" value="'+(ln.bottles||0)+'" oninput="rtParsed.lines['+i+'].bottles=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+(ln.taxRate||8)+'%</span></div></div>'
+    +'<div>'+(i>0?'<button class="btn-sm" style="color:#991b1b;border-color:#e6a5a5" onclick="rtRemoveLine('+i+')" title="この商品を消す">✕</button>':'')+'</div>'
+    +'</div>';
+}
+function rtAddLine(){
+  if(!rtParsed) return;
+  rtParsed.lines = rtParsed.lines || [];
+  rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:8 });
+  renderRtPreview();
+}
+function rtRemoveLine(i){
+  if(!rtParsed || !rtParsed.lines) return;
+  rtParsed.lines.splice(i, 1);
+  if(!rtParsed.lines.length) rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:8 });
+  renderRtPreview();
+}
 function renderRtPreview(){
   const p = rtParsed;
   const el = document.getElementById('rt-preview');
   el.style.display = 'block';
   if(!p){ el.innerHTML=''; return; }
   if(p.nouhinNo===undefined) p.nouhinNo = p.slipNo || '';
-  const ln = p.lines[0] || {};
-  const prodSelect = '<select onchange="rtParsed.lines[0].productId=this.value;rtParsed.lines[0].matched=!!this.value" '
-    +'style="width:100%;padding:6px 9px;border:1.5px solid '+(ln.matched?'#d5cfc3':'#dc2626')+';border-radius:6px;font-size:13px;font-weight:700">'
-    +productOptionsHtml(ln.productId)+'</select>';
+  /* ★2026-08-19 1品目だけを見る書き方（ln / prodSelect）はやめました。
+     商品は rtLineRowHtml で1行ずつ作ります。★戻さないでください */
   el.innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:#2b2a26">'
       +'<span style="background:#1f4a6d;color:#fff;padding:3px 10px;border-radius:99px;font-weight:700">② 確認・修正</span>'
@@ -8150,12 +8173,11 @@ function renderRtPreview(){
         +'<input type="text" value="'+esc(p.nouhinNo||p.slipNo||'')+'" oninput="rtParsed.nouhinNo=this.value" style="width:200px;padding:7px;border:1.5px solid #b9d0e3;border-radius:6px;font-size:17px;font-weight:800;color:#2b2a26">'
       +'</div>'
       +'<div style="font-size:13px;font-weight:700;color:#33421f;margin:14px 0 6px">商品明細</div>'
-      +'<div style="display:grid;grid-template-columns:84px 1.5fr 66px 104px;gap:8px;align-items:end">'
-        +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">伝票コード</div>'+esc(ln.rawCode||'—')+'</div>'
-        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>'+prodSelect+(ln.matched?'':'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ この伝票コードは対応表にありません。商品を選んでください</div>')+'</div>'
-        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="1" value="'+(ln.bottles||1)+'" oninput="rtParsed.lines[0].bottles=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
-        +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines[0].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+(ln.taxRate||8)+'%</span></div></div>'
-      +'</div>'
+      /* ★2026-08-19 ゆかさん要望：商品は何品でも入れられる（＋ 商品を追加）。
+         以前は伝票の1品目だけしか出せなかった。★1品固定に戻さないでください */
+      +(p.lines||[]).map(function(_l,_i){ return rtLineRowHtml(_l,_i); }).join('')
+      +'<div style="margin-top:6px"><button class="btn-sm" style="background:#eef4f9;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:7px 14px" onclick="rtAddLine()">＋ 商品を追加</button>'
+        +'<span style="font-size:12px;color:#57534e;margin-left:9px">伝票に無い商品（同じ納品でまとめて送るもの）も、ここで足せます</span></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
         +'<span style="background:#1f4a6d;color:#fff;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">RT（後払い・入金確認なし）</span>'
         +'<span style="background:#eef4f9;color:#1f4a6d;border:1px solid #b9d0e3;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">同梱：RT発注伝票 ＋ 納品書（必ずセット）</span>'
@@ -8437,8 +8459,11 @@ function fillEcWarehouse(cardId){
 function applyRtToOrderForm(){
   if(!rtParsed) return;
   const p = rtParsed;
-  const ln = p.lines[0] || {};
-  if(!ln.productId){ alert('商品が特定できていません。商品を選んでから進んでください。'); return; }
+  /* ★2026-08-19 ゆかさん報告：ここが p.lines[0] だけを見ていたため、
+     伝票に商品が2つ以上あっても、受注登録では1品に減っていました。
+     ★「全部の商品を渡す」に戻せなくならないよう、この形を崩さないでください */
+  const rtLines = (p.lines || []).filter(function(l){ return l && l.productId; });
+  if(!rtLines.length){ alert('商品が特定できていません。商品を選んでから進んでください。'); return; }
   window._rtExtraDoc = (rtExtraDocUrl ? {url:rtExtraDocUrl, name:rtExtraDocName} : null);  // 追加の説明PDFを注文へ引き継ぐ
   const memoText = ['RT伝票取込', p.slipNo?('伝票番号 '+p.slipNo):'', p.deliveryDate?('納品予定日 '+p.deliveryDate):'', p.dept?('納品先 '+p.dept):''].filter(Boolean).join(' ／ ');
 
@@ -8482,15 +8507,19 @@ function applyRtToOrderForm(){
     rtSetVal(card,'note', memoText);
   }
 
-  // 商品行
+  /* 商品行 ── ★2026-08-19 伝票にある商品を【全部】入れる（ゆかさん報告）
+     2品目からは行を足してから入れる。★1品目だけに戻さないでください */
   const linesWrap = card.querySelector('[data-role=lines]');
-  const lineRow = linesWrap ? linesWrap.children[0] : null;
-  if(lineRow){
+  rtLines.forEach(function(l, i){
+    if(i > 0 && typeof addRecipientLine === 'function') addRecipientLine(card.id);
+    const lineRow = linesWrap ? linesWrap.children[i] : null;
+    if(!lineRow) return;
     const psel = lineRow.querySelector('[data-role=product]');
     const bnum = lineRow.querySelector('[data-role=bottles]');
-    if(psel){ psel.value = ln.productId; if(typeof onRecipientLineProductChange==='function') onRecipientLineProductChange(card.id, lineRow.id); }
-    if(bnum) bnum.value = ln.bottles || 1;
-  }
+    if(psel){ psel.value = l.productId; if(typeof onRecipientLineProductChange==='function') onRecipientLineProductChange(card.id, lineRow.id); }
+    if(bnum) bnum.value = l.bottles || 1;
+  });
+  if(typeof updateCardGiftSummary === 'function') updateCardGiftSummary(card.id);
   if(typeof renumberRecipients==='function') renumberRecipients();
 
   // 同梱＝RT発注伝票＋納品書（必ずセット）だけにする
@@ -8498,7 +8527,7 @@ function applyRtToOrderForm(){
 
   cancelRtImport();
   showPanel('order', document.getElementById('tab-order'));
-  showSyncStatus('🏨 RT伝票から受注登録画面に反映しました。内容を確認して「登録」を押してください');
+  showSyncStatus('🏨 RT伝票から受注登録画面に反映しました（商品 ' + rtLines.length + ' 品）。内容を確認して「登録」を押してください');
   const po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
 }
 

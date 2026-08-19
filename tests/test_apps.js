@@ -247,6 +247,20 @@ eq('⑤ QRコードを出さない', pkSrc2.indexOf('id="gift-qr"') < 0, true);
 eq("⑤ 発注伝票PDFをDriveに保存している", idxSrc.indexOf("function rtSaveSlipToDrive()") >= 0, true);
 eq("⑤ 伝票を読み取ったあと保存を呼んでいる", idxSrc.indexOf("rtSaveSlipToDrive();") >= 0, true);
 eq("⑤ 倉庫Ｄのボタン名がRT発注伝票になっている", pkSrc2.indexOf("RT発注伝票（PDF）を開いて印刷する") >= 0, true);
+/* ★2026-08-19 ゆかさん報告：RT取込から受注登録に移すと商品が1品に減っていた。
+   伝票にある商品を【全部】渡すこと。★1品目だけに戻さないでください */
+eq("⑤ RT取込は商品を全部渡す（1品目だけにしない）",
+   idxSrc.indexOf("const rtLines = (p.lines || []).filter(") >= 0, true);
+eq("⑤ 2品目からは行を足して入れる",
+   idxSrc.indexOf("if(i > 0 && typeof addRecipientLine === 'function') addRecipientLine(card.id);") >= 0, true);
+eq("⑤ p.lines[0] だけを見る書き方が残っていない",
+   idxSrc.indexOf("const ln = p.lines[0] || {};") < 0, true);
+/* ★2026-08-19 ゆかさん要望：RT取込の②で商品を何品でも足せること */
+eq("⑤ RT取込に「＋ 商品を追加」がある", idxSrc.indexOf("＋ 商品を追加") >= 0, true);
+eq("⑤ 商品行は番号で作る（1品固定でない）", idxSrc.indexOf("function rtLineRowHtml(ln, i)") >= 0, true);
+eq("⑤ 増やす・減らすがある", idxSrc.indexOf("function rtAddLine()") >= 0 && idxSrc.indexOf("function rtRemoveLine(i)") >= 0, true);
+eq("⑤ 何品渡したか画面に出す",
+   idxSrc.indexOf("（商品 ' + rtLines.length + ' 品）") >= 0, true);
 /* ★版の番号を上げ忘れない（今日いちばんの反省） */
 eq("⑤ pickup.html の版が今日のものになっている", /content="2026-08-19-\d\d"/.test(pkSrc2), true);
 eq("⑤ version.json と pickup.html の版が一致", JSON.parse(H.read("version.json")).pages["pickup.html"] === (/name="oos-version" content="([^"]+)"/.exec(pkSrc2)||[])[1], true);
