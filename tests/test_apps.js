@@ -368,8 +368,9 @@ try{
   vm.runInContext(H.cutVar(pkSrc2, 'CTYPE_BADGE'), D.ctx);
   vm.runInContext("var COMPANY_WEBSITE='x'; var COMPANY_EMAIL='y'; var PRICE_MASTER=[];", D.ctx);
   vm.runInContext(H.cutVar(pkSrc2, 'BULK_UPGRADE_BOXES'), D.ctx);
+  vm.runInContext(H.cutVar(pkSrc2, 'OOS_DOC_NAMES'), D.ctx);
   ['esc','findProduct','lineTotal','recipientAddressBlock','findProductBySku','defaultTaxRateForGroup',
-   'taxRateForSku','effectiveCustomerType','lineTierType','priceForSku','invoiceNeedsAmount','buildInvoiceHtml']
+   'taxRateForSku','effectiveCustomerType','lineTierType','priceForSku','docTitleOf','docNumberOf','docSlipNoOf','docDeliveryDateOf','invoiceNeedsAmount','buildInvoiceHtml']
     .forEach(n => vm.runInContext(H.cut(pkSrc2, n), D.ctx));
   vm.runInContext("PRICE_MASTER = [{sku:'MEM2L', priceGeneral:24300, taxRate:0.08}];", D.ctx);
   const pid = (D.box.PRODUCTS.find(p => p.sku === 'MEM2L') || {}).id;
@@ -394,6 +395,37 @@ try{
   eq('⑤ 「納品書」のときは表題も納品書', /class="doc2-title">納品書</.test(h2), true);
   eq('⑤ 「納品書」のときは金額を出さない', h2.indexOf('ご請求金額') < 0, true);
   eq('⑤ 「納品書」のときはお振込先を出さない', h2.indexOf('お振込先') < 0, true);
+
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-19 ひろみさん指示（最重要）
+     「納品書は、納品書です。RTは私たちの隠語だから使ったら絶対にダメ」
+     お客様にお渡しする書類に、社内の言葉が1文字でも出たら FAIL にします。
+     ══════════════════════════════════════════════════════════════════ */
+  var NGWORDS = ['RT','RTGC','卸','バサラ','不良','特価','特別提供','定価','アイポーター','TK-','BA-','OS1','OS2','FT-','IT-'];
+  var DOCCASES = [
+    { name:'RT（伝票取込）', o:{ customerType:'rt', num:'RT-20260819-3528', enclosedDoc:'RT発注伝票＋納品書',
+        note:'RT伝票取込 ／ 伝票番号 360774 ／ 納品予定日 2026/8/25', isCompany:true,
+        companyName:'リゾートトラスト㈱', deptName:'EC営業課' }, title:'納品書' },
+    { name:'一般', o:{ customerType:'general', num:'TK-20260819-7862', enclosedDoc:'納品書兼請求書', note:'' }, title:'納品書兼請求書' },
+    { name:'バサラ', o:{ customerType:'basara', num:'BA-20260819-1234', enclosedDoc:'納品書', note:'バサラ（楽天）自動取込' }, title:'納品書' },
+    { name:'卸①', o:{ customerType:'wholesale1', num:'OS1-20260819-0001', enclosedDoc:'納品書兼請求書', note:'' }, title:'納品書兼請求書' },
+    { name:'不良特価', o:{ customerType:'defectprice', num:'FT-20260819-0002', enclosedDoc:'請求書', note:'' }, title:'請求書' },
+    { name:'RTGC', o:{ customerType:'rtgc', num:'RTG-20260819-0003', enclosedDoc:'RT発注伝票＋納品書', note:'伝票番号 999888 ／ 納品予定日 2026/9/1' }, title:'納品書' }
+  ];
+  DOCCASES.forEach(function(c){
+    var order = Object.assign({}, ord, c.o);
+    var html = D.box.buildInvoiceHtml(order);
+    var text = html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
+    var hit = NGWORDS.filter(function(w){ return text.indexOf(w) >= 0; });
+    eq('⑦ ' + c.name + ' の書類に社内の言葉が出ない' + (hit.length ? '（' + hit.join('・') + '）' : ''), hit.length, 0);
+    eq('⑦ ' + c.name + ' の表題は「' + c.title + '」', (/class="doc2-title">([^<]*)</.exec(html)||[])[1], c.title);
+  });
+  /* 伝票から来た注文は、納品日と伝票番号を出す（ゆかさん指摘） */
+  var hRtSlip = D.box.buildInvoiceHtml(Object.assign({}, ord, DOCCASES[0].o));
+  eq('⑦ 伝票の注文は【納品日】を出す', hRtSlip.indexOf('納品日：2026/8/25') >= 0, true);
+  eq('⑦ 伝票の注文は【伝票番号】を出す', hRtSlip.indexOf('伝票番号：360774') >= 0, true);
+  eq('⑦ 社内の注文番号（RT-…）を出さない', hRtSlip.indexOf('RT-20260819') < 0, true);
+  eq('⑦ 区分バッジ（卸●など）を書類に入れない', hRtSlip.indexOf('badge-ctype') < 0, true);
 
   /* ★2026-08-19 ひろみさんと決めた文言・置き場所。★書き換えないでください */
   eq('⑤ ※印の断り書きは合計のすぐ下にある',

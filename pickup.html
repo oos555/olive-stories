@@ -315,7 +315,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-19-06">
+<meta name="oos-version" content="2026-08-19-07">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -758,6 +758,40 @@ function priceForSku(sku, customerType){
   const key = map[customerType] || 'priceGeneral';
   return parseFloat(p[key])||0;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-19 ひろみさん指示（最重要）
+   「納品書は、納品書です。RTは私たちの隠語だから使ったら絶対にダメ」
+
+   お客様にお渡しする書類には、社内の言葉を1文字も出しません。
+   ・表題は お客様から見た書類の名前だけ（納品書／請求書／領収書／納品書兼請求書…）
+   ・「RT発注伝票」「卸」「バサラ」などは表題から外す
+   ・注文番号の暗号（TK- / BA- / RT- / OS1- / FT- など）も出さない
+   ★この道具を通さずに、そのまま画面に出さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+var OOS_DOC_NAMES = ['納品書兼請求書','納品書兼領収書','納品書','請求書','領収書'];
+function docTitleOf(encDoc){
+  var d = String(encDoc || '');
+  /* お客様向けの書類名だけを拾う（長い名前から先に見る） */
+  for(var i=0; i<OOS_DOC_NAMES.length; i++){
+    if(d.indexOf(OOS_DOC_NAMES[i]) >= 0) return OOS_DOC_NAMES[i];
+  }
+  return '納品書';
+}
+/* 注文番号から社内の暗号（TK/BA/RT/OS1/OS2/IT/FT/RTG）を外す */
+function docNumberOf(num){
+  /* 暗号は TK / BA / RT / RTG / OS1 / OS2 / IT / FT など（英字＋数字のこともある） */
+  return String(num || '').replace(/^[A-Za-z]+[0-9]*[-－]/, '');
+}
+/* 注文メモから、伝票番号と納品予定日を取り出す（RT取込の注文だけ入っています） */
+function docSlipNoOf(o){
+  var m = String((o && o.note) || '').match(/伝票番号\s*([0-9A-Za-z\-]+)/);
+  return m ? m[1] : '';
+}
+function docDeliveryDateOf(o){
+  var m = String((o && o.note) || '').match(/納品予定日\s*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/);
+  return m ? m[1].replace(/-/g, '/') : '';
+}
+
 /* この書類に金額を入れるか（請求書・領収書を兼ねるときだけ入れる） */
 function invoiceNeedsAmount(encDoc){
   var d = String(encDoc||'');
@@ -768,7 +802,8 @@ function buildInvoiceHtml(o){
   /* ★2026-08-19 表題は、受注Ａで選んだ同梱書類の名前をそのまま出す
      （納品書／納品書兼請求書／請求書／領収書…）。「納品書」で固定しないでください。
      体裁は見積・請求書Ｍで決めたもの（oos-doc.js）を使います。 */
-  const docName = (o.enclosedDoc && o.enclosedDoc !== 'なし') ? String(o.enclosedDoc).split(' ＋ ')[0] : '納品書';
+  /* ★2026-08-19 表題は【お客様から見た書類の名前】だけ。社内の言葉（RT・卸など）は出さない */
+  const docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
   /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
      お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
   const withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
@@ -810,7 +845,15 @@ function buildInvoiceHtml(o){
     title: docName + (badge ? '' : ''),
     addressee: recipientAddressBlock(o) + '　様',
     zip: o.zip, addr: o.addr, tel: o.tel,
-    metaRight: ['発行日：' + new Date().toLocaleDateString('ja-JP'), '注文番号：' + esc(o.num)],
+    /* ★2026-08-19 ゆかさん指摘：伝票から来た注文は【納品日】と【伝票番号（アイポーターと同じ）】を出す。
+       それ以外は 発行日と注文番号（社内の暗号は外す）。★暗号つきの番号に戻さないでください */
+    metaRight: (function(){
+      var slip = docSlipNoOf(o), deliv = docDeliveryDateOf(o);
+      var rows = [];
+      rows.push(deliv ? ('納品日：' + esc(deliv)) : ('発行日：' + new Date().toLocaleDateString('ja-JP')));
+      rows.push(slip ? ('伝票番号：' + esc(slip)) : ('注文番号：' + esc(docNumberOf(o.num))));
+      return rows;
+    })(),
     lead: withAmount
       ? '下記の通りお納めいたします。本書はご請求書を兼ねております。'
       : '下記の通りお納めいたします。この度はお買い上げいただき、誠にありがとうございます。',
@@ -833,9 +876,8 @@ function buildInvoiceHtml(o){
   if(unknown){
     html += '<div class="no-print" style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:6px">⚠ 単価が登録されていない商品があります（統合マスタＮの価格マスタをご確認ください）。金額は「―」で出しています。</div>';
   }
-  if(badge){
-    html = html.replace('<div class="doc2-title">', '<div class="no-print" style="text-align:right;font-size:11px">'+badge+'</div><div class="doc2-title">');
-  }
+  /* ★2026-08-19 区分バッジ（卸●など）は【社内の印】なので、書類には出しません。
+     no-print にしていてもPDFには写ってしまうため、そもそも入れません。★戻さないでください */
   return html;
 }
 
