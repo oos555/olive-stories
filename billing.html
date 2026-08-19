@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-19-01">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -278,6 +278,7 @@ tr:last-child td{border-bottom:none}
 <div id="panel-list" class="panel active">
   <div id="invoice-builder-area"></div>
   <div id="overdue-payment-alert"></div>
+  <div id="sales-dup-alert"></div>
   <details class="tab-help">
     <summary>このタブは何をする場所？（タップで開く）</summary>
     <div class="tab-help-body">
@@ -344,6 +345,8 @@ tr:last-child td{border-bottom:none}
       <tbody id="invoice-tbl-body"></tbody>
     </table>
   </div>
+
+  <div id="sales-hidden-list"></div>
 
   <div id="qi-invoice-wrap" style="margin-top:1.6rem"></div>
 </div>
@@ -1062,10 +1065,142 @@ function renderQiInvoices(){
   wrap.innerHTML='<div class="sec" style="margin-top:0">📝 M（見積・請求書）で作った個別請求書</div>'+alertHtml+
     '<div class="tbl-wrap"><table><thead><tr><th>管理番号</th><th>お客様</th><th>請求日</th><th>支払期限日</th><th>金額（税込）</th><th>入金</th><th style="text-align:center">入金済み<br>チェック</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+// ══════════════════════════════════════════════════════════════════
+// 売上一覧に載せるタイミング（2026-08-19 ひろみさん決定・変更禁止）
+//   載せるのは「倉庫Ｄへ出荷依頼書を送った注文」だけ。
+//   取り置き・予約・まだ送っていない・🗑発注から消した・キャンセルは載せない。
+//   ★出荷済み（shippedAt / status==='shipped'）は、送った印が無い古い注文でも必ず載せる。
+//     こうしないと、印が付く前の過去の売上が一覧から消えてしまう。
+//   承認済みモック：mock_売上C_売上一覧_2026-08-19.html
+//   ★判定はこの1か所だけ。同じ条件を他の場所へ書き写さないこと（過去に繰り返した事故）。
+// ══════════════════════════════════════════════════════════════════
+const SALES_HIDE_INFO = {
+  cancelled:{label:'✖ キャンセル',             how:'出ません（今までどおり）',                        dim:true},
+  deleted  :{label:'🗑 発注から消した',          how:'出ません（消した注文です）',                      dim:true},
+  held     :{label:'📦 取り置き',               how:'出荷依頼書を作って倉庫へ送ったとき',              dim:false},
+  reserved :{label:'🗓 予約（入荷まち）',        how:'入荷して出荷依頼書を送ったとき',                  dim:false},
+  unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'受注Ａのカードで「② 倉庫へ送る」を押したとき',    dim:false}
+};
+function salesWasSentToWarehouse(o){
+  return !!(o && (o.notified || o.shippedAt || o.status === 'shipped'));
+}
+function salesExcludeReason(o){
+  if(!o) return 'unsent';
+  if(o.status === 'cancelled') return 'cancelled';
+  if(o.status === 'deleted')   return 'deleted';
+  if(o.status === 'held')      return 'held';
+  if(o.status === 'reserved')  return 'reserved';
+  if(salesWasSentToWarehouse(o)) return '';   // '' ＝ 売上一覧に載せる
+  return 'unsent';
+}
+function isSalesListTarget(o){ return salesExcludeReason(o) === ''; }
+
+// ── 二重登録のうたがい ──────────────────────────────────
+// 同じお客様・同じ受注日・同じ金額が2件以上あるとき。
+// ★売上一覧に出す・出さないと関係なく、注文ぜんぶを見る。
+//   （片方が未送信だと一覧に出ないので、一覧だけ見ていると二重に気づけないため）
+function salesDupKey(o){
+  return (o.recipientName||o.client||'') + '|' + String(o.registeredAt||'').slice(0,10) + '|' + orderAmount(o);
+}
+function findSalesDuplicates(){
+  const map = {};
+  (typeof orders!=='undefined'?orders:[]).forEach(function(o){
+    if(!o) return;
+    if(o.status === 'cancelled' || o.status === 'deleted') return;  // 片づいたものは対象外
+    const k = salesDupKey(o);
+    (map[k] = map[k] || []).push(o);
+  });
+  return Object.keys(map).map(function(k){ return map[k]; })
+    .filter(function(g){ return g.length >= 2; })
+    .sort(function(a,b){ return String(b[0].registeredAt||'').localeCompare(String(a[0].registeredAt||'')); });
+}
+function salesDupIds(){
+  const s = {};
+  findSalesDuplicates().forEach(function(g){ g.forEach(function(o){ s[o.id] = true; }); });
+  return s;
+}
+const SALES_DUP_BADGE = '<span style="font-size:10px;font-weight:700;background:#fff4d6;border:1px solid #d9a300;color:#7a5a00;border-radius:6px;padding:1px 6px;white-space:nowrap">⚠ 二重のうたがい</span>';
+const SALES_TH = 'background:#efece4;border:1px solid #d5cfc3;padding:4px 6px;text-align:left;font-size:11px;white-space:nowrap';
+const SALES_TD = 'border:1px solid #e3ded3;padding:4px 6px';
+
+function renderSalesDupAlert(){
+  const el = document.getElementById('sales-dup-alert');
+  if(!el) return;
+  const groups = findSalesDuplicates();
+  if(!groups.length){ el.innerHTML = ''; return; }
+  const body = groups.map(function(g){
+    const sentCount = g.filter(salesWasSentToWarehouse).length;
+    const head = '<div style="margin-top:8px"><b>' + esc(g[0].recipientName||g[0].client||'') + '</b> 様　'
+      + esc(String(g[0].registeredAt||'').slice(0,10)) + ' 受注　<b>¥' + orderAmount(g[0]).toLocaleString()
+      + '</b>　が <b>' + g.length + '件</b>あります。</div>';
+    const rows = g.map(function(o){
+      const isSent = salesWasSentToWarehouse(o);
+      const when = String(o.notifiedAt || o.shippedAt || '').slice(0,16).replace('T',' ');
+      const ship = isSent
+        ? '<b style="color:#2f6b2f">✅ 送っています</b>' + (when ? '<br><span style="font-size:10px;color:#8a8578">' + esc(when) + '　OOS出荷依頼グループ（倉庫）へ</span>' : '')
+        : '<b style="color:#9b2c2c">✖ まだ送っていません</b>';
+      const zaiko = o.stockDeducted ? '引かれています' : 'まだ引かれていません';
+      let todo;
+      if(sentCount === g.length)   todo = '<b style="color:#9b2c2c">消す前に倉庫へ連絡</b>';
+      else if(sentCount === 0)     todo = 'どちらを消してもかまいません';
+      else if(isSent)              todo = '<b>こちらを残します</b>';
+      else                         todo = '<b style="color:#9b2c2c">👉 こちらを受注Ａで「🗑 発注から消す」</b>';
+      return '<tr style="background:' + (isSent ? '#f2f8f0' : '#fff6f6') + '">'
+        + '<td style="' + SALES_TD + ';font-family:Consolas,monospace">' + esc(o.num||'') + '</td>'
+        + '<td style="' + SALES_TD + '">' + ship + '</td>'
+        + '<td style="' + SALES_TD + '">' + zaiko + '</td>'
+        + '<td style="' + SALES_TD + '">' + todo + '</td></tr>';
+    }).join('');
+    let foot = '';
+    if(sentCount === g.length) foot = '<div style="color:#9b2c2c;font-weight:700;margin-top:4px">⚠ 倉庫はすでに' + g.length + '回受け取っています。消す前に、必ず倉庫へ連絡してください（そのまま消すと倉庫は' + g.length + '件出荷します）。</div>';
+    else if(sentCount === 0)   foot = '<div style="color:#5d5849;margin-top:4px">どちらを消してもかまいません。まだ倉庫も在庫も動いていません。</div>';
+    return head
+      + '<table style="border-collapse:collapse;width:100%;background:#fff;font-size:11.5px;margin:5px 0 2px"><thead><tr>'
+      + '<th style="' + SALES_TH + '">注文番号</th><th style="' + SALES_TH + '">倉庫Ｄへの出荷依頼書</th>'
+      + '<th style="' + SALES_TH + '">在庫</th><th style="' + SALES_TH + '">どうするか</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>' + foot;
+  }).join('');
+  el.innerHTML = '<div style="background:#fff8e1;border:2px solid #d9a300;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12.5px">'
+    + '<div style="font-weight:800;color:#7a5a00;font-size:13.5px">🚨 二重登録のうたがいが ' + groups.length + '件あります</div>'
+    + '<div style="font-size:11px;color:#8a8578">同じお客様・同じ受注日・同じ金額のとき、ここに出ます。</div>'
+    + body
+    + '<div style="margin-top:7px;font-size:11px;color:#8a8578">※ 送っていないほうは売上一覧に出ません。<b>だからここに出しています。</b>　消すのは受注Ａです → '
+    + '<a href="https://oos555.github.io/olive-stories/index.html" target="_blank" style="color:#185FA5;font-weight:700">受注Ａを開く ▶</a></div></div>';
+}
+
+function renderSalesHiddenList(){
+  const el = document.getElementById('sales-hidden-list');
+  if(!el) return;
+  const dup = salesDupIds();
+  const hidden = (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && !isSalesListTarget(o); })
+    .sort(function(a,b){ return String(b.registeredAt||'').localeCompare(String(a.registeredAt||'')); });
+  if(!hidden.length){ el.innerHTML = ''; return; }
+  const rows = hidden.map(function(o){
+    const info = SALES_HIDE_INFO[salesExcludeReason(o)] || {label:'—', how:'', dim:false};
+    const isDup = !!dup[o.id];
+    return '<tr style="background:' + (isDup ? '#fff6f6' : '#fff') + ';color:' + (info.dim ? '#a09a8d' : '#2b2a26') + '">'
+      + '<td style="' + SALES_TD + '"><span style="font-size:10px;background:#f1efe9;border:1px solid #cfc8b8;color:#5d5849;border-radius:6px;padding:1px 6px;white-space:nowrap">' + info.label + '</span>'
+      + (isDup ? '<br>' + SALES_DUP_BADGE : '') + '</td>'
+      + '<td style="' + SALES_TD + ';font-family:Consolas,monospace">' + esc(o.num||'') + '</td>'
+      + '<td style="' + SALES_TD + '">' + esc(o.recipientName || o.client || '') + '</td>'
+      + '<td style="' + SALES_TD + '">' + esc(String(o.registeredAt||'').slice(0,10)) + '</td>'
+      + '<td style="' + SALES_TD + ';text-align:right">¥' + orderAmount(o).toLocaleString() + '</td>'
+      + '<td style="' + SALES_TD + '">' + (isDup ? '<b style="color:#9b2c2c">👉 上の黄色い枠を見てください</b>' : esc(info.how)) + '</td></tr>';
+  }).join('');
+  el.innerHTML = '<details style="background:#fff;border:1px solid #d5cfc3;border-radius:8px;margin:14px 0">'
+    + '<summary style="cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;background:#f4f1ea;border-radius:8px">👀 いま売上一覧に出していないもの（' + hidden.length + '件）── 理由つき</summary>'
+    + '<div style="padding:10px 12px">'
+    + '<div style="font-size:11px;color:#8a8578;margin-bottom:8px">ここにあるものは<b>消えたのではありません</b>。売上にまだ数えないだけです。理由がなくなれば、自動で上の一覧へ移ります。</div>'
+    + '<div class="tbl-wrap"><table style="border-collapse:collapse;width:100%;background:#fff;font-size:11.5px"><thead><tr>'
+    + '<th style="' + SALES_TH + '">出していない理由</th><th style="' + SALES_TH + '">注文番号</th><th style="' + SALES_TH + '">お客様</th>'
+    + '<th style="' + SALES_TH + '">受注日</th><th style="' + SALES_TH + '">金額（税込）</th><th style="' + SALES_TH + '">どうすれば上に出るか</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
+}
+
 function renderInvoiceList(){
   const search = (document.getElementById('list-search').value||'').toLowerCase();
   const filter = document.getElementById('list-payment-filter').value;
-  let list = orders.filter(o=>o.status!=='cancelled');
+  let list = orders.filter(isSalesListTarget);
   if(search) list = list.filter(o=>(o.client||'').toLowerCase().includes(search) || (o.num||'').toLowerCase().includes(search));
   if(filter==='unpaid') list = list.filter(o=>!o.paymentConfirmed);
   if(filter==='unpaid-prepay') list = list.filter(o=>o.paymentMode==='prepay' && !o.paymentConfirmed);
@@ -1074,7 +1209,7 @@ function renderInvoiceList(){
 
   let total = 0, unpaidPrepayCount = 0, unpaidAllCount = 0;
   const overdueOneMonth = [];
-  orders.filter(o=>o.status!=='cancelled').forEach(function(o){
+  orders.filter(isSalesListTarget).forEach(function(o){
     if(o.paymentMode==='prepay' && !o.paymentConfirmed) unpaidPrepayCount++;
     if(!o.paymentConfirmed) unpaidAllCount++;
     if(isPaymentOverdueOneMonth(o)) overdueOneMonth.push(o);
@@ -1086,6 +1221,7 @@ function renderInvoiceList(){
       : '';
   }
 
+  const _dupIds = salesDupIds();
   document.getElementById('invoice-tbl-body').innerHTML = list.map(function(o, _idx){
     const amount = orderAmount(o);
     total += amount;
@@ -1098,7 +1234,7 @@ function renderInvoiceList(){
     const rowBg = overdue ? '#fef2f2' : (effPaid ? '#eeece7' : '#ffffff');
     const rowColor = effPaid ? '#83817b' : '#2b2a26';
     const numColor = effPaid ? '#8a8578' : '#185FA5';
-    return '<tr style="background:'+rowBg+';color:'+rowColor+'"><td><a href="javascript:void(0)" onclick="toggleOrderDetail(\''+o.id+'\')" style="color:'+numColor+';font-weight:700;text-decoration:underline;cursor:pointer" title="タップすると注文の中身が下に開きます">'+o.num+'<span class="order-chev" data-id="'+o.id+'" style="font-size:9px;margin-left:3px">▶</span></a></td><td>'+(o.recipientName||o.client)+'</td><td>'+(o.registeredAt||'').slice(0,10)+'</td>'+
+    return '<tr style="background:'+rowBg+';color:'+rowColor+'"><td><a href="javascript:void(0)" onclick="toggleOrderDetail(\''+o.id+'\')" style="color:'+numColor+';font-weight:700;text-decoration:underline;cursor:pointer" title="タップすると注文の中身が下に開きます">'+o.num+'<span class="order-chev" data-id="'+o.id+'" style="font-size:9px;margin-left:3px">▶</span></a>'+(_dupIds[o.id]?'<br>'+SALES_DUP_BADGE:'')+'</td><td>'+(o.recipientName||o.client)+'</td><td>'+(o.registeredAt||'').slice(0,10)+'</td>'+
       '<td>'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'</td><td>'+payBadge+'</td>'+
       '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
       '<td>'+(mm?'<span style="font-size:11px;font-weight:700;color:#1f4a6d;background:#eef4fb;border:1px solid #93b4e0;border-radius:6px;padding:2px 7px;white-space:nowrap">月次まとめ予定</span>':paidBadge)+'</td>'+
@@ -1107,11 +1243,14 @@ function renderInvoiceList(){
       '<tr class="order-detail-row" data-id="'+o.id+'" style="display:none"><td colspan="9" style="padding:0 6px 8px">'+buildOrderDetailHtml(o)+'</td></tr>';
   }).join('') || '<tr><td colspan="9" style="text-align:center;color:#2b2a26;padding:20px">該当する受注がありません</td></tr>';
 
+  renderSalesDupAlert();
+  renderSalesHiddenList();
+
   // 今月（購入日＝受注日が当月）の件数と、区分の内訳（定価・RT・卸①②合算・その他）
   const _now = new Date();
   const _ym = _now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
   let mCount=0, mGeneral=0, mRT=0, mWho=0, mOther=0;
-  orders.filter(o=>o.status!=='cancelled').forEach(function(o){
+  orders.filter(isSalesListTarget).forEach(function(o){
     if(String(o.registeredAt||'').slice(0,7) !== _ym) return;
     mCount++;
     const t = o.customerType;
@@ -3762,7 +3901,7 @@ function exportShippingListCSV(){
 }
 function exportBillingBackupCSV(){
   const rows = [['注文番号','受注日','出荷日','お客様(発注元)','お届け先','区分','支払方法','商品明細','金額(税込)','入金','連絡方法','対応状況メモ']];
-  orders.filter(o=>o.status!=='cancelled').forEach(function(o){
+  orders.filter(isSalesListTarget).forEach(function(o){
     const lines = (o.lines||[]).map(l=>{
       const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||1);
       return l.productName+' × '+totalQty+'本';
@@ -3777,7 +3916,7 @@ function exportBillingBackupCSV(){
     ]);
   });
   // 合計金額（税込）の行を一番下に追加。画面には出さず、CSVを開いた時だけ総額が分かる。
-  const grandTotal = orders.filter(o=>o.status!=='cancelled').reduce(function(s,o){ return s + orderAmount(o); }, 0);
+  const grandTotal = orders.filter(isSalesListTarget).reduce(function(s,o){ return s + orderAmount(o); }, 0);
   rows.push(['','','','','','','','合計金額(税込)', grandTotal, '','','']);
   downloadCSV('請求データ_'+(new Date().toISOString().slice(0,10))+'.csv', rows);
   showSyncStatus('✅ 請求データCSVをダウンロードしました');
