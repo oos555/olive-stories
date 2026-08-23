@@ -267,6 +267,27 @@ body{background:#fff}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
 <script src="oos-zaiko.js?v=20260820"></script>
+<!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
+<script src="oos-zei.js?v=20260824"></script>
+<script>
+/* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
+   黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZEI === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 消費税の計算ファイル（oos-zei.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">納品書の消費税が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zei.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZEI = null;
+  }
+})();
+</script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -293,7 +314,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-20-03">
+<meta name="oos-version" content="2026-08-24-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7660,7 +7681,11 @@ function rtRateResetDefault(){
 }
 function rtcShipResetAuto(){ rtcShipManual=false; rtCalcRun(); }
 // ── アイポーター逆算（実例3件で確定：端数は切り捨て、合わない時は送料を1円ずつ引く）──
-function rtInvoiceTotal(oilPreTax, feePreTax){   // 納品書税込＝オイル8%＋手数料10%
+/* 納品書税込＝【8%のもの】＋【10%のもの】。
+   feePreTax には送料・ピッキング手数料に加えて、紙袋やギフト箱など10%の商品も入れます
+   （★2026-08-24 ゆかさん報告。10%の品を8%側に入れないでください）。
+   端数は切り捨て。納品書側（rtDeliveryNoteHtml）も切り捨てで揃えています。 */
+function rtInvoiceTotal(oilPreTax, feePreTax){
   return oilPreTax + Math.floor(oilPreTax*0.08) + feePreTax + Math.floor(feePreTax*0.10);
 }
 function rtFindTarget(invTotal){                  // floor(T*1.08)==invTotal になる税抜T（無ければnull）
@@ -7710,29 +7735,51 @@ function rtCalcRun(){
   rtcSuggestShipping();
   var res = document.getElementById('rtc-result'); if(!res) return;
   res.style.display = 'block';
-  var rows = [];
+  /* ★2026-08-24 ゆかさん報告：紙袋（10%）が入ると、この逆算が全部8%で計算されていました。
+     税率は【親＝oos-zei.js】に聞き、8%の商品（オイル等）と10%の商品（紙袋・ギフト箱等）を分けます。
+       ・8%の商品 … 今までどおりアイポーターの逆算にかける（単価を配り直す）
+       ・10%の商品 … 単価はそのまま。10%のかたまりに足す
+     ★この分け方を消して「全部8%」に戻さないでください。 */
+  var rows = [], rows10 = [], amt10 = 0;
   document.querySelectorAll('#rtc-rows > [id^="rtc-row-"]').forEach(function(r){
     var sel=r.querySelector('.rtc-prod'); var p=(PRODUCTS||[]).find(function(x){ return String(x.id)===String(sel.value); });
     var q=parseInt(r.querySelector('.rtc-qty').value)||0, u=parseInt(r.querySelector('.rtc-price').value)||0;
-    if(q>0 && u>0) rows.push({ name:(p&&p.name)||'商品', bottles:q, unit:u });
+    if(!(q>0 && u>0)) return;
+    var one = { name:(p&&p.name)||'商品', bottles:q, unit:u };
+    if(OOS_ZEI.percentForProduct(p, PRODUCTS) === 8){ rows.push(one); }
+    else { one.amt = q*u; rows10.push(one); amt10 += one.amt; }
   });
-  if(!rows.length){ res.innerHTML='<div style="background:#f7f4ee;border-radius:10px;padding:11px 13px;font-size:13px;color:#6b6a63">商品を選んで、本数と単価を入れてください。</div>'; return; }
+  if(!rows.length && !rows10.length){ res.innerHTML='<div style="background:#f7f4ee;border-radius:10px;padding:11px 13px;font-size:13px;color:#6b6a63">商品を選んで、本数と単価を入れてください。</div>'; return; }
   var ship = parseInt(document.getElementById('rtc-shipping').value)||0;
   var pickup = parseInt(document.getElementById('rtc-pickup').value)||0;
-  var r = rtReverse(rows, ship+pickup);
+  var fee10 = ship + pickup + amt10;   /* 10%のかたまり＝送料＋ピッキング＋10%の商品 */
+  var r;
+  if(rows.length){
+    r = rtReverse(rows, fee10);
+  } else {
+    /* 8%の商品が1つも無いとき（紙袋だけ等）は、逆算するものが無いのでそのまま足す */
+    r = { lines:[], invTotal: rtInvoiceTotal(0, fee10), feeUsed: fee10, reduced:0, ok:true };
+  }
   if(r.error){ res.innerHTML='<div style="background:#fef2f2;border:1.5px solid #dc2626;border-radius:10px;padding:11px 13px;font-size:13px;color:#dc2626;font-weight:700">⚠️ 2円以上ずれてしまい、自動では合わせられません。庶務課へ確認してください。</div>'; return; }
+  var shipToWrite = r.feeUsed - amt10;   /* コメント欄に書く「合計送料」＝10%の商品ぶんは含めない */
   var lineHtml = r.lines.map(function(x){
     return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:5px 0;border-top:1px solid #cde4d8">'
       +'<span style="font-size:14px;color:#15803d">'+esc(x.name)+' × '+x.bottles+'本</span>'
       +'<span style="font-size:23px;font-weight:800;color:#15803d">'+rtNum2(x.unit)+'</span></div>';
   }).join('');
+  rows10.forEach(function(x){
+    lineHtml += '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:5px 0;border-top:1px solid #cde4d8">'
+      +'<span style="font-size:14px;color:#9a3412">'+esc(x.name)+' × '+x.bottles+'本 <b>（消費税10%）</b></span>'
+      +'<span style="font-size:23px;font-weight:800;color:#9a3412">'+rtNum2(x.unit)+'</span></div>';
+  });
   res.innerHTML =
     '<div style="background:#eafaf1;border:1.5px solid #16a34a;border-radius:12px;padding:13px 15px;margin-bottom:10px">'
       +'<div style="font-size:13px;font-weight:800;color:#15803d;margin-bottom:2px">📟 アイポーターの単価欄に、この数字を打つ</div>'
       +lineHtml
-      +'<div style="font-size:12.5px;color:#15803d;border-top:1px solid #cde4d8;margin-top:6px;padding-top:6px">コメント欄に記入 → <b>合計送料（税抜）¥'+r.feeUsed.toLocaleString()+'</b></div>'
+      +'<div style="font-size:12.5px;color:#15803d;border-top:1px solid #cde4d8;margin-top:6px;padding-top:6px">コメント欄に記入 → <b>合計送料（税抜）¥'+shipToWrite.toLocaleString()+'</b></div>'
+      +(amt10>0 ? '<div style="font-size:12px;color:#9a3412;background:#fff7ed;border-radius:8px;padding:7px 9px;margin-top:6px;font-weight:700">🛍 消費税10%の品（紙袋・ギフト箱など）が '+rows10.length+'品 入っています。税抜 ¥'+amt10.toLocaleString()+'。納品書では10%で計算されます。</div>' : '')
     +'</div>'
-    +(r.reduced>0 ? '<div style="background:#fff7ed;border:1.5px solid #f59e0b;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12.5px;color:#92400e;font-weight:700">⚠️ ぴったり合わないので、送料を¥'+r.reduced+'引いて（合計送料 税抜¥'+r.feeUsed+'）合わせました。納品書の送料もこの金額にしてください。</div>' : '')
+    +(r.reduced>0 ? '<div style="background:#fff7ed;border:1.5px solid #f59e0b;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:12.5px;color:#92400e;font-weight:700">⚠️ ぴったり合わないので、送料を¥'+r.reduced+'引いて（合計送料 税抜¥'+shipToWrite+'）合わせました。納品書の送料もこの金額にしてください。</div>' : '')
     +'<div style="font-size:13px;color:#2b2a26;background:#f7f4ee;border-radius:10px;padding:9px 12px">'
       +'納品書の合計（税込）：<b>¥'+r.invTotal.toLocaleString()+'</b>　'
       +(r.ok ? '<span style="color:#15803d;font-weight:800">✓ 検算OK（アイポーター合計と一致）</span>' : '<span style="color:#dc2626;font-weight:800">⚠️ 検算が合いません</span>')
@@ -8198,7 +8245,9 @@ function parseRtSlip(lines){
     rawCode: (prefix||'') + (suffix||''),
     productId: productId, name: prod ? prod.name : '',
     bottles: bottles, unitPrice: unitPrice,
-    taxRate: (prod && prod.rtTaxRate) ? prod.rtTaxRate : 8,
+    /* ★2026-08-24 税率は【親＝oos-zei.js】が決めます（8%は食品だけ・紙袋やギフト箱は10%）。
+       ここを 8 の決め打ちに戻さないでください（ゆかさん報告：芦屋ベイコートの紙袋が8%で出ていた原因）。 */
+    taxRate: OOS_ZEI.percentForProduct(prod, PRODUCTS),
     matched: !!productId
   };
   return { slipNo:slipNo, orderDate:orderDate, deliveryDate:deliveryDate, dept:dept,
@@ -8242,7 +8291,8 @@ function rtCalcLines(){
     if(!sel || !sel.value || qty <= 0) return;
     var p = (PRODUCTS||[]).find(function(x){ return String(x.id)===String(sel.value); });
     out.push({ rawCode:'①計算', productId: sel.value, productName: (p?p.name:''), matched: true,
-               bottles: qty, unitPrice: price, taxRate: 8 });
+               /* ★2026-08-24 税率は【親＝oos-zei.js】。8 の決め打ちに戻さないでください */
+               bottles: qty, unitPrice: price, taxRate: OOS_ZEI.percentForProduct(p, PRODUCTS) });
   });
   return out;
 }
@@ -8266,6 +8316,14 @@ function rtPullFromCalc(silent){
   return true;
 }
 
+/* ★2026-08-24 1行ぶんの税率を【親＝oos-zei.js】に聞く。
+   商品を選び直したときも必ず新しい税率になるよう、しまってある値ではなく毎回聞き直します。
+   商品がまだ選ばれていない行は 10%（安全側）。★8の決め打ちに戻さないでください。 */
+function _rtLineRate(ln){
+  var p = (PRODUCTS||[]).find(function(x){ return String(x.id)===String(ln && ln.productId); });
+  if(!p) return OOS_ZEI.normalizePercent(ln && ln.taxRate!=null ? ln.taxRate : OOS_ZEI.PERCENT_SERVICE);
+  return OOS_ZEI.percentForProduct(p, PRODUCTS);
+}
 function rtLineRowHtml(ln, i){
   ln = ln || {};
   var sel = '<select onchange="rtParsed.lines['+i+'].productId=this.value;rtParsed.lines['+i+'].matched=!!this.value;renderRtPreview()" style="width:100%;padding:6px 9px;border:1.5px solid '+(ln.matched?'#d5cfc3':'#dc2626')+';border-radius:6px;font-size:13px;font-weight:700">'+productOptionsHtml(ln.productId)+'</select>';
@@ -8273,20 +8331,20 @@ function rtLineRowHtml(ln, i){
     +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">伝票コード</div>'+esc(ln.rawCode||'—')+'</div>'
     +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>'+sel+(ln.matched?'':'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ 商品を選んでください</div>')+'</div>'
     +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="0" value="'+(ln.bottles||0)+'" oninput="rtParsed.lines['+i+'].bottles=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
-    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+(ln.taxRate||8)+'%</span></div></div>'
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+_rtLineRate(ln)+'%</span></div></div>'
     +'<div>'+(i>0?'<button class="btn-sm" style="color:#991b1b;border-color:#e6a5a5" onclick="rtRemoveLine('+i+')" title="この商品を消す">✕</button>':'')+'</div>'
     +'</div>';
 }
 function rtAddLine(){
   if(!rtParsed) return;
   rtParsed.lines = rtParsed.lines || [];
-  rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:8 });
+  rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:10 });
   renderRtPreview();
 }
 function rtRemoveLine(i){
   if(!rtParsed || !rtParsed.lines) return;
   rtParsed.lines.splice(i, 1);
-  if(!rtParsed.lines.length) rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:8 });
+  if(!rtParsed.lines.length) rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, unitPrice:0, taxRate:10 });
   renderRtPreview();
 }
 function renderRtPreview(){
@@ -8373,7 +8431,7 @@ function rtDeliveryNoteHtml(){
   lines.forEach(function(ln){
     var prod = (PRODUCTS||[]).find(function(x){ return String(x.id)===String(ln.productId); });
     var name = (prod && prod.name) || ln.name || '';
-    var qty = ln.bottles||0, unit = ln.unitPrice||0, amt = qty*unit, rate = ln.taxRate||8;
+    var qty = ln.bottles||0, unit = ln.unitPrice||0, amt = qty*unit, rate = _rtLineRate(ln);
     rateSub[rate] = (rateSub[rate]||0) + amt;
     var mark = (Number(rate)===8) ? ' ※' : '';
     rows += '<tr><td class="d-tekiyo">'+esc(name)+mark+'</td><td class="d-qty">'+qty+' 本</td><td class="d-num">'+unit.toLocaleString()+'</td><td class="d-num">'+amt.toLocaleString()+'</td></tr>';
@@ -8390,7 +8448,10 @@ function rtDeliveryNoteHtml(){
   for(var i=0;i<need;i++) rows += '<tr><td class="d-tekiyo">&nbsp;</td><td></td><td></td><td></td></tr>';
   var subtotal=0, tax=0, uchiwake='';
   Object.keys(rateSub).sort().forEach(function(r){
-    var base = rateSub[r], t = Math.round(base*Number(r)/100);
+    /* ★2026-08-24 ひろみさん確定：消費税の端数は【切り捨て】。
+       ①「まず計算する」のアイポーター逆算（rtInvoiceTotal）も切り捨てなので、
+       ここを四捨五入に戻すと、①の合計と納品書の合計が1円ずれます。★戻さないでください。 */
+    var base = rateSub[r], t = Math.floor(base*Number(r)/100);
     subtotal += base; tax += t;
     var lbl = (Number(r)===8) ? '軽減税率8%' : (r+'%');
     uchiwake += '<div class="uw-row"><span>'+lbl+'対象(税抜)</span><span>'+base.toLocaleString()+'円</span></div>'

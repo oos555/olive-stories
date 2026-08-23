@@ -64,7 +64,9 @@
     var items = opt.items || [];
     var sub8 = 0, sub10 = 0, tax8 = 0, tax10 = 0;
     items.forEach(function(it){
-      if(it.taxRate === 0.10){ sub10 += it.amount||0; tax10 += Math.round((it.amount||0)*0.10); }
+      /* ★2026-08-24 税率は【親＝oos-zei.js】で判定する。0.10 との一致で見ていたため、
+         「10」や「10%」と書かれた行が黙って8%に転んでいた。★戻さないでください */
+      if(!OOS_ZEI.isReduced(it.taxRate)){ sub10 += it.amount||0; tax10 += Math.round((it.amount||0)*0.10); }
       else { sub8 += it.amount||0; tax8 += Math.round((it.amount||0)*0.08); }
     });
     var total = sub8 + sub10 + tax8 + tax10;
@@ -96,7 +98,7 @@
        + (opt.showAmount ? '<th style="width:18%">金額（税抜）</th>' : '')
        + '</tr></thead><tbody>';
     items.forEach(function(it, i){
-      var taxMark = (it.taxRate === 0.10 ? '' : ' ※');
+      var taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
       h += '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(it.name)+taxMark+'</td>'
          + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.unitPrice):'―')+'</td>' : '')
          + '<td style="text-align:center"><b style="font-size:15px">'+esc(it.qtyText||((it.qty||0)+'本'))+'</b></td>'

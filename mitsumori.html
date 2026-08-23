@@ -10,8 +10,29 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-24-01">
 <script src="oos-version.js"></script>
+<!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
+<script src="oos-zei.js?v=20260824"></script>
+<script>
+/* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
+   黙って間違った税率で見積・請求書が出るのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZEI === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 消費税の計算ファイル（oos-zei.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">見積書・請求書の消費税が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zei.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZEI = null;
+  }
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px}
@@ -1482,15 +1503,16 @@ function loadSoryoRules(){
 
 // ── いただいたExcel（2026年価格リスト）から読み取った初期価格 ──
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
-// オリーブオイル本体は軽減税率8%、ギフト箱・紙袋などの備品・その他は標準税率10%
+/* ★2026-08-24 消費税の税率は【親＝oos-zei.js】が決めます。
+     8%＝食品だけ（オイル・ざくろソース等）／それ以外は全部10%（紙袋・ギフト箱・空瓶・送料…）
+   ★ここに判定を書き写さないでください（親を変えたらまたずれます）。
+   ★価格マスタの税率欄は【見ません】。シートの数字と食品ルールが食い違うと
+     黙って間違った見積・請求書が出るためです（ゆかさん報告の「紙袋が8%」はこの型の事故）。 */
 function defaultTaxRateForGroup(group){
-  return (group==='ギフト箱・備品' || group==='その他') ? 0.10 : 0.08;
+  return OOS_ZEI.rateForProduct({ group: group });
 }
 function taxRateForSku(sku){
-  const p = priceMaster.find(x=>x.sku===sku);
-  if(p && p.taxRate!=null && p.taxRate!=='') return parseFloat(p.taxRate);
-  const prod = findProductBySku(sku);
-  return defaultTaxRateForGroup(prod?prod.group:'');
+  return OOS_ZEI.rateForSku(sku, PRODUCTS);
 }
 
 const DEFAULT_PRICES = {
@@ -3801,7 +3823,7 @@ function buildCompactInvoiceHtml(record, opts){
   const standalone = !!(opts && opts.standalone);
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   record.items.forEach(function(it){
-    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    if(!OOS_ZEI.isReduced(it.taxRate)){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
     else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
   const warehouseFee = record.warehouseFee || 0;
@@ -3843,7 +3865,7 @@ function buildCompactInvoiceHtml(record, opts){
     if(it.boxes && it.bottles) qtyStr = it.boxes+'箱＋'+it.bottles+'本（計'+it.qty+'本）';
     else if(it.boxes) qtyStr = it.boxes+'箱（'+(it.boxes*boxQty)+'本）';
     else qtyStr = it.bottles+'本';
-    const taxMark = (it.taxRate===0.10 ? '' : ' ※');
+    const taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
     html += '<tr>'+td(esc(it.name)+taxMark)+td(esc(invOrigin(it.sku)||'－'),'text-align:center')+td(esc(invExp(it.sku)||'－'),'text-align:center')+td(qtyStr,'text-align:center')+td('¥'+it.unitPrice.toLocaleString(),'text-align:right')+td('¥'+it.amount.toLocaleString(),'text-align:right')+'</tr>';
   });
   // 倉庫出荷手数料：卸・RTのご注文のとき必ず項目として載せる（無料でも金額を見せる）
@@ -4029,7 +4051,7 @@ function buildQuoteDocHtml(record, c){
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   record.items.forEach(function(it){
-    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    if(!OOS_ZEI.isReduced(it.taxRate)){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
     else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
   const subtotal = subtotalTax8 + subtotalTax10;
@@ -4059,7 +4081,7 @@ function buildQuoteDocHtml(record, c){
   html += '<table class="doc2-items"><thead><tr><th style="width:5%">No.</th><th style="text-align:left">商品</th><th style="width:12%">バラ1本<br><span style="font-weight:400;font-size:10px">単価・税抜</span></th><th style="width:15%">1箱のお値段<br><span style="font-weight:400;font-size:10px">税抜</span></th><th style="width:14%">数量</th><th style="width:14%">金額（税抜）</th></tr></thead><tbody>';
   const selFields = record.selectedFields || [];
   record.items.forEach(function(it, i){
-    const taxMark = (it.taxRate===0.10 ? '' : ' ※');
+    const taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
     const extraInfo = renderExtraFieldsForProduct(it.sku, selFields, record.fieldOverrides);
     html += '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(it.name)+taxMark+extraInfo+'</td><td style="text-align:right">¥'+it.unitPrice.toLocaleString()+'</td>'+docBoxPriceCell(it)+docQtyCell(it)+'<td style="text-align:right">¥'+it.amount.toLocaleString()+'</td></tr>';
   });
@@ -4109,7 +4131,7 @@ function buildInvoiceDocHtml(record, c){
   record = record || {}; if(!Array.isArray(record.items)) record.items = [];
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   record.items.forEach(function(it){
-    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    if(!OOS_ZEI.isReduced(it.taxRate)){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
     else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
   const subtotal = subtotalTax8 + subtotalTax10;
@@ -4144,7 +4166,7 @@ function buildInvoiceDocHtml(record, c){
   html += '<div class="doc2-grand"><span class="lbl">'+(isBoth?'お見積兼ご請求金額（税込）':'ご請求金額（税込）')+'</span><span class="amt">¥'+total.toLocaleString()+'</span></div>';
   html += '<table class="doc2-items"><thead><tr><th style="width:5%">No.</th><th style="text-align:left">商品</th><th style="width:12%">バラ1本<br><span style="font-weight:400;font-size:10px">単価・税抜</span></th><th style="width:15%">1箱のお値段<br><span style="font-weight:400;font-size:10px">税抜</span></th><th style="width:14%">数量</th><th style="width:14%">金額（税抜）</th></tr></thead><tbody>';
   record.items.forEach(function(it, i){
-    const taxMark = (it.taxRate===0.10 ? '' : ' ※');
+    const taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
     html += '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(it.name)+taxMark+'</td><td style="text-align:right">¥'+it.unitPrice.toLocaleString()+'</td>'+docBoxPriceCell(it)+docQtyCell(it)+'<td style="text-align:right">¥'+it.amount.toLocaleString()+'</td></tr>';
   });
   let exNoI = record.items.length;
@@ -7238,7 +7260,7 @@ function qiBuildDoc(){
     var bought=QI.items.filter(function(it){return it.on&&(parseInt(it.buy)||0)>0;});
     h+='<table class="qi-items"><thead><tr><th style="width:26%">商品名</th><th style="width:9%">容量</th><th style="width:13%">賞味期限</th><th style="width:13%">特価(単価)</th><th style="width:10%">本数</th><th style="width:15%">金額</th></tr></thead><tbody>';
     var sub8=0,sub10=0;
-    bought.forEach(function(it){ var p=findProductBySku(it.sku)||{}; var amt=(parseInt(it.sp)||0)*(parseInt(it.buy)||0); var rate=(typeof taxRateForSku==='function')?taxRateForSku(it.sku):0.08; if(rate===0.10) sub10+=amt; else sub8+=amt; h+='<tr><td class="qi-i-name">'+qiEsc(qiNameOf(it.sku))+'</td><td class="qi-c">'+qiEsc(qiCapFor(it.sku))+'</td><td class="qi-c">'+qiEsc(it.exp)+'</td><td class="qi-r" style="font-weight:700">'+qiYen(it.sp)+'</td><td class="qi-c">'+(parseInt(it.buy)||0)+'本</td><td class="qi-i-amt">¥'+qiYen(amt)+'</td></tr>'; });
+    bought.forEach(function(it){ var p=findProductBySku(it.sku)||{}; var amt=(parseInt(it.sp)||0)*(parseInt(it.buy)||0); var rate=(typeof taxRateForSku==='function')?taxRateForSku(it.sku):OOS_ZEI.rateForSku(it.sku, PRODUCTS); if(!OOS_ZEI.isReduced(rate)) sub10+=amt; else sub8+=amt; h+='<tr><td class="qi-i-name">'+qiEsc(qiNameOf(it.sku))+'</td><td class="qi-c">'+qiEsc(qiCapFor(it.sku))+'</td><td class="qi-c">'+qiEsc(it.exp)+'</td><td class="qi-r" style="font-weight:700">'+qiYen(it.sp)+'</td><td class="qi-c">'+(parseInt(it.buy)||0)+'本</td><td class="qi-i-amt">¥'+qiYen(amt)+'</td></tr>'; });
     if(!bought.length) h+='<tr><td colspan="6" style="text-align:center;color:#9a958a;padding:16px">「買った」にチェックし、本数を入れてください。</td></tr>';
     h+='</tbody></table>';
     var tax8=Math.round(sub8*0.08);
@@ -7289,7 +7311,7 @@ function qiGenerate(){
   var amountTotal=0;
   if(!isQ){
     var sub8=0, sub10=0;
-    QI.items.forEach(function(it){ if(!(it.on&&(parseInt(it.buy)||0)>0)) return; var amt=(parseInt(it.sp)||0)*(parseInt(it.buy)||0); var rate=(typeof taxRateForSku==='function')?taxRateForSku(it.sku):0.08; if(rate===0.10) sub10+=amt; else sub8+=amt; });
+    QI.items.forEach(function(it){ if(!(it.on&&(parseInt(it.buy)||0)>0)) return; var amt=(parseInt(it.sp)||0)*(parseInt(it.buy)||0); var rate=(typeof taxRateForSku==='function')?taxRateForSku(it.sku):OOS_ZEI.rateForSku(it.sku, PRODUCTS); if(!OOS_ZEI.isReduced(rate)) sub10+=amt; else sub8+=amt; });
     var shipNet=(parseInt(QI.shipNet)||0), pickupNet=(QI.pickupMode==='charge')?(parseInt(QI.pickupNet)||0):0;
     var sum10=sub10+shipNet+pickupNet;
     amountTotal=sub8+Math.round(sub8*0.08)+sum10+Math.round(sum10*0.10);
@@ -7332,7 +7354,7 @@ function qiSeedLegacyKuda(){
       }catch(e){}
       return '';
     }
-    var items=defs.map(function(d){ var sku=findSku(d.nm,d.cap); return { sku:sku, name:d.nm+' '+d.cap+'ml（特価）', qty:d.qty, bottles:d.qty, unitPrice:d.sp, amount:d.sp*d.qty, taxRate:0.08, exp:d.exp }; });
+    var items=defs.map(function(d){ var sku=findSku(d.nm,d.cap); return { sku:sku, name:d.nm+' '+d.cap+'ml（特価）', qty:d.qty, bottles:d.qty, unitPrice:d.sp, amount:d.sp*d.qty, taxRate:(sku?taxRateForSku(sku):0.08)/* ★税率の既定ではありません：2026-07-23に出した過去の見積の写し。中身は全部オイル＝8% */, exp:d.exp }; });
     quoteHistory.push({ id:'legacy-kuda-20260723', kind:'quote', customerName:'久田 友佳', companyName:'', contactPerson:'久田 友佳',
       estimateNo:MN, invoiceNo:'', issuedAt:'2026-07-23T00:00:00.000Z', creator:'', items:items });
   }catch(e){}

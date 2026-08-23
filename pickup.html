@@ -288,12 +288,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
 <script src="oos-zaiko.js?v=20260820"></script>
+<!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
+<script src="oos-zei.js?v=20260824"></script>
+<script>
+/* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
+   黙って間違った税率で納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZEI === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 消費税の計算ファイル（oos-zei.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">納品書の消費税が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zei.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZEI = null;
+  }
+})();
+</script>
 <!-- ★2026-08-19 お客様にお渡しする書類（納品書・納品書兼請求書）の体裁。
      見積・請求書Ｍで決めた見た目をそのまま使うための共有ファイル。★消さないでください -->
 <!-- 書類をPDFにするための道具（見積・請求書Ｍと同じもの） -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="oos-doc.js?v=20260819g"></script>
+<script src="oos-doc.js?v=20260824"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -315,7 +336,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-20-02">
+<meta name="oos-version" content="2026-08-24-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -733,14 +754,14 @@ function basaraOrderNoOf(o){
 var PRICE_MASTER = [];
 const BULK_UPGRADE_BOXES = 6; // 卸①のお客様が、同じ商品を1回の注文でこの箱数以上買うと、その行だけ自動的に卸②価格になる
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
+/* ★2026-08-24 消費税の税率は【親＝oos-zei.js】が決めます。
+     8%＝食品だけ（オイル・ざくろソース等）／それ以外は全部10%（紙袋・ギフト箱・空瓶・送料…）
+   ★ここに判定を書き写さないでください。価格マスタの税率欄も見ません。 */
 function defaultTaxRateForGroup(group){
-  return (group==='ギフト箱・備品' || group==='その他') ? 0.10 : 0.08;
+  return OOS_ZEI.rateForProduct({ group: group });
 }
 function taxRateForSku(sku){
-  const p = PRICE_MASTER.find(x=>x.sku===sku);
-  if(p && p.taxRate!=null && p.taxRate!=='') return parseFloat(p.taxRate);
-  const prod = findProductBySku(sku);
-  return defaultTaxRateForGroup(prod?prod.group:'');
+  return OOS_ZEI.rateForSku(sku, PRODUCTS);
 }
 function effectiveCustomerType(customerType, boxes){
   if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
@@ -826,7 +847,7 @@ function buildInvoiceHtml(o){
       qtyText: qty + '本' + (l.boxes ? '（バラ'+l.bottles+'＋'+l.boxes+'箱）' : ''),
       unitPrice: unit,
       amount: unit * qty,
-      taxRate: sku ? taxRateForSku(sku) : 0.08
+      taxRate: sku ? taxRateForSku(sku) : OOS_ZEI.RATE_SERVICE   /* ★品番が分からない行は10%（安全側）。8%にしないでください */
     });
   });
 

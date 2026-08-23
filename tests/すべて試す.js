@@ -38,7 +38,8 @@ const FILES = [
   ['test_yunyu_free.js',   '輸入のフリー（予定−予約）'],
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
   ['test_kienai.js',      '通しの動きと「消えない」の見張り'],
-  ['test_shorui.js',      '倉庫Ｄの書類（A4縦・社内の言葉なし）']
+  ['test_shorui.js',      '倉庫Ｄの書類（A4縦・社内の言葉なし）'],
+  ['test_zeiritsu.js',    '消費税の税率（8%は食品だけ・紙袋は10%）']
 ];
 
 let total = 0, ngFiles = [];

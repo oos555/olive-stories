@@ -76,6 +76,9 @@ function makeSandbox(extra){
   box.window = box;
   box.globalThis = box;
   const ctx = vm.createContext(box);
+  /* ★2026-08-24 消費税の【親】oos-zei.js は、どのテストでも必ず入れておく。
+     アプリ側は自分で税率を判定せず OOS_ZEI を呼ぶだけになっているため。★消さないでください */
+  vm.runInContext(read('oos-zei.js'), ctx);
   return { box, ctx };
 }
 
@@ -84,4 +87,9 @@ function runZaiko(ctx){
   vm.runInContext(z, ctx);
 }
 
-module.exports = { read, cut, cutVar, makeSandbox, runZaiko, ANY, LIVE };
+/* 消費税の【親】。makeSandbox が自動で入れるが、自前で箱を作ったときはこれを呼ぶ */
+function runZei(ctx){
+  vm.runInContext(read('oos-zei.js'), ctx);
+}
+
+module.exports = { read, cut, cutVar, makeSandbox, runZaiko, runZei, ANY, LIVE };

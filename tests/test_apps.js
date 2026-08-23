@@ -304,7 +304,7 @@ try{
   var R = H.makeSandbox({ document: dom, alert: function(){} });
   vm.runInContext(H.cutVar(idxSrc, 'PRODUCTS'), R.ctx);
   vm.runInContext('function esc(s){ return String(s==null?"":s); } function productOptionsHtml(){ return ""; } function showSyncStatus(){} function renderRtPreview(){} var rtParsed = null; var RT_SEAL_IMG = "";', R.ctx);
-  ['rtCalcLines','rtCalcShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
+  ['_rtLineRate','rtCalcLines','rtCalcShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
   var pr = R.box.PRODUCTS.filter(function(p){ return !p.isSet; });
   CALC = [ calcRow(pr[0].id, 20, 7110), calcRow(pr[1].id, 10, 2613) ];
   SHIP = 3906;
@@ -318,8 +318,11 @@ try{
   eq('⑥ 納品書に1品目が載る', note.indexOf(pr[0].name) >= 0, true);
   eq('⑥ 納品書に2品目が載る', note.indexOf(pr[1].name) >= 0, true);
   eq('⑥ 納品書に送料が載る', note.indexOf('>送料<') >= 0 && note.indexOf('3,906') >= 0, true);
+  /* ★2026-08-24 ひろみさん確定：消費税の端数は【切り捨て】。
+     ①「まず計算する」のアイポーター逆算と、納品書の合計を1円もずらさないため。
+     ★ここを Math.round に戻さないでください。 */
   var y8 = 20*7110 + 10*2613;
-  var total = y8 + Math.round(y8*0.08) + 3906 + Math.round(3906*0.10);
+  var total = y8 + Math.floor(y8*0.08) + 3906 + Math.floor(3906*0.10);
   eq('⑥ 合計が 商品＋8% ＋ 送料＋10% になる', note.indexOf(total.toLocaleString()) >= 0, true);
   CALC = []; SHIP = 0;
   R.box.rtParsed.lines = [{ productId:pr[0].id, productName:pr[0].name, bottles:5, unitPrice:1000, matched:true, taxRate:8 }];

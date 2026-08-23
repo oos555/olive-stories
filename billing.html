@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-20-02">
+<meta name="oos-version" content="2026-08-24-01">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -183,6 +183,27 @@ tr:last-child td{border-bottom:none}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
 <script src="oos-zaiko.js?v=20260820"></script>
+<!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
+<script src="oos-zei.js?v=20260824"></script>
+<script>
+/* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
+   黙って間違った税率で請求書が出るのが一番あぶないので、その場で気づけるようにする。 */
+(function(){
+  if(typeof OOS_ZEI === 'undefined'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
+        + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
+      b.innerHTML = '⚠ 消費税の計算ファイル（oos-zei.js）が読み込めていません。<br>'
+        + '<span style="font-weight:600;font-size:13px">請求書・見積書の消費税が正しく出ません。'
+        + 'Ctrl+Shift+R（強制リロード）をお試しください。直らないときは oos-zei.js が '
+        + 'GitHubに上がっているかご確認ください。</span>';
+      document.body.appendChild(b);
+    });
+    window.OOS_ZEI = null;
+  }
+})();
+</script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -817,15 +838,16 @@ const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:
 
 // ── いただいたExcel（2026年価格リスト）から読み取った初期価格 ──
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
-// オリーブオイル本体は軽減税率8%、ギフト箱・紙袋などの備品・その他は標準税率10%
+/* ★2026-08-24 消費税の税率は【親＝oos-zei.js】が決めます。
+     8%＝食品だけ（オイル・ざくろソース等）／それ以外は全部10%（紙袋・ギフト箱・空瓶・送料…）
+   ★ここに判定を書き写さないでください（親を変えたらまたずれます）。
+   ★価格マスタの税率欄は【見ません】。シートの数字と食品ルールが食い違うと
+     黙って間違った請求書が出るためです（ゆかさん報告の「紙袋が8%」はこの型の事故）。 */
 function defaultTaxRateForGroup(group){
-  return (group==='ギフト箱・備品' || group==='その他') ? 0.10 : 0.08;
+  return OOS_ZEI.rateForProduct({ group: group });
 }
 function taxRateForSku(sku){
-  const p = priceMaster.find(x=>x.sku===sku);
-  if(p && p.taxRate!=null && p.taxRate!=='') return parseFloat(p.taxRate);
-  const prod = findProductBySku(sku);
-  return defaultTaxRateForGroup(prod?prod.group:'');
+  return OOS_ZEI.rateForSku(sku, PRODUCTS);
 }
 
 const DEFAULT_PRICES = {
@@ -1538,7 +1560,7 @@ function buildInvoiceDocHtml(inv){
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   inv.items.forEach(function(it){
-    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    if(!OOS_ZEI.isReduced(it.taxRate)){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
     else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
   const subtotal = subtotalTax8 + subtotalTax10;
@@ -2163,13 +2185,17 @@ function buildQuoteDocHtml(record, c){
   const dateStr = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日';
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
   record.items.forEach(function(it){
-    if(it.taxRate===0.10){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
+    if(!OOS_ZEI.isReduced(it.taxRate)){ subtotalTax10 += it.amount; taxAmount10 += Math.round(it.amount*0.10); }
     else { subtotalTax8 += it.amount; taxAmount8 += Math.round(it.amount*0.08); }
   });
   const subtotal = subtotalTax8 + subtotalTax10;
   const totalTax = taxAmount8 + taxAmount10;
   const warehouseFee = record.warehouseFee || 0;
-  const total = subtotal + totalTax + warehouseFee;
+  /* ★2026-08-24 ひろみさん確定：倉庫ピッキング手数料にも消費税10%がかかります。
+     ここだけ税が抜けていて、見積・請求書Ｍ（mitsumori.html）と金額が食い違っていました。
+     ★この行を消さないでください。 */
+  const warehouseTax = Math.round(warehouseFee * OOS_ZEI.RATE_SERVICE);
+  const total = subtotal + totalTax + warehouseFee + warehouseTax;
   let html = '<div class="invoice-doc">';
   html += '<div class="invoice-doc-title">御 見 積 書</div>';
   html += '<div class="invoice-doc-top">';
@@ -2195,7 +2221,7 @@ function buildQuoteDocHtml(record, c){
     else if(it.boxes) qtyStr = it.boxes+'箱';
     else qtyStr = it.bottles+'本';
     qtyStr += '<br><span style="font-size:10px;color:#2b2a26">計'+it.qty+'本</span>';
-    const taxStr = (it.taxRate===0.10?'10%':'8%');
+    const taxStr = (OOS_ZEI.isReduced(it.taxRate)?'8%':'10%');
     const extraInfo = renderExtraFieldsForProduct(it.sku, selFields, record.fieldOverrides);
     html += '<tr><td>'+(i+1)+'</td><td>'+esc(it.name)+extraInfo+'</td><td style="text-align:center">'+qtyStr+'</td><td style="text-align:right">¥'+it.unitPrice.toLocaleString()+'</td><td style="text-align:center">'+taxStr+'</td><td style="text-align:right">¥'+it.amount.toLocaleString()+'</td></tr>';
   });
@@ -2210,7 +2236,8 @@ function buildQuoteDocHtml(record, c){
     html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount10.toLocaleString()+'</td></tr>';
   }
   if(warehouseFee){
-    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">倉庫手数料（バラ出荷）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+warehouseFee.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">倉庫手数料（バラ出荷・税抜）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+warehouseFee.toLocaleString()+'</td></tr>';
+    html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（10%・倉庫手数料）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+warehouseTax.toLocaleString()+'</td></tr>';
   }
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
@@ -2696,7 +2723,7 @@ function renderSpecialPriceDoc(record){
   html += '</tbody></table>';
   html += '<div style="display:flex;justify-content:flex-end;margin-top:10px"><table style="border-collapse:collapse;font-size:12px">';
   html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">小計</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+subtotal.toLocaleString()+'</td></tr>';
-  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（'+(tax===0.10?'10%':'8%')+'）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount.toLocaleString()+'</td></tr>';
+  html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税（'+(OOS_ZEI.isReduced(tax)?'8%':'10%')+'）</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAmount.toLocaleString()+'</td></tr>';
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
   html += '<div class="invoice-doc-note"><strong>備考：</strong><br>'+esc(record.reason).replace(/\n/g,'<br>')+'<br><br>作成者：'+esc(record.creator)+'</div>';
@@ -2851,8 +2878,9 @@ function renderPriceTable(){
   const pidMap = computeStockPidMap();
   function buildRow(p, rowClass){
     const rec = priceRecFor(p.sku);
-    const defaultTax = defaultTaxRateForGroup(p.group);
-    const taxR = rec.taxRate!=null && rec.taxRate!=='' ? parseFloat(rec.taxRate) : defaultTax;
+    /* ★2026-08-24 税率は【親＝oos-zei.js】が決めます（価格マスタのtaxRate欄は見ません）。
+       この一覧に出る税率と、請求書に出る税率が必ず同じになるようにするためです。 */
+    const taxR = OOS_ZEI.rateForProduct(p, PRODUCTS);
     const stock = availableForSku(p.sku, pidMap);
     const outOfStock = stock <= 0;
     let h = '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>';
@@ -2865,7 +2893,7 @@ function renderPriceTable(){
       + '</td>';
     h += '<td><strong>'+esc(p.name)+'</strong> <span class="sku-tag">'+esc(p.sku)+'</span>'+buildMemoBtn(p)+'</td>';
     h += '<td>'+(p.boxQty||'-')+'</td>';
-    h += '<td>'+(taxR===0.10?'10%':'8%')+'</td>';
+    h += '<td>'+(OOS_ZEI.isReduced(taxR)?'8%':'10%')+'</td>';
     ['General','Wholesale1','Wholesale2','Basara','RT','OldLot','Defect'].forEach(function(kind){
       const val = rec['price'+kind] || 0;
       if(kind==='OldLot' && val<=0){ h += '<td style="text-align:right;color:#9ca3af">－</td>'; return; }
@@ -3676,7 +3704,7 @@ function calcMonthlyInvoice(forcedClient){
       const tax = taxRateForSku(sku);
       const amount = unitPrice * totalQty;
       const taxAmt = Math.round(amount * tax);
-      if(tax===0.10){ subtotalTax10 += amount; taxAmount10 += taxAmt; }
+      if(!OOS_ZEI.isReduced(tax)){ subtotalTax10 += amount; taxAmount10 += taxAmt; }
       else { subtotalTax8 += amount; taxAmount8 += taxAmt; }
       if(appPaid) appPaidTotal += (amount + taxAmt);
       rows.push({ orderNum:o.num, shippedAt:(o.shippedAt||'').slice(0,10), productName:l.productName, qty:totalQty, unitPrice:unitPrice, openPrice:openPrice, amount:amount, taxRate:tax, appPaid:appPaid });
