@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-24-04">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -183,6 +183,14 @@ tr:last-child td{border-bottom:none}
 #oos-whatis .owg-tip{margin-top:12px;background:#fff8e6;border:1px solid #f0e2b8;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#6b5a12;line-height:1.55}
 #oos-whatis .owg-close{margin-top:14px;display:inline-block;background:#efece6;border:1px solid #ddd6ca;color:#4a463d;font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:8px;cursor:pointer}
 #oos-whatis .owg-close:hover{background:#e5e1d8}
+/* ★2026-08-24 輸入ノート：合計金額のバッジ・「本当の原価」の説明枠・自動控えの帯
+   承認モック mocks/mock_輸入E_輸入ノート_2026-08-24.html のとおり。★消さないでください */
+.yn-sum{font-size:12px;font-weight:800;color:#7c3a00;background:#fff4e6;border:1px solid #f0c48a;border-radius:99px;padding:2px 10px}
+.yn-kaisetsu{background:#fff4e6;border:2px solid #f0c48a;border-radius:10px;padding:11px 13px;margin:10px 0;font-size:12.5px;line-height:1.9;color:#5a3a10}
+.yn-kaisetsu .h{font-weight:800;color:#7c3a00;margin-bottom:5px;font-size:13px}
+.yn-kaisetsu code{background:#fff;border:1px solid #f0c48a;border-radius:4px;padding:1px 6px;font-family:Consolas,monospace;font-size:12px}
+.yn-kaisetsu .step{margin:3px 0 3px 4px}
+.yn-hozon{background:#eef4fb;border:1px solid #b9d3ec;border-radius:8px;padding:7px 11px;font-size:12px;color:#20456b;margin-bottom:10px}
 @media(max-width:560px){#oos-whatis .owg-flow{flex-direction:column}#oos-whatis .owg-ar{transform:rotate(90deg)}#oos-whatis .owg-st{min-width:0}}
 </style>
 <details class="no-print" id="oos-whatis">
@@ -2532,6 +2540,8 @@ function ynInitPanel(){
   ynRenderCards();
 }
 function ynFmt(n){ return '¥'+Math.round(n).toLocaleString(); }
+/* ★2026-08-24 €は四捨五入しない（請求書の合計とそろえるため）。★Math.round に戻さないでください */
+function ynEur(n){ return '€'+Number(n||0).toLocaleString('ja-JP',{minimumFractionDigits:2, maximumFractionDigits:2}); }
 /* ★2026-07-19 「2026-04-30T15:00:00.000Z」のような日付も「2026-04」に整えて表示する */
 function fmtYm(v){
   const m = String(v==null?'':v).match(/^(\d{4})-(\d{2})/);
@@ -2943,6 +2953,13 @@ function ynScrollToDetail(){
   if(d && d.style.display!=='none'){ try{ d.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){ d.scrollIntoView(); } }
 }
 function ynOpenNote(id){
+  /* ★2026-08-24 この端末の控えがあれば、その続きから始める（打った数字を消さない） */
+  (function(){
+    var d = ynDraftLoad(id);
+    if(!d || !d.note) return;
+    var i = (importBatches||[]).findIndex(function(b){ return b.id===id; });
+    if(i>=0) importBatches[i] = d.note; 
+  })();
   ynAllFromBatches();
   const n = ynNotes.find(function(x){ return x.id===id; });
   if(!n) return;
@@ -2981,22 +2998,35 @@ function ynCalc(n){
   const taxTotal = (parseFloat(e.taxImport)||0) + (parseFloat(e.taxCustoms)||0) + (parseFloat(e.taxOther)||0);
   const domestic = (parseFloat(e.sagawaAirport)||0) + (parseFloat(e.sagawaTransport)||0) + (parseFloat(e.warehouse)||0) + (parseFloat(e.otherJp)||0);
   const adjJpy = (parseFloat(n.adjEur)||0) * R; // マイナスで入力
-  let totalG=0, totalMl=0, eurQty=0;
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-24 ひろみさん確定：パッキングリストの総重量に合わせる。
+       箱・緩衝材のぶん、実際の重さは「1本の重さのルール」の合計より重い。
+       そこで【全部の商品の1本の重さに、同じ倍率をかけて】合計をぴったり合わせる。
+       ひろみさんの言葉：「1つの商品に全部載せるというのはやめて、均等に割り振って。
+       　　　　　　　　　　この均等は、金額を同じに割り振るのではなく、容量や重さなどに応じて」
+       → 重い商品ほど増える量も多くなる＝容量・重さに応じた振り分けになる。
+     ★n.packKg（パッキングリストの総重量 kg）が空のときは倍率1。
+       これまでのノートの原価は1円も動きません。★この作りを変えないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  let ruleG=0, totalMl=0, eurQty=0;
   (n.lines||[]).forEach(function(l){
     const q = parseFloat(l.qty)||0;
-    totalG += q * (parseFloat(l.g)||0);
+    ruleG += q * (parseFloat(l.g)||0);
     totalMl += q * (parseFloat(l.ml)||0);
     eurQty += q * (parseFloat(l.eur)||0);
   });
+  const packKg = parseFloat(n.packKg)||0;
+  const wK = (packKg>0 && ruleG>0) ? (packKg*1000/ruleG) : 1;   /* 重さの補正倍率 */
+  const totalG = ruleG * wK;
   const perG = totalG>0 ? airJpy/totalG : 0;
   const perMl = totalMl>0 ? domestic/totalMl : 0;
-  const out = { R:R, airJpy:airJpy, taxTotal:taxTotal, domestic:domestic, adjJpy:adjJpy, totalG:totalG, totalMl:totalMl, eurQty:eurQty, perG:perG, perMl:perMl, lines:[] };
+  const out = { R:R, airJpy:airJpy, taxTotal:taxTotal, domestic:domestic, adjJpy:adjJpy, totalG:totalG, ruleG:ruleG, wK:wK, packKg:packKg, totalMl:totalMl, eurQty:eurQty, perG:perG, perMl:perMl, lines:[] };
   (n.lines||[]).forEach(function(l){
-    const q = parseFloat(l.qty)||0, eur = parseFloat(l.eur)||0, g = parseFloat(l.g)||0, ml = parseFloat(l.ml)||0;
-    if(q<=0 || eur<=0){ out.lines.push({sku:l.sku, skip:true, qty:q}); return; }
+    const q = parseFloat(l.qty)||0, eur = parseFloat(l.eur)||0, g = (parseFloat(l.g)||0)*wK, ml = parseFloat(l.ml)||0;
+    if(q<=0 || eur<=0){ out.lines.push({sku:l.sku, skip:true, qty:q, g:(parseFloat(l.g)||0)*wK, rowG:(parseFloat(l.g)||0)*wK*q}); return; }
     const share = eurQty>0 ? (eur*q)/eurQty : 0;
     const cost = eur*R + g*out.perG + (q>0? taxTotal*share/q : 0) + ml*out.perMl + (q>0? adjJpy*share/q : 0);
-    out.lines.push({sku:l.sku, skip:false, qty:q, cost:Math.round(cost)});
+    out.lines.push({sku:l.sku, skip:false, qty:q, cost:Math.round(cost), g:g, rowG:g*q});
   });
   return out;
 }
@@ -3079,6 +3109,12 @@ function ynRenderDetail(){
     + (fixed? '<span style="font-size:11px;background:#e1efe3;color:#166534;border:1px solid #4ade80;border-radius:99px;padding:3px 12px;font-weight:700">✅ 確定済み'+(n.pastOnly?'・過去記録（原価未反映）':'')+'</span>'
             : '<span style="font-size:11px;background:#fef3c7;color:#78350f;border:1px solid #f59e0b;border-radius:99px;padding:3px 12px;font-weight:700">⏳ 仮（参考原価）</span>')
     + '<span id="yn-dirty" style="font-size:12px;color:#dc2626"></span></div>';
+
+  /* ★2026-08-24 ひろみさん確定：仮の数字が消えないように、この端末へ自動で控える。
+     GASへ送るのは今までどおり「💾 保存する」を押したときだけ。★消さないでください */
+  html += '<div class="yn-hozon">💾 <b>自動で控えています</b>（最後に入れたところ：<span id="yn-draft-at">'
+    + esc(ynDraftAtText(n.id)) + '</span>）。ページを閉じても、次に開いたときこの続きから始められます。'
+    + 'GASに残すときは下の「💾 保存する」を押してください。</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">'
     + ynField('輸入年月（例 2026-05）','yn-ym',n.yearMonth)
     + ynField('為替レート（1€＝円）','yn-rate',n.exchangeRate)
@@ -3088,19 +3124,19 @@ function ynRenderDetail(){
 
   /* 経費 */
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-bottom:10px">';
-  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">✈️ 空輸（€）→ 重さで配る</div>'
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">✈️ 空輸（€）→ 重さで配る<span class="yn-sum" id="yn-sum-air">合計 '+ynFmt(c.airJpy)+'</span></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
     + ynField('空輸費（€）','yn-air',n.exp.airEur)
     + ynField('値引き（€）','yn-airdisc',n.exp.airDiscEur)
     + '</div>' + ynField('値引きの理由メモ','yn-airdiscmemo',n.exp.airDiscMemo,'100%','例：ラベル破損の補償')
     + '<div style="font-size:11px;color:#57534e;margin-top:4px">＝ '+ynFmt(c.airJpy)+'（1gあたり ¥'+(c.perG?c.perG.toFixed(3):'—')+'）</div></div>';
-  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">🏛 税金（円）→ €金額で配る</div>'
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">🏛 税金（円）→ €金額で配る<span class="yn-sum" id="yn-sum-tax">合計 '+ynFmt(c.taxTotal)+'</span></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'
     + ynField('輸入消費税','yn-taximp',n.exp.taxImport)
     + ynField('関税','yn-taxcus',n.exp.taxCustoms,'100%','通常0')
     + ynField('その他','yn-taxoth',n.exp.taxOther)
     + '</div><div style="font-size:11px;color:#57534e;margin-top:4px">合計 '+ynFmt(c.taxTotal)+'</div></div>';
-  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px">🚚 国内経費（円）→ mlで配る</div>'
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px"><div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">🚚 国内経費（円）→ mlで配る<span class="yn-sum" id="yn-sum-jp">合計 '+ynFmt(c.domestic)+'</span></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
     + ynField('佐川（空港倉庫）','yn-sagawaair',n.exp.sagawaAirport)
     + ynField('佐川（輸送）','yn-sagawatr',n.exp.sagawaTransport)
@@ -3115,6 +3151,18 @@ function ynRenderDetail(){
     + '</div><div style="font-size:11px;color:#57534e;margin-top:4px">＝ '+ynFmt(c.adjJpy)+'</div></div>';
   html += '</div>';
 
+  /* ★2026-08-24 パッキングリストの総重量（ひろみさん確定・承認モックのとおり）
+     空欄なら今までどおり。入れると全部の商品の1本の重さを同じ倍率で増やして合計を合わせる。 */
+  html += '<div style="background:#f9f7f2;border-radius:8px;padding:9px 11px;margin-bottom:10px">'
+    + '<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">⚖️ パッキングリストの総重量（kg）'
+    + '<span class="yn-sum" id="yn-sum-k">補正 ×'+(c.wK).toFixed(4)+'</span></div>'
+    + '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'
+    + '<div style="width:160px">' + ynField('書類に載っている総重量','yn-packkg',n.packKg) + '</div>'
+    + '<div style="font-size:11px;color:#57534e;margin:0 0 4px;line-height:1.7">'
+    + '入れると、<b>全部の商品の「1本の重さ」を同じ倍率で増やして</b>、合計をこの数字にぴったり合わせます。<br>'
+    + '（ルールの重さの合計 '+(c.ruleG?(c.ruleG/1000).toFixed(3):"—")+' kg → '+(c.packKg?c.packKg.toFixed(2):"—")+' kg）　空欄にすると、いままでどおりルールの重さのままです。'
+    + '</div></div></div>';
+
   /* 明細 */
   html += '<div style="font-size:12.5px;font-weight:800;color:#6b7a3a;margin-bottom:4px">🫒 商品明細（0本のまま残すと「今回は見送り」の記録になります）</div>';
   /* ★2026-08-18 重さのマスを ml／オイル g／容器 g／合計 g に分けた（ひろみさん指示）。
@@ -3125,7 +3173,7 @@ function ynRenderDetail(){
     + '<th rowspan="2" style="text-align:right">本数<br><span style="font-weight:400;font-size:9px">🟡前回</span></th>'
     + '<th colspan="4" style="background:#e6efdd">1本あたり（🔒 ひとりでに出ます）</th>'
     + '<th rowspan="2" style="text-align:right;background:#e6efdd">この行の<br>総重量 g</th>'
-    + '<th rowspan="2" style="text-align:right;background:#eef7ef">本当の原価</th></tr>'
+    + '<th rowspan="2" style="text-align:right;background:#fff4e6;color:#7c3a00">本当の原価</th></tr>'
     + '<tr><th style="text-align:right;background:#eef3e6">ml</th><th style="text-align:right;background:#eef3e6">オイル g</th>'
     + '<th style="text-align:right;background:#eef3e6">容器 g</th><th style="text-align:right;background:#e6efdd">合計 g</th></tr>'
     + '</thead><tbody>';
@@ -3137,7 +3185,10 @@ function ynRenderDetail(){
     ynTotQty += q;
     const locked = ynWeightLocked(l);
     const w = ynWeightFor(l.sku);
-    const rowG = (parseFloat(l.g)||0) * q;
+    /* ★2026-08-24 表に出す重さは【補正後】。補正なし（packKg空）のときは今までと同じ数字。 */
+    const gAdj = (cl.g!=null? cl.g : (parseFloat(l.g)||0)*(c.wK||1));
+    const rowG = (cl.rowG!=null? cl.rowG : gAdj*q);
+    const ynG1 = function(v){ return v.toLocaleString("ja-JP",{maximumFractionDigits:1}); };
     const numCell = function(v){ return '<td style="text-align:right;background:#eef7ef;font-weight:700">'+(v===''||v==null?'<span style="color:#b8b2a6">—</span>':esc(v))+'</td>'; };
     html += '<tr>'
       + '<td style="min-width:170px"><select onchange="ynLineSku('+i+',this.value)" style="width:100%;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-size:12px">'+ynProductOptions(l.sku)+'</select></td>'
@@ -3147,7 +3198,11 @@ function ynRenderDetail(){
       html += numCell(w&&w.ml!=null?w.ml:'')
             + numCell(w&&w.oil!=null?w.oil:'')
             + numCell(w&&w.cont!=null?w.cont:'')
-            + numCell(w&&w.total!=null?w.total:'');
+            /* ★2026-08-24 補正後の重さを出し、元のルールの数字を小さく残す（消さない） */
+            + '<td style="text-align:right;background:#eef7ef;font-weight:700">'
+              + (w&&w.total!=null? ynG1(gAdj) : '<span style="color:#b8b2a6">—</span>')
+              + ((c.wK && c.wK!==1 && w && w.total!=null)? '<div style="font-size:9px;color:#8a867c;font-weight:400">元 '+w.total+'</div>' : '')
+              + '</td>';
     } else {
       /* ルールに無い商品／手で入れた重さ（古いノート）は、今までどおり打てる */
       html += '<td style="text-align:right"><input value="'+esc(l.ml)+'" oninput="ynLine('+i+',\'ml\',this.value)" style="width:56px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px"></td>'
@@ -3155,7 +3210,7 @@ function ynRenderDetail(){
             + '<td style="text-align:right"><input value="'+esc(l.g)+'" oninput="ynLine('+i+',\'g\',this.value)" title="パッキングリストの1本の重さ" style="width:64px;text-align:right;padding:4px;border:1px solid #d8cfc4;border-radius:6px;font-weight:700"></td>';
     }
     html += '<td style="text-align:right;background:#eef7ef;font-weight:700">'+(rowG>0?Math.round(rowG).toLocaleString():'<span style="color:#b8b2a6">—</span>')+'</td>'
-      + '<td style="text-align:right;background:#eef7ef;font-weight:800" id="yn-cost-'+i+'">'+(cl.skip? (q<=0?'<span style="font-size:10px;background:#f0ede6;border-radius:4px;padding:1px 6px;color:#8a867c">見送り</span>':'—') : ynFmt(cl.cost))+'</td>'
+      + '<td style="text-align:right;background:#fff4e6;color:#7c3a00;font-weight:800" id="yn-cost-'+i+'">'+(cl.skip? (q<=0?'<span style="font-size:10px;background:#f0ede6;border-radius:4px;padding:1px 6px;color:#8a867c">見送り</span>':'—') : ynFmt(cl.cost))+'</td>'
       + '</tr>';
   });
   html += '<tr style="background:#f3f1ea;font-weight:800">'
@@ -3164,6 +3219,32 @@ function ynRenderDetail(){
     + '<td style="text-align:right">'+(c.totalG?Math.round(c.totalG).toLocaleString():'—')+'</td>'
     + '<td style="text-align:center">—</td></tr>';
   html += '</tbody></table></div>';
+
+  /* ★2026-08-24 ひろみさん確定：「本当の原価」がどういう計算式かを、表のすぐ下に書く。
+     承認モック mocks/mock_輸入E_輸入ノート_2026-08-24.html のとおり。★消さないでください */
+  (function(){
+    var ex = null;
+    (n.lines||[]).forEach(function(l,i){ if(!ex && c.lines[i] && !c.lines[i].skip) ex = {l:l, cl:c.lines[i], i:i}; });
+    var y = function(v){ return ynFmt(v); };
+    html += '<div class="yn-kaisetsu">'
+      + '<div class="h">🧮 「本当の原価」は、こうやって出しています（1本あたり・円）</div>';
+    if(!ex){ html += '<div>商品・€単価・本数を入れると、ここに実際の数字で計算式が出ます。</div></div>'; return; }
+    var eur=parseFloat(ex.l.eur)||0, q=parseFloat(ex.l.qty)||0, ml=parseFloat(ex.l.ml)||0;
+    var gAdj2=(ex.cl.g!=null?ex.cl.g:(parseFloat(ex.l.g)||0)*(c.wK||1));
+    var share=c.eurQty>0?(eur*q)/c.eurQty:0;
+    var g1=function(v){ return v.toLocaleString("ja-JP",{maximumFractionDigits:1}); };
+    var nm=(function(){ var p=(PRODUCTS||[]).find(function(x){return x.sku===ex.l.sku;}); return p?p.name:ex.l.sku; })();
+    html += '<div class="step">① <b>商品代</b>　€単価 × 為替レート　<code>'+eur.toFixed(2)+' × '+c.R+' = '+y(eur*c.R)+'</code></div>'
+      + '<div class="step">② <b>空輸</b>　この商品の1本の重さ(g) × 1gあたりの空輸費　<code>'+g1(gAdj2)+'g × ¥'+c.perG.toFixed(3)+' = '+y(gAdj2*c.perG)+'</code><br>'
+      + '<span style="font-size:11px">　1gあたり ＝ 空輸費の合計 ÷ 全部の総重量　<code>'+y(c.airJpy)+' ÷ '+Math.round(c.totalG).toLocaleString()+'g</code>　※重い商品ほど多く背負います</span></div>'
+      + '<div class="step">③ <b>税金</b>　税金の合計 × この商品の€金額の割合 ÷ 本数　<code>'+y(c.taxTotal)+' × '+(share*100).toFixed(1)+'% ÷ '+q+'本 = '+y(q>0?c.taxTotal*share/q:0)+'</code><br>'
+      + '<span style="font-size:11px">　※税金は値段にかかるので、高い商品ほど多く背負います</span></div>'
+      + '<div class="step">④ <b>国内経費</b>　この商品の ml × 1mlあたりの国内経費　<code>'+ml+'ml × ¥'+c.perMl.toFixed(2)+' = '+y(ml*c.perMl)+'</code><br>'
+      + '<span style="font-size:11px">　1mlあたり ＝ 国内経費の合計 ÷ 全部の総量　<code>'+y(c.domestic)+' ÷ '+c.totalMl.toLocaleString()+'ml</code>　※量が多い商品ほど多く背負います</span></div>'
+      + '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #d9a86a"><b>①＋②＋③＋④ ＝ 本当の原価</b>　例：'+esc(nm)+'　'
+      + '<code>'+y(eur*c.R)+' ＋ '+y(gAdj2*c.perG)+' ＋ '+y(q>0?c.taxTotal*share/q:0)+' ＋ '+y(ml*c.perMl)+' ＝ <b>'+y(ex.cl.cost)+'</b></code></div>'
+      + '</div>';
+  })();
   html += '<div style="font-size:11px;color:#57534e;margin-top:4px;line-height:1.6">🔒 <b>ml・オイル g・容器 g・合計 g は、商品ごとにいつも同じ決まった数字</b>なので打つ欄を出していません。本数で変わるのは「この行の総重量 g」だけです。<br>ルールに無い商品（他の農園の品など）だけ、mlと合計 g を手で打てます。<b>すでに手で入れてある古いノートの数字は書き換えません。</b></div>';
   html += '<button class="btn-sm" onclick="ynAddLine()" style="margin-top:6px">＋ 行を追加</button>';
 
@@ -3171,7 +3252,9 @@ function ynRenderDetail(){
   html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12px">'
     + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">総重量 <strong id="yn-s-g">'+(c.totalG?((c.totalG/1000).toFixed(1)+' kg'):'—')+'</strong></div>'
     + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">総量 <strong id="yn-s-ml">'+(c.totalMl?c.totalMl.toLocaleString()+' ml':'—')+'</strong></div>'
-    + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">商品計 <strong id="yn-s-eur">€'+Math.round(c.eurQty).toLocaleString()+'</strong></div>'
+    /* ★2026-08-24 ひろみさん確定：四捨五入しない。請求書の合計と同じ数字を出す。
+       （例：€4,829.80 が Math.round で €4,830 になっていました）★戻さないでください */
+    + '<div style="background:#f5f0e8;border-radius:6px;padding:6px 12px">商品計 <strong id="yn-s-eur" style="color:#7c3a00">'+ynEur(c.eurQty)+'</strong>　<span style="font-size:10px;color:#8a867c">請求書の合計と同じ</span></div>'
     + '</div>';
   html += ynField('この輸入のメモ','yn-notes',n.notes);
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">'
@@ -3208,6 +3291,7 @@ function ynSync(){
   ynCurrent.exp.sagawaAirport = ynVal('yn-sagawaair'); ynCurrent.exp.sagawaTransport = ynVal('yn-sagawatr'); ynCurrent.exp.warehouse = ynVal('yn-wh');
   ynCurrent.exp.otherJp = ynVal('yn-otherjp'); ynCurrent.exp.otherJpMemo = ynVal('yn-otherjpmemo');
   ynCurrent.adjEur = ynVal('yn-adj'); ynCurrent.adjMemo = ynVal('yn-adjmemo'); ynCurrent.notes = ynVal('yn-notes');
+  ynCurrent.packKg = ynVal('yn-packkg');   /* ★2026-08-24 パッキングリストの総重量（kg） */
   ynMarkDirty(); ynRecalcInline();
 }
 function ynRecalcInline(){
@@ -3221,9 +3305,41 @@ function ynRecalcInline(){
   });
   const g=document.getElementById('yn-s-g'); if(g) g.textContent = c.totalG?((c.totalG/1000).toFixed(1)+' kg'):'—';
   const m=document.getElementById('yn-s-ml'); if(m) m.textContent = c.totalMl?c.totalMl.toLocaleString()+' ml':'—';
-  const e=document.getElementById('yn-s-eur'); if(e) e.textContent = '€'+Math.round(c.eurQty).toLocaleString();
+  const e=document.getElementById('yn-s-eur'); if(e) e.textContent = ynEur(c.eurQty);   /* ★四捨五入しない */
+  const sa=document.getElementById('yn-sum-air'); if(sa) sa.textContent = '合計 '+ynFmt(c.airJpy);
+  const st=document.getElementById('yn-sum-tax'); if(st) st.textContent = '合計 '+ynFmt(c.taxTotal);
+  const sj=document.getElementById('yn-sum-jp');  if(sj) sj.textContent = '合計 '+ynFmt(c.domestic);
+  const sk=document.getElementById('yn-sum-k');   if(sk) sk.textContent = '補正 ×'+(c.wK).toFixed(4);
 }
-function ynMarkDirty(){ ynDirty = true; const el=document.getElementById('yn-dirty'); if(el) el.textContent='● 未保存'; }
+/* ══════════════════════════════════════════════════════════════════
+   ★2026-08-24 仮保存（この端末に自動で控える）
+     ひろみさん「仮の状態で仮保存ができたらいい。毎回消えちゃうの嫌なので」
+     ・入力のたびに、この端末（ブラウザ）に丸ごと控える
+     ・ノートを開いたとき、控えがあればそれを使う（続きから始められる）
+     ・GASへ保存できたら控えは役目を終えるので消す
+   ★GASへは勝手に送りません。送るのは「💾 保存する」を押したときだけです。
+   ══════════════════════════════════════════════════════════════════ */
+var YN_DRAFT_KEY = 'oos_yn_draft_v1_';
+function ynDraftSave(n){
+  if(!n || !n.id) return;
+  try{ localStorage.setItem(YN_DRAFT_KEY+n.id, JSON.stringify({ savedAt:new Date().toISOString(), note:n })); }catch(e){}
+}
+function ynDraftLoad(id){
+  try{ var raw=localStorage.getItem(YN_DRAFT_KEY+id); return raw? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function ynDraftClear(id){ try{ localStorage.removeItem(YN_DRAFT_KEY+id); }catch(e){} }
+function ynDraftAtText(id){
+  var d = ynDraftLoad(id);
+  if(!d || !d.savedAt) return 'まだありません';
+  var t = new Date(d.savedAt);
+  if(isNaN(t.getTime())) return 'まだありません';
+  var diff = (Date.now()-t.getTime())/1000;
+  if(diff < 90) return 'たった今';
+  return (t.getMonth()+1)+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+}
+function ynMarkDirty(){ ynDirty = true; const el=document.getElementById('yn-dirty'); if(el) el.textContent='● 未保存';
+  ynDraftSave(ynCurrent);
+  const at=document.getElementById('yn-draft-at'); if(at) at.textContent = ynDraftAtText(ynCurrent&&ynCurrent.id); }
 
 /* ── 保存（既存アクションを使用・上書きは消してから保存） ── */
 async function ynPersist(note){
@@ -3261,7 +3377,8 @@ async function ynSave(silent){
   if(!ynCurrent.yearMonth){ alert('輸入年月を入れてください（例 2026-05）'); return; }
   showSyncStatus('保存しています...');
   const r = await ynPersist(ynCurrent);
-  if(r.ok){ ynDirty=false; const el=document.getElementById('yn-dirty'); if(el) el.textContent=''; showSyncStatus('✅ 保存しました'); ynAllFromBatches(); ynRenderCards(); }
+  if(r.ok){ ynDirty=false; const el=document.getElementById('yn-dirty'); if(el) el.textContent=''; ynDraftClear(ynCurrent.id);   /* ★GASに入ったので控えは役目を終える */
+    showSyncStatus('✅ 保存しました'); ynAllFromBatches(); ynRenderCards(); ynRenderDetail(); }
   else { showSyncStatus('⚠️ '+r.msg, true); }
 }
 async function ynFix(){
