@@ -181,6 +181,29 @@ console.log('\n■ 承認済みモックと同じ数字か（モックのHTMLか
   });
 }
 
+console.log('\n■ カードが開けなくなっていないか（2026-08-24 ひろみさん報告の再発防止）');
+/* 事故の記録：計算式の説明で PRODUCTS と書いたが、輸入Eのページにその変数は無い
+   （商品一覧は OOS_PRODUCTS）。ReferenceError で ynRenderDetail が途中で死に、
+   カードを開いても詳細が出なかった。テストは PRODUCTS を注入していたため見逃した。
+   ★テストに、本物のページに無い変数を注入しないこと（環境を本物に合わせる）。 */
+t('ページに無い変数 PRODUCTS を使っていない',
+  /[^_A-Za-z]PRODUCTS\s*\|\|/.test(src.split('OOS_PRODUCTS').join('X').split('PRODUCTS_CACHE_KEY').join('X')), false);
+{
+  /* 本物の ynRenderDetail を、ページと同じ変数だけで最後まで走らせる（描き出しの道具ごと動かす） */
+  const cp = require('child_process');
+  let okRun = true, msg = '';
+  try{
+    cp.execFileSync(process.execPath, [R + 'tests/render_yunyu_note.js', R + 'tests/_render_check.html'], { stdio:'pipe' });
+    const h = fs.readFileSync(R + 'tests/_render_check.html', 'utf8');
+    okRun = h.indexOf('yn-kaisetsu') >= 0 && h.indexOf('yn-cost-0') >= 0 && h.indexOf('💾 保存する') >= 0;
+    fs.unlinkSync(R + 'tests/_render_check.html');
+  }catch(e){ okRun = false; msg = String(e.message || '').slice(0, 120); }
+  t('カードを開く流れ（ynRenderDetail）が最後まで走る' + (msg ? ('：' + msg) : ''), okRun, true);
+  /* 描き出しの道具が、本物に無い PRODUCTS を注入していないか */
+  const rsrc = fs.readFileSync(R + 'tests/render_yunyu_note.js', 'utf8');
+  t('描き出しの道具が PRODUCTS を注入していない', rsrc.indexOf("'var PRODUCTS = '") >= 0, false);
+}
+
 console.log('\n■ 版');
 {
   const v = JSON.parse(fs.readFileSync(R + 'version.json', 'utf8')).pages['import.html'];

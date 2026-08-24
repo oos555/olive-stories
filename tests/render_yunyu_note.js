@@ -47,7 +47,9 @@ vm.runInContext([
   'function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }',
   'function ynProductOptions(sel){ return "<option>"+String(sel||"")+"</option>"; }',
   'function ynPrevNote(){ return null; }',
-  'var PRODUCTS = ' + JSON.stringify(RAW.map(function(r,i){ return { id:i+1, sku:r[0], name:r[1] }; })) + ';',
+  /* ★2026-08-24 本物のページと同じ名前（OOS_PRODUCTS）にする。
+     PRODUCTS を注入していたせいで、本物には無い変数を使うバグをテストが見逃した。★PRODUCTSに戻さないでください */
+  'var OOS_PRODUCTS = ' + JSON.stringify(RAW.map(function(r,i){ return { id:i+1, sku:r[0], name:r[1] }; })) + ';',
   'var ynDirty = false;'
 ].join('\n'), ctx);
 
