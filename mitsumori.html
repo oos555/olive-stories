@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-24-01">
+<meta name="oos-version" content="2026-08-24-02">
 <script src="oos-version.js"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
 <script src="oos-zei.js?v=20260824"></script>
@@ -5413,6 +5413,7 @@ function renderSpecialPriceDocBatch(records, cust){
   html += '<tr><td style="padding:4px 12px;border:1px solid #d5cfc3">消費税</td><td style="padding:4px 12px;border:1px solid #d5cfc3;text-align:right">¥'+taxAll.toLocaleString()+'</td></tr>';
   html += '<tr><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700">合計</td><td style="padding:6px 12px;border:2px solid #1a1a18;background:#f9f8f5;font-weight:700;text-align:right">¥'+total.toLocaleString()+'</td></tr>';
   html += '</table></div>';
+  if(sub8) html += '<div style="text-align:right;font-size:11px;color:#57534e;margin-top:4px">※印は軽減税率対象商品です。</div>';
   if(comment){
     html += '<div class="invoice-doc-note">'+esc(comment).replace(/\n/g,'<br>')+'</div>';
   }
@@ -5527,19 +5528,19 @@ function buildOilWholesaleDocHtml(record){
   Object.keys(groups).forEach(function(g){
     html += '<div style="margin-top:16px;font-weight:700;background:#f9f8f5;padding:6px 10px;border-left:4px solid #55622e">'+esc(g)+'</div>';
     if(mode==='general'){
-      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:25%">価格</th></tr></thead><tbody>';
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:25%">価格（税抜）</th></tr></thead><tbody>';
       groups[g].forEach(function(r){
         html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td></tr>';
       });
       html += '</tbody></table>';
     } else if(mode==='rt'){
-      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:20%">定価</th><th style="width:20%">価格</th></tr></thead><tbody>';
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:20%">定価（税抜）</th><th style="width:20%">価格（税抜）</th></tr></thead><tbody>';
       groups[g].forEach(function(r){
         html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td><td style="text-align:right;color:#1e40af;font-weight:700">¥'+r.rt.toLocaleString()+'</td></tr>';
       });
       html += '</tbody></table>';
     } else if(mode==='wholesale'){
-      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:12%">箱数</th><th style="width:18%">上代</th><th style="width:18%">卸①</th><th style="width:18%">卸②</th></tr></thead><tbody>';
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:12%">箱数</th><th style="width:18%">上代（税抜）</th><th style="width:18%">卸①（税抜）</th><th style="width:18%">卸②（税抜）</th></tr></thead><tbody>';
       groups[g].forEach(function(r){
         html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:center">'+(r.boxes||'-')+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td>'
           + '<td style="text-align:right;color:#b91c1c;font-weight:'+(r.upgraded?'400':'700')+'">¥'+r.w1.toLocaleString()+'</td>'
@@ -5547,7 +5548,7 @@ function buildOilWholesaleDocHtml(record){
       });
       html += '</tbody></table>';
     } else if(mode==='special'){
-      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:20%">定価</th><th style="width:20%">特価</th></tr></thead><tbody>';
+      html += '<table class="invoice-doc-table" style="margin-top:6px"><thead><tr><th>商品名</th><th style="width:20%">定価（税抜）</th><th style="width:20%">特価（税抜）</th></tr></thead><tbody>';
       groups[g].forEach(function(r){
         html += '<tr><td>'+esc(r.name)+'</td><td style="text-align:right">¥'+r.general.toLocaleString()+'</td><td style="text-align:right" class="ow-price-special">¥'+r.special.toLocaleString()+'</td></tr>';
       });
@@ -5561,6 +5562,8 @@ function buildOilWholesaleDocHtml(record){
     html += '<div class="invoice-doc-note" style="margin-top:16px"><strong>備考：</strong><br>'+esc(record.quoteMemo).replace(/\n/g,'<br>')+'</div>';
   }
   html += '<div class="invoice-doc-note" style="margin-top:8px">';
+  /* ★2026-08-24 ひろみさん確定：価格表の金額は【税抜】。書いていないと取り違えの元になります。★消さないでください */
+  html += '※記載の金額はすべて<strong>税抜</strong>です。別途、消費税（食品8%／それ以外10%）を申し受けます。<br>';
   html += '※本価格表の有効期限は発行日より2ヶ月とさせていただきます。<br>';
   html += '※ご不明点は '+esc(COMPANY_INFO.email)+' までお問い合わせください。';
   html += '</div>';

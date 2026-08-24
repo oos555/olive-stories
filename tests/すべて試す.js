@@ -39,7 +39,8 @@ const FILES = [
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
   ['test_kienai.js',      '通しの動きと「消えない」の見張り'],
   ['test_shorui.js',      '倉庫Ｄの書類（A4縦・社内の言葉なし）'],
-  ['test_zeiritsu.js',    '消費税の税率（8%は食品だけ・紙袋は10%）']
+  ['test_zeiritsu.js',    '消費税の税率（8%は食品だけ・紙袋は10%）'],
+  ['test_zei_2kaime.js',  '消費税・第2回点検（手数料の税・送料の行・※印・価格表）']
 ];
 
 let total = 0, ngFiles = [];

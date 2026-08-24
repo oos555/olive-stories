@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-24-02">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
@@ -489,7 +489,7 @@
       <div class="row"><span class="lbl" id="ship-lbl">送料（税込）</span><span class="amt2" id="shipfee" style="font-size:16px">¥880</span></div>
       <div class="row giftfeerow" id="giftfeerow" style="display:none"><span class="lbl" id="giftfee-lbl">ギフトボックス（税込）</span><span class="amt2" id="giftfee" style="font-size:16px">¥0</span></div>
       <div class="row" style="border-top:1px solid #d7deca;margin-top:6px;padding-top:8px"><span class="lbl" style="font-weight:900;font-size:15px">お支払い（税込・送料込み）</span><span class="amt" id="grand">¥0</span></div>
-      <div class="note">消費税（オイル8%）・送料込みの金額です。送料はお届け先の都道府県で自動（北海道・沖縄県¥1,100／その他¥880・すべて税込）。</div>
+      <div class="note">消費税（食品8%／それ以外10%）・送料込みの金額です。送料はお届け先の都道府県で自動（北海道・沖縄県¥1,100／その他¥880・すべて税込）。バラ出荷の倉庫手数料がかかる場合は、消費税10%を含めた金額です。</div>
     </div>
 
     <button class="cta" onclick="confirmOrder()">お支払いへ進む<span class="ctasub">（この内容で仮予約）</span></button>
@@ -679,7 +679,11 @@ function recalc(){
   var si = shipInfo(); var ship = si.fee;
   var fee = feeFor((PAYLOAD.customer&&PAYLOAD.customer.type)||'general', hasLoose);
   LAST_FEE = fee;
-  LAST_TOTAL = subExcl + tax + fee + giftBoxFee + ship; /* 税込・お支払い額（送料込み） */
+  /* ★2026-08-24 ひろみさん確定：倉庫ピッキング手数料は【税抜】なので、消費税10%を必ず足す。
+     決めごとＳ（soryo.html）に「送料は税込ですが、ピッキング手数料は税抜」と書いてあります。
+     ここを足し忘れると、卸①②で25円・RTで70円ぶん取りそこねます。★消さないでください。 */
+  var feeTax = Math.round(fee * 0.10);
+  LAST_TOTAL = subExcl + tax + fee + feeTax + giftBoxFee + ship; /* 税込・お支払い額（送料込み） */
   var el;
   if(el=document.getElementById('subtotal')) el.textContent=fmt(subExcl);
   if(el=document.getElementById('shipfee'))  el.textContent=fmt(ship);
@@ -813,8 +817,8 @@ function buildOrder(claimed, method, ref){
   var _si=shipInfo();
   var extra = '／送料 '+yen(_si.fee)+'(税込'+(_si.name?'・'+_si.name:'')+')' + (method?('／お支払い：'+method+(ref?('（'+ref+'）'):'')):'') + (email?('／メール：'+email):'') + (gy?('／ギフト・お届け先＝お相手（差出人：'+senderNm+'）'):'') + (gy?('／ギフトボックス：'+gb.name+'('+yen(gb.price)+')'):'') + (gbd?('／ギフト内訳：'+gbd):'');
   var noteMsg = (claimed
-      ? '【アプリ注文】お客様が「入金済み」でご依頼。入金確認の上、出荷依頼書へ進んでください。お支払い総額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
-      : '【アプリ注文】入金前です。お客様がお支払い手続き中。入金確認後に発送してください。お支払い予定額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'）'
+      ? '【アプリ注文】お客様が「入金済み」でご依頼。入金確認の上、出荷依頼書へ進んでください。お支払い総額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'・税抜）'
+      : '【アプリ注文】入金前です。お客様がお支払い手続き中。入金確認後に発送してください。お支払い予定額 '+yen(LAST_TOTAL)+'（内 倉庫手数料 '+yen(LAST_FEE)+'・税抜）'
     ) + extra;
   return {
     enclosedDoc:'納品書兼領収書', includePamphlet:true,

@@ -336,7 +336,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-24-01">
+<meta name="oos-version" content="2026-08-24-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -851,11 +851,40 @@ function buildInvoiceHtml(o){
     });
   });
 
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-08-24 ひろみさん確定：送料と倉庫ピッキング手数料も書類に出す。
+     それまでは商品だけで「ご請求金額」を出していたため、
+     お客様が実際に払った金額と書類の金額が食い違っていました。
+
+     ・送料は【税込】で持っている（決めごとＳ：北海道・沖縄¥1,100／その他¥880）
+       → 書類は税抜で並べるので 1.1 で割り戻して税抜にし、税率10%で出す
+     ・倉庫ピッキング手数料は【税抜】で持っている → そのまま税率10%で出す
+     ・金額を持っていない注文（手入力・RT伝票取込など）は行を出さず、
+       下の備考に「送料は別途申し受けます」と出す（黙って0円にしない）
+     ★この かたまり を消さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  var _shipIncl = parseInt(o.shippingFee)||0;      // 送料（税込）
+  var _whFee    = parseInt(o.warehouseFee)||0;     // 倉庫ピッキング手数料（税抜）
+  if(withAmount && _whFee > 0){
+    items.push({ name:'倉庫ピッキング手数料（バラ出荷）', qty:1, qtyText:'1式',
+                 unitPrice:_whFee, amount:_whFee, taxRate: OOS_ZEI.RATE_SERVICE });
+  }
+  if(withAmount && _shipIncl > 0){
+    var _shipNet = Math.round(_shipIncl / (1 + OOS_ZEI.RATE_SERVICE));
+    items.push({ name:'送料', qty:1, qtyText:'1式',
+                 unitPrice:_shipNet, amount:_shipNet, taxRate: OOS_ZEI.RATE_SERVICE });
+  }
+
   /* ★2026-08-19 ひろみさんと決めた文言です。★勝手に書き換えないでください。
      ・「キャンセル・変更について」の段落は入れない
      ・破損のご連絡は【到着後3日以内】
      ・「破損以外のお客様都合による変更は、食品のため承れません」 */
   var notes = [];
+  /* ★2026-08-24 送料の金額を持っていない注文は、0円と思われないように一言そえる */
+  if(withAmount && _shipIncl <= 0){
+    notes.push('<div style="font-weight:700;margin-bottom:2px">■ 送料について</div>'
+      + '上記の金額に送料は含まれておりません。送料は別途申し受けます。');
+  }
   notes.push('<div style="font-weight:700;margin-bottom:2px">■ 破損していた場合</div>'
     + 'ご迷惑をおかけし、大変申し訳ございません。到着後3日以内に、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡ください。'
     + '到着から1週間以上経過したもの、およびお客様が商品を廃棄された後のご連絡は、状況を確認できないため対応いたしかねる場合がございます。'
