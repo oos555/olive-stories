@@ -285,6 +285,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .stk-sub{display:block;font-size:10px;font-weight:600;color:#6b6459;line-height:1.3}
 .df-lot-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
 .df-src-op{display:flex;align-items:flex-start;gap:9px;border:2px solid #d5cfc3;border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;background:#fff}
+/* ── 送信履歴（見るだけ） ── */
+.hist-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.hist-pill{font-size:13px;font-weight:700;padding:8px 14px;border-radius:99px;border:1.5px solid #d5cfc3;background:#fff;color:#57534e;cursor:pointer}
+.hist-pill.active{background:#6b7a3a;border-color:#6b7a3a;color:#fff}
+.hist-summary{display:flex;gap:8px;margin-bottom:12px}
+.hs-card{flex:1;border-radius:10px;padding:8px 11px;background:#f1efe8}
+.hs-label{font-size:12px;color:#5f5e5a;font-weight:600}
+.hs-num{font-size:22px;font-weight:800;color:#3b4a1a;line-height:1.15}
+.hs-unit{font-size:12px;font-weight:600;color:#5f5e5a}
+.hist-tbl{width:100%;border-collapse:collapse}
+.hist-tbl thead tr{border-bottom:2px solid #6b7a3a}
+.hist-tbl th{font-size:11px;line-height:1.2;color:#2b2a26;padding:6px 3px;font-weight:700;text-align:center}
+.hist-tbl th.h-name{text-align:left;padding-left:3px}
+.hist-tbl td{padding:9px 3px;text-align:center;font-size:12.5px;border-bottom:1px solid #ece7dc;vertical-align:top}
+.hist-tbl td.h-when{white-space:nowrap;font-weight:700;color:#2b2a26;font-size:12px;text-align:left}
+.hist-tbl td.h-when small{display:block;font-weight:600;color:#8a887f;font-size:10.5px}
+.hist-tbl td.h-nm{text-align:left;padding-left:3px}
+.hist-tbl td.h-nm b{font-size:13.5px;color:#2b2a26;display:block}
+.hist-tbl td.h-nm small{display:block;font-size:11px;color:#6b6459;margin-top:2px;line-height:1.4}
+.hist-tbl td.h-to{font-size:11px;font-weight:700;color:#3b4a1a;white-space:nowrap}
+.hist-tbl td.h-cnt b{font-size:14px}
+.hist-tbl td.h-cnt.resend b{color:#dc2626}
+.hist-tbl td.h-cnt .resend-mk{display:block;font-size:9.5px;color:#dc2626;font-weight:800;margin-top:1px}
+.h-stat-done{color:#6b7a3a;font-weight:800;font-size:11px;white-space:nowrap}
+.h-stat-wait{color:#b45309;font-weight:800;font-size:11px;white-space:nowrap}
+.h-stat-cancel{color:#9ca3af;font-weight:800;font-size:11px;white-space:nowrap}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
 <script src="oos-zaiko.js?v=20260820"></script>
@@ -336,7 +362,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-24-02">
+<meta name="oos-version" content="2026-08-25-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1068,6 +1094,8 @@ async function init(){
        （loadMaterialsScreen などの中身はファイルの下のほうに残してあります）。 */
   } else if(mode==='stock'){
     await loadStockScreen();
+  } else if(mode==='history'){
+    await loadHistoryScreen();
   } else {
     await loadOrderList();
   }
@@ -1184,6 +1212,114 @@ function stockNumbersFor(pid, lots, defects, holds){
   // ★自分で計算しない。在庫の数え方は【親＝oos-zaiko.js】を見に行く。
   //   ここに計算式を書き写してはいけない（独自のコピーを持たない）。
   return OOS_ZAIKO.numbers(pid, { lots: lots, defects: defects, holds: holds });
+}
+
+// ── 送信履歴（見るだけ）：注文にすでに入っている notified/notifiedAt/notifyCount を並べるだけ。
+// 新しい保存場所は作らない。注文が消えない限りずっと遡って見られる。
+let historyOrders = [];
+let historyFilter = 'past2m';
+
+async function loadHistoryScreen(){
+  document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
+  try{
+    const res = await fetchWithTimeout(bust(GAS_URL + '?action=loadAll'));
+    const data = await res.json();
+    if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
+      document.getElementById('content').innerHTML = '<div class="alert-danger">送信履歴を読み込めませんでした。</div>'+historyBackBtn();
+      return;
+    }
+    data.data.orders.forEach(function(o){ o.customerType = normCtype(o.customerType); });
+    historyOrders = data.data.orders.filter(function(o){ return o.notified===true && !!o.notifiedAt; });
+    renderHistoryList();
+  }catch(err){
+    document.getElementById('content').innerHTML = '<div class="alert-danger">通信エラーが発生しました。電波の良い場所でもう一度お試しください。<br><br>'+esc(err.message)+'</div>'+historyBackBtn();
+  }
+}
+
+function historyBackBtn(){
+  return '<button class="refresh-btn no-print" style="margin-top:12px;background:#6b7a3a;color:#fff;border:none;font-size:16px" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
+}
+
+function historyRangeStart(key){
+  var now = new Date();
+  if(key==='thisMonth') return new Date(now.getFullYear(), now.getMonth(), 1);
+  if(key==='lastMonth') return new Date(now.getFullYear(), now.getMonth()-1, 1);
+  if(key==='past2m') return new Date(now.getFullYear(), now.getMonth()-2, now.getDate());
+  return null; // 'all'
+}
+function historyRangeEnd(key){
+  if(key==='lastMonth') { var now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); }
+  return null; // 今まで（open-ended）
+}
+function setHistoryFilter(key){ historyFilter = key; renderHistoryList(); }
+
+function fmtHistDT(iso){
+  try{
+    var d = new Date(iso);
+    var hh = String(d.getHours()).padStart(2,'0'), mi = String(d.getMinutes()).padStart(2,'0');
+    return (d.getMonth()+1)+'/'+d.getDate()+'<small>'+hh+':'+mi+'</small>';
+  }catch(e){ return esc(iso||''); }
+}
+
+function historyStatusHtml(o){
+  if(o.status==='deleted') return '<span class="h-stat-cancel">🗑 削除済み</span>';
+  if(o.status==='cancelled') return '<span class="h-stat-cancel">✕ 取消済み</span>';
+  if(o.status==='shipped') return '<span class="h-stat-done">✓ 梱包終了</span>';
+  return '<span class="h-stat-wait">🕐 梱包待ち</span>';
+}
+
+function renderHistoryList(){
+  var sorted = historyOrders.slice().sort(function(a,b){ return String(b.notifiedAt).localeCompare(String(a.notifiedAt)); });
+  var start = historyRangeStart(historyFilter);
+  var end = historyRangeEnd(historyFilter);
+  var target = sorted.filter(function(o){
+    var t = new Date(o.notifiedAt);
+    if(start && t < start) return false;
+    if(end && t >= end) return false;
+    return true;
+  });
+  var resendCount = target.filter(function(o){ return (o.notifyCount||1) > 1; }).length;
+
+  var html = '';
+  html += '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← ホームに戻る</div>';
+  html += '<div class="stock-head"><div class="stock-head-title">📜 出荷依頼 送信履歴</div><div class="stock-head-sub">倉庫へ「送りました」の記録だけを並べています（見るだけ）</div></div>';
+  html += '<div class="hist-filter no-print">';
+  [['thisMonth','今月'],['lastMonth','先月'],['past2m','過去2か月'],['all','全期間']].forEach(function(f){
+    html += '<div class="hist-pill'+(historyFilter===f[0]?' active':'')+'" onclick="setHistoryFilter(\''+f[0]+'\')">'+f[1]+'</div>';
+  });
+  html += '</div>';
+
+  html += '<div class="hist-summary">'
+        + '<div class="hs-card"><div class="hs-label">対象の件数</div><div class="hs-num">'+target.length+'<span class="hs-unit"> 件</span></div></div>'
+        + '<div class="hs-card"><div class="hs-label">うち再送信</div><div class="hs-num" style="color:#dc2626">'+resendCount+'<span class="hs-unit"> 件</span></div></div>'
+        + '</div>';
+
+  if(!target.length){
+    html += '<div class="card center" style="color:#57534e">この期間に送った出荷依頼はありません。</div>';
+  } else {
+    html += '<div class="card" style="padding:10px 8px"><table class="hist-tbl"><thead><tr>'
+      + '<th class="h-name" style="width:24%">送信日時</th><th style="width:26%">取引先</th><th style="width:16%">送り先</th><th style="width:12%">送信回数</th><th style="width:14%">状態</th>'
+      + '</tr></thead><tbody>';
+    target.forEach(function(o){
+      var products = (o.lines||[]).map(function(l){
+        var bx = l.boxes||0, bt = l.bottles||0;
+        return esc(l.productName)+' ×'+lineTotal(l)+'本'+(bx?'（'+bx+'箱'+(bt?'＋'+bt+'本':'')+'）':'');
+      }).join('、');
+      var cnt = o.notifyCount || 1;
+      html += '<tr>'
+        + '<td class="h-when">'+fmtHistDT(o.notifiedAt)+'</td>'
+        + '<td class="h-nm"><b>'+esc(recipientLabel(o))+'</b><small>'+esc(o.num||'')+'／'+products+'</small></td>'
+        + '<td class="h-to">倉庫<br>（LINE）</td>'
+        + '<td class="h-cnt'+(cnt>1?' resend':'')+'"><b>'+cnt+'</b>'+(cnt>1?'<span class="resend-mk">🔁再送信</span>':'')+'</td>'
+        + '<td>'+historyStatusHtml(o)+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  html += '<div class="stock-warn">⚠ <b>1つだけ制約があります。</b>「🔁もう一度送る」で送り直した注文は、今の仕組みでは<b>最後に送った日時しか残りません</b>（送信回数だけは分かります）。過去に何回・いつ送り直したか全部を残したい場合は、別に記録用の場所を新しく作る工事が必要になります（今回の案には含めていません）。</div>';
+
+  document.getElementById('content').innerHTML = html;
 }
 
 async function loadStockScreen(){
@@ -1374,7 +1510,7 @@ function renderList(){
   html += '</div>';
   html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 出荷依頼書を更新</button>';
   html += '<details class="tools-box no-print">';
-  html += '<summary><span>🧰 その他のボタン（不良品・メモ・在庫）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
+  html += '<summary><span>🧰 その他のボタン（不良品・メモ・在庫・履歴）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
   html += '<div class="tool-grid">';
   html += '<div class="tool-tile" style="background:#fef2f2;border-color:#dc2626" onclick="location.href=\'pickup.html?mode=defect\'"><div class="tt-ic" style="color:#991b1b">🔴</div><div class="tt-tx" style="color:#991b1b">不良品ほうこく</div></div>';
   html += '<div class="tool-tile" style="background:#f1ecfb;border-color:#7c3aed" onclick="location.href=\'pickup.html?mode=notes\'"><div class="tt-ic" style="color:#6d28d9">📝</div><div class="tt-tx" style="color:#5b21b6">メモ</div></div>';
@@ -1382,6 +1518,7 @@ function renderList(){
      戻したくなったときの元の行：
      html += '<div class="tool-tile" style="background:#fbeede0;border-color:#b45309" onclick="location.href=\'pickup.html?mode=materials\'"><div class="tt-ic" style="color:#b45309">📦</div><div class="tt-tx" style="color:#7a3a0e">資材カタログ</div></div>'; */
   html += '<div class="tool-tile" style="background:#eef3e0;border-color:#6b7a3a" onclick="location.href=\'pickup.html?mode=stock\'"><div class="tt-ic" style="color:#4a5a1f">🫒</div><div class="tt-tx" style="color:#3b4a1a">在庫を見る</div></div>';
+  html += '<div class="tool-tile" style="background:#eaf1fb;border-color:#185fa5" onclick="location.href=\'pickup.html?mode=history\'"><div class="tt-ic" style="color:#185fa5">📜</div><div class="tt-tx" style="color:#0f3d6b">送信履歴</div></div>';
   html += '</div>';
   html += '</details>';
   if(!allOrders.length){
