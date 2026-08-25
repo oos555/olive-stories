@@ -44,7 +44,9 @@ const FILES = [
   ['test_shoruiG_yoku_hiraku.js','書類Ｇ よく開くところ（承認モックとの対照）'],
   ['test_yunyu_note_2026-08-24.js','輸入Ｅ 輸入ノート（合計金額・仮保存・重さの補正）'],
   ['test_price_master_clear.js','価格マスタ：1マスだけ消す機能（2026-08-25バグ再発防止）'],
-  ['test_basara_sender.js','倉庫D：送り主がバサラではない注文の見分け（2026-08-25バグ再発防止）']
+  ['test_basara_sender.js','倉庫D：送り主がバサラではない注文の見分け（2026-08-25バグ再発防止）'],
+  ['test_rinji_nyuuko.js','臨時入庫：毎日の自動反映（GAS）'],
+  ['test_rinji_nyuuko_client.js','臨時入庫：統合マスタN画面側']
 ];
 
 let total = 0, ngFiles = [];

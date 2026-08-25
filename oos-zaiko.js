@@ -66,6 +66,11 @@
       else if(st==='hold_old')    old.manualHold += q;
       else if(st==='discard')     cur.discardQty += q;
       else if(st==='discard_old') old.discardQty += q;
+      // ★2026-08-25追加：臨時入庫の「予定」（status='restock'）と「反映済みの印」（'restock_done'）は
+      //   まだ棚に無い／もう使い終わった分なので、何も数えない（実行するまで在庫は動かない）。
+      //   ここに足さないと「'new' ほか＝現ロット」の受け皿に落ちて、予定を入れただけで
+      //   棚の良品が増えて見えてしまう（実際に2026-08-25のテストで検出した）。
+      else if(st==='restock' || st==='restock_done'){ /* 何もしない */ }
       else                        cur.avail += q;          // 'new' ほか＝現ロット
     });
 
