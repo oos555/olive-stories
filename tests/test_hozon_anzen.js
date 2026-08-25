@@ -1,9 +1,11 @@
-/* 統合マスタN：「打った数字が、画面を閉じると消える」事故を防ぐ見張り（2026-08-25）
-   ・保存待ち／保存中に画面を閉じようとしたら、ブラウザの標準確認で止める（beforeunload）
-   ・保存が失敗したら、3秒で消える通知だけでなく、消えない赤い帯を出し続ける
-   ・autoSaveTimer が「一度保存すると二度と null に戻らない」バグを直した
-     （直っていないと、最初の1回の保存のあと oosCheckStale と reloadStockNow が
-       ずっと働かなくなる。実際に見つかった不具合）
+/* 統合マスタN：「打った数字が、画面を閉じると消える」事故を防ぐ見張り（2026-08-25・第2版）
+   ・第1版（beforeunloadの確認ダイアログで止める方式）はスマホでは効かない
+     （iPhone/iPadのSafariは何年も前からこの確認を出さない）とひろみさんに指摘され、作り直した。
+   ・本命：画面が隠れる気配（アプリ切替・タブ切替・画面ロック・ページ離脱）を検知した瞬間に、
+     確認もダイアログも出さず、待たずに今すぐ保存する（visibilitychange と pagehide の両方）。
+   ・保存が失敗したときは、3秒で消える通知だけでなく、消えない赤い帯を出し続ける。
+   ・autoSaveTimer が「一度保存すると二度と null に戻らない」バグも直した
+     （直っていないと、最初の1回の保存のあと oosCheckStale と reloadStockNow がずっと働かなくなる）。
    本番の master.html から本物の関数をそのまま切り出して動かす。保存先には一切書き込まない。 */
 const vm = require('vm');
 const H = require('./harness');
@@ -15,11 +17,16 @@ function eq(l, got, want){ if(String(got) === String(want)) pass++; else { fail+
 function ok(l, cond){ if(cond) pass++; else { fail++; fails.push(l); } }
 
 /* ── ①ソース上の存在確認 ───────────────────────────── */
-ok('①beforeunloadの見張りがある', src.indexOf("addEventListener('beforeunload'") >= 0);
+ok('①visibilitychangeの見張りがある（本命）', src.indexOf("addEventListener('visibilitychange'") >= 0);
+ok('①pagehideの見張りがある（本命）', src.indexOf("addEventListener('pagehide'") >= 0);
+ok('①beforeunloadはおまけとして残っている', src.indexOf("addEventListener('beforeunload'") >= 0);
+ok('①即座に保存する関数がある', src.indexOf('function oosFlushPendingSave') >= 0);
 ok('①保存失敗の赤い帯を出す関数がある', src.indexOf('function oosSaveFailShow') >= 0);
 ok('①保存失敗の赤い帯を消す関数がある', src.indexOf('function oosSaveFailHide') >= 0);
 ok('①saveAllDataToGASの中で autoSaveTimer をnullに戻している',
    H.cut(src, 'saveAllDataToGAS').indexOf('autoSaveTimer = null;') >= 0);
+ok('①oosFlushPendingSaveはタイマーが有るときだけ動く（無駄撃ちしない）',
+   H.cut(src, 'oosFlushPendingSave').indexOf('if(autoSaveTimer)') >= 0);
 
 /* ── ②実際に動かして確認 ───────────────────────────── */
 function buildSandbox(fetchImpl){
@@ -29,30 +36,40 @@ function buildSandbox(fetchImpl){
     return elements[id];
   }
   const doc = {
+    visibilityState: 'visible',
+    _docListeners: {},
+    addEventListener(name, fn){ doc._docListeners[name] = fn; },
     getElementById(id){ return elements[id] || null; },
     createElement(){ const el = { style:{}, innerHTML:'' }; return el; },
     body: { appendChild(el){ if(!el.id) el.id = 'oos-savefail-bar'; elements[el.id] = el; el.appendedTo = 'body'; } }
   };
-  let unloadHandler = null;
+  const winListeners = {};
   const win = {
-    addEventListener(name, fn){ if(name === 'beforeunload') unloadHandler = fn; }
+    addEventListener(name, fn){ winListeners[name] = fn; }
   };
-  const timers = [];
+  const realTimers = []; // {fn, id} 本物の setTimeout はそのまま使う（saveAllDataToGASの実行タイミング検証には要らないため簡略化）
   const { box, ctx } = H.makeSandbox({
     document: doc,
     fetch: fetchImpl,
-    setTimeout(fn, ms){ timers.push(fn); return timers.length; },
+    // scheduleAutoSave の setTimeout は「呼ばれたことだけ」記録して実行はしない
+    // （このテストでは oosFlushPendingSave が clearTimeout → saveAllDataToGAS を直接呼ぶ経路を確かめる）
+    setTimeout(fn, ms){ realTimers.push(fn); return realTimers.length; },
+    clearTimeout(){},
     esc(s){ return String(s == null ? '' : s); }
   });
-  // makeSandbox は window=box にしてしまうので、addEventListener だけ差し替える
   box.addEventListener = win.addEventListener;
   box.window.addEventListener = win.addEventListener;
-  return { box, ctx, elements, makeEl, getUnloadHandler: () => unloadHandler, timers };
+  return {
+    box, ctx, elements, makeEl,
+    getVisHandler: () => doc._docListeners['visibilitychange'],
+    getPageHideHandler: () => winListeners['pagehide'],
+    getUnloadHandler: () => winListeners['beforeunload'],
+    setVisibility(v){ doc.visibilityState = v; }
+  };
 }
 
-function loadCore(ctx){
-  ['scheduleAutoSave', 'oosSaveFailShow', 'oosSaveFailHide', 'saveAllDataToGAS',
-   'buildEdits_placeholder_not_used'].forEach(() => {}); // (noop, 明示のためだけ)
+function loadCore(s){
+  const ctx = s.ctx;
   vm.runInContext('var autoSaveTimer = null; var oosSaveInFlight = false;', ctx);
   vm.runInContext('var lots = []; var defects = []; var defectHolds = []; var defectCategories = [];', ctx);
   vm.runInContext('var baselineLots = []; var baselineDefects = [];', ctx);
@@ -64,10 +81,16 @@ function loadCore(ctx){
   vm.runInContext(H.cut(src, 'oosSaveFailShow'), ctx);
   vm.runInContext(H.cut(src, 'oosSaveFailHide'), ctx);
   vm.runInContext(H.cut(src, 'saveAllDataToGAS'), ctx);
-  // beforeunload の登録部分だけを抜き出して実行（関数ではなく文なので正規表現で切り出す）
-  const m = /window\.addEventListener\('beforeunload'[\s\S]*?\}\);/.exec(src);
-  if(!m) throw new Error('beforeunload の登録コードが見つからない');
-  vm.runInContext(m[0], ctx);
+  vm.runInContext(H.cut(src, 'oosFlushPendingSave'), ctx);
+  // 見張りの「登録」文（関数ではないので H.cut は使えない）を、実際に書いてあるままの形で1つずつ切り出して実行する
+  function grab(re, label){
+    const m = re.exec(src);
+    if(!m) throw new Error('見つからない: ' + label);
+    return m[0];
+  }
+  vm.runInContext(grab(/try\{\s*document\.addEventListener\('visibilitychange'[\s\S]*?\}catch\(e\)\{\}/, 'visibilitychange'), ctx);
+  vm.runInContext(grab(/window\.addEventListener\('pagehide'[\s\S]*?\}\);/, 'pagehide'), ctx);
+  vm.runInContext(grab(/window\.addEventListener\('beforeunload'[\s\S]*?\n\}\);/, 'beforeunload'), ctx);
 }
 
 async function flush(){
@@ -79,7 +102,7 @@ async function flush(){
   const okFetch = () => Promise.resolve({ json: () => Promise.resolve({ status:'ok', data:{ lots:[], defects:[] } }) });
   const s = buildSandbox(okFetch);
   s.makeEl('oos-savefail-bar').style.display = 'none';
-  loadCore(s.ctx);
+  loadCore(s);
   s.box.saveAllDataToGAS();
   eq('②-1 保存中は oosSaveInFlight が true', s.box.oosSaveInFlight, true);
   await flush();
@@ -92,10 +115,9 @@ async function flush(){
 /* ②-2 保存に失敗したら：赤い帯が出る（表示されたままになる） */
 function runFailCase(){
   return (async function(){
-    let calls = 0;
-    const failFetch = () => { calls++; return Promise.reject(new Error('通信エラー（テスト）')); };
+    const failFetch = () => Promise.reject(new Error('通信エラー（テスト）'));
     const s = buildSandbox(failFetch);
-    loadCore(s.ctx);
+    loadCore(s);
     s.box.saveAllDataToGAS();
     await flush();
     eq('②-2 通信に失敗しても oosSaveInFlight は最後にfalseへ戻る', s.box.oosSaveInFlight, false);
@@ -105,37 +127,94 @@ function runFailCase(){
   })().then(runUnloadCase);
 }
 
-/* ②-3 beforeunload：保存待ち／保存中なら止める。何もなければ止めない */
+/* ②-3 beforeunload（おまけ）：保存待ち／保存中なら止める。何もなければ止めない */
 function runUnloadCase(){
   const okFetch = () => Promise.resolve({ json: () => Promise.resolve({ status:'ok', data:{ lots:[], defects:[] } }) });
   const s = buildSandbox(okFetch);
-  loadCore(s.ctx);
+  loadCore(s);
   const handler = s.getUnloadHandler();
   ok('②-3 beforeunloadハンドラが登録される', typeof handler === 'function');
 
-  // 何も保存待ちが無いとき → 止めない
   let e1 = { prevented:false, preventDefault(){ this.prevented = true; } };
   s.box.autoSaveTimer = null; s.box.oosSaveInFlight = false;
   handler(e1);
   ok('②-3 保存待ちが無ければ画面を閉じても止めない', e1.prevented === false);
 
-  // まだ保存タイマー待ち（2秒以内）のとき → 止める
   let e2 = { prevented:false, preventDefault(){ this.prevented = true; } };
   s.box.autoSaveTimer = 123; s.box.oosSaveInFlight = false;
   handler(e2);
   ok('②-3 保存タイマー待ちのときは閉じるのを止める', e2.prevented === true);
 
-  // 通信中（保存の往復中）のとき → 止める
   let e3 = { prevented:false, preventDefault(){ this.prevented = true; } };
   s.box.autoSaveTimer = null; s.box.oosSaveInFlight = true;
   handler(e3);
   ok('②-3 保存の通信中も閉じるのを止める', e3.prevented === true);
 
-  finish();
+  runFlushCase();
+}
+
+/* ②-4【本命】画面が隠れた瞬間に、確認なしで即座に保存する（visibilitychange） */
+function runFlushCase(){
+  (async function(){
+    let fetchCalls = 0;
+    const okFetch = () => { fetchCalls++; return Promise.resolve({ json: () => Promise.resolve({ status:'ok', data:{ lots:[], defects:[] } }) }); };
+    const s = buildSandbox(okFetch);
+    loadCore(s);
+
+    // まだ保存タイマー待ち（scheduleAutoSaveが積んだつもり）の状態を作る
+    s.box.autoSaveTimer = 999;
+
+    const visHandler = s.getVisHandler();
+    ok('②-4 visibilitychangeハンドラが登録される', typeof visHandler === 'function');
+
+    // タブが見えたままの変化（例:フォーカスは残っている）では、保存を早めない
+    s.setVisibility('visible');
+    visHandler();
+    eq('②-4 画面が見えている間は即時保存しない（タイマーはそのまま）', s.box.autoSaveTimer, 999);
+    eq('②-4 見えている間はfetchも呼ばれない', fetchCalls, 0);
+
+    // 画面が隠れた（アプリ切替・タブ切替・画面ロック）→ 確認なしで今すぐ保存
+    s.setVisibility('hidden');
+    visHandler();
+    eq('②-4 隠れた瞬間にタイマー待ちが解除される', s.box.autoSaveTimer, null);
+    await flush();
+    eq('②-4 隠れた瞬間に実際に保存（fetch）が走る', fetchCalls > 0, true);
+    eq('②-4 保存が完了する', s.box.oosSaveInFlight, false);
+  })().then(runPageHideCase).catch(function(e){ fail++; fails.push('★②-4 例外: ' + e.message); runPageHideCase(); });
+}
+
+/* ②-5 pagehide（タブを閉じる・別ページへ移動）でも同様に即座保存される */
+function runPageHideCase(){
+  (async function(){
+    let fetchCalls = 0;
+    const okFetch = () => { fetchCalls++; return Promise.resolve({ json: () => Promise.resolve({ status:'ok', data:{ lots:[], defects:[] } }) }); };
+    const s = buildSandbox(okFetch);
+    loadCore(s);
+    s.box.autoSaveTimer = 555;
+
+    const pageHideHandler = s.getPageHideHandler();
+    ok('②-5 pagehideハンドラが登録される', typeof pageHideHandler === 'function');
+    pageHideHandler();
+    eq('②-5 pagehideでもタイマー待ちが即座に解除される', s.box.autoSaveTimer, null);
+    await flush();
+    eq('②-5 pagehideでも実際に保存（fetch）が走る', fetchCalls > 0, true);
+
+    // 保存待ちが無いときに呼んでも、無駄な保存をしない
+    let fetchCalls2 = 0;
+    const okFetch2 = () => { fetchCalls2++; return Promise.resolve({ json: () => Promise.resolve({ status:'ok', data:{ lots:[], defects:[] } }) }); };
+    const s2 = buildSandbox(okFetch2);
+    loadCore(s2);
+    s2.box.autoSaveTimer = null;
+    s2.getPageHideHandler()();
+    await flush();
+    eq('②-5 保存待ちが無ければ、隠れても無駄に保存しない', fetchCalls2, 0);
+
+    finish();
+  })().catch(function(e){ fail++; fails.push('★②-5 例外: ' + e.message); finish(); });
 }
 
 function finish(){
-  console.log('===== 統合マスタN：保存できずに消える事故の見張り =====');
+  console.log('===== 統合マスタN：保存できずに消える事故の見張り（第2版） =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
   process.exit(fail ? 1 : 0);

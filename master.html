@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-25-01">
+<meta name="oos-version" content="2026-08-25-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1753,20 +1753,35 @@ function scheduleAutoSave(){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   ★2026-08-25 「打った数字が、画面を閉じると消える」事故を防ぐ見張り
+   ★2026-08-25 「打った数字が、画面を閉じると消える」事故を防ぐ見張り（第2版）
 
    なぜ要るか：数字を打ってから実際にサーバーへ保存されるまで最短でも2秒かかる
    （scheduleAutoSave の待ち時間＋通信）。その間にタブを閉じる／別のページへ移動すると、
    打った数字はサーバーに届かないまま消える。今まではこれを止める仕組みが無かった。
 
-   やること：
-   ①「まだ保存していない・保存中」の間にページを離れようとしたら、ブラウザ標準の
-     確認ダイアログ（「変更が保存されていない可能性があります」）を出して止める。
-   ② 保存そのものが失敗したときは、3秒で消える通知（showSyncStatus）だけでなく、
-     消えない赤い帯を画面の上に出し続ける（気づかずに離れて消える事故を防ぐ）。
-   ★どちらも「読むだけ・止めるだけ」の安全装置。在庫の計算・保存の中身は1つも変えていない。
+   ★第1版（confirm ダイアログで止める方式）はスマホでは効かないため作り直した。
+     iPhone/iPad の Safari は beforeunload の確認ダイアログを何年も前から出さない。
+     「確認して止める」方式は、確認そのものが出ない端末では意味が無い（ひろみさん指摘・正しい）。
+
+   やること（今回の本命）：
+   ① 画面が隠れる気配（アプリを閉じる／タブを切り替える／画面ロック／別ページへ移動）を
+     検知した瞬間に、確認もダイアログも出さず、待たずに【今すぐ】保存を実行する
+     （visibilitychange と pagehide の両方で捕まえる。片方しか無い端末があるため）。
+   ② それでも保存が失敗したときは、消えない赤い帯を画面の上に出し続ける
+     （気づかずに離れて消える事故を防ぐ。beforeunload はおまけ＝出る端末では効くだけ）。
+   ★読むだけ・保存を早めるだけの安全装置。在庫の計算・保存の中身は1つも変えていない。
    ══════════════════════════════════════════════════════════════════════ */
 let oosSaveInFlight = false;
+function oosFlushPendingSave(){
+  if(autoSaveTimer){
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    saveAllDataToGAS();
+  }
+}
+try{ document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') oosFlushPendingSave(); }); }catch(e){}
+window.addEventListener('pagehide', function(){ oosFlushPendingSave(); });
+/* ★おまけ（出ない端末があることを承知で残す）。上の visibilitychange/pagehide が本命。 */
 window.addEventListener('beforeunload', function(e){
   if(autoSaveTimer || oosSaveInFlight){
     e.preventDefault();
