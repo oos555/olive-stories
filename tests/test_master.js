@@ -8,7 +8,7 @@ const NAMES = ['findProduct','findProductBySku','nextId','addLog','isActiveDefec
   'reservedByPidCache','computeStockNumbers','computeAvailable','lotStatusFor','bucketAdjustLots','defectAdjust',
   'discardHave','discardFrom','discardSrcLabel','discBackHave','discBackAll','renderDiscardDst',
   'discBackDstLabel','restoreFromDiscard','setBucketDirect','applyReport','importAllList','doImportAll','doImportAllApply',
-  'buildHoldsFromOrders'];
+  'buildHoldsFromOrders','sepBucketCurrent'];
 
 let code = '';
 code += H.cutVar(src, 'DISCARD_SRC') + '\n';
@@ -254,6 +254,23 @@ eq('15 取置20 → 販売可能 25', box.computeAvailable('ORG100'), 25);
 /* ── 販売可能はマイナスにならない ─────────────────── */
 box.holds = [{ pid:1, qty:999 }];
 eq('取置が在庫より多くても 販売可能 0', box.computeAvailable('ORG100'), 0);
+
+/* ── 見張り：sepBucketCurrent('new')が親(n.avail)と同じ数を返すか（2026-08-25発見・修正）
+   直す前は lots.forEach で自前に数え直しており、親（oos-zaiko.js）を変えても
+   ここだけ古い数え方のまま取り残される穴だった。ここでは親の値と機械的に突き合わせる。 ── */
+reset();
+n = N();
+eq('16 sepBucketCurrent(new) が親のn.availと一致', box.sepBucketCurrent(1, 'new'), n.avail);
+eq('16 sepBucketCurrent(new) 具体値45',            box.sepBucketCurrent(1, 'new'), 45);
+
+/* 親が2026-08-25に追加した「臨時入庫（restock/restock_done）は数えない」除外にも追随するか */
+box.lots = box.lots.concat([
+  { id:'r1', pid:1, lotCode:'R', expiry:'', stock:99, status:'restock' },
+  { id:'r2', pid:1, lotCode:'R2', expiry:'', stock:77, status:'restock_done' }
+]);
+n = N();
+eq('16 臨時入庫(restock)を混ぜても sepBucketCurrent(new) は親と一致', box.sepBucketCurrent(1, 'new'), n.avail);
+eq('16 臨時入庫(restock)は数えない（45のまま）',                        box.sepBucketCurrent(1, 'new'), 45);
 
 /* ── 結果 ─────────────────────────────────────── */
 console.log('===== マスターN 数字テスト =====');
