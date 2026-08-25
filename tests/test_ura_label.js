@@ -163,6 +163,49 @@ eq('⑧ 親は知らない status を棚の良品に足す（だから lots に�
    /else\s+cur\.avail \+= q;/.test(zaiko), true);
 eq('⑧ 親の注意書きが残っている', zaiko.indexOf('在庫データ(lots)には絶対に入れない') >= 0, true);
 
+/* ══════ ⑨「既貼」（2026-08-25 ひろみさん指示） ══════
+   枚数欄には数字のほかに「既貼」も入れられる。
+   意味＝メーカーが瓶にあらかじめ貼った状態で届く＝倉庫でシールの在庫を数える対象ではない。 */
+eq('⑨ 親に既貼の文字がある',           LAB.PRE_APPLIED, '既貼');
+eq('⑨ 親に既貼かどうかの窓口がある',   typeof LAB.isPreApplied, 'function');
+
+const p4 = { id:10, sku:'PRE001', name:'既貼テスト商品',
+  'ラベル１名前':'本体ラベル', 'ラベル１枚数':'既貼', 'ラベル１予定数':'0', 'ラベル１予定日':'',
+  'ラベル２名前':'部分ラベル', 'ラベル２枚数':'12',   'ラベル２予定数':'500','ラベル２予定日':'2020-01-01' };
+P.push(p4);
+
+eq('⑨ 既貼と判定できる',                 LAB.isPreApplied(p4, 0), true);
+eq('⑨ 数字の欄は既貼ではない',           LAB.isPreApplied(p4, 1), false);
+eq('⑨ 既貼でも名前があれば使う扱い',     LAB.used(p4, 0), true);
+eq('⑨ 既貼は50枚警告を出さない（0枚でも）', LAB.isLow(p4, 0), false);
+eq('⑨ 既貼ではない方はふつうに警告する', LAB.isLow(p4, 1), true);
+eq('⑨ 既貼は届いた予定があっても押せない', LAB.isDue(p4, 0), false);
+const lowWithPre = LAB.lowList(P);
+eq('⑨ 既貼はlowListにも出ない', lowWithPre.filter(x => x.sku==='PRE001' && x.index===0).length, 0);
+eq('⑨ 既貼ではない方はlowListに出る', lowWithPre.filter(x => x.sku==='PRE001' && x.index===1).length, 1);
+
+/* 受注Ａ：既貼のスロットは出荷しても減らない。同じ商品の別スロット（数字）は今までどおり減る */
+box.findProduct = function(id){ return P.find(x => String(x.id) === String(id)); };
+const log4 = [];
+box.labDeductForProduct(p4, 3, log4);
+eq('⑨ 既貼は出荷しても減らない（文字のまま）', LAB.raw(p4, 'ラベル１枚数'), '既貼');
+eq('⑨ 既貼ではない方は今までどおり減る',       LAB.qty(p4, 1), 9);
+eq('⑨ 記録は減った方の1件だけ（既貼の分は記録しない）', log4.length, 1);
+eq('⑨ 受注Ａに既貼を除く分岐がある', juchu.indexOf('isPreApplied(prod, i)) return;') >= 0, true);
+
+/* 保存はraw（文字列）を使う。数値に丸めて「既貼」を消してしまわないか */
+eq('⑨ 保存はrawを使う（既貼を0で上書きしない）',
+   /prod\[k\.qty\] = OOS_ZAIKO\.LABEL\.raw\(p, k\.qty\);/.test(juchu), true);
+eq('⑨ 数値に丸めた保存に戻っていない',
+   /prod\[k\.qty\] = String\(OOS_ZAIKO\.LABEL\.qty\(p, i\)\);/.test(juchu), false);
+
+/* 統合マスタＮ：入力欄が数字専用のままだと「既貼」と打てない */
+eq('⑨ 枚数欄が文字も打てる形になっている', /class="lab-q"/.test(master) && !/type="number" class="lab-q"/.test(master), true);
+eq('⑨ 画面に既貼の表示がある',           master.indexOf('🏷 既貼') >= 0, true);
+eq('⑨ 保存時に既貼を数字にしない分岐がある', master.indexOf('t === LAB_PRE_APPLIED') >= 0, true);
+eq('⑨ 統合マスタＮも文字そのものは親から取る（書き写していない）',
+   /const LAB_PRE_APPLIED = OOS_ZAIKO\.LABEL\.PRE_APPLIED;/.test(master), true);
+
 console.log('===== 裏ラベル（シール）の在庫 =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

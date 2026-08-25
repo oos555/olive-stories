@@ -248,6 +248,10 @@
     { name:'ラベル２名前', qty:'ラベル２枚数', inc:'ラベル２予定数', day:'ラベル２予定日' }
   ];
   var LABEL_WARN = 50;                       /* ★50枚を切ったら警告（ひろみさん指定） */
+  /* ★2026-08-25 ひろみさん指示：「枚数」欄には数字のほかに「既貼」も入れられる。
+     意味＝メーカーが瓶にあらかじめ貼った状態で届く＝倉庫でシールの在庫を数える対象ではない。
+     ★この文字列は、ここ（親）だけが知っていればよい。他のファイルに書き写さないこと。 */
+  var LABEL_PRE_APPLIED = '既貼';
   function labelRaw(p, key){
     if(!p) return '';
     if(p[key] !== undefined && p[key] !== null) return String(p[key]);
@@ -259,13 +263,15 @@
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
   function labelName(p, i){ return labelRaw(p, LABEL_KEYS[i].name).trim(); }
+  function labelIsPreApplied(p, i){ return labelRaw(p, LABEL_KEYS[i].qty).trim() === LABEL_PRE_APPLIED; }
   function labelQty(p, i){ return num(labelRaw(p, LABEL_KEYS[i].qty)); }
   function labelIncoming(p, i){ return num(labelRaw(p, LABEL_KEYS[i].inc)); }
   function labelDay(p, i){ return labelRaw(p, LABEL_KEYS[i].day).trim().slice(0,10); }
   /* ★名前が空の欄は「その商品では使わない」＝減らない・警告も出ない */
   function labelUsed(p, i){ return labelName(p, i) !== ''; }
-  function labelIsLow(p, i){ return labelUsed(p, i) && labelQty(p, i) < LABEL_WARN; }
-  function labelIsDue(p, i){ var d = labelDay(p, i); return !!d && labelIncoming(p, i) > 0 && d <= labelToday(); }
+  /* ★既貼＝倉庫の在庫として数えない。50枚警告も出さない（そもそも倉庫に枚数が無いため） */
+  function labelIsLow(p, i){ return labelUsed(p, i) && !labelIsPreApplied(p, i) && labelQty(p, i) < LABEL_WARN; }
+  function labelIsDue(p, i){ if(labelIsPreApplied(p, i)) return false; var d = labelDay(p, i); return !!d && labelIncoming(p, i) > 0 && d <= labelToday(); }
   /* 50枚を切っているラベルの一覧（玄関・統合マスタＮが使う） */
   function labelLowList(products){
     var out = [];
@@ -284,9 +290,9 @@
   global.OOS_ZAIKO = {
     VERSION: VERSION,
     LABEL: {
-      KEYS: LABEL_KEYS, WARN: LABEL_WARN, today: labelToday, raw: labelRaw,
+      KEYS: LABEL_KEYS, WARN: LABEL_WARN, PRE_APPLIED: LABEL_PRE_APPLIED, today: labelToday, raw: labelRaw,
       name: labelName, qty: labelQty, incoming: labelIncoming, day: labelDay,
-      used: labelUsed, isLow: labelIsLow, isDue: labelIsDue, lowList: labelLowList
+      used: labelUsed, isLow: labelIsLow, isDue: labelIsDue, isPreApplied: labelIsPreApplied, lowList: labelLowList
     },
     isActiveDefect: isActiveDefect,
     numbers: numbers,

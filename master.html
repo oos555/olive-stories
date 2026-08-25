@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-25-02">
+<meta name="oos-version" content="2026-08-25-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1132,7 +1132,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 </div><!-- /.app -->
 
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=20260820"></script>
+<script src="oos-zaiko.js?v=20260825"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -2605,6 +2605,7 @@ function deleteOldLot(lotId){
    ★同じ式をここに書き写さないでください（親を変えたらまたずれるため）。 */
 const LAB_KEYS = OOS_ZAIKO.LABEL.KEYS;
 const LAB_WARN = OOS_ZAIKO.LABEL.WARN;
+const LAB_PRE_APPLIED = OOS_ZAIKO.LABEL.PRE_APPLIED;   /* ★2026-08-25「既貼」の文字そのものは親が持つ。ここは呼ぶだけ */
 function labToday(){ return OOS_ZAIKO.LABEL.today(); }
 function labRaw(p, key){ return OOS_ZAIKO.LABEL.raw(p, key); }
 function labName(p, i){ return OOS_ZAIKO.LABEL.name(p, i); }
@@ -2614,6 +2615,7 @@ function labDay(p, i){ return OOS_ZAIKO.LABEL.day(p, i); }
 function labUsed(p, i){ return OOS_ZAIKO.LABEL.used(p, i); }
 function labDue(p, i){ return OOS_ZAIKO.LABEL.isDue(p, i); }
 function labLow(p, i){ return OOS_ZAIKO.LABEL.isLow(p, i); }
+function labPreApplied(p, i){ return OOS_ZAIKO.LABEL.isPreApplied(p, i); }
 function labLowList(){ return OOS_ZAIKO.LABEL.lowList(typeof PRODUCTS !== 'undefined' ? PRODUCTS : []); }
 async function labSaveFields(pid, obj, msg){
   var p = findProduct(pid); if(!p || !p.sku) return;
@@ -2634,7 +2636,15 @@ async function labSaveFields(pid, obj, msg){
 function labSaveOne(pid, i, kind, val){
   var key = LAB_KEYS[i][kind];
   var o = {};
-  o[key] = (kind === 'qty' || kind === 'inc') ? String(parseInt(val,10) || 0) : String(val == null ? '' : val).trim();
+  if(kind === 'qty'){
+    /* ★2026-08-25 枚数欄は数字のほかに「既貼」も入れられる（メーカーが貼付ずみ＝倉庫では数えない） */
+    var t = String(val == null ? '' : val).trim();
+    o[key] = (t === LAB_PRE_APPLIED) ? LAB_PRE_APPLIED : String(parseInt(t,10) || 0);
+  } else if(kind === 'inc'){
+    o[key] = String(parseInt(val,10) || 0);
+  } else {
+    o[key] = String(val == null ? '' : val).trim();
+  }
   var one = {}; one[key] = o[key];
   labSaveFields(pid, one, '裏ラベル' + (i+1) + 'を保存しました').then(function(){ renderInvTable(); });
 }
@@ -2793,17 +2803,21 @@ function labCell(p, i){
   if(!p) return '<td class="c-lab">' + ivNum('-') + '</td>';
   var e = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
   var nm = labName(p,i), q = labQty(p,i), inc = labInc(p,i), day = labDay(p,i);
-  var used = labUsed(p,i), low = labLow(p,i), due = labDue(p,i);
+  var used = labUsed(p,i), low = labLow(p,i), due = labDue(p,i), pre = labPreApplied(p,i);
+  var qRaw = labRaw(p, LAB_KEYS[i].qty);   /* ★数字だけでなく「既貼」もそのまま表示するため raw を使う */
   var h = '';
   if(invEditMode){
-    h += '<input type="number" class="lab-q" value="' + q + '" onchange="labSaveOne(' + p.id + ',' + i + ',\'qty\',this.value)">'
+    h += '<input type="text" inputmode="numeric" class="lab-q" placeholder="枚数／既貼" value="' + e(qRaw) + '" onchange="labSaveOne(' + p.id + ',' + i + ',\'qty\',this.value)">'
        + '<input type="text" class="lab-n" placeholder="ラベルの名前" value="' + e(nm) + '" onchange="labSaveOne(' + p.id + ',' + i + ',\'name\',this.value)">'
-       + '<div class="boxnote" style="margin-top:3px">追加購入予定</div>'
+       + '<div class="boxnote" style="margin-top:3px">追加購入予定' + (pre ? '（既貼のため使いません）' : '') + '</div>'
        + '<input type="number" class="lab-i" value="' + inc + '" onchange="labSaveOne(' + p.id + ',' + i + ',\'inc\',this.value)">'
        + '<input type="date" class="lab-d" value="' + e(day) + '" onchange="labSaveOne(' + p.id + ',' + i + ',\'day\',this.value)">';
   } else {
-    h += '<span class="num"' + (low ? ' style="color:#dc2626"' : '') + '>' + q + '</span>'
-       + '<div class="lab-name">' + (used ? e(nm) : '<span style="color:#b9b3a8">—</span>') + '</div>';
+    h += pre
+      ? '<span class="num" style="color:#5a7a52">🏷 既貼</span>'
+      : '<span class="num"' + (low ? ' style="color:#dc2626"' : '') + '>' + q + '</span>';
+    h += '<div class="lab-name">' + (used ? e(nm) : '<span style="color:#b9b3a8">—</span>') + '</div>';
+    if(pre) h += '<div class="boxnote">メーカーが貼付ずみ（在庫は数えません）</div>';
     if(inc > 0) h += '<div class="boxnote">＋' + inc + '枚' + (day ? '（' + day.slice(5).replace('-','/') + ' 予定）' : '') + '</div>';
   }
   if(low) h += '<div class="boxnote" style="color:#dc2626;font-weight:700">⚠ 残り' + q + '枚</div>';

@@ -266,7 +266,7 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=20260820"></script>
+<script src="oos-zaiko.js?v=20260825"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
 <script src="oos-zei.js?v=20260824"></script>
 <script>
@@ -314,7 +314,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-24-02">
+<meta name="oos-version" content="2026-08-25-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5924,6 +5924,7 @@ function labDeductForProduct(prod, qty, log){
   if(!prod || !qty || typeof OOS_ZAIKO === 'undefined' || !OOS_ZAIKO.LABEL) return;
   OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){
     if(!OOS_ZAIKO.LABEL.used(prod, i)) return;          // 名前が空＝この商品では使わない
+    if(OOS_ZAIKO.LABEL.isPreApplied(prod, i)) return;   // ★2026-08-25 既貼＝倉庫の枚数を数えないので減らさない
     labSetQty(prod, i, OOS_ZAIKO.LABEL.qty(prod, i) - qty);
     if(log) log.push({ kind:'label', pid:prod.id, i:i, qty:qty });
   });
@@ -5940,7 +5941,8 @@ function labPersistDirty(){
   ids.forEach(function(pid){
     var p = findProduct(pid); if(!p || !p.sku) return;
     var prod = { sku: p.sku };
-    OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){ prod[k.qty] = String(OOS_ZAIKO.LABEL.qty(p, i)); });
+    /* ★2026-08-25 数値ではなく raw を使う。既貼（文字）を数値0で上書きしないため */
+    OOS_ZAIKO.LABEL.KEYS.forEach(function(k, i){ prod[k.qty] = OOS_ZAIKO.LABEL.raw(p, k.qty); });
     try{
       fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product: prod }),
                        headers:{'Content-Type':'text/plain;charset=utf-8'} });
