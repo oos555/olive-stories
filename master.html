@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-20-06">
+<meta name="oos-version" content="2026-08-25-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1676,7 +1676,7 @@ function loadAllDataFromGAS(){
    ・編集ONのときは、打ちかけが消えることを断ってから読み直す
    ★このボタンと、この関数を消さないでください。 */
 function reloadStockNow(){
-  if(autoSaveTimer){
+  if(autoSaveTimer || oosSaveInFlight){
     alert('まだ保存していない変更があります。\n\n数秒お待ちください（自動で保存されます）。\n保存が終わってから、もう一度押してください。');
     return;
   }
@@ -1729,7 +1729,7 @@ function oosStaleShow(){
 }
 async function oosCheckStale(){
   if(!gasSyncEnabled) return;
-  if(autoSaveTimer) return;                 /* まだ保存していない変更があるときは邪魔しない */
+  if(autoSaveTimer || oosSaveInFlight) return;  /* まだ保存していない・保存中のときは邪魔しない */
   try{
     var res = await fetch(GAS_URL + '?action=loadAllData&t=' + Date.now());
     var d = await res.json();
@@ -1751,6 +1751,47 @@ function scheduleAutoSave(){
   if(autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(saveAllDataToGAS, 2000);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-25 「打った数字が、画面を閉じると消える」事故を防ぐ見張り
+
+   なぜ要るか：数字を打ってから実際にサーバーへ保存されるまで最短でも2秒かかる
+   （scheduleAutoSave の待ち時間＋通信）。その間にタブを閉じる／別のページへ移動すると、
+   打った数字はサーバーに届かないまま消える。今まではこれを止める仕組みが無かった。
+
+   やること：
+   ①「まだ保存していない・保存中」の間にページを離れようとしたら、ブラウザ標準の
+     確認ダイアログ（「変更が保存されていない可能性があります」）を出して止める。
+   ② 保存そのものが失敗したときは、3秒で消える通知（showSyncStatus）だけでなく、
+     消えない赤い帯を画面の上に出し続ける（気づかずに離れて消える事故を防ぐ）。
+   ★どちらも「読むだけ・止めるだけ」の安全装置。在庫の計算・保存の中身は1つも変えていない。
+   ══════════════════════════════════════════════════════════════════════ */
+let oosSaveInFlight = false;
+window.addEventListener('beforeunload', function(e){
+  if(autoSaveTimer || oosSaveInFlight){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+function oosSaveFailShow(msg){
+  var b = document.getElementById('oos-savefail-bar');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'oos-savefail-bar';
+    b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:#fee2e2;'
+      + 'border-bottom:3px solid #dc2626;color:#7f1d1d;font-size:14px;font-weight:700;'
+      + 'padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.12);display:flex;gap:12px;'
+      + 'align-items:center;flex-wrap:wrap';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '<span>🔴 <b>保存できていません。</b>このまま画面を閉じると、今打った数字が消えます。<br>'
+    + '<span style="font-weight:500;font-size:12.5px">'+(msg?esc(msg):'')+'</span></span>'
+    + '<button onclick="saveAllDataToGAS()" style="background:#dc2626;color:#fff;border:none;'
+    + 'border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer">'
+    + '🔄 もう一度保存する</button>';
+  b.style.display = 'flex';
+}
+function oosSaveFailHide(){ var b = document.getElementById('oos-savefail-bar'); if(b) b.style.display = 'none'; }
 function withProductName(arr){
   return arr.map(function(x){ const p = findProduct(x.pid); return Object.assign({}, x, {productName: p?p.name:''}); });
 }
@@ -1773,6 +1814,12 @@ function stockRecStr(o){   // フラットなレコードを、キー順に依�
 }
 function saveAllDataToGAS(){
   if(!gasSyncEnabled) return;
+  /* ★2026-08-25 ここでタイマーの印を消す。今までここが無く、一度も保存していない扱いのまま
+     残り続けていた（＝最初の1回を保存したあと、ずっと「まだ保存していない」印がついたままで、
+     「🔄最新の在庫数にする」やオレンジの見張りがそのセッション中ずっと働かなくなっていた）。
+     保存が終わるまでは oosSaveInFlight で守る（下のthen/catchで戻す）。 */
+  autoSaveTimer = null;
+  oosSaveInFlight = true;
   // いま保存しようとしている中身を固定（保存中にさらに編集されても、その分は次回の保存で拾う）
   const sentLots = JSON.parse(JSON.stringify(lots || []));
   const sentDefects = JSON.parse(JSON.stringify(defects || []));
@@ -1812,9 +1859,11 @@ function saveAllDataToGAS(){
     const payload = { lots: mergedLots, defects: mergedDefects, defectHolds: localDefectHolds, defectCategories: localDefectCategories };
     return fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload: payload }), headers:{'Content-Type':'text/plain;charset=utf-8'} }).then(function(r){ return r.json(); });
   }).then(function(d){
+    oosSaveInFlight = false;
     if(d && d.status==='ok'){
       // 保存できた分を基準線に更新（保存中に増えた編集は、現在の lots と基準線の差として次回に拾われる）
       baselineLots = sentLots; baselineDefects = sentDefects;
+      oosSaveFailHide();
       /* ★2026-07-24 GASの安全装置が働いたときは、黙らずに知らせる */
       if(d.skipped && d.skipped.length){
         showSyncStatus('⚠️ 中身が空だったため上書きを見送りました：'+d.skipped.join('、')+'（データは無事です。画面を開き直してください）', true);
@@ -1823,8 +1872,13 @@ function saveAllDataToGAS(){
       }
     } else {
       showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
+      oosSaveFailShow((d&&d.message)||'');
     }
-  }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
+  }).catch(function(){
+    oosSaveInFlight = false;
+    showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
+    oosSaveFailShow('通信エラー（電波の良い場所でもう一度お試しください）');
+  });
 }
 
 function addLog(type, text){

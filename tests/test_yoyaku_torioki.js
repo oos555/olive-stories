@@ -291,7 +291,7 @@ ok('⑨-4 帯から取り直せる',         src.indexOf('onclick="reloadStockNo
   try{ body = H.cut(src, 'oosCheckStale'); }catch(e){ fail++; fails.push('★ oosCheckStale が消えています'); }
   ok('⑨-4 ★読むだけ（保存を呼ばない）',   body.indexOf('saveAllData') < 0 && body.indexOf('setValue') < 0);
   ok('⑨-4 ★在庫を書き換えない',           body.indexOf('lots =') < 0 && body.indexOf('lots=') < 0);
-  ok('⑨-4 まだ保存していない変更があるときは邪魔しない', body.indexOf('if(autoSaveTimer) return;') >= 0);
+  ok('⑨-4 まだ保存していない・保存中のときは邪魔しない', body.indexOf('if(autoSaveTimer || oosSaveInFlight) return;') >= 0);
 })();
 
 /* ══════ ⑩ GAS側（手元にあるときだけ） ══════ */

@@ -46,7 +46,8 @@ const FILES = [
   ['test_price_master_clear.js','価格マスタ：1マスだけ消す機能（2026-08-25バグ再発防止）'],
   ['test_basara_sender.js','倉庫D：送り主がバサラではない注文の見分け（2026-08-25バグ再発防止）'],
   ['test_rinji_nyuuko.js','臨時入庫：毎日の自動反映（GAS）'],
-  ['test_rinji_nyuuko_client.js','臨時入庫：統合マスタN画面側']
+  ['test_rinji_nyuuko_client.js','臨時入庫：統合マスタN画面側'],
+  ['test_hozon_anzen.js','統合マスタN：保存できずに消える事故の見張り（2026-08-25）']
 ];
 
 let total = 0, ngFiles = [];
