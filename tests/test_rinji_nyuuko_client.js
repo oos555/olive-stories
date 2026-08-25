@@ -137,6 +137,74 @@ reset();
   eq('⑥在庫は変わらない（取り消しただけ）', G.box.computeStockNumbers(1).cur.avail, 40);
 }
 
+/* ── ⑦ 意地悪テスト：二度押し（＋予定を入れる、を連打）しても1件のまま ─────
+   （UIでは「＋予定を入れる」は予定が無いときしか出ないが、連打・二重クリックで
+   同じ操作が2回届いた場合を想定） ── */
+reset();
+{
+  const G = buildSandbox();
+  G.box.restockCreate(1);
+  G.box.restockCreate(1);   // ★もう一度呼ぶ（本来UI上は出ないボタンだが、防御的に確認）
+  const list = G.ctx.lots.filter(function(l){ return l.pid==1 && l.status==='restock'; });
+  eq('⑦2回押しても、1商品1件を超えて増えない', list.length, 1);
+}
+
+/* ── ⑧ 意地悪テスト：確認パネルの「この内容で入れる」を連打しても2回反映されない ── */
+reset();
+{
+  const G = buildSandbox();
+  G.box.restockCreate(1);
+  G.box.restockSetQty(1, '20');
+  G.ctx.restockConfirmPid = 1;
+  G.box.doRestockApply();                 // 1回目：反映される
+  const after1 = G.box.computeStockNumbers(1).cur.avail;
+  G.box.doRestockApply();                 // 2回目：連打（予定はもう無いので何もしないはず）
+  const after2 = G.box.computeStockNumbers(1).cur.avail;
+  eq('⑧1回目で+20される', after1, 60);
+  eq('⑧2回目の連打では増えない（二重反映しない）', after2, 60);
+}
+
+/* ── ⑨ 意地悪テスト：極端に大きい数・小数・全角数字を入れても壊れない ───── */
+reset();
+{
+  const G = buildSandbox();
+  G.box.restockCreate(1);
+  G.box.restockSetQty(1, '999999');
+  eq('⑨極端に大きい数もそのまま入る', G.box.restockLotFor(1).stock, 999999);
+  G.box.restockSetQty(1, '12.9');
+  eq('⑨小数は整数に丸められる（parseInt相当）', G.box.restockLotFor(1).stock, 12);
+  G.box.restockSetQty(1, '');
+  eq('⑨空欄は0になる', G.box.restockLotFor(1).stock, 0);
+}
+
+/* ── ⑩ 意地悪テスト：'new'ロットが実行の直前に消えていても（他端末が削除など）
+   エラーにならず、新しく棚の良品を作って反映できる ── */
+reset();
+{
+  const G = buildSandbox();
+  G.box.restockCreate(1);
+  G.box.restockSetQty(1, '15');
+  G.ctx.lots = G.ctx.lots.filter(function(l){ return l.status !== 'new'; }); // 'new'ロットを消す
+  G.ctx.restockConfirmPid = 1;
+  let threw = false;
+  try{ G.box.doRestockApply(); }catch(e){ threw = true; }
+  eq('⑩エラーにならない', threw, false);
+  eq('⑩新しく棚の良品ができて15本になる', G.box.computeStockNumbers(1).cur.avail, 15);
+}
+
+/* ── ⑪ 意地悪テスト：存在しない商品ID・登録されていないpidを渡しても落ちない ── */
+reset();
+{
+  const G = buildSandbox();
+  let threw = false;
+  try{
+    G.box.restockCreate(999);
+    G.box.restockSetQty(999, '10');
+    G.box.restockApplyNow(999);   // findProduct(999)はundefinedを返す想定
+  }catch(e){ threw = true; }
+  eq('⑪存在しない商品IDでも落ちない', threw, false);
+}
+
 console.log('===== 臨時入庫（統合マスタN画面側・本物の関数）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

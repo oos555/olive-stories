@@ -167,6 +167,36 @@ function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockAutoApply'), G.ctx); 
   eq('⑧臨時入庫の予定50本を、在庫があると誤解しない（正規良品在庫は0のまま）', calc.regularGood('ORG250'), 0);
 }
 
+/* ── ⑨ 意地悪テスト：本来1商品1件のはずの臨時入庫が、何かの拍子に同じ商品で
+   2件シートに残っていた場合でも、二重に足さず・エラーにもならないこと ───── */
+{
+  const sheet = makeSheet([
+    ['lot-9',  9, 'ZAI500', 'A', '', 10, 0, 'new', '', 0],
+    ['rin-9a', 9, 'ZAI500', '', '', 5, 0, 'restock', '2026-08-20', 0],
+    ['rin-9b', 9, 'ZAI500', '', '', 8, 0, 'restock', '2026-08-22', 0]
+  ]);
+  const G = buildSandbox(sheet); load(G);
+  const r = G.box.oosRestockAutoApply();
+  eq('⑨2件とも反映される（両方の合計が積み上がる）', r.applied, 2);
+  eq('⑨棚の良品＝10+5+8＝23になる（片方だけ・二重にならない）', sheet._rows()[0][5], 23);
+  eq('⑨1件目もrestock_doneになる', sheet._rows()[1][7], 'restock_done');
+  eq('⑨2件目もrestock_doneになる', sheet._rows()[2][7], 'restock_done');
+}
+
+/* ── ⑩ 意地悪テスト：メモ欄の日付が壊れた形式（空白・全角・変な文字列）でも
+   誤って反映しない（"undefined" <= today のような文字列比較の事故を防ぐ）── */
+{
+  const sheet = makeSheet([
+    ['lot-10',  10, 'AGR3L', 'A', '', 4, 0, 'new', '', 0],
+    ['rin-10a', 10, 'AGR3L', '', '', 9, 0, 'restock', '　', 0],           // 空白だけ
+    ['rin-10b', 10, 'AGR3L', '', '', 9, 0, 'restock', 'あとで決める', 0]  // 日付じゃない文字列
+  ]);
+  const G = buildSandbox(sheet); load(G);
+  const r = G.box.oosRestockAutoApply();
+  eq('⑩日付が入っていない／変な文字列のものは反映しない', r.applied, 0);
+  eq('⑩棚の良品は動かない', sheet._rows()[0][5], 4);
+}
+
 console.log('===== 臨時入庫：毎日の自動反映（本物のGAS関数）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
