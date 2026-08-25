@@ -271,7 +271,7 @@ eq("⑤ 増やす・減らすがある", idxSrc.indexOf("function rtAddLine()") 
      納品書 … ①の明細＋送料 ＋ ②の宛先
    ══════════════════════════════════════════════════════════════════════ */
 eq('⑥ ①の明細を②へ引き継ぐ道具がある', idxSrc.indexOf('function rtPullFromCalc(silent)') >= 0, true);
-eq('⑥ 送料も一緒に引き継ぐ', idxSrc.indexOf('rtParsed.shipFee = rtCalcShipFee();') >= 0, true);
+eq('⑥ 送料も①と同じ調整をかけて引き継ぐ', idxSrc.indexOf('rtParsed.shipFee = rtCalcAdjustedShipFee();') >= 0, true);
 eq('⑥ 伝票を読んだら①の明細を自動で入れる', idxSrc.indexOf('if(_calc.length){ rtParsed.lines = _calc;') >= 0, true);
 eq('⑥ 納品書に送料の行を出す', idxSrc.indexOf("rows += '<tr><td class=\"d-tekiyo\">送料</td>") >= 0, true);
 eq('⑥ 送料は10%対象で数える', idxSrc.indexOf('rateSub[10] = (rateSub[10]||0) + _sf;') >= 0, true);
@@ -304,7 +304,7 @@ try{
   var R = H.makeSandbox({ document: dom, alert: function(){} });
   vm.runInContext(H.cutVar(idxSrc, 'PRODUCTS'), R.ctx);
   vm.runInContext('function esc(s){ return String(s==null?"":s); } function productOptionsHtml(){ return ""; } function showSyncStatus(){} function renderRtPreview(){} var rtParsed = null; var RT_SEAL_IMG = "";', R.ctx);
-  ['_rtLineRate','rtCalcLines','rtCalcShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
+  ['_rtLineRate','rtCalcLines','rtCalcShipFee','rtInvoiceTotal','rtFindTarget','rtDistribute','rtReverse','rtCalcAdjustedShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
   var pr = R.box.PRODUCTS.filter(function(p){ return !p.isSet; });
   CALC = [ calcRow(pr[0].id, 20, 7110), calcRow(pr[1].id, 10, 2613) ];
   SHIP = 3906;

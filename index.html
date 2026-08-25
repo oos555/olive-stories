@@ -314,7 +314,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-25-01">
+<meta name="oos-version" content="2026-08-25-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5754,6 +5754,8 @@ function renderOrderCard(o, sentGroup){
     const urgentBadge = o.leadType==='urgent' ? '<span class="pill pill-urgent">🚨急ぎ</span>' : '';
     const recycleBadge = o.useRecycle ? '<span class="pill pill-recycle">♻</span>' : '';
     const basaraBadge = o.source==='basara' ? '<span class="pill" style="background:#7b2fa0;color:#fff">📧バサラ</span>' : '';
+    /* ★2026-08-25 ゆかさん指摘：STORES取込の注文が見た目で分からず、倉庫への誤送信につながる恐れがある */
+    const storesBadge = o.source==='stores' ? '<span class="pill" style="background:#e07b39;color:#fff">🛒STORES</span>' : '';
     /* ★2026-08-17 「🔔 確認済みにする（光を消す）」を廃止したので、押す場所が無いまま光り続けないよう
        ①の連絡を済ませた（送った／送らない）時点、または倉庫へ送った時点で光を消す。 */
     const basaraCls = (o.source==='basara' && !basaraAcked(o.id) && !o.notified && ackStateOf(o)==='wait') ? ' basara-glow' : '';
@@ -5771,9 +5773,13 @@ function renderOrderCard(o, sentGroup){
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     const whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+    /* ★2026-08-25 ゆかさん提案：倉庫には送らない「記録だけ」の注文は、赤い「未送信」ではなく
+       落ち着いた色の「記録のみ」にする（未対応に見えて誤って倉庫へ送ってしまう事故を防ぐ）。 */
     const whBadge = o.status==='pending' ? (o.notified
       ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
-      : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>') : '';
+      : (whSkipStateOf(o)==='skip'
+          ? '<span class="pill" style="background:#e5e2da;color:#57534e;border:1px solid #cfc9ba">🚫 記録のみ（倉庫には送らない）</span>'
+          : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>')) : '';
     /* ★2026-08-17 ひろみさん指示：ここに入る時刻は倉庫さんが梱包を終えて押した時刻なので、
        「発送」ではなく「梱包完了」と正直に書く。お客様から問い合わせがあったときに、
        この時刻を出荷時刻として答えてしまうと嘘になるため。 */
@@ -5786,10 +5792,10 @@ function renderOrderCard(o, sentGroup){
         + (o.trackingNo ? '<span style="color:#16a34a;font-weight:700;font-size:12px">✓ 保存済み</span>' : '')
         + '</div>'
       : '';
-    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified)?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
+    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified && whSkipStateOf(o)!=='skip')?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start">'+
-        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+zaikoBadge+recycleBadge+basaraBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
+        '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+zaikoBadge+recycleBadge+basaraBadge+storesBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
@@ -6411,6 +6417,27 @@ function gotoSlip(id){
 const RENRAKU_START = '2026-08-17';           // この日より前の注文はロックしない
 
 function isBasaraOrder(o){ return o && o.source === 'basara'; }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-08-25 ゆかさん提案：「倉庫には送信しない記録だけ」の注文
+   （STORESのCSV記録など、倉庫へは別の経路ですでに届いている・記録だけ残したい注文向け）。
+   バサラの「メールを送らない」（o.ack）と同じ考え方で、o.whSkip に記録する。
+   ★システムは判断しない。人が「送らない」を押したときだけ、この状態になる（renraku-rulesの原則どおり）。
+   ══════════════════════════════════════════════════════════════════════ */
+function whSkipStateOf(o){ return (o && o.whSkip && o.whSkip.state === 'skip') ? 'skip' : 'none'; }
+async function whSkip(id){
+  var o = orders.find(x=>x.id===id); if(!o) return;
+  if(!confirm('この注文は「倉庫には送らない（記録のみ）」にします。\n（すでに倉庫へ届いている・送る必要が無い注文のときに使います）\n\nよろしいですか？')) return;
+  o.whSkip = { state:'skip', at:new Date().toISOString(), by:'受注Ａから' };
+  renderList(); syncOrdersToGAS([o]);
+  showSyncStatus('🚫 倉庫には送りません（記録のみ）：'+o.num);
+}
+async function whSkipUndo(id){
+  var o = orders.find(x=>x.id===id); if(!o) return;
+  if(!confirm('「記録のみ」をやめて、倉庫へ送れる状態に戻します。よろしいですか？')) return;
+  o.whSkip = { state:'none', at:new Date().toISOString(), by:'受注Ａから' };
+  renderList(); syncOrdersToGAS([o]);
+  showSyncStatus('↩️ 倉庫へ送れる状態に戻しました：'+o.num);
+}
 function renrakuBefore_(o){                    // 導入前の古い注文か
   var d = String(o.registeredAt||'').slice(0,10);
   return !d || d < RENRAKU_START;
@@ -6446,12 +6473,21 @@ function renrakuBox(o, acts){
      ★このロックを外さないでください。どうしてもの逃げ道は下の小さなリンクだけです。 */
   var zkShort = orderShortages(o);
   var canWh = ackDone(o) && !zkShort.length;
-  var wh = o.notified
-    ? '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>'
-    : '<button class="rk-wh" '+(canWh?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
+  var whIsSkip = whSkipStateOf(o) === 'skip';
+  var wh;
+  if(o.notified){
+    wh = '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>';
+  } else if(whIsSkip){
+    /* ★2026-08-25 ゆかさん提案：STORESなど、倉庫へは別経路ですでに届いている注文は「記録のみ」にできる */
+    wh = '<div class="rk-skip">🚫 倉庫には送りません（記録のみ）　'+esc(String((o.whSkip&&o.whSkip.at)||'').slice(0,16).replace('T',' '))+
+      '<div style="margin-top:5px"><span onclick="whSkipUndo(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">↩️ やっぱり倉庫へ送れるようにする</span></div></div>';
+  } else {
+    wh = '<button class="rk-wh" '+(canWh?'':'disabled ')+'onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る</button>'
       + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>')
       + (zkShort.length ? '<div class="rk-lock">🔒 在庫が入るまで押せません（在庫がありません）</div>'
-          + '<div style="margin-top:5px"><span onclick="forceWarehouseShort(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">在庫がないまま、どうしても倉庫へ送る</span></div>' : '');
+          + '<div style="margin-top:5px"><span onclick="forceWarehouseShort(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">在庫がないまま、どうしても倉庫へ送る</span></div>' : '')
+      + (canWh ? '<div style="margin-top:5px"><span onclick="whSkip(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">🚫 倉庫には送らない（記録のみ・すでに別経路で届いている等）</span></div>' : '');
+  }
 
   /* ★2026-08-17 ひろみさん指示：出荷依頼書に備考欄があることを、ここで案内する。 */
   var whHint = '<div class="rk-hint">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも出ます）。</div>';
@@ -7118,12 +7154,15 @@ function buildSlipHtml(o){
     var _expM = (o.customerType==='rt') ? 8 : 5;
     html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">🗓 賞味期限</span><div style="font-size:15px;color:#2b2a26;margin-top:3px;font-weight:700">'+_expM+'ヶ月'+(o.customerType==='rt'?'（RT）':'')+'</div></div>';
   }
-  // ⑦ 紙袋：ふだんは倉庫で合うサイズを選択（確認不要）／赤シールは常に貼る／スタッフ指定があればそれを出す
+  // ⑦ ギフト包装用の紙袋：ふだんは倉庫で合うサイズを選択（確認不要）／赤シールは常に貼る／スタッフ指定があればそれを出す
+  /* ★2026-08-25 ひろみさん指摘：ここは「ラッピング用に紙袋を使うか」の欄なのに、ただ「紙袋：なし」と出ると、
+     紙袋そのものを出荷する注文（商品名が紙袋）と紛らわしく、倉庫が「紙袋を入れない」と誤読するおそれがある。
+     文言を「ギフト包装用の紙袋」に変えて区別する（動きは変えていない）。 */
   var _bagGift = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
   var _bagLine;
-  if(o.bagSize){ _bagLine = '紙袋：'+esc(o.bagSize)+'（スタッフ指定）　／　赤シール 貼る'; }
-  else if(_bagGift){ _bagLine = '紙袋：あり　／　赤シール 貼る　<span style="font-weight:400;font-size:12px;color:#2b2a26">（合うサイズを倉庫でお選びください・確認不要）</span>'; }
-  else { _bagLine = '紙袋：なし'; }
+  if(o.bagSize){ _bagLine = 'ギフト包装用の紙袋：'+esc(o.bagSize)+'（スタッフ指定）　／　赤シール 貼る'; }
+  else if(_bagGift){ _bagLine = 'ギフト包装用の紙袋：あり　／　赤シール 貼る　<span style="font-weight:400;font-size:12px;color:#2b2a26">（合うサイズを倉庫でお選びください・確認不要）</span>'; }
+  else { _bagLine = 'ギフト包装用の紙袋：なし'; }
   html += '<div style="background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:8px 13px;margin:10px 0;font-size:14px;font-weight:700;color:#2b2a26">🛍 '+_bagLine+'</div>';
   /* ══════════════════════════════════════════════════════════════
      ★2026-08-18 ひろみさん指示：「バサラの場合は納品書は同梱しない設定だったはず。
@@ -8302,6 +8341,27 @@ function rtCalcShipFee(){
   var el = document.getElementById('rtc-shipping');
   return el ? (parseInt(el.value)||0) : 0;
 }
+/* ★2026-08-25 ゆかさん報告：①「まず計算する」の合計（税込）は正しいのに、
+   アプリが作る納品書だけ1円多くなる案件があった（サンクチュアリコート日光の例：①203,685円／納品書203,686円）。
+   原因：①はアイポーターの都合で「ぴったり合わない時は送料を1〜5円引いて合わせる」処理（rtReverse の reduced）
+   をしているのに、②へ明細を取り込むときは、この調整前の生の送料（rtCalcShipFee）をそのまま使っていた。
+   ★①と同じ計算（rtReverse）を通した「調整後の送料」を使うことで、①と納品書の合計を必ず一致させる。 */
+function rtCalcAdjustedShipFee(){
+  var rows = [], amt10 = 0;
+  document.querySelectorAll('#rtc-rows > [id^="rtc-row-"]').forEach(function(r){
+    var sel=r.querySelector('.rtc-prod'); var p=(PRODUCTS||[]).find(function(x){ return String(x.id)===String(sel.value); });
+    var q=parseInt(r.querySelector('.rtc-qty').value)||0, u=parseInt(r.querySelector('.rtc-price').value)||0;
+    if(!(q>0 && u>0)) return;
+    if(OOS_ZEI.percentForProduct(p, PRODUCTS) === 8){ rows.push({ name:(p&&p.name)||'商品', bottles:q, unit:u }); }
+    else { amt10 += q*u; }
+  });
+  var ship = parseInt((document.getElementById('rtc-shipping')||{}).value)||0;
+  var pickup = parseInt((document.getElementById('rtc-pickup')||{}).value)||0;
+  var fee10 = ship + pickup + amt10;
+  var r = rows.length ? rtReverse(rows, fee10) : { feeUsed: fee10, error:false };
+  if(r.error) return ship;   // 逆算が合わなかった場合は、今までどおり生の送料を使う（②側の見た目は変えない）
+  return (r.feeUsed||fee10) - amt10;
+}
 function rtPullFromCalc(silent){
   var lines = rtCalcLines();
   if(!lines.length){
@@ -8310,7 +8370,7 @@ function rtPullFromCalc(silent){
   }
   if(!rtParsed) rtParsed = { lines:[], recipientName:'', dept:'', zip:'', addr:'', tel:'', slipNo:'', deliveryDate:'', nouhinNo:'' };
   rtParsed.lines = lines;
-  rtParsed.shipFee = rtCalcShipFee();   /* ★送料も一緒に持っていく（ゆかさん報告：納品書に送料が出ない） */
+  rtParsed.shipFee = rtCalcAdjustedShipFee();   /* ★①と同じ調整後の送料を持っていく（①と納品書の合計を一致させる） */
   if(typeof renderRtPreview==='function') renderRtPreview();
   if(!silent && typeof showSyncStatus==='function'){
     showSyncStatus('①の明細を入れました（商品' + lines.length + '品' + (rtParsed.shipFee?'／送料 ¥'+rtParsed.shipFee.toLocaleString():'') + '）');

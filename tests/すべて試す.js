@@ -47,7 +47,9 @@ const FILES = [
   ['test_basara_sender.js','倉庫D：送り主がバサラではない注文の見分け（2026-08-25バグ再発防止）'],
   ['test_rinji_nyuuko.js','臨時入庫：毎日の自動反映（GAS）'],
   ['test_rinji_nyuuko_client.js','臨時入庫：統合マスタN画面側'],
-  ['test_hozon_anzen.js','統合マスタN：保存できずに消える事故の見張り（2026-08-25）']
+  ['test_hozon_anzen.js','統合マスタN：保存できずに消える事故の見張り（2026-08-25）'],
+  ['test_rt_note_1en.js','RT納品書：①と納品書の合計1円ずれの見張り（2026-08-25）'],
+  ['test_renraku_kiroku_nomi.js','受注Ａ：ゆかさんの3件の指摘の見張り（2026-08-25）']
 ];
 
 let total = 0, ngFiles = [];
