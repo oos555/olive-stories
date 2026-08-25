@@ -735,6 +735,10 @@ function recipientAddressBlock(o){
 function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
 // バサラ（楽天）からの注文かどうか。送り状No.は、この注文のときだけ入力欄を出す。
 function isBasaraOrder(o){ return !!(o && (o.source==='basara' || o.basaraOrderNo || /バサラ/.test(o.client||''))); }
+// ★2026-08-25バグ修正：上のisBasaraOrderは「バサラ発注番号がメモに入っている」「取引先名にバサラの文字が
+//   含まれる」注文までゆるく拾ってしまう。送り主表記の固定・バサラへの自動メールなど、
+//   間違えると実害が出る場面では、受注A(index.html)と同じ厳密な判定（source==='basara'）だけを使う。
+function isBasaraSenderTrusted(o){ return !!(o && o.source==='basara'); }
 // バサラ注文の送り主表記（固定・正）。自動取込のメール値は誤りがあるため、倉庫Dではこの固定値を出す。変更時はここだけ直す。
 const BASARA_SENDER = { name:'バサラ・TABEOLOGY タベオロジー', zip:'133-0056', addr:'東京都江戸川区南小岩６－５－１２', tel:'03-6666-8360' };
 // バサラの発注番号は注文メモに「#B発注番号/日付」の形で入っている。そこから取り出す。
@@ -1555,7 +1559,7 @@ function renderOrder(){
   html += '<div class="meta-row"><span class="meta-label">配達時間指定</span><span class="meta-val">'+esc(o.delivTime||'指定なし')+'</span></div>';
   /* ★2026-08-12 送り主は、お届け先と取り違えないよう、お届け先情報を全部出したあと、いちばん下にまとめて表示する。
      （以前はお届け先名の直下に送り主が来ていて、送り主住所へ誤発送する恐れがあったため移動） */
-  if(isBasaraOrder(o)){
+  if(isBasaraSenderTrusted(o)){
     html += '<div class="meta-row" style="border-top:2px solid #6b7a3a;background:#f3f6ea"><span class="meta-label" style="color:#4b5622;font-weight:700">送り主</span><span class="meta-val" style="color:#3b4718;font-weight:700">'+esc(BASARA_SENDER.name)+'<br>〒'+esc(BASARA_SENDER.zip)+' '+esc(BASARA_SENDER.addr)+'<br>Tel: '+esc(BASARA_SENDER.tel)+'</span></div>';
   } else {
     var _sender = o.senderName || o.buyerName || o.client || '';
@@ -2324,7 +2328,7 @@ async function saveTracking(){
     const ok=await mergeSaveTracking(val);
     if(!ok){ alert('保存に失敗しました'); return; }
     // バサラの注文で番号が入ったら、バサラへ「発送のご連絡」を自動送信（office@ にも控え）
-    if(val && isBasaraOrder(currentOrder)){
+    if(val && isBasaraSenderTrusted(currentOrder)){
       showToastSimple('✅ 送り状No.を保存しました。バサラへ発送連絡を送っています…');
       try{
         const res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
