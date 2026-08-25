@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-08-25-01">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -452,6 +452,13 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
     <div id="imp-list" style="margin-top:8px"></div>
   </div>
 
+  <!-- ⑤ フリースペース（2026-08-25追加：形式を決めない自由記入欄） -->
+  <div class="card" style="margin-top:14px">
+    <div class="shd"><span class="sec" style="margin:0">🖊 フリースペース</span><span id="free-save-state" style="margin-left:auto;font-size:11px;color:#9a9188"></span></div>
+    <div class="info-box" style="margin-bottom:10px">やること・大切なメモに当てはまらない、なんでも自由に書ける場所です。書いた内容は自動で保存されます。🔒 パスワード・暗証番号などは書かないでください。</div>
+    <textarea id="free-space-text" placeholder="ここに自由に書いてください…" style="min-height:220px" oninput="onFreeSpaceInput()"></textarea>
+  </div>
+
 </div>
 
 </div>
@@ -461,6 +468,7 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 const SHEET_NAME = '付箋メモI';
 const SHEET_IMPORTANT = '付箋メモI大切';
 const SHEET_TODO = '付箋メモIやること';
+const SHEET_FREE = '付箋メモIフリー';
 let password = '';
 let memos = [];
 let importantMemos = [];
@@ -1022,6 +1030,7 @@ async function autoUnlock(pw){
       renderAlerts();
       loadImportantMemos();
       loadTodos();
+      loadFreeSpace();
       loadBoardFromGAS();
       showSyncStatus('✅ 読み込みました');
     } else {
@@ -1037,6 +1046,56 @@ async function autoUnlock(pw){
     document.getElementById('locked-view').style.display = 'none';
     document.getElementById('unlocked-view').style.display = 'block';
     showSyncStatus('⚠️ 通信エラーが発生しました。少し待って画面を開き直してください', true);
+  }
+}
+
+/* ============================================================
+   ⑤ フリースペース（2026-08-25追加）
+   ・形式を決めない自由記入欄。1本のテキストを1件だけ保存する（一覧ではない）
+   ・書いている間はまず手元(localStorage)にすぐ控える → 消えて見えることがない
+   ・止まったら1.2秒後にサーバー(GAS)へ自動保存。通信が失敗しても手元には残る
+   ============================================================ */
+const FREE_NOTE_ID = 'free_note_1';
+const FREE_CACHE_KEY = 'oos_hiromi_freespace_cache';
+let freeSpaceSaveTimer = null;
+let freeSpaceCreatedAt = null;
+
+async function loadFreeSpace(){
+  const ta = document.getElementById('free-space-text');
+  if(!ta) return;
+  try{ const cached = localStorage.getItem(FREE_CACHE_KEY); if(cached!=null && !ta.value) ta.value = cached; }catch(e){}
+  try{
+    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_FREE, password: password });
+    if(data.status==='ok'){
+      const m = (data.data.memos||[]).find(function(x){ return x.id===FREE_NOTE_ID; });
+      if(m){
+        ta.value = m.text||'';
+        freeSpaceCreatedAt = m.createdAt || null;
+        try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+      }
+    }
+  }catch(err){ /* 通信できないときは、上で表示した手元のキャッシュのまま */ }
+}
+function onFreeSpaceInput(){
+  const ta = document.getElementById('free-space-text');
+  if(!ta) return;
+  try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+  const st = document.getElementById('free-save-state');
+  if(st) st.textContent = '書いています…';
+  clearTimeout(freeSpaceSaveTimer);
+  freeSpaceSaveTimer = setTimeout(saveFreeSpaceNow, 1200);
+}
+async function saveFreeSpaceNow(){
+  const ta = document.getElementById('free-space-text');
+  const st = document.getElementById('free-save-state');
+  if(!ta) return;
+  if(!freeSpaceCreatedAt) freeSpaceCreatedAt = new Date().toISOString();
+  const memo = { id: FREE_NOTE_ID, text: ta.value, reminderDate:'', tellSomeone:false, done:false, createdAt: freeSpaceCreatedAt, color:'free' };
+  try{
+    await post({ action:'saveStickyMemo', sheetName: SHEET_FREE, password: password, memo: memo });
+    if(st) st.textContent = '✅ 保存しました';
+  }catch(err){
+    if(st) st.textContent = '⚠️ まだ保存できていません（このままでも手元には残ります）';
   }
 }
 
