@@ -42,7 +42,8 @@ const FILES = [
   ['test_zeiritsu.js',    '消費税の税率（8%は食品だけ・紙袋は10%）'],
   ['test_zei_2kaime.js',  '消費税・第2回点検（手数料の税・送料の行・※印・価格表）'],
   ['test_shoruiG_yoku_hiraku.js','書類Ｇ よく開くところ（承認モックとの対照）'],
-  ['test_yunyu_note_2026-08-24.js','輸入Ｅ 輸入ノート（合計金額・仮保存・重さの補正）']
+  ['test_yunyu_note_2026-08-24.js','輸入Ｅ 輸入ノート（合計金額・仮保存・重さの補正）'],
+  ['test_price_master_clear.js','価格マスタ：1マスだけ消す機能（2026-08-25バグ再発防止）']
 ];
 
 let total = 0, ngFiles = [];

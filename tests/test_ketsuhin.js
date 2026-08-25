@@ -43,7 +43,10 @@ function makeStateSheet(){
   };
 }
 
-const PRODUCTS = [{ id:1, sku:'ORG100', name:'オルガニック100ml', boxQty:12 }];
+const PRODUCTS = [
+  { id:1, sku:'ORG100', name:'オルガニック100ml', boxQty:12, group:'オルガニック' },
+  { id:2, sku:'BAG001', name:'紙袋 黒 小', boxQty:100, group:'ギフト箱・備品' }
+];
 let LOTS = [{ pid:1, stock:0, status:'new' }];
 const DEFECTS = [];
 
@@ -54,11 +57,14 @@ const G = H.makeSandbox({
   SpreadsheetApp: { openById(){ return { getSheetByName(n){ return (n === 'バサラ欠品状態') ? stateSheet : null; }, insertSheet(){ return stateSheet; } }; } },
   SHEET_ID_MAIN: 'x',
   BASARA_STOCK_STATE_SHEET: 'バサラ欠品状態',
-  loadProducts(){ return { products: PRODUCTS }; },
+  loadProducts(){ return { status:'ok', products: PRODUCTS }; },
   readSheetGlobal(ss, name){
     if(name === '在庫データ')     return LOTS.map(l => ({ pid:l.pid, stock:l.stock, status:l.status }));
     if(name === '不良在庫データ') return DEFECTS.slice();
-    if(name === '価格マスタ')     return [{ sku:'ORG100', productName:'オルガニック100ml', priceBasara: 1200 }];
+    if(name === '価格マスタ')     return [
+      { sku:'ORG100', productName:'オルガニック100ml', priceBasara: 1200 },
+      { sku:'BAG001', productName:'紙袋 黒 小',       priceBasara: 140 }   // ★備品にBA価格が誤って入っている想定
+    ];
     return [];
   },
   Utilities: { formatDate(){ return '2026-08-18 03:00'; } },
@@ -69,7 +75,7 @@ const G = H.makeSandbox({
   oosLineToHonbu_(t){ mails.honbu.push(t); },
   oosLineToWarehouse_(){ return { code:200 }; }
 });
-['basaraComputeStock_','basaraStateSheet_','basaraStateRead_','basaraStateWrite_',
+['basaraWatchedProducts_','basaraComputeStock_','basaraStateSheet_','basaraStateRead_','basaraStateWrite_',
  'basaraStockWatchV2_','basaraRestockList','basaraSendRestock'].forEach(function(n){
   vm.runInContext(H.cut(gasSrc, n), G.ctx);
 });
@@ -79,6 +85,7 @@ LOTS[0].stock = 0;
 G.box.basaraStockWatchV2_();
 eq('① 初回は1通も送らない', mails.out.length, 0);
 eq('① 状態は out として記録される', stateSheet._rows()[0][2], 'out');
+eq('①-備品 BA価格があっても備品は見張り対象に入らない', stateSheet._rows().some(r => r[0] === 'BAG001'), false);
 
 /* ── ② 鍵がかかっている間は、0↔1を何度往復しても送らない ────── */
 for(let i = 0; i < 50; i++){

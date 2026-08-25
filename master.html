@@ -577,6 +577,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 <div class="tab-row">
   <button class="tab" onclick="showPanel('meibo',this)">📒 名簿（商品登録）</button>
   <button class="tab" onclick="showPanel('price',this)">💴 価格リスト（閲覧のみ）</button>
+  <button class="tab" onclick="showPanel('partners',this)">🤝 小口卸取引先</button>
   <button class="tab active" onclick="showPanel('inv',this)">📦 在庫リスト（数編集）</button>
   <!-- ★2026-07-24 ロット管理タブは隠しました（ロット・賞味期限・メモは名簿で、本数と旧ロットは在庫リストでできるため）。
        戻したいときは style="display:none" を消してください。 -->
@@ -934,6 +935,23 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
     <tbody id="price-body"><tr><td colspan="9" style="padding:16px;color:#9a9484">読み込み中…</td></tr></tbody>
   </table>
   </div>
+</div>
+
+<!-- 小口卸取引先（バサラ・葛西さん等・商品×取引先の卸価格マトリクス＋連絡先）2026-08-25追加 -->
+<div id="panel-partners" class="panel">
+  <div class="listnote">🤝 バサラ・葛西さんなど、<b>まとまった数を卸している取引先ごとの卸価格</b>を商品別に一覧にする場所です。<b>取引先を増やすと、右に列が増えます。</b>バサラの金額は価格リストのバサラ欄と同じ数字です（ここでは直せません。直すのは輸入・原価E）。<br>※<b>取引先の連絡先・見積書はこの表の下にあります。</b></div>
+  <div class="price-scroll">
+  <table class="tbl pricetbl" id="partner-matrix-table"><thead><tr id="partner-matrix-head">
+    <th>商品</th><th style="padding:16px;color:#9a9484">読み込み中…</th>
+  </tr></thead>
+    <tbody id="partner-matrix-body"></tbody>
+  </table>
+  </div>
+
+  <div class="sec" style="margin-top:1.5rem">🤝 取引先の連絡先</div>
+  <div class="listnote">担当・連絡先・見積書リンクをここで管理します。区分（RT／卸①／卸②／その他）は、この取引先が主にどの価格帯かの目印です。</div>
+  <div id="partner-contact-list"></div>
+  <button class="btn-sm" style="margin-top:8px" onclick="addSalesPartner()">＋ 新しい取引先を追加</button>
 </div>
 
 <!-- 倉庫からの報告（在庫Bから移設） -->
@@ -1516,6 +1534,7 @@ function showPanel(name, btn){
   if(name==='lot') renderLotList();
   if(name==='meibo') renderMeibo();
   if(name==='price') renderPrice();
+  if(name==='partners'){ renderPartnerMatrix(); renderPartnerContacts(); }
   if(name==='report') renderReportList();
   if(name==='ilog') renderInvLogs();
   if(name==='hold') renderHoldList();
@@ -1588,6 +1607,8 @@ function loadAllDataFromGAS(){
       if(data.preorders) preorders = data.preorders.map(function(r){ return { id:r.id, pid:parseInt(r.pid), client:r.client, qty:parseInt(r.qty)||0, bottles:parseInt(r.bottles)||0, boxes:parseInt(r.boxes)||0, note:r.note }; });
       if(data.defectCategories && data.defectCategories.length) defectCategories = data.defectCategories;
       if(data.priceMaster) priceMaster = data.priceMaster;
+      if(data.salesPartners) salesPartners = data.salesPartners;
+      if(data.partnerPrices) partnerPrices = data.partnerPrices;
       // 🏷️ ラベル図鑑のデータ（写真・バーコード・外注先リンク・コメント）も一緒に受け取る
       if(Array.isArray(data.productLabels) && window.LB) LB.setData(data.productLabels);
     }
@@ -1599,7 +1620,7 @@ function loadAllDataFromGAS(){
     holds = buildHoldsFromOrders();
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     { var _lab = document.getElementById('lot-add-btn'); if(_lab){ _lab.disabled = false; _lab.style.opacity = '1'; _lab.textContent = '登録する'; } } /* ★2026-07-24 */
-    renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderNewProductAlert();
+    renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderPartnerMatrix(); renderPartnerContacts(); renderNewProductAlert();
     try{ refreshRestockBtn(); }catch(e){}   // ★2026-08-17 入荷の連絡ボタンの出し分け
     renderHoldList(); renderPreList(); renderReportList(); renderInvLogs();
     /* ★2026-07-24 中村様のご指示で停止。
@@ -4368,6 +4389,8 @@ function sepGoLot(){
    ・在庫リスト/ロット管理の編集エンジンには一切触れない。
    ══════════════════════════════════════════════════════════════ */
 var priceMaster = [];
+var salesPartners = [];   // 小口卸取引先の連絡先（旧・営業Kの取引先メモを統合マスタNへ一本化・2026-08-25）
+var partnerPrices = [];   // バサラ以外の取引先の卸価格（バサラは価格マスタのBA欄が正なのでここに複製しない）
 /* 削除した5タブ(不良/報告/取置/予約/ログ)の描画関数を安全な空関数で上書き。
    在庫リスト・ロット管理の編集関数がこれらを呼んでも、DOM不在でエラーにならないようにする。
    （データの記録・保存はそのまま生きている。画面表示だけを止める） */
@@ -5453,6 +5476,138 @@ function renderPrice(){
     });
   });
   body.innerHTML=rows||'<tr><td colspan="9" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   🤝 小口卸取引先（商品×取引先の卸価格マトリクス＋連絡先）2026-08-25追加
+   ──────────────────────────────────────────────────────────────────
+   ・商品の行は renderPrice() と全く同じ並び（mGroupOrder/PRODUCTS/mIsActive）。
+     商品（セット含む）が増えれば、ここも自動で増える。
+   ・列＝取引先（salesPartners）。取引先を増やすと列も増える。
+   ・バサラの金額は価格マスタのBA欄が正。ここでは複製せずそのまま読む。
+     他の取引先の金額は partnerPrices（取引先別価格）から。
+   ・欠品などのアラート表示はしない（価格と本数だけ）。
+   ══════════════════════════════════════════════════════════════════ */
+function partnerPriceFor(partnerId, sku){
+  for(var i=0;i<partnerPrices.length;i++){
+    if(partnerPrices[i] && partnerPrices[i].partnerId===partnerId && partnerPrices[i].sku===sku) return partnerPrices[i].price;
+  }
+  return null;
+}
+// ★今のところ実際の注文にソースタグが付いているのはバサラ(source:'basara')だけ。
+//   他の取引先の注文タグ付けが増えたら、ここに対応を足す。
+function partnerOrderSource(partner){
+  return (partner && partner.name==='バサラ') ? 'basara' : null;
+}
+function partnerSoldQty(partner, product){
+  var src = partnerOrderSource(partner);
+  if(!src) return null;
+  var qty = 0;
+  (orders||[]).forEach(function(o){
+    if(!o || o.source!==src || o.status==='deleted' || o.status==='cancelled') return;
+    (o.lines||[]).forEach(function(l){
+      if(l && l.productId===product.id) qty += (parseInt(l.bottles)||0) + (parseInt(l.boxes)||0)*(product.boxQty||0);
+    });
+  });
+  return qty;
+}
+function renderPartnerMatrix(){
+  var head=document.getElementById('partner-matrix-head'), body=document.getElementById('partner-matrix-body');
+  if(!head||!body) return;
+  if(!salesPartners.length){
+    head.innerHTML='<th>商品</th><th style="text-align:left;font-weight:400">取引先がまだ登録されていません</th>';
+    body.innerHTML='<tr><td colspan="2" style="padding:16px;color:#9a9484">下の「＋ 新しい取引先を追加」からバサラ・葛西さんなどを登録してください。</td></tr>';
+    return;
+  }
+  var cols = salesPartners.length;
+  var hh = '<th>商品</th>';
+  salesPartners.forEach(function(pt){ hh += '<th class="num">'+esc(pt.name||'（名前未入力）')+'</th>'; });
+  hh += '<th class="num" style="background:#f4e7c9;color:#7a4e12">合計本数</th>';
+  head.innerHTML = hh;
+
+  var rows='';
+  mGroupOrder().forEach(function(g){
+    var ps=PRODUCTS.filter(function(p){return mIsActive(p)&&(p.group||'その他')===g;});
+    if(!ps.length) return;
+    rows+='<tr><td class="grp" colspan="'+(cols+2)+'">'+esc(g)+'</td></tr>';
+    ps.forEach(function(p){
+      var cells='', totalQty=0, anyQty=false;
+      salesPartners.forEach(function(pt){
+        var price = (pt.name==='バサラ') ? (mPriceFor(p.sku)&&mPriceFor(p.sku).priceBasara) : partnerPriceFor(pt.id, p.sku);
+        var y = yen(price);
+        var qty = partnerSoldQty(pt, p);
+        if(qty!=null){ anyQty=true; totalQty+=qty; }
+        cells += '<td class="num">'+(y?('<span class="price-main">'+y+'</span>'+(qty!=null?'<div style="font-size:10.5px;color:#8a857a">'+qty+'本</div>':'')):'<span class="dash">—</span>')+'</td>';
+      });
+      rows+='<tr><td><div class="pname">'+esc(p.name||p.sku)+'</div><div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span></div></td>'+cells+
+        '<td class="num" style="background:#fbf3e0;font-weight:800;color:#8a5a00">'+(anyQty?totalQty+'本':'<span class="dash">—</span>')+'</td></tr>';
+    });
+  });
+  body.innerHTML = rows || '<tr><td colspan="'+(cols+2)+'" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+}
+
+function newPartnerId(){ return 'partner_'+Date.now()+'_'+Math.floor(Math.random()*1000); }
+function addSalesPartner(){
+  salesPartners.unshift({ id:newPartnerId(), name:'', category:'卸①', contactName:'', email:'', tel:'', address:'', quoteUrl:'', note:'', updatedAt:new Date().toISOString() });
+  renderPartnerContacts();
+  renderPartnerMatrix();
+}
+function findSalesPartner(id){ return salesPartners.find(function(p){ return p.id===id; }); }
+function commitSalesPartners(){
+  fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveAllData', payload:{ salesPartners: salesPartners } }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(d && d.status==='ok') showSyncStatus('✅ 取引先を保存しました'); else showSyncStatus('保存に失敗しました', true); })
+    .catch(function(){ showSyncStatus('通信エラーが発生しました', true); });
+}
+function savePartner(id){
+  var p = findSalesPartner(id); if(!p) return;
+  p.name = (document.getElementById('sp-name-'+id)||{}).value || '';
+  p.category = (document.getElementById('sp-cat-'+id)||{}).value || '';
+  p.contactName = (document.getElementById('sp-contact-'+id)||{}).value || '';
+  p.email = (document.getElementById('sp-email-'+id)||{}).value || '';
+  p.tel = (document.getElementById('sp-tel-'+id)||{}).value || '';
+  p.address = (document.getElementById('sp-addr-'+id)||{}).value || '';
+  p.quoteUrl = (document.getElementById('sp-quote-'+id)||{}).value || '';
+  p.note = (document.getElementById('sp-note-'+id)||{}).value || '';
+  p.updatedAt = new Date().toISOString();
+  commitSalesPartners();
+  renderPartnerContacts();
+  renderPartnerMatrix();
+}
+function deleteSalesPartner(id){
+  var p = findSalesPartner(id);
+  if(!confirm((p&&p.name?p.name:'この取引先')+'を削除しますか？')) return;
+  salesPartners = salesPartners.filter(function(x){ return x.id!==id; });
+  commitSalesPartners();
+  renderPartnerContacts();
+  renderPartnerMatrix();
+}
+function renderPartnerContacts(){
+  var el = document.getElementById('partner-contact-list'); if(!el) return;
+  if(!salesPartners.length){ el.innerHTML='<div style="color:#9a9484;font-size:13px;padding:8px 0">まだ取引先がありません。</div>'; return; }
+  el.innerHTML = salesPartners.map(function(p){
+    return '<div class="card" style="margin-bottom:8px" id="partner-'+p.id+'">'+
+      '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">'+
+      '<div style="flex:1;min-width:140px"><label style="font-size:11px;display:block;margin-bottom:3px">取引先名</label><input type="text" id="sp-name-'+p.id+'" value="'+esc(p.name)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px;font-weight:700"></div>'+
+      '<div style="width:110px"><label style="font-size:11px;display:block;margin-bottom:3px">区分</label><select id="sp-cat-'+p.id+'" style="width:100%;padding:6px;border:1px solid #d5cfc3;border-radius:4px;font-size:12px">'+
+      ['RT','卸①','卸②','その他'].map(function(c){ return '<option value="'+c+'"'+(p.category===c?' selected':'')+'>'+c+'</option>'; }).join('')+
+      '</select></div>'+
+      '<div style="width:120px"><label style="font-size:11px;display:block;margin-bottom:3px">担当</label><input type="text" id="sp-contact-'+p.id+'" value="'+esc(p.contactName)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px"></div>'+
+      '<div style="width:170px"><label style="font-size:11px;display:block;margin-bottom:3px">メール</label><input type="text" id="sp-email-'+p.id+'" value="'+esc(p.email)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px"></div>'+
+      '<div style="width:130px"><label style="font-size:11px;display:block;margin-bottom:3px">電話</label><input type="text" id="sp-tel-'+p.id+'" value="'+esc(p.tel)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px"></div>'+
+      '<button class="btn-sm" onclick="deleteSalesPartner(\''+p.id+'\')">削除</button>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
+      '<div style="flex:1;min-width:220px"><label style="font-size:11px;display:block;margin-bottom:3px">住所</label><input type="text" id="sp-addr-'+p.id+'" value="'+esc(p.address)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px"></div>'+
+      '<div style="flex:1;min-width:220px"><label style="font-size:11px;display:block;margin-bottom:3px">見積書リンク（Dropbox等）</label><input type="text" id="sp-quote-'+p.id+'" value="'+esc(p.quoteUrl)+'" style="width:100%;padding:6px 8px;border:1px solid #d5cfc3;border-radius:4px;font-size:13px">'+
+      (p.quoteUrl?('<div style="margin-top:3px"><a href="'+esc(p.quoteUrl)+'" target="_blank" rel="noopener" style="font-size:11px;color:#0c5c8c;font-weight:700">📄 見積書を開く</a></div>'):'')+'</div>'+
+      '</div>'+
+      '<textarea id="sp-note-'+p.id+'" placeholder="値引き交渉の経緯・好み・注意点など" style="width:100%;min-height:56px;padding:8px;border:1px solid #d5cfc3;border-radius:6px;font-size:13px">'+esc(p.note||'')+'</textarea>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">'+
+      '<span style="font-size:10px;color:#8a857a">最終更新：'+(p.updatedAt?new Date(p.updatedAt).toLocaleString('ja-JP'):'-')+'</span>'+
+      '<button class="btn-sm" onclick="savePartner(\''+p.id+'\')">保存</button>'+
+      '</div></div>';
+  }).join('');
 }
 
 /* ══════════════════════════════════════════════════════════════════

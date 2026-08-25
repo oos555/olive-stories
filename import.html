@@ -2414,7 +2414,11 @@ async function clearTierPriceNow(sku, T){
     const freshData = await freshRes.json();
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
-    setFieldOnMaster(freshMaster, sku, T.field, ''); // ★2026-08-12 端末控えの代わりに、この1マスを空にして保存
+    // ★2026-08-25バグ修正：''（空文字）だとGAS側で「この欄は送っていない」と誤解され、
+    //   次に別のマスを消したときの取り直しで、この欄がサーバーの古い金額のまま復活していた
+    //   （1つ消して次を消すと最初のが元に戻る、という報告のとおり）。
+    //   null＝「空にする」という明示の指示として送る（GAS側もnullで判定するよう対応済み）。
+    setFieldOnMaster(freshMaster, sku, T.field, null);
     const res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'savePriceMaster', priceMaster: freshMaster }),
@@ -2426,7 +2430,22 @@ async function clearTierPriceNow(sku, T){
       renderProfitHeatmap();
       renderRateSimulation();
       loadSimPanel(sku, T.tier); // ＋設定に戻ったマスを選択したまま表示（消すボタンは自動で隠れる）
-      showSyncStatus('✅ '+T.label+'を消して＋設定に戻しました');
+      // ── 自己点検：サーバーから読み直して、本当に消えたか確かめる（2026-08-25追加）──
+      //   applyRateToTierNow（金額を入れる方）には元々あった見張りが、消す方には無かった。
+      //   これがあれば、今回のバグは「消したはずが実は戻っています」とその場でわかったはず。
+      try{
+        const chkRes = await fetch(GAS_URL + '?action=loadAllData');
+        const chk = await chkRes.json();
+        const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
+        const cleared = !(back && (parseFloat(back[T.field])||0) > 0);
+        if(cleared){
+          showSyncStatus('✅ '+T.label+'を消して＋設定に戻しました（サーバー保存も確認済み）');
+        } else {
+          showSyncStatus('⚠️ 消したはずが、サーバーには金額が残っています。画面を開き直して確認してください', true);
+        }
+      }catch(e){
+        showSyncStatus('✅ '+T.label+'を消して＋設定に戻しました');
+      }
     } else {
       showSyncStatus('⚠️ 保存に失敗しました', true);
     }
