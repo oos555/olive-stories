@@ -25,12 +25,26 @@ function eq(label, got, want){
 
 const WIDTH = 10; // id,pid,商品名,ロット,賞味期限,在庫数,不良数,ステータス,メモ,入庫予定数
 
+/* ★2026-08-28追加：スプレッドシートは「2026-09-04」と書いた文字を勝手に日付型に変えてしまい、
+   文字のまま比べる旧コードでは自動反映が一度も動かなかった（実データで発見）。
+   テストでも本物どおり、日付の直し（oosRestockDateStr_）まで含めて動かす。
+   「今日」は2026-08-25に固定する（実際の日付が進んでもテストが壊れないように）。 */
+class TestDate extends Date {
+  constructor(...a){ if(a.length) super(...a); else super('2026-08-25T09:00:00+09:00'); }
+}
+function jstYmd(d){
+  const t = new Date(d.getTime() + 9*3600*1000);
+  const p = n => String(n).padStart(2,'0');
+  return `${t.getUTCFullYear()}-${p(t.getUTCMonth()+1)}-${p(t.getUTCDate())}`;
+}
+
 /* 在庫データの身代わりシート（メモリ上だけ）。行は WIDTH 列の配列 */
 function makeSheet(initialRows){
   let rows = initialRows.map(r => r.slice());
   return {
     _rows: () => rows,
     getLastRow(){ return rows.length + 1; },
+    getLastColumn(){ return WIDTH; },
     getRange(r, c, nr, nc){
       return {
         getValues(){ return rows.slice(r-2, r-2+nr).map(x => x.slice()); },
@@ -46,12 +60,13 @@ function buildSandbox(sheet){
   return H.makeSandbox({
     SpreadsheetApp: { openById(){ return { getSheetByName(n){ return (n === '在庫データ') ? sheet : null; } }; } },
     SHEET_ID_MAIN: 'x',
-    Utilities: { formatDate(){ return '2026-08-25'; } },
+    Date: TestDate,   // ★「今日」を2026-08-25に固定
+    Utilities: { formatDate(d){ return jstYmd(d); } },   // ★本物と同じく日本時間のyyyy-MM-ddに直す
     Logger: { log(){} },
     oosLineToHonbu_(t){ honbuMsgs.push(t); }
   });
 }
-function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockAutoApply'), G.ctx); }
+function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockDateStr_') + '\n' + H.cut(gasSrc, 'oosRestockAutoApply'), G.ctx); }
 
 /* ── ① 予定日が来ていて、すでに'new'ロットがある商品 → 棚の良品に足し込む ───── */
 {
@@ -195,6 +210,64 @@ function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockAutoApply'), G.ctx); 
   const r = G.box.oosRestockAutoApply();
   eq('⑩日付が入っていない／変な文字列のものは反映しない', r.applied, 0);
   eq('⑩棚の良品は動かない', sheet._rows()[0][5], 4);
+}
+
+/* ── ⑪ ★2026-08-28の修正の核心：予定日のマスが「日付型」に変わっていても反映される ──
+   スプレッドシートは「2026-09-04」と書いた文字を勝手に日付型に変える。旧コードは
+   String(日付型)＝"Tue Aug 25 2026 …" と "2026-08-25" を比べて永遠に一致しなかった。 */
+{
+  const dueToday = new TestDate('2026-08-24T15:00:00.000Z');   // ＝日本時間2026-08-25の0:00（今日）
+  const sheet = makeSheet([
+    ['lot-11', 11, '紙袋 黒 小', 'A', '', 20, 0, 'new', '', 0],
+    ['rin-11', 11, '紙袋 黒 小', '', '', 150, 0, 'restock', dueToday, 0]
+  ]);
+  const G = buildSandbox(sheet); load(G);
+  const r = G.box.oosRestockAutoApply();
+  eq('⑪日付型の予定日（今日）でも反映される', r.applied, 1);
+  eq('⑪棚の良品20→170', sheet._rows()[0][5], 170);
+  eq('⑪状態はrestock_doneになる', sheet._rows()[1][7], 'restock_done');
+}
+
+/* ── ⑫ 日付型の予定日がまだ先 → 反映しない（早すぎる反映も事故）── */
+{
+  const dueFuture = new TestDate('2026-09-03T15:00:00.000Z');   // ＝日本時間2026-09-04（まだ先）
+  const sheet = makeSheet([
+    ['lot-12', 12, '紙袋 黒 大', 'A', '', 40, 0, 'new', '', 0],
+    ['rin-12', 12, '紙袋 黒 大', '', '', 300, 0, 'restock', dueFuture, 0]
+  ]);
+  const G = buildSandbox(sheet); load(G);
+  const r = G.box.oosRestockAutoApply();
+  eq('⑫日付型の予定日（未来）は反映しない', r.applied, 0);
+  eq('⑫棚の良品は動かない', sheet._rows()[0][5], 40);
+  eq('⑫状態はrestockのまま', sheet._rows()[1][7], 'restock');
+}
+
+/* ── ⑬ 日付の直し（oosRestockDateStr_）そのものの確認 ── */
+{
+  const G = buildSandbox(makeSheet([])); load(G);
+  const f = G.box.oosRestockDateStr_;
+  eq('⑬日付型 → yyyy-MM-dd（日本時間）', f(new TestDate('2026-09-03T15:00:00.000Z')), '2026-09-04');
+  eq('⑬世界時のISO文字列 → 日本時間の日付', f('2026-09-03T15:00:00.000Z'), '2026-09-04');
+  eq('⑬ふつうの日付文字はそのまま', f('2026-09-04'), '2026-09-04');
+  eq('⑬前後の空白は取り除く', f(' 2026-09-04 '), '2026-09-04');
+  eq('⑬空は空のまま', f(''), '');
+  eq('⑬ふつうの文字のメモは変えない', f('反映済み：2026-08-24'), '反映済み：2026-08-24');
+}
+
+/* ── ⑭ loadAllData：日付型に変わったメモを「yyyy-MM-dd」に直してアプリへ返す
+   （直さないと統合マスタNの予定日の欄が空白に見える）── */
+{
+  const dueCell = new TestDate('2026-09-03T15:00:00.000Z');
+  const sheet = makeSheet([
+    ['rin-14', 14, '紙袋 黒 大', '', '', 300, 0, 'restock', dueCell, 0],
+    ['lot-14', 14, '紙袋 黒 大', 'A', '', 40, 0, 'new', 'ふつうのメモ', 0]
+  ]);
+  const G = buildSandbox(sheet); load(G);
+  G.ctx.loadProductLabels = function(){ return []; };   // ラベル読みは今回の関心外なので身代わり
+  vm.runInContext(H.cut(gasSrc, 'loadAllData'), G.ctx);
+  const d = G.box.loadAllData().data;
+  eq('⑭日付型の予定日は文字に直って返る', d.lots[0].note, '2026-09-04');
+  eq('⑭ふつうの文字のメモはそのまま', d.lots[1].note, 'ふつうのメモ');
 }
 
 console.log('===== 臨時入庫：毎日の自動反映（本物のGAS関数）=====');
