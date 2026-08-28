@@ -260,7 +260,9 @@ function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockDateStr_') + '\n' + H
   const dueCell = new TestDate('2026-09-03T15:00:00.000Z');
   const sheet = makeSheet([
     ['rin-14', 14, '紙袋 黒 大', '', '', 300, 0, 'restock', dueCell, 0],
-    ['lot-14', 14, '紙袋 黒 大', 'A', '', 40, 0, 'new', 'ふつうのメモ', 0]
+    ['lot-14', 14, '紙袋 黒 大', 'A', '', 40, 0, 'new', 'ふつうのメモ', 0],
+    // 一度アプリが読み直して保存し直すと、日付が「文字」のままシートに残ることもある（実データで確認）
+    ['rin-14b', 15, '紙袋 黒 小', '', '', 150, 0, 'restock', '2026-09-03T15:00:00.000Z', 0]
   ]);
   const G = buildSandbox(sheet); load(G);
   G.ctx.loadProductLabels = function(){ return []; };   // ラベル読みは今回の関心外なので身代わり
@@ -268,6 +270,7 @@ function load(G){ vm.runInContext(H.cut(gasSrc, 'oosRestockDateStr_') + '\n' + H
   const d = G.box.loadAllData().data;
   eq('⑭日付型の予定日は文字に直って返る', d.lots[0].note, '2026-09-04');
   eq('⑭ふつうの文字のメモはそのまま', d.lots[1].note, 'ふつうのメモ');
+  eq('⑭世界時ISO文字のままの予定日も日本時間の日付に直る', d.lots[2].note, '2026-09-04');
 }
 
 console.log('===== 臨時入庫：毎日の自動反映（本物のGAS関数）=====');
