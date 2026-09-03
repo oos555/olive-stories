@@ -199,6 +199,34 @@ has('⑥受注Ａ：最新読み直しの二重よけ', impIdx, 'fetchOrderFresh
 has('⑥受注Ａ：GASのdupにも印を付けて二重を防ぐ', impIdx, "d.status==='dup'");
 has('⑥受注Ａ：もう一度押しても二重にならない案内', impIdx, 'もう一度押しても、ゆかスプシに2行目はできません');
 
+/* ── ⑦ 追記の行位置：☑を敷いた空行は数えない（2026-09-04のバグ修正の見張り）
+   実際に起きた事故：チェックボックスをA2:A1000に敷いたため getLastRow() が1000になり、
+   📥の転記が1001行目に入ってしまった。 */
+{
+  const ctx7 = vm.createContext({ String, Number, Math });
+  vm.runInContext(H.cut(gasSrc, 'oosLastDataRow_'), ctx7);
+  // 92行目までデータ・その下は空（☑だけの行を想定）という身代わりシート
+  const fake = {
+    getLastRow(){ return 1000; },
+    getRange(r, c, nr, nc){
+      return { getDisplayValues(){
+        const out = [];
+        for(let i=0; i<nr; i++){
+          const row = [];
+          for(let j=0; j<nc; j++) row.push((r+i) <= 92 ? 'x' : '');
+          out.push(row);
+        }
+        return out;
+      } };
+    }
+  };
+  eq('⑦最終データ行は92（☑だけの行993行分を数えない）', ctx7.oosLastDataRow_(fake, 2, 19), 92);
+  const empty = { getLastRow(){ return 1; }, getRange(){ return { getDisplayValues(){ return []; } }; } };
+  eq('⑦データが無ければ1（見出し行）', ctx7.oosLastDataRow_(empty, 2, 19), 1);
+  has('⑦📥の転記は oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaImportOrder'), 'oosLastDataRow_(sh, 2, 19) + 1');
+  has('⑦③の転記も oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaRequestEdit_'), 'oosLastDataRow_(osh, 1, 19) + 1');
+}
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
