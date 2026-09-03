@@ -55,7 +55,8 @@ const rowsFn = ctx.oosSoukoStockRows_;
   const rows = rowsFn(products, lots, calc);
 
   eq('①行数（セット・終売は出ない）', rows.length, 3);
-  eq('①並び順はsortOrder（500→250→メネ）', rows.map(r=>r[0].split(' ')[0]).join(','), 'ORG500,ORG250,MEM250');
+  // ★2026-09-04修正：並べ替えはしない。商品マスタの登録順のまま（統合アプリと同じ）
+  eq('①並び順は商品マスタの登録順のまま（並べ替えない）', rows.map(r=>r[0].split(' ')[0]).join(','), 'ORG250,ORG500,MEM250');
 
   const org250 = rows.find(r => r[0].startsWith('ORG250'));
   eq('①ORG250 🛒販売できる数＝親のavailable', org250[2], 45);
