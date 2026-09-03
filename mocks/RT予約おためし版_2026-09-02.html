@@ -33,9 +33,9 @@
   table.bal td.pname { text-align: left; font-weight: bold; }
   table.bal td.pname small { display: block; font-weight: normal; color: #8a8578; font-size: 10.5px; white-space: normal; }
   table.bal tr.wait td { background: #fff3e0; }
-  /* 「🔒取り置き残本」の列（4列目）だけ緑色（ひろみさん指示 2026-09-02） */
-  table.bal tr th:nth-child(4) { background: #dcedc8; color: #1b5e20; }
-  table.bal tr td:nth-child(4) { background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+  /* 「🔒在庫からの取り置き本数」の列だけ緑色（ひろみさん指示 2026-09-02。2026-09-04に2段タイトル化で class 指定に変更） */
+  table.bal th.heldcol { background: #dcedc8; color: #1b5e20; }
+  table.bal td.heldcol { background: #e8f5e9; color: #1b5e20; font-weight: bold; }
   .ck { color: #1b5e20; font-weight: bold; }
   /* 予約が0になっても行は消さない（グレーで名前を残す）2026-09-02ひろみさん指示 */
   table.bal tr.zero td, table.cut tr.zero td { color: #b0aca3; background: #fafafa; font-weight: normal; }
@@ -197,7 +197,10 @@ function renderLog(){
 
 // ── 施設カード ──
 function balRows(f){
-  var h='<table class="bal"><tr><th>商品</th><th>予約総数</th><th>✂️発送済</th><th>🔒取り置き残本</th><th>✈️入荷待ち</th><th>検算</th></tr>';
+  /* ★2026-09-04 ひろみさん指示：タイトルを2段に。「オーダー総数」＋「未発送残数（✈️入荷待ち予約本数・🔒在庫からの取り置き本数）」 */
+  var h='<table class="bal">'
+    +'<tr><th rowspan="2">商品</th><th rowspan="2">オーダー総数</th><th rowspan="2">✂️発送済</th><th colspan="2">未発送残数</th><th rowspan="2">検算</th></tr>'
+    +'<tr><th>✈️入荷待ち<br>予約本数</th><th class="heldcol">🔒在庫からの<br>取り置き本数</th></tr>';
   f.rows.forEach(function(r){
     var p=PRODS[r.sku];
     var comp = (p.isSet&&p.comp) ? '<small>＝中身：'+p.comp.map(function(c){return c[0]+(c[1]>1?'×'+c[1]:'');}).join('・')+'（在庫はこの中身で自動で引かれます）</small>' : '';
@@ -205,8 +208,9 @@ function balRows(f){
     var isZero = (r.total===0 && r.sent===0);
     if(isZero) comp='<small>（いまは予約0。ほかの施設へ回した経緯は履歴にあります）</small>';
     h+='<tr'+(isZero?' class="zero"':(r.wait>0?' class="wait"':''))+'><td class="pname">'+esc(p.name)+comp+'</td>'
-      +'<td><b>'+r.total+'</b></td><td>'+r.sent+'</td><td>'+held(r)+'</td>'
+      +'<td><b>'+r.total+'</b></td><td>'+r.sent+'</td>'
       +'<td'+(r.wait>0?' style="color:#b45309;font-weight:bold"':'')+'>'+r.wait+'</td>'
+      +'<td class="heldcol">'+held(r)+'</td>'
       +'<td>'+(ok?'<span class="ck">✓</span>':'<span class="err">✗ 合いません</span>')+'</td></tr>';
   });
   return h+'</table>';

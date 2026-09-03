@@ -91,8 +91,8 @@ table.rtb-bal th,table.rtb-bal td{border:1px solid #e0e0e0;padding:6px 9px;text-
 table.rtb-bal th{background:#f8f9fa}
 table.rtb-bal td.pname{text-align:left;font-weight:bold}
 table.rtb-bal tr.wait td{background:#fff3e0}
-table.rtb-bal tr th:nth-child(4){background:#dcedc8;color:#1b5e20}
-table.rtb-bal tr td:nth-child(4){background:#e8f5e9;color:#1b5e20;font-weight:bold}
+table.rtb-bal th.heldcol{background:#dcedc8;color:#1b5e20}
+table.rtb-bal td.heldcol{background:#e8f5e9;color:#1b5e20;font-weight:bold}
 table.rtb-bal tr.zero td,table.rtb-cut tr.zero td{color:#b0aca3;background:#fafafa;font-weight:normal}
 .rtb-ck{color:#1b5e20;font-weight:bold}
 .rtb-cardbody{padding:12px 16px}
@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-05">
+<meta name="oos-version" content="2026-09-04-06">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5684,7 +5684,10 @@ function rtbCardHtml(d, fac){
   var rows = d.data[fac]||{}, tt=rtbTotals(rows);
   var skus = rtbFacSkus(rows);
   var h='<div class="rtb-win"><div class="rtb-head">🏨 '+esc(d.facs[fac])+'<span style="font-weight:normal;font-size:12px">予約 計'+tt.hon+'本'+(tt.gifts?('＋ギフト'+tt.gifts+'個'):'')+'</span></div>'+RTB_LEGEND
-    +'<div class="rtb-cardbody"><table class="rtb-bal"><tr><th>商品</th><th>予約総数</th><th>✂️発送済</th><th>🔒取り置き残本</th><th>✈️入荷待ち</th><th>検算</th></tr>';
+    /* ★2026-09-04 ひろみさん指示：タイトルを2段に（オーダー総数／未発送残数＝✈️入荷待ち予約本数・🔒在庫からの取り置き本数） */
+    +'<div class="rtb-cardbody"><table class="rtb-bal">'
+    +'<tr><th rowspan="2">商品</th><th rowspan="2">オーダー総数</th><th rowspan="2">✂️発送済</th><th colspan="2">未発送残数</th><th rowspan="2">検算</th></tr>'
+    +'<tr><th>✈️入荷待ち<br>予約本数</th><th class="heldcol">🔒在庫からの<br>取り置き本数</th></tr>';
   skus.forEach(function(sku){
     var r=rows[sku]; var total=r.sent+r.held+r.wait;
     var isZero=(total===0);
@@ -5692,8 +5695,9 @@ function rtbCardHtml(d, fac){
     var comp=(p&&p.isSet&&p.components&&p.components.length)?'<small style="display:block;font-weight:normal;color:#8a8578;font-size:10.5px;white-space:normal">＝中身：'+p.components.map(function(c){ return rtbProdName(c.sku)+(c.qty>1?('×'+c.qty):''); }).join('・')+'（在庫はこの中身で自動で引かれます）</small>':'';
     if(isZero) comp='<small style="display:block;font-weight:normal;color:#8a8578;font-size:10.5px;white-space:normal">（いまは予約0。ほかの施設へ回した経緯は履歴にあります）</small>';
     h+='<tr'+(isZero?' class="zero"':(r.wait>0?' class="wait"':''))+'><td class="pname">'+esc(rtbProdName(sku))+comp+'</td>'
-      +'<td><b>'+total+'</b></td><td>'+r.sent+'</td><td>'+r.held+'</td>'
+      +'<td><b>'+total+'</b></td><td>'+r.sent+'</td>'
       +'<td'+(r.wait>0?' style="color:#b45309;font-weight:bold"':'')+'>'+r.wait+'</td>'
+      +'<td class="heldcol">'+r.held+'</td>'
       +'<td><span class="rtb-ck">✓</span></td></tr>';
   });
   h+='</table>'
