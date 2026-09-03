@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RT予約おためし版（触って動く仮アプリ）2026-09-02</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; background: #f4f1ea; color: #2b2a26; padding: 20px; }
+  .note { background: #fff3cd; border: 2px dashed #d9a400; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13.5px; line-height: 1.7; max-width: 780px; }
+  .note strong { color: #8a6d00; }
+  h1 { font-size: 19px; margin-bottom: 12px; }
+
+  .win { background: #fff; border: 1px solid #d8d0c2; border-radius: 12px; overflow: hidden; max-width: 780px; box-shadow: 0 2px 6px rgba(0,0,0,.06); margin-bottom: 12px; }
+  .win-head { background: #4a148c; color: #fff; padding: 10px 16px; font-size: 14px; font-weight: bold; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; }
+  .fac-row { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid #eee7db; font-size: 13.5px; flex-wrap: wrap; }
+  .fac-row .nm { font-weight: bold; font-size: 15px; min-width: 6.5em; }
+  .fac-row .sum { color: #55524a; flex: 1; }
+  .fac-row.done { color: #90a4ae; background: #f5f5f5; }
+  .tag-wait { background: #fff3e0; border: 1px solid #ffb74d; color: #b45309; border-radius: 6px; padding: 1px 8px; font-size: 11.5px; font-weight: bold; }
+  .tag-ok { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; border-radius: 6px; padding: 1px 8px; font-size: 11.5px; font-weight: bold; }
+
+  button { cursor: pointer; font-family: inherit; }
+  .btn { border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: bold; border: 1.5px solid #d5cfc3; background: #faf8f4; margin: 8px 6px 0 0; }
+  .btn.purple { background: #7b1fa2; border-color: #7b1fa2; color: #fff; }
+  .btn.green { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+  .btn.small { padding: 3px 12px; font-size: 11.5px; margin: 0; }
+  .btn.orange { background: #ef9a3c; border-color: #ef9a3c; color: #fff; }
+
+  table.bal { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  table.bal th, table.bal td { border: 1px solid #e0e0e0; padding: 6px 9px; text-align: center; white-space: nowrap; }
+  table.bal th { background: #f8f9fa; }
+  table.bal td.pname { text-align: left; font-weight: bold; }
+  table.bal td.pname small { display: block; font-weight: normal; color: #8a8578; font-size: 10.5px; white-space: normal; }
+  table.bal tr.wait td { background: #fff3e0; }
+  /* 「🔒取り置き残本」の列（4列目）だけ緑色（ひろみさん指示 2026-09-02） */
+  table.bal tr th:nth-child(4) { background: #dcedc8; color: #1b5e20; }
+  table.bal tr td:nth-child(4) { background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+  .ck { color: #1b5e20; font-weight: bold; }
+  /* 予約が0になっても行は消さない（グレーで名前を残す）2026-09-02ひろみさん指示 */
+  table.bal tr.zero td, table.cut tr.zero td { color: #b0aca3; background: #fafafa; font-weight: normal; }
+  .card-body { padding: 12px 16px; }
+  .hist { border-top: 1px dashed #d8d0c2; margin-top: 10px; padding-top: 8px; font-size: 12.5px; line-height: 1.9; color: #55524a; }
+  .hist .row { display: flex; gap: 10px; }
+  .hist .row span:first-child { color: #8a8578; width: 3.2em; flex-shrink: 0; }
+
+  .panel { background: #faf6ff; border: 2px solid #b39ddb; border-radius: 12px; padding: 14px 16px; max-width: 780px; margin-bottom: 12px; font-size: 13px; line-height: 2; }
+  .panel input[type=text] { border: 1.5px solid #cbb8e6; border-radius: 7px; padding: 5px 8px; font-size: 14px; }
+  .panel input[type=number] { border: 1.5px solid #cbb8e6; border-radius: 7px; padding: 5px 8px; font-size: 14px; width: 70px; text-align: right; }
+  table.cut { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 6px; }
+  table.cut th, table.cut td { border: 1px solid #ddd0ec; padding: 6px 9px; text-align: center; white-space: nowrap; }
+  table.cut th { background: #f3edfa; }
+  table.cut td.pname { text-align: left; font-weight: bold; }
+  .preview { background: #fff; border: 1px solid #d8d0c2; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 12.5px; line-height: 1.9; }
+  .toast { background: #e8f5e9; border: 1.5px solid #7cb342; color: #1b5e20; border-radius: 10px; padding: 10px 14px; font-size: 13px; line-height: 1.8; margin-bottom: 12px; max-width: 780px; display: none; }
+  .err { color: #b91c1c; font-weight: bold; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  🧪 <strong>これは「おためし版」＝触って動く仮アプリです。</strong>数字はサンプルですが、<strong>動かした内容はこの端末に自動で残ります（開き直しても消えません）</strong>。最初に戻したいときは一覧の「🧹」ボタン。本番では、みんなで共有の保存＋毎晩バックアップになります。<br>
+  この見た目・ボタン・文言のまま受注Ａに移植します（移植時はモックとの1対1対照表で「増えていない・変わっていない」を機械で確認してから納品します）。<br>
+  ⚠ プレビュー枠では動きません。<strong>ファイルをダブルクリックしてブラウザで開いてください。</strong>
+</div>
+
+<h1>🏛 RT予約の残高一覧（おためし版）</h1>
+
+<button onclick="resetState()" style="background:#fff;border:2px solid #b91c1c;color:#b91c1c;border-radius:10px;padding:9px 18px;font-size:13.5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-bottom:14px">🧹 最初に戻す（試した操作を全部消して、さいしょの状態にします）</button>
+
+<div style="background:#ede7f6;border:1.5px solid #b39ddb;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.9;max-width:780px">
+  <b>この画面は何？</b>　RTの施設ごとの予約が「<b>あと何本残っているか</b>」を見る台帳です。<br>
+  <b>本物の在庫と、その場でつながっています。</b>🔒取り置きにした瞬間、他へ売れる在庫が減ります。⚖️で解放すれば、その場で戻ります。✂️で切り出すと在庫が減って、いつもの伝票 → ゆかちゃんのスプシへ流れます。<br>
+  数字を手で書き写す場面はありません。ぜんぶ自動で、誰が・いつ・なぜ動かしたかは📜に残ります。
+</div>
+
+<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;line-height:1.9;max-width:780px">
+  <b>ぜんたいの流れ</b>：
+  ① 予約が入る（📥Excel取込、または➕単発）→ この表に自動で出る
+  ② 在庫から充てるかは人が決める（🔒）。足りない分は✈️入荷待ち→入荷したら自動で🔒に
+  ③ 発注が来たら ✂️切り出し ＝ 出荷が1件でき、<b>在庫が減るのはこの瞬間・1回だけ</b>
+  ④ 伝票・納品書はいつも通り（単価は統合マスタＮから自動）
+  ⑤ 📥ゆかスプシ → 倉庫へ。発送した分は「✂️発送済」に自動で積み上がる。
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="view-list"></div>
+<div id="view-card"></div>
+<div id="view-cut"></div>
+
+<script>
+'use strict';
+// ── サンプルの商品（セットは構成つき＝本物の商品マスタと同じ形） ──
+var PRODS = {
+  ORG100:{name:'オルガニック 100ml'},
+  ORG250:{name:'オルガニック 250ml'},
+  ORG500:{name:'オルガニック 500ml'},
+  MEM100:{name:'メネジック 100ml'},
+  MEM250:{name:'メネジック 250ml'},
+  CHE100:{name:'シェフズブレンド 100ml'},
+  YS100:{name:'🎁 your story 100ml×3本セット', isSet:true,
+         comp:[['オルガニック100ml',1],['メネジック100ml',1],['シェフズブレンド100ml',1],['ギフト箱',1],['紙袋 黒 大',1]]}
+};
+// ── サンプルの「他に売れる在庫」（販売可能＝RTの取り置き分を除いた数。本番は統合マスタＮが親） ──
+var STOCK = { ORG100:200, ORG250:120, ORG500:50, MEM100:80, MEM250:0, CHE100:150, YS100:10 };
+
+// ── サンプルの予約（施設ごと） ──
+var FACS = [
+  { fac:'日光 様', rows:[
+      {sku:'ORG100', total:60,  sent:0,  wait:0},
+      {sku:'ORG250', total:40,  sent:0,  wait:0},
+      {sku:'ORG500', total:100, sent:0,  wait:0},
+      {sku:'MEM250', total:80,  sent:0,  wait:10},
+      {sku:'CHE100', total:40,  sent:0,  wait:0},
+      {sku:'YS100',  total:1,   sent:0,  wait:0, unit:'個'}
+    ], hist:[] },
+  { fac:'蓼科 様', rows:[
+      {sku:'MEM250', total:100, sent:0, wait:10},
+      {sku:'CHE100', total:50,  sent:0, wait:0}
+    ], hist:[] },
+  { fac:'鳴門 様', rows:[
+      {sku:'ORG500', total:60, sent:60, wait:0}
+    ], hist:[{d:'8/28', txt:'✂️ 本館へ：オルガニック500ml×60本（RT-20260828-5102）発送済み'}] }
+];
+var curFac = null;
+var LOG = [];   // 操作の記録（いつ・どの施設・何をしたか）
+function nowHm(){ var d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function pushLog(facName, txt){ LOG.unshift({t: todayMd()+' '+nowHm(), fac: facName, txt: txt}); }
+
+// ── 消えないように：動かした内容をこの端末に自動保存（本番はGASの共有保存＋毎晩バックアップ） ──
+var SAVE_KEY='oos_rt_otameshi_v1';
+function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify({f:FACS, s:STOCK, l:LOG})); }catch(e){} }
+function loadState(){ try{ var d=JSON.parse(localStorage.getItem(SAVE_KEY)); if(d && d.f && d.f.length){ FACS=d.f; if(d.s) STOCK=d.s; if(d.l) LOG=d.l; } }catch(e){} }
+function resetState(){ if(!confirm('試した操作を全部消して、操作する前の最初の状態に戻します。よろしいですか？')) return; try{ localStorage.removeItem(SAVE_KEY); }catch(e){} location.reload(); }
+var LEGEND='<div style="font-size:11.5px;color:#6b675e;padding:7px 16px;background:#faf8f4;border-bottom:1px solid #eee7db">🔒＝取り置き（在庫から確保済み）　✈️＝入荷待ち（入荷したら🔒に変わります）　✂️＝発送済み</div>';
+
+function held(r){ return r.total - r.sent - r.wait; }
+function unit(r){ return r.unit || '本'; }
+function facTotals(f){
+  var t=0, sent=0, w=0, gifts=0, ti=0, gi=0;
+  f.rows.forEach(function(r){
+    var init=(r.init===undefined)?r.total:r.init;
+    if(r.unit==='個'){ gifts+=r.total; gi+=init; } else { t+=r.total; ti+=init; }
+    sent+=r.sent; w+=r.wait;
+  });
+  return {t:t, sent:sent, w:w, gifts:gifts, ti:ti, gi:gi};
+}
+// 施設のまとめ文字：数が動いていたら「当初◯本 → 今◯本」で最初と現在の両方を見せる
+function facSumStr(f){
+  var tt=facTotals(f);
+  var hon = (tt.ti!==tt.t) ? '当初'+tt.ti+'本 → 今<b>'+tt.t+'本</b>' : '計'+tt.t+'本';
+  var gift = (tt.gifts||tt.gi) ? ('＋ギフト'+((tt.gi!==tt.gifts)?('当初'+tt.gi+'個 → 今<b>'+tt.gifts+'個</b>'):(tt.gifts+'個'))) : '';
+  return '予約 '+hon+gift;
+}
+function facDone(f){ return f.rows.every(function(r){ return r.sent===r.total; }); }
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function toast(msg){ var t=document.getElementById('toast'); t.innerHTML=msg; t.style.display='block'; window.scrollTo({top:0,behavior:'smooth'}); }
+function genNum(){ var d=new Date(); var ymd=''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); return 'RT-'+ymd+'-'+(1000+Math.floor(Math.random()*9000)); }
+function todayMd(){ var d=new Date(); return (d.getMonth()+1)+'/'+d.getDate(); }
+
+// ── 一覧 ──
+function renderList(){
+  curFac=null;
+  var h='<div class="win"><div class="win-head">🏛 RT予約の残高一覧</div>'+LEGEND;
+  FACS.forEach(function(f,i){
+    var tt=facTotals(f), done=facDone(f);
+    var sum = f.rows.length+'商品・'+facSumStr(f);
+    var tag = done ? ' ✅ すべて発送済み' : (tt.w>0 ? ' <span class="tag-wait">✈️ 入荷待ちあり</span>' : ' <span class="tag-ok">✓ ぜんぶ取り置き済み</span>');
+    h+='<div class="fac-row'+(done?' done':'')+'"><span class="nm">'+esc(f.fac)+'</span><span class="sum">'+sum+tag+'</span>'
+      +(done?'':'<button class="btn purple small" onclick="openFac('+i+')">開く</button>')+'</div>';
+  });
+  h+='</div>';
+  h+='<button class="btn" style="border-color:#0c447c;color:#0c447c" onclick="renderLog()">📜 操作の記録を見る（いつ・何を・なぜ）</button>';
+  document.getElementById('view-list').innerHTML=h;
+  document.getElementById('view-card').innerHTML='';
+  document.getElementById('view-cut').innerHTML='';
+}
+
+// ── 📜 操作の記録（全施設・時系列） ──
+function renderLog(){
+  var h='<div class="win"><div class="win-head">📜 操作の記録（新しい順・全施設）</div><div class="card-body">';
+  if(!LOG.length){ h+='<div style="font-size:13px;color:#8a8578">まだ記録はありません。切り出し・➕・⚖️・🔁 をすると、ここに自動で残ります。</div>'; }
+  else {
+    h+='<table class="bal"><tr><th>日時</th><th>施設</th><th style="text-align:left">何をしたか（理由つき）</th></tr>';
+    LOG.forEach(function(e){
+      h+='<tr><td style="white-space:nowrap">'+e.t+'</td><td style="white-space:nowrap;font-weight:bold">'+esc(e.fac)+'</td><td style="text-align:left;white-space:normal">'+e.txt+'</td></tr>';
+    });
+    h+='</table>';
+  }
+  h+='<button class="btn" onclick="renderList()">← 一覧にもどる</button></div></div>';
+  document.getElementById('view-list').innerHTML='';
+  document.getElementById('view-card').innerHTML=h;
+  document.getElementById('view-cut').innerHTML='';
+}
+
+// ── 施設カード ──
+function balRows(f){
+  var h='<table class="bal"><tr><th>商品</th><th>予約総数</th><th>✂️発送済</th><th>🔒取り置き残本</th><th>✈️入荷待ち</th><th>検算</th></tr>';
+  f.rows.forEach(function(r){
+    var p=PRODS[r.sku];
+    var comp = (p.isSet&&p.comp) ? '<small>＝中身：'+p.comp.map(function(c){return c[0]+(c[1]>1?'×'+c[1]:'');}).join('・')+'（在庫はこの中身で自動で引かれます）</small>' : '';
+    var ok = (r.sent+held(r)+r.wait)===r.total;
+    var isZero = (r.total===0 && r.sent===0);
+    if(isZero) comp='<small>（いまは予約0。ほかの施設へ回した経緯は履歴にあります）</small>';
+    h+='<tr'+(isZero?' class="zero"':(r.wait>0?' class="wait"':''))+'><td class="pname">'+esc(p.name)+comp+'</td>'
+      +'<td><b>'+r.total+'</b></td><td>'+r.sent+'</td><td>'+held(r)+'</td>'
+      +'<td'+(r.wait>0?' style="color:#b45309;font-weight:bold"':'')+'>'+r.wait+'</td>'
+      +'<td>'+(ok?'<span class="ck">✓</span>':'<span class="err">✗ 合いません</span>')+'</td></tr>';
+  });
+  return h+'</table>';
+}
+function openFac(i){
+  curFac=i; var f=FACS[i];
+  var waitBtn = f.rows.some(function(r){return r.wait>0;})
+    ? '<button class="btn orange" onclick="arrive()">📦 入荷を再現してみる（✈️ → 🔒 に変わります）</button>' : '';
+  var h='<div class="win"><div class="win-head">🏨 '+esc(f.fac)+'<span style="font-weight:normal;font-size:12px">'+facSumStr(f)+'</span></div>'
+    +LEGEND
+    +'<div class="card-body">'+balRows(f)
+    +'<div class="hist">'+(f.hist.length? f.hist.map(function(e){return '<div class="row"><span>'+e.d+'</span><span>'+e.txt+'</span></div>';}).join('') : '<div class="row"><span>—</span><span>まだ切り出しはありません</span></div>')+'</div>'
+    +'<button class="btn purple" onclick="openCut()">✂️ この施設から発送を切り出す</button>'
+    +'<button class="btn" style="border-color:#7b1fa2;color:#7b1fa2" onclick="openAdd()">➕ 予約を足す（電話・メールの単発）</button>'
+    +'<button class="btn" style="border-color:#0c447c;color:#0c447c" onclick="openMove()">⚖️ 取り置き⇄入荷待ちを動かす</button>'
+    +'<button class="btn" style="border-color:#00695c;color:#00695c" onclick="openXfer()">🔁 別の施設へ回す</button>'
+    +waitBtn
+    +'<button class="btn" onclick="renderList()">← 一覧にもどる</button>'
+    +'</div></div>';
+  document.getElementById('view-list').innerHTML='';
+  document.getElementById('view-card').innerHTML=h;
+  document.getElementById('view-cut').innerHTML='';
+}
+function arrive(){
+  var f=FACS[curFac];
+  f.rows.forEach(function(r){ r.wait=0; });
+  pushLog(f.fac, '📦 入荷：✈️入荷待ちが🔒取り置きに変わった');
+  saveState();
+  toast('📦 入荷しました：✈️入荷待ちが 🔒取り置き に変わりました（本番では、統合マスタＮの入荷ボタンに連動して自動で変わります）。');
+  openFac(curFac);
+}
+
+// ── 単発の予約を足す（電話・メール） ──
+function openAdd(){
+  var f=FACS[curFac];
+  var h='<div class="panel"><b>➕ 予約を足す（'+esc(f.fac)+'・電話やメールの単発）</b><br>'
+    +'<b>出どころメモ</b> <input type="text" id="add-src" value="" placeholder="例：9/2 電話（担当◯◯さん）" style="width:260px">'
+    +'<table class="cut"><tr><th>商品</th><th>いまの予約総数</th><th>足す数</th><th>どこに入れる？</th></tr>';
+  f.rows.forEach(function(r,ri){
+    h+='<tr><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>'+r.total+unit(r)+'</td>'
+      +'<td><input type="number" min="0" value="0" id="add-q-'+ri+'" oninput="addPrev()"></td>'
+      +'<td><select id="add-w-'+ri+'" onchange="addPrev()" style="border:1.5px solid #cbb8e6;border-radius:7px;padding:4px 6px;font-size:12.5px">'
+      +'<option value="wait">✈️ 入荷待ちへ</option>'
+      +'<option value="hold">🔒 取り置きへ（在庫 '+(STOCK[r.sku]||0)+unit(r)+'）</option>'
+      +'</select></td></tr>';
+  });
+  h+='</table><div class="preview" id="add-prev">足す数を入れると、ここに結果の予告が出ます。<br>'
+    +'（本番では、この表に無い商品も▼で選んで足せます）</div>'
+    +'<button class="btn green" onclick="applyAdd()">➕ この内容で予約を足す</button>'
+    +'<button class="btn" onclick="openFac('+curFac+')">やめる</button></div>';
+  document.getElementById('view-cut').innerHTML=h;
+  document.getElementById('view-cut').scrollIntoView({behavior:'smooth'});
+}
+function addItems(){
+  var f=FACS[curFac], items=[], over=[];
+  f.rows.forEach(function(r,ri){
+    var el=document.getElementById('add-q-'+ri); if(!el) return;
+    var q=parseInt(el.value,10)||0;
+    if(q<=0) return;
+    var w=document.getElementById('add-w-'+ri).value;
+    if(w==='hold' && q>(STOCK[r.sku]||0)) over.push(PRODS[r.sku].name+'（在庫は'+(STOCK[r.sku]||0)+unit(r)+'しかありません）');
+    else items.push({r:r, q:q, w:w});
+  });
+  return {items:items, over:over};
+}
+function addPrev(){
+  var c=addItems(); var pv=document.getElementById('add-prev');
+  if(c.over.length){ pv.innerHTML='<span class="err">⚠ 🔒取り置きにできません：'+c.over.join('、')+'。✈️入荷待ちを選んでください。</span>'; return; }
+  if(!c.items.length){ pv.innerHTML='足す数を入れると、ここに結果の予告が出ます。<br>（本番では、この表に無い商品も▼で選んで足せます）'; return; }
+  pv.innerHTML='➕ 足すと：'+c.items.map(function(it){
+    var dst = it.w==='hold' ? '🔒取り置きへ（<b>販売可能が'+it.q+unit(it.r)+'減ります</b>＝他へ売れなくなる）' : '✈️入荷待ちへ（販売可能は動きません・要輸入が増えます）';
+    return esc(PRODS[it.r.sku].name)+'の予約総数 '+it.r.total+'→<b>'+(it.r.total+it.q)+unit(it.r)+'</b>、'+dst;
+  }).join('<br>');
+}
+function applyAdd(){
+  var f=FACS[curFac]; var c=addItems();
+  var src=(document.getElementById('add-src').value||'').trim();
+  if(c.over.length){ alert('在庫が足りない商品があります。✈️入荷待ちを選んでください。'); return; }
+  if(!c.items.length){ alert('足す数が全部0です。'); return; }
+  if(!src){ alert('出どころメモ（電話・メールなど）を入れてください。あとで「この20本どこから？」にならないように。'); return; }
+  c.items.forEach(function(it){
+    it.r.total+=it.q;
+    if(it.w==='hold'){ STOCK[it.r.sku]=(STOCK[it.r.sku]||0)-it.q; }
+    else { it.r.wait+=it.q; }
+  });
+  var addTxt='➕ '+esc(src)+'：'+c.items.map(function(it){return esc(PRODS[it.r.sku].name)+'+'+it.q+unit(it.r)+(it.w==='hold'?'（🔒取り置きへ）':'（✈️入荷待ちへ）');}).join('・');
+  f.hist.push({d:todayMd(), txt:addTxt});
+  pushLog(f.fac, addTxt);
+  saveState();
+  toast('✅ 予約を足しました。🔒に入れた分は販売可能から確保済み、✈️の分は入荷したら自動で🔒に変わります。');
+  openFac(curFac);
+}
+
+// ── ⚖️ 取り置き⇄入荷待ちを動かす（あとからのコントロール） ──
+function openMove(){
+  var f=FACS[curFac];
+  var h='<div class="panel"><b>⚖️ 取り置き⇄入荷待ちを動かす（'+esc(f.fac)+'）</b><br>'
+    +'<b>理由メモ（必須）</b> <input type="text" id="mv-src" value="" placeholder="例：他社出荷を優先するため／別施設に先に回すため" style="width:320px">'
+    +'<table class="cut"><tr><th>商品</th><th>🔒残本</th><th>✈️入荷待ち</th><th>販売可能<br>（他に売れる在庫）</th><th>動かす方向</th><th>本数</th></tr>';
+  f.rows.forEach(function(r,ri){
+    h+='<tr><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>'+held(r)+'</td><td>'+r.wait+'</td><td>'+(STOCK[r.sku]||0)+'</td>'
+      +'<td><select id="mv-d-'+ri+'" onchange="movePrev()" style="border:1.5px solid #cbb8e6;border-radius:7px;padding:4px 6px;font-size:12.5px">'
+      +'<option value="">—</option>'
+      +'<option value="rel">🔒→✈️ 取り置きを解放（他へ売れるようになる）</option>'
+      +'<option value="lock">✈️→🔒 在庫から確保する</option>'
+      +'</select></td>'
+      +'<td><input type="number" min="0" value="0" id="mv-q-'+ri+'" oninput="movePrev()"></td></tr>';
+  });
+  h+='</table><div class="preview" id="mv-prev">方向と本数を入れると、ここに「販売可能がどう動くか」の予告が出ます。予約総数は変わりません（お約束は消えません）。</div>'
+    +'<button class="btn green" onclick="applyMove()">⚖️ この内容で動かす</button>'
+    +'<button class="btn" onclick="openFac('+curFac+')">やめる</button></div>';
+  document.getElementById('view-cut').innerHTML=h;
+  document.getElementById('view-cut').scrollIntoView({behavior:'smooth'});
+}
+function moveItems(){
+  var f=FACS[curFac], items=[], over=[];
+  f.rows.forEach(function(r,ri){
+    var d=document.getElementById('mv-d-'+ri); if(!d||!d.value) return;
+    var q=parseInt(document.getElementById('mv-q-'+ri).value,10)||0;
+    if(q<=0) return;
+    if(d.value==='rel' && q>held(r)) over.push(PRODS[r.sku].name+'（🔒は'+held(r)+unit(r)+'しかありません）');
+    else if(d.value==='lock' && q>r.wait) over.push(PRODS[r.sku].name+'（✈️は'+r.wait+unit(r)+'しかありません）');
+    else if(d.value==='lock' && q>(STOCK[r.sku]||0)) over.push(PRODS[r.sku].name+'（在庫は'+(STOCK[r.sku]||0)+unit(r)+'しかありません）');
+    else items.push({r:r, q:q, d:d.value});
+  });
+  return {items:items, over:over};
+}
+function movePrev(){
+  var c=moveItems(); var pv=document.getElementById('mv-prev');
+  if(c.over.length){ pv.innerHTML='<span class="err">⚠ 動かせません：'+c.over.join('、')+'</span>'; return; }
+  if(!c.items.length){ pv.innerHTML='方向と本数を入れると、ここに「販売可能がどう動くか」の予告が出ます。予約総数は変わりません（お約束は消えません）。'; return; }
+  pv.innerHTML=c.items.map(function(it){
+    return it.d==='rel'
+      ? esc(PRODS[it.r.sku].name)+'：🔒'+held(it.r)+'→'+(held(it.r)-it.q)+'・✈️'+it.r.wait+'→'+(it.r.wait+it.q)+'。<b>販売可能が'+it.q+unit(it.r)+'増えます</b>（他社・他施設へ売れる）'
+      : esc(PRODS[it.r.sku].name)+'：✈️'+it.r.wait+'→'+(it.r.wait-it.q)+'・🔒'+held(it.r)+'→'+(held(it.r)+it.q)+'。<b>販売可能が'+it.q+unit(it.r)+'減ります</b>（この施設に確保）';
+  }).join('<br>')+'<br>予約総数はどちらも変わりません（検算✓のまま）。';
+}
+function applyMove(){
+  var f=FACS[curFac]; var c=moveItems();
+  var src=(document.getElementById('mv-src').value||'').trim();
+  if(c.over.length){ alert('動かせない行があります。数を直してください。'); return; }
+  if(!c.items.length){ alert('方向と本数を入れてください。'); return; }
+  if(!src){ alert('理由メモを入れてください。あとで「なぜ減ってるの？」の犯人探しにならないように。'); return; }
+  c.items.forEach(function(it){
+    if(it.d==='rel'){ it.r.wait+=it.q; STOCK[it.r.sku]=(STOCK[it.r.sku]||0)+it.q; }
+    else { it.r.wait-=it.q; STOCK[it.r.sku]=(STOCK[it.r.sku]||0)-it.q; }
+  });
+  var mvTxt='⚖️ '+esc(src)+'：'+c.items.map(function(it){return esc(PRODS[it.r.sku].name)+' '+(it.d==='rel'?'🔒→✈️':'✈️→🔒')+' '+it.q+unit(it.r);}).join('・');
+  f.hist.push({d:todayMd(), txt:mvTxt});
+  pushLog(f.fac, mvTxt);
+  saveState();
+  toast('✅ 動かしました。予約総数（お約束）は変わっていません。理由は履歴に残っています。');
+  openFac(curFac);
+}
+
+// ── 🔁 別の施設へ回す（同じ商品のまま移動＝商品の選び間違いが起きない） ──
+// 回すのは開いている施設からだけなので「どこから」は聞かない。🔒から先に回し、足りない分は✈️から。
+// 「この内容で回す」を押しても画面は閉じず、続けて次をどんどん回せる。
+function openXfer(keepMemo, doneMsg){
+  var f=FACS[curFac];
+  var facOpts = FACS.map(function(g,gi){ return gi===curFac?'':'<option value="'+gi+'">'+esc(g.fac)+'</option>'; }).join('');
+  var h='<div class="panel"><b>🔁 別の施設へ回す（'+esc(f.fac)+' から）</b><br>'
+    +'<b>理由メモ（必須）</b> <input type="text" id="xf-src" value="'+esc(keepMemo||'')+'" placeholder="例：東京から先に欲しいと連絡があったため" style="width:320px">'
+    +'<table class="cut"><tr><th>商品</th><th>回せる残り<br>（🔒＋✈️）</th><th>回す本数</th><th>回す先</th></tr>';
+  f.rows.forEach(function(r,ri){
+    var can=held(r)+r.wait;
+    if(can<=0){
+      // 0本でも名前は消さない（「もともと注文が無かった？」と誤解しないため）
+      h+='<tr class="zero"><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>0'+unit(r)+'（回せる分はありません）</td><td>—</td><td>—</td></tr>';
+      return;
+    }
+    h+='<tr><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>'+can+unit(r)+'（🔒'+held(r)+'・✈️'+r.wait+'）</td>'
+      +'<td><input type="number" min="0" value="0" id="xf-q-'+ri+'" oninput="xferPrev()"></td>'
+      +'<td><select id="xf-t-'+ri+'" onchange="xferPrev()" style="border:1.5px solid #cbb8e6;border-radius:7px;padding:4px 6px;font-size:12.5px">'
+      +'<option value="">—</option>'+facOpts+'</select></td></tr>';
+  });
+  h+='</table><div class="preview" id="xf-prev">'+(doneMsg||'本数と回す先を入れると、ここに予告が出ます。<strong>同じ商品のまま動く</strong>ので、足し間違い（250mlのつもりが100ml…）は起きません。')+'</div>'
+    +'<div class="hist" style="margin-top:8px">'+(f.hist.length? '<b style="font-size:12px;color:#55524a">この施設の動き（回した内容もここに残ります）</b>'+f.hist.slice(-5).map(function(e){return '<div class="row"><span>'+e.d+'</span><span>'+e.txt+'</span></div>';}).join('') : '')+'</div>'
+    +'<button class="btn green" onclick="applyXfer()">🔁 この内容で回す（続けて次も回せます）</button>'
+    +'<button class="btn" onclick="openFac('+curFac+')">✔ 終わる（カードにもどる）</button></div>';
+  document.getElementById('view-cut').innerHTML=h;
+  document.getElementById('view-cut').scrollIntoView({behavior:'smooth'});
+}
+function xferItems(){
+  var f=FACS[curFac], items=[], over=[];
+  f.rows.forEach(function(r,ri){
+    var qEl=document.getElementById('xf-q-'+ri); if(!qEl) return;
+    var q=parseInt(qEl.value,10)||0; if(q<=0) return;
+    var t=document.getElementById('xf-t-'+ri).value;
+    if(t===''){ over.push(PRODS[r.sku].name+'（回す先を選んでください）'); return; }
+    var can=held(r)+r.wait;
+    if(q>can){ over.push(PRODS[r.sku].name+'（回せるのは'+can+unit(r)+'までです）'); return; }
+    var fromHold=Math.min(q, held(r)), fromWait=q-fromHold;
+    items.push({r:r, q:q, fromHold:fromHold, fromWait:fromWait, t:parseInt(t,10)});
+  });
+  return {items:items, over:over};
+}
+function xferSrcLabel(it, r){
+  if(it.fromWait<=0) return '🔒から'+it.fromHold+unit(r);
+  if(it.fromHold<=0) return '✈️から'+it.fromWait+unit(r);
+  return '🔒から'+it.fromHold+unit(r)+'＋✈️から'+it.fromWait+unit(r);
+}
+function xferPrev(){
+  var c=xferItems(); var pv=document.getElementById('xf-prev'); var f=FACS[curFac];
+  if(c.over.length){ pv.innerHTML='<span class="err">⚠ '+c.over.join('、')+'</span>'; return; }
+  if(!c.items.length){ pv.innerHTML='本数と回す先を入れると、ここに「どこの施設に・何が・どれくらい」の予告が文章で出ます。<strong>同じ商品のまま動く</strong>ので、足し間違い（250mlのつもりが100ml…）は起きません。'; return; }
+  pv.innerHTML=c.items.map(function(it){
+    var g=FACS[it.t];
+    var dst=null; g.rows.forEach(function(rr){ if(rr.sku===it.r.sku) dst=rr; });
+    var dNow=dst?dst.total:0;
+    return '🔁 <b>'+esc(f.fac)+'</b> から <b>'+esc(g.fac)+'</b> へ、'+esc(PRODS[it.r.sku].name)+' を <b>'+it.q+unit(it.r)+'</b> 回します（'+xferSrcLabel(it,it.r)+'）。<br>'
+      +'　→ '+esc(f.fac)+'の予約は '+it.r.total+' → <b>'+(it.r.total-it.q)+unit(it.r)+'</b>、'+esc(g.fac)+'の予約は '+dNow+' → <b>'+(dNow+it.q)+unit(it.r)+'</b> になります。販売可能は動きません（持ち主が変わるだけ）。';
+  }).join('<br>');
+}
+function applyXfer(){
+  var f=FACS[curFac]; var c=xferItems();
+  var src=(document.getElementById('xf-src').value||'').trim();
+  if(c.over.length){ alert('直す行があります：\n'+c.over.join('\n')); return; }
+  if(!c.items.length){ alert('本数と回す先を入れてください。'); return; }
+  if(!src){ alert('理由メモを入れてください。'); return; }
+  var doneLines=[];
+  c.items.forEach(function(it){
+    var g=FACS[it.t];
+    var dst=null; g.rows.forEach(function(rr){ if(rr.sku===it.r.sku) dst=rr; });
+    if(!dst){ dst={sku:it.r.sku, total:0, sent:0, wait:0, init:0}; if(it.r.unit) dst.unit=it.r.unit; g.rows.push(dst); }
+    it.r.total-=it.q; dst.total+=it.q;
+    if(it.fromWait>0){ it.r.wait-=it.fromWait; dst.wait+=it.fromWait; }
+    var line=esc(PRODS[it.r.sku].name)+' '+it.q+unit(it.r)+'（'+xferSrcLabel(it,it.r)+'）';
+    f.hist.push({d:todayMd(), txt:'🔁 '+esc(src)+'：'+line+' → '+esc(g.fac)+'へ'});
+    g.hist.push({d:todayMd(), txt:'🔁 '+esc(src)+'：'+line+' ← '+esc(f.fac)+'から'});
+    pushLog(f.fac, '🔁 '+esc(src)+'：'+line+' → '+esc(g.fac)+'へ');
+    doneLines.push(line+' → '+esc(g.fac)+'へ');
+  });
+  saveState();
+  // 画面は閉じない：残りの数を最新にして、続けて次を回せる
+  openXfer(src, '✅ 回しました：'+doneLines.join('、')+'<br>そのまま<strong>続けて次を回せます</strong>（終わったら「✔ 終わる」）。');
+}
+
+// ── 切り出し ──
+function openCut(){
+  var f=FACS[curFac];
+  var h='<div class="panel"><b>✂️ 発送を切り出す（'+esc(f.fac)+'）</b><br>'
+    +'<b>お届け先（部門など）</b> <input type="text" id="cut-dest" value="" placeholder="例：商品部門" style="width:180px" oninput="cutPrev()">'
+    +'<table class="cut"><tr><th>商品</th><th>いまの残高（🔒取り置き）</th><th>今回送る数</th></tr>';
+  f.rows.forEach(function(r,ri){
+    if(held(r)<=0){
+      h+='<tr class="zero"><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>0'+unit(r)+'（切り出せる分はありません）</td><td>—</td></tr>';
+      return;
+    }
+    h+='<tr><td class="pname">'+esc(PRODS[r.sku].name)+'</td><td>'+held(r)+unit(r)+'</td>'
+      +'<td><input type="number" min="0" max="'+held(r)+'" value="0" id="cut-q-'+ri+'" oninput="cutPrev()"></td></tr>';
+  });
+  h+='</table><div class="preview" id="cut-prev">送る数を入れると、ここに結果の予告が出ます。</div>'
+    +'<button class="btn green" onclick="applyCut()">✂️ この内容で切り出す</button>'
+    +'<button class="btn" onclick="openFac('+curFac+')">やめる</button></div>';
+  document.getElementById('view-cut').innerHTML=h;
+  document.getElementById('view-cut').scrollIntoView({behavior:'smooth'});
+}
+function cutItems(){
+  var f=FACS[curFac], items=[], over=[];
+  f.rows.forEach(function(r,ri){
+    var el=document.getElementById('cut-q-'+ri); if(!el) return;
+    var q=parseInt(el.value,10)||0;
+    if(q>held(r)){ over.push(PRODS[r.sku].name+'（残高'+held(r)+unit(r)+'）'); }
+    else if(q>0){ items.push({r:r, q:q}); }
+  });
+  return {items:items, over:over};
+}
+function cutPrev(){
+  var c=cutItems(); var pv=document.getElementById('cut-prev'); var f=FACS[curFac];
+  if(c.over.length){ pv.innerHTML='<span class="err">⚠ 残高を超えています：'+c.over.join('、')+'。残高までしか入れられません。</span>'; return; }
+  if(!c.items.length){ pv.innerHTML='送る数を入れると、ここに「どこへ・何を・何本」の予告が文章で出ます。'; return; }
+  var dest=(document.getElementById('cut-dest').value||'').trim();
+  var lines=c.items.map(function(it){ return '・'+esc(PRODS[it.r.sku].name)+' <b>'+it.q+unit(it.r)+'</b>（この施設の🔒残本 '+held(it.r)+' → '+(held(it.r)-it.q)+unit(it.r)+'）'; });
+  var setNote=c.items.filter(function(it){return PRODS[it.r.sku].isSet;}).map(function(it){
+    return '🎁 '+esc(PRODS[it.r.sku].name)+' は在庫からは中身で引かれます：'+PRODS[it.r.sku].comp.map(function(cc){return cc[0]+'×'+(cc[1]*it.q);}).join('・');
+  });
+  pv.innerHTML='✂️ <b>'+esc(f.fac)+'</b> から <b>'+(dest?esc(dest):'（お届け先が未記入です）')+'</b> へ、<strong>出荷を1件</strong>つくります（明細'+c.items.length+'行）：<br>'
+    +lines.join('<br>')
+    +(setNote.length?'<br>'+setNote.join('<br>'):'')
+    +'<br>→ このあと：伝票・納品書 → 📥ゆかスプシ → 倉庫。<b>在庫が減るのはこの瞬間・1回だけ</b>です。';
+}
+function applyCut(){
+  var f=FACS[curFac]; var c=cutItems();
+  var dest=(document.getElementById('cut-dest').value||'').trim();
+  if(c.over.length){ alert('残高を超えている商品があります。数を直してください。'); return; }
+  if(!c.items.length){ alert('送る数が全部0です。'); return; }
+  if(!dest){ alert('お届け先（部門など）を入れてください。'); return; }
+  var num=genNum();
+  c.items.forEach(function(it){ it.r.sent+=it.q; });
+  var cutTxt='✂️ '+esc(dest)+'へ：'+c.items.map(function(it){return esc(PRODS[it.r.sku].name)+'×'+it.q+unit(it.r);}).join('・')+'（'+num+'）';
+  f.hist.push({d:todayMd(), txt:cutTxt});
+  pushLog(f.fac, cutTxt);
+  saveState();
+  toast('✅ 出荷を1件作りました（'+num+'・'+esc(dest)+'宛・明細'+c.items.length+'行）。<br>本番ではこのまま伝票・納品書ができて、📥ゆかスプシに1行入り、ゆかちゃんの【📦倉庫へ依頼する】で倉庫に流れます。在庫が減るのはこの瞬間です（1回だけ）。');
+  openFac(curFac);
+}
+
+loadState();
+// 当初の数を覚える（初回だけ。以後は保存に残る）
+FACS.forEach(function(f){ f.rows.forEach(function(r){ if(r.init===undefined) r.init=r.total; }); });
+renderList();
+</script>
+</body>
+</html>

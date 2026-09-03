@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>おためし版：ゆかスプシと倉庫ファイル（本物のスプシと同じ形）2026-09-03</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; background: #f2f4f7; color: #202124; padding: 20px; }
+  .note { background: #fff3cd; border: 2px dashed #d9a400; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; font-size: 13.5px; line-height: 1.7; max-width: 1000px; }
+  .note strong { color: #8a6d00; }
+  h1 { font-size: 19px; margin-bottom: 10px; }
+  .role { background:#e8f5e9; border:1.5px solid #a5d6a7; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13.5px; line-height:1.9; max-width:1000px; }
+
+  .filebar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filebar button { border:none; border-radius:10px; padding:10px 18px; font-size:14px; font-weight:bold; background:#d7dce3; color:#55524a; cursor:pointer; font-family:inherit; }
+  .filebar button.on { background:#0f9d58; color:#fff; }
+
+  .toast { background: #e8f5e9; border: 1.5px solid #7cb342; color: #1b5e20; border-radius: 10px; padding: 10px 14px; font-size: 13px; line-height: 1.8; margin-bottom: 12px; max-width: 1000px; display: none; }
+
+  /* Googleスプレッドシート風の窓 */
+  .gs { background:#fff; border:1px solid #dadce0; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.10); max-width:1050px; margin-bottom:14px; }
+  .gs-top { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #eee; }
+  .gs-icon { width:26px; height:26px; border-radius:5px; background:#0f9d58; position:relative; flex-shrink:0; }
+  .gs-icon::after { content:''; position:absolute; left:6px; top:6px; right:6px; bottom:6px; background:
+    linear-gradient(#fff,#fff) 0 0/100% 2px no-repeat,
+    linear-gradient(#fff,#fff) 0 6px/100% 2px no-repeat,
+    linear-gradient(#fff,#fff) 0 12px/100% 2px no-repeat; }
+  .gs-name { font-size:15px; font-weight:bold; }
+  .gs-menu { font-size:11.5px; color:#5f6368; padding:0 14px 7px; border-bottom:1px solid #eee; }
+  .gs-body { overflow-x:auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 900px; font-size: 12px; }
+  th, td { border: 1px solid #e0e0e0; padding: 7px 9px; text-align: left; vertical-align: top; white-space: nowrap; }
+  th { background: #f8f9fa; font-weight: bold; color: #444; line-height: 1.4; }
+  th.g { background: #e8f5e9; color: #1b5e20; }
+  th.r { background: #fbe9e7; color: #b71c1c; }
+  th.hq { background: #eceff1; color: #546e7a; }
+  tr.done td { background: #eceff1; color: #90a4ae; }
+  tr.orange td { background: #ffe0b2; }
+  td.autoval { color: #1565c0; }
+  td.num { text-align:center; font-weight:bold; font-size:13.5px; }
+  td.ok { background:#e8f5e9; color:#1b5e20; }
+  td.hold { background:#fff3e0; }
+  .fixmark { color:#e65100; font-weight:bold; font-size:11px; }
+  .seal { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:5px; vertical-align:middle; border:1px solid rgba(0,0,0,.25); }
+
+  /* 下のシートタブ（本物のスプシと同じ位置） */
+  .gs-tabs { display:flex; gap:2px; background:#f1f3f4; padding:5px 10px 0; border-top:1px solid #e0e0e0; flex-wrap:wrap; }
+  .gs-tab { border:none; border-radius:8px 8px 0 0; padding:7px 16px; font-size:12.5px; font-weight:bold; background:#e3e6e9; color:#5f6368; cursor:pointer; font-family:inherit; }
+  .gs-tab.on { background:#fff; color:#0f7b3a; border-top:3px solid #0f9d58; }
+
+  select, input[type=text], input[type=number] { border:1.5px solid #cfc9ba; border-radius:7px; padding:5px 8px; font-size:13px; font-family:inherit; }
+  button.rb { border:none; border-radius:8px; padding:6px 12px; font-size:12.5px; font-weight:bold; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .rb.go { background:#2e7d32; color:#fff; }
+  .rb.did { background:#b0bec5; color:#fff; cursor:default; }
+  .rb.fix { background:#fff; border:1.5px solid #e65100; color:#e65100; margin-top:4px; }
+  .rb.ship { background:#e65100; color:#fff; }
+  .rb.arr { background:#ef9a3c; color:#fff; }
+  .rb.blue { background:#0c447c; color:#fff; padding:8px 16px; font-size:13.5px; margin-top:8px; }
+  .rb.red2 { background:#b71c1c; color:#fff; padding:8px 16px; font-size:13.5px; margin-top:8px; }
+  input.tn { border:1.5px solid #d5cfc3; border-radius:6px; padding:4px 6px; font-size:12.5px; width:130px; }
+  .legend { background:#fff; border:1px solid #dadce0; border-radius:10px; padding:12px 16px; margin:4px 0 14px; font-size:12.5px; line-height:1.9; max-width:1050px; }
+  .err { color:#b91c1c; font-weight:bold; }
+
+  .fixpan { background:#fff8f2; border:2px solid #e65100; border-radius:12px; padding:14px 16px; max-width:900px; margin-bottom:12px; font-size:13px; line-height:2; }
+  .fixpan input[type=text] { width:100%; max-width:560px; }
+  .fixpan label { font-weight:bold; display:block; margin-top:4px; }
+
+  .phone { width:375px; max-width:100%; background:#111; border-radius:28px; padding:14px 10px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+  .phone-screen { background:#f6f7f9; border-radius:18px; overflow:hidden; }
+  .phone-head { background:#2e7d32; color:#fff; padding:12px 14px; font-size:15px; font-weight:bold; }
+  .phone-head .cnt { float:right; background:rgba(255,255,255,.25); border-radius:10px; padding:1px 10px; font-size:13px; }
+  .phone-body { padding:10px; }
+  .wait-banner { background:#ffe0b2; border:1px solid #ffb74d; border-radius:10px; padding:8px 12px; font-size:12px; margin-bottom:10px; line-height:1.6; }
+  .pack-card { background:#fff; border:1px solid #dadce0; border-radius:12px; padding:12px 14px; margin-bottom:10px; font-size:13px; line-height:1.8; }
+  .pack-card .name { font-size:15px; font-weight:bold; }
+  .pack-card .date { color:#b71c1c; font-weight:bold; }
+  .pack-item { background:#f1f8e9; border-radius:8px; padding:6px 10px; margin:4px 0; display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .pack-item .chk { font-size:20px; flex-shrink:0; }
+  .pack-item.checked { background:#e0e0e0; text-decoration:line-through; color:#757575; }
+  .pack-note { color:#5f6368; font-size:12px; }
+  .pack-done-btn { display:block; width:100%; background:#2e7d32; color:#fff; border:none; border-radius:10px; text-align:center; padding:10px; font-weight:bold; font-size:14px; margin-top:10px; cursor:pointer; font-family:inherit; }
+  .phone-foot { background:#eceff1; padding:10px 14px; font-size:12px; color:#546e7a; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  🧪 <strong>これは「おためし版」＝本物のスプレッドシートと同じ形で、ボタンや▼を実際に触って試す版です。</strong>数字はサンプル。試した内容はこの端末に残ります。<br>
+  ⚠ 横のプレビュー枠では動きません。<strong>ファイルをダブルクリックしてブラウザで開いてください。</strong>
+</div>
+
+<h1>📗 ゆかスプシと倉庫ファイル（本物と同じ形のおためし版）</h1>
+
+<button onclick="resetState()" style="background:#fff;border:2px solid #b91c1c;color:#b91c1c;border-radius:10px;padding:9px 18px;font-size:13.5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-bottom:14px">🧹 最初に戻す（試した操作を全部消して、さいしょの状態にします）</button>
+
+<div class="role">
+  <b>これは何？</b>　実際に使うスプレッドシートを、そのままの形で試せる練習台です。ファイルは2つ＋スマホ：<br>
+  📘 <b>ゆかちゃんスプシ</b>（本部用・倉庫からは見えない）…【📦 倉庫へ依頼する】と【✏️ 修正】<br>
+  📗 <b>倉庫ファイル</b>（倉庫さんと共有）…下に<b>本物と同じシートのタブが4枚</b>（オーダー表・在庫表・不良を見つけた・状態が変わった）<br>
+  📱 <b>スマホの梱包ビュー</b>…梱包チェック専用。<br>
+  在庫の計算はどのシートもしません。ここに載る注文は在庫確保済み（オレンジの入荷待ちを除く）。
+</div>
+
+<div class="filebar">
+  <button id="f-yuka" class="on" onclick="showFile('yuka')">📘 ゆかちゃんスプシ（本部用）</button>
+  <button id="f-soko" onclick="showFile('soko')">📗 倉庫ファイル（倉庫さんと共有）</button>
+  <button id="f-phone" onclick="showFile('phone')">📱 倉庫さんのスマホ</button>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="fixpan"></div>
+
+<div id="file-yuka"></div>
+<div id="file-soko" style="display:none"></div>
+<div id="file-phone" style="display:none"></div>
+
+<script>
+'use strict';
+// ── サンプルの注文（1件=1行） ──
+var ORDERS = [
+  { id:'BA-20260901-4823', src:'バサラ', exp:'2027.10', p1n:'EX250 エキストラバージン 250ml', p1q:'2', p2n:'ZK01 ざくろソース', p2q:'1',
+    name:'山田 花子 様', addr:'東京都〇〇区…', day:'9/2', time:'午前中', note:'ギフト箱希望【バサラ BA-20260901-4823】',
+    doc:'あり', requested:'9/1 14:05', track:'1234-5678-9012', shipped:true, wait:false, checks:{}, packed:true, fixedAt:'' },
+  { id:'RT-20260902-7241', src:'RT', exp:'2027.10', p1n:'ORG500 オルガニック 500ml', p1q:'6', p2n:'MEM250 メネジック 250ml', p2q:'3',
+    name:'〇〇レストラン 様', addr:'愛知県〇〇市…', day:'9/4', time:'', note:'のし：御中元【RT RT-20260902-7241】',
+    doc:'あり', requested:'', track:'', shipped:false, wait:false, checks:{}, packed:false, fixedAt:'' },
+  { id:'ST-20260902-3358', src:'STORES', exp:'2027.10', p1n:'CHE250 シェフズブレンド 250ml', p1q:'1', p2n:'', p2q:'',
+    name:'鈴木 一郎 様', addr:'福岡県〇〇市…', day:'', time:'', note:'【STORES ST-20260902-3358】',
+    doc:'あり', requested:'', track:'', shipped:false, wait:false, checks:{}, packed:false, fixedAt:'' },
+  { id:'BA-20260902-5519', src:'バサラ', exp:'2027.10', p1n:'ORG100 オルガニック 100ml', p1q:'12', p2n:'', p2q:'',
+    name:'△△商店 様', addr:'大阪府〇〇市…', day:'', time:'', note:'✈️入荷待ち（9月中旬入荷予定）【バサラ BA-20260902-5519】',
+    doc:'あり', requested:'9/2 15:20', track:'', shipped:false, wait:true, checks:{}, packed:false, fixedAt:'' }
+];
+var REPORTS=[];   // 📮 不良を見つけた
+var CHANGES=[];   // 🔁 状態が変わった
+var curSheet='order';
+var KEY='oos_soukofile_otameshi_v1';
+function saveState(){ try{ localStorage.setItem(KEY, JSON.stringify({o:ORDERS, r:REPORTS, c:CHANGES})); }catch(e){} }
+function loadState(){ try{ var d=JSON.parse(localStorage.getItem(KEY)); if(d){ if(d.o) ORDERS=d.o; if(d.r) REPORTS=d.r; if(d.c) CHANGES=d.c; } }catch(e){} }
+function resetState(){ if(!confirm('試した操作を全部消して、操作する前の最初の状態に戻します。よろしいですか？')) return; try{ localStorage.removeItem(KEY); }catch(e){} location.reload(); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function nowStr(){ var d=new Date(); return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function todayMd(){ var d=new Date(); return (d.getMonth()+1)+'/'+d.getDate(); }
+function toast(m){ var t=document.getElementById('toast'); t.innerHTML=m; t.style.display='block'; window.scrollTo({top:0,behavior:'smooth'}); }
+function ord(id){ return ORDERS.filter(function(o){return o.id===id;})[0]; }
+
+function showFile(name){
+  ['yuka','soko','phone'].forEach(function(n){
+    document.getElementById('file-'+n).style.display=(n===name)?'':'none';
+    document.getElementById('f-'+n).classList.toggle('on', n===name);
+  });
+  document.getElementById('fixpan').innerHTML='';
+  renderAll();
+}
+function showSheet(tab){ curSheet=tab; renderSoko(); }
+
+// ══ 📘 ゆかちゃんスプシ ══
+function renderYuka(){
+  var h='<div class="gs"><div class="gs-top"><span class="gs-icon"></span><span class="gs-name">ゆかちゃんスプシ（OOS本部用）</span><span style="font-size:11px;color:#8a8578">☆ 倉庫からは見えません</span></div>'
+    +'<div class="gs-menu">ファイル　編集　表示　挿入　表示形式　データ　ツール　（本物のスプシと同じ場所に同じメニューが出ます）</div>'
+    +'<div class="gs-body"><table>'
+    +'<tr><th class="g">③ 倉庫へ依頼する<br>（行ごとのボタン）</th><th>賞味期限</th><th>商品①<br>コード品名</th><th>商品①<br>数</th><th>商品②<br>コード品名</th><th>商品②<br>数</th><th>【お届け先】<br>氏名</th><th>【お届け先】<br>住所</th><th>お届け日指定</th><th>時間指定</th><th>備考欄</th><th>同梱書類<br>納品書</th><th>送り状NO.<br>（倉庫ファイルから自動で戻る）</th></tr>';
+  ORDERS.forEach(function(o){
+    var btn;
+    if(!o.requested){ btn='<button class="rb go" onclick="reqOne(\''+o.id+'\')">📦 倉庫へ依頼する</button>'; }
+    else {
+      btn='<span class="rb did">✅ 依頼済 '+esc(o.requested)+'</span>';
+      if(!o.shipped) btn+='<br><button class="rb fix" onclick="openFix(\''+o.id+'\')">✏️ 修正</button>';
+    }
+    h+='<tr'+(o.shipped?' class="done"':'')+'><td style="text-align:center">'+btn+'</td>'
+      +'<td>'+esc(o.exp)+'</td><td>'+esc(o.p1n)+'</td><td>'+esc(o.p1q)+'</td><td>'+esc(o.p2n)+'</td><td>'+esc(o.p2q)+'</td>'
+      +'<td>'+esc(o.name)+'</td><td>'+esc(o.addr)+'</td><td>'+esc(o.day)+'</td><td>'+esc(o.time)+'</td>'
+      +'<td>'+esc(o.note)+(o.fixedAt?'<br><span class="fixmark">✏️ '+esc(o.fixedAt)+' 修正あり</span>':'')+'</td>'
+      +'<td>'+esc(o.doc)+'</td><td class="autoval">'+esc(o.track)+'</td></tr>';
+  });
+  h+='</table></div><div class="gs-tabs"><button class="gs-tab on">発注内容</button></div></div>'
+    +'<div class="legend">🟢 【📦 倉庫へ依頼する】を押すと倉庫ファイルのオーダー表に1行入り、<b>ボタンだけ</b>が「✅依頼済＋日時」のグレーに（行がグレーになるのは発送後だけ）。✏️修正で直せるのは在庫が動かない項目のみ。数の修正は受注Ａで（在庫は自動調整）。列は今のゆかスプシのまま（商品③④は絵では省略）。</div>';
+  document.getElementById('file-yuka').innerHTML=h;
+}
+function reqOne(id){
+  var o=ord(id); if(!o || o.requested) return;
+  o.requested=nowStr(); saveState();
+  toast('✅ 倉庫ファイルのオーダー表に1行入りました（'+esc(o.id)+'）。上の「📗 倉庫ファイル」を押すと、倉庫側にどう見えるか確認できます。在庫はもう確保済みなので動きません。');
+  renderAll();
+}
+function openFix(id){
+  var o=ord(id); if(!o) return;
+  if(o.shipped){ alert('この注文はすでに発送済みのため修正できません。倉庫へ直接ご連絡ください。'); return; }
+  var h='<div class="fixpan"><b>✏️ 依頼の修正（'+esc(o.id)+'・'+esc(o.name)+'）</b><br>'
+    +'さっき送った内容が入っています。直して「上書きする」を押すと、倉庫ファイルの<b>同じ行が書き変わります</b>（行は増えません）。'
+    +'<label>商品と数（ここでは直せません）</label>'
+    +'<div style="background:#eceff1;border:1px solid #cfd8dc;border-radius:7px;padding:6px 10px;color:#546e7a;font-size:13px">'
+    +esc(o.p1n)+' × '+esc(o.p1q)+(o.p2n?('　／　'+esc(o.p2n)+' × '+esc(o.p2q)):'')
+    +'<br><small>🔒 数の修正は<b>在庫が動く</b>ため、受注Ａ（アプリ）で直します。直すと在庫は自動で調整され、この行も書き変わります。</small></div>'
+    +'<label>お届け日指定</label><input type="text" id="fx-day" value="'+esc(o.day)+'" style="max-width:140px">'
+    +'<label>備考欄</label><input type="text" id="fx-note" value="'+esc(o.note)+'">'
+    +'<div style="margin-top:8px"><button class="rb ship" onclick="applyFix(\''+o.id+'\')">✏️ この内容で上書きする</button> '
+    +'<button class="rb" style="background:#faf8f4;border:1.5px solid #d5cfc3" onclick="document.getElementById(\'fixpan\').innerHTML=\'\'">やめる</button></div></div>';
+  document.getElementById('fixpan').innerHTML=h;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function applyFix(id){
+  var o=ord(id); if(!o) return;
+  o.day=document.getElementById('fx-day').value;
+  o.note=document.getElementById('fx-note').value;
+  o.fixedAt=nowStr(); o.checks={}; saveState();
+  document.getElementById('fixpan').innerHTML='';
+  toast('✏️ 上書きしました。倉庫ファイルの同じ行が書き変わり、「✏️修正あり」の目印が付きました。スマホの梱包ビューにも直った内容が出ます。');
+  renderAll();
+}
+
+// ══ 📗 倉庫ファイル（下にシートタブ4枚） ══
+function renderSoko(){
+  var body='';
+  if(curSheet==='order') body=sheetOrder();
+  else if(curSheet==='stock') body=sheetStock();
+  else if(curSheet==='def') body=sheetDef();
+  else body=sheetChg();
+  var tabs=[['order','オーダー表'],['stock','在庫表'],['def','不良を見つけた'],['chg','状態が変わった']]
+    .map(function(t){ return '<button class="gs-tab'+(curSheet===t[0]?' on':'')+'" onclick="showSheet(\''+t[0]+'\')">'+t[1]+'</button>'; }).join('');
+  var h='<div class="gs"><div class="gs-top"><span class="gs-icon"></span><span class="gs-name">倉庫ファイル（倉庫さんと共有）</span></div>'
+    +'<div class="gs-menu">ファイル　編集　表示　挿入　表示形式　データ　ツール　（下のタブでシートを切り替えます＝本物と同じ）</div>'
+    +'<div class="gs-body">'+body.table+'</div>'
+    +'<div class="gs-tabs">'+tabs+'</div></div>'
+    +(body.after||'');
+  document.getElementById('file-soko').innerHTML=h;
+}
+// ── タブ1：オーダー表 ──
+function sheetOrder(){
+  var h='<table><tr><th class="g">依頼日時<br>（自動で入る）</th><th>賞味期限</th><th>商品①<br>コード品名</th><th>商品①<br>数</th><th>商品②<br>コード品名</th><th>商品②<br>数</th><th>【お届け先】<br>氏名</th><th>【お届け先】<br>住所</th><th>お届け日指定</th><th>時間指定</th><th>備考欄</th><th>同梱書類<br>納品書</th><th class="r">送り状NO.<br>ご記入お願いします。</th><th class="r">発送済<br>ボタン</th></tr>';
+  var cnt=0;
+  ORDERS.forEach(function(o){
+    if(!o.requested) return;
+    cnt++;
+    var cls = o.shipped?' class="done"':(o.wait?' class="orange"':'');
+    var shipCell = o.shipped ? '✅ 発送済み'
+      : (o.wait ? '<button class="rb arr" onclick="arrive(\''+o.id+'\')">📦 入荷を再現</button>'
+                : '<button class="rb ship" onclick="shipOne(\''+o.id+'\')">🚚 発送済にする</button>');
+    var tnCell = o.shipped ? esc(o.track) : '<input class="tn" id="tn-'+o.id+'" value="'+esc(o.track)+'" placeholder="伝票の番号">';
+    h+='<tr'+cls+'><td>'+esc(o.requested)+'</td><td>'+esc(o.exp)+'</td>'
+      +'<td>'+esc(o.p1n)+'</td><td>'+esc(o.p1q)+'</td><td>'+esc(o.p2n)+'</td><td>'+esc(o.p2q)+'</td>'
+      +'<td>'+esc(o.name)+'</td><td>'+esc(o.addr)+'</td><td>'+esc(o.day)+'</td><td>'+esc(o.time)+'</td>'
+      +'<td>'+esc(o.note)+(o.fixedAt?'<br><span class="fixmark">✏️ '+esc(o.fixedAt)+' 修正あり</span>':'')+'</td>'
+      +'<td>'+esc(o.doc)+'</td><td>'+tnCell+'</td><td style="text-align:center">'+shipCell+'</td></tr>';
+  });
+  if(!cnt) h+='<tr><td colspan="14" style="color:#8a8578">まだ依頼はありません（📘ゆかちゃんスプシで【📦 倉庫へ依頼する】を押すと、ここに現れます）</td></tr>';
+  h+='</table>';
+  var after='<div class="legend">⬜ 白い行＝発送してOK ／ 🟧 オレンジ＝入荷（通関）待ち。まだ梱包しない ／ ⬛ グレー＝発送済み。<br>🚚 送り状NO.を書いて「発送済にする」→ 行がグレーになり、番号は<b>ゆかスプシへ自動で戻り、バサラ経由の注文だけ原さんのシートにも戻ります</b>。<br>💰 オレンジの行だけは在庫をまだ引いていません。白に変わった瞬間にアプリが1回だけ引きます。</div>';
+  return {table:h, after:after};
+}
+function shipOne(id){
+  var o=ord(id); if(!o||o.shipped) return;
+  var tn=(document.getElementById('tn-'+id).value||'').trim();
+  if(!tn){ alert('先に送り状NO.を書いてください。'); return; }
+  o.track=tn; o.shipped=true; saveState();
+  toast('🚚 発送済みにしました。行がグレーになり、送り状NO.「'+esc(tn)+'」はゆかスプシへ自動で戻りました'+(o.src==='バサラ'?'（バサラ経由なので原さんのシートにも自動で戻ります）':'')+'。');
+  renderAll();
+}
+function arrive(id){
+  var o=ord(id); if(!o) return;
+  o.wait=false; saveState();
+  toast('📦 入荷しました。オレンジの行が白に変わり、この瞬間にアプリが在庫を1回だけ引きました。スマホの梱包ビューにもこの1件が現れます。（本番は統合マスタＮの入荷ボタンに連動・倉庫へのお知らせLINEは人が押して1通）');
+  renderAll();
+}
+// ── タブ2：在庫表（見るだけ） ──
+function sheetStock(){
+  var h='<table onclick="stockGuard()"><tr><th>商品</th><th>🏠 倉庫にある数<br>（実在庫）</th><th>🛒 販売できる数<br>（ここまで動かしてOK）</th><th>🔒 予約・取り置き済み<br>（触らない）</th></tr>'
+    +'<tr><td>ORG250 オルガニック 250ml</td><td class="num">85</td><td class="num ok">60</td><td class="num hold">25</td></tr>'
+    +'<tr><td>ORG500 オルガニック 500ml</td><td class="num">120</td><td class="num ok">50</td><td class="num hold">70</td></tr>'
+    +'<tr><td>MEM250 メネジック 250ml</td><td class="num">93</td><td class="num ok">0</td><td class="num hold">93</td></tr>'
+    +'<tr><td>CHE100 シェフズブレンド 100ml</td><td class="num">150</td><td class="num ok">110</td><td class="num hold">40</td></tr>'
+    +'</table>';
+  var after='<div class="legend">🕐 最終更新 9/3 14:05（自動）。<b>この表は見るだけです（試しにどこかを押してみてください）。</b><br>👀 メネジック250は「🏠93本あるのに🛒0本」＝棚にあってもぜんぶ予約済み。これが見えないと「まだあるから回せるね」で足りなくなります。<br>※ 列の最終形はゆかちゃんの判断待ち（箱換算・不良の数を足すか等）。</div>';
+  return {table:h, after:after};
+}
+function stockGuard(){ toast('✋ この「在庫表」は見るだけのシートです（本物では保護がかかっていて、書き込もうとすると弾かれます）。数字の親は統合マスタＮで、自動でここに映ります。'); }
+// ── タブ3：不良を見つけた ──
+var STATE_LABEL={blue:'<span class="seal" style="background:#1e88e5"></span>青：ラベルを貼り替えれば使える', green:'<span class="seal" style="background:#43a047"></span>緑：不良・軽', yellow:'<span class="seal" style="background:#fbc02d"></span>黄：不良・中', red:'<span class="seal" style="background:#e53935"></span>赤：不良・重', black:'<span class="seal" style="background:#212121"></span>黒：廃棄'};
+function sheetDef(){
+  var h='<table><tr><th>記入日<br>（自動）</th><th>商品 ▼</th><th>本数</th><th>状態（シールの色）▼</th><th>現・旧ロット ▼<br>（ラベルの賞味期限を見て）</th><th>メモ（自由）<br>黒のときは瓶の様子をひとこと</th><th class="hq">本部の処理<br>（倉庫さんは触らない）</th></tr>'
+    +'<tr class="done"><td>9/1</td><td>MEM250 メネジック 250ml</td><td class="num">1</td><td>'+STATE_LABEL.green+'</td><td>現ロット</td><td>箱の角つぶれ</td><td class="hq">✅ マスタＮに反映済み 9/1 15:30</td></tr>';
+  REPORTS.forEach(function(r,i){
+    h+='<tr><td>'+esc(r.d)+'</td><td>'+esc(r.prod)+'</td><td class="num">'+r.qty+'</td><td>'+STATE_LABEL[r.st]+'</td><td>'+esc(r.lot)+'</td><td>'+esc(r.memo)+'</td>'
+      +'<td class="hq" style="color:#b45309">⏳ 本部の反映待ち<br><button class="rb fix" onclick="editReport('+i+')">✏️ 直す</button></td></tr>';
+  });
+  h+='<tr><td>（自動で入ります）</td>'
+    +'<td><select id="d-prod"><option value="">▼ 選ぶ</option><option>ORG250 オルガニック 250ml</option><option>ORG500 オルガニック 500ml</option><option>MEM250 メネジック 250ml</option><option>CHE100 シェフズブレンド 100ml</option></select></td>'
+    +'<td><input type="number" id="d-qty" min="1" style="width:60px" placeholder="0"></td>'
+    +'<td><select id="d-state" onchange="stateChanged()"><option value="">▼ 選ぶ</option><option value="blue">🔵 青：ラベルを貼り替えれば使える</option><option value="green">🟢 緑：不良・軽</option><option value="yellow">🟡 黄：不良・中</option><option value="red">🔴 赤：不良・重</option><option value="black">⚫ 黒：廃棄（もう使えない）</option></select></td>'
+    +'<td><select id="d-lot"><option value="">▼ 選ぶ</option><option>現ロット</option><option>旧ロット</option><option>わからない</option></select></td>'
+    +'<td><input type="text" id="d-memo" placeholder="例：ラベル汚れ" style="width:180px"></td>'
+    +'<td class="hq"><button class="rb red2" style="margin-top:0" onclick="addReport()">📮 この内容で報告</button></td></tr></table>';
+  var after='<div class="legend">🎨 状態＝シールの色そのまま。⚫黒のときはメモに瓶の様子をひとこと（空だと止まる）。⏳のうちは「✏️直す」で自分で直せる。✅反映済みは直せない→🔁タブで新しく報告。<br>🏢 在庫を動かすのは本部の仕事（この表を見てマスタＮに反映）。<b>報告しただけでは在庫は1本も動きません。</b></div>';
+  return {table:h, after:after};
+}
+function stateChanged(){
+  var isBlack=document.getElementById('d-state').value==='black';
+  var memo=document.getElementById('d-memo');
+  memo.placeholder=isBlack?'例：緑のシール付きの瓶／シールは無かった':'例：ラベル汚れ';
+  memo.style.borderColor=isBlack?'#b71c1c':'#cfc9ba';
+}
+function addReport(){
+  var prod=document.getElementById('d-prod').value;
+  var qty=parseInt(document.getElementById('d-qty').value,10)||0;
+  var st=document.getElementById('d-state').value;
+  var lot=document.getElementById('d-lot').value;
+  var memo=document.getElementById('d-memo').value;
+  if(!prod){ alert('商品を▼から選んでください。'); return; }
+  if(qty<=0){ alert('本数を入れてください。'); return; }
+  if(!st){ alert('状態（シールの色）を▼から選んでください。'); return; }
+  if(!lot){ alert('現・旧ロットを▼から選んでください（分からなければ「わからない」でOK）。'); return; }
+  if(st==='black' && !memo.trim()){ alert('黒（廃棄）のときは、メモにその瓶の様子をひとこと書いてください。\n例：「緑のシール付きの瓶」「シールは無かった」'); return; }
+  REPORTS.push({d:todayMd(), prod:prod, qty:qty, st:st, lot:lot, memo:memo});
+  saveState(); renderSoko();
+  toast('📮 報告を1行入れました。<b>在庫はまだ動いていません。</b>本部が反映すると✅が入って行がグレーになります。LINEでの連絡は不要です。');
+}
+function editReport(i){
+  var r=REPORTS[i]; if(!r) return;
+  REPORTS.splice(i,1); saveState(); renderSoko();
+  document.getElementById('d-prod').value=r.prod;
+  document.getElementById('d-qty').value=r.qty;
+  document.getElementById('d-state').value=r.st;
+  document.getElementById('d-lot').value=r.lot;
+  document.getElementById('d-memo').value=r.memo;
+  stateChanged();
+  toast('✏️ 行を入力欄に戻しました。直して、もう一度「📮 この内容で報告」を押してください。（✅反映済みの行は直せません）');
+}
+// ── タブ4：状態が変わった ──
+var TO_LABEL={ok:'⚪ 使える（良品にもどす）', blue:STATE_LABEL.blue, green:STATE_LABEL.green, yellow:STATE_LABEL.yellow, red:STATE_LABEL.red, black:STATE_LABEL.black};
+var FROM_LABEL={blue:'<span class="seal" style="background:#1e88e5"></span>青だった', green:'<span class="seal" style="background:#43a047"></span>緑：不良・軽だった', yellow:'<span class="seal" style="background:#fbc02d"></span>黄：不良・中だった', red:'<span class="seal" style="background:#e53935"></span>赤：不良・重だった', unknown:'❓ わからない'};
+function sheetChg(){
+  var h='<table><tr><th>記入日<br>（自動）</th><th>商品 ▼</th><th>本数</th><th>まえの状態 ▼</th><th>あとの状態 ▼</th><th>現・旧ロット ▼</th><th>メモ（自由）</th><th class="hq">本部の処理<br>（倉庫さんは触らない）</th></tr>'
+    +'<tr class="done"><td>9/1</td><td>ORG250 オルガニック 250ml</td><td class="num">1</td><td>'+FROM_LABEL.green+'</td><td>⚪ 使える（良品にもどす）</td><td>現ロット</td><td>よく見たら汚れ無しでした</td><td class="hq">✅ マスタＮに反映済み 9/1 16:10</td></tr>';
+  CHANGES.forEach(function(r,i){
+    h+='<tr><td>'+esc(r.d)+'</td><td>'+esc(r.prod)+'</td><td class="num">'+r.qty+'</td><td>'+FROM_LABEL[r.from]+'</td><td>'+TO_LABEL[r.to]+'</td><td>'+esc(r.lot)+'</td><td>'+esc(r.memo)+'</td>'
+      +'<td class="hq" style="color:#b45309">⏳ 本部の反映待ち<br><button class="rb fix" onclick="editChange('+i+')">✏️ 直す</button></td></tr>';
+  });
+  h+='<tr><td>（自動で入ります）</td>'
+    +'<td><select id="c-prod"><option value="">▼ 選ぶ</option><option>ORG250 オルガニック 250ml</option><option>ORG500 オルガニック 500ml</option><option>MEM250 メネジック 250ml</option><option>CHE100 シェフズブレンド 100ml</option></select></td>'
+    +'<td><input type="number" id="c-qty" min="1" style="width:60px" placeholder="0"></td>'
+    +'<td><select id="c-from"><option value="">▼ 選ぶ</option><option value="blue">🔵 青：貼り替え待ちだった</option><option value="green">🟢 緑：不良・軽だった</option><option value="yellow">🟡 黄：不良・中だった</option><option value="red">🔴 赤：不良・重だった</option><option value="unknown">❓ わからない</option></select></td>'
+    +'<td><select id="c-to" onchange="chgStateChanged()"><option value="">▼ 選ぶ</option><option value="ok">⚪ 使える（良品にもどす）</option><option value="blue">🔵 青：ラベルを貼り替えれば使える</option><option value="green">🟢 緑：不良・軽</option><option value="yellow">🟡 黄：不良・中</option><option value="red">🔴 赤：不良・重</option><option value="black">⚫ 黒：廃棄（もう使えない）</option></select></td>'
+    +'<td><select id="c-lot"><option value="">▼ 選ぶ</option><option>現ロット</option><option>旧ロット</option><option>わからない</option></select></td>'
+    +'<td><input type="text" id="c-memo" placeholder="例：拭いたらきれいになった" style="width:180px"></td>'
+    +'<td class="hq"><button class="rb blue" style="margin-top:0" onclick="addChange()">🔁 この内容で報告</button></td></tr></table>';
+  var after='<div class="legend">⚪ 「不良だと思ったけど使える」は、あとの状態で<b>「⚪ 使える（良品にもどす）」</b>を選ぶだけ。まえが分からなければ「わからない」でOK。⚫黒にするときはメモ必須。<br>🏢 本部がこの表を見てマスタＮに反映します（良品に戻す・段階を変える・廃棄——ぜんぶ元からあるボタンで処理）。<b>報告しただけでは在庫は動きません。</b></div>';
+  return {table:h, after:after};
+}
+function chgStateChanged(){
+  var isBlack=document.getElementById('c-to').value==='black';
+  var memo=document.getElementById('c-memo');
+  memo.placeholder=isBlack?'例：割れていた／中身がにごっていた':'例：拭いたらきれいになった';
+  memo.style.borderColor=isBlack?'#b71c1c':'#cfc9ba';
+}
+function addChange(){
+  var prod=document.getElementById('c-prod').value;
+  var qty=parseInt(document.getElementById('c-qty').value,10)||0;
+  var from=document.getElementById('c-from').value;
+  var to=document.getElementById('c-to').value;
+  var lot=document.getElementById('c-lot').value;
+  var memo=document.getElementById('c-memo').value;
+  if(!prod){ alert('商品を▼から選んでください。'); return; }
+  if(qty<=0){ alert('本数を入れてください。'); return; }
+  if(!from){ alert('まえの状態を▼から選んでください（「わからない」でOK）。'); return; }
+  if(!to){ alert('あとの状態を▼から選んでください。'); return; }
+  if(from===to){ alert('まえとあとが同じです。変わった先を選んでください。'); return; }
+  if(!lot){ alert('現・旧ロットを▼から選んでください（「わからない」でOK）。'); return; }
+  if(to==='black' && !memo.trim()){ alert('黒（廃棄）にするときは、メモに瓶の様子をひとこと書いてください。'); return; }
+  CHANGES.push({d:todayMd(), prod:prod, qty:qty, from:from, to:to, lot:lot, memo:memo});
+  saveState(); renderSoko();
+  toast('🔁 状態変更の報告を1行入れました。<b>在庫はまだ動いていません。</b>本部が反映すると✅が入って行がグレーになります。');
+}
+function editChange(i){
+  var r=CHANGES[i]; if(!r) return;
+  CHANGES.splice(i,1); saveState(); renderSoko();
+  document.getElementById('c-prod').value=r.prod;
+  document.getElementById('c-qty').value=r.qty;
+  document.getElementById('c-from').value=r.from;
+  document.getElementById('c-to').value=r.to;
+  document.getElementById('c-lot').value=r.lot;
+  document.getElementById('c-memo').value=r.memo;
+  chgStateChanged();
+  toast('✏️ 行を入力欄に戻しました。直して、もう一度「🔁 この内容で報告」を押してください。');
+}
+
+// ══ 📱 スマホ梱包ビュー ══
+function renderPhone(){
+  var targets=ORDERS.filter(function(o){ return o.requested && !o.shipped && !o.wait && !o.packed; });
+  var waits=ORDERS.filter(function(o){ return o.requested && o.wait; });
+  var h='<div class="phone"><div class="phone-screen">'
+    +'<div class="phone-head">📦 きょうの梱包 <span class="cnt">のこり '+targets.length+'件</span></div>'
+    +'<div class="phone-body">';
+  if(waits.length) h+='<div class="wait-banner">✈️ 入荷待ち '+waits.length+'件（'+waits.map(function(o){return esc(o.name);}).join('・')+'）— 入荷したらお知らせが届きます。まだ梱包しません。</div>';
+  if(!targets.length) h+='<div style="font-size:13px;color:#8a8578;padding:10px">いま梱包する件はありません。（📘で依頼すると、ここに現れます）</div>';
+  targets.forEach(function(o){
+    var items=[];
+    if(o.p1n) items.push(o.p1n+' × '+o.p1q+'本');
+    if(o.p2n) items.push(o.p2n+' × '+o.p2q+'本');
+    h+='<div class="pack-card"><div class="name">'+esc(o.name)+'</div>'
+      +(o.fixedAt?'<div class="fixmark">✏️ '+esc(o.fixedAt)+' 修正あり（内容が変わっています）</div>':'')
+      +'<div class="pack-note">🕐 依頼 '+esc(o.requested)+'</div>'
+      +'<div class="date">🚚 お届け '+esc(o.day||'指定なし')+(o.time?'（'+esc(o.time)+'）':'')+'</div>';
+    items.forEach(function(it,idx){
+      var on=!!o.checks['i'+idx];
+      h+='<div class="pack-item'+(on?' checked':'')+'" onclick="togglePack(\''+o.id+'\',\'i'+idx+'\')"><span class="chk">'+(on?'☑':'☐')+'</span><span>'+esc(it)+'</span></div>';
+    });
+    var dOn=!!o.checks['doc'];
+    h+='<div class="pack-item'+(dOn?' checked':'')+'" onclick="togglePack(\''+o.id+'\',\'doc\')"><span class="chk">'+(dOn?'☑':'☐')+'</span><span>📄 納品書を同梱</span></div>'
+      +'<div class="pack-note">'+esc(o.addr)+' ／ '+esc(o.note)+'</div>'
+      +'<button class="pack-done-btn" onclick="packDone(\''+o.id+'\')">✅ 梱包終了（この1件をスマホから消す）</button></div>';
+  });
+  h+='</div><div class="phone-foot">🔢 数は「本」と「箱」の両方で表示します（本番）。✅梱包終了はスマホから消えるだけで、スプシには全部残ります。送り状NO.と発送済は倉庫ファイルのオーダー表に記入してください。</div></div></div>';
+  document.getElementById('file-phone').innerHTML=h;
+}
+function togglePack(id,key){ var o=ord(id); if(!o) return; o.checks[key]=!o.checks[key]; saveState(); renderPhone(); }
+function packDone(id){
+  var o=ord(id); if(!o) return;
+  o.packed=true; saveState();
+  toast('✅ 梱包終了。この1件はスマホから消えました。倉庫ファイルには全部の情報が残っています。あとはオーダー表で送り状NO.→発送済にすれば完了です。');
+  renderAll();
+}
+
+function renderAll(){ renderYuka(); renderSoko(); renderPhone(); }
+loadState();
+renderAll();
+</script>
+</body>
+</html>
