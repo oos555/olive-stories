@@ -289,7 +289,7 @@ has('⑫出荷依頼書は箱ものに単位を書く', idxSrc, "l.bottles+(_u!=
 has('⑫ゆかスプシへの転記も単位つき', H.cut(idxSrc,'yukaImportOne'), "(_u!=='本'?_u:'')");
 has('⑫残高一覧の単位も名簿を先に見る', H.cut(idxSrc,'rtbUnit'), 'unitOfProduct(p)');
 has('⑫GAS：すでに入っている単位は触らない', H.cut(gasSrc,'oosProdUnitColumn'), 'すでに入っている値は触らない');
-has('⑫GAS：ギフト箱・空箱に「箱」を入れる', H.cut(gasSrc,'oosProdUnitColumn'), 'ギフト箱|空箱');
+has('⑫GAS：「箱」は箱そのものだけ（名前で判定・セットは除外）', H.cut(gasSrc,'oosProdUnitColumn'), "/ギフト箱|ギフトボックス|空箱/.test(nm) && !/セット/.test(nm)");
 
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
