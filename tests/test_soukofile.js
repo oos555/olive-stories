@@ -259,6 +259,21 @@ has('⑩倉庫さんも押せる（☑のマスだけ保護から外す）', ref
 has('⑩☑で映し直して☑を外す', H.cut(gasSrc, 'oosSoukoOnEdit'), 'oosSoukoStockSync();');
 has('⑩セットアップでもボタンを用意する', H.cut(gasSrc, 'oosSetupSoukoFile'), 'oosSoukoRefreshButton()');
 
+/* ── ⑪ ❌キャンセルの印（提案A・2026-09-04 ひろみさん承認）───────── */
+const cancelGas = H.cut(gasSrc, 'oosYukaCancelOrder');
+has('⑪運用コピーと倉庫ファイルの両方に印', cancelGas, "getSheetByName('オーダー表')");
+const cancelMark = H.cut(gasSrc, 'oosCancelMarkRows_');
+has('⑪印の文言', cancelMark, '❌ キャンセルされました');
+has('⑪二重よけ（すでに❌の行は触らない）', cancelMark, "indexOf('❌ キャンセル') >= 0) continue");
+has('⑪❌の行は赤＋取り消し線', H.cut(gasSrc, 'oosCancelRuleAdd_'), 'setStrikethrough(true)');
+has('⑪キャンセルはスマホに出さない', H.cut(gasSrc, 'oosKonpoOrders'), '❌ キャンセル');
+has('⑪キャンセル行は③で流せない', H.cut(gasSrc, 'oosYukaRequestEdit_'), 'この注文はキャンセルされています');
+const cancelIdx = H.cut(idxSrc, 'yukaCancelMark');
+eq('⑪印付けは在庫を触らない', /applyStockDeduct|undoStockForOrder/.test(cancelIdx), false);
+has('⑪キャンセル処理から呼ばれる', H.cut(idxSrc, 'cancelOrder'), 'yukaCancelMark(o)');
+has('⑪差し戻しからも呼ばれる', H.cut(idxSrc, 'reopenOrderForEdit'), 'yukaCancelMark(o)');
+has('⑪失敗したら正直に知らせる', cancelIdx, 'キャンセルの印が付いていません');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
