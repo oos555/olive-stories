@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-04">
+<meta name="oos-version" content="2026-09-04-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2684,6 +2684,10 @@ function productOptionsHtml(selected){
   return html;
 }
 function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
+/* ★2026-09-04 ゆかさん指摘：ギフト用空箱の単位が「●本」になる → 商品マスタの「単位」列で直す。
+   単位列が空欄の商品は今まで通り「本」。ギフト箱＝「箱」など、名簿で自由に変えられる。 */
+function unitOfProduct(p){ return (p && p.extras && String(p.extras['単位']||'').trim()) || '本'; }
+function lineUnit(l){ return unitOfProduct(findProduct(l.productId) || findProductBySku(l.sku||'')); }
 
 // ── 届け先カード（複数追加可能）────────────────────────────────────
 let recipientCounter = 0;
@@ -5517,7 +5521,7 @@ function rtbFacilities(){
   return map;
 }
 function rtbSkuOf(l){ var p = findProduct(l.productId) || findProductBySku(l.sku); return p ? p.sku : (l.sku||''); }
-function rtbUnit(sku){ var p = findProductBySku(sku); return (p && p.isSet) ? '個' : '本'; }
+function rtbUnit(sku){ var p = findProductBySku(sku); var u = unitOfProduct(p); if(u!=='本') return u; return (p && p.isSet) ? '個' : '本'; }
 function rtbProdName(sku){ var p = findProductBySku(sku); return p ? p.name : sku; }
 
 // 施設×商品の残高（全部、注文から足し算で出す）
@@ -6084,7 +6088,7 @@ function renderHoldPreLists(){
       '<div class="oc-top" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="hold-select-cb" value="'+o.id+'" onchange="updateHoldSelected()" style="width:24px;height:24px;flex:none;margin-top:2px"><div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰期限切れ</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅期限間近</span>':'')+
       '<div class="oc-num">'+o.num+'　送る目安：'+(o.holdUntilDate||'指定なし')+'</div></div></div>'+
-      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+lineUnit(l)).join('　')+'</div>'+
       '<div class="oc-actions"><button class="btn-sm" style="background:#2563eb;border-color:#2563eb;color:#fff" onclick="convertToShipping(\''+o.id+'\')">📦 出荷依頼書へ</button><button class="btn-sm" onclick="cancelOrder(\''+o.id+'\')">キャンセル</button></div>'+
       '</div>';
   }).join('') : (_loading ? _loadMsg : '<div style="color:#2b2a26;font-size:13px;padding:8px 0">現在、取り置き中の受注はありません。</div>'));
@@ -6116,7 +6120,7 @@ function renderHoldPreLists(){
       + '<div style="flex:1"><span class="oc-name">'+(o.recipientName||o.client)+'</span>'+
       (overdue?'<span class="pill pill-urgent" style="background:#7f1d1d;color:#fff">⏰予定超過</span>':soon?'<span class="pill pill-urgent" style="background:#f59e0b;color:#fff">📅予定間近</span>':'')+
       '<div class="oc-num">'+o.num+'　お届け予定：'+(o.expectedDate||'指定なし')+'</div></div></div>'+
-      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+lineUnit(l)).join('　')+'</div>'+
       /* ★2026-08-18 在庫待ちで入っている注文は、受注一覧にも同じものが出ていることを書く（同じ1件） */
       (isZaikoMachi(o)
         ? '<div style="font-size:12px;color:#0c447c;background:#f2f7fd;border:1px dashed #85b7eb;border-radius:7px;padding:6px 9px;margin-top:6px">📋 この注文は<b>受注一覧にも出ています</b>（同じ1件です）。在庫が入るまで、ここで待ちます。</div>'
@@ -6392,7 +6396,7 @@ function renderOrderCard(o, sentGroup){
         '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+zaikoBadge+recycleBadge+basaraBadge+storesBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
-      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+'本').join('　')+'</div>'+
+      '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+lineUnit(l)).join('　')+'</div>'+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+noteForDisplay(o.note)+'</div>' : '')+
       payMsg+
       /* ★2026-08-18 在庫が足りないときの青いお知らせ（承認済みモック第2版）。★消さないでください */
@@ -7270,7 +7274,7 @@ async function notifyWarehouseOne(id, force){
   var lead = o.leadType==='urgent' ? '🚨急ぎ' : (o.leadType==='scheduled' ? ('🗓'+(o.leadDate||'')+'着') : '通常');
   var text = '📦 新しい出荷依頼です\n\n'
     + '　'+(o.recipientName||o.client)+'　'+lead+'\n'
-    + '　'+(o.lines||[]).map(function(l){ return l.productName+' × '+lineTotal(l)+'本'; }).join('\n　')+'\n'
+    + '　'+(o.lines||[]).map(function(l){ return l.productName+' × '+lineTotal(l)+lineUnit(l); }).join('\n　')+'\n'
     + '　管理番号 '+o.num+'\n\n'
     + 'アプリを開いて確認してください\n'+pickupUrl;
   try{
@@ -7319,7 +7323,8 @@ async function yukaImportOne(id){
   var srcLabel = o.source==='basara' ? 'バサラ' : (o.source==='stores' ? 'STORES' : 'RT');
   var items = (o.lines||[]).map(function(l){
     var p = PRODUCTS.find(function(pp){ return pp.id===l.productId; }) || {};
-    var qty = String(lineTotal(l)) + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
+    var _u = lineUnit(l);   // ★2026-09-04 単位が「箱」等の商品は数に単位まで書いて送る（スマホの梱包ビューでも正しく出る）
+    var qty = String(lineTotal(l)) + (_u!=='本'?_u:'') + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
     return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
   });
   try{
@@ -7412,7 +7417,7 @@ function deductNowForOrder(id){
     alert('まだ在庫が足りません。\n\n'+t+'\n\n在庫が入ってから、もう一度押してください。');
     return;
   }
-  var lines = (o.lines||[]).map(function(l){ return '　・'+l.productName+' × '+lineTotal(l)+'本'; }).join('\n');
+  var lines = (o.lines||[]).map(function(l){ return '　・'+l.productName+' × '+lineTotal(l)+lineUnit(l); }).join('\n');
   if(!confirm('この注文の分を、いま在庫から引きます。\n\n'+lines+'\n\nよろしいですか？')) return;
   applyStockDeductOnSend(o);                      // 引くと印が付き、赤い注意は自動で消える
   persistStockDeduct([o]);
@@ -7819,7 +7824,9 @@ function buildSlipHtml(o){
       : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+esc(condLabelOfLine(l))+'</span>'
       : '<span style="color:#2b2a26">正規</span>';
     /* ★2026-08-18 商品名のうしろに賞味期限を出す（名簿の文字をそのまま）。★消さないでください。 */
-    html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+expiryHtmlForLine(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
+    /* ★2026-09-04 ゆかさん指摘：単位が「箱」等の商品（ギフト用空箱など）は、本数の欄に単位まで書く（倉庫が迷わないように） */
+    var _u = lineUnit(l);
+    html += '<tr><td>'+l.productName+lineCodeHtmlA(l)+expiryHtmlForLine(l)+'</td><td>'+(GIFT_TYPE_LABEL[l.giftType]||l.giftType)+'</td><td>'+condHtml+'</td><td>'+l.bottles+(_u!=='本'?_u:'')+'</td><td>'+(l.boxes||'-')+'</td><td>'+(l.memo||'')+'</td></tr>';
     var _sp = findProduct(l.productId);
     if(_sp && _sp.isSet && _sp.components && _sp.components.length){
       var _cnt = (l.bottles||0) + (l.boxes||0)*(l.boxQty||_sp.boxQty||1);

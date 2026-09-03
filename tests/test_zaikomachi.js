@@ -12,7 +12,7 @@ const NAMES=['findProduct','findProductBySku','isActiveDefect','buildHoldsForZai
  'lotStockFor','defectStockFor','condAvail','defectBuckets','condValueOfLine','condLabelOfLine','condRemainFor',
  'shortagesNow','orderShortages','isZaikoMachi','isSentButNotDeducted','zaikoMachiQty',
  'deductFromLots','deductFromDefects','deductStockForOrder','restoreStockForOrder',
- 'applyStockDeductOnSend','undoStockForOrder','lineTotal','convertToShipping','deductNowForOrder'];
+ 'applyStockDeductOnSend','undoStockForOrder','lineTotal','unitOfProduct','lineUnit','convertToShipping','deductNowForOrder'];
 let code=''; NAMES.forEach(n=>{ code += H.cut(src,n)+'\n'; });
 const STUB={}; const alerts=[];
 ['renderList','updateSummary','syncOrdersToGAS','showSyncStatus','persistStockDeduct','addLog','esc',

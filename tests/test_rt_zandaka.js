@@ -61,7 +61,7 @@ function makeBox(){
     Date, JSON, String, Number, Math, Array, Object
   };
   const ctx = vm.createContext(box);
-  ['lineTotal','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd']
+  ['lineTotal','unitOfProduct','lineUnit','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd']
     .forEach(function(name){ vm.runInContext(H.cut(idx, name), ctx); });
   return box;
 }

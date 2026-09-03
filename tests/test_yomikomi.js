@@ -23,7 +23,7 @@ function makeDom(){
 
 const NAMES=['findProduct','findProductBySku','isActiveDefect','buildHoldsForZaiko','computeAvailable',
   'lotStockFor','defectStockFor','condAvail','defectBuckets','condValueOfLine','condLabelOfLine','condRemainFor',
-  'shortagesNow','orderShortages','isZaikoMachi','zaikoMachiQty','lineTotal',
+  'shortagesNow','orderShortages','isZaikoMachi','zaikoMachiQty','lineTotal','unitOfProduct','lineUnit',
   'yoyakuArrivedList','renderYoyakuArrivedBar',
   'daysUntil','isHeldOverdue','isHeldDueSoon','isReservedOverdue','isReservedDueSoon',
   'updateHoldSelected','renderHoldPreLists'];

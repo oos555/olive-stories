@@ -274,6 +274,23 @@ has('⑪キャンセル処理から呼ばれる', H.cut(idxSrc, 'cancelOrder'), 
 has('⑪差し戻しからも呼ばれる', H.cut(idxSrc, 'reopenOrderForEdit'), 'yukaCancelMark(o)');
 has('⑪失敗したら正直に知らせる', cancelIdx, 'キャンセルの印が付いていません');
 
+/* ── ⑫ 単位（2026-09-04・ゆかさん指摘②：ギフト用空箱の単位が「●本」）───────
+   商品マスタの「単位」列。空欄＝本のまま／ギフト箱＝「箱」。名簿でいつでも直せる。 */
+{
+  const ctxU = vm.createContext({ String });
+  vm.runInContext(H.cut(idxSrc, 'unitOfProduct'), ctxU);
+  eq('⑫単位列が空なら「本」', ctxU.unitOfProduct({extras:{}}), '本');
+  eq('⑫単位列に箱とあれば「箱」', ctxU.unitOfProduct({extras:{'単位':'箱'}}), '箱');
+  eq('⑫商品が無くても落ちない', ctxU.unitOfProduct(null), '本');
+}
+has('⑫カードの明細は単位つき', idxSrc, "lineTotal(l)+lineUnit(l)).join('　')");
+has('⑫倉庫へのLINEも単位つき', idxSrc, "lineTotal(l)+lineUnit(l); }).join('\\n　')");
+has('⑫出荷依頼書は箱ものに単位を書く', idxSrc, "l.bottles+(_u!=='本'?_u:'')");
+has('⑫ゆかスプシへの転記も単位つき', H.cut(idxSrc,'yukaImportOne'), "(_u!=='本'?_u:'')");
+has('⑫残高一覧の単位も名簿を先に見る', H.cut(idxSrc,'rtbUnit'), 'unitOfProduct(p)');
+has('⑫GAS：すでに入っている単位は触らない', H.cut(gasSrc,'oosProdUnitColumn'), 'すでに入っている値は触らない');
+has('⑫GAS：ギフト箱・空箱に「箱」を入れる', H.cut(gasSrc,'oosProdUnitColumn'), 'ギフト箱|空箱');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
