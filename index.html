@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-06">
+<meta name="oos-version" content="2026-09-04-07">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5508,14 +5508,23 @@ function addGeneralHold(){
 var RTB_VIEW = { mode:'list', fac:null };
 var RTB_LOG = null;   // 共有ログの手元キャッシュ（開いたとき一度だけ読む＋操作で足す）
 
+/* 昔の注文には custId の印が保存されていないことがある（2026-09-04に発覚した保存の載せ忘れ）。
+   その場合はお客様名から名簿を引いて取引先を特定する（救済） */
+function rtbCidOf(o){
+  if(o && o.custId) return String(o.custId);
+  if(!o || !o.client) return '';
+  var c = (customers||[]).find(function(x){ return x && x.name===o.client; });
+  return c ? String(c.id) : '';
+}
 function rtbFacilities(){
   var map = {};
   rtmAllFacilities().forEach(function(f){ map[String(f.id)] = f.name; });
   (orders||[]).forEach(function(o){
-    if(!o || !o.custId) return;
+    if(!o) return;
+    var cid = rtbCidOf(o);
     var rel = (o.status==='held' || o.status==='reserved' || (o.rtCut && o.rtCut.fac));
     if(!rel) return;
-    if(o.customerType==='rt' && !map[String(o.custId)]) map[String(o.custId)] = rtmFacName(o.custId);
+    if(cid && o.customerType==='rt' && !map[cid]) map[cid] = rtmFacName(cid);
     if(o.rtCut && o.rtCut.fac && !map[String(o.rtCut.fac)]) map[String(o.rtCut.fac)] = rtmFacName(o.rtCut.fac);
   });
   return map;
@@ -5536,10 +5545,11 @@ function rtbData(){
   }
   (orders||[]).forEach(function(o){
     if(!o) return;
-    if(o.status==='held' && facs[String(o.custId)]){
-      (o.lines||[]).forEach(function(l){ var s=rtbSkuOf(l); if(s) cell(o.custId,s).held += lineTotal(l); });
-    } else if(o.status==='reserved' && facs[String(o.custId)]){
-      (o.lines||[]).forEach(function(l){ var s=rtbSkuOf(l); if(s) cell(o.custId,s).wait += lineTotal(l); });
+    var cid = rtbCidOf(o);
+    if(o.status==='held' && facs[cid]){
+      (o.lines||[]).forEach(function(l){ var s=rtbSkuOf(l); if(s) cell(cid,s).held += lineTotal(l); });
+    } else if(o.status==='reserved' && facs[cid]){
+      (o.lines||[]).forEach(function(l){ var s=rtbSkuOf(l); if(s) cell(cid,s).wait += lineTotal(l); });
     }
     if(o.rtCut && o.rtCut.fac && o.status!=='cancelled'){
       (o.lines||[]).forEach(function(l){ var s=rtbSkuOf(l); if(s) cell(o.rtCut.fac,s).sent += lineTotal(l); });
@@ -5574,7 +5584,7 @@ function rtbFacDone(rows){
 function rtbLedgerCut(fac, sku, kind, qty){
   var st = (kind==='held') ? 'held' : 'reserved';
   var need = qty, changed = [];
-  var list = (orders||[]).filter(function(o){ return o && o.status===st && String(o.custId)===String(fac); });
+  var list = (orders||[]).filter(function(o){ return o && o.status===st && rtbCidOf(o)===String(fac); });
   list.sort(function(a,b){ return ((b.rtmSku===sku)?1:0) - ((a.rtmSku===sku)?1:0); });
   list.forEach(function(o){
     if(need<=0) return;
@@ -5597,7 +5607,7 @@ function rtbLedgerCut(fac, sku, kind, qty){
 // 足す：既存の「この施設×この商品」の単品注文があれば足し、無ければ新しく1件つくる
 function rtbLedgerAdd(fac, sku, kind, qty, noteText){
   var st = (kind==='held') ? 'held' : 'reserved';
-  var hit = (orders||[]).find(function(o){ return o && o.status===st && o.rtmOwned && o.rtmSku===sku && String(o.custId)===String(fac); });
+  var hit = (orders||[]).find(function(o){ return o && o.status===st && o.rtmOwned && o.rtmSku===sku && rtbCidOf(o)===String(fac); });
   if(hit){
     var l = (hit.lines||[])[0];
     if(l){ l.bottles = lineTotal(l) + qty; l.boxes = 0; return hit; }

@@ -291,6 +291,14 @@ has('⑫残高一覧の単位も名簿を先に見る', H.cut(idxSrc,'rtbUnit'),
 has('⑫GAS：すでに入っている単位は触らない', H.cut(gasSrc,'oosProdUnitColumn'), 'すでに入っている値は触らない');
 has('⑫GAS：「箱」は箱そのものだけ（名前で判定・セットは除外）', H.cut(gasSrc,'oosProdUnitColumn'), "/ギフト箱|ギフトボックス|空箱/.test(nm) && !/セット/.test(nm)");
 
+/* ── ⑬ RT予約まわりの印の保存（2026-09-04・第4弾のバグ修正の見張り）─────────
+   whSkipと同じ「載せ忘れの穴」：custId・rtm系・✂️帰属(rtCut)が保存されず、開き直すと残高一覧が空になった。 */
+has('⑬custIdを保存する', saveMainSrc, 'custId: (o.custId==null');
+has('⑬rtm系とrtCutを保存する', saveMainSrc, 'rtCut: o.rtCut||null');
+has('⑬custIdを読み戻す', loadAllSrc, "custId: extra.custId||''");
+has('⑬rtCutを読み戻す', loadAllSrc, 'rtCut: extra.rtCut||null');
+has('⑬昔の注文はお客様名から取引先を特定（救済）', H.cut(idxSrc,'rtbCidOf'), 'x.name===o.client');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

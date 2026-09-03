@@ -43,7 +43,10 @@ function makeOrders(){
       lines:[{productId:1, productName:'オルガニック 500ml', bottles:60, boxes:0, boxQty:12}] },
     // キャンセル済み（数えない）
     { id:'o6', num:'RT-6', status:'cancelled', custId:'F1', customerType:'rt', rtCut:{fac:'F1'},
-      lines:[{productId:1, productName:'オルガニック 500ml', bottles:999, boxes:0, boxQty:12}] }
+      lines:[{productId:1, productName:'オルガニック 500ml', bottles:999, boxes:0, boxQty:12}] },
+    // 昔の注文（保存の載せ忘れでcustIdが消えている）→ お客様名から取引先を特定する救済（2026-09-04）
+    { id:'o7', num:'RT-7', status:'held', custId:'', client:'日光 様', customerType:'rt',
+      lines:[{productId:4, productName:'シェフズブレンド 100ml', bottles:5, boxes:0, boxQty:36}] }
   ];
 }
 function makeBox(){
@@ -61,7 +64,7 @@ function makeBox(){
     Date, JSON, String, Number, Math, Array, Object
   };
   const ctx = vm.createContext(box);
-  ['lineTotal','unitOfProduct','lineUnit','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd']
+  ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd']
     .forEach(function(name){ vm.runInContext(H.cut(idx, name), ctx); });
   return box;
 }
@@ -78,8 +81,9 @@ function makeBox(){
   eq('①キャンセルは数えない', d.data['F1']['ORG500'].sent, 0);
   eq('①鳴門は「すべて発送済み」', G.rtbFacDone(d.data['F3']), true);
   eq('①日光はまだ', G.rtbFacDone(d.data['F1']), false);
+  eq('①custIdが消えた昔の注文も、お客様名から日光に数えられる（🔒CHF100+5）', d.data['F1']['CHF100'].held, 5);
   const tt = G.rtbTotals(d.data['F1']);
-  eq('①日光の合計＝100+80+10+5', tt.hon, 195);
+  eq('①日光の合計＝100+80+10+5+5', tt.hon, 200);
 }
 
 /* ── ② 台帳から引く：単品の注文から先に・複数注文にまたがってもOK・空は畳む ── */
