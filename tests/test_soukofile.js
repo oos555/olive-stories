@@ -241,6 +241,24 @@ has('⑧yukaImportを読み戻す', loadAllSrc, 'yukaImport: extra.yukaImport||n
 has('⑧取り置きの送る目安は必須にしない（確認1回）', idxSrc, '「送る目安（いつ頃出す？）」が空です');
 eq('⑧空のままでは登録できない旧ブロックは消えている', idxSrc.indexOf('取り置きは「いつまでの取り置きか」を必ず入れてください') < 0, true);
 
+/* ── ⑨ 本部の処理は☑で（2026-09-04 ひろみさん指示）─────────
+   マスタＮに反映し終わったら☑→「✅ マスタＮに反映済み＋日時」に置き換わり行がグレーに。
+   倉庫さんはこの列に触れない（保護のまま）。在庫はここでは動かない。 */
+const honbuSrc = H.cut(gasSrc, 'oosSoukoHonbuDone_');
+has('⑨☑で✅反映済み＋日時に変わる', honbuSrc, "'✅ マスタＮに反映済み '");
+has('⑨空の行の☑は戻す', honbuSrc, 'この行にはまだ報告が入っていません');
+has('⑨☑の用意（✅済みのマスは触らない）', H.cut(gasSrc, 'oosSoukoHonbuCheckboxes'), "indexOf('✅') === 0");
+has('⑨onEditから本部の処理列で呼ばれる', H.cut(gasSrc, 'oosSoukoOnEdit'), 'oosSoukoHonbuDone_(e, sh, row, isDef)');
+has('⑨セットアップでも☑を用意する', H.cut(gasSrc, 'oosSetupSoukoFile'), 'oosSoukoHonbuCheckboxes()');
+
+/* ── ⑩ 在庫表の🔄大ボタン（2026-09-04 ひろみさん指示）───────── */
+const refBtnSrc = H.cut(gasSrc, 'oosSoukoRefreshButton');
+has('⑩文言はひろみさんの言葉どおり', refBtnSrc, '🔄 最新の在庫数にあわせる');
+has('⑩水色', refBtnSrc, '#b3e5fc');
+has('⑩倉庫さんも押せる（☑のマスだけ保護から外す）', refBtnSrc, 'setUnprotectedRanges');
+has('⑩☑で映し直して☑を外す', H.cut(gasSrc, 'oosSoukoOnEdit'), 'oosSoukoStockSync();');
+has('⑩セットアップでもボタンを用意する', H.cut(gasSrc, 'oosSetupSoukoFile'), 'oosSoukoRefreshButton()');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
