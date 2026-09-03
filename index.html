@@ -72,6 +72,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rk-sk{background:#fff;border:1.5px solid #d5cfc3;color:#8a8578;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer}
 .rk-wh{background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #04913f}
 .rk-wh:disabled{background:#d5d1c8;color:#8a8578;box-shadow:none;cursor:not-allowed}
+.rk-yk{background:#0c447c;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #072c52;margin-top:7px} /* ★2026-09-03 スプシ一本化第3弾（ボタンは青＝家ルール） */
+.rk-yk.done{background:#e5e2da;color:#57534e;box-shadow:none;cursor:default} /* 取込済＝グレー（モックの btn grey） */
 .rk-lock{font-size:11.5px;font-weight:800;color:#b91c1c;margin-top:5px}
 .rk-ok{font-size:12.5px;font-weight:800;color:#3b6d11}
 .rk-skip{font-size:12.5px;font-weight:800;color:#8a8578}
@@ -314,7 +316,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-25-03">
+<meta name="oos-version" content="2026-09-03-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -6492,13 +6494,27 @@ function renrakuBox(o, acts){
   /* ★2026-08-17 ひろみさん指示：出荷依頼書に備考欄があることを、ここで案内する。 */
   var whHint = '<div class="rk-hint">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも出ます）。</div>';
 
+  /* ★2026-09-03 スプシ一本化・第3弾：📥 ゆかスプシに取り込む
+     （承認済みモック mocks/mock_受注A_ゆかスプシ取り込み_2026-09-02.html）
+     転記だけ。在庫はいっさい触らない。②のLINEは並走期間そのまま残す（いきなり消さない）。 */
+  var yk;
+  if(o.yukaImport && o.yukaImport.at){
+    /* モックと同じ3点セット：バッジ＋グレーのボタン（押すと✋の案内）＋done-note */
+    yk = '<div class="rk-ok">📗 ゆかスプシへ取込済 '+esc(String(o.yukaImport.at||'').slice(0,16).replace('T',' '))+'</div>'
+       + '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">✅ 取込済（もう一度押しても二重にはなりません）</button>'
+       + '<div class="rk-hint">📗 ゆかスプシの一番下に1行入りました。このあとは、ゆかちゃんが内容を見て【📦 倉庫へ依頼する】を押すと倉庫に流れます。</div>';
+  } else {
+    yk = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 ゆかスプシに取り込む</button>'
+       + '<div class="rk-hint">押すと、この注文がゆかちゃんスプシに1行で入ります（在庫はここでは動きません。登録のときにもう引いてあります）。</div>';
+  }
+
   var actsTwo = acts.two ? '<div class="rk-acts">'+acts.two+'</div>' : '';
   var actsOne = acts.one ? '<div class="rk-acts">'+acts.one+'</div>' : '';
   /* ★2026-08-17 「📄 出荷依頼書を確認・編集する」は倉庫へ送る前に置く（順番が分かるように） */
   var twoTop  = acts.twoTop ? '<div class="rk-row" style="margin-bottom:7px">'+acts.twoTop+'</div>' : '';
   if(!isBasaraOrder(o)){
     return '<div class="rk"><div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+actsTwo+'</div></div></div>';
+      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+yk+actsTwo+'</div></div></div>';
   }
   var st = ackStateOf(o), a = o.ack || {};
   var one;
@@ -6524,7 +6540,7 @@ function renrakuBox(o, acts){
     '<div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
       '<div class="rk-l">バサラへ「受注しました」の連絡</div>'+one+actsOne+'</div></div>'+
     '<div class="rk-step"><div class="rk-no'+(ackDone(o)?'':' off')+'">②</div><div class="rk-b">'+
-      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+actsTwo+'</div></div>'+
+      '<div class="rk-l">倉庫へ出荷依頼書を送る</div>'+twoTop+wh+whHint+yk+actsTwo+'</div></div>'+
   '</div>';
 }
 
@@ -6664,6 +6680,56 @@ async function notifyWarehouseOne(id, force){
     renderList(); updateSummary(); syncOrdersToGAS([o]);
     showSyncStatus('✅ 倉庫へ送りました（送り先：OOS出荷依頼グループ）：'+o.num);
   }catch(e){ alert('通信できませんでした：'+e.message+'\n\n※倉庫には届いていません。'); }
+}
+
+/* ★2026-09-03 スプシ一本化・第3弾：📥 ゆかスプシに取り込む
+   （承認済みモック mocks/mock_受注A_ゆかスプシ取り込み_2026-09-02.html）
+   ・転記だけ。在庫はいっさい触らない（applyStockDeductOnSend をここから呼ばないこと。
+     在庫は受注Ａの登録時に引き済み）。
+   ・二重よけは3重：画面の印（yukaImport）／最新読み直し（fetchOrderFresh）／
+     GAS側の備考欄マーク【出どころ 注文番号】の照合（status:'dup'）。 */
+async function yukaImportOne(id){
+  var o = orders.find(x=>x.id===id); if(!o) return;
+  if(o.yukaImport && o.yukaImport.at){
+    alert('✋ すでに取込済です。もう一度押しても、ゆかスプシに2行目はできません（1回だけの印つき）。');
+    return;
+  }
+  /* 最新を読み直して、もう1人の画面から取り込まれていないか確かめる（②と同じ作法） */
+  var _fresh = await fetchOrderFresh(id);
+  if(_fresh && _fresh.yukaImport && _fresh.yukaImport.at){
+    o.yukaImport = _fresh.yukaImport;
+    if(typeof renderList === 'function') renderList();
+    alert('この注文は、すでにゆかスプシへ取り込まれています。\n\nもう1人の画面から取り込まれたようです。二重にはなっていません。\n画面を新しくしました。');
+    return;
+  }
+  var srcLabel = o.source==='basara' ? 'バサラ' : (o.source==='stores' ? 'STORES' : 'RT');
+  var items = (o.lines||[]).map(function(l){
+    var p = PRODUCTS.find(function(pp){ return pp.id===l.productId; }) || {};
+    var qty = String(lineTotal(l)) + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
+    return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
+  });
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'yukaImportOrder', order:{
+        num: o.num, src: srcLabel, exp: '', items: items,
+        name: (o.recipientName || o.client || ''),
+        addr: ((o.zip ? '〒'+o.zip+' ' : '') + (o.addr || '')),
+        tel: (o.tel || ''),
+        day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''),
+        time: '',
+        note: String(o.note || '').trim()
+      }})});
+    var d = await res.json();
+    if(d && (d.status==='ok' || d.status==='dup')){
+      o.yukaImport = { at: new Date().toISOString() };
+      renderList(); syncOrdersToGAS([o]);
+      showSyncStatus(d.status==='dup'
+        ? '✋ すでにゆかスプシに入っていました（二重にはしていません）：'+o.num
+        : '✅ ゆかスプシに1行入りました：'+o.num);
+    } else {
+      alert('取り込めませんでした：'+((d&&d.message)||'不明なエラー')+'\n\n※ゆかスプシには入っていません。');
+    }
+  }catch(e){ alert('通信できませんでした：'+e.message+'\n\n※ゆかスプシには入っていません。'); }
 }
 
 /* ★2026-08-18 販売先へ「在庫がありません」と連絡する（承認済みモック第2版 ①）。

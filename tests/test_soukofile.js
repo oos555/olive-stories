@@ -161,6 +161,44 @@ has('⑤オーダー表に同梱書類他の列', setupSrc, '同梱書類\\n他�
 has('⑤行グレーは発送済（20列目=T）', setupSrc, '=$T2=TRUE');
 has('⑤オレンジは備考欄（16列目=P）の入荷待ち', setupSrc, '=REGEXMATCH($P2,"入荷待ち")');
 
+/* ── ⑥ 第2弾の残り＋第3弾：📱梱包ビュー（konpo.html）と📥取り込み ───────── */
+const konpoSrc = fs.readFileSync(path.join(__dirname, '..', 'konpo.html'), 'utf8');
+has('⑥konpo：見出し', konpoSrc, '📦 きょうの梱包');
+has('⑥konpo：梱包終了ボタンの文言', konpoSrc, '✅ 梱包終了（この1件をスマホから消す）');
+has('⑥konpo：入荷待ちはまだ梱包しない', konpoSrc, 'まだ梱包しません');
+has('⑥konpo：足元の説明（スプシには全部残る）', konpoSrc, 'スマホから消えるだけで、スプシには全部残ります');
+has('⑥konpo：読む窓口はkonpoOrders', konpoSrc, "action:'konpoOrders'");
+has('⑥konpo：☑の記録はkonpoPackSave', konpoSrc, "action:'konpoPackSave'");
+has('⑥konpo：開いたとき一度だけ読む＋🔄', konpoSrc, '🔄 新しくする');
+has('⑥konpo：ボタンは青（家ルール）', konpoSrc, '.pack-done-btn { display: block; width: 100%; background: #0c447c');
+eq('⑥konpo：在庫を触るコードが無い', /applyStockDeduct|saveAllData|saveOrders/.test(konpoSrc), false);
+
+const konpoGas = H.cut(gasSrc, 'oosKonpoOrders');
+has('⑥GAS：発送済みはスマホに出さない', konpoGas, 'vals[i][19] === true) continue');
+has('⑥GAS：✏️修正ありは備考のメモから', konpoGas, 'getNotes()');
+const packGas = H.cut(gasSrc, 'oosKonpoPackSave');
+has('⑥GAS：☑は隠し列にだけ書く', packGas, 'oosPackColByHeader_');
+const impGas = H.cut(gasSrc, 'oosYukaImportOrder');
+has('⑥GAS：二重よけの目印は【出どころ 注文番号】', impGas, "'【' + String(order.src||'受注A') + ' ' + String(order.num||'') + '】'");
+has('⑥GAS：すでにあればdupで止まる', impGas, "{status:'dup', row:i+2}");
+has('⑥GAS：5商品以上は備考へ逃がす', impGas, 'ほかの商品：');
+has('⑥GAS：③のマスはチェックボックスに戻す', impGas, 'getRange(newRow, 1).insertCheckboxes()');
+const routeGas = H.cut(gasSrc, 'oosSpreadRoute_');
+has('⑥GAS：窓口3つ（konpoOrders）', routeGas, "'konpoOrders'");
+has('⑥GAS：窓口3つ（konpoPackSave）', routeGas, "'konpoPackSave'");
+has('⑥GAS：窓口3つ（yukaImportOrder）', routeGas, "'yukaImportOrder'");
+
+const idxSrc = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+has('⑥受注Ａ：📥ボタンの文言', idxSrc, '📥 ゆかスプシに取り込む');
+has('⑥受注Ａ：取込済バッジ', idxSrc, '📗 ゆかスプシへ取込済');
+has('⑥受注Ａ：在庫は動かない説明', idxSrc, '在庫はここでは動きません。登録のときにもう引いてあります');
+eq('⑥受注Ａ：①と②の両方の枠に📥が出る', (idxSrc.match(/whHint\+yk/g)||[]).length, 2);
+const impIdx = H.cut(idxSrc, 'yukaImportOne');
+eq('⑥受注Ａ：📥は在庫をいっさい触らない', /applyStockDeductOnSend|restoreStockForOrder/.test(impIdx), false);
+has('⑥受注Ａ：最新読み直しの二重よけ', impIdx, 'fetchOrderFresh');
+has('⑥受注Ａ：GASのdupにも印を付けて二重を防ぐ', impIdx, "d.status==='dup'");
+has('⑥受注Ａ：もう一度押しても二重にならない案内', impIdx, 'もう一度押しても、ゆかスプシに2行目はできません');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
