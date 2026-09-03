@@ -299,6 +299,22 @@ has('⑬custIdを読み戻す', loadAllSrc, "custId: extra.custId||''");
 has('⑬rtCutを読み戻す', loadAllSrc, 'rtCut: extra.rtCut||null');
 has('⑬昔の注文はお客様名から取引先を特定（救済）', H.cut(idxSrc,'rtbCidOf'), 'x.name===o.client');
 
+/* ── ⑭ バサラスター発注シート（本番・2026-09-04）───────── */
+const baAccept = H.cut(gasSrc, 'oosBasaraOrderAccept_');
+has('⑭お届け先3点必須', baAccept, '氏名・住所・電話の3つが入るまで発注できません');
+has('⑭熨斗あり備考必須', baAccept, '熨斗「あり」のときは、備考欄に用途を書いてください');
+has('⑭二重よけ', baAccept, 'すでに発注済みです（二重には流れません）');
+has('⑭ゆかスプシへは既存の転記を呼ぶだけ', baAccept, 'oosYukaImportOrder(');
+eq('⑭在庫は一切減らさない', /applyStockDeduct|basaraComputeStock_\(\)\.deduct|persistStockDeduct/.test(baAccept), false);
+const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild');
+has('⑭請求書は毎月増える（上書き禁止）', baInv, 'すでにあります（上書き禁止）');
+has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
+has('⑭振込先は卸ルール（三菱UFJ）', gasSrc, '三菱UFJ銀行 新座志木支店（支店番号296）');
+has('⑭会社表記は見積Мと同じ（登録番号）', gasSrc, 'T9012801020687');
+const baConf = H.cut(gasSrc, 'oosBasaraInvoiceConfirm_');
+has('⑭本部確認でバサラスターへメール1通', baConf, '請求書のご用意ができました');
+has('⑭メールの宛先は正規のバサラ担当', baConf, 'BASARA_FROM');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
