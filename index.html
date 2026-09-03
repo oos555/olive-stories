@@ -316,7 +316,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-02">
+<meta name="oos-version" content="2026-09-04-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -6223,13 +6223,18 @@ function confirmPayment(id){
    行は消さない（記録として残る）・在庫はここでは触らない（キャンセル処理側で戻し済み）。
    印が付くと：行が赤くなり、スマホの梱包ビューからその1件が消え、③も押せなくなる。 */
 function yukaCancelMark(o){
-  if(!(o && o.yukaImport && o.yukaImport.at)) return;   // スプシに行がある注文だけ
+  if(!o || !o.num) return;
+  /* 取込済の印(yukaImport)では判定しない：昔の保存で印が消えている注文があるため（2026-09-04に実際に起きた）。
+     どのキャンセルでも注文番号でスプシを探し、行が無ければ何もしないだけ（安全）。 */
   fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify({ action:'yukaCancelOrder', num:o.num }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if(d && d.status==='ok') showSyncStatus('❌ スプシの行にもキャンセルの印を付けました：'+o.num);
-      else alert('⚠️ スプシへキャンセルの印が付けられませんでした：'+((d&&d.message)||'不明')+'\nゆかスプシ・倉庫ファイルの行（'+o.num+'）を直接ご確認ください。');
+      if(d && d.status==='ok'){
+        if(((d.yuka||0)+(d.souko||0)) > 0) showSyncStatus('❌ スプシの行にもキャンセルの印を付けました：'+o.num);
+      } else {
+        alert('⚠️ スプシへキャンセルの印が付けられませんでした：'+((d&&d.message)||'不明')+'\nゆかスプシ・倉庫ファイルの行（'+o.num+'）を直接ご確認ください。');
+      }
     })
     .catch(function(){ alert('⚠️ 通信できず、スプシへキャンセルの印が付いていません。\nゆかスプシ・倉庫ファイルの行（'+o.num+'）を直接ご確認ください。'); });
 }
