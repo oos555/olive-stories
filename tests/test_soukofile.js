@@ -253,7 +253,7 @@ has('⑨セットアップでも☑を用意する', H.cut(gasSrc, 'oosSetupSouk
 
 /* ── ⑩ 在庫表の🔄大ボタン（2026-09-04 ひろみさん指示）───────── */
 const refBtnSrc = H.cut(gasSrc, 'oosSoukoRefreshButton');
-has('⑩文言はひろみさんの言葉どおり', refBtnSrc, '🔄 最新の在庫数にあわせる');
+has('⑩文言はひろみさんの言葉どおり（2026-09-04指定）', refBtnSrc, '🔄 最新の在庫数に合わせるボタンです\\n随時押してください');
 has('⑩水色', refBtnSrc, '#b3e5fc');
 has('⑩倉庫さんも押せる（☑のマスだけ保護から外す）', refBtnSrc, 'setUnprotectedRanges');
 has('⑩☑で映し直して☑を外す', H.cut(gasSrc, 'oosSoukoOnEdit'), 'oosSoukoStockSync();');
