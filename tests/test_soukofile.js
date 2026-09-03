@@ -227,6 +227,19 @@ has('⑥受注Ａ：もう一度押しても二重にならない案内', impIdx
   has('⑦③の転記も oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaRequestEdit_'), 'oosLastDataRow_(osh, 1, 19) + 1');
 }
 
+/* ── ⑧ ゆかちゃん指摘の2バグ修正の見張り（2026-09-04） ─────────
+   A:「記録のみ」(whSkip)が保存で捨てられ「未送信」に復活していた（2026-08-25報告）。
+     原因＝GASの拡張データJSONの載せ忘れ（2026-08-24の送料と同じ穴）。書く側と読む側の両方を見張る。
+   B: 取り置き登録で「送る目安」が必須になっていて先に進めなかった。確認1回に変更。 */
+const saveMainSrc = H.cut(gasSrc, 'saveOrdersMain');
+has('⑧whSkipを保存する', saveMainSrc, 'whSkip: o.whSkip||null');
+has('⑧yukaImportを保存する', saveMainSrc, 'yukaImport: o.yukaImport||null');
+const loadAllSrc = H.cut(gasSrc, 'loadAll');
+has('⑧whSkipを読み戻す', loadAllSrc, 'whSkip: extra.whSkip||null');
+has('⑧yukaImportを読み戻す', loadAllSrc, 'yukaImport: extra.yukaImport||null');
+has('⑧取り置きの送る目安は必須にしない（確認1回）', idxSrc, '「送る目安（いつ頃出す？）」が空です');
+eq('⑧空のままでは登録できない旧ブロックは消えている', idxSrc.indexOf('取り置きは「いつまでの取り置きか」を必ず入れてください') < 0, true);
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
