@@ -192,7 +192,8 @@ const impGas = H.cut(gasSrc, 'oosYukaImportOrder');
 has('⑥GAS：二重よけの目印は【出どころ 注文番号】', impGas, "'【' + String(order.src||'受注A') + ' ' + String(order.num||'') + '】'");
 has('⑥GAS：すでにあればdupで止まる', impGas, "{status:'dup', row:i+2}");
 has('⑥GAS：5商品以上は備考へ逃がす', impGas, 'ほかの商品：');
-has('⑥GAS：③のマスはチェックボックスに戻す', impGas, 'getRange(newRow, 1).insertCheckboxes()');
+/* ★2026-09-04午後 ひろみさんの新しい流れ：A列は☑でなく赤ボタンで始まる */
+has('⑥GAS：入った行のA列は赤ボタンで始まる', impGas, 'aCell.setValue(OOS_YUKA_BTN_STOP)');
 const routeGas = H.cut(gasSrc, 'oosSpreadRoute_');
 has('⑥GAS：窓口3つ（konpoOrders）', routeGas, "'konpoOrders'");
 has('⑥GAS：窓口3つ（konpoPackSave）', routeGas, "'konpoPackSave'");
@@ -338,9 +339,30 @@ const acc2 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑮バサラ☑で受注Ａ台帳に自動記録', acc2, 'basaraAppendOrderRow_');
 has('⑮バサラの送料は常に800円', acc2, "d[10]+' 様', goods, 800");
 has('⑮受付時は在庫を減らさない（減るのは③）', acc2, '在庫はここでは減らさない');
-const tb2 = H.cut(gasSrc, 'oosSoukoTrackBack_');
+/* ★2026-09-04午後 配りは共通部品 oosTrackFanout_ に集約（ゆか直記入と旧オーダー表の両方から呼ぶ） */
+const tb2 = H.cut(gasSrc, 'oosTrackFanout_');
 has('⑮送り状はバサラ発注シート（24列目）にも戻る', tb2, 'bsh.getRange(brow, 24).setValue(track)');
 has('⑮送り状で受注Ａの注文が発送済みになる', tb2, "setValue('shipped')");
+has('⑮旧オーダー表の道も同じ部品を呼ぶ', H.cut(gasSrc,'oosSoukoTrackBack_'), 'oosTrackFanout_(key, track)');
+
+/* ── ⑯ 倉庫スプシ廃止・赤/青ボタンの流れ（2026-09-04午後 ひろみさん決定）──────
+   「転記転記は事故になる。ゆかスプシを倉庫と共有する」★消さないでください */
+has('⑯赤ボタンの文言（ひろみさん指定そのまま）', gasSrc, "OOS_YUKA_BTN_STOP = 'OOS未チェック 発送しないでください（登録済）'");
+has('⑯青ボタンの文言', gasSrc, "OOS_YUKA_BTN_GO   = '発送してください'");
+const goSrc = H.cut(gasSrc, 'oosYukaShipGo_');
+has('⑯青にした瞬間 倉庫LINEへ1通', goSrc, '出荷のご依頼が1件入りました');
+has('⑯在庫が足りなければ赤に戻して止める', goSrc, 'まだ発送できません');
+has('⑯LINEの二重送り防止（📨の印）', goSrc, "indexOf('📨')");
+has('⑯倉庫スプシへの転記コードが無い', goSrc.indexOf('オーダー表')<0 ? 'ok':'ng', 'ok');
+const trkSrc = H.cut(gasSrc, 'oosYukaTrackEdit_');
+has('⑯ゆかスプシに送り状を書いたら発送済＋自動配り', trkSrc, 'oosTrackFanout_(key, track)');
+has('⑯送り状で発送済（行グレー）', trkSrc, 'getRange(row,20).setValue(true)');
+const konSrc = H.cut(gasSrc, 'oosKonpoOrders');
+has('⑯倉庫Ｄ・梱包ビューはゆかスプシを読む', konSrc, 'oosYukaFile_()');
+has('⑯出すのは青「発送してください」の行だけ', konSrc, 'OOS_YUKA_BTN_GO) continue');
+has('⑯送り状NO.が入った行は出さない', konSrc, "d[18]||'').trim()) continue");
+const acc16 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
+has('⑯在庫は受付と同時に減る（ひろみさん決定）', acc16, 'ゆかスプシ転記と同時）に確保して減らす');
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
 
 /* 数字テスト：oosYukaStockDeductByKey_ を本物のまま砂場で動かす */
