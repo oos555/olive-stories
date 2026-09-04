@@ -131,6 +131,9 @@ function box(){
   has('⑥受注Ａが同梱書類を2つに分けて送る', H.cut(idx,'yukaImportOne'), 'docNouhin:');
   has('⑥納品書系とそれ以外で分ける', H.cut(idx,'yukaImportOne'), "d.indexOf('納品書')>=0");
   has('⑥入れないものは「入れない」と書く（空欄にしない）', H.cut(idx,'yukaImportOne'), "|| '入れない'");
+  /* ★2026-09-05夜 実データで見つけた穴の見張り：STORESの注文（productIdが文字）でも品番が消えないこと */
+  has('⑥品番はゆるい照合で探す（STORESの注文でもコードが出る）', H.cut(idx,'yukaImportOne'), 'findProduct(l.productId)');
+  no('⑥厳密な===で商品を探していない（STORESの注文でコードが消える）', H.cut(idx,'yukaImportOne'), 'pp.id===l.productId');
   has('⑥GASが備考の先頭に梱包の1行', H.cut(gas,'oosYukaImportOrder'), "String(order.pkg||'').trim()");
   has('⑥GASが17・18列に同梱書類', H.cut(gas,'oosYukaImportOrder'), "String(order.docNouhin||''), String(order.docHoka||''), ''");
   has('⑥列は増やしていない（発送済は20列目のまま）', H.cut(gas,'oosYukaImportOrder'), 'sh.getRange(newRow, 20).insertCheckboxes();');

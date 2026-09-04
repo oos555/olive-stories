@@ -7782,7 +7782,11 @@ async function yukaImportOne(id){
   }
   var srcLabel = o.source==='basara' ? 'バサラ' : (o.source==='stores' ? 'STORES' : 'RT');
   var items = (o.lines||[]).map(function(l){
-    var p = PRODUCTS.find(function(pp){ return pp.id===l.productId; }) || {};
+    /* ★2026-09-05夜 実データで見つけた穴：STORESの注文は productId が文字（"8"）で入っているため、
+       === で探すと見つからず、ゆかスプシへ送る商品名から【品番（コード）】が消えていた。
+       倉庫さんは品番で棚から取るので、取り違えのもとになる。
+       ほかの場所と同じ findProduct（ゆるい照合）に直す。★戻さないでください */
+    var p = (typeof findProduct==='function' ? findProduct(l.productId) : null) || {};
     var _u = lineUnit(l);   // ★2026-09-04 単位が「箱」等の商品は数に単位まで書いて送る（スマホの梱包ビューでも正しく出る）
     var qty = String(lineTotal(l)) + (_u!=='本'?_u:'') + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
     return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
