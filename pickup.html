@@ -165,6 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .sk-addr{background:#f9f8f5;border-radius:8px;padding:10px 12px;line-height:2;font-size:14px}
 .sk-doc{display:inline-block;background:#fff;border:1.5px solid #1e4f86;color:#1e4f86;font-weight:700;border-radius:8px;padding:9px 16px;margin:4px 6px 0 0;font-size:14px;text-decoration:none}
 .sk-foot{background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:10px 14px;margin-top:12px;font-size:13px;line-height:1.9}
+.sk-done-btn{display:block;width:100%;background:#0c447c;color:#fff;border:none;border-radius:10px;text-align:center;padding:13px;font-weight:bold;font-size:15px;margin-top:10px;cursor:pointer;font-family:inherit}
 .pk-card:active{filter:brightness(0.98)}
 .pk-card.pk-urg{background:#fdecec;border-color:#f3c9c9}
 .pk-card.pk-done{background:#f5f3ec}
@@ -370,7 +371,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-04-03">
+<meta name="oos-version" content="2026-09-04-04">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1550,9 +1551,30 @@ function soukoCardHtml(o){
   h += '<div class="sk-sec">③ 同梱書類</div>';
   h += '<div>'+(docs||'<span style="color:#8a7f6a">なし</span>')+'<div style="font-size:12px;color:#8a7f6a;margin-top:4px">ほかに同梱：'+doc2Html+'</div></div>';
   if(String(o.note||'').trim()) h += '<div style="font-size:12px;color:#57534e;background:#f9f8f5;border-radius:8px;padding:7px 10px;margin-top:8px">📝 '+esc(o.note)+'</div>';
-  h += '<div class="sk-foot">✅ 発送が終わったら、<b>ゆかスプシ（発注書）のこの注文の行の「送り状NO.」</b>に番号を書いてください。<b>書いたら発送完了</b>になります（この画面で押すボタンはありません）。</div>';
+  h += '<div class="sk-foot">✅ 発送が終わったら、<b>ゆかスプシ（発注書）のこの注文の行の「送り状NO.」</b>に番号を書き、<b>T列の「発送済」に☑</b>してください。</div>';
+  /* ★2026-09-04夜 ひろみさん指示：一番下に梱包終了ボタン。押すとこの1件が一覧から消える
+     （📱梱包ビューの梱包終了と同じ印 pack.packed＝両方の画面でそろって消える）。
+     スプシには全部残るので、ダブルチェック・振り返りはスプシで。★消さないでください */
+  h += '<div style="font-size:12.5px;color:#166534;background:#eef7ea;border:1px solid #86c096;border-radius:8px;padding:8px 11px;margin-top:10px;line-height:1.8">スプレッドシート（ゆかスプシ）に同じ情報があります。<b>ダブルチェックおよび同梱物の確認をお願いします。</b></div>';
+  h += '<button class="sk-done-btn" onclick="soukoPackDone(\''+esc(String(o.key||''))+'\')">✅ 梱包終了（この1件を一覧から消す）</button>';
   h += '</div>';
   return h;
+}
+/* 梱包終了：pack.packed の印（📱梱包ビューと同じ）→ 一覧から消える。スプシには全部残る */
+function soukoPackDone(key){
+  var o = (allOrders||[]).find(function(x){ return String(x.key||'')===String(key); });
+  if(!o) return;
+  if(!confirm('梱包は終わりましたか？\n「OK」でこの1件を一覧から消します（ゆかスプシには全部残ります）。')) return;
+  o.pack = o.pack || {}; o.pack.packed = true;
+  if(key){
+    try{
+      fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'konpoPackSave', key:key, state:o.pack }) }).catch(function(){});
+    }catch(e){}
+  }
+  try{ sessionStorage.setItem('oos_pickup_souko_v2', JSON.stringify(allOrders)); }catch(e){}
+  renderList();
+  pickupToast('✅ 梱包終了。この1件は一覧から消えました。ゆかスプシには全部の情報が残っています。あとは「送り状NO.」→「発送済☑」で完了です。');
 }
 function renderList(){
   let html = '';
@@ -1574,10 +1596,12 @@ function renderList(){
   html += '<div class="tool-tile" style="background:#eaf1fb;border-color:#185fa5" onclick="location.href=\'pickup.html?mode=history\'"><div class="tt-ic" style="color:#185fa5">📜</div><div class="tt-tx" style="color:#0f3d6b">送信履歴</div></div>';
   html += '</div>';
   html += '</details>';
-  if(!allOrders.length){
+  /* ★梱包終了（pack.packed）した1件は一覧から消える（スプシには全部残る・2026-09-04ひろみさん指示） */
+  var listOrders = (allOrders||[]).filter(function(o){ return !(o.pack && o.pack.packed); });
+  if(!listOrders.length){
     html += '<div class="card center" style="color:#57534e">現在、出荷のご依頼はありません。</div>';
   } else {
-    allOrders.forEach(function(o){ html += soukoCardHtml(o); });
+    listOrders.forEach(function(o){ html += soukoCardHtml(o); });
   }
   try{
     if(localStorage.getItem('oos_atelier_ok')==='1' || localStorage.getItem('oos_home_ok')==='1'){
