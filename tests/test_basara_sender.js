@@ -91,7 +91,9 @@ const fn = new Function(code + '\nreturn {isBasaraOrder, isBasaraSenderTrusted};
   const trustedCount = (src.match(/isBasaraSenderTrusted\(/g) || []).length;
   eq('⑪isBasaraSenderTrustedは定義+呼び出し2箇所の3回だけで使われている', trustedCount, 3);
   const looseCount = (src.match(/isBasaraOrder\(/g) || []).length;
-  eq('⑪isBasaraOrder（ゆるい判定）は、送り主表記・自動メールの2箇所を除いた分だけ残っている', looseCount, 5);
+  /* ★2026-09-05 「📦 梱包の指示」の表でも、書類の既定（バサラは同梱なし）に ゆるい判定を使うので 5→6。
+     送り主表記・自動メールには使っていない（そこは今まで通り isBasaraSenderTrusted）。 */
+  eq('⑪isBasaraOrder（ゆるい判定）は、送り主表記・自動メールの2箇所を除いた分だけ残っている', looseCount, 6);
 }
 
 console.log('===== 倉庫D：送り主がバサラではない注文の見分け（本物の関数）=====');

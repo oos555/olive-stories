@@ -454,7 +454,8 @@ function pkgOfPD(o){
   var p = (o && o.pkg) || null;
   if(p) return p;
   /* 2026-09-05より前の注文：分かる分だけ読みかえる（勝手に作らない） */
-  return { kind:'normal', box:(o && o.useRecycle) ? 'きれいなものならリサイクル箱OK' : '新しい箱で', _old:true };
+  /* ★2026-09-05夜 直し：♻の印が無い古い注文は「指定なし」。無かった指示を足さない */
+  return { kind:'normal', box:(o && o.useRecycle) ? 'きれいなものならリサイクル箱OK' : '指定なし（倉庫さんにおまかせ）', _old:true };
 }
 function pkgTableHtmlPD(o){
   var p = pkgOfPD(o), rows = [];
@@ -474,9 +475,13 @@ function pkgTableHtmlPD(o){
     tr('発送に使う箱', '<b>'+esc(p.box||'')+'</b>');
   }
   var ins = [];
-  var enc = (o && o.enclosedDoc) || '';
+  /* ★2026-09-05 この画面の下の「📦 同梱するもの」と同じ数え方にする（違うと倉庫が迷う）
+     ・空なら「納品書兼請求書」／バサラは「なし」／RT・RTGCはパンフレットを入れない */
+  var _isB = (typeof isBasaraOrder==='function') ? isBasaraOrder(o) : false;
+  var enc = (o && o.enclosedDoc) || (_isB ? 'なし' : '納品書兼請求書');
   if(enc && enc !== 'なし') String(enc).split(' ＋ ').forEach(function(x){ if(x) ins.push(x); });
-  if(o && o.includePamphlet !== false) ins.push('パンフレット');
+  var _isRt = !!(o && (o.customerType==='rt' || o.customerType==='rtgc'));
+  if(o && o.includePamphlet !== false && !_isRt) ins.push('パンフレット');
   var out = PKG_ALLDOCS_PD.filter(function(d){ return ins.indexOf(d) < 0; });
   var docHtml = ins.length
     ? ins.map(function(d){ return '<span style="background:#1f4a6d;color:#fff;border-radius:6px;padding:2px 9px;font-weight:700;display:inline-block;margin:2px 5px 2px 0">'+esc(d)+'</span>'; }).join('')

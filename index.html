@@ -2670,9 +2670,14 @@ function pkgBlockHtml(id){
 var PKG_ALLDOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書','パンフレット'];
 function pkgDocsIn(o){
   var a = [];
-  var enc = (o && o.enclosedDoc) || '';
+  /* ★2026-09-05 空のときの既定は、画面のほかの場所とそろえる（ここだけ違うと倉庫が迷う）
+     ・空なら「納品書兼請求書」／バサラは「なし」（出荷依頼書と同じ）
+     ・RT・RTGCはパンフレットを入れない（倉庫Ｄと同じ・ゆかさん報告⑧） */
+  var _isB = (typeof isBasaraOrder==='function') ? isBasaraOrder(o) : false;
+  var enc = (o && o.enclosedDoc) || (_isB ? 'なし' : '納品書兼請求書');
   if(enc && enc !== 'なし') enc.split(' ＋ ').forEach(function(x){ if(x) a.push(x); });
-  if(o && o.includePamphlet !== false) a.push('パンフレット');
+  var _isRt = !!(o && (o.customerType==='rt' || o.customerType==='rtgc'));
+  if(o && o.includePamphlet !== false && !_isRt) a.push('パンフレット');
   return a;
 }
 function pkgDocsOut(o){
@@ -2683,7 +2688,10 @@ function pkgOf(o){
   var p = (o && o.pkg) || null;
   if(p) return p;
   /* 2026-09-05より前の注文：いままでの印から読みかえる（勝手に作らない・分かる分だけ） */
-  return { kind:'normal', box:(o && o.useRecycle) ? 'きれいなものならリサイクル箱OK' : '新しい箱で',
+  /* ★2026-09-05夜 直し：♻の印が無い古い注文に「新しい箱で」と書くと、
+     もともと無かった指示を勝手に足すことになる（倉庫が新品の箱を使ってしまう）。
+     分からないものは「指定なし」と正直に書く。 */
+  return { kind:'normal', box:(o && o.useRecycle) ? 'きれいなものならリサイクル箱OK' : '指定なし（倉庫さんにおまかせ）',
            giftBox:'', wrap:'', ribbon:'', noshiSide:(o && o.noshi) ? '' : 'なし', _old:true };
 }
 /* 1行の短い形（受注一覧・ゆかスプシ用） */
@@ -2827,16 +2835,21 @@ function collectPamphlet(card){
   return !!(p && p.classList.contains('on'));
 }
 /* 区分（RT・卸など）で、いままで通りの初期値を入れる。★決まりは変えていない */
-function pkgApplyCtype(card){
+/* fresh＝カードを作った直後だけ、書類の既定を入れる。
+   ★2026-09-05夜 直し：区分を変えるたびに、ゆかちゃんが選んだ書類まで消えてしまっていた。
+   いままでの受注Ａも、区分変更で書類を消すのは RT・RTGC のときだけだった。そこに合わせる。 */
+function pkgApplyCtype(card, fresh){
   if(!card) return;
   var v = (document.getElementById('o-ctype')||{}).value || '';
   var rtset = (v==='rt' || v==='rtgc');
-  card.querySelectorAll('.pkg-doc').forEach(function(x){ x.classList.remove('on'); });
-  card.querySelectorAll('.pkg-doc').forEach(function(x){
-    var d = x.getAttribute('data-doc');
-    if(rtset && d==='RT発注伝票＋納品書') x.classList.add('on');
-    if(!rtset && d==='納品書兼請求書') x.classList.add('on');
-  });
+  if(rtset || fresh){
+    card.querySelectorAll('.pkg-doc').forEach(function(x){ x.classList.remove('on'); });
+    card.querySelectorAll('.pkg-doc').forEach(function(x){
+      var d = x.getAttribute('data-doc');
+      if(rtset && d==='RT発注伝票＋納品書') x.classList.add('on');
+      if(!rtset && d==='納品書兼請求書') x.classList.add('on');
+    });
+  }
   /* パンフレット：RT・卸①②・バサラは既定オフ／それ以外は既定オン（いままで通り） */
   var pam = card.querySelector('.pkg-doc[data-doc="__pamph"]');
   if(pam){
@@ -3087,7 +3100,7 @@ function addRecipient(){
   wrap.appendChild(card);
   addRecipientLine(id);
   renumberRecipients();
-  if(typeof pkgApplyCtype==='function') pkgApplyCtype(card);   /* ★2026-09-05 同梱書類の初期値（区分ごと・いままで通り） */
+  if(typeof pkgApplyCtype==='function') pkgApplyCtype(card, true);   /* ★2026-09-05 同梱書類の初期値（区分ごと・いままで通り） */
   applyGiftModeToRecipients();
 }
 function toggleRecipientOverride(cardId){
@@ -3487,7 +3500,18 @@ function updateRecycleLock(cardId){
   const linesWrap = card.querySelector('[data-role=lines]');
   if(!linesWrap) return;
   const rows = Array.from(linesWrap.children);
-  const hasGift = rows.some(function(row){ var g=row.querySelector('[data-role=gift]'); return g && g.value === 'gift'; });
+  /* ★2026-09-05 ここが効いていませんでした（実機で確認）。
+     行の「種別」に 'gift' という選択肢は無く（セット商品を選ぶと自動で gift になる決まり）、
+     'gift' だけを見ていたため、この決まりは一度も働いていませんでした。
+     出荷依頼書と同じ数え方（gift・包装紙ギフト・セット商品）に直します。★戻さないでください */
+  const hasGift = rows.some(function(row){
+    var g = row.querySelector('[data-role=gift]');
+    var gv = g ? g.value : '';
+    if(gv === 'gift' || gv === 'simple') return true;
+    var ps = row.querySelector('[data-role=product]');
+    var p  = ps ? findProduct(ps.value) : null;
+    return !!(p && p.isSet);
+  });
   const opts = card.querySelectorAll('.pkg-opt[data-g="box"]');
   if(!opts.length) return;
   opts.forEach(function(x){

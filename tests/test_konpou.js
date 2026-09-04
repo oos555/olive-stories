@@ -52,7 +52,8 @@ has('①パンフレットも札になった', H.cut(idx,'pkgBlockHtml'), '__pam
 no('②注文ごとの「📄 同梱書類」ブロックは消えている', idx, '📄 同梱書類（お荷物に入れる紙）');
 no('②「リサイクル箱使用可」のチェックは消えている', idx, 'リサイクル箱使用可</label>');
 has('②お届け先カードの中に梱包の指示が入っている', H.cut(idx,'addRecipient'), 'pkgBlockHtml(id)');
-has('②カードを作ったら既定を入れる', idx, "if(typeof pkgApplyCtype==='function') pkgApplyCtype(card);");
+has('②カードを作ったら既定を入れる（fresh＝新しいカードのときだけ書類の既定を入れる）', idx, "if(typeof pkgApplyCtype==='function') pkgApplyCtype(card, true);");
+has('②区分を変えても、選んだ書類は消さない（RT以外）', H.cut(idx,'pkgApplyCtype'), 'if(rtset || fresh){');
 
 /* ── ③ いままでの決めごとは変えていない ── */
 has('③既定は納品書兼請求書', H.cut(idx,'pkgApplyCtype'), "if(!rtset && d==='納品書兼請求書') x.classList.add('on');");
@@ -105,9 +106,15 @@ function box(){
   const old1 = { useRecycle:true, enclosedDoc:'納品書兼請求書', includePamphlet:true };
   eq('⑤古い注文はふつう扱い', G.pkgOf(old1).kind, 'normal');
   eq('⑤古い注文の箱（♻ありはリサイクルOK）', G.pkgOf(old1).box, 'きれいなものならリサイクル箱OK');
-  eq('⑤古い注文の箱（♻なしは新しい箱で）', G.pkgOf({}).box, '新しい箱で');
+  eq('⑤古い注文の箱（♻の印が無いものは指定なし＝勝手に足さない）', G.pkgOf({}).box, '指定なし（倉庫さんにおまかせ）');
   eq('⑤古い注文でも1行が作れる', G.pkgOneLine(old1), '📦 ふつう／箱:きれいなものならリサイクル箱OK');
 
+  /* ★2026-09-05夜 実機で見つけた食い違いの見張り：
+     空のときの既定・バサラ・RTのパンフレットを、画面のほかの場所と同じ数え方にした。
+     （ここだけ違うと「入れないもの：納品書兼請求書」と出るのに、下のチェック表では入れる指示になり、倉庫が迷う） */
+  eq('⑤空のときは納品書兼請求書＋パンフレット（ほかの場所と同じ）', G.pkgDocsIn({}), ['納品書兼請求書','パンフレット']);
+  eq('⑤RTはパンフレットを入れない', G.pkgDocsIn({customerType:'rt'}), ['納品書兼請求書']);
+  eq('⑤RTGCもパンフレットを入れない', G.pkgDocsIn({customerType:'rtgc'}), ['納品書兼請求書']);
   /* 表がこわれない（ギフト・ふつう・古い注文の3つとも） */
   [o1, o2, o3, old1, {}].forEach(function(o, i){
     const t = G.pkgTableHtml(o);

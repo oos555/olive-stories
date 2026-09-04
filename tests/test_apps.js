@@ -201,7 +201,7 @@ eq('④ 登録画面で最初から選ばれているのは「納品書兼請求
 eq('④ 「納品書」には最初からチェックを入れない',
    /value="納品書"[^>]*checked>/.test(idxSrc), false);
 eq('④ 画面をまっさらに戻したときも「納品書兼請求書」（カードを作るたびに pkgApplyCtype が入れる）',
-   idxSrc.indexOf("if(typeof pkgApplyCtype==='function') pkgApplyCtype(card);") >= 0, true);
+   idxSrc.indexOf("if(typeof pkgApplyCtype==='function') pkgApplyCtype(card, true);") >= 0, true);
 eq('④ 受注を編集・コピーで開いたとき、空なら「納品書兼請求書」',
    idxSrc.indexOf("var _enc0 = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
 eq('④ バサラのカード編集は、空なら「なし」',
