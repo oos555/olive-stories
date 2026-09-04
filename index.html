@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-09">
+<meta name="oos-version" content="2026-09-04-10">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -6805,7 +6805,7 @@ function persistStockDeltas(deltas){
   }).catch(function(){ showSyncStatus('⚠️ 在庫データの保存に失敗しました（アプリBで確認してください）', true); });
 }
 // 注文リスト（出荷で減らした分）を最新在庫へ差分反映して保存
-function persistStockDeduct(list){ persistStockDeltas(buildStockDeltas(list, 'deduct')); }
+function persistStockDeduct(list){ persistStockDeltas(buildStockDeltas(list, 'deduct')); if(typeof honbuMirrorPing==='function') honbuMirrorPing(); }
 async function markShipped(id){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
@@ -9799,6 +9799,20 @@ function applyBasaraToOrderForm(){
 // 触っていない注文は最新のまま残す。
 //   changed … このクライアントが新規作成・変更した注文の配列。
 //             省略時は従来どおり手元まるごと保存（フォールバック）。
+/* ★2026-09-04 ひろみさん指示「スプシは即座に自動更新に出来ない？」
+   注文や在庫の保存が終わったら、スプシ（運用コピーの在庫リスト・取り置き予約・RT残高一覧）へ
+   「いま映し直して」と一声かける。5秒まとめ（続けて何回も保存しても最後の1回だけ知らせる）。
+   失敗しても何もしない＝毎時の自動更新が拾うので、悪くなることはない。★消さないでください */
+var _honbuPingTimer = null;
+function honbuMirrorPing(){
+  try{ clearTimeout(_honbuPingTimer); }catch(e){}
+  _honbuPingTimer = setTimeout(function(){
+    try{
+      fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'honbuSync' }) }).catch(function(){});
+    }catch(e){}
+  }, 5000);
+}
 function syncOrdersToGAS(changed){
   if(!gasSyncEnabled) return Promise.resolve();
   const fallbackSave = function(arr){
@@ -9811,7 +9825,7 @@ function syncOrdersToGAS(changed){
   // 変更リストが渡されていない場合＝従来動作
   if(!Array.isArray(changed)){
     return fallbackSave(orders).then(function(d){
-      if(d && d.status==='ok') showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+      if(d && d.status==='ok'){ showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）'); honbuMirrorPing(); }
       else showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
     }).catch(function(){ showSyncStatus('⚠️ 接続エラー（オフライン？）', true); });
   }
@@ -9832,6 +9846,7 @@ function syncOrdersToGAS(changed){
         orders = base;   // 手元も最新化（他アプリの変更もここで反映される）
         renderList();
         showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
+        honbuMirrorPing();   // ★スプシの鏡も即座に映し直してもらう（2026-09-04）
       } else {
         showSyncStatus('⚠️ 保存エラー: '+((d&&d.message)||''), true);
       }
