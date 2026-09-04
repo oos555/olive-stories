@@ -228,7 +228,7 @@ has('⑥【引っ越し①】一覧の頭に金額の合計', H.cut(idx,'rtbRend
 has('⑥【引っ越し①】施設の行にも金額', H.cut(idx,'rtbRender'), "rtmYen(rtbFacRev(rows))");
 has('⑥【引っ越し①】カードの見出しにも金額（税抜）', H.cut(idx,'rtbCardHtml'), '（税抜）');
 has('⑥【引っ越し①】金額は統合マスタNの単価（新しい式を書かない）', H.cut(idx,'rtbFacRev'), 'rtmPrice(sku)');
-has('⑥【引っ越し②】✎の数直しは廃止・3ボタンに一本化', H.cut(idx,'rtbCardHtml'), '✎で数を直す操作は廃止 → 数の増減はぜんぶ上の3ボタンで（必ず📜に記録が残る）');
+has('⑥【引っ越し②】✎の案内（2026-09-04 ➖追加で4つに）', H.cut(idx,'rtbCardHtml'), '✎ 数を直す（前の「🏨 施設ごとの予約」の表）は、この4つに分かれました → ふやす＝➕ ／ へらす＝➖ ／ 🔒と✈️の入れ替え＝⚖️ ／ 別の施設へ＝🔁（どれも必ず📜に記録が残ります）');
 has('⑥【引っ越し③】緑の内訳メモ（単品＋ギフト箱＝合計）', H.cut(idx,'rtbCardHtml'), '🌿 単品（お客様に伝える）');
 has('⑥【引っ越し③】内訳はセットの中身から数える', H.cut(idx,'rtbSetDerived'), 'p.isSet');
 has('⑥商品名の下にRT卸単価', H.cut(idx,'rtbCardHtml'), 'RT卸 ');
@@ -280,6 +280,50 @@ if(require('fs').existsSync(gasPath)){
   has('⑦毎時の鏡でRTコントロールも描き直す', H.cut(g,'oosHonbuSync'), 'oosRtControlWrite_(srtc');
   has('⑦入口（1回だけ実行）がルートにある', g, "action === 'rtControlSetup'");
   eq('⑦鏡は在庫を触らない（書き込みは自分のタブだけ）', /applyStockDeduct|在庫データ.*setValues/.test(w), false);
+}
+
+/* ── ⑧ ➖ 予約を減らす／タブの説明を図式に（2026-09-04 ひろみさん承認）
+   承認済みモック：おためし版_取り置きタブの説明図_2026-09-04.html
+   ・✎の代わりは ➕（ふやす）➖（へらす）⚖️（🔒⇄✈️）🔁（別の施設へ）の4つ
+   ・➖ は注文の本数を減らすだけ。在庫の式は書かない（🔒を減らせば販売可能は親の計算で戻る）
+   ・タブの説明は文章ではなく図式（★勝手に文章へ戻さない） ── */
+{
+  has('⑧➖のボタンがある', H.cut(idx,'rtbCardHtml'), '➖ 予約を減らす（キャンセル・数の直し）');
+  has('⑧➖は台帳の切り出しを呼ぶだけ', H.cut(idx,'rtbApplySub'), 'rtbLedgerCut(fac, it.sku');
+  has('⑧➖は理由メモが必須', H.cut(idx,'rtbApplySub'), '理由メモを入れてください');
+  has('⑧➖は押す前に一度たしかめる', H.cut(idx,'rtbApplySub'), 'よろしいですか？');
+  has('⑧➖は📜に記録が残る', H.cut(idx,'rtbApplySub'), "rtbLog(facName, '➖ '");
+  has('⑧いまある数より多くは減らせない（🔒）', H.cut(idx,'rtbSubItems'), '（🔒は');
+  has('⑧いまある数より多くは減らせない（✈️）', H.cut(idx,'rtbSubItems'), '（✈️は');
+  eq('⑧➖に在庫の式を書いていない', /applyStockDeduct|computeAvailable|在庫データ/.test(H.cut(idx,'rtbApplySub')+H.cut(idx,'rtbSubItems')), false);
+
+  /* 数字：日光（F1）の🔒メネジック80本（手で登録した注文）から30本減らす */
+  {
+    const G = makeBox();
+    G.rtbLedgerCut('F1','MEM250','held',30);
+    const r = G.rtbData().data['F1']['MEM250'];
+    eq('⑧🔒80→50に減る', r.held, 50);
+    eq('⑧✈️は動かない', r.wait, 10);
+    eq('⑧✂️発送済は変わらない（鳴門60本）', G.rtbData().data['F3']['ORG500'].sent, 60);
+  }
+  /* 数字：蓼科（F2）の🔒50本を全部減らすと、その注文は取り消し扱いになる */
+  {
+    const G = makeBox();
+    G.rtbLedgerCut('F2','CHF100','held',50);
+    const o = G.orders.find(x => x.id === 'o4');
+    eq('⑧0になった注文は取り消し扱い', o.status, 'cancelled');
+    eq('⑧0にした印が残る', o.rtbZeroed, true);
+    eq('⑧残高も0になる', (((G.rtbData().data['F2']||{})['CHF100'])||{held:0}).held||0, 0);
+  }
+
+  /* タブの説明は図式（文章の①②③には戻さない） */
+  has('⑧説明は図式（枠がある）', idx, 'id="hold-howto"');
+  has('⑧図：在庫が減るのは登録の瞬間だけ', idx, '⚠ 在庫が減るのは「登録」の瞬間だけ');
+  has('⑧図：RTの流れ', idx, '<b>伝票 → ②RT取込 → 登録</b>');
+  has('⑧図：RT以外の流れ', idx, '<b>📦 出荷依頼書に移す</b>');
+  has('⑧図：RTの行は一覧に出ない案内', idx, '🏛 RTの行は、下の📋一覧には出ません。');
+  has('⑧図：ボタンの札に➖がある', idx, '<span>➖ 予約を減らす</span>');
+  eq('⑧古い文章の説明は戻っていない', idx.indexOf('② 期限が近づくと、この画面が') < 0, true);
 }
 
 console.log('===== 🏛 RT予約の残高一覧（第4弾）=====');
