@@ -319,7 +319,9 @@ eq('⑭在庫は一切減らさない', /applyStockDeduct|basaraComputeStock_\(\
 const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild');
 has('⑭請求書は毎月増える（上書き禁止）', baInv, 'すでにあります（上書き禁止）');
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
-has('⑭振込先は卸ルール（三菱UFJ）', gasSrc, '三菱UFJ銀行 新座志木支店（支店番号296）');
+/* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
+   口座の記載は oos-doc.js の振込先マスタをそのまま写した（発明していない）。三菱UFJに戻さない */
+has('⑭振込先は三井住友（法人口座・2026-09-04変更）', gasSrc, '三井住友銀行 立川支店（支店番号742）　普通 4723882　カ）オリーブオイルストーリーズ');
 has('⑭会社表記は見積Мと同じ（登録番号）', gasSrc, 'T9012801020687');
 const baConf = H.cut(gasSrc, 'oosBasaraInvoiceConfirm_');
 has('⑭本部確認でバサラスターへメール1通', baConf, '請求書のご用意ができました');
