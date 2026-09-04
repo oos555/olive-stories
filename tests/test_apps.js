@@ -196,18 +196,18 @@ try{
    ══════════════════════════════════════════════════════════════════════ */
 const idxSrc = H.read('index.html');
 
-eq('④ 登録画面で最初からチェックが入っているのは「納品書兼請求書」',
-   /value="納品書兼請求書"[^>]*checked>/.test(idxSrc), true);
+eq('④ 登録画面で最初から選ばれているのは「納品書兼請求書」（2026-09-05 押して選ぶ札）',
+   idxSrc.indexOf("if(!rtset && d==='納品書兼請求書') x.classList.add('on');") >= 0, true);
 eq('④ 「納品書」には最初からチェックを入れない',
    /value="納品書"[^>]*checked>/.test(idxSrc), false);
-eq('④ 画面をまっさらに戻したときも「納品書兼請求書」',
-   idxSrc.indexOf("x.checked = (x.value==='納品書兼請求書' && !x.getAttribute('data-doc'))") >= 0, true);
-eq('④ 受注を編集で開いたとき、空なら「納品書兼請求書」',
-   idxSrc.indexOf("var enc = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
+eq('④ 画面をまっさらに戻したときも「納品書兼請求書」（カードを作るたびに pkgApplyCtype が入れる）',
+   idxSrc.indexOf("if(typeof pkgApplyCtype==='function') pkgApplyCtype(card);") >= 0, true);
+eq('④ 受注を編集・コピーで開いたとき、空なら「納品書兼請求書」',
+   idxSrc.indexOf("var _enc0 = o.enclosedDoc || '納品書兼請求書';") >= 0, true);
 eq('④ バサラのカード編集は、空なら「なし」',
    idxSrc.indexOf("o.enclosedDoc || (isBasaraOrder(o) ? 'なし' : '納品書兼請求書')") >= 0, true);
-eq('④ バサラのメール取込は「同梱書類なし」を選んだ形',
-   idxSrc.indexOf("cb.checked = (cb.getAttribute('data-doc')==='none')") >= 0, true);
+eq('④ バサラのメール取込は「同梱書類なし」を選んだ形（パンフレットは入れる）',
+   idxSrc.indexOf('pkgSetDocs(card, [], true);') >= 0, true);
 eq('④ 出荷依頼書の表示も、空なら「納品書兼請求書」',
    idxSrc.indexOf("const encDoc = o.enclosedDoc || (_isBasara ? 'なし' : '納品書兼請求書');") >= 0, true);
 /* ★2026-08-19 LINEを送る前に同梱書類の中身を確認できること（ひろみさん指示） */

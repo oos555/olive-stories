@@ -371,7 +371,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-04-04">
+<meta name="oos-version" content="2026-09-05-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -444,6 +444,49 @@ async function gateUnlock(){
 }
 gateCheck();
 const NOSHI_IMAGE = 'noshi-flower.png';
+/* ★2026-09-05 承認モック「おためし版_梱包の指示_受注A入力画面_2026-09-05.html」
+   受注Ａでゆかちゃんが選んだ「📦 梱包の指示」を、そのまま倉庫Ｄに出す。
+   ・入れる書類は濃く、入れないものも薄く必ず並べる（空欄は「書き忘れ？」と思わせて聞き返しになるため）
+   ・ふつうの発送にも必ず出す（「ギフトではありません」と書いてあることが答えになる）
+   ★消さないでください（これが無いと倉庫からの問い合わせが元に戻ります） */
+var PKG_ALLDOCS_PD = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書','パンフレット'];
+function pkgOfPD(o){
+  var p = (o && o.pkg) || null;
+  if(p) return p;
+  /* 2026-09-05より前の注文：分かる分だけ読みかえる（勝手に作らない） */
+  return { kind:'normal', box:(o && o.useRecycle) ? 'きれいなものならリサイクル箱OK' : '新しい箱で', _old:true };
+}
+function pkgTableHtmlPD(o){
+  var p = pkgOfPD(o), rows = [];
+  function tr(k, v){
+    rows.push('<tr><th style="background:#f4f2ec;border:1px solid #b7b1a5;padding:7px 9px;text-align:left;width:130px;font-weight:700;font-size:13px">'+k+'</th>'
+      + '<td style="border:1px solid #b7b1a5;padding:7px 9px;font-size:14px">'+v+'</td></tr>');
+  }
+  if(p.kind === 'gift'){
+    tr('梱包の種類', '<b style="color:#a3286a">🎁 ギフト</b>');
+    tr('発送に使う箱', '<b>'+esc(p.giftBox||'')+'</b>（サイズは中身に合わせて選んでください）');
+    tr('包装紙', (p.wrap==='包む') ? '<b>包む</b>' : '<span style="color:#8a857a">包まない</span>');
+    tr('リボン', (p.ribbon==='かける') ? '<b>かける</b>' : '<span style="color:#8a857a">かけない</span>');
+    var nz = (p.noshiSide && p.noshiSide !== 'なし');
+    tr('熨斗', nz ? ('<b>'+esc(p.noshiSide)+'</b>' + (o.noshi ? '　表書き「'+esc((o.noshi.title)||'')+'」／お名前「'+esc((o.noshi.name)||'')+'」' : '')) : '<span style="color:#8a857a">なし</span>');
+  } else {
+    tr('梱包の種類', '<b>📦 ふつうの発送（ギフトではありません）</b>');
+    tr('発送に使う箱', '<b>'+esc(p.box||'')+'</b>');
+  }
+  var ins = [];
+  var enc = (o && o.enclosedDoc) || '';
+  if(enc && enc !== 'なし') String(enc).split(' ＋ ').forEach(function(x){ if(x) ins.push(x); });
+  if(o && o.includePamphlet !== false) ins.push('パンフレット');
+  var out = PKG_ALLDOCS_PD.filter(function(d){ return ins.indexOf(d) < 0; });
+  var docHtml = ins.length
+    ? ins.map(function(d){ return '<span style="background:#1f4a6d;color:#fff;border-radius:6px;padding:2px 9px;font-weight:700;display:inline-block;margin:2px 5px 2px 0">'+esc(d)+'</span>'; }).join('')
+    : '<span style="color:#8a857a;font-weight:700">書類なし</span>';
+  docHtml += '<br><span style="color:#8a857a;font-size:12px">入れないもの：'+(out.length ? out.map(esc).join('・') : 'なし')+'</span>';
+  tr('入れる書類', docHtml);
+  tr('送り状の貼り方', '<b>倉庫さんにおまかせ</b>');
+  return '<table style="border-collapse:collapse;width:100%;margin-bottom:10px">'+rows.join('')+'</table>';
+}
+
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（受注Aと共通の約束）*/
 function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','卸バサラスター':'basara','特別提供価格':'special','不良在庫特価':'defectprice'})[v] || v; }
 // 通信が返ってこないまま「読み込み中...」で止まり続けるのを防ぐ。既定15秒で打ち切る。
@@ -1751,6 +1794,7 @@ function renderOrder(){
       + '<div style="font-size:12px;font-weight:400;margin-top:8px">下の「熨斗の見本を見て印刷」から印刷して同梱してください。印刷しないと梱包完了できません。</div></div>';
     html += '<button class="btn-big no-print" style="background:#2563eb;color:#fff;margin-top:10px" onclick="previewNoshi()">🎀 熨斗の見本を見て印刷する'+(noshiPrinted?'（印刷済み）':'')+'</button>';
   }
+  html += '<div class="sec-title">📦 梱包の指示</div>' + pkgTableHtmlPD(o);   /* ★2026-09-05 承認モック。★消さないでください */
   html += '<div class="sec-title no-print">💬 倉庫への連絡事項（プレゼント追加・パンフレット同封など）</div>';
   html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:10px"><input type="text" id="ship-note-input" value="'+esc(o.shipNote||'')+'" placeholder="例：お詫びにサンプル1本同封してください" style="flex:1;padding:9px 10px;border:1px solid #d5cfc3;border-radius:8px;font-size:14px"><button class="btn-sm" onclick="saveShipNote()">保存</button></div>';
   if(o.shipNote) html += '<div class="note-box" style="background:#fef3c7;border-color:#f59e0b;color:#78350f"><strong>💬 倉庫への連絡事項：</strong>'+esc(o.shipNote)+'</div>';
