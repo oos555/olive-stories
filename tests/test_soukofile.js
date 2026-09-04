@@ -329,6 +329,9 @@ has('⑭PDFは保存ボックスに貯める', gasSrc, "'バサラスター請�
 has('⑭リンク集タブに毎月1行増える', H.cut(gasSrc,'oosBasaraInvoiceLinkAdd_'), '分の請求書を開く');
 has('⑭メールはシンプル文面（発行しましたのでご確認ください）', H.cut(gasSrc,'oosBasaraInvoiceConfirm_'), '請求書を発行しましたので、ご確認ください');
 has('⑭メールは✅の☑が押されたときだけ', H.cut(gasSrc,'oosBasaraInvoiceConfirm_'), '自動では送らない');
+/* ★2026-09-04夜 ひろみさん指示（絶対）：請求書の番号は約束ごとＳの案件管理番号ルール（BA＋日付8桁＋ランダム4桁） */
+has('⑭請求番号は案件管理番号ルール（BA+日付8桁+ランダム4桁）', baInv, "var invNo = 'BA'+Utilities.formatDate(now,'Asia/Tokyo','yyyyMMdd')+'-'+(1000+Math.floor(Math.random()*9000))");
+eq('⑭BINV（発明した番号）はもう無い', gasSrc.indexOf('BINV') < 0, true);
 has('⑭昔の名前の請求書があっても二重には作らない', baInv, "file.getSheetByName('請求書 '+ym)");
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
 /* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
@@ -336,7 +339,8 @@ has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', b
 has('⑭振込先は三井住友（法人口座・2026-09-04変更）', gasSrc, '三井住友銀行 立川支店（支店番号742）　普通 4723882　カ）オリーブオイルストーリーズ');
 has('⑭会社表記は見積Мと同じ（登録番号）', gasSrc, 'T9012801020687');
 const baConf = H.cut(gasSrc, 'oosBasaraInvoiceConfirm_');
-has('⑭本部確認でバサラスターへメール1通', baConf, '請求書のご用意ができました');
+/* ★2026-09-04夜 ひろみさん指定のシンプル文面に変更 */
+has('⑭本部確認でバサラスターへメール1通', baConf, '請求書を発行しました');
 has('⑭メールの宛先は正規のバサラ担当', baConf, 'BASARA_FROM');
 
 /* ── ⑮ スプシ発注の受注Ａ連携（2026-09-04 ひろみさん承認の3点セット）───────
