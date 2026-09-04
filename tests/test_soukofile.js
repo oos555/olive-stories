@@ -355,20 +355,26 @@ has('⑯在庫が足りなければ赤に戻して止める', goSrc, 'まだ発�
 has('⑯LINEの二重送り防止（📨の印）', goSrc, "indexOf('📨')");
 has('⑯倉庫スプシへの転記コードが無い', goSrc.indexOf('オーダー表')<0 ? 'ok':'ng', 'ok');
 const trkSrc = H.cut(gasSrc, 'oosYukaTrackEdit_');
-has('⑯ゆかスプシに送り状を書いたら発送済＋自動配り', trkSrc, 'oosTrackFanout_(key, track)');
-has('⑯送り状で発送済（行グレー）', trkSrc, 'getRange(row,20).setValue(true)');
+has('⑯ゆかスプシに送り状を書いたら自動配り（バサラ・台帳へ）', trkSrc, 'oosTrackFanout_(key, track)');
+/* ★2026-09-04夜変更：発送済（行グレー）はT列の☑＝倉庫さんのボタン。送り状記入では押さない */
+has('⑯送り状記入ではT☑を押さない（倉庫さんのボタン）', trkSrc.indexOf('setValue(true)')<0 ? 'ok':'ng', 'ok');
 const konSrc = H.cut(gasSrc, 'oosKonpoOrders');
 has('⑯倉庫Ｄ・梱包ビューはゆかスプシを読む', konSrc, 'oosYukaFile_()');
 has('⑯出すのは青「発送してください」の行だけ', konSrc, 'OOS_YUKA_BTN_GO) continue');
 has('⑯送り状NO.が入った行は出さない', konSrc, "d[18]||'').trim()) continue");
 const acc16 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑯在庫は受付と同時に減る（ひろみさん決定）', acc16, 'ゆかスプシ転記と同時）に確保して減らす');
-/* ★2026-09-04夕方 ひろみさん追加：「セルAで状態が全部わかる」＝3つ目の状態「発送済」（グレー） */
-has('⑯3つ目の状態「発送済」', gasSrc, "OOS_YUKA_BTN_DONE = '発送済'");
-has('⑯送り状NO.を書くとセルAが自動で「発送済」に', trkSrc, 'setValue(OOS_YUKA_BTN_DONE)');
-const doneSrc = H.cut(gasSrc, 'oosYukaShipDone_');
-has('⑯番号なしで「発送済」は選べない（青に戻す）', doneSrc, '先に「送り状NO.」');
-has('⑯手で発送済にしても配りは同じ部品', doneSrc, 'oosTrackFanout_(key, track)');
+/* ★2026-09-04夜 ひろみさん決定で役割を確定：
+   「Aのセルは本部からの連絡だけ。倉庫の人はSに送り状番号・発送済みボタンはTで」
+   （Aの「発送済」は一度作ってやめた。戻さないでください） */
+has('⑯Aは赤/青の2択だけ（発送済はリストに無い）',
+    H.cut(gasSrc,'oosYukaShipBtnSetup').indexOf('OOS_YUKA_BTN_GO], true)')>=0 ? 'ok':'ng', 'ok');
+has('⑯Aに「発送済」と入れられたら青に戻して案内', H.cut(gasSrc,'oosYukaOnEdit'), 'T列（発送済）の☑でお願いします');
+has('⑯送り状NO.を書いてもAは触らない', trkSrc.indexOf('OOS_YUKA_BTN_DONE')<0 ? 'ok':'ng', 'ok');
+const chkSrc = H.cut(gasSrc, 'oosYukaShipCheck_');
+has('⑯発送済みボタンはT列の☑', H.cut(gasSrc,'oosYukaOnEdit'), 'oosYukaShipCheck_(e, sh, row)');
+has('⑯番号なしでT☑は押せない', chkSrc, '先に「送り状NO.」（S列）に番号を書いてから');
+has('⑯T☑でも配りは同じ部品', chkSrc, 'oosTrackFanout_(key, track)');
 has('⑯見出しは「状態を選択してください」', H.cut(gasSrc,'oosYukaShipBtnSetup'), '状態を選択してください');
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
 
