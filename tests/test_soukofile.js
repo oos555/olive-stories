@@ -363,6 +363,13 @@ has('⑯出すのは青「発送してください」の行だけ', konSrc, 'OOS
 has('⑯送り状NO.が入った行は出さない', konSrc, "d[18]||'').trim()) continue");
 const acc16 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑯在庫は受付と同時に減る（ひろみさん決定）', acc16, 'ゆかスプシ転記と同時）に確保して減らす');
+/* ★2026-09-04夕方 ひろみさん追加：「セルAで状態が全部わかる」＝3つ目の状態「発送済」（グレー） */
+has('⑯3つ目の状態「発送済」', gasSrc, "OOS_YUKA_BTN_DONE = '発送済'");
+has('⑯送り状NO.を書くとセルAが自動で「発送済」に', trkSrc, 'setValue(OOS_YUKA_BTN_DONE)');
+const doneSrc = H.cut(gasSrc, 'oosYukaShipDone_');
+has('⑯番号なしで「発送済」は選べない（青に戻す）', doneSrc, '先に「送り状NO.」');
+has('⑯手で発送済にしても配りは同じ部品', doneSrc, 'oosTrackFanout_(key, track)');
+has('⑯見出しは「状態を選択してください」', H.cut(gasSrc,'oosYukaShipBtnSetup'), '状態を選択してください');
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
 
 /* 数字テスト：oosYukaStockDeductByKey_ を本物のまま砂場で動かす */
