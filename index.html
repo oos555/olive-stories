@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-07">
+<meta name="oos-version" content="2026-09-04-08">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5975,6 +5975,9 @@ function rtbOpenCut(){
   var skus=rtbFacSkus(rows);
   var h='<div class="rtb-panel"><b>✂️ 発送を切り出す（'+esc(d.facs[fac])+'）</b><br>'
     +'<b>お届け先（部門など）</b> <input type="text" id="rtb-cut-dest" value="" placeholder="例：商品部門" style="width:180px" oninput="rtbCutPrev()">'
+    /* ★2026-09-04 ひろみさん指示：伝票番号はRT側が付けてくる。その番号を注文に最後まで持たせる
+       （勝手にRT-いくつと付けない）。ここで打った番号はメモに入り、納品書・倉庫の書類にそのまま出ます。 */
+    +'<br><b>RTの伝票番号</b> <input type="text" id="rtb-cut-slipno" value="" placeholder="発注伝票に書いてある番号" style="width:180px" oninput="rtbCutPrev()">'
     +'<table class="rtb-cut"><tr><th>商品</th><th>いまの残高（🔒取り置き）</th><th>今回送る数</th></tr>';
   skus.forEach(function(sku,ri){
     var r=rows[sku]; var u=rtbUnit(sku);
@@ -6006,12 +6009,14 @@ function rtbCutPrev(){
   if(c.over.length){ pv.innerHTML='<span class="rtb-err">⚠ 残高を超えています：'+c.over.map(esc).join('、')+'。残高までしか入れられません。</span>'; return; }
   if(!c.items.length){ pv.innerHTML='送る数を入れると、ここに「どこへ・何を・何本」の予告が文章で出ます。'; return; }
   var dest=(document.getElementById('rtb-cut-dest').value||'').trim();
+  var _slipEl=document.getElementById('rtb-cut-slipno');
+  var slip=_slipEl?(_slipEl.value||'').trim():'';
   var lines=c.items.map(function(it){ var r=rows[it.sku]; var u=rtbUnit(it.sku); return '・'+esc(rtbProdName(it.sku))+' <b>'+it.q+u+'</b>（この施設の🔒残本 '+r.held+' → '+(r.held-it.q)+u+'）'; });
   var setNote=c.items.filter(function(it){ var p=findProductBySku(it.sku); return p&&p.isSet; }).map(function(it){
     var p=findProductBySku(it.sku);
     return '🎁 '+esc(rtbProdName(it.sku))+' は在庫からは中身で引かれます：'+p.components.map(function(cc){ return rtbProdName(cc.sku)+'×'+((cc.qty||1)*it.q); }).join('・');
   });
-  pv.innerHTML='✂️ <b>'+esc(d.facs[fac])+'</b> から <b>'+(dest?esc(dest):'（お届け先が未記入です）')+'</b> へ、<strong>出荷を1件</strong>つくります（明細'+c.items.length+'行）：<br>'
+  pv.innerHTML='✂️ <b>'+esc(d.facs[fac])+'</b> から <b>'+(dest?esc(dest):'（お届け先が未記入です）')+'</b> へ、<strong>出荷を1件</strong>つくります（明細'+c.items.length+'行）　伝票番号 <b>'+(slip?esc(slip):'<span class="rtb-err">未記入</span>')+'</b>：<br>'
     +lines.join('<br>')
     +(setNote.length?'<br>'+setNote.join('<br>'):'')
     +'<br>→ このあと：伝票・納品書 → 📥ゆかスプシ → 倉庫。<b>在庫が減るのはこの瞬間・1回だけ</b>です。';
@@ -6019,9 +6024,13 @@ function rtbCutPrev(){
 function rtbApplyCut(){
   var c=rtbCutItems();
   var dest=(document.getElementById('rtb-cut-dest').value||'').trim();
+  var _slipEl=document.getElementById('rtb-cut-slipno');
+  var slip=_slipEl?(_slipEl.value||'').trim():'';
   if(c.over.length){ alert('残高を超えている商品があります。数を直してください。'); return; }
   if(!c.items.length){ alert('送る数が全部0です。'); return; }
   if(!dest){ alert('お届け先（部門など）を入れてください。'); return; }
+  /* ★2026-09-04 ルール：RTの伝票番号は注文に最後まで持たせる。無しで進めるのは確認してから */
+  if(!slip && !confirm('RTの伝票番号が入っていません。\n伝票番号なしで進めますか？（あとからメモに追記もできます）')) return;
   var fac=RTB_VIEW.fac, facName=rtmFacName(fac);
   var cust=(customers||[]).find(function(x){ return String(x.id)===String(fac); }) || { name:facName, id:fac };
   // ① 台帳（🔒）から今回の本数を引く
@@ -6036,8 +6045,9 @@ function rtbApplyCut(){
     lines:c.items.map(function(it){ var p=findProductBySku(it.sku); return {productId:p?p.id:null, productName:p?p.name:it.sku, bottles:it.q, boxes:0, boxQty:(p&&p.boxQty)||1, giftType:'none'}; }),
     status:'held', holdUntilDate:'', expectedDate:'',
     paymentMode:'later', paymentConfirmed:false, notified:false,
-    note:'RT残高一覧から切り出し（'+dest+'）', source:'rtm',
-    rtCut:{fac:String(fac), dest:dest, at:new Date().toISOString()},
+    /* ★伝票番号は「伝票番号 ○○」の形でメモに入れる（docSlipNoOf がこの形を拾って書類に出す） */
+    note:'RT残高一覧から切り出し（'+dest+'）'+(slip?'／伝票番号 '+slip:''), source:'rtm',
+    rtCut:{fac:String(fac), dest:dest, slipNo:slip||'', at:new Date().toISOString()},
     registeredAt:new Date().toISOString()
   };
   orders.push(o); changed.push(o);
@@ -6050,7 +6060,7 @@ function rtbApplyCut(){
     rtbOpenFac(fac);
     return;
   }
-  rtbLog(facName, '✂️ '+dest+'へ：'+c.items.map(function(it){ return rtbProdName(it.sku)+'×'+it.q+rtbUnit(it.sku); }).join('・')+'（'+o.num+'）');
+  rtbLog(facName, '✂️ '+dest+'へ：'+c.items.map(function(it){ return rtbProdName(it.sku)+'×'+it.q+rtbUnit(it.sku); }).join('・')+'（'+(slip?('伝票番号 '+slip+'／'):'')+o.num+'）');
   rtbAfterChange(changed, null);
   rtbToast('✅ 出荷を1件作りました（'+esc(o.num)+'・'+esc(dest)+'宛・明細'+c.items.length+'行）。<br>このまま伝票・納品書ができて、受注一覧の📥でゆかスプシに入り、ゆかちゃんの【📦倉庫へ依頼する】で倉庫に流れます。在庫が減るのはこの瞬間です（1回だけ）。');
 }
