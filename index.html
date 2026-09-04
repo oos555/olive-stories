@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-11">
+<meta name="oos-version" content="2026-09-04-12">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -3722,9 +3722,42 @@ function checkStockShortage(list){
   });
   return short;
 }
+/* ★2026-09-04 ひろみさん承認：RTの発送は「伝票→②RT取込→登録」に統一（✂️ボタンは廃止）。
+   ②伝票取込から来た注文は、登録の瞬間にその施設の🔒残高から自動で引き落とす（＝切り出し）。
+   ・引き落とすのは lines と同じ商品・同じ本数（残高が足りない分は残高からは引かず、ふつうの在庫から出る）
+   ・注文に rtCut の印を付ける → 残高一覧の「✂️発送済」に自動で積み上がる（総数は変わらない）
+   ・📜操作の記録に「伝票番号◯◯で何を何本」と残す
+   ・在庫チェックの前にやる（🔒を外してから数えないと、自分の取り置き分を二重に要求してしまう）
+   ★消さないでください */
+function rtSlipAutoCut(list){
+  (list||[]).forEach(function(o){
+    if(!o || o.customerType!=='rt') return;
+    if(o.status!=='pending') return;                        // 出荷する注文だけ（取り置き・予約の登録は対象外）
+    if(!/RT伝票取込/.test(String(o.note||''))) return;      // ②伝票取込から来た注文だけ
+    if(o.rtCut) return;                                     // 二重よけ
+    var fac = rtbCidOf(o);
+    if(!fac) return;
+    var changed=[], cutItems=[];
+    (o.lines||[]).forEach(function(l){
+      var sku = rtbSkuOf(l); if(!sku) return;
+      var q = lineTotal(l); if(q<=0) return;
+      var r = rtbLedgerCut(fac, sku, 'held', q);
+      var took = q - r.left;
+      changed = changed.concat(r.changed);
+      if(took>0) cutItems.push(rtbProdName(sku)+'×'+took+rtbUnit(sku));
+    });
+    if(!cutItems.length) return;                            // 🔒残高がない取引先は何もしない（ふつうの注文として登録）
+    var slip = (String(o.note||'').match(/伝票番号\s*([0-9A-Za-z\-]+)/)||[])[1] || '';
+    o.rtCut = { fac:String(fac), dest:(o.recipientName||o.client||''), slipNo:slip, at:new Date().toISOString() };
+    try{ rtbLog(rtmFacName(fac), '✂️ 伝票取込から自動切り出し：'+cutItems.join('・')+(slip?('（伝票番号 '+slip+'）'):'')); }catch(e){}
+    if(changed.length && typeof syncOrdersToGAS==='function') syncOrdersToGAS(changed);   // 減らした🔒側を保存（この注文自体はこのあと登録時に保存される）
+  });
+}
 function registerOrder(){
   const list = window._pendingOrders;
   if(!list || !list.length) return;
+  /* ★RTの伝票取込の注文は、先にその施設の🔒残高から自動で切り出す（2026-09-04・上の関数） */
+  try{ rtSlipAutoCut(list); }catch(eRt){}
   // ⑤ 在庫超過の警告（必須）：通常出荷・取り置きで正規在庫が足りない時は、必ず確認をはさむ。
   // 予約（reserved＝入荷前）は在庫を超えて当然なので対象外。
   const _recType = list[0].status;
@@ -5660,13 +5693,13 @@ function rtbRender(){
   facIds.sort(function(a,b){ return String(d.facs[a]).localeCompare(String(d.facs[b]),'ja'); });
   var h = '<div style="background:#ede7f6;border:1.5px solid #b39ddb;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13.5px;line-height:1.9;max-width:780px">'
     + '<b>この画面は何？</b>　RTの施設ごとの予約が「<b>あと何本残っているか</b>」を見る台帳です。<br>'
-    + '<b>本物の在庫と、その場でつながっています。</b>🔒取り置きにした瞬間、他へ売れる在庫が減ります。⚖️で解放すれば、その場で戻ります。✂️で切り出すと在庫が減って、いつもの伝票 → ゆかちゃんのスプシへ流れます。<br>'
+    + '<b>本物の在庫と、その場でつながっています。</b>🔒取り置きにした瞬間、他へ売れる在庫が減ります。⚖️で解放すれば、その場で戻ります。発送は<b>伝票→②RT取込→登録</b>で、登録した瞬間にこの残高から自動で切り出されます。<br>'
     + '数字を手で書き写す場面はありません。ぜんぶ自動で、誰が・いつ・なぜ動かしたかは📜に残ります。</div>'
     + '<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;line-height:1.9;max-width:780px">'
     + '<b>ぜんたいの流れ</b>：'
     + '① 予約が入る（📥Excel取込、または➕単発）→ この表に自動で出る'
     + '② 在庫から充てるかは人が決める（🔒）。足りない分は✈️入荷待ち→入荷したら自動で🔒に'
-    + '③ 発注が来たら ✂️切り出し ＝ 出荷が1件でき、<b>在庫が減るのはこの瞬間・1回だけ</b>'
+    + '③ 発注（伝票）が来たら、<b>②RT取込で登録</b> ＝ 残高から自動で切り出され、伝票・納品書もいつもの流れで作れる。<b>在庫が減るのはこの瞬間・1回だけ</b>'
     + '④ 伝票・納品書はいつも通り（単価は統合マスタＮから自動）'
     + '⑤ 📥ゆかスプシ → 倉庫へ。発送した分は「✂️発送済」に自動で積み上がる。</div>'
     + '<div id="rtb-toast" class="rtb-toast"></div>';
@@ -5712,7 +5745,7 @@ function rtbCardHtml(d, fac){
   });
   h+='</table>'
     +'<div class="rtb-hist">'+rtbHistHtml(d.facs[fac], 8)+'</div>'
-    +'<button class="rtb-btn" onclick="rtbOpenCut()">✂️ この施設から発送を切り出す</button>'
+    /* ★2026-09-04 ひろみさん決定：発送は「伝票→②RT取込→登録」に統一。✂️ボタンは廃止（rtbOpenCut系は残置・呼ばない） */
     +'<button class="rtb-btn" onclick="rtbOpenAdd()">➕ 予約を足す（電話・メールの単発）</button>'
     +'<button class="rtb-btn" onclick="rtbOpenMove()">⚖️ 取り置き⇄入荷待ちを動かす</button>'
     +'<button class="rtb-btn" onclick="rtbOpenXfer()">🔁 別の施設へ回す</button>'

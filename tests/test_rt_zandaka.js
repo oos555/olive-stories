@@ -63,8 +63,11 @@ function makeBox(){
     __seq: 0,
     Date, JSON, String, Number, Math, Array, Object
   };
+  box.__logs = [];
+  box.rtbLog = function(fac, txt){ box.__logs.push([fac, txt]); };
+  box.syncOrdersToGAS = function(){};
   const ctx = vm.createContext(box);
-  ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd']
+  ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd','rtSlipAutoCut']
     .forEach(function(name){ vm.runInContext(H.cut(idx, name), ctx); });
   return box;
 }
@@ -132,7 +135,58 @@ function makeBox(){
   eq('④🔒の合計は不変', after.data['F1']['ORG500'].held + after.data['F2']['ORG500'].held, heldBefore);
 }
 
+/* ── ④2 伝票取込からの自動切り出し（2026-09-04 ひろみさん承認：発送は伝票→②取込に統一） ── */
+function slipOrder(over){
+  return Object.assign({ id:'slip1', num:'RT-S1', status:'pending', customerType:'rt',
+    client:'日光 様', custId:'F1', recipientName:'日光 商品部',
+    note:'RT伝票取込 ／ 伝票番号 12345 ／ 納品先 商品部',
+    lines:[{productId:1, productName:'オルガニック 500ml', bottles:40, boxes:0, boxQty:12}] }, over||{});
+}
+{
+  const G = makeBox();
+  const o = slipOrder();
+  G.rtSlipAutoCut([o]);
+  G.orders.push(o);
+  const d = G.rtbData();
+  eq('④2 🔒100→60に自動で切り出し', d.data['F1']['ORG500'].held, 60);
+  eq('④2 ✂️発送済に40が積まれる', d.data['F1']['ORG500'].sent, 40);
+  eq('④2 rtCutの印（施設・伝票番号）', [o.rtCut && o.rtCut.fac, o.rtCut && o.rtCut.slipNo], ['F1','12345']);
+  eq('④2 総数は変わらない（60+40=100）', d.data['F1']['ORG500'].held + d.data['F1']['ORG500'].sent, 100);
+  eq('④2 📜に伝票番号つきで記録', G.__logs.length===1 && G.__logs[0][1].indexOf('12345')>=0, true);
+  G.rtSlipAutoCut([o]);
+  eq('④2 もう一度呼んでも二重には引かない', G.rtbData().data['F1']['ORG500'].held, 60);
+}
+{
+  const G = makeBox();
+  const o = slipOrder({note:'ふつうのメモ（伝票取込ではない）'});
+  G.rtSlipAutoCut([o]);
+  eq('④2 伝票取込でない注文は引かない', G.rtbData().data['F1']['ORG500'].held, 100);
+  eq('④2 印も付かない', !!o.rtCut, false);
+}
+{
+  const G = makeBox();
+  const o = slipOrder({client:'蓼科 様', custId:'F2'});   // 蓼科にORG500の🔒は無い
+  G.rtSlipAutoCut([o]);
+  eq('④2 🔒残高が無い施設は何もしない（ふつうの注文として登録）', !!o.rtCut, false);
+}
+{
+  const G = makeBox();
+  const o = slipOrder({lines:[{productId:1, productName:'オルガニック 500ml', bottles:120, boxes:0, boxQty:12}]});
+  G.rtSlipAutoCut([o]);
+  eq('④2 残高を超える分は残高からは引かない（100だけ切り出し）', ((G.rtbData().data['F1']||{})['ORG500']||{held:0}).held, 0);
+  eq('④2 それでも印は付く', !!o.rtCut, true);
+}
+{
+  const G = makeBox();
+  const o = slipOrder({status:'held'});
+  G.rtSlipAutoCut([o]);
+  eq('④2 取り置き登録は対象外', G.rtbData().data['F1']['ORG500'].held, 100);
+}
+
 /* ── ⑤ 決めごとの見張り（ソースの文言） ── */
+/* ★2026-09-04 ひろみさん決定：発送は伝票→②取込に統一。✂️ボタンは画面から外した（関数は残置） */
+eq('⑤✂️ボタンは残高一覧に出ていない', idx.indexOf('onclick="rtbOpenCut()"') < 0, true);
+has('⑤登録時に自動切り出しが呼ばれる', H.cut(idx,'registerOrder'), 'rtSlipAutoCut(list)');
 const cutSrc = H.cut(idx, 'rtbApplyCut');
 has('⑤✂️は既存の変換（在庫が減る決められた場所）を呼ぶだけ', cutSrc, 'convertToShipping(o.id)');
 eq('⑤✂️の中で在庫の減算を直接書いていない', /applyStockDeductOnSend|persistStockDeduct/.test(cutSrc), false);
