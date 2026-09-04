@@ -111,6 +111,11 @@ table.rtb-cut td.pname{text-align:left;font-weight:bold}
 .rtb-toast{background:#e8f5e9;border:1.5px solid #7cb342;color:#1b5e20;border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.8;margin-bottom:12px;max-width:780px;display:none}
 .rtb-err{color:#b91c1c;font-weight:bold}
 .rtb-legend{font-size:11.5px;color:#6b675e;padding:7px 16px;background:#faf8f4;border-bottom:1px solid #eee7db}
+/* ★2026-09-04 承認モック「おためし版_RTコントロール集約」：マトリクス廃止の引っ越し（色はモックのまま） */
+.rtb-sumline{background:#f3f0fa;padding:8px 16px;font-size:13px;border-bottom:1px solid #d9d2ee}
+.rtb-sumline b{color:#3d3477}
+.rtb-tanka{display:block;font-size:11px;color:#8a7f6a;font-weight:normal;margin-top:2px}
+.rtb-uchiwake{display:block;background:#eef7ea;border:1px solid #bcd9b0;border-radius:7px;padding:5px 8px;margin-top:5px;font-size:11.5px;color:#2f5e29;font-weight:normal;white-space:normal;text-align:left}
 .rk-lock{font-size:11.5px;font-weight:800;color:#b91c1c;margin-top:5px}
 .rk-ok{font-size:12.5px;font-weight:800;color:#3b6d11}
 .rk-skip{font-size:12.5px;font-weight:800;color:#8a8578}
@@ -353,7 +358,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-15">
+<meta name="oos-version" content="2026-09-04-16">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1506,11 +1511,18 @@ body{background:#fff}
   <div class="hold-subtabs">
     <button class="hsub on" id="hsub-list" onclick="switchHoldView('list')">📋 一覧（取り置き・予約）</button>
     <button class="hsub" id="hsub-ippan" onclick="switchHoldView('ippan')">🏨 一般のお客様を追加</button>
-    <button class="hsub" id="hsub-rt" onclick="switchHoldView('rt')">🏛 RT</button>
+    <!-- ★2026-09-04 ひろみさん承認モック「おためし版_RTコントロール集約」：
+         「🏨 施設ごとの予約」（商品×施設のマトリクス表・✎✕ボタン）は廃止＝ボタンを非表示に。
+         中身の3つ（①金額の合計 ②✎の数直し ③緑の内訳メモ）は🏛コントロールへ引っ越し済み。
+         コード（rtm系＝📥Excel取込→📦確定の入口を含む）は消さずに残置（✂️ボタンと同じ方式）。
+         春のExcel一括取込のときの入口をどうするかはひろみさんの判断待ち。★勝手に復活させない -->
+    <button class="hsub" id="hsub-rt" onclick="switchHoldView('rt')" style="display:none">🏛 RT</button>
   </div>
 
   <div id="holdview-list" class="holdview">
   <div style="font-size:16px;font-weight:800;color:#33421f;background:#eef1e6;border:1px solid #c9d3b4;border-radius:10px;padding:10px 14px;margin-bottom:12px">📋 RT以外の取り置き・予約</div>
+  <!-- ★2026-09-04 承認モック「おためし版_受注Aの取り置きタブ」：RTの行はここに出さない（🏛へ）。文言は一字一句モックのまま -->
+  <div style="background:#f3f0fa;border:1.5px dashed #4a3f8c;border-radius:10px;padding:9px 13px;font-size:12.5px;color:#3d3477;max-width:780px;margin-bottom:12px">🏛 RTの取り置き・予約は、ここには出ません → 上の「RTの在庫と予約のコントロール」で。スプシで見るときは「🏛RTコントロール」タブ。</div>
   <div id="hold-alert-area"></div>
   <div id="hold-batch-bar" style="display:none;align-items:center;gap:10px;background:#fff;border:1px solid #d6d6ce;border-radius:10px;padding:9px 11px;margin-bottom:12px">
     <span style="font-size:14px;font-weight:700"><span id="hold-selected-count">0</span>件を選択中</span>
@@ -4202,8 +4214,9 @@ function isReservedOverdue(o){ const d = daysUntil(o.expectedDate); return d!==n
 function isReservedDueSoon(o){ const d = daysUntil(o.expectedDate); return d!==null && d>=0 && d<=3; }
 
 function renderHoldPreAlerts(){
-  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned);
-  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned);
+  /* ★2026-09-04 RTまとめ：RT施設の行は一覧に出さないので、期限アラートからも外す（見えない行を指さないため） */
+  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned && o.customerType!=='rt');
+  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned && o.customerType!=='rt');
   const overdueHeld = heldOrders.filter(isHeldOverdue);
   const soonHeld = heldOrders.filter(isHeldDueSoon);
   const overdueRes = reservedOrders.filter(isReservedOverdue);
@@ -5625,6 +5638,26 @@ function rtbFacDone(rows){
   Object.keys(rows||{}).forEach(function(sku){ var r=rows[sku]; if(r.sent+r.held+r.wait>0){ any=true; if(r.held+r.wait>0) done=false; } });
   return any && done;
 }
+/* ★2026-09-04 承認モック「おためし版_RTコントロール集約」＝マトリクス廃止の引っ越し3つ。
+   【引っ越し①】💰予約金額（単価×本数・税抜）＝オーダー総数×RT卸単価（単価は統合マスタＮ＝rtmPrice。新しい式は書かない） */
+function rtbFacRev(rows){
+  var v=0;
+  Object.keys(rows||{}).forEach(function(sku){ var r=rows[sku]; v += (r.sent+r.held+r.wait)*rtmPrice(sku); });
+  return v;
+}
+/* 【引っ越し③】緑の内訳メモの材料：このオイルが、同じ施設のセット（ギフト箱）の中身として何本入っているか
+   （注文そのものから数えるだけ。行のオーダー総数＝単品ぶん、という数え方は変えない） */
+function rtbSetDerived(rows, oilSku){
+  var out=[], total=0;
+  Object.keys(rows||{}).forEach(function(setSku){
+    var p=findProductBySku(setSku); if(!p||!p.isSet||!p.components) return;
+    var per=0; p.components.forEach(function(c){ if(c.sku===oilSku) per+=(c.qty||1); });
+    if(per<=0) return;
+    var r=rows[setSku]; var cnt=r.sent+r.held+r.wait; if(cnt<=0) return;
+    out.push({name:p.name, qty:per*cnt}); total+=per*cnt;
+  });
+  return {list:out, total:total};
+}
 
 // ── 台帳の増減（注文の本数を動かすだけ。在庫の減算はしない） ──
 // 減らす：この施設のその商品を持つ注文から順に引く（単品の注文から先に）。空になった注文はキャンセル扱いで畳む
@@ -5723,12 +5756,18 @@ function rtbRender(){
     h += rtbLogHtml();
   } else {
     RTB_VIEW.mode='list';
-    h += '<div class="rtb-win"><div class="rtb-head">🏛 RTの在庫と予約のコントロール（残高一覧）</div>' + RTB_LEGEND;
+    /* ★2026-09-04 承認モック「おためし版_RTコントロール集約」【引っ越し①】：
+       廃止したマトリクスの「系列◯施設・総合計・💰金額」を、この一覧の頭と施設の行に出す */
+    var gHon=0, gGifts=0, gRev=0;
+    facIds.forEach(function(id){ var tt2=rtbTotals(d.data[id]); gHon+=tt2.hon; gGifts+=tt2.gifts; gRev+=rtbFacRev(d.data[id]); });
+    h += '<div class="rtb-win"><div class="rtb-head">🏛 RTの在庫と予約のコントロール（残高一覧）</div>'
+      + '<div class="rtb-sumline">系列'+facIds.length+'施設　総合計 <b>'+gHon+'本'+(gGifts?('＋ギフト'+gGifts+'個'):'')+'</b>　💰 予約金額（単価×本数・税抜）：<b>'+rtmYen(gRev)+'</b></div>'
+      + RTB_LEGEND;
     if(!facIds.length) h += '<div class="rtb-facrow"><span style="color:#8a8578;font-size:13px">RTの取り置き・予約は、いまはありません。</span></div>';
     facIds.forEach(function(id){
       var rows=d.data[id], tt=rtbTotals(rows), done=rtbFacDone(rows);
       var n=Object.keys(rows).filter(function(s){ var r=rows[s]; return r.sent+r.held+r.wait>0; }).length;
-      var sum = n+'商品・予約 計'+tt.hon+'本'+(tt.gifts?('＋ギフト'+tt.gifts+'個'):'');
+      var sum = n+'商品・予約 計'+tt.hon+'本'+(tt.gifts?('＋ギフト'+tt.gifts+'個'):'')+'・<b>'+rtmYen(rtbFacRev(rows))+'</b>';
       var tag = done ? ' ✅ すべて発送済み' : (tt.w>0 ? ' <span class="rtb-tagwait">✈️ 入荷待ちあり</span>' : ' <span class="rtb-tagok">✓ ぜんぶ取り置き済み</span>');
       h += '<div class="rtb-facrow'+(done?' done':'')+'"><span class="nm">'+esc(d.facs[id])+'</span><span class="sum">'+sum+tag+'</span>'
         + (done?'':'<button class="rtb-btn small" onclick="rtbOpenFac(\''+esc(id)+'\')">開く</button>')+'</div>';
@@ -5740,7 +5779,8 @@ function rtbRender(){
 function rtbCardHtml(d, fac){
   var rows = d.data[fac]||{}, tt=rtbTotals(rows);
   var skus = rtbFacSkus(rows);
-  var h='<div class="rtb-win"><div class="rtb-head">🏨 '+esc(d.facs[fac])+'<span style="font-weight:normal;font-size:12px">予約 計'+tt.hon+'本'+(tt.gifts?('＋ギフト'+tt.gifts+'個'):'')+'</span></div>'+RTB_LEGEND
+  /* ★2026-09-04 集約モック【引っ越し①】：見出しの右に金額（税抜）も出す */
+  var h='<div class="rtb-win"><div class="rtb-head">🏨 '+esc(d.facs[fac])+'<span style="font-weight:normal;font-size:12px">予約 計'+tt.hon+'本'+(tt.gifts?('＋ギフト'+tt.gifts+'個'):'')+'・'+rtmYen(rtbFacRev(rows))+'（税抜）</span></div>'+RTB_LEGEND
     /* ★2026-09-04 ひろみさん指示：タイトルを2段に（オーダー総数／未発送残数＝✈️入荷待ち予約本数・🔒在庫からの取り置き本数） */
     +'<div class="rtb-cardbody"><table class="rtb-bal">'
     +'<tr><th rowspan="2">商品</th><th rowspan="2">オーダー総数</th><th rowspan="2">✂️発送済</th><th colspan="2">未発送残数</th><th rowspan="2">検算</th></tr>'
@@ -5751,7 +5791,21 @@ function rtbCardHtml(d, fac){
     var p=findProductBySku(sku);
     var comp=(p&&p.isSet&&p.components&&p.components.length)?'<small style="display:block;font-weight:normal;color:#8a8578;font-size:10.5px;white-space:normal">＝中身：'+p.components.map(function(c){ return rtbProdName(c.sku)+(c.qty>1?('×'+c.qty):''); }).join('・')+'（在庫はこの中身で自動で引かれます）</small>':'';
     if(isZero) comp='<small style="display:block;font-weight:normal;color:#8a8578;font-size:10.5px;white-space:normal">（いまは予約0。ほかの施設へ回した経緯は履歴にあります）</small>';
-    h+='<tr'+(isZero?' class="zero"':(r.wait>0?' class="wait"':''))+'><td class="pname">'+esc(rtbProdName(sku))+comp+'</td>'
+    /* ★2026-09-04 集約モック：商品名の下にRT卸単価（【引っ越し①】）と、緑の内訳メモ（【引っ越し③】） */
+    var tanka='';
+    if(!isZero && rtbUnit(sku)==='本'){
+      var pr=rtmPrice(sku);
+      tanka='<span class="rtb-tanka">'+(pr>0?('RT卸 '+rtmYen(pr)+'/本'):'単価未設定（統合マスタN）')+'</span>';
+    }
+    var uchiwake='';
+    if(!isZero && p && !p.isSet){
+      var dv=rtbSetDerived(rows, sku);
+      if(dv.total>0){
+        var bySet=dv.list.map(function(x){ return esc(rtmSetShort(x.name))+' '+x.qty+'本'; }).join('・');
+        uchiwake='<span class="rtb-uchiwake">🌿 単品（お客様に伝える）'+total+'本 ＋ ギフト箱'+dv.total+'本（'+bySet+'）＝ 合計'+(total+dv.total)+'本</span>';
+      }
+    }
+    h+='<tr'+(isZero?' class="zero"':(r.wait>0?' class="wait"':''))+'><td class="pname">'+esc(rtbProdName(sku))+tanka+comp+uchiwake+'</td>'
       +'<td><b>'+total+'</b></td><td>'+r.sent+'</td>'
       +'<td'+(r.wait>0?' style="color:#b45309;font-weight:bold"':'')+'>'+r.wait+'</td>'
       +'<td class="heldcol">'+r.held+'</td>'
@@ -5764,6 +5818,8 @@ function rtbCardHtml(d, fac){
     +'<button class="rtb-btn" onclick="rtbOpenMove()">⚖️ 取り置き⇄入荷待ちを動かす</button>'
     +'<button class="rtb-btn" onclick="rtbOpenXfer()">🔁 別の施設へ回す</button>'
     +'<button class="rtb-btn plain" onclick="rtbBackToList()">← 一覧にもどる</button>'
+    /* ★2026-09-04 集約モック【引っ越し②】：マトリクスの✎（数の手直し）は廃止。文言は一字一句モックのまま */
+    +'<div style="font-size:12px;color:#57534e;margin-top:8px">✎で数を直す操作は廃止 → 数の増減はぜんぶ上の3ボタンで（必ず📜に記録が残る）</div>'
     +'</div></div>';
   return h;
 }
@@ -6115,13 +6171,16 @@ function rtbApplyCut(){
 function renderHoldPreLists(){
   if(typeof rtbRender==='function'){ try{ rtbRender(); }catch(e){} }   // ★2026-09-04 第4弾：🏛 RT予約の残高一覧
   renderHoldPreAlerts();
-  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned);
+  /* ★2026-09-04 RTまとめ（承認モック「おためし版_受注Aの取り置きタブ」）：
+     RT施設の行はこのリストに二度と混ぜない（customerType==='rt' は🏛コントロールだけに出す）。
+     rtmOwned はrtb/rtmが作った注文の印・customerType はそれ以外の道で入ったRT注文もふさぐ */
+  const heldOrders = orders.filter(o=>o.status==='held' && !o.rtmOwned && o.customerType!=='rt');
   /* ★2026-08-18 在庫が足りなくて出荷できない注文も、予約リストに出す（承認済みモック第2版）。
      ひろみさん：「予約リストにも同じ注文が出るがいい。二重に見えないように、
      予約数にカウント済であることがわかるようにしてほしい」
      → 受注一覧のカードには「予約数にカウント済み」、こちらには「受注一覧にも出ています」と両側に書く。
      ★同じ1件です。数を二重に数えてはいけません。 */
-  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned)
+  const reservedOrders = orders.filter(o=>o.status==='reserved' && !o.rtmOwned && o.customerType!=='rt')
     .concat(orders.filter(function(o){ return isZaikoMachi(o); }));
   /* ★2026-08-18 ひろみさん指示：読み込みが終わる前に「ありません」と出ると
      「あれ、また消えた」と思ってしまう。読み込み中は、はっきりそう書く。

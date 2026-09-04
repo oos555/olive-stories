@@ -66,8 +66,10 @@ function makeBox(){
   box.__logs = [];
   box.rtbLog = function(fac, txt){ box.__logs.push([fac, txt]); };
   box.syncOrdersToGAS = function(){};
+  /* ★2026-09-04 集約：rtbFacRev（金額）・rtbSetDerived（緑の内訳メモ）・rtmPrice（統合マスタNの単価）も本物のまま動かす */
+  box.rtPriceOf = function(p){ return ({ORG500:3800, MEM250:3800, CHF100:3200, YS100:8000})[p&&p.sku] || 0; };
   const ctx = vm.createContext(box);
-  ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbLedgerCut','rtbLedgerAdd','rtSlipAutoCut']
+  ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbFacRev','rtbSetDerived','rtmPrice','rtbLedgerCut','rtbLedgerAdd','rtSlipAutoCut']
     .forEach(function(name){ vm.runInContext(H.cut(idx, name), ctx); });
   return box;
 }
@@ -208,6 +210,71 @@ if(require('fs').existsSync(gasPath)){
   const gasSrc = require('fs').readFileSync(gasPath,'utf8');
   has('⑤GASのログは読む/足すだけ（在庫を触らない）', H.cut(gasSrc,'oosRtbLogAdd'), 'appendRow');
   eq('⑤GASのログ関数に在庫の言葉が無い', /在庫データ|basaraComputeStock_/.test(H.cut(gasSrc,'oosRtbLogAdd')+H.cut(gasSrc,'oosRtbLogList')), false);
+}
+
+
+/* ── ⑥ RTまとめ（2026-09-04 ひろみさん「この見たまんまの形に」）──
+   承認済みモック：おためし版_RTコントロール集約_2026-09-04.html ／ おためし版_受注Aの取り置きタブ_2026-09-04.html
+   ・「🏨 施設ごとの予約」（商品×施設のマトリクス表・✎✕）は廃止＝サブタブを出さない
+   ・引っ越し①金額の合計 ②✎の数直し→3ボタンに一本化 ③緑の内訳メモ
+   ・RTの行は「RT以外の取り置き・予約」に二度と出さない */
+eq('⑥マトリクスのサブタブは出ていない（廃止）', /id="hsub-rt"[^>]*style="display:none"/.test(idx), true);
+has('⑥RT行は一覧に出さない（取り置き）', H.cut(idx,'renderHoldPreLists'), "!o.rtmOwned && o.customerType!=='rt'");
+has('⑥RT行は一覧に出さない（予約）', idx, "o.status==='reserved' && !o.rtmOwned && o.customerType!=='rt'");
+has('⑥期限アラートからもRTを外す', H.cut(idx,'renderHoldPreAlerts'), "o.customerType!=='rt'");
+has('⑥案内の1行（モックの文言そのまま）', idx, '🏛 RTの取り置き・予約は、ここには出ません → 上の「RTの在庫と予約のコントロール」で。スプシで見るときは「🏛RTコントロール」タブ。');
+has('⑥【引っ越し①】一覧の頭に金額の合計', H.cut(idx,'rtbRender'), '💰 予約金額（単価×本数・税抜）：');
+has('⑥【引っ越し①】施設の行にも金額', H.cut(idx,'rtbRender'), "rtmYen(rtbFacRev(rows))");
+has('⑥【引っ越し①】カードの見出しにも金額（税抜）', H.cut(idx,'rtbCardHtml'), '（税抜）');
+has('⑥【引っ越し①】金額は統合マスタNの単価（新しい式を書かない）', H.cut(idx,'rtbFacRev'), 'rtmPrice(sku)');
+has('⑥【引っ越し②】✎の数直しは廃止・3ボタンに一本化', H.cut(idx,'rtbCardHtml'), '✎で数を直す操作は廃止 → 数の増減はぜんぶ上の3ボタンで（必ず📜に記録が残る）');
+has('⑥【引っ越し③】緑の内訳メモ（単品＋ギフト箱＝合計）', H.cut(idx,'rtbCardHtml'), '🌿 単品（お客様に伝える）');
+has('⑥【引っ越し③】内訳はセットの中身から数える', H.cut(idx,'rtbSetDerived'), 'p.isSet');
+has('⑥商品名の下にRT卸単価', H.cut(idx,'rtbCardHtml'), 'RT卸 ');
+eq('⑥金額の計算に在庫の式を書いていない', /computeAvailable|applyStockDeduct/.test(H.cut(idx,'rtbFacRev')+H.cut(idx,'rtbSetDerived')), false);
+/* 数字：日光（F1）＝ORG500 100本・MEM250 90本（10+80）・CHF100 10本（✈️5＋🔒5）
+   金額＝100×3800 ＋ 90×3800 ＋ 10×3200 ＝ 380000+342000+32000 ＝ 754,000円 */
+{
+  const G = makeBox();
+  const rows = G.rtbData().data['F1'];
+  eq('⑥金額＝総数×単価（日光＝754,000円）', G.rtbFacRev(rows), 754000);
+  eq('⑥蓼科＝50×3200＝160,000円', G.rtbFacRev(G.rtbData().data['F2']), 160000);
+  eq('⑥発送済みも金額に入る（鳴門＝60×3800）', G.rtbFacRev(G.rtbData().data['F3']), 228000);
+}
+{
+  /* 緑の内訳メモ：YS100（中身＝ORG500×1）を日光に20個 → ORG500は単品100本＋ギフト20本＝120本 */
+  const G = makeBox();
+  G.orders.push({ id:'o8', num:'RT-8', status:'held', custId:'F1', customerType:'rt',
+    lines:[{productId:3, productName:'your story 100ml×2本セット', bottles:20, boxes:0, boxQty:1}] });
+  const rows = G.rtbData().data['F1'];
+  const dv = G.rtbSetDerived(rows, 'ORG500');
+  eq('⑥【引っ越し③】ギフト箱に入っている本数を数える', dv.total, 20);
+  eq('⑥【引っ越し③】どのセットから来たかも出す', dv.list.length, 1);
+  eq('⑥【引っ越し③】単品の行の数（100本）は変わらない', rows['ORG500'].held, 100);
+}
+
+/* ── ⑦ スプシ側 🏛RTコントロールタブ（横並びカード・モック正本の見た目） ── */
+if(require('fs').existsSync(gasPath)){
+  const g = require('fs').readFileSync(gasPath,'utf8');
+  const w = H.cut(g,'oosRtControlWrite_');
+  has('⑦施設もくじ（左端・押すと飛ぶ）', w, '📑 施設もくじ');
+  has('⑦もくじはHYPERLINKで飛ぶ', w, 'HYPERLINK("#gid=');
+  has('⑦カードの列（商品／総数／✂️済／✈️待ち／🔒取置／⏰見張り）', w, "['商品（コード品名）','総数','✂️済','✈️待ち','🔒取置','⏰見張り']");
+  has('⑦商品の列はモックと同じ横長（265px）', w, '[265,55,50,55,55,150]');
+  has('⑦カードの帯は紫（モックの色）', w, "'#4a3f8c'");
+  has('⑦🔒の列は緑・✈️の列はオレンジ（モックの色）', w, "'#e8f5e9'");
+  has('⑦⏰の🟡は色だけ（LINEは送らない）', w, '🟡 ');
+  /* ひろみさん「見張りの連絡ラインはひとまずいらない」→ 送る道具を1つも呼んでいないことを見張る
+     （説明のコメントに「LINE連絡はしない」と書いてあるのは可。呼び出しが無いことを見る） */
+  eq('⑦⏰でLINEを送っていない（ひろみさん指示）', /oosLineBroadcast|oosLinePush|sendLine|MailApp|UrlFetchApp/.test(w), false);
+  has('⑦🧾伝票の履歴は1セル1情報（商品/本数/伝票番号/宛先/日付）', w, "['🧾 伝票の履歴','本数','伝票番号','宛先','日付','']");
+  has('⑦見張りの日数は仮の決め（変えられるように定数）', g, 'var OOS_RTC_WAIT_DAYS');
+  has('⑦読むだけの鏡（操作は受注Ａ）', H.cut(g,'oosRtControlSetup'), '読むだけの鏡です（操作は受注Ａの🏛コントロール画面で）');
+  has('⑦古いRT残高一覧は（旧）に改名', H.cut(g,'oosRtControlSetup'), '（旧）RT残高一覧');
+  has('⑦取り置き・予約シートからRTの行を外す', H.cut(g,'oosHonbuSync'), "hasRtc && (o.customerType==='rt' || o.customerType==='RT')");
+  has('⑦毎時の鏡でRTコントロールも描き直す', H.cut(g,'oosHonbuSync'), 'oosRtControlWrite_(srtc');
+  has('⑦入口（1回だけ実行）がルートにある', g, "action === 'rtControlSetup'");
+  eq('⑦鏡は在庫を触らない（書き込みは自分のタブだけ）', /applyStockDeduct|在庫データ.*setValues/.test(w), false);
 }
 
 console.log('===== 🏛 RT予約の残高一覧（第4弾）=====');
