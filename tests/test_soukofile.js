@@ -343,6 +343,7 @@ has('⑭発行ボタン3択（🔁）', gasSrc, "OOS_SEIKYU_BTN_REDO = '🔁 作
 const goSeikyu = H.cut(gasSrc, 'oosSeikyuHakkoGo_');
 has('⑭青にした瞬間リンク集へ', goSeikyu, 'oosBasaraInvoiceLinkAdd_');
 has('⑭青にした瞬間メール（ひろみさん文面）', goSeikyu, '発注シートの「📄 請求書」タブをご確認のうえ、お支払いをお願いいたします');
+has('⑭メールの最後は社名＋自動送信（ひろみさん指示）', goSeikyu, '株式会社オリーブオイル・ストーリーズ\\n※このメールは自動送信です。');
 has('⑭二重発行よけ（📨の印）', goSeikyu, "indexOf('📨')");
 const redoSeikyu = H.cut(gasSrc, 'oosSeikyuHakkoRedo_');
 has('⑭発行済みは作り直せない', redoSeikyu, '発行済みのため、ここからは作り直せません');
