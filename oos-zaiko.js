@@ -30,7 +30,7 @@
 (function(global){
   'use strict';
 
-  var VERSION = '2026-08-18';
+  var VERSION = '2026-09-04';
 
   // 不良が「生きている（数に入れるべき）」か
   function isActiveDefect(d){
@@ -181,6 +181,33 @@
   /* 注文1件の「足りていない行」を返す。状態は見ず、数だけ見る。 */
   function shortages(o, data, products){
     products = products || [];
+    /* ★2026-09-04 ひろみさん指示（ゆかさん報告：✂️80本の切り出しが何回やっても止まる）
+       取り置き(held)の注文を出荷に変える瞬間、その注文自身の🔒本数が「全体の取り置き」に
+       入ったまま販売可能を数えると、同じ本数を二重に要求してしまう
+       （例：必要80本＋自分の取り置き80本＝棚に実質160本ないと通らない）。
+       ここで【自分の注文の分だけ】を取り置きから外して数える。
+       他の注文の取り置きはこれまで通り守る。棚の良品に本当に足りないときはこれまで通り止まる。
+       ★このただし書きを消さないでください。 */
+    if(o && o.status === 'held' && data && data.holds && data.holds.length){
+      var own = {};
+      ((o.lines) || []).forEach(function(l){
+        var p = findById(products, l.productId); if(!p) return;
+        var q = lineQty(l, p); if(q <= 0) return;
+        if(p.isSet && p.components){
+          p.components.forEach(function(c){
+            var cp = findBySku(products, c.sku);
+            if(cp) own[cp.id] = (own[cp.id] || 0) + q * (num(c.qty) || 1);
+          });
+        } else { own[p.id] = (own[p.id] || 0) + q; }
+      });
+      var holds2 = data.holds.map(function(h){
+        if(!h || !own[h.pid]) return h;
+        var take = Math.min(num(h.qty), own[h.pid]);
+        own[h.pid] -= take;
+        return { pid: h.pid, qty: num(h.qty) - take };
+      });
+      data = { lots: data.lots, defects: data.defects, holds: holds2 };
+    }
     var out = [], need = {};
     ((o && o.lines) || []).forEach(function(l){
       var p = findById(products, l.productId); if(!p) return;

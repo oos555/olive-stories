@@ -176,6 +176,58 @@ eq('⑩ もう一度押しても二重に引かない', b.lots[0].stock, 2);
   eq('⑪ 進めなかったことを知らせる', alerts.length>0, true);
 }
 
+/* ── ⑫ 取り置き→出荷は、自分の🔒分を二重に要求しない（2026-09-04 ゆかさん報告のバグ）──
+      症状：✂️80本の切り出しが何回やっても「在庫がありません」で止まる。
+      原因：販売可能（棚−全取り置き）に自分の🔒80本も引いたまま、さらに80本を要求していた。
+      直し：oos-zaiko.js の shortages が、held の注文自身の分だけ取り置きから外して数える。
+      ★他の注文の取り置きは守る。棚に本当に足りないときは止まる。★消さないでください。 */
+b=fresh();
+o=ord({id:'h1',status:'held',lines:[{productId:2,bottles:8,boxes:0,boxQty:1,condition:'normal'}]});
+b.orders.push(o);
+eq('⑫ 取り置き8本 → 販売可能は2', b.computeAvailable('MEM500'), 2);
+alerts.length=0;
+b.convertToShipping('h1');
+eq('⑫ 自分の🔒分は二重に要求しない（出荷に進める）', o.status, 'pending');
+eq('⑫ 在庫が引かれる', o.stockDeducted, true);
+eq('⑫ 棚が10→2', b.lots[1].stock, 2);
+eq('⑫ 止められない', alerts.length, 0);
+
+b=fresh();
+{
+  const h1=ord({id:'h1',status:'held',lines:[{productId:2,bottles:8,boxes:0,boxQty:1,condition:'normal'}]});
+  const h2=ord({id:'h2',status:'held',lines:[{productId:2,bottles:2,boxes:0,boxQty:1,condition:'normal'}]});
+  b.orders.push(h1,h2);
+  b.convertToShipping('h1');
+  eq('⑫ 2件の取り置きも順に出荷できる（1件目）', h1.status, 'pending');
+  eq('⑫ 棚 10→2', b.lots[1].stock, 2);
+  b.convertToShipping('h2');
+  eq('⑫ 2件の取り置きも順に出荷できる（2件目）', h2.status, 'pending');
+  eq('⑫ 棚 2→0', b.lots[1].stock, 0);
+}
+
+b=fresh();
+b.lots[1].stock = 4;   // 棚4本しかないのに🔒5本の注文（数がずれていた場合）
+{
+  const h3=ord({id:'h3',status:'held',lines:[{productId:2,bottles:5,boxes:0,boxQty:1,condition:'normal'}]});
+  b.orders.push(h3);
+  alerts.length=0;
+  b.convertToShipping('h3');
+  eq('⑫ 棚に本当に足りないときは、これまで通り止まる', h3.status, 'held');
+  eq('⑫ 引いた印も付かない', h3.stockDeducted, false);
+  eq('⑫ 理由を知らせる', alerts.length>0, true);
+}
+
+b=fresh();
+{
+  const h1=ord({id:'h1',status:'held',lines:[{productId:2,bottles:9,boxes:0,boxQty:1,condition:'normal'}]});
+  const h2=ord({id:'h2',status:'held',lines:[{productId:2,bottles:2,boxes:0,boxQty:1,condition:'normal'}]});
+  b.orders.push(h1,h2);
+  alerts.length=0;
+  b.convertToShipping('h1');   // 棚10で 9+2=11 の約束 → 他人の2本を守ると8本しか出せない
+  eq('⑫ 他の注文の🔒は守る（足りなければ止まる）', h1.status, 'held');
+  eq('⑫ そのときは知らせる', alerts.length>0, true);
+}
+
 console.log('===== 在庫が足りない注文の扱い =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }
