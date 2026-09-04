@@ -222,7 +222,8 @@ eq('⑥マトリクスのサブタブは出ていない（廃止）', /id="hsub-
 has('⑥RT行は一覧に出さない（取り置き）', H.cut(idx,'renderHoldPreLists'), "!o.rtmOwned && o.customerType!=='rt'");
 has('⑥RT行は一覧に出さない（予約）', idx, "o.status==='reserved' && !o.rtmOwned && o.customerType!=='rt'");
 has('⑥期限アラートからもRTを外す', H.cut(idx,'renderHoldPreAlerts'), "o.customerType!=='rt'");
-has('⑥案内の1行（モックの文言そのまま）', idx, '🏛 RTの取り置き・予約は、ここには出ません → 上の「RTの在庫と予約のコントロール」で。スプシで見るときは「🏛RTコントロール」タブ。');
+/* ★2026-09-04夜 ひろみさん指示でタブ名を「RT専用取り置き・予約」に変更（案内の指し先も同じ名前に） */
+has('⑥案内の1行（モックの文言・タブ名は新しい名前）', idx, '🏛 RTの取り置き・予約は、ここには出ません → 上の「RTの在庫と予約のコントロール」で。スプシで見るときは「RT専用取り置き・予約」タブ。');
 has('⑥【引っ越し①】一覧の頭に金額の合計', H.cut(idx,'rtbRender'), '💰 予約金額（単価×本数・税抜）：');
 has('⑥【引っ越し①】施設の行にも金額', H.cut(idx,'rtbRender'), "rtmYen(rtbFacRev(rows))");
 has('⑥【引っ越し①】カードの見出しにも金額（税抜）', H.cut(idx,'rtbCardHtml'), '（税抜）');
@@ -253,10 +254,14 @@ eq('⑥金額の計算に在庫の式を書いていない', /computeAvailable|a
   eq('⑥【引っ越し③】単品の行の数（100本）は変わらない', rows['ORG500'].held, 100);
 }
 
-/* ── ⑦ スプシ側 🏛RTコントロールタブ（横並びカード・モック正本の見た目） ── */
+/* ── ⑦ スプシ側「RT専用取り置き・予約」タブ（横並びカード・モック正本の見た目） ── */
 if(require('fs').existsSync(gasPath)){
   const g = require('fs').readFileSync(gasPath,'utf8');
   const w = H.cut(g,'oosRtControlWrite_');
+  /* ★2026-09-04夜 ひろみさん指示のタブ名。名前は1か所（定数）で決め、前の名前のタブは自動で改名する */
+  has('⑦タブの名前は「RT専用取り置き・予約」', g, "var OOS_RTC_SHEET = 'RT専用取り置き・予約';");
+  has('⑦前の名前（🏛RTコントロール）のタブは自動で新しい名前になる', H.cut(g,'oosRtcSheet_'), 'old.setName(OOS_RTC_SHEET)');
+  has('⑦タブの中の見出しも新しい名前', w, '🏛 RT専用取り置き・予約（読むだけの鏡・操作は受注Ａの🏛コントロール画面で）');
   has('⑦施設もくじ（左端・押すと飛ぶ）', w, '📑 施設もくじ');
   has('⑦もくじはHYPERLINKで飛ぶ', w, 'HYPERLINK("#gid=');
   has('⑦カードの列（商品／総数／✂️済／✈️待ち／🔒取置／⏰見張り）', w, "['商品（コード品名）','総数','✂️済','✈️待ち','🔒取置','⏰見張り']");
