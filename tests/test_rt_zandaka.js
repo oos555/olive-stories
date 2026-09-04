@@ -187,6 +187,9 @@ function slipOrder(over){
 /* ★2026-09-04 ひろみさん決定：発送は伝票→②取込に統一。✂️ボタンは画面から外した（関数は残置） */
 eq('⑤✂️ボタンは残高一覧に出ていない', idx.indexOf('onclick="rtbOpenCut()"') < 0, true);
 has('⑤登録時に自動切り出しが呼ばれる', H.cut(idx,'registerOrder'), 'rtSlipAutoCut(list)');
+/* ★2026-09-04 RT編②：伝票取込の注文は登録と同時に自動でゆかスプシへ（📥と同じ関数・押し忘れよけ） */
+has('⑤登録時に自動でゆかスプシへ（RT伝票取込）', H.cut(idx,'registerOrder'), 'yukaImportOne(o.id)');
+has('⑤自動取込はRTの伝票取込だけ', H.cut(idx,'registerOrder'), "customerType==='rt' && /RT伝票取込/");
 const cutSrc = H.cut(idx, 'rtbApplyCut');
 has('⑤✂️は既存の変換（在庫が減る決められた場所）を呼ぶだけ', cutSrc, 'convertToShipping(o.id)');
 eq('⑤✂️の中で在庫の減算を直接書いていない', /applyStockDeductOnSend|persistStockDeduct/.test(cutSrc), false);

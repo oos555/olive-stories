@@ -353,7 +353,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-04-12">
+<meta name="oos-version" content="2026-09-04-13">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -3806,6 +3806,16 @@ function registerOrder(){
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS(list);                     // ① 登録した注文だけを最新にマージして保存
+  /* ★2026-09-04 RT編②（ひろみさん承認）：伝票取込の注文は、登録と同時に自動でゆかスプシへ1行。
+     📥ボタンの押し忘れで倉庫に流れない、という穴をなくす（📥と同じ関数を自動で呼ぶだけ・二重よけも同じ）。
+     ★消さないでください */
+  if(recordType==='pending'){
+    list.forEach(function(o){
+      if(o.customerType==='rt' && /RT伝票取込/.test(String(o.note||'')) && typeof yukaImportOne==='function'){
+        try{ yukaImportOne(o.id); }catch(eY){}
+      }
+    });
+  }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
