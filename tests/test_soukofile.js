@@ -318,6 +318,9 @@ has('⑭ゆかスプシへは既存の転記を呼ぶだけ', baAccept, 'oosYuka
 eq('⑭在庫は一切減らさない', /applyStockDeduct|basaraComputeStock_\(\)\.deduct|persistStockDeduct/.test(baAccept), false);
 const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild');
 has('⑭請求書は毎月増える（上書き禁止）', baInv, 'すでにあります（上書き禁止）');
+/* ★2026-09-04夜 ひろみさん指示：タブ名は件名（◯年◯月分）に合わせる。「請求書 」の前置きは☑メールの見分け用に残す */
+has('⑭請求書タブ名は「◯年◯月分」（件名に合わせる）', baInv, "'請求書 '+ym+'分'");
+has('⑭昔の名前の請求書があっても二重には作らない', baInv, "file.getSheetByName('請求書 '+ym)");
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
 /* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
    口座の記載は oos-doc.js の振込先マスタをそのまま写した（発明していない）。三菱UFJに戻さない */
