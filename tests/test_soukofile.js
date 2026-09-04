@@ -316,7 +316,8 @@ has('⑭熨斗あり備考必須', baAccept, '熨斗「あり」のときは、�
 has('⑭二重よけ', baAccept, 'すでに発注済みです（二重には流れません）');
 has('⑭ゆかスプシへは既存の転記を呼ぶだけ', baAccept, 'oosYukaImportOrder(');
 eq('⑭在庫は一切減らさない', /applyStockDeduct|basaraComputeStock_\(\)\.deduct|persistStockDeduct/.test(baAccept), false);
-const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild');
+/* ★2026-09-04夜：本体は oosBasaraInvoiceBuildFor_（月指定＝🔁作り直し用）に分かれた。両方まとめて見張る */
+const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild') + '\n' + H.cut(gasSrc, 'oosBasaraInvoiceBuildFor_');
 has('⑭請求書は毎月増える（上書き禁止）', baInv, 'すでにあります（上書き禁止）');
 /* ★2026-09-04夜 ひろみさん指示：タブ名は件名（◯年◯月分）に合わせる。「請求書 」の前置きは☑メールの見分け用に残す */
 has('⑭請求書タブ名は「◯年◯月分」（件名に合わせる）', baInv, "'請求書 '+ym+'分'");
@@ -332,6 +333,20 @@ has('⑭メールは✅の☑が押されたときだけ', H.cut(gasSrc,'oosBasa
 /* ★2026-09-04夜 ひろみさん指示（絶対）：請求書の番号は約束ごとＳの案件管理番号ルール（BA＋日付8桁＋ランダム4桁） */
 has('⑭請求番号は案件管理番号ルール（BA+日付8桁+ランダム4桁）', baInv, "var invNo = 'BA'+Utilities.formatDate(now,'Asia/Tokyo','yyyyMMdd')+'-'+(1000+Math.floor(Math.random()*9000))");
 eq('⑭BINV（発明した番号）はもう無い', gasSrc.indexOf('BINV') < 0, true);
+/* ★2026-09-04夜 ひろみさん承認の発行フロー：作った時点では外に出さない→ゆかスプシ「請求書発行」タブの青で
+   リンク＋メールが出る。🔁作り直すは🔴のうちだけ。★消さないでください */
+has('⑭作った時点では外に出さない（発行タブに🔴で載る）', baInv, 'oosSeikyuHakkoAdd_');
+eq('⑭作成時にはバサラのリンク集へ足さない', H.cut(gasSrc,'oosBasaraInvoiceBuildFor_').indexOf('oosBasaraInvoiceLinkAdd_') < 0, true);
+has('⑭発行ボタン3択（赤）', gasSrc, "OOS_SEIKYU_BTN_STOP = 'OOS未チェック 発行しないでください（作成済）'");
+has('⑭発行ボタン3択（青）', gasSrc, "OOS_SEIKYU_BTN_GO   = '発行してください'");
+has('⑭発行ボタン3択（🔁）', gasSrc, "OOS_SEIKYU_BTN_REDO = '🔁 作り直す'");
+const goSeikyu = H.cut(gasSrc, 'oosSeikyuHakkoGo_');
+has('⑭青にした瞬間リンク集へ', goSeikyu, 'oosBasaraInvoiceLinkAdd_');
+has('⑭青にした瞬間メール（ひろみさん文面）', goSeikyu, '発注シートの「📄 請求書」タブをご確認のうえ、お支払いをお願いいたします');
+has('⑭二重発行よけ（📨の印）', goSeikyu, "indexOf('📨')");
+const redoSeikyu = H.cut(gasSrc, 'oosSeikyuHakkoRedo_');
+has('⑭発行済みは作り直せない', redoSeikyu, '発行済みのため、ここからは作り直せません');
+has('⑭作り直しは旧に印を付けて同じ月で作り直す', redoSeikyu, 'oosBasaraInvoiceBuildFor_(monthKey, ym, true)');
 has('⑭昔の名前の請求書があっても二重には作らない', baInv, "file.getSheetByName('請求書 '+ym)");
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
 /* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
