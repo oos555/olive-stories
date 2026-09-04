@@ -152,7 +152,15 @@ has('⑤昔の発送済み行は流さない', reqSrc, 'すでに発送済みで
 has('⑤③のマスは✅依頼済＋日時に変わる', reqSrc, "'✅ 依頼済 ' + stamp");
 const shipSrc = H.cut(gasSrc, 'oosSoukoShippedEdit_');
 has('⑤送り状NO.が空なら発送済にできない', shipSrc, '先に送り状NO.を書いてください');
-has('⑤送り状NO.は運用コピーへ自動で戻る', shipSrc, 'ysh.getRange(yrow, 19).setValue(track)');
+/* ★2026-09-04 ひろみさん指示：「倉庫スプシに送り状番号を書いたら発送完了とみなす。☑は外す」
+   → 戻す処理は oosSoukoTrackBack_ へ。S列（19列目）の記入で発動することを見張る */
+has('⑤送り状NO.（S列）を書いたら発送完了が動く', shipSrc, 'col === 19');
+has('⑤番号を書くと戻し処理が呼ばれる', shipSrc, 'oosSoukoTrackBack_(sh, row, track19)');
+const backSrc = H.cut(gasSrc, 'oosSoukoTrackBack_');
+has('⑤送り状NO.は運用コピーへ自動で戻る', backSrc, 'ysh.getRange(yrow, 19).setValue(track)');
+has('⑤運用コピー側は発送済（行グレー）になる', backSrc, 'ysh.getRange(yrow, 20).setValue(true)');
+has('⑤発送済☑の列は表に出さない（隠す）', H.cut(gasSrc, 'oosSoukoTrackDone'), 'hideColumns(20)');
+has('⑤送り状NO.の見出しに説明が付く', H.cut(gasSrc, 'oosSoukoTrackDone'), '（書いたら発送完了になります）');
 const fixSrc = H.cut(gasSrc, 'oosYukaFixEdit_');
 has('⑤発送済みの行は修正できない', fixSrc, 'すでに発送済みのため修正できません');
 has('⑤✏️修正あり の目印', fixSrc, '修正あり');
