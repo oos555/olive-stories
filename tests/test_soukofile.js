@@ -324,6 +324,11 @@ has('⑭請求書タブ名は「◯年◯月分」（件名に合わせる）', 
 has('⑭A4請求書PDFも一緒に作る', baInv, 'oosBasaraInvoicePdf_');
 has('⑭A4請求書に3週間の文言', H.cut(gasSrc,'oosBasaraInvoiceHtml_'), 'お支払いは、ご請求書到着後3週間以内にお願いいたします。');
 has('⑭A4請求書の振込先は定数から（発明しない）', H.cut(gasSrc,'oosBasaraInvoiceHtml_'), 'OOS_BASARA_BANK');
+/* ★2026-09-04夜 ひろみさん指示：PDFは保存ボックスへ・バサラ向けは「📄 請求書」リンク集タブ・メールは✅後だけ */
+has('⑭PDFは保存ボックスに貯める', gasSrc, "'バサラスター請求書PDF保存ボックス'");
+has('⑭リンク集タブに毎月1行増える', H.cut(gasSrc,'oosBasaraInvoiceLinkAdd_'), '分の請求書を開く');
+has('⑭メールはシンプル文面（発行しましたのでご確認ください）', H.cut(gasSrc,'oosBasaraInvoiceConfirm_'), '請求書を発行しましたので、ご確認ください');
+has('⑭メールは✅の☑が押されたときだけ', H.cut(gasSrc,'oosBasaraInvoiceConfirm_'), '自動では送らない');
 has('⑭昔の名前の請求書があっても二重には作らない', baInv, "file.getSheetByName('請求書 '+ym)");
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
 /* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
