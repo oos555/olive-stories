@@ -370,7 +370,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-04-02">
+<meta name="oos-version" content="2026-09-04-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1502,11 +1502,33 @@ function soukoNumOf(o){
   var m = String(o && o.note || '').match(/【(?:受注A|バサラスター|STORES)\s+([^\s】]+)】/);
   return m ? m[1].replace(/^[A-Za-z]+[0-9]*[-－]/, '') : '';
 }
+/* ☑の保存：📱梱包ビューと同じ隠し列（konpoPackSave）に「pick番号」で足す。
+   ★2026-09-04夜 ひろみさん指示：「今の倉庫Ｄのチェックの雰囲気がいい。チェックボックスが大きくて、
+   　商品ごとに枠が分かれている。あの状態に」→ 昔の .item / .pick-cb をそのまま再利用 */
+function soukoPickToggle(el, key, i){
+  try{ el.closest('.item').classList.toggle('checked', el.checked); }catch(e){}
+  var o = (allOrders||[]).find(function(x){ return String(x.key||'')===String(key); });
+  if(o){ o.pack = o.pack||{}; o.pack['pick'+i] = el.checked; }
+  if(!key || !o) return;   // ふだの無い昔の行は手元だけのチェック
+  try{
+    fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'konpoPackSave', key:key, state:o.pack }) }).catch(function(){});
+  }catch(e){}
+}
 function soukoCardHtml(o){
-  function qtyTxt(q){ q = String(q==null?'':q).trim(); return q + (/^\d+$/.test(q) ? '本' : ''); }
   var num = soukoNumOf(o);
-  var items = (o.items||[]).map(function(it){
-    return '<tr><td>'+esc(it.name)+'</td><td style="text-align:right;font-weight:800;white-space:nowrap">'+esc(qtyTxt(it.qty))+'</td></tr>';
+  var pk = o.pack||{};
+  var items = (o.items||[]).map(function(it, i){
+    var q = String(it.qty==null?'':it.qty).trim();
+    var qFrame = /^\d+$/.test(q) ? ('合計<b>'+esc(q)+'</b>本') : ('<b>'+esc(q)+'</b>');
+    var ck = pk['pick'+i]===true;
+    return '<div class="item'+(ck?' checked':'')+'">'
+      + '<input type="checkbox" class="pack-check pick-cb" '+(ck?'checked ':'')
+      + 'onchange="soukoPickToggle(this,\''+esc(String(o.key||''))+'\','+i+')">'
+      + '<div class="info">'
+      +   '<div class="pick-row1"><span class="pname pname-pick">'+esc(it.name)+'</span></div>'
+      +   '<div class="pick-row2"><span class="qty-frame">'+qFrame+'</span></div>'
+      + '</div></div>';
   }).join('');
   var docs = '';
   if(String(o.doc||'').trim()){
@@ -1520,8 +1542,9 @@ function soukoCardHtml(o){
   h += '<div style="font-size:12px;color:#8a7f6a;margin:-2px 0 6px">'+(num?('注文番号 '+esc(num)+'　'):'')+'お届け希望 '+esc(o.day||'指定なし')+(o.time?('・'+esc(o.time)):'')+'</div>';
   if(o.fixed) h += '<div style="background:#fff7ed;border:1.5px solid #f59e0b;border-radius:8px;padding:7px 10px;margin:0 0 8px;font-size:13px;color:#92400e;font-weight:700">'+esc(o.fixed)+'（本部が内容を直しました。このカードが最新です）</div>';
   if(o.wait) h += '<div style="background:#fff3e0;border:1.5px solid #fb923c;border-radius:8px;padding:7px 10px;margin:0 0 8px;font-size:13px;color:#9a3412;font-weight:700">✈️ 入荷待ちの商品を含みます。まだ梱包しません（入荷したら本部からご連絡します）</div>';
-  h += '<div class="sk-sec">① 出荷するオイル</div>';
-  h += '<table class="sk-tbl"><tr><th>品名</th><th style="width:80px;text-align:right">本数</th></tr>'+items+'</table>';
+  h += '<div class="sk-sec">① 出荷するオイル（ピッキングしたらチェック）</div>';
+  h += '<div style="font-size:12px;color:#57534e;margin:2px 0 8px">左の大きなチェックは、ご自分の作業チェック用です</div>';
+  h += items;
   h += '<div class="sk-sec">② お届け先</div>';
   h += '<div class="sk-addr"><b>'+esc(o.name||'')+' 様</b><br>'+esc(o.addr||'')+'<br>☎ '+esc(o.tel||'')+'<br>お届け希望日：'+esc(o.day||'指定なし')+'　時間指定：'+esc(o.time||'なし')+'</div>';
   h += '<div class="sk-sec">③ 同梱書類</div>';
