@@ -320,6 +320,10 @@ const baInv = H.cut(gasSrc, 'oosBasaraInvoiceBuild');
 has('⑭請求書は毎月増える（上書き禁止）', baInv, 'すでにあります（上書き禁止）');
 /* ★2026-09-04夜 ひろみさん指示：タブ名は件名（◯年◯月分）に合わせる。「請求書 」の前置きは☑メールの見分け用に残す */
 has('⑭請求書タブ名は「◯年◯月分」（件名に合わせる）', baInv, "'請求書 '+ym+'分'");
+/* ★2026-09-04夜 ひろみさん要望：A4様式の請求書PDF（いつもの書類スタイル）も毎月一緒に作る */
+has('⑭A4請求書PDFも一緒に作る', baInv, 'oosBasaraInvoicePdf_');
+has('⑭A4請求書に3週間の文言', H.cut(gasSrc,'oosBasaraInvoiceHtml_'), 'お支払いは、ご請求書到着後3週間以内にお願いいたします。');
+has('⑭A4請求書の振込先は定数から（発明しない）', H.cut(gasSrc,'oosBasaraInvoiceHtml_'), 'OOS_BASARA_BANK');
 has('⑭昔の名前の請求書があっても二重には作らない', baInv, "file.getSheetByName('請求書 '+ym)");
 has('⑭税はいつもの決まり（食品8%・送料10%・切り捨て）', baInv, 'Math.floor(goodsSum*0.08)');
 /* ★2026-09-04 ひろみさん指示：バサラ請求書の振込先を三井住友（法人口座）に変更。
