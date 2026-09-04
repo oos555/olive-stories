@@ -147,7 +147,8 @@ has('⑤オリジナル無変更の説明がログに出る', H.cut(gasSrc, 'oos
 const reqSrc = H.cut(gasSrc, 'oosYukaRequestEdit_');
 has('⑤商品①が空なら流さない', reqSrc, '商品①が空です');
 has('⑤氏名が空なら流さない', reqSrc, '氏名が空です');
-has('⑤二重転記よけ（キーがあれば流さない）', reqSrc, 'すでに依頼済みです（二重には流れません）');
+/* ★2026-09-04 二重よけは「倉庫のオーダー表に本当にあるか」で見る形に変更（ひろみさん承認・バサラ行の誤ブロック直し） */
+has('⑤二重転記よけ（倉庫にすでにあれば流さない）', reqSrc, 'すでに倉庫へ流れています（二重には流れません）');
 has('⑤昔の発送済み行は流さない', reqSrc, 'すでに発送済みです（昔の注文）');
 has('⑤③のマスは✅依頼済＋日時に変わる', reqSrc, "'✅ 依頼済 ' + stamp");
 const shipSrc = H.cut(gasSrc, 'oosSoukoShippedEdit_');
@@ -322,6 +323,85 @@ has('⑭会社表記は見積Мと同じ（登録番号）', gasSrc, 'T901280102
 const baConf = H.cut(gasSrc, 'oosBasaraInvoiceConfirm_');
 has('⑭本部確認でバサラスターへメール1通', baConf, '請求書のご用意ができました');
 has('⑭メールの宛先は正規のバサラ担当', baConf, 'BASARA_FROM');
+
+/* ── ⑮ スプシ発注の受注Ａ連携（2026-09-04 ひろみさん承認の3点セット）───────
+   ①③の二重よけは「倉庫に本当にあるか」で見る（バサラ行が誤って弾かれない）
+   ②在庫減算は③に一本化（バサラ分はoosYukaStockDeductByKey_で減る・足りないと③が止まる）
+   ③送り状NO.はゆかスプシ・バサラ発注シート・受注Ａ台帳の3か所へ戻る　★消さないでください */
+const req2 = H.cut(gasSrc, 'oosYukaRequestEdit_');
+has('⑮③の二重よけは倉庫の実物で見る', req2, 'すでに倉庫へ流れています');
+has('⑮③で在庫減算が呼ばれる', req2, 'oosYukaStockDeductByKey_(existKey)');
+has('⑮足りないと③が止まる', req2, '在庫が足りないため、倉庫へ流せません');
+has('⑮③で倉庫LINEにシンプル案内', req2, '出荷のご依頼が1件入りました');
+has('⑮LINEに注文番号を書かない（暗号を外に出さない）', req2.indexOf("disp[10]")>=0 && req2.indexOf('+num+')<0 ? 'ok':'ng', 'ok');
+const acc2 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
+has('⑮バサラ☑で受注Ａ台帳に自動記録', acc2, 'basaraAppendOrderRow_');
+has('⑮バサラの送料は常に800円', acc2, "d[10]+' 様', goods, 800");
+has('⑮受付時は在庫を減らさない（減るのは③）', acc2, '在庫はここでは減らさない');
+const tb2 = H.cut(gasSrc, 'oosSoukoTrackBack_');
+has('⑮送り状はバサラ発注シート（24列目）にも戻る', tb2, 'bsh.getRange(brow, 24).setValue(track)');
+has('⑮送り状で受注Ａの注文が発送済みになる', tb2, "setValue('shipped')");
+has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
+
+/* 数字テスト：oosYukaStockDeductByKey_ を本物のまま砂場で動かす */
+{
+  const P15=[{id:1,sku:'ORG250',name:'オルガニック250ml',boxQty:12},
+             {id:9,sku:'SET-B',name:'ギフトB',isSet:true,components:[{sku:'ORG250',qty:2}]}];
+  function makeSheet15(rows){
+    return { rows:rows, writes:[],
+      getLastRow(){ return this.rows.length+1; },
+      getRange(r,c,nr,nc){ const s=this;
+        return { getValues(){ const out=[]; for(let i=0;i<(nr||1);i++){ const rw=s.rows[r-2+i]||[]; out.push(rw.slice(c-1,c-1+(nc||1))); } return out; },
+                 setValue(v){ s.writes.push([r,c,v]); if(s.rows[r-2]) s.rows[r-2][c-1]=v; } }; } };
+  }
+  function box15(orderExtra, zaikoRows, avail){
+    const ord = makeSheet15([['o1','バサラスター','BA-1','卸バサラスター','','','','','','','','pending','','','','','','','',JSON.stringify(orderExtra)]]);
+    const zaiko = makeSheet15(zaikoRows);
+    const b={ console, JSON, Object, Array, String, Number, Math, Date,
+      SHEET_ID_MAIN:'X',
+      SpreadsheetApp:{ openById(){ return { getSheetByName(n){ return n==='受注データ'?ord : n==='在庫データ'?zaiko : null; } }; } },
+      loadProducts(){ return {products:P15}; },
+      basaraComputeStock_(){ return { available(sku){ return avail[sku]; } }; } };
+    const ctx=vm.createContext(b);
+    vm.runInContext(H.cut(gasSrc,'oosYukaStockDeductByKey_'),ctx);
+    return {ctx, ord, zaiko, run(k){ return vm.runInContext('oosYukaStockDeductByKey_('+JSON.stringify(k)+')', ctx); }};
+  }
+  // A) 20本引く：newの棚15+10から順に（15→0、10→5）。oldは触らない
+  let s=box15({yukaKey:'KT', stockDeducted:false, stockLog:[], lines:[{productId:1,bottles:20,boxes:0,boxQty:12}]},
+    [['z1',1,'','','',15,'','new'],['z2',1,'','','',10,'','new'],['z3',1,'','','',99,'','old']], {ORG250:30});
+  let r15=s.run('KT');
+  eq('⑮20本の減算が通る', r15 && r15.status, 'ok');
+  eq('⑮1つ目の棚 15→0', s.zaiko.rows[0][5], 0);
+  eq('⑮2つ目の棚 10→5', s.zaiko.rows[1][5], 5);
+  eq('⑮旧ロットは触らない', s.zaiko.rows[2][5], 99);
+  {
+    const ex=JSON.parse(s.ord.rows[0][19]);
+    eq('⑮引いた印が付く', ex.stockDeducted, true);
+    eq('⑮倉庫へ送った印が付く', ex.notified, true);
+    eq('⑮記録が残る', ex.stockLog.length>0, true);
+  }
+  // B) 販売可能が足りない → 止まる・1本も引かない
+  s=box15({yukaKey:'KT', stockDeducted:false, stockLog:[], lines:[{productId:1,bottles:20,boxes:0,boxQty:12}]},
+    [['z1',1,'','','',15,'','new']], {ORG250:10});
+  r15=s.run('KT');
+  eq('⑮足りないと止まる', r15 && r15.status, 'short');
+  eq('⑮そのとき1本も引かない', s.zaiko.writes.length, 0);
+  // C) もう引いてある → 二重には引かない
+  s=box15({yukaKey:'KT', stockDeducted:true, stockLog:[], lines:[{productId:1,bottles:20,boxes:0,boxQty:12}]},
+    [['z1',1,'','','',15,'','new']], {ORG250:30});
+  r15=s.run('KT');
+  eq('⑮二重には引かない', r15 && r15.status, 'done');
+  eq('⑮二重のとき棚は動かない', s.zaiko.writes.length, 0);
+  // D) セットは中身にほどいて引く（3セット→中身6本）
+  s=box15({yukaKey:'KT', stockDeducted:false, stockLog:[], lines:[{productId:9,bottles:3,boxes:0,boxQty:1}]},
+    [['z1',1,'','','',15,'','new']], {ORG250:30});
+  r15=s.run('KT');
+  eq('⑮セットは中身で引く（15→9）', s.zaiko.rows[0][5], 9);
+  // E) ふだが合わない → 何もしない（ふつうの📥の行）
+  s=box15({yukaKey:'KX', stockDeducted:false, stockLog:[], lines:[{productId:1,bottles:5,boxes:0,boxQty:1}]},
+    [['z1',1,'','','',15,'','new']], {ORG250:30});
+  eq('⑮ひも付く注文が無ければ何もしない', s.run('KT'), null);
+}
 
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);

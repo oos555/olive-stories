@@ -156,7 +156,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .tool-tile:active{filter:brightness(0.97)}
 .tool-tile .tt-ic{font-size:23px;line-height:1}
 .tool-tile .tt-tx{font-size:13px;font-weight:700;margin-top:3px}
-.pk-card{background:#fff;border:1px solid #e5e3da;border-radius:11px;padding:11px 12px;margin-bottom:8px;cursor:pointer}
+.pk-card{background:#fff;border:1px solid #e5e3da;border-radius:11px;padding:11px 12px;margin-bottom:8px}
+/* ★2026-09-04 超シンプル版のカード（承認済みモック：倉庫Dおためし版_超シンプル_2026-09-04.html） */
+.sk-sec{display:inline-block;font-size:12px;font-weight:700;color:#fff;background:#6b7a3a;padding:4px 12px;border-radius:4px;margin:10px 0 6px}
+.sk-tbl{width:100%;border-collapse:collapse;font-size:14px}
+.sk-tbl th{background:#f9f8f5;border:1px solid #e8e2d8;padding:6px 10px;font-size:11px;color:#57534e;text-align:left}
+.sk-tbl td{border:1px solid #e8e2d8;padding:8px 10px}
+.sk-addr{background:#f9f8f5;border-radius:8px;padding:10px 12px;line-height:2;font-size:14px}
+.sk-doc{display:inline-block;background:#fff;border:1.5px solid #1e4f86;color:#1e4f86;font-weight:700;border-radius:8px;padding:9px 16px;margin:4px 6px 0 0;font-size:14px;text-decoration:none}
+.sk-foot{background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:10px 14px;margin-top:12px;font-size:13px;line-height:1.9}
 .pk-card:active{filter:brightness(0.98)}
 .pk-card.pk-urg{background:#fdecec;border-color:#f3c9c9}
 .pk-card.pk-done{background:#f5f3ec}
@@ -362,7 +370,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-08-25-05">
+<meta name="oos-version" content="2026-09-04-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1434,7 +1442,7 @@ async function loadOrderList(isManual){
   // ① まずキャッシュがあれば一瞬で表示（戻ってきたときに待たせない）
   var hadCache = false;
   try{
-    var c = sessionStorage.getItem('oos_pickup_orders_v1');
+    var c = sessionStorage.getItem('oos_pickup_souko_v2');
     if(c){
       var arr = JSON.parse(c);
       if(Array.isArray(arr)){ allOrders = arr; hadCache = true; try{ renderList(); }catch(e){} }
@@ -1444,26 +1452,24 @@ async function loadOrderList(isManual){
     document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   }
   // ② そのあと裏で「必ず最新」を取りに行き、届いたら差し替える（キャッシュ回避）
+  /* ★2026-09-04 ひろみさん指示の超シンプル化：一覧の親は【倉庫スプシのオーダー表】。
+     受注Ａの台帳ではなく、③で流れてきた依頼をそのまま出す（konpoOrders＝📱梱包ビューと同じ読み口）。
+     発送済み（送り状NO.記入済み）とキャンセルは、読み口の側でもう除かれている。★戻さないでください */
   try{
-    const [res, ] = await Promise.all([fetchWithTimeout(bust(GAS_URL + '?action=loadAll')), fetchWarehouseNotes()]);
-    /* 区分の翻訳は下の orders 代入後に行う */
+    const [res, ] = await Promise.all([
+      fetchWithTimeout(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'konpoOrders'}) }),
+      fetchWarehouseNotes()
+    ]);
     const data = await res.json();
-    if(data.status !== 'ok' || !data.data || !Array.isArray(data.data.orders)){
+    if(data.status !== 'ok' || !Array.isArray(data.orders)){
       if(isManual) pickupToast('⚠️ 更新できませんでした。電波を確認してください', true);
       if(!hadCache){ document.getElementById('content').innerHTML = '<div class="alert-danger">一覧を読み込めませんでした。</div><button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700;margin-top:10px" onclick="loadOrderList(true)">🔄 もう一度読み込む</button>'; }
       return;
     }
-    // 出荷待ち（出荷依頼書が送られたもの）＋ 本日 梱包完了したもの（当日中だけグレー表示、23:59を過ぎると自動で消える）
-    data.data.orders.forEach(function(o){ o.customerType = normCtype(o.customerType); });
-    allOrders = data.data.orders.filter(function(o){
-      if(o.notified!==true) return false;
-      if(o.status==='pending') return true;
-      if(o.status==='shipped' && shippedToday(o)) return true;
-      return false;
-    });
-    try{ sessionStorage.setItem('oos_pickup_orders_v1', JSON.stringify(allOrders)); }catch(e){}
+    allOrders = data.orders;
+    try{ sessionStorage.setItem('oos_pickup_souko_v2', JSON.stringify(allOrders)); }catch(e){}
     renderList();
-    if(isManual) pickupToast('✅ 最新にしました（'+allOrders.filter(function(o){return o.status==='pending';}).length+'件）');
+    if(isManual) pickupToast('✅ 最新にしました（'+allOrders.length+'件）');
   }catch(err){
     var isAbort = (err && (err.name==='AbortError'));
     if(isManual) pickupToast(isAbort ? '⚠️ サーバーの反応がありません（時間切れ）。もう一度お試しください' : '⚠️ 更新できませんでした。電波を確認してください', true);
@@ -1488,28 +1494,51 @@ function recipientLabel(o){
   return o.recipientName || o.client;
 }
 
-function renderList(){
-  const urgent = allOrders.filter(o=>o.leadType==='urgent').length;
-  const gift = allOrders.filter(o=>(o.lines||[]).some(l=>l.giftType==='gift')).length;
-  const overdue = allOrders.filter(o=>isOverdue(o)).length;
-  let html = '';
-  html += '<div class="home-banner no-print"><div class="hb-title">🏠 出荷依頼書 一覧</div><div class="hb-sub">（この画面がホームです）</div></div>';
-  // アプリ内の「このアプリは何をする場所？」説明は、別の「倉庫の手引き」ページ(soko-tebiki.html)へ集約したため削除。
-  if(overdue){
-    html += '<div class="alert-danger no-print">⏰ 出荷期限を過ぎているものが'+overdue+'件あります。優先して確認してください。</div>';
+/* ★2026-09-04 ひろみさん指示の超シンプル化（承認済みモック：倉庫Dおためし版_超シンプル_2026-09-04.html）
+   1つの依頼に載るのは ①出荷するオイル ②お届け先 ③同梱書類 だけ。
+   梱包完了ボタン・チェックリストは無し＝倉庫スプシに送り状NO.を書いたら発送完了。
+   ?id= で開く読むだけ画面（書類の確認）は今までどおり残っている。★戻さないでください */
+function soukoNumOf(o){
+  var m = String(o && o.note || '').match(/【(?:受注A|バサラスター|STORES)\s+([^\s】]+)】/);
+  return m ? m[1].replace(/^[A-Za-z]+[0-9]*[-－]/, '') : '';
+}
+function soukoCardHtml(o){
+  function qtyTxt(q){ q = String(q==null?'':q).trim(); return q + (/^\d+$/.test(q) ? '本' : ''); }
+  var num = soukoNumOf(o);
+  var items = (o.items||[]).map(function(it){
+    return '<tr><td>'+esc(it.name)+'</td><td style="text-align:right;font-weight:800;white-space:nowrap">'+esc(qtyTxt(it.qty))+'</td></tr>';
+  }).join('');
+  var docs = '';
+  if(String(o.doc||'').trim()){
+    docs += o.docUrl ? '<a class="sk-doc" href="'+esc(o.docUrl)+'" target="_blank" rel="noopener">📄 '+esc(o.doc)+'（ひらく）</a>'
+                     : '<span class="sk-doc" style="border-color:#a8a29e;color:#57534e">📄 '+esc(o.doc)+'</span>';
   }
+  var doc2 = String(o.doc2||'').trim();
+  var doc2Html = doc2 ? (o.doc2Url ? '<a href="'+esc(o.doc2Url)+'" target="_blank" rel="noopener">'+esc(doc2)+'</a>' : esc(doc2)) : 'なし';
+  var h = '<div class="pk-card">';
+  h += '<div class="pk-top"><span class="pk-name">'+esc(o.name||'')+' 様</span></div>';
+  h += '<div style="font-size:12px;color:#8a7f6a;margin:-2px 0 6px">'+(num?('注文番号 '+esc(num)+'　'):'')+'お届け希望 '+esc(o.day||'指定なし')+(o.time?('・'+esc(o.time)):'')+'</div>';
+  if(o.fixed) h += '<div style="background:#fff7ed;border:1.5px solid #f59e0b;border-radius:8px;padding:7px 10px;margin:0 0 8px;font-size:13px;color:#92400e;font-weight:700">'+esc(o.fixed)+'（本部が内容を直しました。このカードが最新です）</div>';
+  if(o.wait) h += '<div style="background:#fff3e0;border:1.5px solid #fb923c;border-radius:8px;padding:7px 10px;margin:0 0 8px;font-size:13px;color:#9a3412;font-weight:700">✈️ 入荷待ちの商品を含みます。まだ梱包しません（入荷したら本部からご連絡します）</div>';
+  h += '<div class="sk-sec">① 出荷するオイル</div>';
+  h += '<table class="sk-tbl"><tr><th>品名</th><th style="width:80px;text-align:right">本数</th></tr>'+items+'</table>';
+  h += '<div class="sk-sec">② お届け先</div>';
+  h += '<div class="sk-addr"><b>'+esc(o.name||'')+' 様</b><br>'+esc(o.addr||'')+'<br>☎ '+esc(o.tel||'')+'<br>お届け希望日：'+esc(o.day||'指定なし')+'　時間指定：'+esc(o.time||'なし')+'</div>';
+  h += '<div class="sk-sec">③ 同梱書類</div>';
+  h += '<div>'+(docs||'<span style="color:#8a7f6a">なし</span>')+'<div style="font-size:12px;color:#8a7f6a;margin-top:4px">ほかに同梱：'+doc2Html+'</div></div>';
+  if(String(o.note||'').trim()) h += '<div style="font-size:12px;color:#57534e;background:#f9f8f5;border-radius:8px;padding:7px 10px;margin-top:8px">📝 '+esc(o.note)+'</div>';
+  h += '<div class="sk-foot">✅ 発送が終わったら、<b>倉庫スプシ（オーダー表）の「送り状NO.」</b>に番号を書いてください。<b>書いたら発送完了</b>になります（この画面で押すボタンはありません）。</div>';
+  h += '</div>';
+  return h;
+}
+function renderList(){
+  let html = '';
+  html += '<div class="home-banner no-print"><div class="hb-title">🚚 出荷のご依頼</div><div class="hb-sub">（この画面がホームです）</div></div>';
   const globalNote = getGlobalNote();
   if(globalNote){
     html += '<div class="note-box no-print" style="margin-bottom:14px">📌 '+esc(globalNote).replace(/\n/g,'<br>')+'</div>';
   }
-  // 集計は「梱包待ち（pending）」だけを数える（完了分は含めない）
-  const pendingList = allOrders.filter(function(o){return o.status==='pending';});
-  const urgentPending = pendingList.filter(function(o){return o.leadType==='urgent';}).length;
-  html += '<div class="watch-metrics no-print">';
-  html += '<div class="wm-card wm-urg"><div class="wm-label">急ぎ・未梱包</div><div class="wm-num">'+urgentPending+'<span class="wm-unit"> 件</span></div></div>';
-  html += '<div class="wm-card wm-pend"><div class="wm-label">梱包待ち 合計</div><div class="wm-num">'+pendingList.length+'<span class="wm-unit"> 件</span></div></div>';
-  html += '</div>';
-  html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 出荷依頼書を更新</button>';
+  html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 一覧を更新</button>';
   html += '<details class="tools-box no-print">';
   html += '<summary><span>🧰 その他のボタン（不良品・メモ・在庫・履歴）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
   html += '<div class="tool-grid">';
@@ -1523,49 +1552,9 @@ function renderList(){
   html += '</div>';
   html += '</details>';
   if(!allOrders.length){
-    html += '<div class="card center" style="color:#57534e">現在、届いている出荷依頼書はありません。</div>';
+    html += '<div class="card center" style="color:#57534e">現在、出荷のご依頼はありません。</div>';
   } else {
-    const sorted = allOrders.slice().sort(function(a,b){
-      // 梱包待ちを上・梱包終了を下。待ちの中は 期限超過→急ぎ→登録が古い順。終了は完了が新しい順
-      const as = a.status==='shipped'?1:0, bs = b.status==='shipped'?1:0;
-      if(as!==bs) return as-bs;
-      if(as===1){ return String(b.shippedAt||'').localeCompare(String(a.shippedAt||'')); }
-      const ao = isOverdue(a)?0:1, bo = isOverdue(b)?0:1;
-      if(ao!==bo) return ao-bo;
-      const au = a.leadType==='urgent'?0:1, bu = b.leadType==='urgent'?0:1;
-      if(au!==bu) return au-bu;
-      return (a.registeredAt||'').localeCompare(b.registeredAt||'');
-    });
-    sorted.forEach(function(o){
-      const shipped = (o.status==='shipped');
-      const urgentNow = (!shipped && o.leadType==='urgent');
-      const overdueNow = isOverdue(o);
-      const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
-      const custNote = findCustomerNote(o.client);
-      const cardCls = shipped ? 'pk-card pk-done' : (urgentNow ? 'pk-card pk-urg' : 'pk-card');
-      const marks = ''
-        + (urgentNow?'<span class="wt-mk wt-mk-urg">急ぎ</span>':'')
-        + (overdueNow?'<span class="wt-mk wt-mk-over">⏰期限超過</span>':'')
-        + (hasNoshi(o)?'<span class="wt-mk">🎀</span>':'')
-        + (custNote?'<span class="wt-mk">📝</span>':'')
-        + (hasGift?'<span class="wt-mk">🎁</span>':'');
-      const wishHtml = o.leadDate ? '<b class="pk-wish-has">'+esc(fmtMD(o.leadDate))+'</b>' : '<b>なし</b>';
-      const stat = shipped
-        ? '<span class="pk-stat-done">✓ 梱包終了<span class="pk-time">'+esc(shippedTimeShort(o))+'</span></span>'
-        : '<span class="pk-stat-wait">🕐 梱包待ち</span>';
-      // 一覧カードの本数：箱の分もふくめた「合計の本数」を出す。
-      // （以前はバラの本数だけを出していたため、1箱＋2本＝14本の注文が「×2」に見えていた）
-      const products = (o.lines||[]).map(function(l){
-        const bx = l.boxes||0, bt = l.bottles||0;
-        return esc(l.productName)+' ×'+lineTotal(l)+'本'+(bx?'（'+bx+'箱'+(bt?'＋'+bt+'本':'')+'）':'');
-      }).join('、');
-      html += '<div class="'+cardCls+'" onclick="openOrderInPage(\''+String(o.id).replace(/'/g,"\\'")+'\')">';
-      html +=   '<div class="pk-top"><span class="pk-name">'+esc(recipientLabel(o))+'</span>'+stat+'</div>';
-      if(marks) html += '<div class="pk-marks">'+marks+'</div>';
-      html +=   '<div class="pk-items">'+products+'</div>';
-      html +=   '<div class="pk-dates"><span>依頼日 <b>'+esc(fmtMD(o.registeredAt))+'</b></span><span>希望日 '+wishHtml+'</span></div>';
-      html += '</div>';
-    });
+    allOrders.forEach(function(o){ html += soukoCardHtml(o); });
   }
   try{
     if(localStorage.getItem('oos_atelier_ok')==='1' || localStorage.getItem('oos_home_ok')==='1'){
@@ -2286,7 +2275,7 @@ async function submitDefectFix(id){
       var svd = await sv.json();
       if(svd.status!=='ok'){ alert('送信に失敗しました：'+(svd.message||'')); if(btn){ btn.disabled=false; btn.textContent='この状態で本部に報告する'; } return; }
     }
-    try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
+    try{ sessionStorage.removeItem('oos_pickup_souko_v2'); }catch(e){}
     var wrap = document.getElementById('df-fix-'+id);
     if(wrap) wrap.innerHTML = '<div style="background:#eef7ea;border:1px solid #86c096;border-radius:9px;padding:11px;margin-top:10px;font-size:14px;color:#166534;font-weight:700">✅ 「'+esc(oldLv.name)+'→'+esc(newLv.name)+'」で本部に報告しました</div>';
   }catch(err){
@@ -2395,7 +2384,7 @@ async function submitDefect(){
      ★「LINEでの重ねてのご連絡は不要です」は書きません（圧に感じさせるため）。
      ★戻さないでください。 */
   function showDone(){
-    try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
+    try{ sessionStorage.removeItem('oos_pickup_souko_v2'); }catch(e){}
     document.getElementById('content').innerHTML =
       '<div class="done-banner">報告ありがとうございました<br><span style="font-size:13px;font-weight:400">'+esc(p.name)+'　'+qty+'本　['+esc(lv.name)+'／'+esc(lv.seal)+'シール]</span></div>'+
       '<div style="background:#f5f8ef;border:1px solid #cdd7b8;border-radius:8px;padding:11px 13px;font-size:13.5px;color:#2b2a26;line-height:1.85;margin-bottom:12px">事務所に届きました。いつもありがとうございます。</div>'+
@@ -2538,7 +2527,7 @@ async function completeOrder(){
     const data = await res.json();
     if(data.status === 'ok'){
       // 在庫は受注A（受注・出荷）が送信時に減らすため、倉庫Dでは在庫をさわらない（梱包完了にするだけ）
-      try{ sessionStorage.removeItem('oos_pickup_orders_v1'); }catch(e){}
+      try{ sessionStorage.removeItem('oos_pickup_souko_v2'); }catch(e){}
       document.getElementById('content').innerHTML =
         '<div class="done-banner">✅ 梱包完了として登録しました<br><span style="font-size:13px;font-weight:400">'+esc(currentOrder.num)+'</span></div>'+
         '<button class="btn-big btn-print no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</button>';
