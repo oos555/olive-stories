@@ -350,7 +350,11 @@ has('⑮旧オーダー表の道も同じ部品を呼ぶ', H.cut(gasSrc,'oosSouk
 has('⑯赤ボタンの文言（ひろみさん指定そのまま）', gasSrc, "OOS_YUKA_BTN_STOP = 'OOS未チェック 発送しないでください（登録済）'");
 has('⑯青ボタンの文言', gasSrc, "OOS_YUKA_BTN_GO   = '発送してください'");
 const goSrc = H.cut(gasSrc, 'oosYukaShipGo_');
-has('⑯青にした瞬間 倉庫LINEへ1通', goSrc, '出荷のご依頼が1件入りました');
+/* ★2026-09-04夜 ひろみさん指示：ピッキングリスト型（☐付き商品・お名前・同梱書類・📱リンク） */
+has('⑯青にした瞬間 倉庫LINEへ1通（前の②と同じ形）', goSrc, '新しい出荷依頼です');
+has('⑯商品は☐付きで1行ずつ', goSrc, "'　☐ '+nm+' × '+q");
+has('⑯同梱書類も載る', goSrc, '同梱書類：');
+has('⑯押せるチェックは📱梱包ビューへ', goSrc, 'konpo.html');
 has('⑯在庫が足りなければ赤に戻して止める', goSrc, 'まだ発送できません');
 has('⑯LINEの二重送り防止（📨の印）', goSrc, "indexOf('📨')");
 has('⑯倉庫スプシへの転記コードが無い', goSrc.indexOf('オーダー表')<0 ? 'ok':'ng', 'ok');
