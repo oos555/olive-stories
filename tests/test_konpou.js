@@ -138,6 +138,25 @@ function box(){
   has('⑥GASが17・18列に同梱書類', H.cut(gas,'oosYukaImportOrder'), "String(order.docNouhin||''), String(order.docHoka||''), ''");
   has('⑥列は増やしていない（発送済は20列目のまま）', H.cut(gas,'oosYukaImportOrder'), 'sh.getRange(newRow, 20).insertCheckboxes();');
 }
+/* ── ⑦ ギフトなのに金額の紙が選ばれていたら注意（2026-09-06 ひろみさん指示）
+   倉庫Ｄの決まり（ゆかさん報告⑦）とまったく同じ数え方にする：
+   ギフト ＋ よそ様あて（届け先≠発注元）＋ RT・RTGC以外 ＋ 金額のわかる紙が選ばれている。
+   ★出すだけ。勝手に外さない・登録も止めない（決めるのは人）── */
+{
+  const w = H.cut(idx,'pkgSyncWarn');
+  has('⑦注意の枠がカードの中にある', H.cut(idx,'pkgBlockHtml'), 'data-role="giftMoneyWarn"');
+  has('⑦金額のわかる紙の一覧', idx, "var PKG_MONEY_DOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書'];");
+  has('⑦ギフトのときだけ', w, "pkgKindOf(card) === 'gift'");
+  has('⑦RT・RTGCは出さない（ギフトでも金額入り書類が必須）', w, "isRt = (v==='rt' || v==='rtgc')");
+  has('⑦よそ様あてのときだけ（届け先≠発注元）', w, 'toOther = !!to && !!from && (to !== from)');
+  has('⑦文言は倉庫Ｄと同じ言い回し', w, '🎁 よそ様あてのギフトです');
+  has('⑦どの紙が選ばれているかを名前で出す', w, "hit.map(esc).join('・')");
+  no('⑦勝手に紙を外さない', w, "classList.remove('on')");
+  no('⑦登録を止めない（alertを出さない）', w, 'alert(');
+  has('⑦種類を変えたら見直す', H.cut(idx,'setPkgKind'), 'pkgSyncWarn(card);');
+  has('⑦札を押したら見直す', H.cut(idx,'encTog'), 'pkgSyncWarn(card);');
+  has('⑦名前を打ち直しても見直す', H.cut(idx,'addRecipient'), "_el.addEventListener('input', function(){ if(typeof pkgSyncWarn==='function') pkgSyncWarn(card); });");
+}
 console.log('===== 📦 梱包の指示（2026-09-05）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

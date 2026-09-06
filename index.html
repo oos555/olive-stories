@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-05-01">
+<meta name="oos-version" content="2026-09-06-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2660,6 +2660,9 @@ function pkgBlockHtml(id){
       '<div data-role="encOtherWrap" style="display:none;margin-top:6px"><input type="text" data-role="encOther" placeholder="例：お礼状を同封" style="padding:7px 9px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px;min-width:220px"></div>'+
       '<div class="pkg-hint" style="margin-top:5px">入れるものを押してください（いくつでもOK／1つも押さなければ「同梱書類なし」）</div>'+
     '</div></div>'+
+    /* ★2026-09-05 ひろみさん指示：ギフトなのに金額の紙が選ばれていたら、受注Ａでも気づけるようにする。
+       数え方は倉庫Ｄとまったく同じ（ギフト＋よそ様あて＋RT以外）。★勝手に外しません・止めません */
+    '<div data-role="giftMoneyWarn" style="display:none;background:#fbeaea;border:2px solid #dc2626;color:#991b1b;border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:13px;line-height:1.7"></div>'+
     '<div class="pkg-row"><span class="pkg-lb">送り状の貼り方</span><span class="pkg-fixed">倉庫さんにおまかせ</span></div>'+
   '</div>';
 }
@@ -2732,6 +2735,37 @@ function pkgSummaryHtml(o){
     + '<div style="font-size:12px;font-weight:800;color:#33421f">📦 梱包の指示</div>' + pkgTableHtml(o) + '</div>';
 }
 /* この届け先カードの書類の札を、指定どおりにする（docs＝入れる紙の名前の配列／pamph＝パンフレット） */
+/* ★2026-09-05 ひろみさん指示：ギフトなのに「金額のわかる紙」が選ばれていたら注意を出す。
+   数え方は倉庫Ｄの決まりに合わせる（ゆかさん報告⑦）：
+   ・この届け先が 🎁 ギフト
+   ・お届け先の名前が 発注元と違う（よそ様あて）
+   ・区分が RT・RTGC ではない（RTはギフトでも金額入り書類が必須）
+   ・金額のわかる紙が選ばれている
+   ★出すだけです。勝手に外しません・登録も止めません（決めるのは人） */
+var PKG_MONEY_DOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書'];
+function pkgSyncWarn(card){
+  if(!card) return;
+  var box = card.querySelector('[data-role=giftMoneyWarn]'); if(!box) return;
+  var show = false, hit = [];
+  if(pkgKindOf(card) === 'gift'){
+    var v = (document.getElementById('o-ctype')||{}).value || '';
+    var isRt = (v==='rt' || v==='rtgc');
+    var norm = function(x){ return String(x==null?'':x).split(' ').join('').split('　').join(''); };
+    var to = (typeof recipientDisplayName==='function') ? norm(recipientDisplayName(card)) : '';
+    var from = norm((document.getElementById('o-client')||{}).value || '');
+    var toOther = !!to && !!from && (to !== from);
+    card.querySelectorAll('.pkg-doc.on').forEach(function(x){
+      var d = x.getAttribute('data-doc');
+      if(PKG_MONEY_DOCS.indexOf(d) >= 0) hit.push(d);
+    });
+    show = !isRt && toOther && hit.length > 0;
+  }
+  box.style.display = show ? '' : 'none';
+  if(show){
+    box.innerHTML = '<b>🎁 よそ様あてのギフトです</b><br>金額のわかる紙（<b>' + hit.map(esc).join('・') + '</b>）が選ばれています。'
+      + 'お相手に値段が見えてしまいます。入れないなら、上の札をもう一度押して外してください。';
+  }
+}
 function pkgSetDocs(card, docs, pamph){
   if(!card) return;
   var other = null;
@@ -2753,6 +2787,7 @@ function pkgSetDocs(card, docs, pamph){
     if(inp) inp.value = '';
     if(wrap) wrap.style.display = 'none';
   }
+  pkgSyncWarn(card);
 }
 /* 注文（o）の内容を、届け先カードの「📦 梱包の指示」に戻す（コピーして再登録・取込のとき） */
 function pkgFillCard(card, o){
@@ -2784,6 +2819,7 @@ function setPkgKind(cardId, kind){
   card.querySelector('[data-role=paneNormal]').style.display = (kind==='normal') ? '' : 'none';
   card.querySelector('[data-role=paneGift]').style.display   = (kind==='gift')   ? '' : 'none';
   pkgSyncNoshi(card);
+  pkgSyncWarn(card);
 }
 function pkgKindOf(card){ var b=card.querySelector('[data-role=kindGift]'); return (b && b.className==='ong') ? 'gift' : 'normal'; }
 function pkgPick(el){
@@ -2812,6 +2848,7 @@ function pkgSyncNoshi(card){
 function encTog(el){
   el.classList.toggle('on');
   var card = el.closest('.recipient-card'); if(!card) return;
+  pkgSyncWarn(card);
   var other = card.querySelector('.pkg-doc[data-doc="__other"]');
   var wrap  = card.querySelector('[data-role=encOtherWrap]');
   if(wrap) wrap.style.display = (other && other.classList.contains('on')) ? '' : 'none';
@@ -2857,6 +2894,7 @@ function pkgApplyCtype(card, fresh){
     pam.classList.toggle('on', !off);
   }
   var w = card.querySelector('[data-role=encOtherWrap]'); if(w) w.style.display='none';
+  pkgSyncWarn(card);
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
@@ -3101,6 +3139,17 @@ function addRecipient(){
   addRecipientLine(id);
   renumberRecipients();
   if(typeof pkgApplyCtype==='function') pkgApplyCtype(card, true);   /* ★2026-09-05 同梱書類の初期値（区分ごと・いままで通り） */
+  /* ★2026-09-05 お届け先やお客様の名前を打ち直したときも、ギフトの注意を出し直す（よそ様あての判定に使うため） */
+  card.querySelectorAll('[data-role=personName],[data-role=companyName]').forEach(function(_el){
+    _el.addEventListener('input', function(){ if(typeof pkgSyncWarn==='function') pkgSyncWarn(card); });
+  });
+  if(!window.__pkgClientHooked){
+    window.__pkgClientHooked = true;
+    var _cl = document.getElementById('o-client');
+    if(_cl) _cl.addEventListener('input', function(){
+      document.querySelectorAll('.recipient-card').forEach(function(_c){ if(typeof pkgSyncWarn==='function') pkgSyncWarn(_c); });
+    });
+  }
   applyGiftModeToRecipients();
 }
 function toggleRecipientOverride(cardId){
@@ -3523,6 +3572,7 @@ function updateRecycleLock(cardId){
       if(isNew) x.classList.add('on');
     }
   });
+  if(typeof pkgSyncWarn==='function') pkgSyncWarn(card);
 }
 function removeRecipientLine(cardId, lineId){
   const el = document.getElementById(lineId);

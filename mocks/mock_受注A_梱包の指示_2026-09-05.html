@@ -140,6 +140,8 @@
         <span class="doc on" data-d="パンフレット" onclick="tog(this)">パンフレット</span>
       </div>
       <div class="hint" style="margin-top:5px">入れるものを押してください（<b>いくつでもOK</b>／1つも押さなければ「書類なし」）</div></div>
+    <!-- ★2026-09-06 ひろみさん指示：ギフトなのに金額のわかる紙が選ばれていたら注意を出す（倉庫Ｄと同じ数え方） -->
+    <div id="giftwarn" style="display:none;background:#fbeaea;border:2px solid #dc2626;color:#991b1b;border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:13px;line-height:1.7"></div>
     </div>
   </div>
 </div>
@@ -196,7 +198,17 @@ function noshiText(){
   var c=document.getElementById('n-com').value.trim(), p=document.getElementById('n-pos').value.trim();
   return st.noshi+'（'+t+(n?' '+n:'')+(c?' '+c:'')+(p?' '+p:'')+'）';
 }
+var MONEY=['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書'];
+/* ★2026-09-06 ギフト＋よそ様あて＋RT以外＋金額の紙 のときだけ出す（倉庫Ｄと同じ数え方）。出すだけで、勝手には外しません */
+function syncWarn(){
+  var w=document.getElementById('giftwarn'); if(!w) return;
+  var hit=docsIn().filter(function(d){ return MONEY.indexOf(d)>=0; });
+  var show=(st.kind==='gift') && hit.length>0;
+  w.style.display=show?'':'none';
+  if(show) w.innerHTML='<b>🎁 よそ様あてのギフトです</b><br>金額のわかる紙（<b>'+hit.join('・')+'</b>）が選ばれています。お相手に値段が見えてしまいます。入れないなら、上の札をもう一度押して外してください。';
+}
 function render(){
+  syncWarn();
   var ins = docsIn(), out = ALLDOCS.filter(function(d){ return ins.indexOf(d)<0; });
   /* スプシの1行 */
   var pkg = (st.kind==='normal')
