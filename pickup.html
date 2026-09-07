@@ -371,7 +371,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-07-01">
+<meta name="oos-version" content="2026-09-07-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1602,10 +1602,28 @@ function soukoCardHtml(o){
   var _addr = String(o.addr||'').trim();
   var _addrLine = (_z && _addr.indexOf('〒') !== 0) ? ('〒'+_z+'<br>'+esc(_addr)) : esc(_addr);
   h += '<div class="sk-addr"><b>'+esc(o.name||'')+' 様</b><br>'+_addrLine+'<br>☎ '+esc(o.tel||'')+'<br>お届け希望日：'+esc(o.day||'指定なし')+'　時間指定：'+esc(o.time||'なし')+'</div>';
-  h += '<div class="sk-sec">③ 同梱書類</div>';
+  /* ★2026-09-07 ひろみさん指示：送り主（ご依頼主）は送り状に必ず要る。★消さないでください。
+     贈り物のときは、お届け先と送り主がちがいます。 */
+  var _sz = String(o.sZip||'').trim().replace(/^〒/,'');
+  var _sName = String(o.sName||'').trim();
+  var _sAddr = String(o.sAddr||'').trim();
+  var _sTel  = String(o.sTel||'').trim();
+  h += '<div class="sk-sec">③ 送り主（ご依頼主）</div>';
+  if(_sName || _sAddr || _sTel){
+    h += '<div class="sk-addr"><b>'+esc(_sName||'（お名前なし）')+'</b>'
+       + (_sz ? ('<br>〒'+esc(_sz)) : '')
+       + (_sAddr ? ('<br>'+esc(_sAddr)) : '')
+       + (_sTel ? ('<br>☎ '+esc(_sTel)) : '')
+       + '</div>';
+  } else {
+    h += '<div class="sk-addr" style="background:#fff3e0;border:1.5px solid #fb923c;color:#9a3412;font-weight:700">'
+       + '⚠️ 送り主が入っていません。本部にご確認ください（送り状の「ご依頼主」欄に必要です）。</div>';
+  }
+  h += '<div class="sk-sec">④ 同梱書類</div>';
   h += '<div>'+(docs||'<span style="color:#8a7f6a">なし</span>')+'<div style="font-size:12px;color:#8a7f6a;margin-top:4px">ほかに同梱：'+doc2Html+'</div></div>';
   if(String(o.note||'').trim()) h += '<div style="font-size:12px;color:#57534e;background:#f9f8f5;border-radius:8px;padding:7px 10px;margin-top:8px">📝 '+esc(o.note)+'</div>';
-  h += '<div class="sk-foot">✅ 発送が終わったら、<b>ゆかスプシ（発注書）のこの注文の行の「送り状NO.」</b>に番号を書き、<b>T列の「発送済」に☑</b>してください。</div>';
+  /* ★2026-09-07 列が動くので、案内で列名（T列など）を言わない。見出しの名前で言う */
+  h += '<div class="sk-foot">✅ 発送が終わったら、<b>発注書のこの注文の行の「送り状NO.」</b>に番号を書き、そのとなりの<b>「発送済」に☑</b>してください。</div>';
   /* ★2026-09-04夜 ひろみさん指示：一番下に梱包終了ボタン。押すとこの1件が一覧から消える
      （📱梱包ビューの梱包終了と同じ印 pack.packed＝両方の画面でそろって消える）。
      スプシには全部残るので、ダブルチェック・振り返りはスプシで。★消さないでください */
