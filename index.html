@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-07-01">
+<meta name="oos-version" content="2026-09-07-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1963,9 +1963,14 @@ function bust(url){ return url + (url.indexOf('?')>=0?'&':'?') + '_ts=' + Date.n
    No.12 お届け日指定：営業日エンジン（お休みの大もと＝送料・約束ごとS soryo.html。計算ロジックは各アプリ共通）
    ・休業日＝定休（水・日）＋祝日（自動判定）＋特別休業　※土曜は営業日
    ・特別休業は「お休みの大もと（送料・約束ごとS soryo.html のカレンダー）」＝GASから読む（ハードコードしない）
-   ・お届け日指定は 発注日から7営業日目以降だけ選べる（発注日＝1営業日目。それより前は選べない）
+   ・お届け日指定は 発注日から6日目以降（発注日＝1日目・暦のまま／長期休暇だけとばす）
    ════════════════════════════════════════════════════════════════ */
-const DELIVERY_MIN_BIZ_DAYS = 7;   // 発注日から7営業日目〔発注日＝1営業日目〕以降を指定可
+/* ★2026-09-07 ひろみさん決定：お届け日指定の最短は【発注日から6日目】。
+   数え方は【暦のまま】で、水・日・祝は【数える】。
+   飛ばすのは【長期休暇（夏休み・年末年始などの特別休業）】だけ。
+   ★7営業日（水・日・祝もとばす数え方）に戻さないでください。
+   　7営業日だと実際には10日以上先になり、お約束（6日）より遅い日しか選べませんでした。 */
+const DELIVERY_MIN_DAYS = 6;   // 発注日から6日目〔発注日＝1日目〕以降を指定可（長期休暇はとばす）
 var specialHolidays = [];      // {id, name, sMM, sDD, eMM, eDD}
 var holidaysLoaded = false;
 var _holCache = {};
@@ -2064,8 +2069,17 @@ function bizDayInclusive(from, n){
     d.setDate(d.getDate()+1);
   }
 }
-/* 今日から見た「最短お届け日」＝発注日から7営業日目（発注日＝1営業日目） */
-function earliestDeliveryDate(){ return bizDayInclusive(new Date(), DELIVERY_MIN_BIZ_DAYS); }
+/* 暦で n 日目。ただし長期休暇（特別休業）の日は数えない（水・日・祝は数える） */
+function dayInclusiveSkipLongBreak(from, n){
+  var d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  var c = 0;
+  while(true){
+    if(!isSpecialHoliday(d)){ c++; if(c>=n) return d; }
+    d.setDate(d.getDate()+1);
+  }
+}
+/* 今日から見た「最短お届け日」＝発注日から6日目（発注日＝1日目・長期休暇はとばす） */
+function earliestDeliveryDate(){ return dayInclusiveSkipLongBreak(new Date(), DELIVERY_MIN_DAYS); }
 async function loadHolidays(){
   try{
     var res = await fetch(GAS_URL + '?action=loadHolidays');
@@ -2090,7 +2104,7 @@ function applyDeliveryMin(card){
   input.min = fmtISO(min);
   if(input.value && input.value < input.min){ input.value = ''; }
   var hint = card.querySelector('[data-role=leadDateHint]');
-  if(hint) hint.textContent = '最短お届け日：'+hFmtMD(min)+'（発注日から7営業日目。発注日を1営業日目として数え、水・日・祝日・特別休業はとばします〔土曜は営業日〕）。これより前の日は選べません。';
+  if(hint) hint.textContent = '最短お届け日：'+hFmtMD(min)+'（発注日から6日目。発注日を1日目として数えます。長期休暇（夏休み・年末年始）はとばします）。これより前の日も入れられますが、確認が出ます。';
 }
 function refreshAllDeliveryMins(){
   document.querySelectorAll('.recipient-card').forEach(function(card){
@@ -3859,14 +3873,23 @@ function buildOrdersFromForm(){
   /* ★2026-09-05 同梱書類・パンフレットは お届け先カードごと（下の list に r.enclosedDoc / r.includePamphlet で入る） */
 
   const recipients = collectRecipients();
-  // No.12 お届け日指定チェック：日程指定は発注日から7営業日目以降のみ選べる（発注日＝1営業日目）
+  /* ★2026-09-07 ゆかさんの指摘＋ひろみさん決定：
+     希望到着日を書いたのに「リードタイムに合わない」で先へ進めないと、急ぎの相談ができない。
+     → 最短より前の日でも【止めずに、確認を出して進める】。日にちを書いていないときだけ止める。
+     ★黙って通す形にはしないでください（倉庫が間に合わない日を、気づかずに約束してしまいます） */
   const _minISO = fmtISO(earliestDeliveryDate());
+  var _late = [];
   for(var _ri=0; _ri<recipients.length; _ri++){
     var _r = recipients[_ri];
     if(_r.lead==='scheduled'){
       if(!_r.leadDate){ alert('「日程指定」の届け先は、希望到着日を入れてください。'); return; }
-      if(_r.leadDate < _minISO){ alert('お届け日指定は発注日から7営業日目以降しか選べません。\n最短お届け日：'+hFmtMD(earliestDeliveryDate())+' 以降を選んでください。'); return; }
+      if(_r.leadDate < _minISO) _late.push('　・'+(_r.name||('お届け先'+(_ri+1)))+'：'+_r.leadDate);
     }
+  }
+  if(_late.length){
+    if(!confirm('⚠️ 最短お届け日より前の日が入っています。\n\n'+_late.join('\n')
+      +'\n\n最短お届け日：'+hFmtMD(earliestDeliveryDate())+'（発注日から6日目・長期休暇はとばします）\n\n'
+      +'倉庫が間に合わないことがあります。この日で進めますか？')) return;
   }
   const list = [];
   recipients.forEach(function(r, i){

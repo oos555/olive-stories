@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-09-07-01">
 <script src="oos-version.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
@@ -463,7 +463,7 @@
   "lead": {
     "hurry":  "翌営業日までに出荷します（お休みの日は動きません）。",
     "normal": "1週間以内にお手元に届くように発送します。",
-    "date":   "発注日を1営業日目として数え、7営業日目以降のお届け日をお選びいただけます。",
+    "date":   "発注日を1日目として数え、6日目以降のお届け日をお選びいただけます（長期休暇はとばします）。",
     "holiday":"発送のお休み＝水・日・祝（土曜は営業）＋夏休み・年末年始",
     "rt":"連休（夏休み・年末年始・ゴールデンウィークなど）を除いて、<b>発注日を1日目として数えた5日目</b>が、最短のお届け日（納期）です。<br>※ RTは<b>水・日・祝も数えます</b>。数えないのは<b>連休（特別休業）だけ</b>です。（例：月曜発注 → 金曜が最短。ホテルへの週末納品もOK）"
   }
@@ -677,11 +677,19 @@ function renderBusinessPreview(){
   var today = new Date(); today.setHours(0,0,0,0);
   var deliverBy = new Date(today.getTime()); deliverBy.setDate(deliverBy.getDate()+7);
   var rush    = addBusinessDays(today, 1);
-  var deliver = bizDayInclusive(today, 7);
+/* ★2026-09-07 ひろみさん決定：お届け日指定の最短は【発注日から6日目】。
+   数え方は【暦のまま】で、水・日・祝は【数える】。
+   飛ばすのは【長期休暇（夏休み・年末年始などの特別休業）】だけ。
+   ★7営業日（水・日・祝もとばす数え方）に戻さないでください。
+   　7営業日だと実際には10日以上先になり、お約束（6日）より遅い日しか選べませんでした。 */
+  var deliver = (function(){
+    var d = new Date(today.getFullYear(), today.getMonth(), today.getDate()), c = 0;
+    while(true){ if(!isSpecialHoliday(d)){ c++; if(c>=6) return d; } d.setDate(d.getDate()+1); }
+  })();
   function stat(label,val){ return '<div class="stat"><div class="stat-label">'+label+'</div><div class="stat-val">'+val+'</div></div>'; }
   el.innerHTML = stat('通常（1週間以内にお届け）', hFmtMD(deliverBy)+' ごろまで') +
                  stat('急ぎ（翌営業日）', hFmtMD(rush)) +
-                 stat('お届け日指定（発注日から7営業日目〜）', hFmtMD(deliver)+' 〜');
+                 stat('お届け日指定（発注日から6日目〜）', hFmtMD(deliver)+' 〜');
 }
 function renderCalendar(){
   var grid = document.getElementById('hcal-grid'); var lbl = document.getElementById('hcal-month-label');
