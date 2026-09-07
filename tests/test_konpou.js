@@ -136,7 +136,10 @@ function box(){
   no('⑥厳密な===で商品を探していない（STORESの注文でコードが消える）', H.cut(idx,'yukaImportOne'), 'pp.id===l.productId');
   has('⑥GASが備考の先頭に梱包の1行', H.cut(gas,'oosYukaImportOrder'), "String(order.pkg||'').trim()");
   has('⑥GASが17・18列に同梱書類', H.cut(gas,'oosYukaImportOrder'), "String(order.docNouhin||''), String(order.docHoka||''), ''");
-  has('⑥列は増やしていない（発送済は20列目のまま）', H.cut(gas,'oosYukaImportOrder'), 'sh.getRange(newRow, 20).insertCheckboxes();');
+  /* ★2026-09-07 ひろみさん指示で列を5本足した（お届け先の郵便番号＋送り元4つ）。
+     「増やさない」という前の決まりはここで終わり。かわりに【番号を直書きしない】を見張る。 */
+  has('⑥発送済の☑は列の地図で入れる（番号を直書きしない）', H.cut(gas,'oosYukaImportOrder'), 'sh.getRange(newRow, OOS_YC.shipped).insertCheckboxes();');
+  has('⑥同梱書類は地図の doc1／doc2', H.cut(gas,'oosYukaImportOrder'), "String(order.docNouhin||''), String(order.docHoka||'')");
 }
 /* ── ⑦ ギフトなのに金額の紙が選ばれていたら注意（2026-09-06 ひろみさん指示）
    倉庫Ｄの決まり（ゆかさん報告⑦）とまったく同じ数え方にする：

@@ -184,7 +184,8 @@ has('⑥konpo：ボタンは青（家ルール）', konpoSrc, '.pack-done-btn { 
 eq('⑥konpo：在庫を触るコードが無い', /applyStockDeduct|saveAllData|saveOrders/.test(konpoSrc), false);
 
 const konpoGas = H.cut(gasSrc, 'oosKonpoOrders');
-has('⑥GAS：発送済みはスマホに出さない', konpoGas, 'vals[i][19] === true) continue');
+/* ★2026-09-07 列番号の直書きをやめ、地図 OOS_YC で呼ぶようにした（意味は同じ） */
+has('⑥GAS：発送済みはスマホに出さない', konpoGas, 'vals[i][OOS_YC.shipped-1] === true');
 has('⑥GAS：✏️修正ありは備考のメモから', konpoGas, 'getNotes()');
 const packGas = H.cut(gasSrc, 'oosKonpoPackSave');
 has('⑥GAS：☑は隠し列にだけ書く', packGas, 'oosPackColByHeader_');
@@ -234,7 +235,9 @@ has('⑥受注Ａ：もう一度押しても二重にならない案内', impIdx
   eq('⑦最終データ行は92（☑だけの行993行分を数えない）', ctx7.oosLastDataRow_(fake, 2, 19), 92);
   const empty = { getLastRow(){ return 1; }, getRange(){ return { getDisplayValues(){ return []; } }; } };
   eq('⑦データが無ければ1（見出し行）', ctx7.oosLastDataRow_(empty, 2, 19), 1);
-  has('⑦📥の転記は oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaImportOrder'), 'oosLastDataRow_(sh, 2, 19) + 1');
+  /* ★2026-09-07 A列（状態）とT列（発送済）に空の☑が下まで敷いてあるので、
+     最終行は「本当のデータしか入らない列」だけで見る。2〜23（＝同梱書類まで）。 */
+  has('⑦📥の転記は oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaImportOrder'), 'oosLastDataRow_(sh, 2, OOS_YC.doc2) + 1');
   has('⑦③の転記も oosLastDataRow_ を使う', H.cut(gasSrc, 'oosYukaRequestEdit_'), 'oosLastDataRow_(osh, 1, 19) + 1');
 }
 
@@ -311,7 +314,9 @@ has('⑬昔の注文はお客様名から取引先を特定（救済）', H.cut(
 
 /* ── ⑭ バサラスター発注シート（本番・2026-09-04）───────── */
 const baAccept = H.cut(gasSrc, 'oosBasaraOrderAccept_');
-has('⑭お届け先3点必須', baAccept, '氏名・住所・電話の3つが入るまで発注できません');
+has('⑭お届け先3点必須', baAccept, '氏名・住所・電話が入るまで発注できません');
+/* ★2026-09-07 ひろみさん指示：郵便番号が無いと倉庫が自分で調べる手間になる。必須にした */
+has('⑭お届け先の郵便番号も必須', baAccept, '郵便番号を入れてください（倉庫の発送に必要です）');
 has('⑭熨斗あり備考必須', baAccept, '熨斗「あり」のときは、備考欄に用途を書いてください');
 has('⑭二重よけ', baAccept, 'すでに発注済みです（二重には流れません）');
 has('⑭ゆかスプシへは既存の転記を呼ぶだけ', baAccept, 'oosYukaImportOrder(');
@@ -357,7 +362,11 @@ has('⑭会社表記は見積Мと同じ（登録番号）', gasSrc, 'T901280102
 const baConf = H.cut(gasSrc, 'oosBasaraInvoiceConfirm_');
 /* ★2026-09-04夜 ひろみさん指定のシンプル文面に変更 */
 has('⑭本部確認でバサラスターへメール1通', baConf, '請求書を発行しました');
-has('⑭メールの宛先は正規のバサラ担当', baConf, 'BASARA_FROM');
+/* ★2026-09-07 宛先は basaraTo_() 経由（テスト中だけ差し替えられる作り）。
+   本番では BASARA_TEST_TO が空 ＝ 原様（BASARA_FROM）に届く。下の2行で両方を見張る。 */
+has('⑭メールの宛先は正規のバサラ担当', baConf, 'basaraTo_()');
+has('⑭宛先の親は BASARA_FROM のまま', H.cut(gasSrc,'basaraTo_'), 'BASARA_TEST_TO || BASARA_FROM');
+has('⑭★本番はテスト宛先が空（原様に届く）', gasSrc, "const BASARA_TEST_TO = '';");
 
 /* ── ⑮ スプシ発注の受注Ａ連携（2026-09-04 ひろみさん承認の3点セット）───────
    ①③の二重よけは「倉庫に本当にあるか」で見る（バサラ行が誤って弾かれない）
@@ -371,11 +380,13 @@ has('⑮③で倉庫LINEにシンプル案内', req2, '出荷のご依頼が1件
 has('⑮LINEに注文番号を書かない（暗号を外に出さない）', req2.indexOf("disp[10]")>=0 && req2.indexOf('+num+')<0 ? 'ok':'ng', 'ok');
 const acc2 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑮バサラ☑で受注Ａ台帳に自動記録', acc2, 'basaraAppendOrderRow_');
-has('⑮バサラの送料は常に800円', acc2, "d[10]+' 様', goods, 800");
+has('⑮バサラの送料は常に800円', acc2, "d[OOS_BC.name-1]+' 様', goods, 800");
 has('⑮受付時は在庫を減らさない（減るのは③）', acc2, '在庫はここでは減らさない');
 /* ★2026-09-04午後 配りは共通部品 oosTrackFanout_ に集約（ゆか直記入と旧オーダー表の両方から呼ぶ） */
 const tb2 = H.cut(gasSrc, 'oosTrackFanout_');
-has('⑮送り状はバサラ発注シート（24列目）にも戻る', tb2, 'bsh.getRange(brow, 24).setValue(track)');
+/* ★2026-09-07 列番号(24)の直書きをやめた。列を足しても壊れないよう、見出しでさがす */
+has('⑮送り状はバサラ発注シートにも戻る', tb2, 'oosBasaraTrackCol_(bsh)');
+has('⑮送り状の列は見出しでさがす（番号直書きをしない）', H.cut(gasSrc,'oosBasaraTrackCol_'), "indexOf('送り状NO.')");
 has('⑮送り状で受注Ａの注文が発送済みになる', tb2, "setValue('shipped')");
 has('⑮旧オーダー表の道も同じ部品を呼ぶ', H.cut(gasSrc,'oosSoukoTrackBack_'), 'oosTrackFanout_(key, track)');
 
@@ -401,7 +412,7 @@ has('⑯送り状記入ではT☑を押さない（倉庫さんのボタン）',
 const konSrc = H.cut(gasSrc, 'oosKonpoOrders');
 has('⑯倉庫Ｄ・梱包ビューはゆかスプシを読む', konSrc, 'oosYukaFile_()');
 has('⑯出すのは青「発送してください」の行だけ', konSrc, 'OOS_YUKA_BTN_GO) continue');
-has('⑯送り状NO.が入った行は出さない', konSrc, "d[18]||'').trim()) continue");
+has('⑯送り状NO.が入った行は出さない', konSrc, "d[OOS_YC.track-1]||'').trim()) continue");
 const acc16 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑯在庫は受付と同時に減る（ひろみさん決定）', acc16, 'ゆかスプシ転記と同時）に確保して減らす');
 /* ★2026-09-04夜 ひろみさん決定で役割を確定：
@@ -413,7 +424,8 @@ has('⑯Aに「発送済」と入れられたら青に戻して案内', H.cut(ga
 has('⑯送り状NO.を書いてもAは触らない', trkSrc.indexOf('OOS_YUKA_BTN_DONE')<0 ? 'ok':'ng', 'ok');
 const chkSrc = H.cut(gasSrc, 'oosYukaShipCheck_');
 has('⑯発送済みボタンはT列の☑', H.cut(gasSrc,'oosYukaOnEdit'), 'oosYukaShipCheck_(e, sh, row)');
-has('⑯番号なしでT☑は押せない', chkSrc, '先に「送り状NO.」（S列）に番号を書いてから');
+/* ★2026-09-07 列が増えて送り状NO.はX列になったので、文面から列名を外した */
+has('⑯番号なしでT☑は押せない', chkSrc, '先に「送り状NO.」に番号を書いてから');
 has('⑯T☑でも配りは同じ部品', chkSrc, 'oosTrackFanout_(key, track)');
 has('⑯見出しは「状態を選択してください」', H.cut(gasSrc,'oosYukaShipBtnSetup'), '状態を選択してください');
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
@@ -482,3 +494,29 @@ console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
 process.exit(fail ? 1 : 0);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⑰ 2026-09-07 ひろみさん決定の見張り（郵便番号・送り元・1ファイル共有）
+   ・PDFはファイルをまたげないので、倉庫さんとは【1枚のファイルを一緒に使う】
+   ・見せたくない請求書と目次だけ【本部管理専用ゆかスプシ】へ移した
+   ・列番号の直書きをやめ、地図（OOS_YC／OOS_BC）で呼ぶ
+   ★どれかが消えたら、決めたことが失われています
+   ══════════════════════════════════════════════════════════════════════ */
+has('⑰発注書の列の地図がある', gasSrc, 'var OOS_YC = { state:1');
+has('⑰発注書にお届け先の郵便番号がある', gasSrc, 'zip:12');
+has('⑰発注書に送り元4つがある', gasSrc, 'sName:17, sZip:18, sAddr:19, sTel:20');
+has('⑰バサラ発注シートの列の地図がある', gasSrc, 'var OOS_BC = { chk:1');
+has('⑰バサラも発注書と同じ並び（11〜21）', gasSrc, 'sName:17, sZip:18, sAddr:19, sTel:20, note:21');
+has('⑰📥取り込みで郵便番号を別に渡す', H.cut(gasSrc,'oosYukaImportOrder'), "String(order.zip||'')");
+has('⑰📥取り込みで送り元4つを渡す', H.cut(gasSrc,'oosYukaImportOrder'), "String(order.sName||''), String(order.sZip||'')");
+has('⑰受注Ａも郵便番号を分けて送る', H.cut(idxSrc,'yukaImportOne'), 'zip: (o.zip ||');
+has('⑰受注Ａも送り元を送る', H.cut(idxSrc,'yukaImportOne'), 'sAddr: (o.senderAddr ||');
+has('⑰どなた？で選んだ瞬間に送り元が入る', H.cut(gasSrc,'oosBasaraSheetOnEdit'), 'oosBasaraFillSender_(sh, e.range.getRow(), w, null)');
+/* ★倉庫⇔OOSへの写しは止めた。true に戻すと本部の発注書のS〜U列を1時間おきに書き換える */
+has('⑰★倉庫⇔OOSへの写しは止まっている', gasSrc, 'var OOS_ORDER_SYNC_ON = false;');
+/* ★欠品の本部LINE事後報告は廃止（CCのoffice@が本部への報告）。親切心で戻さないこと */
+no('⑰★欠品の本部LINEは復活していない', H.cut(gasSrc,'basaraStockWatchV2_'), '📤 欠品のお知らせを送りました');
+has('⑰欠品のCCはoffice@（本部への報告）', H.cut(gasSrc,'basaraCc_'), 'NOTIFY_EMAIL');
+/* ★請求書は倉庫さんに見せない＝本部管理専用ファイルに置く */
+has('⑰請求書発行は本部管理専用ファイルに置く', H.cut(gasSrc,'oosSeikyuHakkoSheet_'), 'oosKanriFile_() || oosYukaFile_()');
+has('⑰目次のリンクはフルURL（別ファイルから飛べる）', H.cut(gasSrc,'oosYukaTocBuild_'), "(sameFile ? '' : yukaUrl) + '#gid='");
