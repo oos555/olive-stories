@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-06-01">
+<meta name="oos-version" content="2026-09-07-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7846,10 +7846,19 @@ async function yukaImportOne(id){
       body: JSON.stringify({ action:'yukaImportOrder', order:{
         num: o.num, src: srcLabel, exp: '', items: items,
         name: (o.recipientName || o.client || ''),
-        addr: ((o.zip ? '〒'+o.zip+' ' : '') + (o.addr || '')),
+        /* ★2026-09-07 発注書に郵便番号の列ができたので、住所とくっつけずに別々に渡す。
+           倉庫さんが発送するのに郵便番号が必ず要る（無いと自分で調べる手間になる）。 */
+        zip: (o.zip || ''),
+        addr: (o.addr || ''),
         tel: (o.tel || ''),
         day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''),
         time: '',
+        /* ★2026-09-07 送り元（贈り物が誰からか）。送り状の「ご依頼主」欄に要る。
+           空のときは発注書も空欄のまま（勝手に埋めない）。 */
+        sName: (o.senderName || ''),
+        sZip:  (o.senderZip  || ''),
+        sAddr: (o.senderAddr || ''),
+        sTel:  (o.senderTel  || ''),
         /* ★2026-09-05 承認モック：ゆかスプシにも梱包の指示を送る（列は増やさず、備考の先頭と同梱書類の2列へ） */
         pkg: (typeof pkgOneLine==='function' ? pkgOneLine(o) : ''),
         docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')>=0; }).join('・') || '入れない') : ''),
