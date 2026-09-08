@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-08-25-06">
+<meta name="oos-version" content="2026-09-08-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1533,6 +1533,43 @@ document.addEventListener('DOMContentLoaded', function(){
   loadAllDataFromGAS();
 });
 
+/* ══════════════════════════════════════════════════════════════════
+   🛟 画面を1つずつ描く（2026-09-08 追加）
+   ──────────────────────────────────────────────────────────────────
+   なぜ要るのか：
+     2026-09-08、ロット番号に数字の「1」が入っていただけで、名簿を描く処理が
+     止まり、その先の【価格リスト】が真っさらな「—」のままになりました。
+     しかも画面には「⚠️接続エラー」と出るので、通信の問題に見えてしまいます。
+   これからは：
+     ・1つがこけても、ほかの画面はちゃんと描きます。
+     ・こけた画面の名前を、赤い帯で画面のいちばん上に出します（黙って隠しません）。
+   ★この関数を消さないでください。 */
+function oosDrawAll_(list){
+  var ng = [];
+  (list||[]).forEach(function(pair){
+    var name = pair[0], fn = pair[1];
+    if(typeof fn !== 'function') return;
+    try{ fn(); }
+    catch(e){ ng.push({ name:name, msg:(e && e.message) ? String(e.message) : String(e) });
+             try{ console.error('【'+name+'】が描けませんでした', e); }catch(_){} }
+  });
+  oosDrawFail_(ng);
+}
+function oosDrawFail_(ng){
+  var id = 'oos-draw-fail';
+  var box = document.getElementById(id);
+  if(!ng || !ng.length){ if(box) box.remove(); return; }
+  if(!box){
+    box = document.createElement('div');
+    box.id = id;
+    box.style.cssText = 'margin:10px 0;padding:12px 14px;border:2px solid #b91c1c;border-radius:10px;background:#fef2f2;color:#7f1d1d;font-weight:700;line-height:1.7';
+    var host = document.querySelector('.wrap') || document.body;
+    host.insertBefore(box, host.firstChild);
+  }
+  box.innerHTML = '⚠️ つぎの画面がうまく描けませんでした（データの中身が想定とちがいます）<br>' +
+    ng.map(function(x){ return '　・<b>' + x.name + '</b>　<span style="font-weight:400">' + x.msg + '</span>'; }).join('<br>') +
+    '<br><span style="font-weight:400">ほかの画面はふつうに使えます。この文をそのままひろみさんへ伝えてください。</span>';
+}
 function showSyncStatus(msg,isError){
   let el = document.getElementById('sync-status');
   if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
@@ -1654,9 +1691,18 @@ function loadAllDataFromGAS(){
     holds = buildHoldsFromOrders();
     invLoading = false; // データが揃ったので、ここで初めて本物の数字を描く
     { var _lab = document.getElementById('lot-add-btn'); if(_lab){ _lab.disabled = false; _lab.style.opacity = '1'; _lab.textContent = '登録する'; } } /* ★2026-07-24 */
-    renderInvTable(); renderLotList(); renderMeibo(); renderPrice(); renderPartnerMatrix(); renderPartnerContacts(); renderNewProductAlert();
+    /* ★2026-09-08 ひろみさん報告「統合マスタの価格リストが見れない」の直し。
+       それまでは、この行を左から順に呼んでいました。途中の1つが
+       （データの中身がおかしいなどで）こけると、そこで処理ごと止まり、
+       右にある【価格リスト】以降がまるごと描かれませんでした。
+       しかも catch に飛ぶので「⚠️接続エラー」と出て、通信のせいだと思ってしまいます。
+       これからは1つずつ別々に呼び、こけたものだけを画面の上に名前つきで出します。
+       ★この形を1行にまとめ直さないでください。また全滅します。 */
+    oosDrawAll_([['在庫リスト',renderInvTable],['ロット管理',renderLotList],['名簿',renderMeibo],
+                 ['価格リスト',renderPrice],['小口卸取引先',renderPartnerMatrix],['取引先の連絡先',renderPartnerContacts],
+                 ['新商品のお知らせ',renderNewProductAlert]]);
     try{ refreshRestockBtn(); }catch(e){}   // ★2026-08-17 入荷の連絡ボタンの出し分け
-    renderHoldList(); renderPreList(); renderReportList(); renderInvLogs();
+    oosDrawAll_([['取り置き',renderHoldList],['予約',renderPreList],['倉庫からの報告',renderReportList],['ログ',renderInvLogs]]);
     /* ★2026-07-24 中村様のご指示で停止。
        ここで「棚卸しの数字に入れ替えますか？」を毎回出していた。
        OKを押すと在庫・ロット（＝賞味期限）が2026-07-19の数字に丸ごと戻るため、
@@ -4787,7 +4833,12 @@ function currentLotsFor(sku){
   if(!p || typeof lots==='undefined' || !Array.isArray(lots)) return [];
   var out = [];
   lots.forEach(function(l){
-    var code = (l.lotCode||'').trim();
+    /* ★2026-09-08 ここで画面全体が止まっていました。
+       ロット番号に「1」と数字で入れた行があり、数字には .trim() がありません。
+       止まると、この下に続く【価格リスト・名簿・小口卸・取り置き・予約・報告・ログ】が
+       ぜんぶ描かれず、しかも「接続エラー」と出て原因が分からなくなっていました。
+       ★必ず String( ) でくるんでください。数字でも日付でも文字にしてから触ります。 */
+    var code = String(l.lotCode == null ? '' : l.lotCode).trim();
     if(l.pid==p.id && l.status==='new' && (l.stock||0)>0 && code && code!=='-'){
       out.push({ lot:code, expiry:(l.expiry||''), qty:(l.stock||0) });
     }
@@ -5272,7 +5323,7 @@ function mbKindChanged(){
 /* ★2026-08-07 商品管理番号を組み立てる唯一の計算（品番＋バーコード下4桁。無ければ品番だけ）。
    この番号がECサイト（STORES品番）でもそのまま使われる＝どこでも同じ1つの番号。 */
 function mbKanriFrom(sku, barcodeStr){
-  sku = (sku||'').trim();
+  sku = String(sku == null ? '' : sku).trim();   // ★2026-09-08 数字の品番でも落ちないように
   if(!sku) return '';
   var digits = String(barcodeStr||'').replace(/[^0-9A-Za-z]/g,'');
   var tail = digits.length>=4 ? digits.slice(-4) : '';

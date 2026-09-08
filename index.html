@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-07-03">
+<meta name="oos-version" content="2026-09-08-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2582,7 +2582,7 @@ function applyCustomerRecord(c){
 function onClientPick(){
   var el = document.getElementById('o-client');
   var v = (el.value||'').trim();
-  var c = v ? customers.find(function(x){ return (x.name||'').trim() === v; }) : null;
+  var c = v ? customers.find(function(x){ return String(x.name==null?'':x.name).trim() === v; }) : null;
   if(c){ applyCustomerRecord(c); return; }
   // 一致しない＝新規のお客様あつかい。直前にマスタから自動入力していた住所などが
   // そのまま残っていれば消す（手で直した分は消さない）。
@@ -3979,9 +3979,9 @@ function previewOrder(){
       const missing = [];
       list.forEach(function(o){
         const lack = [];
-        if(!((o.addr||'').trim())) lack.push('住所');
-        if(!((o.zip||'').trim())) lack.push('郵便番号');
-        if(!((o.tel||'').trim())) lack.push('電話番号');
+        if(!(String(o.addr==null?'':o.addr).trim())) lack.push('住所');
+        if(!(String(o.zip==null?'':o.zip).trim())) lack.push('郵便番号');
+        if(!(String(o.tel==null?'':o.tel).trim())) lack.push('電話番号');
         if(lack.length) missing.push((o.recipientName||'（お名前なし）')+'：'+lack.join('・'));
       });
       if(missing.length){
@@ -4038,8 +4038,8 @@ function previewOrder(){
 
 function logGiftIfApplicable(o){
   if(o.source==='basara') return;   // バサラは卸取引：ギフト記録に入れない
-  const buyerName = (o.client||'').trim();
-  const destName = (o.recipientName||'').trim();
+  const buyerName = String(o.client==null?'':o.client).trim();
+  const destName = String(o.recipientName==null?'':o.recipientName).trim();
   const reasons = [];
   if(buyerName && destName && buyerName!==destName) reasons.push('発注者と届け先が別人');
   const hasGiftType = (o.lines||[]).some(l=>l.giftType==='gift' || l.giftType==='simple');
@@ -8335,9 +8335,9 @@ function buildSlipHtml(o){
        ちゃんと入っているのに、画面に出していなかっただけです。
        ★senderName だけを出す形に戻さないでください。
        ══════════════════════════════════════════════════════════════ */
-    var _sZip  = (o.senderZip||'').trim();
-    var _sAddr = (o.senderAddr||'').trim();
-    var _sTel  = (o.senderTel||'').trim();
+    var _sZip  = String(o.senderZip==null?'':o.senderZip).trim();
+    var _sAddr = String(o.senderAddr==null?'':o.senderAddr).trim();
+    var _sTel  = String(o.senderTel==null?'':o.senderTel).trim();
     var _sLines = '送り状のご依頼主 → <strong>'+esc(o.senderName||'オリーブオイル・ストーリーズ')+'</strong>';
     if(_sZip || _sAddr) _sLines += '<br>　　〒'+esc(_sZip)+' '+esc(_sAddr);
     if(_sTel)           _sLines += '<br>　　TEL '+esc(_sTel);
@@ -8582,7 +8582,7 @@ function parseCsvText(text){
   const idxBuyFirst  = findCol(['名(購入者)']);
   const idxEmail     = findCol(['メールアドレス']);
   const idxHopeTime  = findCol(['お届け希望時間']);
-  const cell=(r,i)=> (i>=0 && i<r.length) ? (r[i]||'').trim() : '';
+  const cell=(r,i)=> (i>=0 && i<r.length) ? String(r[i]==null?'':r[i]).trim() : '';
   const rows = lines.slice(1).map(l=>parseCsvLine(l));
   const grouped = {};
   rows.forEach(function(r){

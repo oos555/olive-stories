@@ -18,6 +18,7 @@ const path = require('path');
 const FILES = [
   ['test_bunpou.js',      '文法（画面が出なくなる事故を防ぐ）'],
   ['test_kubun_honyaku.js','区分の翻訳（RT・卸が定価で計算される事故の見張り）'],
+  ['test_gamen_zenmetsu.js','画面の連鎖全滅（ロット番号が数字で価格リストが消えた事故の見張り）'],
   ['test_master.js',       'マスターＮ 在庫の決めごと'],
   ['test_apps.js',         '4アプリの突き合わせ／不良の出荷／注文番号'],
   ['test_gas.js',          'GASと親（oos-zaiko.js）が同じ数字か'],
