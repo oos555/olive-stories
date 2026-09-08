@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-07-02">
+<meta name="oos-version" content="2026-09-07-03">
 <script src="oos-version.js"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
 <script src="oos-zei.js?v=20260824"></script>
@@ -1828,7 +1828,7 @@ function loadAllBilling(){
       if(priceMaster.length && priceMaster[0].taxRate) taxRate = parseFloat(priceMaster[0].taxRate)||0.08;
     }
     if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
-      orders = ordersRes.data.orders;
+      orders = normOrdersCtype(ordersRes.data.orders);   // ★区分を英語コードへ翻訳（上の説明を読んでください）
     }
     renderQuoteCustomerSelect();
     renderQuoteHistory();
@@ -1855,6 +1855,12 @@ function priceForSku(sku, customerType){
   const key = map[customerType] || 'priceGeneral';
   return parseFloat(p[key])||0;
 }
+/* ★2026-09-07 売上Ｃで見つかったのと同じ穴が、ここにもありました。
+   受注データのシートは区分を【日本語の表示名】（RT／定価／卸②／卸バサラスター）で保存しています。
+   翻訳しないと priceForSku('RT') が表を引けず【定価にフォールバック】＝単価がまちがいます。
+   ★親（受注Ａ index.html の normCtype）と同じ表です。片方だけ直さないでください。 */
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','卸バサラスター':'basara','特別提供価格':'special','不良在庫特価':'defectprice','不良品用特価':'defectprice'})[v] || v; }
+function normOrdersCtype(list){ (list||[]).forEach(function(o){ if(o) o.customerType = normCtype(o.customerType); }); return list; }
 function orderAmount(o){
   let total = 0;
   (o.lines||[]).forEach(function(l){
@@ -4941,7 +4947,7 @@ async function registerOrderFromQuote(rid){
       if(goBtn){ goBtn.disabled=false; goBtn.textContent='この内容で受注Aに登録する'; }
       return;
     }
-    const freshOrders = fresh.data.orders;
+    const freshOrders = normOrdersCtype(fresh.data.orders);   // ★区分の翻訳
     const ymd = now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
     /* ★2026-08-17 ひろみさん決定：注文番号は「暗号 － 受注した日 － ランダム4桁」で統一。
        受注Ａ・見積М・お客様の注文ページ・GAS（バサラ取込）を同じルールにそろえた。
