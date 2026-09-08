@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-25-03">
+<meta name="oos-version" content="2026-09-07-01">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -835,6 +835,15 @@ const GROUP_CERT = {
 };
 
 const CUSTOMER_TYPE_LABEL = { general:'定価', wholesale1:'卸①', wholesale2:'卸②', rt:'RT', rtgc:'RTGC（ゴルフ）', basara:'卸バサラスター', special:'特別提供価格', defectprice:'不良品用特価' };
+/* ★2026-09-07 ひろみさん報告「RTの売上が集計できない」の原因はこれでした。
+   受注データのシートには区分が【日本語の表示名】（RT／定価／卸②／卸バサラスター）で保存されています。
+   受注Ａ（index.html の normCtype）は読み込むときに英語コードへ翻訳していますが、
+   売上Ｃにはその翻訳がありませんでした。そのため
+     ・RT月次まとめが 'rt' と比べて1件も見つからない
+     ・priceForSku('RT') が表を引けず【定価にフォールバック】＝単価がまちがう
+   という2つが起きていました。★親（受注Ａ）と同じ表にしてあります。片方だけ直さないでください。 */
+function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','卸バサラスター':'basara','特別提供価格':'special','不良在庫特価':'defectprice','不良品用特価':'defectprice'})[v] || v; }
+function normOrdersCtype(list){ (list||[]).forEach(function(o){ if(o) o.customerType = normCtype(o.customerType); }); return list; }
 
 // ── いただいたExcel（2026年価格リスト）から読み取った初期価格 ──
 // 価格マスタが未入力の商品には、ここから初期値を表示します（保存すればいつでも上書きできます）
@@ -1001,7 +1010,7 @@ function loadAllBilling(){
       if(priceMaster.length && priceMaster[0].taxRate) taxRate = parseFloat(priceMaster[0].taxRate)||0.08;
     }
     if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
-      orders = ordersRes.data.orders;
+      orders = normOrdersCtype(ordersRes.data.orders);   // ★区分を英語コードへ翻訳（上の説明を読んでください）
     }
     renderInvoiceList();
     renderPriceTable();
@@ -1402,7 +1411,7 @@ async function saveBillingFields(orderId){
     });
     const data = await res.json();
     if(data.status==='ok'){
-      orders = freshOrders; // 手元のデータも最新化
+      orders = normOrdersCtype(freshOrders); // 手元のデータも最新化（★区分の翻訳も忘れずに）
       showSyncStatus('✅ 保存しました');
     } else {
       showSyncStatus('⚠️ 保存に失敗しました', true);
@@ -1448,7 +1457,7 @@ async function setOrderPaid(orderId, el){
     });
     const data = await res.json();
     if(data.status==='ok'){
-      orders = freshOrders;
+      orders = normOrdersCtype(freshOrders);   // ★区分の翻訳
       renderInvoiceList();
       showSyncStatus('✅ '+(target.paymentConfirmed?'入金済みにしました':'未入金に戻しました'));
     } else {
@@ -1482,7 +1491,7 @@ async function togglePaid(orderId){
     });
     const data = await res.json();
     if(data.status==='ok'){
-      orders = freshOrders; // 手元のデータも最新化
+      orders = normOrdersCtype(freshOrders); // 手元のデータも最新化（★区分の翻訳も忘れずに）
       renderInvoiceList();
       showSyncStatus('✅ '+(target.paymentConfirmed?'入金済みにしました':'未入金に戻しました'));
     } else {
@@ -3545,7 +3554,16 @@ function runRtMonthly(){
   rtmSetDefaultMonth();
   var ym = document.getElementById('rtm-yearmonth').value;
   if(!ym){ alert('対象年月を選択してください'); return; }
-  var inMonth = (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && o.status!=='cancelled' && String(o.registeredAt||'').slice(0,7)===ym; });
+  /* ★2026-09-07 ひろみさん決定（案①）：請求に載せるのは【倉庫へ送った＝発送した注文だけ】。
+     売上一覧とまったく同じルール（salesWasSentToWarehouse）を使う。
+     取り置き・予約のまま／まだ倉庫へ送っていない注文は、請求書に載せません。
+     ★status!=='cancelled' だけの形に戻さないでください（未発送まで請求してしまいます）。 */
+  var inMonth = (typeof orders!=='undefined'?orders:[]).filter(function(o){
+    if(!o) return false;
+    if(o.status==='cancelled' || o.status==='deleted') return false;
+    if(!salesWasSentToWarehouse(o)) return false;
+    return String(o.registeredAt||'').slice(0,7)===ym;
+  });
   // RT（ホテル）＝全部まとめて1枚
   var rtOrders = inMonth.filter(function(o){ return o.customerType==='rt'; })
     .sort(function(a,b){ return String(a.registeredAt||'').localeCompare(String(b.registeredAt||'')); });
