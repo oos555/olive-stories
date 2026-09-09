@@ -6746,7 +6746,10 @@ function convertToShipping(id){
   persistStockDeduct([o]);     // ① 減らした分だけを最新在庫に反映
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS([o]);        // ① この注文だけを最新にマージ
-  showSyncStatus('📦 出荷依頼書に届きました。出荷依頼に進んでください。');
+  /* ★2026-09-10 ひろみさん指示「例外はなしに」：取り置き・予約から出荷依頼にしたものも、
+     ここで自動で発注書へ入れます。倉庫への直接LINEをやめたためです。★消さないでください */
+  if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }
+  showSyncStatus('📦 出荷依頼書に届きました。発注書にも入りました。');
   gotoSlip(id);
 }
 
@@ -8758,6 +8761,14 @@ function importCSV(){
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
   if(imported){ persistStockDeduct(importedOrders); syncOrdersToGAS(importedOrders); }  // ① 差分反映＋変更分マージ
+  /* ★2026-09-10 ひろみさん指示「例外はなしに」：STORESの注文も、ほかと同じ流れにします。
+     倉庫への直接LINEをやめたので、ここで発注書に入れないと【倉庫に流れません】。
+     （二重よけは📥と同じ3重。すでに入っていれば dup で止まります）★消さないでください */
+  if(imported){
+    importedOrders.forEach(function(o){
+      if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }
+    });
+  }
 }
 
 // ── 取込モード切替（STORES CSV / PDF）────────────────────────────

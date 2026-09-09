@@ -114,6 +114,25 @@ ok('⑤📥が返した【ふだ】を、受注Ａ側に控えている',
   IDX.indexOf('if(d.key) o.yukaKey = String(d.key);') >= 0,
   '（控えないと、在庫が引けず、送り状NO.も戻ってきません）');
 
+/* ── ⑤-2 例外がないこと：注文のできる道は【4つ】。全部が発注書へ ───── */
+/* ★注文が「出荷依頼（pending）」になる道は、いまこの4つです。
+     ①受注の登録（registerOrder）②STORESのCSV取込 ③取り置き・予約→出荷依頼書
+     ④バサラの☑（こちらはGASが直接、発注書に入れます）
+   ①〜③のどれかで発注書へ入れ忘れると、倉庫への直接LINEをやめた今は
+   【その注文だけ倉庫に永久に流れません】。★1つでも外さないでください。 */
+ok('⑤-2 STORESのCSV取込も、自動で発注書へ',
+  IDX.indexOf(`  if(imported){
+    importedOrders.forEach(function(o){
+      if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }
+    });
+  }`) >= 0,
+  '（入れ忘れると、STORESの注文が倉庫に流れません）');
+ok('⑤-2 取り置き・予約→出荷依頼書も、自動で発注書へ',
+  bodyOf(IDX, 'convertToShipping').indexOf("if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }") >= 0,
+  '（入れ忘れると、取り置きから出した注文が倉庫に流れません）');
+ok('⑤-2 バサラはGASが直接、発注書へ入れる',
+  GAS.indexOf('var imp = oosYukaImportOrder({ num:num, src:') >= 0);
+
 /* ── ⑥ 倉庫Ｄ（pickup.html）はシンプルに ───────────────────── */
 ok('⑥「不良品ほうこく」のボタンが無い', PIC.indexOf('>不良品ほうこく<') < 0);
 ok('⑥「メモ」のボタンが無い', PIC.indexOf("pickup.html?mode=notes") < 0);
