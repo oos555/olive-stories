@@ -191,7 +191,13 @@ eq('⑤✂️ボタンは残高一覧に出ていない', idx.indexOf('onclick="
 has('⑤登録時に自動切り出しが呼ばれる', H.cut(idx,'registerOrder'), 'rtSlipAutoCut(list)');
 /* ★2026-09-04 RT編②：伝票取込の注文は登録と同時に自動でゆかスプシへ（📥と同じ関数・押し忘れよけ） */
 has('⑤登録時に自動でゆかスプシへ（RT伝票取込）', H.cut(idx,'registerOrder'), 'yukaImportOne(o.id)');
-has('⑤自動取込はRTの伝票取込だけ', H.cut(idx,'registerOrder'), "customerType==='rt' && /RT伝票取込/");
+/* ★2026-09-10 ひろみさん指示で決めごとが変わりました。
+   「バサラも RT も それ以外の発注も、同じ流れに。例外はなしに」
+   倉庫への直接LINEをやめたので、📥の押し忘れ＝倉庫に流れない、になります。
+   そのため【登録した注文はどれも】自動で発注書へ入れます。
+   ★RTだけに戻さないでください（一般・卸が倉庫に流れなくなります）。 */
+eq('⑤自動取込はRTだけではない（登録した注文は全部）', H.cut(idx,'registerOrder').indexOf("customerType==='rt' ") >= 0, false);
+has('⑤登録した注文はどれも自動で発注書へ', H.cut(idx,'registerOrder'), "if(typeof yukaImportOne==='function')");
 const cutSrc = H.cut(idx, 'rtbApplyCut');
 has('⑤✂️は既存の変換（在庫が減る決められた場所）を呼ぶだけ', cutSrc, 'convertToShipping(o.id)');
 eq('⑤✂️の中で在庫の減算を直接書いていない', /applyStockDeductOnSend|persistStockDeduct/.test(cutSrc), false);

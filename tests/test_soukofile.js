@@ -191,7 +191,7 @@ const packGas = H.cut(gasSrc, 'oosKonpoPackSave');
 has('⑥GAS：☑は隠し列にだけ書く', packGas, 'oosPackColByHeader_');
 const impGas = H.cut(gasSrc, 'oosYukaImportOrder');
 has('⑥GAS：二重よけの目印は【出どころ 注文番号】', impGas, "'【' + String(order.src||'受注A') + ' ' + String(order.num||'') + '】'");
-has('⑥GAS：すでにあればdupで止まる', impGas, "{status:'dup', row:i+2}");
+has('⑥GAS：すでにあればdupで止まる', impGas, "{status:'dup', row:i+2, key:_dk}");
 has('⑥GAS：5商品以上は備考へ逃がす', impGas, 'ほかの商品：');
 /* ★2026-09-04午後 ひろみさんの新しい流れ：A列は☑でなく赤ボタンで始まる */
 has('⑥GAS：入った行のA列は赤ボタンで始まる', impGas, 'aCell.setValue(OOS_YUKA_BTN_STOP)');

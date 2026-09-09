@@ -264,6 +264,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .wt-wait-txt{color:#b45309;font-weight:800;font-size:12px;white-space:nowrap}
 .wt-done-txt{color:#6b7a3a;font-weight:800;font-size:12px;white-space:nowrap;display:block}
 .wt-done-time{color:#a6a49c;font-size:10px;display:block;margin-top:1px}
+/* ── 倉庫スプレッドシートを開くボタン（2026-09-10・いつでも開けるように） ── */
+.souko-sheet-btn{display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:15px 12px;
+  border-radius:11px;border:2px solid #1f7a4d;background:#e8f5ec;color:#14532d;
+  font-size:17px;font-weight:800;text-align:center;text-decoration:none;line-height:1.4}
+.souko-sheet-btn:active{background:#d6ecdd}
+.souko-sheet-note{margin-top:6px;font-size:12.5px;color:#57534e;line-height:1.7;text-align:center}
+
 /* ── 在庫を見る（本数） ── */
 .stock-head{background:#6b7a3a;border-radius:10px;padding:13px 15px;margin-bottom:10px}
 .stock-head-title{color:#fff;font-size:17px;font-weight:700}
@@ -371,7 +378,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-07-02">
+<meta name="oos-version" content="2026-09-10-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1131,6 +1138,11 @@ function printNoshi(){
 
 let warehouseNotes = [];
 
+/* ★2026-09-10 倉庫と共有しているスプレッドシート【倉庫＆OOS発送連絡スプシ】。
+   GASがつないでいるファイルと同じものです（?action=oosFilesCheck で確かめられます）。
+   ★このIDを書き換えるときは、GASの OOS_YUKA_FILE_ID と必ずそろえてください。 */
+const SOUKO_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Y3227lo1uMbQuxGVLD65lacqVRa7M5FVRjF9Gh_wL7k/edit';
+
 async function init(){
   if(isInAppBrowser()){
     document.getElementById('inapp-banner').style.display = 'block';
@@ -1505,10 +1517,11 @@ async function loadOrderList(isManual){
      受注Ａの台帳ではなく、③で流れてきた依頼をそのまま出す（konpoOrders＝📱梱包ビューと同じ読み口）。
      発送済み（送り状NO.記入済み）とキャンセルは、読み口の側でもう除かれている。★戻さないでください */
   try{
-    const [res, ] = await Promise.all([
-      fetchWithTimeout(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'konpoOrders'}) }),
-      fetchWarehouseNotes()
-    ]);
+    /* ★2026-09-10 ひろみさん指示：倉庫Ｄを軽くする。
+       ここで一緒に読んでいた fetchWarehouseNotes（loadAllData＝在庫・価格・ロットの全部）を外しました。
+       一覧に必要なのは出荷のご依頼だけです。書類の画面（?id=）では今までどおり読んでいます。
+       ★戻すと、また一覧が重くなります。 */
+    const res = await fetchWithTimeout(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'konpoOrders'}) });
     const data = await res.json();
     if(data.status !== 'ok' || !Array.isArray(data.orders)){
       if(isManual) pickupToast('⚠️ 更新できませんでした。電波を確認してください', true);
@@ -1651,23 +1664,19 @@ function soukoPackDone(key){
 function renderList(){
   let html = '';
   html += '<div class="home-banner no-print"><div class="hb-title">🚚 出荷のご依頼</div><div class="hb-sub">（この画面がホームです）</div></div>';
-  const globalNote = getGlobalNote();
-  if(globalNote){
-    html += '<div class="note-box no-print" style="margin-bottom:14px">📌 '+esc(globalNote).replace(/\n/g,'<br>')+'</div>';
-  }
   html += '<button class="refresh-btn no-print" style="border:1.5px solid #6b7a3a;background:#eef3e0;color:#3b4a1a;font-weight:700" onclick="loadOrderList(true)">🔄 一覧を更新</button>';
-  html += '<details class="tools-box no-print">';
-  html += '<summary><span>🧰 その他のボタン（不良品・メモ・在庫・履歴）</span><span style="color:#78716c;font-weight:600;white-space:nowrap">タップで開く ▼</span></summary>';
-  html += '<div class="tool-grid">';
-  html += '<div class="tool-tile" style="background:#fef2f2;border-color:#dc2626" onclick="location.href=\'pickup.html?mode=defect\'"><div class="tt-ic" style="color:#991b1b">🔴</div><div class="tt-tx" style="color:#991b1b">不良品ほうこく</div></div>';
-  html += '<div class="tool-tile" style="background:#f1ecfb;border-color:#7c3aed" onclick="location.href=\'pickup.html?mode=notes\'"><div class="tt-ic" style="color:#6d28d9">📝</div><div class="tt-tx" style="color:#5b21b6">メモ</div></div>';
-  /* ★2026-08-17 ひろみさん指示で「📦 資材カタログ」のボタンを外しました（二重管理になるため）。
-     戻したくなったときの元の行：
-     html += '<div class="tool-tile" style="background:#fbeede0;border-color:#b45309" onclick="location.href=\'pickup.html?mode=materials\'"><div class="tt-ic" style="color:#b45309">📦</div><div class="tt-tx" style="color:#7a3a0e">資材カタログ</div></div>'; */
-  html += '<div class="tool-tile" style="background:#eef3e0;border-color:#6b7a3a" onclick="location.href=\'pickup.html?mode=stock\'"><div class="tt-ic" style="color:#4a5a1f">🫒</div><div class="tt-tx" style="color:#3b4a1a">在庫を見る</div></div>';
-  html += '<div class="tool-tile" style="background:#eaf1fb;border-color:#185fa5" onclick="location.href=\'pickup.html?mode=history\'"><div class="tt-ic" style="color:#185fa5">📜</div><div class="tt-tx" style="color:#0f3d6b">送信履歴</div></div>';
-  html += '</div>';
-  html += '</details>';
+  /* ══════════════════════════════════════════════════════════════════════
+     ★2026-09-10 ひろみさん指示：倉庫Ｄはシンプルに。
+     ひろみさんの言葉：「不良報告とか、メモ、送信履歴、在庫を見る、こういうのをつけていたので
+     とても重くなっていた。全部外しましょう。その代わり倉庫のスプレッドシートが
+     常に開けるような状態にしておいてください」
+     　→ これからはスプレッドシートが中心。アプリは【移動しながら見る補助】です。
+     　　 この画面に残すのは「何を・いくつ・どこへ・どの書類か」だけ。
+     ★4つのボタン（不良品・メモ・在庫・履歴）を戻さないでください。
+     　 中身のプログラムは下のほうに残してあるので、必要になったら入口だけ戻せます。
+     ══════════════════════════════════════════════════════════════════════ */
+  html += '<a class="souko-sheet-btn no-print" href="'+SOUKO_SHEET_URL+'" target="_blank" rel="noopener">📗 倉庫スプレッドシートをひらく</a>';
+  html += '<div class="souko-sheet-note no-print">不良品のご報告・在庫・メモ・これまでの記録は、すべてスプレッドシートにあります。</div>';
   /* ★梱包終了（pack.packed）した1件は一覧から消える（スプシには全部残る・2026-09-04ひろみさん指示） */
   var listOrders = (allOrders||[]).filter(function(o){ return !(o.pack && o.pack.packed); });
   if(!listOrders.length){
