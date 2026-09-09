@@ -1,10 +1,13 @@
 /* ══════════════════════════════════════════════════════════════════════
-   セットの商品管理番号（SET-下4桁-下4桁）の見張り　2026-09-09 作成
+   セットの商品管理番号（品番-下4桁-下4桁）の見張り　2026-09-09 作成
 
    ★ひろみさんの決定（2026-09-09）
-     これから作る【ただのセット】の商品管理番号は
-         SET- のあとに、中身の商品のバーコード下4桁を、ハイフンで並べる
-     例）オルガニック250ml（…9063）＋メメジック250ml（…9100）→ SET-9063-9100
+     これから作る【ギフトではなくただのセット】の商品管理番号は
+         そのセットの品番 のうしろに、中身の【オイル】のバーコード下4桁を、ハイフンで並べる
+     例）品番 SETX ＋ オルガニック250ml（…9063）＋メメジック250ml（…9100） → SETX-9063-9100
+     ・並べるのはオイルだけ。箱・紙袋・備品（BOX…／BAG…／MISC…）は番号に入れない。
+       （在庫を引くためには構成に書きます。番号に出すかどうかは別の話です）
+     ・並べる順は【構成に書いた順】。書き直すと番号も変わります。
 
      ・入れる先は【商品管理番号（STORES品番）】。バーコード（JAN）欄は空のまま。
        （2026-09-03の決定「セットにJANは作らない」を守る）
@@ -46,7 +49,7 @@ function grab(name) {
   return M.slice(M.indexOf(m[0]), i + 1);
 }
 
-const NAMES = ['mbBarcodeOfSku', 'mbIsGiftSet', 'mbSetKanriFrom', 'mbKanriFrom'];
+const NAMES = ['mbBarcodeOfSku', 'mbIsGiftSet', 'mbIsBihin', 'mbSetTailsFrom', 'mbSetKanriFrom', 'mbKanriFrom'];
 const src = NAMES.map(n => { const f = grab(n); ok('①本物の ' + n + ' が master.html にある', !!f); return f || ''; }).join('\n');
 
 /* 本物の商品データを模した名簿（バーコードは実物と同じ） */
@@ -69,9 +72,9 @@ vm.createContext(ctx);
 vm.runInContext(src, ctx);
 
 /* ── ② ただのセット → SET-下4桁-下4桁 ────────────────────────── */
-eq('②オイル2本のセット', ctx.mbKanriFrom('SETX', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }]), 'SET-9063-9100');
-eq('②オイル3本のセット', ctx.mbKanriFrom('SETY', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SET-9063-9100-9230');
-eq('②100mlと250mlの混ぜセット', ctx.mbKanriFrom('SETZ', '', [{ sku: 'ORG100', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SET-5149-9230');
+eq('②オイル2本のセット', ctx.mbKanriFrom('SETX', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }]), 'SETX-9063-9100');
+eq('②オイル3本のセット', ctx.mbKanriFrom('SETY', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SETY-9063-9100-9230');
+eq('②100mlと250mlの混ぜセット', ctx.mbKanriFrom('SETZ', '', [{ sku: 'ORG100', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SETZ-5149-9230');
 
 /* ── ③ ギフトセットは今までどおり品番のまま ───────────────────── */
 eq('③ギフト箱入り（BOX…）は品番のまま', ctx.mbKanriFrom('YS250A', '',
@@ -103,7 +106,7 @@ ok('⑥保存時にセットの番号を作り直している',
   M.indexOf("prod['STORES品番'] = mbKanriFrom(sku, prod['バーコード'], _kousei);") >= 0,
   '（構成品より先に番号を作ると、セットでも品番のままになります）');
 ok('⑥入力中の表示にもセットの番号が出る',
-  M.indexOf('mbSetKanriFrom(_comps)') >= 0);
+  M.indexOf('mbSetKanriFrom(sku, _comps)') >= 0);
 
 /* ══════════════════════════════════════════════════════════════════
    ⑧ 【保存する番号】と【画面に出す番号】が同じであること
@@ -131,6 +134,8 @@ if (dsp) {
       return (p && p.extras && p.extras['バーコード']) || '';
     },
     mbSetKanriFrom: ctx.mbSetKanriFrom,
+    mbSetTailsFrom: ctx.mbSetTailsFrom,
+    mbIsBihin: ctx.mbIsBihin,
     mbIsGiftSet: ctx.mbIsGiftSet,
     mbBarcodeOfSku: ctx.mbBarcodeOfSku
   };
@@ -139,8 +144,8 @@ if (dsp) {
 
   /* 名簿に「ただのセット」と「ギフトセット」を置いて、2つの計算を突き合わせる */
   const CASES = [
-    { sku: 'SETX', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }], want: 'SET-9063-9100' },
-    { sku: 'SETY', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }, { sku: 'CHF250' }], want: 'SET-9063-9100-9230' },
+    { sku: 'SETX', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }], want: 'SETX-9063-9100' },
+    { sku: 'SETY', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }, { sku: 'CHF250' }], want: 'SETY-9063-9100-9230' },
     { sku: 'YSG', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }, { sku: 'BOX-YS2' }], want: 'YSG' },
     { sku: 'YSFUT', comps: [{ sku: 'ORG250' }, { sku: 'BOX-FUTURE' }], want: 'YSFUT' },
     { sku: 'ORG250', comps: [], want: 'ORG250-9063' }
@@ -208,8 +213,8 @@ ok('⑦セットの番号をバーコード欄に書き込んでいない',
   [['統合マスタＮ', M], ['業務フロー説明書', F]].forEach(pair => {
     ok('⑩' + pair[0] + '：「ギフトではなくただのセット」の言い方を使っている',
       pair[1].indexOf('ギフトではなくただのセット') >= 0);
-    ok('⑩' + pair[0] + '：SET-9063-9100 の例が載っている',
-      pair[1].indexOf('SET-9063-9100') >= 0);
+    ok('⑩' + pair[0] + '：新しい形の例（-9063-9100）が載っている',
+      pair[1].indexOf('-9063-9100') >= 0 && pair[1].indexOf('SET-9063-9100') < 0);
   });
   ok('⑩業務フロー説明書：古い「SKU*本数のカンマ区切り」が残っていない',
     F.indexOf('MEM250*1,PRI500*1,CHF250*1') < 0,
@@ -217,7 +222,7 @@ ok('⑦セットの番号をバーコード欄に書き込んでいない',
   ok('⑩統合マスタＮ：古い「セットはセットの品番（バーコードが無いのでハイフンなし）」が残っていない',
     M.indexOf('セットはセットの品番（バーコードが無いのでハイフンなし）') < 0);
   ok('⑩そろえるボタンの確認文も新しいルールになっている',
-    M.indexOf('ギフトではなくただのセットは「SET-下4桁-下4桁」') >= 0 &&
+    M.indexOf('ギフトではなくただのセットは「品番-下4桁-下4桁（オイルだけ）」') >= 0 &&
     M.indexOf('セットはセット品番になります') < 0,
     '（押す前に読む文が古いままだと、ひろみさんが違う結果を想像します）');
 }

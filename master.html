@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-09-03">
+<meta name="oos-version" content="2026-09-09-04">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -913,7 +913,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
       <div class="stq-lead">STORESの商品を作る／直すときは、STORESの<b>「品番」欄</b>に、この形で書きます。この形で書いておくと、CSVを取り込んだとき<b>売れた分を正しく在庫から引けます</b>。書き方がバラバラだと在庫がどんどんズレるので、<b>ここを必ず守ってください。</b></div>
 
       <div class="stq-h"><span class="stq-n">1</span>入れるのは、名簿の「商品管理番号」ひとつ</div>
-      <div class="stq-card">STORESの品番欄には、名簿の<b>「商品管理番号」をそのまま</b>入れます。番号は名簿で自動でできています。<b>単品</b>は品番＋バーコード下4桁。<div class="stq-eg">ORG500-5354</div><b>ギフトではなくただのセット</b>は <b>SET－</b> のあとに、中身のバーコード下4桁をハイフンで並べます。<div class="stq-eg">SET-9063-9100</div><b>ギフトセット</b>（ギフト箱・紙袋が入っているもの）は今までどおり。<div class="stq-eg">YS100-7050</div><span style="color:#0b5a53">※ 昔の「STORES品番」という別の番号はもうありません。番号は商品管理番号ひとつです。</span></div>
+      <div class="stq-card">STORESの品番欄には、名簿の<b>「商品管理番号」をそのまま</b>入れます。番号は名簿で自動でできています。<b>単品</b>は品番＋バーコード下4桁。<div class="stq-eg">ORG500-5354</div><b>ギフトではなくただのセット</b>は、<b>そのセットの品番</b>のうしろに、<b>中身のオイル</b>のバーコード下4桁をハイフンで並べます（箱・紙袋は入れません）。<div class="stq-eg">（セットの品番）-9063-9100</div><b>ギフトセット</b>（ギフト箱・紙袋が入っているもの）は今までどおり。<div class="stq-eg">YS100-7050</div><span style="color:#0b5a53">※ 昔の「STORES品番」という別の番号はもうありません。番号は商品管理番号ひとつです。</span></div>
 
       <div class="stq-h"><span class="stq-n">2</span>セットは、中身を書かなくていい</div>
       <div class="stq-card">セットも、<b>中身を書き並べる必要はありません</b>。セットの商品管理番号（例 <span class="stq-code">YS100</span>）を入れるだけ。<b>中身（どのオイル・箱・紙袋か）は名簿が覚えている</b>ので、取り込みのときに<b>アプリが自動で中身に展開して、それぞれを在庫から引きます。</b></div>
@@ -1376,7 +1376,7 @@ async function meiboSaveAllSetComponents(){
     var mid = comps.map(function(c){ return compName(c.sku)+'×'+(c.qty||1); }).join('、');
     return '・'+(p.name||p.sku)+'\n　　→ 中身：'+mid;
   }).join('\n\n');
-  if(!confirm('つぎの'+sets.length+'件のセットの「構成」を商品マスタに書き込みます。\n（在庫の自動計算と商品管理番号をそろえるための初回セットアップです。ほかの列は触りません）\nギフトではなくただのセットは「SET-下4桁-下4桁」、ギフトセットは今までどおりの番号になります。\n\n'+preview+'\n\nよろしいですか？')) return;
+  if(!confirm('つぎの'+sets.length+'件のセットの「構成」を商品マスタに書き込みます。\n（在庫の自動計算と商品管理番号をそろえるための初回セットアップです。ほかの列は触りません）\nギフトではなくただのセットは「品番-下4桁-下4桁（オイルだけ）」、ギフトセットは今までどおりの番号になります。\n\n'+preview+'\n\nよろしいですか？')) return;
   var btn=document.getElementById('meibo-setcomp-btn'); if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
   var ok=0, ng=[];
   for(var i=0;i<sets.length;i++){
@@ -5003,7 +5003,7 @@ function meiboBarcode(sku){
 /* 画面に出す商品管理番号。★ここは【名簿一覧の表示】と【STORES品番をそろえるボタン】と
    【セットの構成を一括保存】が、そろって使う唯一の計算です。
    ★2026-09-09 セットのルール（SET-下4桁-下4桁）を、ここにも通します。
-     ここを直さないと、保存された SET-9063-9100 が
+     ここを直さないと、保存された（セットの品番）-9063-9100 が
        ・名簿の「商品管理番号」の列に出ない（古い番号が出る）
        ・「STORES品番をそろえる」を押すと、古い番号に戻されてしまう
      という食いちがいが起きます。★保存側（mbKanriFrom）と必ず同じ答えにしてください。 */
@@ -5011,7 +5011,7 @@ function displaySkuCode(sku){
   if(!sku) return '';
   var _p = (typeof findProductBySku === 'function') ? findProductBySku(String(sku).trim()) : null;
   var _comps = (_p && typeof compsOf === 'function') ? compsOf(_p) : [];
-  var _setNo = (typeof mbSetKanriFrom === 'function') ? mbSetKanriFrom(_comps) : '';
+  var _setNo = (typeof mbSetKanriFrom === 'function') ? mbSetKanriFrom(sku, _comps) : '';
   if(_setNo) return _setNo;
   var jan = meiboBarcode(sku);
   var digits = String(jan||'').replace(/[^0-9A-Za-z]/g, '');
@@ -5059,7 +5059,7 @@ async function meiboFillStoresHinban(){
   var list = storesHinbanTargets();
   if(!list.length){ alert('そろえるものはありませんでした。\n\n（STORES品番は、すでに全部「商品管理番号」とそろっています）'); return; }
   var preview = list.map(function(p){ return '・' + (p.name||p.sku) + ' → ' + displaySkuCode(p.sku); }).join('\n');
-  if(!confirm('STORES品番を「商品管理番号」にそろえます（' + list.length + '件）。\n※ECサイトには、この商品管理番号をそのまま入れます。単品は「品番-バーコード下4桁」、ギフトではなくただのセットは「SET-下4桁-下4桁」、ギフトセットは今までどおりです。\n\n' + preview + '\n\nよろしいですか？')) return;
+  if(!confirm('STORES品番を「商品管理番号」にそろえます（' + list.length + '件）。\n※ECサイトには、この商品管理番号をそのまま入れます。単品は「品番-バーコード下4桁」、ギフトではなくただのセットは「品番-下4桁-下4桁（オイルだけ）」、ギフトセットは今までどおりです。\n\n' + preview + '\n\nよろしいですか？')) return;
   if(btn){ btn.disabled = true; }
   var ok = 0, ng = [];
   for(var i=0; i<list.length; i++){
@@ -5337,7 +5337,7 @@ function mbKindChanged(){
    これから作る【ただのセット】の商品管理番号は
        SET- のあとに、中身の商品のバーコード下4桁を、ハイフンで並べる
    例）オルガニック250ml（…9063）＋ メメジック250ml（…9100）のセット
-       → SET-9063-9100
+       →（そのセットの品番）-9063-9100　※並べるのはオイルだけ
 
    ★決まっていること（勝手に変えないでください）
      ・入れる先は【商品管理番号（STORES品番）】。バーコード（JAN）欄は空のまま。
@@ -5346,8 +5346,12 @@ function mbKindChanged(){
      ・【ギフトセット】は今までどおり品番そのまま（YS100・YS250A〜C・GFT001）。
        ★付け替えないでください。STORESに登録済みの番号が変わってしまいます。
      ・ギフトセットの見分け方＝中身にギフト箱（BOX…）か紙袋（BAG…）が入っているもの。
-     ・中身のどれかにバーコードが無いときは、番号を作らず品番のままにします
+     ・★2026-09-09夜 ひろみさん指示：番号に並べるのは【オイルだけ】。
+       箱・紙袋・備品（BOX…／BAG…／MISC…）は、構成に書いてあっても番号には入れません。
+       （在庫を引くためには構成に書きます。番号に出すかどうかは別の話です）
+     ・オイルのどれかにバーコードが無いときは、番号を作らず品番のままにします
        （中途半端な番号を作らない。バーコードを入れれば次の保存で作られます）
+     ・並べる順は【構成に書いた順】。書き直すと番号も変わります。
    ══════════════════════════════════════════════════════════════════ */
 function mbBarcodeOfSku(sku){
   var p = (typeof findProductBySku==='function') ? findProductBySku(String(sku||'').trim()) : null;
@@ -5358,18 +5362,32 @@ function mbBarcodeOfSku(sku){
 function mbIsGiftSet(comps){
   return (comps||[]).some(function(c){ return /^(BOX|BAG)/i.test(String((c && c.sku) || '').trim()); });
 }
-/* ただのセットの番号。作れないときは '' を返す（＝品番のままにする合図） */
-function mbSetKanriFrom(comps){
+/* 箱・紙袋・備品は番号に入れない（★2026-09-09夜 ひろみさん指示：オイルだけ並べる） */
+function mbIsBihin(sku){ return /^(BOX|BAG|MISC)/i.test(String(sku || '').trim()); }
+/* ただのセットの「品番のうしろに付ける部分」。作れないときは '' を返す（＝品番のままにする合図）。
+   ★戻り値にはハイフンを含みません。呼ぶ側が 品番 + '-' + これ の形にします。 */
+function mbSetTailsFrom(comps){
   comps = comps || [];
   if(!comps.length) return '';
-  if(mbIsGiftSet(comps)) return '';            // ギフトセットは今までどおり
+  if(mbIsGiftSet(comps)) return '';            // ギフトセットは今までどおり（番号を付け替えない）
   var tails = [];
   for(var i=0;i<comps.length;i++){
-    var d = mbBarcodeOfSku(comps[i] && comps[i].sku);
-    if(d.length < 4) return '';                // 1つでもバーコードが無ければ作らない
+    var sku = comps[i] && comps[i].sku;
+    if(mbIsBihin(sku)) continue;               // 箱・紙袋・備品は番号に入れない
+    var d = mbBarcodeOfSku(sku);
+    if(d.length < 4) return '';                // オイルにバーコードが無ければ作らない
     tails.push(d.slice(-4));
   }
-  return 'SET-' + tails.join('-');
+  if(!tails.length) return '';                 // オイルが1本も無ければ番号にしない
+  return tails.join('-');
+}
+/* セット全体の商品管理番号＝【セット自身の品番】＋オイルの下4桁 */
+function mbSetKanriFrom(sku, comps){
+  var t = mbSetTailsFrom(comps);
+  if(!t) return '';
+  var head = String(sku == null ? '' : sku).trim();
+  if(!head) return '';
+  return head + '-' + t;
 }
 /* ★2026-08-07 商品管理番号を組み立てる唯一の計算（品番＋バーコード下4桁。無ければ品番だけ）。
    この番号がECサイト（STORES品番）でもそのまま使われる＝どこでも同じ1つの番号。
@@ -5377,7 +5395,7 @@ function mbSetKanriFrom(comps){
 function mbKanriFrom(sku, barcodeStr, comps){
   sku = String(sku == null ? '' : sku).trim();   // ★2026-09-08 数字の品番でも落ちないように
   if(!sku) return '';
-  var setNo = mbSetKanriFrom(comps);
+  var setNo = mbSetKanriFrom(sku, comps);
   if(setNo) return setNo;
   var digits = String(barcodeStr||'').replace(/[^0-9A-Za-z]/g,'');
   var tail = digits.length>=4 ? digits.slice(-4) : '';
@@ -5398,12 +5416,12 @@ function mbPreviewKanri(){
   /* ★2026-09-09 セットのときは、中身のバーコード下4桁を並べた番号を先に出す */
   var _comps = (typeof mkCollectKousei==='function') ? mkCollectKousei() : [];
   if(_comps.length){
-    var _setNo = mbSetKanriFrom(_comps);
-    if(_setNo){ out.textContent=_setNo; if(hint) hint.textContent='✓ セット：中身のバーコード下4桁を並べた番号'; return; }
+    var _setNo = mbSetKanriFrom(sku, _comps);
+    if(_setNo){ out.textContent=_setNo; if(hint) hint.textContent='✓ セット：品番のうしろに、中身のオイルのバーコード下4桁を並べました（箱・紙袋は入れません）'; return; }
     out.textContent = sku;
     if(hint) hint.textContent = mbIsGiftSet(_comps)
       ? 'ギフトセット（ギフト箱・紙袋入り）は品番のままです'
-      : '中身のどれかにバーコードがないので、品番のままです';
+      : '中身のオイルにバーコードが無いか、オイルが入っていないので、品番のままです';
     return;
   }
   var digits = bc.replace(/[^0-9A-Za-z]/g,'');
@@ -5542,7 +5560,7 @@ function meiboEditRowHtml(p, sp){
       '</div></div>'+
       '<div class="mp-fg" style="grid-column:1/-1;margin-top:2px;padding:12px;border:1px dashed #cdb7e0;border-radius:10px;background:#faf7fd">'+
         '<label style="color:#5a3a7a;font-weight:800">構成（セットの中身）</label>'+
-        '<div class="mp-note" style="margin:2px 0 8px">単品のときは空でOK。ここに商品を入れると<b>「セット商品」</b>になり、<b>在庫の「あと何セット作れるか」</b>が自動で計算されます（箱・紙袋も入れてください）。<b>STORES品番はこのセット自身の品番</b>になり、売れたときはここの中身を名簿から自動で展開して在庫を引きます。</div>'+
+        '<div class="mp-note" style="margin:2px 0 8px">単品のときは空でOK。ここに商品を入れると<b>「セット商品」</b>になり、<b>在庫の「あと何セット作れるか」</b>が自動で計算されます（<b>箱・紙袋も入れてください</b>＝在庫を引くために必要です）。<b>商品管理番号は「このセットの品番＋中身のオイルのバーコード下4桁」</b>が自動でできます（箱・紙袋は番号には入りません）。売れたときはここの中身を名簿から自動で展開して在庫を引きます。</div>'+
         '<div id="mp-kousei-rows">'+ (compsOf(p)||[]).map(function(c){return kouseiRowHtml(c.sku,c.qty);}).join('') +'</div>'+
         '<button type="button" class="btn-sm" onclick="mkAddKousei()" style="margin-top:4px">＋ 中身を足す</button>'+
       '</div>'+

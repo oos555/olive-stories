@@ -45,6 +45,14 @@ function makeSheet(initialRows){
     _rows: () => rows,
     getLastRow(){ return rows.length + 1; },
     getLastColumn(){ return WIDTH; },
+    /* ★2026-09-09 本物のGASが getDataRange() を使うようになったので、
+       この身代わりシートにも同じ口をつける（1行目は見出し、2行目から中身）。
+       本物は「1枚を読むのに4往復 → 1往復」に変えて速くしました。
+       ★この getDataRange を消すと、臨時入庫の見張りが動かなくなります。 */
+    getDataRange(){
+      const header = new Array(WIDTH).fill('');
+      return { getValues(){ return [header].concat(rows.map(x => x.slice())); } };
+    },
     getRange(r, c, nr, nc){
       return {
         getValues(){ return rows.slice(r-2, r-2+nr).map(x => x.slice()); },
