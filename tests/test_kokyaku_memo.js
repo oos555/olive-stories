@@ -36,8 +36,24 @@ ok('①バサラ発注シートの27列目が「本部へのご連絡」（OOS_B
 ok('①倉庫スプシの32列目が「お客様からのメモ」（OOS_YC.kokyakuMemo）',
   /kokyakuMemo:32\s*\}/.test(GAS),
   '（どの取引先でも、いつもこの1列。動かすと見逃します）');
-ok('①倉庫スプシに見出しを作っている',
-  GAS.indexOf("sh.getRange(1, OOS_YC.kokyakuMemo).setValue('お客様からのメモ") >= 0);
+ok('①倉庫スプシに見出しを作る部品がある（oosKokyakuMemoColumn_）',
+  GAS.indexOf('function oosKokyakuMemoColumn_') >= 0 &&
+  GAS.indexOf("setValue('お客様からのメモ") >= 0);
+/* ★2026-09-09 実際にやってしまった失敗の見張り。
+   見出しを作るコードを【早期returnのうしろ】に置いたため、一度も実行されず、
+   窓口は ok を返すのに列見出しが空のままでした（返事だけ見て安心した私のミス）。
+   ★見出し作りは、必ず早期returnより前で呼ぶこと。 */
+ok('①見出し作りが、早期returnより【前】で呼ばれている',
+  (function(){
+    const i = GAS.indexOf('oosKokyakuMemoColumn_(sh);');
+    const j = GAS.indexOf("if(h27.indexOf('発注者') >= 0) return");
+    return i >= 0 && j >= 0 && i < j;
+  })(),
+  '（うしろに置くと、すでに用意ずみのときに一度も作られません）');
+ok('①単独で呼べる窓口がある（oosKokyakuMemoColumn）',
+  GAS.indexOf('function oosKokyakuMemoColumn(') >= 0 &&
+  GAS.indexOf("action === 'oosKokyakuMemoColumn'") >= 0,
+  '（あとから列だけ整え直せるように）');
 ok('①バサラ発注シートに見出しを作る窓口がある（oosBasaraMemoColumn）',
   GAS.indexOf('function oosBasaraMemoColumn') >= 0);
 
