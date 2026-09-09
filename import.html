@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-09-02">
+<meta name="oos-version" content="2026-09-09-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと同じ並びにするため。★消さないでください -->
 <script src="oos-kubun.js"></script>
@@ -783,7 +783,11 @@ function applyProductsE(products){
      ★消さないでください（2026-08-18に輸入ノートで同じ穴をふさいだのと同じ型です）。 */
   [['原価データの表', (typeof renderCostProductTable === 'function') ? renderCostProductTable : null],
    ['増えていますのお知らせ', (typeof renderCostMissingAlert === 'function') ? renderCostMissingAlert : null],
-   ['掛け率シミュレーション', (typeof renderRateSimulation === 'function') ? renderRateSimulation : null]
+   /* ★2026-09-09 ここに renderRateSimulation を入れてはいけません。
+      商品一覧は原価より【先に】届きます。原価がまだ空のうちに掛け率シミュレーションを描くと、
+      「開いた最初の1回だけ自動で1件出す」印（simAutoPickDone）を使い切ってしまい、
+      そのあと原価が届いても、もう何も出なくなります（＝画面が空っぽに見える）。
+      ★2026-09-09に実際にこれをやってしまい、ひろみさんの画面が空になりました。★戻さないでください。 */
   ].forEach(function(pair){
     if(typeof pair[1] !== 'function') return;
     try{ pair[1](); }catch(e){ try{ console.error('【'+pair[0]+'】が描けませんでした', e); }catch(_){} }
@@ -1412,6 +1416,20 @@ function mlFromName_(name){
    輸入Eは名簿にぶら下がる（名簿に増えたら、ここにも自動で増える）。
    だから並びの土台は「商品マスタ」。価格マスタにしか無い品番は、
    取りこぼさないように後ろに足しておく。 */
+/* ★2026-09-09 並び順の親（oos-kubun.js）が読めなかったときに、画面で知らせる。
+   黙って違う並びで出すと、原因が分からないまま「並びが違う」と悩むことになります。 */
+function oosKubunOyaWarn_(){
+  var id='oos-kubun-warn';
+  if(document.getElementById(id)) return;
+  var d=document.createElement('div');
+  d.id=id;
+  d.style.cssText='margin:10px 0;padding:11px 14px;border:2px solid #b91c1c;border-radius:10px;background:#fef2f2;color:#7f1d1d;font-weight:800;line-height:1.7';
+  d.innerHTML='⚠️ 並び順の親ファイル（oos-kubun.js）が読み込めていません。<br>'+
+    '<span style="font-weight:400">そのため、商品の並びが統合マスタ N とちがっています（名簿の登録順のまま出ています）。'+
+    '画面を <b>Ctrl + Shift + R</b>（Macは ⌘+Shift+R）で読み直してください。直らないときはお知らせください。</span>';
+  var host=document.getElementById('panel-cost')||document.body;
+  host.insertBefore(d, host.firstChild);
+}
 function allCostSkus(){
   var seen = {};
   var list = [];
@@ -1423,7 +1441,11 @@ function allCostSkus(){
      並び順の決めごとは oos-kubun.js（親）に1か所だけ書いてあります。
      ★ここで自前に並べ替えないでください。2か所になると必ずズレます。 */
   if(typeof OOS_PRODUCTS !== 'undefined' && OOS_PRODUCTS && OOS_PRODUCTS.length){
-    var _sorted = (window.OOS_KUBUN && typeof window.OOS_KUBUN.sortProducts === 'function')
+    /* ★2026-09-09 親（oos-kubun.js）が読めないと、黙って違う並びになってしまいます。
+       それだと「なぜセットが一番下なの？」と分からなくなるので、はっきり知らせます。 */
+    var _hasOya = !!(window.OOS_KUBUN && typeof window.OOS_KUBUN.sortProducts === 'function');
+    if(!_hasOya) oosKubunOyaWarn_();
+    var _sorted = _hasOya
       ? window.OOS_KUBUN.sortProducts(OOS_PRODUCTS)   // 統合マスタと同じ並び
       : OOS_PRODUCTS;                                  // 親が読めなければ、名簿の並びのまま
     _sorted.filter(isProductActiveE).forEach(function(p){
@@ -2170,6 +2192,10 @@ function renderSimPanel(){
     loadSimPanel(currentSimSku, currentSimTier, {noScroll:true});
     return;
   }
+  /* ★2026-09-09 原価がまだ読めていないうちは、何もしないで帰る。
+     ここで simAutoPickDone を使い切ると、原価が届いたあとに何も出なくなります。
+     （2026-09-09に実際に起きた不具合。★この守りを外さないでください） */
+  if(typeof costLoadedOk !== 'undefined' && !costLoadedOk) return;
   // まだ一度もマスを選んでいないときだけ、最初の1回に限り利益の薄い卸②を1件出す
   let firstLow = null;
   if(!simAutoPickDone){

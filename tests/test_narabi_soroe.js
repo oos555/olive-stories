@@ -109,6 +109,36 @@ if (K) {
     '（名簿に ORG250 → ORG100 の順で入っているので、そのままの順で出ます）');
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ⑤ 掛け率シミュレーションを、原価が届く前に描かないこと
+   ──────────────────────────────────────────────────────────────────
+   ★2026-09-09 実際に起こした不具合。
+     applyProductsE（商品一覧が届いたとき）に renderRateSimulation を足したところ、
+     原価がまだ空のうちに1回描かれ、「開いた最初の1回だけ自動で1件出す」印
+     （simAutoPickDone）を使い切ってしまい、そのあと原価が届いても何も出なくなった。
+     ＝ひろみさんの画面で【掛け率シミュレーションが空っぽ】になった。
+   ══════════════════════════════════════════════════════════════════ */
+{
+  const IMP = fs.readFileSync(path.join(ROOT, 'import.html'), 'utf8');
+  const ap = IMP.slice(IMP.indexOf('function applyProductsE'), IMP.indexOf('async function initializeProductsE'));
+  /* ★コメントの中の説明文まで拾わないよう、コメントを取り除いてから見ます。
+     （2026-09-09に、自分が書いた注意書きの文字を拾って空振りしました） */
+  const apCode = ap.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  ok('⑤applyProductsE から掛け率シミュレーションを呼んでいない',
+    apCode.indexOf('renderRateSimulation') < 0,
+    '（原価より先に呼ぶと、シミュレーションが空っぽになります）');
+  ok('⑤原価が読めていないうちは自動で選ばない（守り）',
+    IMP.indexOf("if(typeof costLoadedOk !== 'undefined' && !costLoadedOk) return;") >= 0,
+    '（印を使い切ると、原価が届いたあと何も出なくなります）');
+  ok('⑤原価データの表とお知らせは、これからも描き直す',
+    apCode.indexOf('renderCostProductTable') >= 0 && apCode.indexOf('renderCostMissingAlert') >= 0,
+    '（名簿で作った商品が原価データに出てこなくなります）');
+  ok('⑤並び順の親が読めないときは、黙らずに知らせる',
+    IMP.indexOf('oosKubunOyaWarn_') >= 0 &&
+    IMP.indexOf('並び順の親ファイル（oos-kubun.js）が読み込めていません') >= 0,
+    '（黙って違う並びで出すと、原因が分からなくなります）');
+}
+
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '統合マスタＮと輸入・原価Ｅの商品の並びをそろえる（2026-09-09 ひろみさん指示）';
 if (fail) {
