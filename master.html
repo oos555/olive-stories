@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-09-08">
+<meta name="oos-version" content="2026-09-09-09">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4873,7 +4873,14 @@ function currentLotsFor(sku){
        ぜんぶ描かれず、しかも「接続エラー」と出て原因が分からなくなっていました。
        ★必ず String( ) でくるんでください。数字でも日付でも文字にしてから触ります。 */
     var code = String(l.lotCode == null ? '' : l.lotCode).trim();
-    if(l.pid==p.id && l.status==='new' && (l.stock||0)>0 && code && code!=='-'){
+    /* ★2026-09-09夜 ひろみさん報告「ロットと賞味期限を入れても反応しない」の直し。
+       ここに (l.stock||0)>0 が入っていたため、【在庫が0本のロットは名簿に出ませんでした】。
+       新しく作った商品は在庫0で始まるので、ロットを入れても画面が変わらない＝
+       「入らなかった」と見えて、何度も入れ直すことになります。
+       実データの証拠：モンテ物産スタルツェブレンド5ℓ に、在庫0のロットが10本。
+       ★在庫が0でも、登録したロットはそのまま出します（0本と書いて出します）。
+       ★この条件を戻さないでください。 */
+    if(l.pid==p.id && l.status==='new' && code && code!=='-'){
       out.push({ lot:code, expiry:(l.expiry||''), qty:(l.stock||0) });
     }
   });
@@ -5850,7 +5857,10 @@ function meiboLotCells(p, sp, jan){
   if(nows.length){
     // 在庫データにある最新ロットをそのまま出す（画面から直せるのはこちら）
     nows.forEach(function(n){
-      lotCell += line('now','<span class="lotcode">'+esc(n.lot)+'</span><span class="lotqty now">'+esc(n.qty)+' 本</span>');
+      /* ★2026-09-09夜 在庫0でも出します。0本のときは、まだ入荷していないと分かるように書きます */
+      lotCell += line('now','<span class="lotcode">'+esc(n.lot)+'</span>'+
+        ((n.qty>0) ? '<span class="lotqty now">'+esc(n.qty)+' 本</span>'
+                   : '<span class="lotqty" style="color:#8a7f6a">0 本（入荷前）</span>'));
       expCell += line('now', n.expiry?'<span class="expiry">'+esc(n.expiry)+'</span>':mDash());
       janCell += line('now', jan?'<span class="jancode">'+esc(jan)+'</span>'
                                 :'<button class="janadd" onclick="meiboAddJan(\''+esc(p.sku)+'\')">入力</button>');

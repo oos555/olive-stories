@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-24-05">
+<meta name="oos-version" content="2026-09-09-01">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -772,6 +772,20 @@ function applyProductsE(products){
   if(!products || !products.length) return;
   OOS_PRODUCTS = products;
   if(typeof renderProfitHeatmap === 'function') renderProfitHeatmap();
+  /* ★2026-09-09夜 ひろみさん報告「名簿で作ったセットが🔒原価データに出てこない」の直し。
+     商品一覧（OOS_PRODUCTS）は【あとから】届きます。届いたときに
+     利益ヒートマップと輸入ノートは描き直していたのに、
+     肝心の【🔒原価データの表】と【🔔増えていますのお知らせ】を描き直していませんでした。
+     そのため「お知らせは出るのに、表には無い」という食いちがいが起きます。
+     ★ここは【画面を描き直すだけ】です。原価の保存には一切さわりません。
+     ★消さないでください（2026-08-18に輸入ノートで同じ穴をふさいだのと同じ型です）。 */
+  [['原価データの表', (typeof renderCostProductTable === 'function') ? renderCostProductTable : null],
+   ['増えていますのお知らせ', (typeof renderCostMissingAlert === 'function') ? renderCostMissingAlert : null],
+   ['掛け率シミュレーション', (typeof renderRateSimulation === 'function') ? renderRateSimulation : null]
+  ].forEach(function(pair){
+    if(typeof pair[1] !== 'function') return;
+    try{ pair[1](); }catch(e){ try{ console.error('【'+pair[0]+'】が描けませんでした', e); }catch(_){} }
+  });
   /* ★2026-08-18 商品一覧があとから届いたら、開いている輸入ノートの明細も描き直す。
      これが無いと、名簿に登録したばかりの商品（ザクロソースなど）が
      商品のえらび一覧に出てこないままになる。★消さないでください */
