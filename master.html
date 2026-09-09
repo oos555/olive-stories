@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-08-01">
+<meta name="oos-version" content="2026-09-09-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5320,11 +5320,54 @@ function mbKindChanged(){
   mbToggleOilFields(v === 'OIL');
   mbPreviewKanri();             // ★2026-08-07 品番が入ったので商品管理番号を出す（この時点はまだ品番だけ）
 }
+/* ══════════════════════════════════════════════════════════════════
+   🎁 セットの商品管理番号（2026-09-09 ひろみさん決定）
+   ──────────────────────────────────────────────────────────────────
+   これから作る【ただのセット】の商品管理番号は
+       SET- のあとに、中身の商品のバーコード下4桁を、ハイフンで並べる
+   例）オルガニック250ml（…9063）＋ メメジック250ml（…9100）のセット
+       → SET-9063-9100
+
+   ★決まっていること（勝手に変えないでください）
+     ・入れる先は【商品管理番号（STORES品番）】。バーコード（JAN）欄は空のまま。
+       （2026-09-03の決定「セットにJANは作らない」を守っています）
+     ・作るきっかけは【名簿でセットを保存したとき、自動】。
+     ・【ギフトセット】は今までどおり品番そのまま（YS100・YS250A〜C・GFT001）。
+       ★付け替えないでください。STORESに登録済みの番号が変わってしまいます。
+     ・ギフトセットの見分け方＝中身にギフト箱（BOX…）か紙袋（BAG…）が入っているもの。
+     ・中身のどれかにバーコードが無いときは、番号を作らず品番のままにします
+       （中途半端な番号を作らない。バーコードを入れれば次の保存で作られます）
+   ══════════════════════════════════════════════════════════════════ */
+function mbBarcodeOfSku(sku){
+  var p = (typeof findProductBySku==='function') ? findProductBySku(String(sku||'').trim()) : null;
+  if(!p) return '';
+  var b = (p.extras && p.extras['バーコード']) || p['バーコード'] || p.jan || '';
+  return String(b == null ? '' : b).replace(/[^0-9A-Za-z]/g,'');
+}
+function mbIsGiftSet(comps){
+  return (comps||[]).some(function(c){ return /^(BOX|BAG)/i.test(String((c && c.sku) || '').trim()); });
+}
+/* ただのセットの番号。作れないときは '' を返す（＝品番のままにする合図） */
+function mbSetKanriFrom(comps){
+  comps = comps || [];
+  if(!comps.length) return '';
+  if(mbIsGiftSet(comps)) return '';            // ギフトセットは今までどおり
+  var tails = [];
+  for(var i=0;i<comps.length;i++){
+    var d = mbBarcodeOfSku(comps[i] && comps[i].sku);
+    if(d.length < 4) return '';                // 1つでもバーコードが無ければ作らない
+    tails.push(d.slice(-4));
+  }
+  return 'SET-' + tails.join('-');
+}
 /* ★2026-08-07 商品管理番号を組み立てる唯一の計算（品番＋バーコード下4桁。無ければ品番だけ）。
-   この番号がECサイト（STORES品番）でもそのまま使われる＝どこでも同じ1つの番号。 */
-function mbKanriFrom(sku, barcodeStr){
+   この番号がECサイト（STORES品番）でもそのまま使われる＝どこでも同じ1つの番号。
+   ★2026-09-09 セット（第3引数 comps）のときは、上のセットのルールを先に使う。 */
+function mbKanriFrom(sku, barcodeStr, comps){
   sku = String(sku == null ? '' : sku).trim();   // ★2026-09-08 数字の品番でも落ちないように
   if(!sku) return '';
+  var setNo = mbSetKanriFrom(comps);
+  if(setNo) return setNo;
   var digits = String(barcodeStr||'').replace(/[^0-9A-Za-z]/g,'');
   var tail = digits.length>=4 ? digits.slice(-4) : '';
   return tail ? (sku + '-' + tail) : sku;
@@ -5341,6 +5384,17 @@ function mbPreviewKanri(){
   var sku = s ? (s.value||'').trim() : '';
   var bc  = b ? (b.value||'').trim() : '';
   if(!sku){ out.textContent='—'; if(hint) hint.textContent='（品番が決まると出ます）'; return; }
+  /* ★2026-09-09 セットのときは、中身のバーコード下4桁を並べた番号を先に出す */
+  var _comps = (typeof mkCollectKousei==='function') ? mkCollectKousei() : [];
+  if(_comps.length){
+    var _setNo = mbSetKanriFrom(_comps);
+    if(_setNo){ out.textContent=_setNo; if(hint) hint.textContent='✓ セット：中身のバーコード下4桁を並べた番号'; return; }
+    out.textContent = sku;
+    if(hint) hint.textContent = mbIsGiftSet(_comps)
+      ? 'ギフトセット（ギフト箱・紙袋入り）は品番のままです'
+      : '中身のどれかにバーコードがないので、品番のままです';
+    return;
+  }
   var digits = bc.replace(/[^0-9A-Za-z]/g,'');
   var tail = digits.length>=4 ? digits.slice(-4) : '';
   if(tail){ out.textContent = sku + '-' + tail; if(hint) hint.textContent='✓ バーコード下4桁入り'; }
@@ -5565,6 +5619,9 @@ async function meiboSaveRow(){
   if(_kousei.length){
     prod.components = _kousei.map(function(c){ return c.sku+':'+(c.qty||1); }).join(',');  /* GAS読込形式 SKU:本数 */
     prod.isSet = true;
+    /* ★2026-09-09 セットの商品管理番号は、中身が分かってからでないと作れないので、ここで作り直す。
+       ただのセット → SET-下4桁-下4桁…／ギフトセット・作れないとき → 品番のまま（上の説明を読んでください） */
+    prod['STORES品番'] = mbKanriFrom(sku, prod['バーコード'], _kousei);
     /* ★2026-08-07 STORES品番＝商品管理番号に統一済み（セットはバーコードが無いので品番のみ＝商品管理番号と同じ）。中身は名簿が持ち、取込時に自動展開して各構成品を引く */
   } else {
     prod.components = '';
