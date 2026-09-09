@@ -26,6 +26,7 @@ const FILES = [
   ['test_narabi_soroe.js','統合マスタＮと原価データの商品の並びをそろえる（2026-09-09）'],
   ['test_kokyaku_memo.js','お客様からのメモ（備考欄U列）と受付後・発送後の行ロック（2026-09-09）'],
   ['test_souko_ipponka.js','倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10）'],
+  ['test_basara_nagare_kakutei.js','🔒 バサラ発注の流れ 確定（一切変えない・2026-09-10）'],
   ['test_master.js',       'マスターＮ 在庫の決めごと'],
   ['test_apps.js',         '4アプリの突き合わせ／不良の出荷／注文番号'],
   ['test_gas.js',          'GASと親（oos-zaiko.js）が同じ数字か'],
