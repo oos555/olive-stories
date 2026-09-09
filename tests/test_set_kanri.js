@@ -105,6 +105,63 @@ ok('⑥保存時にセットの番号を作り直している',
 ok('⑥入力中の表示にもセットの番号が出る',
   M.indexOf('mbSetKanriFrom(_comps)') >= 0);
 
+/* ══════════════════════════════════════════════════════════════════
+   ⑧ 【保存する番号】と【画面に出す番号】が同じであること
+   ──────────────────────────────────────────────────────────────────
+   ★2026-09-09 に実際に見つかった穴。
+     保存側は mbKanriFrom、画面側は displaySkuCode という【別の計算】で、
+     displaySkuCode がセットのルールを知りませんでした。そのため
+       ・保存では SET-9063-9100 になるのに、名簿の「商品管理番号」の列には
+         古い番号（品番のまま）が出る
+       ・「STORES品番を商品管理番号にそろえる」を押すと、
+         SET-9063-9100 が「ズレている」と判定され、古い番号に戻される
+       ・「セットの構成を一括保存」でも同じく戻される
+     という食いちがいが起きます。
+   ★2つの計算は、いつも同じ答えにしてください。
+   ══════════════════════════════════════════════════════════════════ */
+const dsp = grab('displaySkuCode');
+ok('⑧本物の displaySkuCode が master.html にある', !!dsp);
+if (dsp) {
+  const ctx2 = {
+    PRODUCTS,
+    findProductBySku: sku => PRODUCTS.find(p => p.sku === sku),
+    compsOf: p => (p && p.components) ? p.components : [],
+    meiboBarcode: sku => {
+      const p = PRODUCTS.find(x => x.sku === sku);
+      return (p && p.extras && p.extras['バーコード']) || '';
+    },
+    mbSetKanriFrom: ctx.mbSetKanriFrom,
+    mbIsGiftSet: ctx.mbIsGiftSet,
+    mbBarcodeOfSku: ctx.mbBarcodeOfSku
+  };
+  vm.createContext(ctx2);
+  vm.runInContext(dsp, ctx2);
+
+  /* 名簿に「ただのセット」と「ギフトセット」を置いて、2つの計算を突き合わせる */
+  const CASES = [
+    { sku: 'SETX', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }], want: 'SET-9063-9100' },
+    { sku: 'SETY', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }, { sku: 'CHF250' }], want: 'SET-9063-9100-9230' },
+    { sku: 'YSG', comps: [{ sku: 'ORG250' }, { sku: 'MEM250' }, { sku: 'BOX-YS2' }], want: 'YSG' },
+    { sku: 'YSFUT', comps: [{ sku: 'ORG250' }, { sku: 'BOX-FUTURE' }], want: 'YSFUT' },
+    { sku: 'ORG250', comps: [], want: 'ORG250-9063' }
+  ];
+  CASES.forEach(c => {
+    /* その商品を名簿に置いてから両方を呼ぶ */
+    const idx = PRODUCTS.findIndex(p => p.sku === c.sku);
+    const row = { sku: c.sku, name: c.sku, extras: {}, components: c.comps };
+    if (idx >= 0) { row.extras = PRODUCTS[idx].extras; PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], { components: c.comps }); }
+    else PRODUCTS.push(row);
+
+    const hozon = ctx.mbKanriFrom(c.sku, (row.extras && row.extras['バーコード']) || '', c.comps);
+    const gamen = ctx2.displaySkuCode(c.sku);
+    eq('⑧保存する番号　' + c.sku, hozon, c.want);
+    ok('⑧画面に出す番号が保存と同じ　' + c.sku + '（' + c.want + '）', gamen === hozon,
+      '→ 保存は「' + hozon + '」なのに画面は「' + gamen + '」（名簿の列と、そろえるボタンがズレます）');
+
+    if (idx < 0) PRODUCTS.pop(); else delete PRODUCTS[idx].components;
+  });
+}
+
 /* ── ⑦ バーコード（JAN）欄には入れていないこと ─────────────────── */
 ok('⑦セットの番号をバーコード欄に書き込んでいない',
   M.indexOf("'バーコード': mbSetKanriFrom") < 0 && M.indexOf("'バーコード': mbKanriFrom") < 0,
