@@ -8749,7 +8749,17 @@ function importCSV(){
       leadType: 'normal', leadDate:'', delivTime: g.hopeTime||'', note: g.biko||'', giftWrap: g.giftWrap||'',
       senderName:'', senderTel:'', senderZip:'', senderAddr:'',
       lines: validLines,
-      status: 'pending', source: 'stores', registeredAt: new Date().toISOString()
+      /* ★2026-09-10 ストアーズはCSVを取り込んだ時点で、もう発送が終わっています。
+         'pending'（出荷依頼まち）のままだと、
+         　・受注一覧で赤い「未送信」として残りつづける
+         　・売上一覧に【1件も出ない】（salesWasSentToWarehouse が false のため）
+         実際に、瀬川やす美様(8/26)・萩原利子様(8/27)の2件が売上に出ていませんでした。
+         ★'pending' に戻さないでください。 */
+      status: 'shipped', source: 'stores',
+      registeredAt: new Date().toISOString(),
+      shippedAt: new Date().toISOString(),
+      /* 倉庫へは送りません（ストアーズの中で発送ずみ）。最初からその印を付けます。 */
+      whSkip: { state:'skip', at:new Date().toISOString(), by:'ストアーズ取込（発送ずみ）' }
     };
     orders.push(o);
     applyStockDeductOnSend(o);   // ★STORES取込＝支払済み・出荷依頼なので在庫を減らす（正規のみ）
@@ -8761,14 +8771,21 @@ function importCSV(){
   cancelCSV();
   updateSummary(); renderList(); renderSlipSelect();
   if(imported){ persistStockDeduct(importedOrders); syncOrdersToGAS(importedOrders); }  // ① 差分反映＋変更分マージ
-  /* ★2026-09-10 ひろみさん指示「例外はなしに」：STORESの注文も、ほかと同じ流れにします。
-     倉庫への直接LINEをやめたので、ここで発注書に入れないと【倉庫に流れません】。
-     （二重よけは📥と同じ3重。すでに入っていれば dup で止まります）★消さないでください */
-  if(imported){
-    importedOrders.forEach(function(o){
-      if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }
-    });
-  }
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-10 ひろみさんのご指摘（★とても大事・戻さないでください）
+     「ストアーズはアプリは通らないし、スプシも通らない。
+     　倉庫が直接ストアーズを見て発送するから、ストアーズ内で完結する。
+     　1週間に1回くらい、ストアーズで発送したCSVをアプリに取り込む、
+     　在庫の管理だけのために。
+     　ストアーズを取り込んでも、これは発送済だから倉庫連絡は不要。
+     　発送したものとしてカウントする」
+
+     つまり ストアーズだけは【発注書へ送らない】。ほかの注文とは道がちがいます。
+     ・倉庫へは連絡しない（もう発送が終わっているから）
+     ・取り込んだ時点で【発送済】にする（売上一覧に出るように）
+     ・「倉庫には送らない（記録のみ）」の印も最初から付ける
+     ★ここで yukaImportOne を呼ばないでください（倉庫に二重で行ってしまいます）。
+     ══════════════════════════════════════════════════════════════════ */
 }
 
 // ── 取込モード切替（STORES CSV / PDF）────────────────────────────

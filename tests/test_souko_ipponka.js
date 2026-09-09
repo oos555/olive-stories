@@ -114,19 +114,32 @@ ok('⑤📥が返した【ふだ】を、受注Ａ側に控えている',
   IDX.indexOf('if(d.key) o.yukaKey = String(d.key);') >= 0,
   '（控えないと、在庫が引けず、送り状NO.も戻ってきません）');
 
-/* ── ⑤-2 例外がないこと：注文のできる道は【4つ】。全部が発注書へ ───── */
-/* ★注文が「出荷依頼（pending）」になる道は、いまこの4つです。
-     ①受注の登録（registerOrder）②STORESのCSV取込 ③取り置き・予約→出荷依頼書
-     ④バサラの☑（こちらはGASが直接、発注書に入れます）
-   ①〜③のどれかで発注書へ入れ忘れると、倉庫への直接LINEをやめた今は
-   【その注文だけ倉庫に永久に流れません】。★1つでも外さないでください。 */
-ok('⑤-2 STORESのCSV取込も、自動で発注書へ',
-  IDX.indexOf(`  if(imported){
-    importedOrders.forEach(function(o){
-      if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }
-    });
-  }`) >= 0,
-  '（入れ忘れると、STORESの注文が倉庫に流れません）');
+/* ── ⑤-2 倉庫へ出す注文の道は【3つ】。ストアーズだけは通らない ─────── */
+/* ★倉庫が発送する注文が発注書に入る道は、いまこの3つです。
+     ①受注の登録（registerOrder）②取り置き・予約→出荷依頼書
+     ③バサラの☑（こちらはGASが直接、発注書に入れます）
+   どれかで入れ忘れると、倉庫への直接LINEをやめた今は
+   【その注文だけ倉庫に永久に流れません】。★1つでも外さないでください。
+
+   ★★ストアーズだけは別です（2026-09-10 ひろみさんのご指摘）
+     「ストアーズはアプリも通らないしスプシも通らない。倉庫が直接ストアーズを見て
+     　発送するから、ストアーズ内で完結する。1週間に1回、発送ずみのCSVを
+     　在庫の管理だけのために取り込む。これは発送済だから倉庫連絡は不要」
+     → CSV取込では【発注書へ送らない】【発送済にする】【記録のみの印を付ける】。 */
+ok('⑤-2 ストアーズのCSV取込は、発注書へ送らない',
+  IDX.indexOf("importedOrders.forEach(function(o){") < 0 &&
+  IDX.indexOf('ここで yukaImportOne を呼ばないでください') >= 0,
+  '（送ると、もう発送ずみの注文が倉庫へ二重に行きます）');
+ok('⑤-2 ストアーズは取り込んだ時点で【発送済】',
+  IDX.indexOf("status: 'shipped', source: 'stores',") >= 0,
+  '（pendingのままだと、売上一覧に1件も出ません）');
+ok('⑤-2 ストアーズには【記録のみ】の印が最初から付く',
+  IDX.indexOf("whSkip: { state:'skip', at:new Date().toISOString(), by:'ストアーズ取込（発送ずみ）' }") >= 0,
+  '（付けないと、赤い「未送信」として残りつづけます）');
+ok('⑤-2 ストアーズが売上一覧に出る条件を満たす',
+  /salesWasSentToWarehouse[\s\S]{0,200}o\.status === 'shipped'/.test(
+    fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/billing.html', 'utf8')),
+  '（売上一覧は notified／shippedAt／status===shipped のどれかで判定しています）');
 ok('⑤-2 取り置き・予約→出荷依頼書も、自動で発注書へ',
   bodyOf(IDX, 'convertToShipping').indexOf("if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }") >= 0,
   '（入れ忘れると、取り置きから出した注文が倉庫に流れません）');

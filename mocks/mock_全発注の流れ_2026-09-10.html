@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発注から発送までの流れ（全部）</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@700&display=swap">
+<style>
+  :root{
+    --ink:#20211d; --ink-2:#54564d; --ink-3:#83857a;
+    --ground:#f6f5f0; --card:#ffffff; --line:#dcd8cb; --strong:#20211d;
+    --lg:#2f7d4a;   --lg-bg:#e6f3ea;   --lg-ed:#9fcdaf;   /* 💬 LINEが飛ぶ */
+    --no:#8a6a1f;   --no-bg:#fbf2dd;   --no-ed:#dfc384;   /* 何も飛ばない */
+    --btn:#1b4bb5;  --btn-bg:#e7effc;  --btn-ed:#bcd0f2;  /* 人が押す */
+    --st:#0f766e;   --st-bg:#e3f2f0;   --st-ed:#a9d6d0;   /* ストアーズ */
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
+      --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+      --lg:#7cc294; --lg-bg:#1a2a20; --lg-ed:#325c40;
+      --no:#d9b263; --no-bg:#2e2617; --no-ed:#5e4c22;
+      --btn:#8fb0e6; --btn-bg:#1b2434; --btn-ed:#37496b;
+      --st:#6fc4ba; --st-bg:#152a28; --st-ed:#2f5a55;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
+    --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+    --lg:#7cc294; --lg-bg:#1a2a20; --lg-ed:#325c40;
+    --no:#d9b263; --no-bg:#2e2617; --no-ed:#5e4c22;
+    --btn:#8fb0e6; --btn-bg:#1b2434; --btn-ed:#37496b;
+    --st:#6fc4ba; --st-bg:#152a28; --st-ed:#2f5a55;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--ground); color:var(--ink); font-size:13px; line-height:1.5;
+       font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+  .wrap{max-width:900px; margin:0 auto; padding:14px 16px 18px}
+  header{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+         border-bottom:2px solid var(--strong); padding-bottom:5px; margin-bottom:8px}
+  h1{font-family:"Zen Old Mincho",serif; font-size:19px; margin:0}
+  .sub{margin:0; color:var(--ink-3); font-size:11px}
+
+  .lead{background:var(--card); border:1px solid var(--line); border-radius:5px;
+        padding:7px 12px; margin-bottom:9px; font-size:12.5px; line-height:1.6}
+  .lead b{font-weight:900}
+
+  .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:9px}
+  @media (max-width:860px){ .grid{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:520px){ .grid{grid-template-columns:1fr} }
+
+  .col{background:var(--card); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+       display:flex; flex-direction:column}
+  .col.stores{border-color:var(--st-ed)}
+  .ch{padding:6px 10px; border-bottom:1px solid var(--line); background:rgba(0,0,0,.02)}
+  .stores .ch{background:var(--st-bg); border-bottom-color:var(--st-ed)}
+  .ch .t{font-size:14px; font-weight:900; margin:0; line-height:1.25}
+  .stores .ch .t{color:var(--st)}
+  .ch .s{font-size:10.5px; color:var(--ink-3); margin:1px 0 0}
+
+  .steps{padding:8px 10px 10px; display:flex; flex-direction:column; gap:0; flex:1}
+  .st{position:relative; padding-left:19px; padding-bottom:9px}
+  .st:last-child{padding-bottom:0}
+  .st::before{content:''; position:absolute; left:5px; top:4px; width:7px; height:7px;
+              border-radius:50%; background:var(--ink-3)}
+  .st::after{content:''; position:absolute; left:8px; top:13px; bottom:1px; width:1px; background:var(--line)}
+  .st:last-child::after{display:none}
+  .st .w{font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--ink-3); margin:0}
+  .st .a{font-size:12.5px; font-weight:700; margin:1px 0 0; line-height:1.35}
+  .st .d{font-size:10.5px; color:var(--ink-2); margin:2px 0 0; line-height:1.45}
+
+  .sig{display:inline-block; margin-top:4px; border-radius:4px; padding:3px 8px;
+       border:1px solid; font-size:10.5px; font-weight:700; line-height:1.4}
+  .s-l{background:var(--lg-bg); border-color:var(--lg-ed); color:var(--lg)}
+  .s-n{background:var(--no-bg); border-color:var(--no-ed); color:var(--no)}
+  .s-b{background:var(--btn-bg); border-color:var(--btn-ed); color:var(--btn)}
+
+  .join{margin:11px 0 9px; background:var(--btn-bg); border:1px solid var(--btn-ed);
+        border-radius:6px; padding:8px 13px}
+  .join .t{font-size:14px; font-weight:900; color:var(--btn); margin:0}
+  .join .d{font-size:11.5px; color:var(--ink-2); margin:3px 0 0; line-height:1.55}
+  .join b{color:var(--ink); font-weight:900}
+
+  .after{display:grid; grid-template-columns:repeat(3,1fr); gap:9px}
+  @media (max-width:640px){ .after{grid-template-columns:1fr} }
+  .ab{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:7px 11px}
+  .ab .t{font-size:12px; font-weight:900; margin:0}
+  .ab .d{font-size:10.5px; color:var(--ink-2); margin:2px 0 0; line-height:1.5}
+
+  .note{margin-top:10px; background:var(--no-bg); border:1px solid var(--no-ed); border-radius:5px;
+        padding:7px 12px; font-size:11.5px; color:var(--ink-2); line-height:1.6}
+  .note b{color:var(--no); font-weight:900}
+  .stamp{margin-top:8px; font-size:10px; color:var(--ink-3); text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>発注から発送までの流れ（全部）</h1>
+  <p class="sub">どこで何が飛ぶか　│　2026-09-10</p>
+</header>
+
+<div class="lead">
+  <b>倉庫にLINEが行くのは、発注書のA列を【🔵 発送してください】に変えたときだけ。</b>
+  それまでは、誰にも何も飛びません。シートに入るだけです。
+  <span style="color:var(--st);font-weight:900">ストアーズだけは、この流れを通りません（下の4本目）。</span>
+</div>
+
+<div class="grid">
+
+  <!-- ① バサラ -->
+  <div class="col">
+    <div class="ch">
+      <p class="t">① バサラスター様</p>
+      <p class="s">先方が専用シートに書く</p>
+    </div>
+    <div class="steps">
+      <div class="st">
+        <p class="w">原さん</p>
+        <p class="a">発注シートに記入</p>
+        <p class="d">書いている途中</p>
+        <span class="sig s-n">何も飛ばない</span>
+      </div>
+      <div class="st">
+        <p class="w">原さん</p>
+        <p class="a">A列に ☑ を入れる</p>
+        <p class="d">これが正式発注。行はロックされ、もう書けない</p>
+        <span class="sig s-l">💬 本部にLINE 1通</span>
+      </div>
+      <div class="st">
+        <p class="w">自動</p>
+        <p class="a">発注書に1行入る</p>
+        <p class="d">A列は赤【OOS未チェック】</p>
+        <span class="sig s-n">倉庫にはまだ行かない</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 受注Aで登録 -->
+  <div class="col">
+    <div class="ch">
+      <p class="t">② RT・一般・卸</p>
+      <p class="s">受注Ａで登録する</p>
+    </div>
+    <div class="steps">
+      <div class="st">
+        <p class="w">本部</p>
+        <p class="a">受注Ａで注文を登録</p>
+        <p class="d">RTの伝票取込も、手入力も同じ</p>
+        <span class="sig s-n">何も飛ばない</span>
+      </div>
+      <div class="st">
+        <p class="w">自動</p>
+        <p class="a">発注書に1行入る</p>
+        <p class="d">押し忘れが起きないよう、登録と同時に自動で入ります</p>
+        <span class="sig s-n">倉庫にはまだ行かない</span>
+      </div>
+      <div class="st">
+        <p class="w">自動</p>
+        <p class="a">在庫が減る</p>
+        <p class="d">登録した時点で減ります（今までどおり）</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 取り置き・予約 -->
+  <div class="col">
+    <div class="ch">
+      <p class="t">③ 取り置き・予約</p>
+      <p class="s">あとから出荷に回す</p>
+    </div>
+    <div class="steps">
+      <div class="st">
+        <p class="w">本部</p>
+        <p class="a">取り置き／予約で登録</p>
+        <p class="d">まだ出荷しません</p>
+        <span class="sig s-n">発注書にも入らない</span>
+      </div>
+      <div class="st">
+        <p class="w">本部</p>
+        <p class="a">「出荷依頼書へ」を押す</p>
+        <p class="d">在庫が足りないときは、ここで止まります</p>
+        <span class="sig s-b">人が押したときだけ</span>
+      </div>
+      <div class="st">
+        <p class="w">自動</p>
+        <p class="a">発注書に1行入る</p>
+        <p class="d">A列は赤【OOS未チェック】</p>
+        <span class="sig s-n">倉庫にはまだ行かない</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ ストアーズ -->
+  <div class="col stores">
+    <div class="ch">
+      <p class="t">④ ストアーズ</p>
+      <p class="s">ストアーズの中で完結</p>
+    </div>
+    <div class="steps">
+      <div class="st">
+        <p class="w">お客様</p>
+        <p class="a">ストアーズで注文</p>
+        <p class="d">アプリもスプシも通りません</p>
+        <span class="sig s-n">何も飛ばない</span>
+      </div>
+      <div class="st">
+        <p class="w">倉庫</p>
+        <p class="a">ストアーズを直接見て発送</p>
+        <p class="d">連絡は要りません。ストアーズの中で終わります</p>
+        <span class="sig s-n">連絡なし</span>
+      </div>
+      <div class="st">
+        <p class="w">本部（週1回）</p>
+        <p class="a">発送ずみCSVを取り込む</p>
+        <p class="d">目的は<b>在庫と売上のため</b>だけ。<br>取り込んだ時点で【発送済】として数えます</p>
+        <span class="sig s-n">発注書には入れない</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<div class="join">
+  <p class="t">🔵 ここで合流 ── 本部が発注書のA列を【発送してください】に変える</p>
+  <p class="d">
+    ①②③はここで1本になります。<b>この瞬間にはじめて倉庫へLINEが1通</b>飛びます。
+    同時に、在庫の引き忘れがあればここで引きます。<br>
+    <b>④ストアーズはここを通りません</b>（もう発送が終わっているため）。
+  </p>
+</div>
+
+<div class="after">
+  <div class="ab">
+    <p class="t">倉庫が発送する</p>
+    <p class="d">倉庫Ｄ（スマホ）でピッキング。書類はスプレッドシートから印刷。</p>
+  </div>
+  <div class="ab">
+    <p class="t">送り状NO.を書く</p>
+    <p class="d">発注書に書き込む。<b>これが発送完了の合図</b>。誰にも連絡は飛びません。</p>
+  </div>
+  <div class="ab">
+    <p class="t">自動でもどる</p>
+    <p class="d">送り状NO.が受注Ａへ戻り、「発送済」になります。売上一覧にも載ります。</p>
+  </div>
+</div>
+
+<div class="note">
+  <b>気づき方</b>　シートを見れば分かります。A列が赤＝まだ倉庫へ出していない／A列が青＝倉庫へ出した／
+  送り状NO.が空＝まだ発送していない／送り状NO.が入っている＝発送済み。
+  <b>メールや電話でのやりとりは要りません。</b>
+</div>
+
+<p class="stamp">株式会社オリーブオイル・ストーリーズ　2026-09-10</p>
+</div>
+</body>
+</html>
