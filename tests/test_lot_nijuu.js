@@ -1,0 +1,84 @@
+/* ══════════════════════════════════════════════════════════════════════
+   ロットが二重にできる事故の見張り　2026-09-09 作成
+
+   ★ひろみさん報告「ロットを入力して保存を押しても、入力したはずのロットが表示されない」
+
+   原因（実データで確認ずみ）：
+     在庫データ（lots）の読み込みは、いまのGASだと30〜60秒かかることがあります。
+     その【読み込みが終わる前】に名簿でロットを入れて保存すると──
+
+       1. meiboMainLot が「この商品にロットが無い」と判断する（lots がまだ空だから）
+       2. あたらしいロット行を作って lots に足す
+       3. そのあとサーバーの本物が届き、lots ＝ 本物 ＋ 手元で足したぶん になる
+       4. meiboMainLot は filled[0]（＝先に並んでいるサーバーの古いほう）を返す
+
+     ＝【打った値は画面に出ず、ロット行だけが増えていく】。
+
+   実データの証拠：
+     「モンテ物産 イタリア産スタルツェブレンド5ℓ」に、同じロットが【10本】。
+     作られた時刻は1時間のあいだに集中していました
+     （入力 → 出ない → また入力、をくり返した跡）。
+
+   ★ロット管理の登録フォーム（②）には、同じ止め木が前からあります（invLoading の確認）。
+     名簿にも同じ止め木を付けたのが、この直しです。
+   ★このファイルを消さないでください。消すと、またロットが増え続けます。
+   ══════════════════════════════════════════════════════════════════════ */
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+const M = fs.readFileSync(path.join(ROOT, 'master.html'), 'utf8');
+
+let pass = 0, fail = 0;
+const fails = [];
+function ok(name, cond, detail) {
+  if (cond) { pass++; return; }
+  fail++; fails.push('        ' + name + (detail ? '  ' + detail : ''));
+}
+
+/* ── ① 名簿からのロット保存に、読み込み中の止め木があること ─────────── */
+function bodyOf(name) {
+  const re = new RegExp('function\\s+' + name + '\\s*\\([^)]*\\)\\s*\\{');
+  const m = M.match(re);
+  if (!m) return null;
+  let i = M.indexOf(m[0]) + m[0].length - 1, d = 0;
+  for (; i < M.length; i++) { if (M[i] === '{') d++; else if (M[i] === '}') { d--; if (!d) break; } }
+  return M.slice(M.indexOf(m[0]), i + 1);
+}
+
+const save = bodyOf('meiboSaveLot');
+ok('①名簿のロット保存 meiboSaveLot が master.html にある', !!save);
+ok('①読み込みが終わる前は保存しない（invLoading を見ている）',
+  !!save && /invLoading/.test(save),
+  '（見ていないと、読み込み前に保存できてしまい、ロットが二重にできます）');
+ok('①止め木は、ロット行を作るより【前】にある',
+  !!save && save.indexOf('invLoading') < save.indexOf('lots.push'),
+  '（あとにあると、先にロット行が増えてしまいます）');
+ok('①止まったことを人に知らせている',
+  !!save && /alert\(/.test(save.slice(0, save.indexOf('lots.push'))),
+  '（黙って止めると「保存できたつもり」になります）');
+
+/* ── ② 編集欄でも、読み込み中はロット欄が空に見えると知らせること ─────── */
+ok('②編集欄に読み込み中の知らせがある',
+  M.indexOf('_lotLoading') >= 0 &&
+  M.indexOf('在庫データ（ロット）をまだ読み込んでいます') >= 0,
+  '（空欄に見えると、打ち直して二重にしてしまいます）');
+
+/* ── ③ もともとある ②ロット管理 側の止め木を消さないこと ──────────── */
+ok('③ロット管理の登録にも止め木が残っている',
+  M.indexOf("if(invLoading){ alert('まだデータを読み込んでいます。") >= 0,
+  '（2026-08-17から入っている見張りです。外さないでください）');
+
+/* ── ④ 読み込み前に足したロットを残す仕掛けを消さないこと ───────────── */
+ok('④読み込み前に足したロットを残す仕掛けがある（locallyAddedLotIds）',
+  M.indexOf('locallyAddedLotIds') >= 0,
+  '（これが無いと、読み込みが終わった瞬間に、足したロットが消えます）');
+
+/* ── 結果 ───────────────────────────────────────────────── */
+const title = 'ロットが二重にできる事故の見張り（打った値が出ない／2026-09-09）';
+if (fail) {
+  console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
+  fails.forEach(x => console.log(x));
+  process.exitCode = 1;
+} else {
+  console.log('  ✅ ' + title + ' PASS ' + pass + ' / FAIL 0');
+}

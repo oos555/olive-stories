@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-09-04">
+<meta name="oos-version" content="2026-09-09-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -5475,8 +5475,29 @@ function meiboMainLot(p){
   var filled = mine.filter(function(l){ var c=String(l.lotCode||'').trim(); return (c && c!=='-') || String(l.expiry||'').trim(); });
   return (filled[0] || mine[0]);
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-09夜 ひろみさん報告「ロットを入力して保存を押しても表示されない」の直し。
+   ──────────────────────────────────────────────────────────────────────
+   原因：在庫データ（lots）の読み込みは、いまのGASだと30〜60秒かかることがある。
+   その【読み込みが終わる前】に名簿で保存すると、
+     ・meiboMainLot が「ロットが無い」と判断して、あたらしいロット行を作る
+     ・そのあとサーバーの本物が届き、lots = 本物 ＋ 手元で足したぶん になる
+     ・meiboMainLot は【先に見つかった＝サーバーの古いほう】を返す
+   ＝【打った値が画面に出ず、ロット行だけが増えていく】。
+   実データの証拠：モンテ物産スタルツェブレンド5ℓ に、同じロットが10本できていた
+   （1時間のあいだに集中＝入力→出ない→また入力、をくり返した跡）。
+   ★ロット管理の登録フォーム（②）には同じ止め木がすでにあります。名簿にも付けます。
+   ★この止め木を外さないでください。ロット行が増え続けます。
+   ══════════════════════════════════════════════════════════════════════ */
 function meiboSaveLot(p, lotCode, expiry, lotNote){
   if(!p) return '';
+  if(typeof invLoading !== 'undefined' && invLoading){
+    alert('⏳ 在庫データ（ロット）をまだ読み込んでいます。\n\n' +
+          'いま保存すると、ロットが二重にできて、打った内容が画面に出ません。\n' +
+          '画面に「✅ 保存されたデータを読み込みました」と出てから、もう一度お願いします。\n\n' +
+          '※商品名・品番・バーコードなど、ロット以外はいま保存できています。');
+    return '　⏳ ロットは保存していません（読み込みが終わってから、もう一度）';
+  }
   lotCode = String(lotCode||'').trim();
   expiry  = String(expiry||'').trim();
   lotNote = String(lotNote||'').trim();
@@ -5509,6 +5530,9 @@ function meiboSaveLot(p, lotCode, expiry, lotNote){
 function meiboEditRowHtml(p, sp){
   var isNew = meiboAddingNew;
   var _ml = isNew ? null : meiboMainLot(p);   /* ★2026-07-24 いま使っているロット */
+  /* ★2026-09-09夜 読み込みが終わる前は、ロット欄が【空】に見えてしまう。
+     空だと思って打ち直すと二重になるので、読み込み中だとはっきり出す。 */
+  var _lotLoading = (typeof invLoading !== 'undefined' && invLoading && !isNew);
   var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', storesHinban:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
                     origin:sp.origin||'', farm:sp.farm||'', container:containerFor(p), shipUnit:shipUnitOf(p),
@@ -5521,6 +5545,8 @@ function meiboEditRowHtml(p, sp){
   var groups = mGroupOrder().map(function(g){ return '<option value="'+esc(g)+'"'+(g===v.group?' selected':'')+'>'+esc(g)+'</option>'; }).join('');
   return '<div class="mp-editing">'+
     '<div class="mp-head">'+(isNew?'➕ 新しい商品をつくる':'✏️ '+esc(v.name||v.sku)+' を直す')+'</div>'+
+    /* ★2026-09-09夜 読み込み中は、ロット欄が空に見える。打ち直すと二重になるので知らせる */
+    (_lotLoading ? '<div style="margin:8px 0;padding:9px 12px;border:2px solid #b45309;border-radius:9px;background:#fff7ed;color:#7c2d12;font-weight:800;line-height:1.6">⏳ 在庫データ（ロット）をまだ読み込んでいます。<br><span style="font-weight:400">いまロット欄は空に見えますが、まだ本当の中身が届いていないだけです。ここで打って保存すると<b>ロットが二重にできます</b>。画面に「✅ 保存されたデータを読み込みました」と出てから入れてください。</span></div>' : '')+
     '<div class="mp-note" style="margin:0 0 8px">品番（sku）だけ自動でつきます。ほかの欄はすべて自由に書けます（うすい字は「例」なので、そのまま上から書いてください）。</div>'+
     '<div class="mp-grid">'+
       (isNew && !meiboNewSkuPrefill
