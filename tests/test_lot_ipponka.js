@@ -1,0 +1,79 @@
+/* ══════════════════════════════════════════════════════════════════════
+   ロット・賞味期限の入力口を統合マスタＮに一本化　2026-09-09 ひろみさん指示
+
+   ★なぜ
+     ロットと賞味期限を入れられる場所が【2か所】ありました。
+       ・統合マスタＮ … 名簿の「✏️直す」／ロット管理の登録／ロット一覧のその場編集
+       ・在庫Ｂ（stock.html）… ①「新しいロットを登録する」
+     同じ入口が2つあると「どっちで入れるんだっけ」と迷い、
+     入れたはずのものが片方にしか無いように見えます。
+     ひろみさんの決めごとは【統合マスタＮが、金額以外のすべての入力の窓口】。
+
+   ★やったこと
+     在庫Ｂの①「新しいロットを登録する」だけを閉じ、統合マスタＮへ案内する。
+     ②「今あるロットの数を直す（入庫／出庫）」は在庫Ｂ本来の仕事なので、そのまま残す。
+     ★枠は消さずに display:none で残してあります（開け直せるように）。
+
+   ★このファイルを消さないでください。消すと、また入口が2つに戻ります。
+   ══════════════════════════════════════════════════════════════════════ */
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+const S = fs.readFileSync(path.join(ROOT, 'stock.html'), 'utf8');
+const M = fs.readFileSync(path.join(ROOT, 'master.html'), 'utf8');
+
+let pass = 0, fail = 0;
+const fails = [];
+function ok(name, cond, detail) {
+  if (cond) { pass++; return; }
+  fail++; fails.push('        ' + name + (detail ? '  ' + detail : ''));
+}
+
+/* ── ① 在庫Ｂのロット新規登録が閉じていること ───────────────────── */
+ok('①在庫Ｂ：ロット登録の枠が閉じている（display:none）',
+  S.indexOf('① 新しいロットの登録は、統合マスタ N に引っ越しました') >= 0 &&
+  S.indexOf('<div style="display:none">') >= 0,
+  '（開いていると、また2か所から入れられます）');
+ok('①在庫Ｂ：統合マスタＮへの行き方が書いてある',
+  S.indexOf('統合マスタ N の「📒 名簿（商品登録）」で入れてください') >= 0 &&
+  S.indexOf('href="master.html"') >= 0,
+  '（閉じるだけだと、どこで入れるのか分かりません）');
+ok('①在庫Ｂ：addLot にも止め木がある',
+  /function addLot\(\)\{[\s\S]{0,600}?統合マスタ N の「📒 名簿（商品登録）」に一本化しました[\s\S]{0,400}?return;/.test(S),
+  '（古いボタンが残っていても動かないように、関数側でも止めます）');
+ok('①在庫Ｂ：止め木は本体より【前】にある',
+  S.indexOf('統合マスタ N の「📒 名簿（商品登録）」に一本化しました') <
+  S.indexOf("const pid = document.getElementById('l-product').value;"),
+  '（あとにあると、先にロットが作られてしまいます）');
+
+/* ── ② 在庫Ｂ本来の仕事（数直し）は残すこと ───────────────────── */
+ok('②在庫Ｂ：「今あるロットの数を直す」は残っている',
+  S.indexOf('② 今あるロットの数を直す（入庫 / 出庫）') >= 0,
+  '（本数を直す仕事まで消してはいけません）');
+
+/* ── ③ 統合マスタＮ側に、ちゃんと入口があること ─────────────────── */
+ok('③統合マスタＮ：名簿にロット・賞味期限の欄がある',
+  M.indexOf('id="mp-lot"') >= 0 && M.indexOf('id="mp-exp"') >= 0,
+  '（一本化した先が無ければ、どこにも入れられません）');
+ok('③統合マスタＮ：ロット管理の登録も残っている',
+  M.indexOf("id=\"l-lot\"") >= 0 && M.indexOf("id=\"l-exp\"") >= 0);
+ok('③統合マスタＮ：ロット一覧のその場編集も残っている',
+  M.indexOf('id="el-code"') >= 0 && M.indexOf('id="el-exp"') >= 0);
+
+/* ── ④ ほかのアプリに入口が増えていないこと ───────────────────── */
+['index.html', 'billing.html', 'mitsumori.html', 'pickup.html', 'konpo.html', 'order.html'].forEach(f => {
+  const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const hasLotInput = /<input[^>]*id="[a-z-]*lot[a-z-]*"/i.test(src) || /<input[^>]*id="l-exp"/i.test(src);
+  ok('④' + f + ' にロット・賞味期限の入力欄が無い', !hasLotInput,
+    '（入口が増えると、また二重管理になります）');
+});
+
+/* ── 結果 ───────────────────────────────────────────────── */
+const title = 'ロット・賞味期限の入力口を統合マスタＮに一本化（2026-09-09 ひろみさん指示）';
+if (fail) {
+  console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
+  fails.forEach(x => console.log(x));
+  process.exitCode = 1;
+} else {
+  console.log('  ✅ ' + title + ' PASS ' + pass + ' / FAIL 0');
+}
