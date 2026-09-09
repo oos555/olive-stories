@@ -23,6 +23,7 @@ const FILES = [
   ['test_lot_nijuu.js','ロットが二重にできる事故（打った値が出ない／2026-09-09）'],
   ['test_kubun_hinban.js','区分の並び順と品番の頭のきまり（2026-09-09決定）'],
   ['test_lot_ipponka.js','ロット・賞味期限の入力口を統合マスタＮに一本化（2026-09-09）'],
+  ['test_narabi_soroe.js','統合マスタＮと原価データの商品の並びをそろえる（2026-09-09）'],
   ['test_master.js',       'マスターＮ 在庫の決めごと'],
   ['test_apps.js',         '4アプリの突き合わせ／不良の出荷／注文番号'],
   ['test_gas.js',          'GASと親（oos-zaiko.js）が同じ数字か'],

@@ -22,6 +22,7 @@
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const M = fs.readFileSync(path.join(ROOT, 'master.html'), 'utf8');
 
@@ -32,12 +33,25 @@ function ok(name, cond, detail) {
   fail++; fails.push('        ' + name + (detail ? '  ' + detail : ''));
 }
 
-/* ── ① 区分の並び順が「決めごと」として書いてあること ────────────── */
-ok('①区分の並び順（MB_GROUP_ORDER）がある', M.indexOf('var MB_GROUP_ORDER') >= 0,
-  '（無いと、商品マスタの並び順しだいになり、あとから作った区分が消えます）');
-const m = M.match(/var MB_GROUP_ORDER = \[([\s\S]*?)\];/);
-ok('①並び順が読める', !!m);
-const order = m ? m[1] : '';
+/* ── ① 区分の並び順が「決めごと」として書いてあること ──────────────
+   ★2026-09-09 並び順の【親】は oos-kubun.js に引っ越しました。
+     統合マスタＮ（名簿・価格リスト）と輸入・原価Ｅ（🔒原価データ）を
+     同じ並びにするためです（ひろみさん指示）。
+     ここも親を見ます。master.html に自前の表を書き戻したら、この見張りが落ちます。 */
+let K = null;
+try {
+  const g = { window: {} };
+  vm.createContext(g);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'oos-kubun.js'), 'utf8'), g);
+  K = g.window.OOS_KUBUN || g.OOS_KUBUN;
+} catch (e) { /* 下で落ちます */ }
+ok('①区分の並び順の親（oos-kubun.js）がある', !!(K && Array.isArray(K.ORDER) && K.ORDER.length),
+  '（無いと、アプリごとに自前の並びを持つことになり、必ずズレます）');
+ok('①統合マスタＮは親から並びをもらっている',
+  /MB_GROUP_ORDER = \(window\.OOS_KUBUN && window\.OOS_KUBUN\.ORDER\)/.test(M),
+  '（自前の表に書き戻すと2か所になります）');
+/* 以下の見張りは、親の並びを文字にして確かめます */
+const order = K ? K.ORDER.map(function (g) { return "'" + g + "'"; }).join(',') : '';
 ['セット', 'ギフト商品', '備品-箱', '備品-バッグ', '備品-その他', 'アルモニア', '唐辛子オイル', 'オイル以外輸入商品'].forEach(g => {
   ok('①「' + g + '」が並び順に入っている', order.indexOf("'" + g + "'") >= 0);
 });

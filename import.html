@@ -7,8 +7,10 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-09-01">
+<meta name="oos-version" content="2026-09-09-02">
 <script src="oos-version.js"></script>
+<!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと同じ並びにするため。★消さないでください -->
+<script src="oos-kubun.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
@@ -1413,9 +1415,18 @@ function mlFromName_(name){
 function allCostSkus(){
   var seen = {};
   var list = [];
-  // ① まず名簿（商品マスタ）＝親。取り扱い中のものを名簿の並びのまま。
+  /* ① まず名簿（商品マスタ）＝親。
+     ★2026-09-09 ひろみさん指示：
+       「統合マスタと原価データの商品の並びは、常に一緒にしておく。
+         合わせる先は【統合マスタ】。統合マスタで商品が増えていくから。」
+       並びがズレていると見間違うため。
+     並び順の決めごとは oos-kubun.js（親）に1か所だけ書いてあります。
+     ★ここで自前に並べ替えないでください。2か所になると必ずズレます。 */
   if(typeof OOS_PRODUCTS !== 'undefined' && OOS_PRODUCTS && OOS_PRODUCTS.length){
-    OOS_PRODUCTS.filter(isProductActiveE).forEach(function(p){
+    var _sorted = (window.OOS_KUBUN && typeof window.OOS_KUBUN.sortProducts === 'function')
+      ? window.OOS_KUBUN.sortProducts(OOS_PRODUCTS)   // 統合マスタと同じ並び
+      : OOS_PRODUCTS;                                  // 親が読めなければ、名簿の並びのまま
+    _sorted.filter(isProductActiveE).forEach(function(p){
       if(!p.sku || seen[p.sku]) return;
       seen[p.sku] = true;
       list.push({ sku:p.sku, name:(p.name||p.sku), farm:null, ml:mlFromName_(p.name||'') });
