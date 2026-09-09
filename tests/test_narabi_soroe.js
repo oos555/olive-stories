@@ -49,9 +49,32 @@ ok('①親に商品を並べる部品（sortProducts）がある', !!(K && typeo
 ok('②統合マスタＮは親から並びをもらっている',
   /MB_GROUP_ORDER = \(window\.OOS_KUBUN && window\.OOS_KUBUN\.ORDER\)/.test(read('master.html')),
   '（自前の表に書き戻すと2か所になります）');
-ok('②輸入・原価Ｅは親の sortProducts で並べている',
-  read('import.html').indexOf('window.OOS_KUBUN.sortProducts(OOS_PRODUCTS)') >= 0,
-  '（商品マスタの並びのままだと、統合マスタとズレます）');
+/* ★2026-09-09 並べ替えの場所を【入口】に移しました。
+   前は allCostSkus の中だけで並べていたため、
+   利益ヒートマップ・商品のえらび一覧が商品マスタの登録順のままで、
+   ひろみさんの画面では【セットが一番下】に出ていました。
+   いまは applyProductsE（商品一覧を受け取るところ）で1回だけ並べます。
+   ★ここを外すと、また画面ごとにバラバラになります。 */
+{
+  const IMP = read('import.html');
+  const ap = IMP.slice(IMP.indexOf('function applyProductsE'), IMP.indexOf('async function initializeProductsE'));
+  const apCode = ap.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  ok('②輸入・原価Ｅは【入口】で親の sortProducts を通している',
+    apCode.indexOf('window.OOS_KUBUN.sortProducts(products)') >= 0,
+    '（ここで並べないと、利益ヒートマップなどが登録順のままになります）');
+  ok('②並べたものを OOS_PRODUCTS に入れている',
+    /sortProducts\(products\)[\s\S]{0,200}OOS_PRODUCTS = products/.test(apCode),
+    '（並べたのに使わなければ意味がありません）');
+  ok('②親が読めないときは、黙らずに知らせる',
+    apCode.indexOf('oosKubunOyaWarn_()') >= 0,
+    '（黙って違う並びで出すと、原因が分からなくなります）');
+  /* allCostSkus では二重に並べ替えない（どちらが本当か分からなくなるため） */
+  const ac = IMP.slice(IMP.indexOf('function allCostSkus'), IMP.indexOf('function costMissingList'));
+  const acCode = ac.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  ok('②allCostSkus では二重に並べ替えていない',
+    acCode.indexOf('sortProducts') < 0,
+    '（入口ですでに並んでいます。二重に並べると、どちらが本当か分からなくなります）');
+}
 
 /* ── ③ 実際に並べて、1件目から最後まで一致すること ───────────────── */
 if (K) {

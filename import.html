@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-09-03">
+<meta name="oos-version" content="2026-09-09-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと同じ並びにするため。★消さないでください -->
 <script src="oos-kubun.js"></script>
@@ -772,6 +772,21 @@ function oosSaveProductsCache(products, extraFields){
 }
 function applyProductsE(products){
   if(!products || !products.length) return;
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-09 ひろみさん指示：統合マスタＮと【常にまったく同じ並び】にする。
+     ──────────────────────────────────────────────────────────────────
+     前は allCostSkus の中だけで並べ替えていたので、
+     ・利益ヒートマップ（renderProfitHeatmap）
+     ・商品のえらび一覧
+     が商品マスタの登録順のままで、【セットが一番下】に出ていました。
+     ここで一度だけ並べておけば、この画面のどこを見ても同じ順になります。
+     ★並び順の決めごとは oos-kubun.js（親）に1か所だけ。ここでは呼ぶだけです。
+     ★この並べ替えを外さないでください。また画面ごとにバラバラになります。 */
+  if(window.OOS_KUBUN && typeof window.OOS_KUBUN.sortProducts === 'function'){
+    products = window.OOS_KUBUN.sortProducts(products);
+  } else {
+    oosKubunOyaWarn_();
+  }
   OOS_PRODUCTS = products;
   if(typeof renderProfitHeatmap === 'function') renderProfitHeatmap();
   /* ★2026-09-09夜 ひろみさん報告「名簿で作ったセットが🔒原価データに出てこない」の直し。
@@ -1443,12 +1458,9 @@ function allCostSkus(){
   if(typeof OOS_PRODUCTS !== 'undefined' && OOS_PRODUCTS && OOS_PRODUCTS.length){
     /* ★2026-09-09 親（oos-kubun.js）が読めないと、黙って違う並びになってしまいます。
        それだと「なぜセットが一番下なの？」と分からなくなるので、はっきり知らせます。 */
-    var _hasOya = !!(window.OOS_KUBUN && typeof window.OOS_KUBUN.sortProducts === 'function');
-    if(!_hasOya) oosKubunOyaWarn_();
-    var _sorted = _hasOya
-      ? window.OOS_KUBUN.sortProducts(OOS_PRODUCTS)   // 統合マスタと同じ並び
-      : OOS_PRODUCTS;                                  // 親が読めなければ、名簿の並びのまま
-    _sorted.filter(isProductActiveE).forEach(function(p){
+    /* ★2026-09-09 OOS_PRODUCTS は applyProductsE で【すでに統合マスタ順】に並んでいます。
+       ここで並べ直す必要はありません（二重に並べると、どちらが本当か分からなくなります）。 */
+    OOS_PRODUCTS.filter(isProductActiveE).forEach(function(p){
       if(!p.sku || seen[p.sku]) return;
       seen[p.sku] = true;
       list.push({ sku:p.sku, name:(p.name||p.sku), farm:null, ml:mlFromName_(p.name||'') });
