@@ -21,6 +21,7 @@ const FILES = [
   ['test_gamen_zenmetsu.js','画面の連鎖全滅（ロット番号が数字で価格リストが消えた事故の見張り）'],
   ['test_set_kanri.js','セットの商品管理番号 SET-下4桁-下4桁（2026-09-09決定）'],
   ['test_lot_nijuu.js','ロットが二重にできる事故（打った値が出ない／2026-09-09）'],
+  ['test_kubun_hinban.js','区分の並び順と品番の頭のきまり（2026-09-09決定）'],
   ['test_master.js',       'マスターＮ 在庫の決めごと'],
   ['test_apps.js',         '4アプリの突き合わせ／不良の出荷／注文番号'],
   ['test_gas.js',          'GASと親（oos-zaiko.js）が同じ数字か'],
