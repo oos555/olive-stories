@@ -378,7 +378,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-10-01">
+<meta name="oos-version" content="2026-09-10-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1740,10 +1740,12 @@ function renderAlreadyShipped(){
       '<div class="back-link no-print" onclick="location.href=\'pickup.html\'">← 出荷依頼書一覧にもどる</div>'+
       '<div class="card" style="border:2px solid #7b2fa0">'+
         '<div style="font-size:16px;font-weight:800;color:#5b2483;margin-bottom:6px">✅ 梱包完了ずみ（バサラの注文）</div>'+
-        '<div style="font-size:13.5px;color:#2b2a26;line-height:1.7;margin-bottom:10px">発送したら、<b>伝票の送り状No.</b>を入れて「保存」を押してください。<br>押すと、<b>バサラへ発送のご連絡メールを自動でお送りします</b>（office@ にも控え）。番号が翌日でも、出たときに入れればOKです。</div>'+
-        '<div class="sec-title">🚚 送り状No.（発送したら入力）</div>'+
-        '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="佐川の番号を入れる" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>'+
-        '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 10px;line-height:1.6">保存すると、この注文のバサラへ発送連絡が<b>1回だけ</b>自動で送られます。</div>'+
+        /* ★2026-09-10 ひろみさんの判断で、ここの「送り状No.を入れる欄」を消しました。
+           理由：ここに入れると原さんへ発送連絡メールが飛びます。
+           確定した流れは【原さんへの発送連絡はしない／シートが変わるだけ】なので、
+           食いちがっていました。★戻さないでください。
+           見張り：tests/test_basara_nagare_kakutei.js */
+        '<div class="no-print" style="background:#eef7ea;border:1px solid #86c096;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13px;color:#166534;line-height:1.7">🚚 <b>送り状NO.は、倉庫スプレッドシートの「発注書」に書いてください。</b><br>書いた瞬間に、そのまま発送完了になります。ここから入れる欄はもうありません（2026-09-10）。</div>'+
         '<button class="alert-shipped-btn" onclick="renderOrder()">内容を確認のうえ開く</button>'+
       '</div>';
     return;
@@ -1957,10 +1959,10 @@ function renderOrder(){
   html += '<div class="actions no-print">';
   html += '<button class="btn-big btn-complete" id="complete-btn" onclick="completeOrder()" disabled>✅ 梱包完了にする</button>';
   html += '<div class="complete-note">荷造りが全部終わったら、最後にこのボタンを押してください。押すと「梱包完了」になり、この注文は出荷待ち一覧から消えます。実際の発送とはずれていても構いません（上の色帯の期日内でOK）。</div>';
+  /* ★2026-09-10 ひろみさんの判断で、送り状No.を入れる欄を消しました（上と同じ理由）。
+     送り状NO.は倉庫スプレッドシートの「発注書」に書きます。★戻さないでください。 */
   if(isBasaraOrder(o)){
-    html += '<div class="sec-title" style="margin-top:16px">🚚 送り状No.（バサラの注文なので入力）</div>';
-    html += '<div class="no-print" style="display:flex;gap:8px;margin-bottom:4px"><input type="text" id="tracking-input" value="'+esc(o.trackingNo||'')+'" placeholder="佐川の番号を入れる" style="flex:1;padding:10px 11px;border:1px solid #9db8e0;border-radius:8px;font-size:16px;font-weight:700;color:#2b2a26"><button class="btn-sm" onclick="saveTracking()">保存</button></div>';
-    html += '<div class="no-print" style="font-size:12px;color:#57534e;margin:0 0 4px;line-height:1.6">バサラの注文は送り状No.を入れてください。保存すると受注A（会社側）でも見られます。梱包完了のときにも一緒に保存されます。</div>';
+    html += '<div class="no-print" style="background:#eef7ea;border:1px solid #86c096;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:13px;color:#166534;line-height:1.7">🚚 <b>送り状NO.は、倉庫スプレッドシートの「発注書」に書いてください。</b><br>書いた瞬間に、そのまま発送完了になります。ここから入れる欄はもうありません（2026-09-10）。</div>';
   }
   html += '</div>';
   document.getElementById('content').innerHTML = html;
@@ -2578,6 +2580,19 @@ async function mergeSaveTracking(val){
   return false;
 }
 async function saveTracking(){
+  /* ★2026-09-10 ひろみさんの判断：この道はもう使いません。
+     ここから送り状NO.を保存すると、原さんへ発送連絡メールが飛んでしまい、
+     確定した流れ（原さんへの連絡はしない）と食いちがいます。
+     入力欄は消しましたが、古い画面を開いたままの人がいても送らないよう、
+     ここでも止めます。★この止め木を外さないでください。 */
+  alert([
+    '🚚 送り状NO.は、倉庫スプレッドシートの「発注書」に書いてください。',
+    '',
+    '書いた瞬間に、そのまま発送完了になります。',
+    'この画面からは保存できません（2026-09-10 に決めました）。'
+  ].join('\n'));
+  return;
+
   if(!currentOrder) return;
   const el=document.getElementById('tracking-input'); const val=el?String(el.value||'').trim():'';
   try{

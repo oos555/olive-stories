@@ -27,6 +27,7 @@
 const fs = require('fs');
 const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
 const ZU  = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_バサラ発注の流れ_2026-09-10.html', 'utf8');
+const PIC = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/pickup.html', 'utf8');
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -118,6 +119,29 @@ ok('④原さんへの発送連絡は【自動では出さない】',
   bodyOf(GAS, 'oosYukaTrackEdit_').indexOf('basaraShipNotify') < 0 &&
   fanout.indexOf('basaraShipNotify') < 0,
   '（2026-09-09 ひろみさん決定：シートが変わるので連絡は不要）');
+
+/* ── ④-2 倉庫Ｄから送り状NO.を保存する道は、ふさいである ─────────── */
+/* ★2026-09-10 ひろみさんの判断で欄を消しました。
+     この欄に番号を入れて保存すると、原さんへ発送連絡メールが飛びます。
+     確定した流れは【原さんへの発送連絡はしない／シートが変わるだけ】なので、
+     食いちがっていました。送り状NO.は倉庫スプレッドシートの「発注書」に書きます。
+   ★入力欄も止め木も、戻さないでください。 */
+ok('④-2 倉庫Ｄに送り状No.の入力欄が無い',
+  PIC.indexOf('id="tracking-input" value=') < 0,
+  '（この欄から保存すると、原さんへメールが飛びます）');
+ok('④-2 保存の道が、いちばん最初で止まる',
+  /^function saveTracking\(\)\{\s*\/\*[\s\S]*?\*\/\s*alert\(\[/.test(bodyOf(PIC, 'saveTracking')),
+  '（古い画面を開いたままの人がいても送らないように）');
+ok('④-2 倉庫Ｄに、スプレッドシートに書く案内が出る',
+  PIC.indexOf('送り状NO.は、倉庫スプレッドシートの「発注書」に書いてください。') >= 0);
+ok('④-2 発送連絡メールを自動で呼ぶ道が無い',
+  (function(){
+    var b = bodyOf(PIC, 'saveTracking');
+    var i = b.indexOf('return;');
+    var j = b.indexOf('basaraShipNotify');
+    return j < 0 || (i >= 0 && i < j);   /* 止め木より後ろ＝もう通らない */
+  })(),
+  '（止め木より前に置くと、また飛んでしまいます）');
 
 /* ── ⑤⑥ 請求書 ──────────────────────────────────────── */
 ok('⑤月末に、本部にLINEで知らせる',

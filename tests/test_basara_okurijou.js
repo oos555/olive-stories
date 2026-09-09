@@ -130,10 +130,21 @@ const found = sbox.box.oosGenkanSelfCheck();
 eq('⑥ わざと壊すと自己点検が気づく',
    found.some(x => x.indexOf('送り状No.') >= 0), true);
 
-/* ══ ⑦ 倉庫Ｄ：送り状No.の欄はバサラの注文だけ ═════════════════ */
-eq('⑦ 入力欄がある', pickup.indexOf('id="tracking-input"') >= 0, true);
-eq('⑦ 入力欄はバサラの注文のときだけ出す',
-   /if\(isBasaraOrder\(o\)\)\{\s*\n\s*html \+= '<div class="sec-title" style="margin-top:16px">🚚 送り状No./.test(pickup), true);
+/* ══ ⑦ 倉庫Ｄ：送り状No.の欄は【もうありません】═════════════════
+   ★2026-09-10 ひろみさんの判断で、この欄を消しました。
+     理由：ここに番号を入れて保存すると、原さんへ発送連絡メールが飛びます。
+     2026-09-10に確定したバサラの流れは
+     【原さんへの発送連絡はしない／シートが変わるだけ】なので、食いちがっていました。
+     送り状NO.は【倉庫スプレッドシートの「発注書」】に書きます。
+   ★入力欄を戻さないでください。
+     くわしい見張りは tests/test_basara_nagare_kakutei.js の④-2 にあります。
+   （ここより下の「保存の仕組み（mergeSaveTracking）」は、梱包完了のときに
+     使うので残してあります。メールは飛びません） */
+eq('⑦ 入力欄はもう無い', pickup.indexOf('id="tracking-input" value=') >= 0, false);
+eq('⑦ 代わりにスプレッドシートへの案内が出る',
+   pickup.indexOf('送り状NO.は、倉庫スプレッドシートの「発注書」に書いてください。') >= 0, true);
+eq('⑦ 保存の道は頭で止まっている（古い画面からも送らせない）',
+   pickup.indexOf('この画面からは保存できません（2026-09-10 に決めました）。') >= 0, true);
 eq('⑦ 保存の仕組みが残っている（ほかの注文を消さないマージ保存）',
    pickup.indexOf('async function mergeSaveTracking(val)') >= 0, true);
 eq('⑦ 梱包完了のときにも一緒に保存する', pickup.indexOf('await mergeSaveTracking(String(_tEl.value||\'\').trim())') >= 0, true);
