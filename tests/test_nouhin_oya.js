@@ -243,10 +243,15 @@ function mkOrder(x){
   eq('⑥「納品書」なら入れる',           needs(mkOrder({ enclosedDoc:'納品書' })), true);
   eq('⑥「納品書兼請求書」なら入れる',    needs(mkOrder({ enclosedDoc:'納品書兼請求書' })), true);
   eq('⑥「請求書」だけなら入れない',      needs(mkOrder({ enclosedDoc:'請求書' })), false);
-  /* ★短い文字だと index.html の別の場所にも当たってしまい、壊しても気づけませんでした（2026-09-10）。
-     コメントまで入れて、この1か所だけを見ます。 */
-  inc('⑥RTは別ルート（二重に貼らない）', IDX,
-      "if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */", true);
+  /* ★2026-09-10（夕方）ひろみさん指示で直しました。
+     　「納品書と伝票は、RTは必ずどんな形で入ろうと、RTのボックスに入るように」
+     前は【RTなら全部おことわり】だったので、伝票から作っていないRT（手入力）は
+     納品書が1枚も作られていませんでした。いまは【伝票から作ったRTだけ】おことわりします。
+     ★「RTなら全部おことわり」に戻さないでください。 */
+  inc('⑥伝票から作ったRTだけ、こちらでは貼らない', IDX,
+      "if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;", true);
+  ok('⑥RTを丸ごとおことわりしていない',
+     IDX.indexOf("if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */") < 0);
   inc('⑥もう貼ってあれば作り直さない',   IDX, 'if(o.nouhinDocUrl) return;', true);
   inc('⑥ふだが無ければ貼らない',         IDX, 'if(!o.yukaKey) return;', true);
 }

@@ -413,6 +413,33 @@ ok('⑪伝票の名前は お名前_伝票.pdf', IDX.indexOf("'_伝票.pdf'") >=
 ok('⑪納品書の名前は お名前_納品書.pdf', IDX.indexOf("_base + '_納品書.pdf'") >= 0);
 ok('⑪古い自動の名前に戻っていない', IDX.indexOf("'納品書_' + ((rtParsed.nouhinNo") < 0);
 ok('⑪GASに名前を付け替える窓口がある', GAS.indexOf('function renameExtraDoc(') >= 0);
+
+/* ── ⑫ 手書きの修正が入った伝票（2026-09-10 ひろみさん指示） ───────── */
+/* ひろみさん：「手書きで修正が入った場合、伝票だけは渡したいので読み取りに入れるけれども、
+   　　　　　　手書きの修正入ってますか？って出して、入ってるって言ったら手入力してくださいって。
+   　　　　　　伝票はGoogleのドライブには上げておくけれども、
+   　　　　　　これで納品書を作ることはできませんっていうふうに出す。
+   　　　　　　ゆかちゃんが忘れても問題が起きることはないと思う」
+   なぜ必要か：読み取りは【印字の文字】しか見ません。二重線で消した金額を
+   「消した」と分からず、そのまま拾います。RTは入金確認が無いので止まりません。 */
+ok('⑫読み取ったら必ず聞く', IDX.indexOf('rtShowTegakiToi();') >= 0);
+ok('⑫聞く枠がある', IDX.indexOf('この伝票に、手書きの修正が入っていますか？') >= 0);
+ok('⑫「入っています」が押せる', IDX.indexOf('rtTegakiAnswer(true)') >= 0);
+ok('⑫「印字だけです」も押せる', IDX.indexOf('rtTegakiAnswer(false)') >= 0);
+ok('⑫納品書は作れないと出す', IDX.indexOf('この伝票から納品書を作ることはできません') >= 0);
+ok('⑫手入力してくださいと出す', IDX.indexOf('受注登録の画面で手で入力してください') >= 0);
+ok('⑫伝票はドライブに残すと書いてある', IDX.indexOf('伝票のPDFは、このままドライブに入れてあります') >= 0);
+ok('⑫答えるまで先へ進めない', IDX.indexOf('rtLockNextForTegaki(true)') >= 0);
+ok('⑫止めるのは「この内容で受注登録画面へ進む」', IDX.indexOf("document.getElementById('rt-go-btn')") >= 0);
+ok('⑫進む関数の中でも止める（二重の守り）', IDX.indexOf('rtTegakiShusei === true') >= 0);
+ok('⑫ドライブの名前にも印を付ける', IDX.indexOf('（手書き修正あり）') >= 0);
+ok('⑫次の伝票では聞き直す', IDX.indexOf('前の伝票の答えを引きずらないよう') >= 0);
+
+/* ── ⑬ RTの書類は、どんな形で入ってもRTのボックスへ ───────────── */
+/* ひろみさん：「納品書と伝票は、RTは必ずどんな形で入ろうと、RTのボックスに入るように」 */
+ok('⑬手入力のRTでも納品書を作る', IDX.indexOf("if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;") >= 0);
+ok('⑬RTを丸ごとおことわりしていない', IDX.indexOf("if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */") < 0);
+ok('⑬入れる先は saveExtraDoc（RT書類フォルダ）', IDX.indexOf("action:'saveExtraDoc'") >= 0);
 ok('⑪窓口はelse ifでつながっている', GAS.indexOf("else if (action === 'renameExtraDoc')") >= 0);
 ok('⑪RT書類フォルダの中のファイルしか名前を変えない',
    GAS.indexOf('このファイルは「') >= 0 && GAS.indexOf('の中にありません。名前は変えませんでした。') >= 0);

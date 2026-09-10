@@ -384,7 +384,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-13">
+<meta name="oos-version" content="2026-09-10-14">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -967,6 +967,37 @@ body{background:#fff}
            ・伝票と納品書に【同じ名前】を付けると、ドライブで隣どうしに並びます
            ・アプリが入れる名前は【はじめの候補】です。直したらドライブの名前も変わります
            ★この欄を消さないでください -->
+      <!-- ══════════════════════════════════════════════════════════════
+           ✍️ 手書きの修正が入っていますか？　★2026-09-10 ひろみさん指示
+           　「手書きで修正が入った場合、伝票だけは渡したいので読み取りに入れるけれども、
+           　　手書きの修正入ってますか？って出して、入ってるって言ったら手入力してくださいって。
+           　　伝票はGoogleのドライブには上げておくけれども、
+           　　これで納品書を作ることはできませんっていうふうに出す。
+           　　ゆかちゃんが忘れても問題が起きることはないと思う」
+           なぜ必要か：読み取りは【印字の文字】しか見ません。二重線で消した金額は
+           「消した」と分からず、消したはずの数字をそのまま拾います。日付も同じです。
+           RTは入金確認がないので、間違ったまま倉庫へ行き、お客様に届いてしまいます。
+           ★この枠を消さないでください -->
+      <div id="rt-tegaki-wrap" style="display:none;margin:10px 0 12px;background:#fff4f2;border:2px solid #e24b4a;border-radius:10px;padding:11px 13px">
+        <div style="font-size:14.5px;font-weight:800;color:#a32d2d;margin-bottom:6px">✍️ この伝票に、手書きの修正が入っていますか？</div>
+        <div style="font-size:12.5px;color:#7a2a24;line-height:1.7;margin-bottom:8px">
+          二重線で金額を消してある／納品日を消して横に手書き／数量を書き直してある、など。<br>
+          <b>読み取りは印字の文字しか見ません。</b>消した数字をそのまま拾ってしまいます。
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" onclick="rtTegakiAnswer(true)" style="background:#e24b4a;border:none;color:#fff;font-weight:800;font-size:14.5px;border-radius:8px;padding:10px 18px;cursor:pointer">✍️ 手書きの修正が入っています</button>
+          <button type="button" onclick="rtTegakiAnswer(false)" style="background:#fff;border:2px solid #9dbde0;color:#123f76;font-weight:800;font-size:14.5px;border-radius:8px;padding:9px 18px;cursor:pointer">印字だけです（修正なし）</button>
+        </div>
+      </div>
+      <div id="rt-tegaki-alert" style="display:none;margin:10px 0 12px;background:#fdeaea;border:3px solid #b91c1c;border-radius:10px;padding:13px 15px">
+        <div style="font-size:17px;font-weight:800;color:#b91c1c;margin-bottom:6px">⛔ この伝票から納品書を作ることはできません</div>
+        <div style="font-size:13.5px;color:#7a2a24;line-height:1.85">
+          手書きの修正は読み取れないため、<b>読み取った中身は使いません</b>。<br>
+          <b>お手数ですが、受注登録の画面で手で入力してください。</b><br><br>
+          <b>伝票のPDFは、このままドライブに入れてあります</b>（【RT書類：社内・倉庫用】）。倉庫さんはそこから印刷できます。<br>
+          <span style="color:#8a3a34">※ 納品書は、手で入力した内容から作られます（同じ場所に入ります）。</span>
+        </div>
+      </div>
       <div id="rt-docname-wrap" style="display:none;margin:10px 0 12px;background:#f0f6ff;border:2px solid #2f6fbf;border-radius:10px;padding:11px 13px">
         <div style="font-size:13.5px;font-weight:800;color:#123f76;margin-bottom:5px">✏️ この書類の名前（ゆかちゃんが決めてください）</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -9560,6 +9591,12 @@ function handleRtFileSelect(e){
 }
 function readRtPdf(file){
   if(typeof rtResetExtraDoc==='function') rtResetExtraDoc();
+  /* ★2026-09-10 前の伝票の答えを引きずらないよう、毎回まっさらにします */
+  try{
+    rtTegakiShusei = null;
+    var _tw = document.getElementById('rt-tegaki-wrap'); if(_tw) _tw.style.display='none';
+    var _ta = document.getElementById('rt-tegaki-alert'); if(_ta) _ta.style.display='none';
+  }catch(_r){}
   document.getElementById('rt-loading').style.display = 'block';
   document.getElementById('rt-preview').style.display = 'none';
   const reader = new FileReader();
@@ -9588,6 +9625,8 @@ function readRtPdf(file){
       rtSaveSlipToDrive();
       /* ★2026-09-10 名前はゆかちゃんが付けます。読み取りが終わったら欄を出します */
       try{ rtShowDocName(); }catch(_dn){}
+      /* ★2026-09-10 手書きの修正が入っていないか、必ず聞きます（答えるまで先へ進めません） */
+      try{ rtShowTegakiToi(); }catch(_tg){}
     }).catch(function(err){
       document.getElementById('rt-loading').style.display = 'none';
       alert('伝票の読み取りに失敗しました：'+err.message);
@@ -9607,6 +9646,61 @@ function readRtPdf(file){
    ★アプリが勝手に決めた名前で終わらせないでください。名前は人が付けます。
    ══════════════════════════════════════════════════════════════════════ */
 var rtDocBaseName = '';                 /* ゆかちゃんが決めた「お名前」（拡張子なし） */
+
+/* ══════════════════════════════════════════════════════════════════════
+   ✍️ 手書きの修正が入っているとき　★2026-09-10 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ・「入っています」を押したら、読み取った中身は【使いません】
+   　 ＝ 受注登録へ進むボタンを止めて、手入力へ案内します
+   ・伝票のPDFは、そのままドライブに残します（倉庫さんが印刷するため）
+   ・ドライブの名前にも「手書き修正あり」を入れて、あとで見て分かるようにします
+   ★ゆかちゃんが忘れても、押すまで先へ進めない形にしてあります。
+   ══════════════════════════════════════════════════════════════════════ */
+var rtTegakiShusei = null;      /* null＝まだ聞いていない／true＝手書きあり／false＝印字だけ */
+
+function rtShowTegakiToi(){
+  rtTegakiShusei = null;
+  var w = document.getElementById('rt-tegaki-wrap');
+  var a = document.getElementById('rt-tegaki-alert');
+  if(w) w.style.display = 'block';
+  if(a) a.style.display = 'none';
+  rtLockNextForTegaki(true);    /* 答えるまでは先へ進めません */
+}
+
+/* 「この内容で受注登録画面へ進む」を、止める／戻す */
+function rtLockNextForTegaki(lock){
+  var b = document.getElementById('rt-go-btn');
+  if(!b) return;
+  if(lock){
+    b.disabled = true;
+    b.style.opacity = '.45'; b.style.cursor = 'not-allowed';
+  } else {
+    b.style.opacity = ''; b.style.cursor = '';
+    /* ★ここでは disabled を false にしません。読み取りができているかの判定は
+       いままでどおり別のところが決めます（勝手に押せるようにしない） */
+  }
+}
+
+function rtTegakiAnswer(ari){
+  rtTegakiShusei = !!ari;
+  var w = document.getElementById('rt-tegaki-wrap');
+  var a = document.getElementById('rt-tegaki-alert');
+  if(w) w.style.display = 'none';
+  if(ari){
+    if(a) a.style.display = 'block';
+    rtLockNextForTegaki(true);            /* 読み取った中身では進ませません */
+    /* ドライブの名前にも印を付ける（あとで見て分かるように） */
+    var box = document.getElementById('rt-docname');
+    if(box && String(box.value||'').indexOf('手書き修正あり') < 0){
+      box.value = String(box.value||'') + '（手書き修正あり）';
+      try{ rtRenameDocs(); }catch(e){}
+    }
+    if(typeof showSyncStatus==='function') showSyncStatus('✍️ 手書きの修正あり：読み取った中身は使いません。受注登録の画面で手で入力してください。', true);
+  } else {
+    if(a) a.style.display = 'none';
+    rtLockNextForTegaki(false);           /* いつもどおり進めます */
+  }
+}
 
 /* はじめの候補（伝票番号 → 施設名 → 元のファイル名 の順に使えるものを） */
 function rtDocNameSuggest(){
@@ -10254,7 +10348,21 @@ async function nouhinAttachToOrder(o){
     if(!o) return;
     if(typeof OOS_NOUHIN === 'undefined') return;
     if(!o.yukaKey) return;                                   /* ふだが無ければ貼る先が分からない */
-    if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-10 ひろみさん指示：
+       　「ゆかちゃんが自分で手で作った納品書が、RTのドライブの中に入ってくるように
+       　　しないといけないよ。他の一般のところに行ってしまうと、伝票がないって
+       　　探すことになるので、納品書と伝票は、RTは必ずどんな形で入ろうと、
+       　　RTのボックスに入るようにしてください」
+       直したこと：
+       　これまでは【RTなら全部おことわり】していたので、
+       　伝票から作っていないRT（手入力・手書き修正のあとの入力）は、
+       　こちらも rtAttachDocsToOrder も通らず、納品書が1枚も作られていませんでした。
+       　いまは【伝票から作ったRTだけ】をおことわりします（そちらは伝票と一緒に貼るため）。
+       ★どちらの道でも、入る場所は同じ【RT書類：社内・倉庫用】です。
+       ══════════════════════════════════════════════════════════════════ */
+    var _isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
+    if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;   /* 伝票から作ったRTは、伝票と一緒に貼ります */
     if(!OOS_NOUHIN.needsNouhin(o)) return;                   /* 同梱書類に納品書が無ければ作りません（バサラ等） */
     if(o.nouhinDocUrl) return;                               /* もう貼ってあります */
 
@@ -10444,6 +10552,18 @@ function fillEcWarehouse(cardId){
   if(typeof showSyncStatus==='function') showSyncStatus('🛒 お届け先に「リゾートトラスト通販倉庫（京都）」を入れました。ご確認ください');
 }
 function applyRtToOrderForm(){
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-10 ひろみさん指示：手書きの修正が入った伝票からは、
+     　読み取った中身を使いません（消した数字をそのまま拾ってしまうため）。
+     　ボタンも止めていますが、ここでも念のため止めます（二重の守り）。
+     ★この止めを外さないでください。 */
+  if(typeof rtTegakiShusei !== 'undefined' && rtTegakiShusei === true){
+    alert('⛔ この伝票には手書きの修正が入っています。' + String.fromCharCode(10) + String.fromCharCode(10)
+      + '読み取りは印字の文字しか見ないため、二重線で消した金額や日付を、そのまま拾ってしまいます。' + String.fromCharCode(10)
+      + 'お手数ですが、受注登録の画面で手で入力してください。' + String.fromCharCode(10) + String.fromCharCode(10)
+      + '伝票のPDFは、このままドライブ（RT書類：社内・倉庫用）に入れてあります。');
+    return;
+  }
   if(!rtParsed) return;
   const p = rtParsed;
   /* ★2026-08-19 ゆかさん報告：ここが p.lines[0] だけを見ていたため、
