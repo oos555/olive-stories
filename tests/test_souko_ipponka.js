@@ -183,35 +183,37 @@ ok('⑦ふだ（転記キー）で行を探す（まちがった行に貼らな�
   bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('oosFindRowByKey_(sh, oosKeyColByHeader_(sh), key)') >= 0);
 ok('⑦ふだが無いときは何もしない',
   bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('ふだ（転記キー）がありません') >= 0);
-ok('⑦PDFの置き場所は「RT書類：本部・倉庫のみ閲覧可」',
-  GAS.indexOf("var OOS_RT_DOC_FOLDER     = 'RT書類：本部・倉庫のみ閲覧可';") >= 0 &&
+/* ★2026-09-10 ひろみさん決定（ここは一度まちがえて直した所です・★読んでください）
+     「実際に倉庫で書類を開いて、そして印刷するのはれい子さんです。
+     　れい子さんやれい子さんのスタッフが開くので、私たちは印刷はしません」
+     「納品書と伝票は別の場所に置きません。この RT書類：社内・倉庫用 の中に
+     　RTの伝票とRTの納品書を入れていくので、分けないでね」
+     「同じ場所に置いておかないと、納品書と伝票を見るときに別のところに見に行かなきゃいけないでしょう?」
+
+   ＝ 置き場所は【1つだけ】／見るのは【リンクを知っている人】。
+   ★いちど『決めた人だけ』に絞ったら、れい子さんが開けなくなりました。絞らないこと。
+   ★フォルダを増やさないこと。 */
+ok('⑦PDFの置き場所は「RT書類：社内・倉庫用」の1つだけ',
+  GAS.indexOf("var OOS_RT_DOC_FOLDER      = 'RT書類：社内・倉庫用（リンクを知っている人が開けます）';") >= 0 &&
   bodyOf(GAS, 'oosRtDocFolder_').indexOf('f.setName(OOS_RT_DOC_FOLDER)') >= 0,
-  '（フォルダ名も置き場所も2026-09-10 ひろみさん決定。前の名前のフォルダは【名前を変えるだけ】で引き継ぎます）');
-/* ★2026-09-10 ひろみさん決定「名前どおりに厳しくする」。
-     リンクを知っていれば誰でも開ける、をやめました。
-     お客様の氏名・住所が載る書類なので、ANYONE_WITH_LINK に戻さないでください。 */
-ok('⑦リンクを知っている人なら誰でも開ける、にはしていない',
-  bodyOf(GAS, 'saveExtraDoc').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') < 0 &&   /* ★注意書きの文は数えない（見張りが自分のコメントを拾う失敗をした） */
-  bodyOf(GAS, 'oosRtDocShare_').indexOf('DriveApp.Access.PRIVATE') >= 0,
-  '（お客様の氏名・住所が載る書類です）');
-ok('⑦決めた人だけが見られる（見られる人の一覧がある）',
-  /var OOS_RT_DOC_VIEWERS = \[/.test(GAS) &&
-  bodyOf(GAS, 'oosRtDocShare_').indexOf('item.addViewer(mail)') >= 0);
-ok('⑦納品書の保存も、決めた人だけに縛ってある',
-  bodyOf(GAS, 'saveInvoiceToDrive').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') < 0 &&
-  bodyOf(GAS, 'saveInvoiceToDrive').indexOf('oosRtDocShare_(file)') >= 0,
-  '（2026-09-10 ひろみさん指示：納品書も本部とゆかちゃんだけ）');
-ok('⑦まとめて直す窓口が、2つのフォルダを見る',
-  bodyOf(GAS, 'oosRtDocFolderSecure').indexOf('OOS_NOUHIN_FOLDER') >= 0);
+  '（前の名前のフォルダは【名前を変えるだけ】で引き継ぎます。作り直すとリンクがばらけます）');
+ok('⑦伝票も納品書も、同じフォルダに入る',
+  bodyOf(GAS, 'saveExtraDoc').indexOf('oosRtDocFolder_()') >= 0 &&
+  bodyOf(GAS, 'saveInvoiceToDrive').indexOf('oosRtDocFolder_()') >= 0,
+  '（分けると、見るときに2か所を見に行くことになります）');
+ok('⑦フォルダを増やしていない（納品書用の別フォルダが無い）',
+  GAS.indexOf('OOS_NOUHIN_FOLDER') < 0);
+ok('⑦倉庫のれい子さんたちが、ログインなしで開ける',
+  bodyOf(GAS, 'oosRtDocShare_').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') >= 0 &&
+  bodyOf(GAS, 'oosRtDocShare_').indexOf('DriveApp.Access.PRIVATE') < 0,
+  '（PRIVATEに戻すと、れい子さんが印刷できなくなります）');
 ok('⑦いまある書類にも行き渡らせる窓口がある（oosRtDocFolderSecure）',
   GAS.indexOf('function oosRtDocFolderSecure') >= 0 &&
-  GAS.indexOf("action === 'oosRtDocFolderSecure'") >= 0,
-  '（倉庫のスタッフが増えたとき、一覧に足してから1回実行します）');
+  GAS.indexOf("action === 'oosRtDocFolderSecure'") >= 0);
 ok('⑦フォルダの中身を確かめる窓口がある',
   GAS.indexOf("action === 'oosRtDocFolderCheck'") >= 0);
-ok('⑦「ほかの人に渡す書類は入れない」と書き残してある',
-  GAS.indexOf('お客様や取引先にお渡しする書類を、ここに入れないでください。') >= 0,
-  '（ひろみさんの注意。フォルダ名だけでは伝わらないため）');
+ok('⑦読み違えた記録が残してある（同じまちがいをしないため）',
+  GAS.indexOf('ここは私（Claude）が読み違えたところです') >= 0);
 ok('⑦倉庫Ｄのカードにも、そのリンクがボタンで出る',
   bodyOf(GAS, 'oosKonpoOrders').indexOf('getRichTextValues()') >= 0,
   '（発注書のV列・W列のリンクを読んでいます）');
