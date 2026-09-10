@@ -397,6 +397,26 @@ ok('⑩通しで確かめる窓口がある（oosYoyakuListRoundTrip）',
   GAS.indexOf("action === 'oosYoyakuListRoundTrip'") >= 0);
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10 ひろみさん指示）';
+
+/* ── ⑪ RT書類の名前は、ゆかちゃんが付ける（2026-09-10 ひろみさん指示） ───────── */
+/* ひろみさん：「取り込まれたRTの伝票は、ドライブのRT書類：社内・倉庫用に自動で入るように。
+   　　　　　　その時に、書類の名前をゆかちゃんに付けさせてください。あなたが自動でするのでは
+   　　　　　　なくて。そうすることで納品書と紐付いていくことになると思います」
+   → 伝票と納品書に【同じ名前】を付けて、ドライブで隣どうしに並ぶようにします。 */
+ok('⑪伝票は読み取ったら自動でドライブへ', IDX.indexOf('rtSaveSlipToDrive();') >= 0);
+ok('⑪置き場所はRT書類フォルダ（GASが決める）', GAS.indexOf('var folder = oosRtDocFolder_();') >= 0);
+ok('⑪名前の欄がある（ゆかちゃんが決める）', IDX.indexOf('id="rt-docname"') >= 0);
+ok('⑪読み取ったら名前の欄が出る', IDX.indexOf('rtShowDocName();') >= 0);
+ok('⑪はじめの候補を作る部品がある', IDX.indexOf('function rtDocNameSuggest(') >= 0);
+ok('⑪名前を付け替える部品がある', IDX.indexOf('async function rtRenameDocs(') >= 0);
+ok('⑪伝票の名前は お名前_伝票.pdf', IDX.indexOf("'_伝票.pdf'") >= 0);
+ok('⑪納品書の名前は お名前_納品書.pdf', IDX.indexOf("_base + '_納品書.pdf'") >= 0);
+ok('⑪古い自動の名前に戻っていない', IDX.indexOf("'納品書_' + ((rtParsed.nouhinNo") < 0);
+ok('⑪GASに名前を付け替える窓口がある', GAS.indexOf('function renameExtraDoc(') >= 0);
+ok('⑪窓口はelse ifでつながっている', GAS.indexOf("else if (action === 'renameExtraDoc')") >= 0);
+ok('⑪RT書類フォルダの中のファイルしか名前を変えない',
+   GAS.indexOf('このファイルは「') >= 0 && GAS.indexOf('の中にありません。名前は変えませんでした。') >= 0);
+
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
   fails.forEach(x => console.log(x));

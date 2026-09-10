@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-10">
+<meta name="oos-version" content="2026-09-10-11">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -954,6 +954,25 @@ body{background:#fff}
           <div style="text-align:center;font-size:12px;color:#8a7a52;margin-top:3px">この注文と一緒に倉庫Dへ渡します</div>
           <div style="text-align:center;margin-top:8px"><button onclick="rtRemoveExtraDoc()" style="background:#f1efe8;border:1px solid #cfc9bd;color:#57534e;font-weight:700;font-size:12.5px;padding:6px 16px;border-radius:8px;cursor:pointer">この追加PDFを外す</button></div>
         </div>
+      </div>
+      <!-- ══════════════════════════════════════════════════════════════
+           ✏️ 書類の名前（2026-09-10 ひろみさん指示）
+           　「書類の名前をゆかちゃんに付けさせてください。あなたが自動でするのでは
+           　　なくて。そうすることで納品書と紐付いていくことになると思います」
+           ・伝票と納品書に【同じ名前】を付けると、ドライブで隣どうしに並びます
+           ・アプリが入れる名前は【はじめの候補】です。直したらドライブの名前も変わります
+           ★この欄を消さないでください -->
+      <div id="rt-docname-wrap" style="display:none;margin:10px 0 12px;background:#f0f6ff;border:2px solid #2f6fbf;border-radius:10px;padding:11px 13px">
+        <div style="font-size:13.5px;font-weight:800;color:#123f76;margin-bottom:5px">✏️ この書類の名前（ゆかちゃんが決めてください）</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="rt-docname" placeholder="例）ベイコート0910" style="flex:1;min-width:220px;font-size:15px;font-weight:700;padding:9px 11px;border:2px solid #9dbde0;border-radius:8px;color:#123f76">
+          <button type="button" onclick="rtRenameDocs()" style="background:#2f6fbf;border:none;color:#fff;font-weight:800;font-size:14px;border-radius:8px;padding:10px 18px;cursor:pointer">この名前にする</button>
+        </div>
+        <div style="font-size:12px;color:#1c4e8a;line-height:1.7;margin-top:6px">
+          この名前で、ドライブの<b>【RT書類：社内・倉庫用】</b>に入ります。<br>
+          伝票は「<b>お名前_伝票.pdf</b>」、納品書は「<b>お名前_納品書.pdf</b>」になるので、<b>2つが並んで見つけやすくなります</b>。
+        </div>
+        <div id="rt-docname-msg" style="font-size:12.5px;font-weight:700;margin-top:6px"></div>
       </div>
       <div id="rt-loading" style="display:none;text-align:center;color:#2b2a26;font-size:13px;padding:12px 0">📖 伝票を読み取り中...</div>
       <div id="rt-preview" style="display:none"></div>
@@ -9517,6 +9536,7 @@ function applyPdfToOrderForm(){
 let rtParsed = null;
 var rtSlipPdfB64 = '', rtSlipPdfName = '';   // 取り込んだ発注伝票PDFの元データ（倉庫へ添付するため保持）
 var rtExtraDocUrl = '', rtExtraDocName = '';   // 追加の説明PDF（ある時だけ）＝Drive保存後のURLと名前。倉庫Dへ渡す
+var rtExtraDocId = '';   /* ★2026-09-10 ドライブのファイルID。名前を付け替えるのに要ります。★消さないでください */
 
 function handleRtDrop(e){
   e.preventDefault();
@@ -9556,6 +9576,8 @@ function readRtPdf(file){
          開けなかった（メール添付では届いていた）。ここでDriveに保存して注文に付ける。
          ★この保存を消さないでください（倉庫が伝票を刷れなくなります） */
       rtSaveSlipToDrive();
+      /* ★2026-09-10 名前はゆかちゃんが付けます。読み取りが終わったら欄を出します */
+      try{ rtShowDocName(); }catch(_dn){}
     }).catch(function(err){
       document.getElementById('rt-loading').style.display = 'none';
       alert('伝票の読み取りに失敗しました：'+err.message);
@@ -9566,6 +9588,71 @@ function readRtPdf(file){
 
 /* ★2026-08-19 取り込んだ発注伝票PDFを、そのままDriveに保存して倉庫Ｄへ渡す。
    保存できたら、画面の「追加PDF」の欄にその名前が出る（倉庫Ｄでは印刷ボタンになる）。 */
+/* ══════════════════════════════════════════════════════════════════════
+   ✏️ RT書類の名前　★2026-09-10 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ・伝票を読み取ると、まず【候補】の名前で保存します（自動でドライブに入ります）
+   ・ゆかちゃんが名前を直して「この名前にする」を押すと、ドライブの名前も変わります
+   ・納品書は、あとで同じ名前＋「_納品書」で保存されます（伝票と並びます）
+   ★アプリが勝手に決めた名前で終わらせないでください。名前は人が付けます。
+   ══════════════════════════════════════════════════════════════════════ */
+var rtDocBaseName = '';                 /* ゆかちゃんが決めた「お名前」（拡張子なし） */
+
+/* はじめの候補（伝票番号 → 施設名 → 元のファイル名 の順に使えるものを） */
+function rtDocNameSuggest(){
+  var p = (typeof rtParsed !== 'undefined') ? rtParsed : null;
+  var no  = p ? String(p.nouhinNo || p.slipNo || '').trim() : '';
+  var fac = p ? String(p.recipientName || '').trim() : '';
+  var d   = new Date();
+  var md  = String(d.getMonth()+1) + String(d.getDate()).padStart(2,'0');
+  if(fac && no) return fac + '_' + no;
+  if(fac)       return fac + '_' + md;
+  if(no)        return 'RT_' + no;
+  var f = String((typeof rtSlipPdfName !== 'undefined' ? rtSlipPdfName : '') || '').replace(/\.pdf$/i,'');
+  return f || ('RT_' + md);
+}
+
+/* 名前の欄を出して、候補を入れる（まだ押していない状態） */
+function rtShowDocName(){
+  var wrap = document.getElementById('rt-docname-wrap');
+  var box  = document.getElementById('rt-docname');
+  var msg  = document.getElementById('rt-docname-msg');
+  if(!wrap || !box) return;
+  wrap.style.display = 'block';
+  if(!box.value) box.value = rtDocNameSuggest();
+  if(msg){ msg.textContent = 'いまは仮の名前です。直したら「この名前にする」を押してください。'; msg.style.color = '#8a6a1f'; }
+}
+
+/* 「この名前にする」を押したとき：ドライブの伝票の名前を変える */
+async function rtRenameDocs(){
+  var box = document.getElementById('rt-docname');
+  var msg = document.getElementById('rt-docname-msg');
+  var name = String((box && box.value) || '').trim();
+  if(!name){ if(msg){ msg.textContent = '名前を入れてください。'; msg.style.color = '#a32d2d'; } return; }
+  /* ファイル名に使えない文字は外す（ドライブが困るため） */
+  name = name.replace(/[\\\/:*?"<>|]/g, '_');
+  rtDocBaseName = name;
+  if(!rtExtraDocId){
+    if(msg){ msg.textContent = '✅ この名前にしました：' + name + '（納品書もこの名前で保存されます）'; msg.style.color = '#3b6d11'; }
+    return;
+  }
+  if(msg){ msg.textContent = '📤 ドライブの名前を変えています…'; msg.style.color = '#8a6a1f'; }
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'renameExtraDoc', fileId: rtExtraDocId, name: name + '_伝票.pdf' }) });
+    var d = await res.json();
+    if(d && d.status==='ok'){
+      rtExtraDocName = d.name;
+      var nm = document.getElementById('rt-extradoc-name'); if(nm) nm.textContent = rtExtraDocName;
+      if(msg){ msg.textContent = '✅ ドライブの名前を変えました：' + d.name + '（納品書は「' + name + '_納品書.pdf」になります）'; msg.style.color = '#3b6d11'; }
+    } else {
+      if(msg){ msg.textContent = '⚠ 名前を変えられませんでした：' + ((d&&d.message)||'不明') + '（次に作る納品書は、この名前になります）'; msg.style.color = '#a32d2d'; }
+    }
+  }catch(e){
+    if(msg){ msg.textContent = '⚠ 通信できませんでした（次に作る納品書は、この名前になります）'; msg.style.color = '#a32d2d'; }
+  }
+}
+
 function rtSaveSlipToDrive(){
   if(!rtSlipPdfB64) return;
   var empty=document.getElementById('rt-extradoc-empty'), load=document.getElementById('rt-extradoc-loading'), on=document.getElementById('rt-extradoc-on');
@@ -9573,12 +9660,16 @@ function rtSaveSlipToDrive(){
   if(on) on.style.display='none';
   if(load) load.style.display='block';
   fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'saveExtraDoc', base64:rtSlipPdfB64, filename:(rtSlipPdfName||'RT発注伝票.pdf')}) })
+      /* ★2026-09-10 まずは候補の名前で保存します（自動でドライブに入ります）。
+         ゆかちゃんが「この名前にする」を押すと、ドライブの名前もその場で変わります。 */
+      body: JSON.stringify({action:'saveExtraDoc', base64:rtSlipPdfB64,
+        filename: (rtDocBaseName ? (rtDocBaseName + '_伝票.pdf') : (rtDocNameSuggest() + '_伝票.pdf')) }) })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if(load) load.style.display='none';
       if(res && res.status==='ok' && res.url){
         rtExtraDocUrl = res.url; rtExtraDocName = res.name || rtSlipPdfName || 'RT発注伝票.pdf';
+        rtExtraDocId = res.id || '';   /* ★2026-09-10 名前を付け替えるのに要ります。★消さないでください */
         var nm=document.getElementById('rt-extradoc-name'); if(nm) nm.textContent = rtExtraDocName;
         if(on) on.style.display='block';
         if(typeof showSyncStatus==='function') showSyncStatus('📎 発注伝票PDFを倉庫Ｄに渡せるようにしました（' + rtExtraDocName + '）');
@@ -10040,7 +10131,13 @@ async function rtAttachDocsToOrder(o){
     var nouhinUrl = '', nouhinName = '';
     try{
       var b64 = await rtBuildNotePdfB64();
-      var nm  = '納品書_' + ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT') + '.pdf';
+      /* ★2026-09-10 ひろみさん指示：伝票と納品書に【同じ名前】を付けて、ドライブで並ぶようにします。
+         ゆかちゃんが名前を決めていればそれを使い、まだなら候補を使います。
+         ★「納品書_（番号）」に戻さないでください（伝票と離れて見つけにくくなります） */
+      var _base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
+                ? rtDocBaseName
+                : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT'));
+      var nm  = _base + '_納品書.pdf';
       var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:nm }) });
       var d = await res.json();
