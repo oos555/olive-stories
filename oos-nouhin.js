@@ -73,6 +73,9 @@
      納品書のHTMLを組み立てる（倉庫Ｄ buildInvoiceHtml からそのまま）
      ══════════════════════════════════════════════════════════════════════ */
   function build(o, deps) {
+    /* ★2026-09-10 斜めからの試験で見つけた守りもれ。注文が無いのに呼ばれると落ちていました。
+       落ちると、その先の「発注書にリンクを貼る」まで止まります。★この1行を消さないでください */
+    if (!o) return '';
     deps = deps || {};
     var PRODUCTS = deps.products || root.PRODUCTS || [];
     var PM = deps.priceMaster || [];
@@ -96,6 +99,8 @@
 
     var items = [], unknown = false;
     (o.lines || []).forEach(function (l) {
+      /* ★2026-09-10 中身が空の明細が混ざっていても落ちないように（斜めからの試験で見つけました） */
+      if (!l) return;
       var prod = findProduct(l.productId);
       var sku = prod ? prod.sku : (l.sku || '');
       var qty = lineTotal(l);
@@ -192,6 +197,8 @@
   /* 単価がそろっているか（PDFにする前に確かめる用）。
      0円の納品書を倉庫が刷ってしまうと、お客様に0円の紙が届きます。★必ず見てください */
   function missingPrices(o, deps) {
+    /* ★2026-09-10 build と同じ守り。注文が無いのに呼ばれても落ちないように。★消さないでください */
+    if (!o) return [];
     deps = deps || {};
     var PRODUCTS = deps.products || root.PRODUCTS || [];
     var PM = deps.priceMaster || [];
@@ -203,6 +210,7 @@
     var withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
     if (!withAmount) return out;
     (o.lines || []).forEach(function (l) {
+      if (!l) return;   /* ★空の明細はとばす */
       var prod = null;
       for (var i = 0; i < PRODUCTS.length; i++) { if (PRODUCTS[i] && PRODUCTS[i].id == l.productId) { prod = PRODUCTS[i]; break; } }
       var sku = prod ? prod.sku : (l.sku || '');

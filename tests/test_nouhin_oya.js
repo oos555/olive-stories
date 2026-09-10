@@ -282,6 +282,30 @@ inc('⑧単価は親（oos-kakaku）に聞く',      OYA, 'KAK.priceForSku(', tr
 inc('⑧消費税は親（oos-zei）に聞く',       OYA, 'ZEI.rateForSku(', true);
 ok('⑧親のなかに価格表の写しが無い',       OYA.indexOf("rt:'priceRT'") < 0 && OYA.indexOf('priceGeneral') < 0);
 
+/* ══ ⑨ 変な入れ物で落ちないか（2026-09-10 斜めからの試験で見つけました） ══
+   注文が無い・明細が空・明細に中身のない行が混ざる、といったときに落ちると、
+   その先の「発注書にリンクを貼る」まで止まります。★守りを外さないでください。 */
+{
+  const hen = [null, undefined, {}, {lines:null}, {lines:[null]}, {lines:[{}]}, {lines:[undefined,{bottles:1}]}, {customerType:null,lines:[]}];
+  let ochita = 0;
+  hen.forEach(function(o, i){
+    try{ nouhin(o); }catch(e){ ochita++; fails.push('⑨build が落ちた（' + i + '番目）: ' + e.message); fail++; }
+    try{ missing(o); }catch(e){ ochita++; fails.push('⑨missingPrices が落ちた（' + i + '番目）: ' + e.message); fail++; }
+    try{ needs(o); }catch(e){ ochita++; fails.push('⑨needsNouhin が落ちた（' + i + '番目）: ' + e.message); fail++; }
+  });
+  if(!ochita) pass++;
+  eq('⑨変な入れ物 8通りで、3つの部品とも落ちない', ochita, 0);
+  inc('⑨注文が無いときの守り',      OYA, 'if (!o) return ', true);
+  inc('⑨空の明細をとばす守り',      OYA, 'if (!l) return;', true);
+}
+
+/* ══ ⑩ お客様の名前にタグが入っても、そのまま出さない ══════════ */
+{
+  const h = nouhin(mkOrder({ recipientName: '<script>alert(1)</script> & "山田"' }));
+  inc('⑩タグはそのまま出さない（逃がしてある）', h, '<script>alert(1)', false);
+  inc('⑩逃がした形で出ている',                 h, '&lt;script&gt;', true);
+}
+
 console.log('===== 📄 納品書の親と、請求書との金額一致 =====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(function(f){ console.log('  ' + f); }); }
