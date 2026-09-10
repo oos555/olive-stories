@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-04">
+<meta name="oos-version" content="2026-09-10-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -630,6 +630,22 @@ body{background:#fff}
             <option value="paid">入金済み</option>
           </select>
         </div>
+      </div>
+      <!-- ★2026-09-10 ひろみさん指示：分類（予約の名前）。どの注文にも付けられます。
+           ひろみさんの言葉：「田中さんの発送ですが、と言われても、どの田中さん、いつのやつ、
+           となってしまいがち。ノヴェッロ2026予約、次回入荷予約、のように分類があれば話が早い」
+           ・自由に打てます。これまで使った名前は候補に出ます（打ち始めると出ます）
+           ・ここに書いた言葉は、発注書の備考欄の先頭に【　】で入ります
+           ★消さないでください -->
+      <div class="fg" style="margin-bottom:0;margin-top:10px">
+        <label style="font-size:13.5px;font-weight:700;color:#2b2a26">分類（この注文の呼び名）
+          <span style="font-size:11px;font-weight:500;color:#8a857a">　空でもOK／打ち始めると、これまで使った名前が出ます</span></label>
+        <input type="text" id="o-bunrui" list="o-bunrui-list" placeholder="例）ノヴェッロ2026予約／次回入荷予約／旧ロット／通常"
+               style="font-size:15px;padding:9px">
+        <datalist id="o-bunrui-list"></datalist>
+        <div style="font-size:11.5px;color:#8a857a;margin-top:4px;line-height:1.6">
+          ここに書いた言葉は、<b>発注書の備考欄の先頭に【　】で入ります</b>。倉庫にも見えるので、
+          「あ、ノヴェッロのね」と分かります。</div>
       </div>
       <div id="hold-date-wrap" style="display:none;margin-top:10px"><label style="font-size:13.5px;font-weight:700;color:#2b2a26">送る目安（いつ頃出す？）</label><input type="date" id="o-hold-date" style="font-size:15px;padding:9px"></div>
       <div id="reserved-date-wrap" style="display:none;margin-top:10px"><label style="font-size:13.5px;font-weight:700;color:#2b2a26">お届け予定時期</label><input type="date" id="o-expected-date" style="font-size:15px;padding:9px"></div>
@@ -2168,6 +2184,34 @@ const CUSTOMER_TYPE_LABEL = {
   rt:'RT（ホテル）', rtgc:'RTGC（ゴルフ）', basara:'卸バサラスター', special:'特別提供価格', defectprice:'不良在庫特価'
 };
 /* シートには区分が日本語（RT・定価…）で保存されるため、読み込み時に英語コードへ翻訳する（倉庫D・受注A共通の約束）*/
+/* ══════════════════════════════════════════════════════════════════════
+   🏷 分類（この注文の呼び名）　★2026-09-10 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ・どの注文にも付けられます（通常・旧ロット・取り置き・予約）
+   ・マスタは作りません。【これまで使った名前】がそのまま候補になります
+   　→ 新しく「2026年11月入荷予定分の予約」と打てば、次から候補に出ます
+   ・発注書へ送るときは、備考欄の先頭に【分類】が入ります
+   ★この考え方を変えないでください（登録の手間を増やさないため） */
+function bunruiCandidates(){
+  var m = {};
+  (orders || []).forEach(function(o){
+    var b = String((o && o.bunrui) || '').trim();
+    if(b) m[b] = (m[b] || 0) + 1;
+  });
+  /* よく使う順 → 同じならあいうえお順 */
+  return Object.keys(m).sort(function(a, b){
+    if(m[b] !== m[a]) return m[b] - m[a];
+    return a.localeCompare(b, 'ja');
+  });
+}
+function renderBunruiList(){
+  var dl = document.getElementById('o-bunrui-list');
+  if(!dl) return;
+  dl.innerHTML = bunruiCandidates().map(function(b){
+    return '<option value="' + esc(b) + '"></option>';
+  }).join('');
+}
+
 function normCtype(v){ return ({'定価':'general','卸①':'wholesale1','卸②':'wholesale2','RT':'rt','RTGC（ゴルフ）':'rtgc','RTGC':'rtgc','卸バサラスター':'basara','特別提供価格':'special','不良在庫特価':'defectprice'})[v] || v; }
 const CTYPE_BADGE = { wholesale1:'卸', wholesale2:'卸※', rt:'卸●', rtgc:'卸●', basara:'卸◆', special:'特提', defectprice:'特化' };
 
@@ -2478,6 +2522,7 @@ function loadInitialData(retry, pre){
       if(incomingOrders.length>0 || orders.length===0){
         orders = incomingOrders;
         orders.forEach(function(o){ o.customerType = normCtype(o.customerType); }); // シートは日本語ラベル保存のため英語コードへ翻訳
+        try{ if(typeof renderBunruiList==='function') renderBunruiList(); }catch(_eb){}   // ★2026-09-10 分類の候補を作り直す
       }
     }
     updCustomerSelects();
@@ -3867,6 +3912,8 @@ function buildOrdersFromForm(){
   const recordType = document.getElementById('o-record-type').value;
   const holdDate = document.getElementById('o-hold-date').value;
   const expectedDate = document.getElementById('o-expected-date').value;
+  /* ★2026-09-10 分類（この注文の呼び名）。空でもOK。★消さないでください */
+  const bunrui = String((document.getElementById('o-bunrui') || {}).value || '').trim();
   const paymentMode = document.getElementById('o-payment-mode').value;
   const saveCustomer = document.getElementById('o-save-customer').checked;
   const senderMode = document.getElementById('d-sender-mode').value;
@@ -3920,6 +3967,8 @@ function buildOrdersFromForm(){
       notified: false,
       holdUntilDate: recordType==='held' ? holdDate : '',
       expectedDate: recordType==='reserved' ? expectedDate : '',
+      /* ★2026-09-10 分類（この注文の呼び名）。発注書の備考の先頭に【　】で入ります。★消さないでください */
+      bunrui: bunrui,
       status: recordType,
       source: ((typeof basaraImportMeta!=='undefined' && basaraImportMeta && (document.getElementById('o-client').value||'').indexOf('バサラ')>=0) ? 'basara' : 'manual'),
       basaraOrderNo: ((typeof basaraImportMeta!=='undefined' && basaraImportMeta) ? (basaraImportMeta.orderNo||'') : ''),
@@ -7933,6 +7982,8 @@ async function yukaImportOne(id){
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yukaImportOrder', order:{
         num: o.num, src: srcLabel, exp: '', items: items,
+        /* ★2026-09-10 分類（この注文の呼び名）。発注書の備考の先頭に【　】で入ります */
+        bunrui: (o.bunrui || ''),
         name: (o.recipientName || o.client || ''),
         /* ★2026-09-07 発注書に郵便番号の列ができたので、住所とくっつけずに別々に渡す。
            倉庫さんが発送するのに郵便番号が必ず要る（無いと自分で調べる手間になる）。 */
