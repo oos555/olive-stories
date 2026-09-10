@@ -139,6 +139,29 @@ ok('⑤-2 ストアーズが売上一覧に出る条件を満たす',
   /salesWasSentToWarehouse[\s\S]{0,200}o\.status === 'shipped'/.test(
     fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/billing.html', 'utf8')),
   '（売上一覧は notified／shippedAt／status===shipped のどれかで判定しています）');
+/* ★2026-09-10 ひろみさん指示：もう出荷依頼書は使わないので、
+     ボタンの名前を「📦 発注書へ送る」に変え、押したあと出荷依頼書タブへ飛ばないようにした。
+   ★このとき【まとめて出す道】に yukaImportOne が抜けているのを見つけました。
+     まとめて出した分だけ、倉庫に永久に流れないところでした。1件ずつと両方を見張ります。 */
+ok('⑤-2 【まとめて】発注書へ送るも、自動で発注書へ',
+  bodyOf(IDX, 'convertSelectedHoldToShipping').indexOf('list.forEach(function(o){ try{ yukaImportOne(o.id); }catch(eY){} });') >= 0,
+  '（2026-09-10 に見つけた抜け。まとめて出した分だけ倉庫に流れませんでした）');
+/* ★コメント（注意書き）を外してから見ます。
+   2026-09-10、見張りが自分の「★gotoSlip を戻さないでください」の文を拾って落ちました。
+   同じ失敗を今日2回しています。★この noComment を外さないでください。 */
+function noComment(src){ return String(src||'').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' '); }
+ok('⑤-2 押したあと、出荷依頼書タブへ飛ばない（1件ずつも、まとめても）',
+  noComment(bodyOf(IDX, 'convertToShipping')).indexOf('gotoSlip(') < 0 &&
+  noComment(bodyOf(IDX, 'convertSelectedHoldToShipping')).indexOf('gotoSlip(') < 0,
+  '（飛ぶと「これで倉庫に行った」と思ってしまいます）');
+/* ★見るのは【実際に押せるボタン】だけ。説明パネルの中の文は数えません
+   （バサラの説明パネルに古い言い方が残っていますが、バサラは触らない決まりのため）。 */
+ok('⑤-2 押せるボタンの名前は「📦 発注書へ送る」（1件ずつ・まとめて・押せないとき）',
+  (IDX.match(/>📦 発注書へ送る<\/button>/g) || []).length === 3 &&
+  (IDX.match(/>📦 出荷依頼書へ<\/button>/g) || []).length === 0,
+  '（古い名前に戻さないでください）');
+ok('⑤-2 押したあとのお知らせが、倉庫にはまだ行かないと伝えている',
+  IDX.indexOf('倉庫にはまだ行きません（発注書のA列を🔵にすると倉庫へ連絡が行きます）') >= 0);
 ok('⑤-2 取り置き・予約→出荷依頼書も、自動で発注書へ',
   bodyOf(IDX, 'convertToShipping').indexOf("if(typeof yukaImportOne==='function'){ try{ yukaImportOne(o.id); }catch(eY){} }") >= 0,
   '（入れ忘れると、取り置きから出した注文が倉庫に流れません）');
