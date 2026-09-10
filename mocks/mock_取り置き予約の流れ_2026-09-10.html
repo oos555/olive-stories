@@ -1,277 +1,163 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>取り置き・予約の流れ</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@700&display=swap">
 <style>
   :root{
     --ink:#20211d; --ink-2:#54564d; --ink-3:#83857a;
     --ground:#f6f5f0; --card:#ffffff; --line:#dcd8cb; --strong:#20211d;
-    --lg:#2f7d4a;   --lg-bg:#e6f3ea;   --lg-ed:#9fcdaf;   /* 💬 LINE */
-    --no:#8a6a1f;   --no-bg:#fbf2dd;   --no-ed:#dfc384;   /* 何も飛ばない */
-    --btn:#1b4bb5;  --btn-bg:#e7effc;  --btn-ed:#bcd0f2;  /* 人が押す・合流 */
-    --hold:#b45309; --hold-bg:#fdf2e3; --hold-ed:#e8c48c; /* 🗄 取り置き */
-    --resv:#185fa5; --resv-bg:#e9f1fa; --resv-ed:#b3cfe8; /* 🗓 予約 */
-    --fix:#7b2fa0;  --fix-bg:#f5ebfa;  --fix-ed:#ddc2ea;  /* これから直すところ */
+    --mail:#1f5b8f; --mail-bg:#e7f0f8; --mail-ed:#a6c6e0;
+    --lg:#2f7d4a;   --lg-bg:#e6f3ea;   --lg-ed:#9fcdaf;
+    --no:#8a6a1f;   --no-bg:#fbf2dd;   --no-ed:#dfc384;
+    --lock:#8d3a3a; --lock-bg:#f8eaea; --lock-ed:#dcaaaa;
+    --zk:#0f6d63;   --zk-bg:#e3f2f0;   --zk-ed:#a9d6d0;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
       --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+      --mail:#8fb8dc; --mail-bg:#1c2733; --mail-ed:#38536b;
       --lg:#7cc294; --lg-bg:#1a2a20; --lg-ed:#325c40;
       --no:#d9b263; --no-bg:#2e2617; --no-ed:#5e4c22;
-      --btn:#8fb0e6; --btn-bg:#1b2434; --btn-ed:#37496b;
-      --hold:#e0a860; --hold-bg:#2c2214; --hold-ed:#5b452a;
-      --resv:#8fb8dc; --resv-bg:#1c2733; --resv-ed:#38536b;
-      --fix:#c79fe0;  --fix-bg:#271b2e;  --fix-ed:#4d3559;
+      --lock:#d99494; --lock-bg:#33201f; --lock-ed:#5e3333;
+      --zk:#6fc4ba;   --zk-bg:#152a28;   --zk-ed:#2f5a55;
     }
   }
   :root[data-theme="dark"]{
     --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
     --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+    --mail:#8fb8dc; --mail-bg:#1c2733; --mail-ed:#38536b;
     --lg:#7cc294; --lg-bg:#1a2a20; --lg-ed:#325c40;
     --no:#d9b263; --no-bg:#2e2617; --no-ed:#5e4c22;
-    --btn:#8fb0e6; --btn-bg:#1b2434; --btn-ed:#37496b;
-    --hold:#e0a860; --hold-bg:#2c2214; --hold-ed:#5b452a;
-    --resv:#8fb8dc; --resv-bg:#1c2733; --resv-ed:#38536b;
-    --fix:#c79fe0;  --fix-bg:#271b2e;  --fix-ed:#4d3559;
+    --lock:#d99494; --lock-bg:#33201f; --lock-ed:#5e3333;
+    --zk:#6fc4ba;   --zk-bg:#152a28;   --zk-ed:#2f5a55;
   }
   *{box-sizing:border-box}
   body{margin:0; background:var(--ground); color:var(--ink); font-size:13px; line-height:1.5;
        font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
-  .wrap{max-width:920px; margin:0 auto; padding:14px 16px 18px}
+  .wrap{max-width:820px; margin:0 auto; padding:15px 18px 18px}
   header{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
-         border-bottom:2px solid var(--strong); padding-bottom:5px; margin-bottom:8px}
-  h1{font-family:"Zen Old Mincho",serif; font-size:19px; margin:0}
+         border-bottom:2px solid var(--strong); padding-bottom:6px; margin-bottom:9px}
+  h1{font-family:"Zen Old Mincho",serif; font-size:20px; margin:0}
   .sub{margin:0; color:var(--ink-3); font-size:11px}
-  h2{font-family:"Zen Old Mincho",serif; font-size:14px; margin:14px 0 6px;
-     border-left:4px solid var(--strong); padding-left:8px}
-
-  .lead{background:var(--card); border:1px solid var(--line); border-radius:5px;
-        padding:7px 12px; margin-bottom:9px; font-size:12.5px; line-height:1.6}
-  .lead b{font-weight:900}
-
-  .two{display:grid; grid-template-columns:1fr 1fr; gap:9px}
-  @media (max-width:700px){ .two{grid-template-columns:1fr} }
-
-  .col{background:var(--card); border:1px solid var(--line); border-radius:6px; overflow:hidden}
-  .col.hold{border-color:var(--hold-ed)} .col.resv{border-color:var(--resv-ed)}
-  .ch{padding:6px 10px; border-bottom:1px solid var(--line)}
-  .hold .ch{background:var(--hold-bg); border-bottom-color:var(--hold-ed)}
-  .resv .ch{background:var(--resv-bg); border-bottom-color:var(--resv-ed)}
-  .ch .t{font-size:14px; font-weight:900; margin:0; line-height:1.25}
-  .hold .ch .t{color:var(--hold)} .resv .ch .t{color:var(--resv)}
-  .ch .s{font-size:11px; margin:2px 0 0; font-weight:700; color:var(--ink-2)}
-
-  .steps{padding:8px 10px 10px}
-  .st{position:relative; padding-left:19px; padding-bottom:8px}
-  .st:last-child{padding-bottom:0}
-  .st::before{content:''; position:absolute; left:5px; top:4px; width:7px; height:7px;
-              border-radius:50%; background:var(--ink-3)}
-  .st::after{content:''; position:absolute; left:8px; top:13px; bottom:0; width:1px; background:var(--line)}
-  .st:last-child::after{display:none}
-  .st .a{font-size:12.5px; font-weight:700; margin:0; line-height:1.35}
-  .st .d{font-size:10.5px; color:var(--ink-2); margin:2px 0 0; line-height:1.45}
-  .st .d b{color:var(--ink)}
-
-  .zk{margin:7px 10px 10px; border-radius:5px; padding:6px 10px; font-size:11.5px;
-      font-weight:700; line-height:1.5; border:1px solid}
-  .hold .zk{background:var(--hold-bg); border-color:var(--hold-ed); color:var(--hold)}
-  .resv .zk{background:var(--resv-bg); border-color:var(--resv-ed); color:var(--resv)}
-
-  .arrowbar{margin:9px 0; text-align:center; font-size:12px; font-weight:900; color:var(--ink-2)}
-
-  .join{margin:9px 0; background:var(--btn-bg); border:1px solid var(--btn-ed);
-        border-radius:6px; padding:8px 13px}
-  .join .t{font-size:14px; font-weight:900; color:var(--btn); margin:0}
-  .join .d{font-size:11.5px; color:var(--ink-2); margin:3px 0 0; line-height:1.6}
-  .join b{color:var(--ink); font-weight:900}
-
-  .flow{display:grid; grid-template-columns:repeat(4,1fr); gap:9px}
-  @media (max-width:760px){ .flow{grid-template-columns:repeat(2,1fr)} }
-  .fb{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:7px 11px}
-  .fb .n{font-size:10px; font-weight:700; color:var(--ink-3); margin:0}
-  .fb .t{font-size:12.5px; font-weight:900; margin:1px 0 0; line-height:1.3}
-  .fb .d{font-size:10.5px; color:var(--ink-2); margin:2px 0 0; line-height:1.5}
-  .sig{display:inline-block; margin-top:4px; border-radius:4px; padding:2px 7px;
-       border:1px solid; font-size:10px; font-weight:700}
+  .legend{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 8px}
+  .k{font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; border:1px solid}
+  .k-m{background:var(--mail-bg); color:var(--mail); border-color:var(--mail-ed)}
+  .k-l{background:var(--lg-bg); color:var(--lg); border-color:var(--lg-ed)}
+  .k-n{background:var(--no-bg); color:var(--no); border-color:var(--no-ed)}
+  .k-z{background:var(--zk-bg); color:var(--zk); border-color:var(--zk-ed)}
+  .zk{margin:3px 0 0; font-size:11px; font-weight:700; color:var(--zk);
+      background:var(--zk-bg); border:1px solid var(--zk-ed); border-radius:4px;
+      padding:3px 8px; line-height:1.45}
+  .cancel{grid-column:1 / -1; background:var(--zk-bg); border:1px solid var(--zk-ed);
+          color:var(--ink-2); border-radius:4px; padding:7px 11px; font-size:11.5px;
+          line-height:1.55; margin-bottom:5px}
+  .cancel b{color:var(--zk); font-weight:900}
+  .cancel .ct{display:block; font-size:12.5px; font-weight:900; color:var(--zk); margin-bottom:2px}
+  .hd{display:grid; grid-template-columns:1fr 1fr; gap:0 10px; margin-bottom:3px}
+  .hd span{font-size:10.5px; font-weight:700; letter-spacing:.1em; color:var(--ink-3)}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:0 10px; margin-bottom:5px}
+  .act{background:var(--card); border:1px solid var(--line); border-radius:4px; padding:6px 11px}
+  .who{font-size:10.5px; font-weight:700; letter-spacing:.05em; color:var(--ink-3); margin:0 0 1px}
+  .what{font-size:14px; font-weight:700; margin:0; line-height:1.3}
+  .det{margin:2px 0 0; font-size:11px; color:var(--ink-2); line-height:1.45}
+  .sig{border-radius:4px; padding:6px 11px; border:1px solid}
+  .msg{font-size:12.5px; font-weight:700; margin:0; line-height:1.3}
+  .who2{margin:2px 0 0; font-size:11px; line-height:1.45; opacity:.92}
+  .s-m{background:var(--mail-bg); border-color:var(--mail-ed); color:var(--mail)}
   .s-l{background:var(--lg-bg); border-color:var(--lg-ed); color:var(--lg)}
   .s-n{background:var(--no-bg); border-color:var(--no-ed); color:var(--no)}
-
-  .dbox{background:var(--card); border:1px solid var(--line); border-radius:6px;
-        padding:8px 13px 9px; margin-top:11px}
-  .dbox .t{margin:0 0 4px; font-size:13px; font-weight:900}
-  .tbl{width:100%; border-collapse:collapse; font-size:11.5px}
-  .tbl td{padding:3px 0; vertical-align:top; color:var(--ink-2); line-height:1.55;
-          border-top:1px solid var(--line)}
-  .tbl tr:first-child td{border-top:none}
-  .tbl td:first-child{width:132px; font-weight:700; color:var(--ink)}
-
-  .fix{background:var(--fix-bg); border:1px solid var(--fix-ed); border-radius:6px;
-       padding:8px 13px; margin-top:11px}
-  .fix .t{margin:0 0 4px; font-size:13px; font-weight:900; color:var(--fix)}
-  .fix .tbl td:first-child{width:34px; color:var(--fix)}
-  .stamp{margin-top:8px; font-size:10px; color:var(--ink-3); text-align:right}
+  .lock{grid-column:1 / -1; background:var(--lock-bg); border:1px solid var(--lock-ed);
+        color:var(--lock); border-radius:4px; padding:6px 11px; font-size:11.5px; font-weight:700; margin-bottom:5px}
+  .lock b{font-weight:900}
+  .box{border:1px solid var(--line); border-radius:4px; background:var(--card); padding:7px 12px; margin-top:9px}
+  .box h3{font-family:"Zen Old Mincho",serif; font-size:12.5px; margin:0 0 3px}
+  .box table{width:100%; border-collapse:collapse; font-size:11.5px}
+  .box td{padding:2px 0; vertical-align:top; color:var(--ink-2)}
+  .box td:first-child{width:52px; font-weight:700; color:var(--ink); white-space:nowrap}
+  .stamp{margin-top:6px; font-size:10.5px; color:var(--ink-3); text-align:right}
 </style>
-</head>
-<body>
 <div class="wrap">
 <header>
   <h1>取り置き・予約の流れ</h1>
-  <p class="sub">いまどうなっているか　＋　これから直すところ　│　2026-09-10　検証ずみ</p>
+  <p class="sub">受注Ａで登録するところから、倉庫へ行くところまで　＋　何が飛ぶか／在庫はどこで動くか　│　2026-09-10 プログラムを実際に確認</p>
 </header>
 
-<div class="lead">
-  <b>取り置きと予約は、いちばん大きなちがいが「在庫を押さえるかどうか」です。</b>
-  出すときは、どちらも<b>同じ1本の道</b>にまとまり、最後は<b>発注書のA列を🔵</b>にしたときだけ倉庫へ行きます。
+<div class="legend">
+  <span class="k k-l">💬 LINEが飛ぶ</span>
+  <span class="k k-n">👁 何も飛ばない ─ シートを見て気づく</span>
+  <span class="k k-z">📦 在庫が動く</span>
 </div>
 
-<h2>① いまの状態 ── どうなると「取り置き」／「予約」になるか</h2>
+<div class="lock">🏨 <b>ホテル（RT）はここに出ません</b>　─　RTは「RT専用取り置き・予約」で見ます。この図は<b>RT以外</b>の取り置き・予約です</div>
 
-<div class="two">
+<div class="hd"><span>やること</span><span>そのとき飛ぶもの</span></div>
 
-  <div class="col hold">
-    <div class="ch">
-      <p class="t">🗄 取り置き</p>
-      <p class="s">モノはある。まだ出さないだけ</p>
-    </div>
-    <div class="steps">
-      <div class="st"><p class="a">受注Ａで登録するとき<br>「取り置き（まだ出荷しない）」を選ぶ</p>
-        <p class="d">「送る目安（いつ頃出す？）」は<b>空でも登録できます</b>。<br>
-        入れておくと、上に<b>件数＋いちばん近い予定日</b>が大きく出ます（忘れ防止）</p></div>
-      <div class="st"><p class="a">取引先ごとの取り置きを足す</p>
-        <p class="d">「📋 一覧」から、お客様ごとに足せます</p></div>
-      <div class="st"><p class="a">RTの在庫コントロールで「🔒取置」を確定</p>
-        <p class="d">RTは別画面。ここには出ません</p></div>
-    </div>
-    <div class="zk">📦 <b>在庫を押さえます。</b>統合マスタの<b>販売可能数が減ります</b>（ほかのお客様に売れなくなります）</div>
-  </div>
+<div class="row">
+  <div class="act"><p class="who">本部　― 受注Ａ</p><p class="what">「取り置き」か「予約」を選んで登録する</p>
+    <p class="det"><b>🗄 取り置き</b>＝モノはある。まだ出さないだけ。「送る目安」は<b>空でもOK</b><br>
+    <b>🗓 予約</b>＝まだモノが無い。入荷まち。「お届け予定時期」は<b>必ず入れます</b></p>
+    <p class="zk">📦 <b>取り置き＝在庫を押さえます</b>（統合マスタの販売可能数が減る）<br>
+    📦 <b>予約＝在庫は減りません</b>（「予約」の列に出るだけ）</p></div>
+  <div class="sig s-n"><p class="msg">なし</p>
+    <p class="who2">倉庫にはまだ何も伝わりません。</p></div>
+</div>
 
-  <div class="col resv">
-    <div class="ch">
-      <p class="t">🗓 予約</p>
-      <p class="s">まだモノが無い。入荷まち</p>
-    </div>
-    <div class="steps">
-      <div class="st"><p class="a">受注Ａで登録するとき<br>「予約（まだ入荷していない）」を選ぶ</p>
-        <p class="d">「お届け予定時期」は<b>必ず入れます</b>（空だと登録できません）</p></div>
-      <div class="st"><p class="a">RTの「予約（要輸入）」ぶん</p>
-        <p class="d">✈️ 入荷待ちとして台帳に載ります</p></div>
-      <div class="st"><p class="a">在庫が足りず、<b>まだ在庫を引いていない</b>注文</p>
-        <p class="d">「予約」の列に数えられます。<br>
-        <b>※受注Ａで登録した通常受注は、登録した時点で在庫を引くので、ここには入りません。</b><br>
-        いま当てはまるのは、バサラの注文が1件だけです（実データで確認）</p></div>
-    </div>
-    <div class="zk">📦 <b>在庫は減りません。</b>統合マスタの<b>「予約」の列</b>に出るだけです</div>
-  </div>
+<div class="row">
+  <div class="act"><p class="who">自動</p><p class="what">🗂 取り置き及び発注前予約リスト<br>（ホテル以外）に1行入る</p>
+    <p class="det">場所は<b>【倉庫＆OOS発送連絡スプシ】</b>。<b>倉庫さんにも見えます</b>（この先どれくらい来るか、前もって準備できるように）。<br>
+    1行目に <b>📊 分類ごとの合計</b> が自動で出ます（何が何件・何本待っているか）。</p></div>
+  <div class="sig s-n"><p class="msg">なし</p>
+    <p class="who2"><b>この時点では倉庫にはまだ連絡が行っていません。</b></p></div>
+</div>
+
+<div class="cancel">
+  <span class="ct">📦 入荷したら ─ 🗓 予約が 🗄 取り置きに変わります（自動ではありません）</span>
+  <b>統合マスタＮ</b>の「<b>📦 輸入が届いた → 一気に在庫へ入れる</b>」を押したときだけ変わります。<b>押すまでは変わりません。</b><br>
+  何本どこへ動くか、入れたあといくつになるかを<b>確認してから確定</b>できます。予約の「お届け予定時期」が、そのまま<b>取り置きの期限</b>になります。
+</div>
+
+<div class="hd"><span>ここから先は、どの注文もまったく同じ道</span><span>そのとき飛ぶもの</span></div>
+
+<div class="row">
+  <div class="act"><p class="who">本部　― 出す合図</p><p class="what">リストのA列を<br>【📦 発注書へ送って出荷を依頼する】にする</p>
+    <p class="det">抜けがあると<b>1回目は「🗓 まだ出しません」に戻り</b>、足りないものがメモで出ます。<br>
+    そのままでよければ<b>もう一度選ぶ</b>と送ります（スプシでは確認画面が出せないので、この形です）。</p></div>
+  <div class="sig s-n"><p class="msg">なし</p>
+    <p class="who2">選んだだけでは、まだ倉庫に飛びません。</p></div>
+</div>
+
+<div class="row">
+  <div class="act"><p class="who">自動</p><p class="what">発注書に1行入り、A列が🔵【発送してください】になる</p>
+    <p class="det">リストの行は「<b>✅ 送りました（発注書○行目）</b>」に変わり、もう選べなくなります。</p>
+    <p class="zk">📦 <b>ここで在庫が引かれます</b>（取り置きは押さえた分、予約は入荷ぶん）。<br>
+    <b>足りなければ送りません</b>　─　発注書に作りかけた行も消して、リストも🗓に戻します。</p></div>
+  <div class="sig s-l"><p class="msg">💬 倉庫にLINE 1通</p>
+    <p class="who2">「📦 新しい出荷依頼です」＋お名前・商品・同梱書類。倉庫Ｄのアプリにも出ます。</p></div>
+</div>
+
+<div class="row">
+  <div class="act"><p class="who">倉庫（れい子さんたち）</p><p class="what">梱包・発送する</p>
+    <p class="det">発送したら、発注書の<b>「送り状NO.」</b>に番号を書き、<b>「発送済」に☑</b>。</p></div>
+  <div class="sig s-n"><p class="msg">なし</p>
+    <p class="who2">書いた番号は、そのままバサラの発注シートなどへ自動で戻ります。</p></div>
+</div>
+
+<div class="lock" style="text-align:center;font-size:13.5px">🔵 <b>ここで合流</b>　─　バサラ・RT・一般・卸・取り置き・予約、<b>ぜんぶこの1本</b>。<br>
+倉庫へ「出庫おねがいします」が飛ぶのは、<b>A列を🔵にしたときだけ</b>です（例外なし）</div>
+
+<div class="cancel">
+  <span class="ct">✋ 送れないとき・二重に押したとき</span>
+  <b>在庫が足りない</b>　→　2回目でも送りません。発注書に作りかけた行も消して、元どおりにします。<b>倉庫には飛びません。</b><br>
+  <b>もう送った行をもう一度選んだ</b>　→　何も起きません。「この行はもう送ってあります」と出るだけ。<b>倉庫LINEも増えません。</b><br>
+  <b>発注書へ写せなかった</b>　→　🗓に戻して、理由をその場に出します。
+</div>
+
+<div class="cancel">
+  <span class="ct">🧭 まよったとき</span>
+  <b>取り置き？予約？</b>　モノがあるなら取り置き／まだ無いなら予約<br>
+  <b>在庫はどうなる</b>　取り置き＝減る（押さえる）　／　予約＝減らない<br>
+  <b>日付</b>　取り置き＝送る目安（空でもOK）　／　予約＝お届け予定時期は必須<br>
+  <b>どこを見れば分かる</b>　リストの1行目の「📊 分類ごとの合計」／A列の「✅ 送りました」／受注Ａの受注一覧
+</div>
 
 </div>
 
-<div class="dbox" style="border-color:var(--resv-ed)">
-  <p class="t" style="color:var(--resv)">📦 入荷したら ── 🗓 予約が 🗄 取り置きに変わります（自動ではありません）</p>
-  <table class="tbl"><tbody>
-    <tr><td>どこで</td><td><b>統合マスタＮ</b>の「<b>📦 輸入が届いた → 一気に在庫へ入れる</b>」を押したとき</td></tr>
-    <tr><td>何が起きる</td><td>在庫が入り、<b>そろった予約がまとめて取り置きに変わります</b>。<br>
-      何本どこへ動くか、入れたあといくつになるかを<b>確認してから確定</b>できます</td></tr>
-    <tr><td>日付</td><td>予約の「お届け予定時期」が、そのまま<b>取り置きの期限</b>になります</td></tr>
-    <tr><td>RTは</td><td><b>対象外</b>です（RTは別の仕組みで動きます）</td></tr>
-  </tbody></table>
-</div>
-
-<div class="dbox">
-  <p class="t">📊 いま本番に入っている数（2026-09-10 に実データで確認）</p>
-  <table class="tbl"><tbody>
-    <tr><td>🗄 取り置き</td><td><b>30件。ぜんぶRT</b>（サンクチュアリコート・ベイコート倶楽部・EC課など）</td></tr>
-    <tr><td>🗓 予約</td><td><b>0件</b></td></tr>
-    <tr><td>RT以外は</td><td>取り置き・予約とも<b>いま0件</b>です</td></tr>
-    <tr><td>一覧の見え方</td><td>受注Ａの「取り置き・予約」の一覧には、<b>RTは出ません</b>（別画面で見ます）。<br>
-      つまり、いまこの一覧は<b>からっぽ</b>です</td></tr>
-  </tbody></table>
-</div>
-
-<h2>② 出すとき ── ここから先は、どの注文もまったく同じ道</h2>
-
-<div class="flow">
-  <div class="fb">
-    <p class="n">本部が押す</p>
-    <p class="t">「📦 出荷依頼書へ」</p>
-    <p class="d">取り置き・予約の一覧から。<br>在庫が足りないときは<b>ここで止まります</b></p>
-    <span class="sig s-n">何も飛ばない</span>
-  </div>
-  <div class="fb">
-    <p class="n">自動①</p>
-    <p class="t">在庫が減る</p>
-    <p class="d">押した<b>その瞬間</b>に減ります</p>
-  </div>
-  <div class="fb">
-    <p class="n">自動②</p>
-    <p class="t">発注書に1行入る</p>
-    <p class="d">A列は赤【OOS未チェック】。<br>ここまで倉庫には行きません</p>
-    <span class="sig s-n">何も飛ばない</span>
-  </div>
-  <div class="fb">
-    <p class="n">ゆかちゃんが押す</p>
-    <p class="t">A列を🔵<br>【発送してください】</p>
-    <p class="d">中身を見てから</p>
-    <span class="sig s-l">💬 倉庫にLINE 1通</span>
-  </div>
-</div>
-
-<div class="join">
-  <p class="t">✅ ここはもう、ご希望どおりになっています</p>
-  <p class="d">
-    <b>取り置き・予約からも、ちゃんと発注書に飛びます。</b>バサラもRTも一般も卸も、この1本です。<br>
-    倉庫へ「出庫おねがいします」のLINEが飛ぶのは、<b>A列を🔵にしたときだけ</b>。それまでは誰にも何も飛びません。
-  </p>
-</div>
-
-<div class="dbox">
-  <p class="t">🧭 まよったとき</p>
-  <table class="tbl"><tbody>
-    <tr><td>取り置き？予約？</td><td><b>モノがあるなら取り置き／まだ無いなら予約</b></td></tr>
-    <tr><td>在庫はどうなる</td><td>取り置き＝<b>減る（押さえる）</b>　／　予約＝<b>減らない</b></td></tr>
-    <tr><td>日付</td><td>取り置き＝送る目安（空でもOK）　／　予約＝<b>お届け予定時期は必須</b></td></tr>
-    <tr><td>入荷したら</td><td>統合マスタＮの「📦 輸入が届いた → 一気に在庫へ入れる」を押すと、<br>
-      そろった予約がまとめて取り置きに変わります（<b>押すまでは変わりません</b>）</td></tr>
-    <tr><td>出すとき</td><td>「📦 出荷依頼書へ」→ 発注書に入る → ゆかちゃんが🔵 → 倉庫へLINE</td></tr>
-    <tr><td>RTの取り置き・予約</td><td>この一覧には出ません。「RTの在庫と予約のコントロール」で見ます</td></tr>
-  </tbody></table>
-</div>
-
-<h2>③ これから直したいところ（ご相談）</h2>
-
-<div class="fix">
-  <p class="t">✋ 中身は正しいのに、言葉と行き先が古いままです</p>
-  <table class="tbl"><tbody>
-    <tr><td>1</td><td><b>ボタンの名前</b>「📦 出荷依頼書へ」→ いまは出荷依頼書を使っていないので
-      <b>「📦 発注書へ送る」</b>のような名前に。<br>
-      <span style="font-size:10.5px">いまの名前だと「これで倉庫に行った」と思ってしまいます。実際は🔵を押すまで行きません</span></td></tr>
-    <tr><td>2</td><td><b>押したあとの行き先</b>　いまは「出荷依頼書」タブへ画面が飛びます。<br>
-      <b>受注一覧にとどまって「発注書に入りました」と出るだけ</b>にしたい</td></tr>
-    <tr><td>3</td><td><b>一般・卸の納品書が、倉庫で開けません</b>　RTは納品書PDFのリンクが発注書のV列に入りますが、
-      一般・卸は<b>「納品書兼請求書」という文字が入るだけ</b>で、押せません。<br>
-      <b>RTと同じようにPDFのリンクを入れる</b>のがおすすめです</td></tr>
-  </tbody></table>
-</div>
-
-<div class="dbox">
-  <p class="t">🔎 この図は、こうやって確かめました</p>
-  <table class="tbl"><tbody>
-    <tr><td>在庫の親</td><td>本物の <b>oos-zaiko.js</b> をそのまま走らせて10項目（取り置きで販売可能が10→7に減る／
-      予約では減らない／セットは中身に展開／自分の取り置きで二重に止まらない など）</td></tr>
-    <tr><td>出すとき</td><td>本物の <b>convertToShipping</b> をニセのブラウザで実行して10項目。<br>
-      順番が【在庫を引く → 発注書へ入れる】であること、在庫が足りないと<b>その場で止まって
-      発注書にも入らない</b>ことを実測</td></tr>
-    <tr><td>本番データ</td><td>いまの注文76件を読んで、取り置き30件（全部RT）・予約0件を確認</td></tr>
-    <tr><td>直したところ</td><td>下書きで2か所まちがえていました。<br>
-      ①「在庫が足りない注文も予約」→ 正しくは<b>まだ在庫を引いていない注文だけ</b><br>
-      ②「入荷したら自動で取り置きに」→ 正しくは<b>統合マスタのボタンを押したとき</b></td></tr>
-  </tbody></table>
-</div>
-
-<p class="stamp">株式会社オリーブオイル・ストーリーズ　2026-09-10　／　本物の関数と本番データで検証して作成</p>
-</div>
-</body>
-</html>
