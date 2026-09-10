@@ -183,11 +183,24 @@ ok('⑦ふだ（転記キー）で行を探す（まちがった行に貼らな�
   bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('oosFindRowByKey_(sh, oosKeyColByHeader_(sh), key)') >= 0);
 ok('⑦ふだが無いときは何もしない',
   bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('ふだ（転記キー）がありません') >= 0);
-ok('⑦PDFはDriveに保存する（リンクを知っている人は開ける）',
-  bodyOf(GAS, 'saveExtraDoc').indexOf('DriveApp.Access.ANYONE_WITH_LINK') >= 0 &&
+ok('⑦PDFの置き場所は「RT書類：本部・倉庫のみ閲覧可」',
   GAS.indexOf("var OOS_RT_DOC_FOLDER     = 'RT書類：本部・倉庫のみ閲覧可';") >= 0 &&
   bodyOf(GAS, 'oosRtDocFolder_').indexOf('f.setName(OOS_RT_DOC_FOLDER)') >= 0,
   '（フォルダ名も置き場所も2026-09-10 ひろみさん決定。前の名前のフォルダは【名前を変えるだけ】で引き継ぎます）');
+/* ★2026-09-10 ひろみさん決定「名前どおりに厳しくする」。
+     リンクを知っていれば誰でも開ける、をやめました。
+     お客様の氏名・住所が載る書類なので、ANYONE_WITH_LINK に戻さないでください。 */
+ok('⑦リンクを知っている人なら誰でも開ける、にはしていない',
+  bodyOf(GAS, 'saveExtraDoc').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') < 0 &&   /* ★注意書きの文は数えない（見張りが自分のコメントを拾う失敗をした） */
+  bodyOf(GAS, 'oosRtDocShare_').indexOf('DriveApp.Access.PRIVATE') >= 0,
+  '（お客様の氏名・住所が載る書類です）');
+ok('⑦決めた人だけが見られる（見られる人の一覧がある）',
+  /var OOS_RT_DOC_VIEWERS = \[/.test(GAS) &&
+  bodyOf(GAS, 'oosRtDocShare_').indexOf('item.addViewer(mail)') >= 0);
+ok('⑦いまある書類にも行き渡らせる窓口がある（oosRtDocFolderSecure）',
+  GAS.indexOf('function oosRtDocFolderSecure') >= 0 &&
+  GAS.indexOf("action === 'oosRtDocFolderSecure'") >= 0,
+  '（倉庫のスタッフが増えたとき、一覧に足してから1回実行します）');
 ok('⑦フォルダの中身を確かめる窓口がある',
   GAS.indexOf("action === 'oosRtDocFolderCheck'") >= 0);
 ok('⑦「ほかの人に渡す書類は入れない」と書き残してある',
