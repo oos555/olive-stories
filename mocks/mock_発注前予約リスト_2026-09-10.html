@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発注前予約リスト（モック）</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@700&display=swap">
+<style>
+  :root{
+    --ink:#20211d; --ink-2:#54564d; --ink-3:#83857a;
+    --ground:#f6f5f0; --card:#ffffff; --line:#dcd8cb; --strong:#20211d;
+    --grid:#c8ccc4; --head:#eef1ea;
+    --resv:#185fa5; --resv-bg:#e9f1fa; --resv-ed:#b3cfe8;
+    --go:#1a73e8;   --stop:#d93025;
+    --warn:#8a6a1f; --warn-bg:#fbf2dd; --warn-ed:#dfc384;
+    --ok:#2f7d4a;   --ok-bg:#e6f3ea;   --ok-ed:#9fcdaf;
+    --now:#7b2fa0;  --now-bg:#f5ebfa;  --now-ed:#ddc2ea;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
+      --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+      --grid:#43453d; --head:#2b2d27;
+      --resv:#8fb8dc; --resv-bg:#1c2733; --resv-ed:#38536b;
+      --warn:#d9b263; --warn-bg:#2e2617; --warn-ed:#5e4c22;
+      --ok:#7cc294; --ok-bg:#1a2a20; --ok-ed:#325c40;
+      --now:#c79fe0; --now-bg:#271b2e; --now-ed:#4d3559;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#eceade; --ink-2:#b8b6a9; --ink-3:#8b897e;
+    --ground:#191a16; --card:#232420; --line:#3a3b34; --strong:#eceade;
+    --grid:#43453d; --head:#2b2d27;
+    --resv:#8fb8dc; --resv-bg:#1c2733; --resv-ed:#38536b;
+    --warn:#d9b263; --warn-bg:#2e2617; --warn-ed:#5e4c22;
+    --ok:#7cc294; --ok-bg:#1a2a20; --ok-ed:#325c40;
+    --now:#c79fe0; --now-bg:#271b2e; --now-ed:#4d3559;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--ground); color:var(--ink); font-size:13px; line-height:1.5;
+       font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+  .wrap{max-width:1080px; margin:0 auto; padding:14px 16px 20px}
+  header{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+         border-bottom:2px solid var(--strong); padding-bottom:5px; margin-bottom:8px}
+  h1{font-family:"Zen Old Mincho",serif; font-size:19px; margin:0}
+  .sub{margin:0; color:var(--ink-3); font-size:11px}
+  h2{font-family:"Zen Old Mincho",serif; font-size:14px; margin:16px 0 6px;
+     border-left:4px solid var(--strong); padding-left:8px}
+  .lead{background:var(--card); border:1px solid var(--line); border-radius:5px;
+        padding:8px 12px; margin-bottom:10px; font-size:12.5px; line-height:1.65}
+  .lead b{font-weight:900}
+
+  /* ── スプレッドシートらしく見せる ── */
+  .sheet{background:var(--card); border:1px solid var(--grid); border-radius:4px; overflow-x:auto}
+  .tabbar{display:flex; gap:2px; padding:5px 6px 0; background:var(--head); border-bottom:1px solid var(--grid)}
+  .tabbar span{font-size:11.5px; padding:4px 10px; border:1px solid var(--grid); border-bottom:none;
+               border-radius:4px 4px 0 0; background:var(--card); color:var(--ink-3)}
+  .tabbar span.on{font-weight:900; color:var(--resv); background:var(--resv-bg); border-color:var(--resv-ed)}
+  table{border-collapse:collapse; width:100%; min-width:940px; font-size:11.5px}
+  th,td{border:1px solid var(--grid); padding:4px 7px; text-align:left; vertical-align:top}
+  thead th{background:var(--head); font-weight:700; font-size:11px; white-space:nowrap}
+  .rowno{background:var(--head); color:var(--ink-3); text-align:center; width:26px; font-size:10px}
+  .num{text-align:right; font-variant-numeric:tabular-nums}
+  .banner td{background:var(--resv-bg); color:var(--resv); font-weight:900; font-size:12px}
+  .sumrow td{background:var(--ok-bg)}
+  .sumrow .k{font-weight:900; color:var(--ok)}
+  .pill{display:inline-block; border-radius:99px; padding:1px 9px; font-size:10.5px; font-weight:700; border:1px solid}
+  .p-stop{background:#fdecea; color:var(--stop); border-color:#f3b7b1}
+  .p-go{background:#e8f0fe; color:var(--go); border-color:#b3ccf5}
+  .cell-sel{background:#fff; border:1px solid var(--grid); border-radius:3px; padding:2px 6px;
+            font-size:11px; display:inline-flex; align-items:center; gap:6px}
+  .cell-sel .caret{color:var(--ink-3); font-size:9px}
+  .lock{background:var(--head); color:var(--ink-3)}
+
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:11px}
+  @media (max-width:800px){ .two{grid-template-columns:1fr} }
+  .box{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:8px 13px 9px}
+  .box .t{margin:0 0 5px; font-size:13px; font-weight:900}
+  .box.warn{background:var(--warn-bg); border-color:var(--warn-ed)}
+  .box.warn .t{color:var(--warn)}
+  .box.now{background:var(--now-bg); border-color:var(--now-ed)}
+  .box.now .t{color:var(--now)}
+  .tbl{width:100%; border-collapse:collapse; font-size:11.5px}
+  .tbl td{padding:3px 0; vertical-align:top; color:var(--ink-2); line-height:1.55; border:none; border-top:1px solid var(--line)}
+  .tbl tr:first-child td{border-top:none}
+  .tbl td:first-child{width:118px; font-weight:700; color:var(--ink)}
+  .flow{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:9px}
+  @media (max-width:820px){ .flow{grid-template-columns:repeat(2,1fr)} }
+  .fb{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:6px 10px}
+  .fb .n{font-size:9.5px; font-weight:700; color:var(--ink-3); margin:0}
+  .fb .t{font-size:12px; font-weight:900; margin:1px 0 0; line-height:1.3}
+  .fb .d{font-size:10px; color:var(--ink-2); margin:2px 0 0; line-height:1.45}
+  .stamp{margin-top:10px; font-size:10px; color:var(--ink-3); text-align:right}
+  .q{background:var(--now-bg); border:1px solid var(--now-ed); border-radius:6px; padding:8px 13px; margin-top:11px}
+  .q .t{margin:0 0 4px; font-size:13px; font-weight:900; color:var(--now)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>🗓 発注前予約リスト（たたき台）</h1>
+  <p class="sub">まだ作っていません。この形でよいかを見てください　│　2026-09-10</p>
+</header>
+
+<div class="lead">
+  <b>置き場所は【倉庫＆OOS発送連絡スプシ】</b>（発注書と同じファイル）。<b>倉庫も見られます</b>が、
+  <b>書けるのは本部だけ</b>にします（倉庫は見るだけ）。<br>
+  倉庫は、いちばん上の合計を見て「この先どれくらい来るか」が分かるので、場所も箱も前もって用意できます。
+</div>
+
+<h2>① タブの見た目</h2>
+
+<div class="sheet">
+  <div class="tabbar">
+    <span>発注書</span><span class="on">🗓 発注前予約リスト</span><span>在庫リスト（現ロット）</span><span>旧ロット</span><span>不良在庫</span>
+  </div>
+  <table>
+    <tbody>
+      <tr class="banner"><td class="rowno">1</td><td colspan="9">🗓 発注前予約リスト　まだ入荷していない予約です。<b>ここから倉庫へは出ません。</b>本部がA列を変えたときだけ発注書へ移ります。　🕐 最終更新 9/10 14:02</td></tr>
+    </tbody>
+    <thead>
+      <tr><th class="rowno">2</th><th style="min-width:210px">A　いまどうする？</th><th style="min-width:150px">分類（予約の名前）</th><th>登録日</th><th style="min-width:130px">お客様</th><th style="min-width:170px">商品</th><th class="num">本数</th><th>入荷予定</th><th style="min-width:130px">備考</th><th>ふだ</th></tr>
+    </thead>
+    <tbody>
+      <tr class="sumrow"><td class="rowno">3</td><td class="k">■ ノヴェッロ2026予約</td><td class="k">12件</td><td colspan="2">オルガニック250ml <b>240</b>／500ml <b>120</b></td><td colspan="2" class="k">合計 360本</td><td>2026-11 予定</td><td colspan="2">倉庫：11月に大きく入ります</td></tr>
+      <tr class="sumrow"><td class="rowno">4</td><td class="k">■ 次回入荷予約</td><td class="k">3件</td><td colspan="2">メメジック500ml <b>60</b></td><td colspan="2" class="k">合計 60本</td><td>時期未定</td><td colspan="2"></td></tr>
+      <tr class="sumrow"><td class="rowno">5</td><td class="k">■ 2026年11月入荷予定分の予約</td><td class="k">5件</td><td colspan="2">オルガニック100ml <b>100</b></td><td colspan="2" class="k">合計 100本</td><td>2026-11 予定</td><td colspan="2">★分類は自分で増やせます</td></tr>
+      <tr><td class="rowno">6</td><td colspan="9" style="background:var(--head);color:var(--ink-3);font-size:10.5px">▼ ここから1件ずつ（新しい予約は下に増えます）</td></tr>
+
+      <tr>
+        <td class="rowno">7</td>
+        <td><span class="cell-sel">🗓 予約（入荷まち）<span class="caret">▼</span></span></td>
+        <td>ノヴェッロ2026予約</td><td>9/14</td><td>山本 花子 様</td>
+        <td>ORG250 オルガニック250ml</td><td class="num">24</td><td>2026-11</td><td></td><td class="lock">K…-4821</td>
+      </tr>
+      <tr>
+        <td class="rowno">8</td>
+        <td><span class="cell-sel">🗓 予約（入荷まち）<span class="caret">▼</span></span></td>
+        <td>ノヴェッロ2026予約</td><td>9/14</td><td>㈱みどり商店</td>
+        <td>ORG500 オルガニック500ml</td><td class="num">60</td><td>2026-11</td><td>のし希望</td><td class="lock">K…-4822</td>
+      </tr>
+      <tr>
+        <td class="rowno">9</td>
+        <td><span class="cell-sel" style="border-color:var(--go);color:var(--go);font-weight:800">📦 発注書へ送って出荷を依頼する<span class="caret">▼</span></span></td>
+        <td>次回入荷予約</td><td>9/2</td><td>佐藤 太郎 様</td>
+        <td>MEM500 メメジック500ml</td><td class="num">12</td><td>入荷ずみ</td><td></td><td class="lock">K…-4790</td>
+      </tr>
+      <tr>
+        <td class="rowno">10</td>
+        <td style="background:var(--head)"><span class="pill p-go">✅ 送りました 9/10 14:01</span></td>
+        <td style="color:var(--ink-3)">次回入荷予約</td><td style="color:var(--ink-3)">9/1</td><td style="color:var(--ink-3)">鈴木 商事㈱</td>
+        <td style="color:var(--ink-3)">ORG250 オルガニック250ml</td><td class="num" style="color:var(--ink-3)">36</td><td style="color:var(--ink-3)">入荷ずみ</td><td style="color:var(--ink-3)">発注書 12行目へ</td><td class="lock">K…-4711</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="two">
+  <div class="box">
+    <p class="t">A列で選べるのは、この2つだけ</p>
+    <table class="tbl"><tbody>
+      <tr><td><span class="pill p-stop">🗓 予約（入荷まち）</span></td><td>ふだんはこれ。<b>倉庫へは何も行きません</b></td></tr>
+      <tr><td><span class="pill p-go">📦 発注書へ送って<br>出荷を依頼する</span></td><td>入荷して、出せるようになったら本部が選ぶ</td></tr>
+    </tbody></table>
+    <p style="font-size:11px;color:var(--ink-2);margin:6px 0 0;line-height:1.55">
+      送ったあとの行は<b>グレーになって、もう選べません</b>（二重に送れません）。行は消えずに残ります。</p>
+  </div>
+
+  <div class="box warn">
+    <p class="t">⚠️ 在庫が足りないときは、その場で止まります</p>
+    <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
+      「📦 発注書へ送って出荷を依頼する」を選んでも、<b>棚に足りなければ 🗓 にもどります</b>。
+      理由（何が何本たりないか）がそのセルに出ます。<br>
+      <b>予約は在庫を押さえていません</b>ので、入荷後は<b>送った順に確定</b>します。
+    </p>
+  </div>
+</div>
+
+<h2>② 「📦 発注書へ送って出荷を依頼する」を選ぶと、何が起きるか</h2>
+
+<div class="flow">
+  <div class="fb"><p class="n">① 自動</p><p class="t">在庫を引く</p><p class="d">足りなければ止まる</p></div>
+  <div class="fb"><p class="n">② 自動</p><p class="t">発注書に1行</p><p class="d">同じファイルのとなりのタブ</p></div>
+  <div class="fb"><p class="n">③ 自動</p><p class="t">A列が<br>いきなり🔵</p><p class="d">赤を飛ばします</p></div>
+  <div class="fb"><p class="n">④ 自動</p><p class="t">💬 倉庫にLINE</p><p class="d">いつもの「出荷おねがいします」</p></div>
+  <div class="fb"><p class="n">⑤ 自動</p><p class="t">受注Ａも<br>「予約→通常受注」</p><p class="d">これを忘れると売上に出ません</p></div>
+</div>
+
+<h2>③ いまどうなっているか（実物で確認した現状）</h2>
+
+<div class="two">
+  <div class="box">
+    <p class="t">✅ もうあるもの</p>
+    <table class="tbl"><tbody>
+      <tr><td>予約の本数</td><td><b>統合マスタＮの「予約（受注Ａから）」列</b>に、商品ごとの本数が出ています</td></tr>
+      <tr><td>予約の控え</td><td>【本部管理専用ゆかスプシ】の<b>「取り置き・予約シート」</b>に自動で写っています</td></tr>
+    </tbody></table>
+  </div>
+  <div class="box warn">
+    <p class="t">⚠️ 足りないもの（だからこのタブを作ります）</p>
+    <table class="tbl"><tbody>
+      <tr><td>上書きされる</td><td>「取り置き・予約シート」は<b>読むだけの鏡</b>。数十秒ごとに全部書き直されるので、<b>ボタンを置いても消えます</b></td></tr>
+      <tr><td>1件ずつ操作できない</td><td>取引先ごとに1行の<b>集計</b>なので、1件だけ送ることができません</td></tr>
+      <tr><td>分類が無い</td><td>いまは「予約」としか分かれていません。<b>ノヴェッロ2026予約が何本か</b>が出せません</td></tr>
+      <tr><td>倉庫に見えない</td><td>本部のファイルにあるので、<b>倉庫は見られません</b></td></tr>
+    </tbody></table>
+  </div>
+</div>
+
+<div class="box now" style="margin-top:11px">
+  <p class="t">🏷 分類は、自分で増やせます（登録するときに打つだけ）</p>
+  <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
+    受注Ａで予約を登録するとき、<b>分類の欄に自由に打てます</b>。これまで使った名前は<b>候補に出ます</b>。
+    新しく「2026年11月入荷予定分の予約」と打てば、それがそのまま分類になり、<b>次から候補に入ります</b>。
+    どこかに登録してもらう必要はありません。合計の行も<b>自動で増えます</b>。
+  </p>
+</div>
+
+<div class="q">
+  <p class="t">✋ 決めていただきたいこと</p>
+  <table class="tbl"><tbody>
+    <tr><td>1　タブの名前</td><td>「🗓 発注前予約リスト」でよいですか（倉庫も見るので、倉庫が見て分かる名前に）</td></tr>
+    <tr><td>2　倉庫の見え方</td><td>倉庫は<b>見るだけ</b>（書けない）でよいですか</td></tr>
+    <tr><td>3　列</td><td>足したい列・要らない列はありますか（お客様の住所・電話は、いまは載せていません）</td></tr>
+    <tr><td>4　合計の出し方</td><td>分類ごとに<b>件数と本数</b>の両方でよいですか</td></tr>
+  </tbody></table>
+</div>
+
+<p class="stamp">株式会社オリーブオイル・ストーリーズ　2026-09-10　／　たたき台。OKをいただいてから作ります</p>
+</div>
+</body>
+</html>
