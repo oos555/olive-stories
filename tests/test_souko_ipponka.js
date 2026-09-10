@@ -197,6 +197,12 @@ ok('⑦リンクを知っている人なら誰でも開ける、にはしてい�
 ok('⑦決めた人だけが見られる（見られる人の一覧がある）',
   /var OOS_RT_DOC_VIEWERS = \[/.test(GAS) &&
   bodyOf(GAS, 'oosRtDocShare_').indexOf('item.addViewer(mail)') >= 0);
+ok('⑦納品書の保存も、決めた人だけに縛ってある',
+  bodyOf(GAS, 'saveInvoiceToDrive').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') < 0 &&
+  bodyOf(GAS, 'saveInvoiceToDrive').indexOf('oosRtDocShare_(file)') >= 0,
+  '（2026-09-10 ひろみさん指示：納品書も本部とゆかちゃんだけ）');
+ok('⑦まとめて直す窓口が、2つのフォルダを見る',
+  bodyOf(GAS, 'oosRtDocFolderSecure').indexOf('OOS_NOUHIN_FOLDER') >= 0);
 ok('⑦いまある書類にも行き渡らせる窓口がある（oosRtDocFolderSecure）',
   GAS.indexOf('function oosRtDocFolderSecure') >= 0 &&
   GAS.indexOf("action === 'oosRtDocFolderSecure'") >= 0,
