@@ -200,6 +200,48 @@ FILES.concat(['tests/harness.js']).forEach(function(f){
 });
 
 /* ── まとめ ── */
+/* ══════════════════════════════════════════════════════════════════════
+   ⑨ 2026-09-10 に見つかった穴の見張り（ひろみさん確認「ぜんぶ8%」）
+   ──────────────────────────────────────────────────────────────────────
+   本番の名簿を1品ずつ通したところ、下の3品が【10%】で計算されていました。
+   　ARM500 アルモニア 500ml ／ ARM3L アルモニア 3L ／ TGR100 唐辛子オイル 100ml
+   どれも食品なのに、グループ名が食品の一覧に入っていなかったためです。
+   （幸い、この3品を含む注文は1件も無く、過去の請求に影響はありませんでした）
+
+   ★オイル・食品のグループを名簿に新しく作ったら、必ず【2か所】に足してください。
+   　　① oos-zei.js の FOOD_GROUPS（画面が見る）
+   　　② GASの OOS_ZEI_FOOD_GROUPS（サーバーが見る）
+   　足さないと【黙って10%】で請求書が出ます。
+   ★GASの窓口 oosZeiCheck で、10%になっている商品をいつでも見られます。
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  const fs9 = require('fs');
+  const ZEI9 = fs9.readFileSync(require('path').join(__dirname, '..', 'oos-zei.js'), 'utf8');
+  const GAS9 = fs9.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+  function miru9(name, cond){ if(cond){ ok++; } else { ng++; bad.push(name); } }
+  miru9('⑨画面：アルモニアが8%の一覧にある', ZEI9.indexOf("'アルモニア'") >= 0);
+  miru9('⑨画面：唐辛子オイルが8%の一覧にある', ZEI9.indexOf("'唐辛子オイル'") >= 0);
+  miru9('⑨サーバー：アルモニアが8%の一覧にある', GAS9.indexOf("'アルモニア'") >= 0);
+  miru9('⑨サーバー：唐辛子オイルが8%の一覧にある', GAS9.indexOf("'唐辛子オイル'") >= 0);
+  miru9('⑨10%の商品を見られる窓口がある', GAS9.indexOf('function oosZeiCheck(') >= 0);
+  miru9('⑨その窓口は外からも押せる', GAS9.indexOf("if(action === 'oosZeiCheck')") >= 0);
+  miru9('⑨なぜ足したかを書き残してある', ZEI9.indexOf('ARM500・ARM3L・TGR100') >= 0);
+  /* 画面とサーバーで、8%のグループがぴったり同じか（片方だけ直す事故を防ぐ） */
+  /* 「var ○○ = [ … ]」の中に並んでいる 'グループ名' を取り出すだけ。
+     ★正規表現をこみいらせないでください（前にエスケープが潰れて 0件になりました） */
+  function groups9(src, startMark){
+    const i = src.indexOf(startMark);
+    if (i < 0) return [];
+    const j = src.indexOf(']', i);
+    if (j < 0) return [];
+    return (src.slice(i, j).match(/'[^']+'/g) || []).map(function (x) { return x.slice(1, -1); });
+  }
+  const g1 = groups9(ZEI9, 'var FOOD_GROUPS = [');
+  const g2 = groups9(GAS9, 'var OOS_ZEI_FOOD_GROUPS = [');
+  miru9('⑨画面とサーバーで、8%のグループが同じ（' + g1.length + '／' + g2.length + '）',
+      g1.length > 0 && g1.length === g2.length && g1.every(function(x){ return g2.indexOf(x) >= 0; }));
+}
+
 console.log('\n===== 消費税の税率 =====');
 console.log('PASS ' + ok + ' / FAIL ' + ng);
 if(ng){ console.log('--- FAIL の中身 ---'); bad.forEach(b => console.log('  ' + b)); process.exit(1); }
