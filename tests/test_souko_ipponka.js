@@ -236,6 +236,35 @@ ok('⑦納品書PDFのURLを受注データに控えている',
   GAS.indexOf("nouhinDocUrl: o.nouhinDocUrl||''") >= 0,
   '（控えないと、画面を開き直すと分からなくなります）');
 
+/* ── ⑧ 倉庫が書けるのは3列だけ（発注書タブの保護）───────────────
+   ★2026-09-10 ひろみさん指示（★前にも言われていたのに、できていませんでした）
+     「送り状ナンバーと発送済みと倉庫用のメモ、ここは倉庫は書けるけど、
+     　それ以外が書けないようにしないと、どんどん送るでしょ」
+   ・倉庫（info@oliosanto.jp）が書けるのは
+     　送り状NO.（24）／発送済（25）／倉庫用メモ（26）の3列だけ
+   ・とくに【A列】は触らせない。🔵にすると倉庫へLINEが飛び、赤に戻すと発送が止まります
+   ・本部（ひろみさん・ゆかちゃん）は今までどおり全部書けます
+   ★保護を外さないでください。外すと、倉庫が発注そのものを動かせてしまいます。 */
+ok('⑧保護をかける部品がある（oosSoukoSheetProtect）',
+  GAS.indexOf('function oosSoukoSheetProtect') >= 0 &&
+  GAS.indexOf("action === 'oosSoukoSheetProtect'") >= 0);
+ok('⑧倉庫に開けるのは【送り状NO.から3列】だけ',
+  bodyOf(GAS, 'oosSoukoSheetProtect').indexOf('pr.setUnprotectedRanges([ sh.getRange(2, OOS_YC.track, rows, 3) ])') >= 0,
+  '（ここを広げると、倉庫が本部の列まで書けてしまいます）');
+ok('⑧「書ける人」は本部だけ（倉庫のアドレスを入れない）',
+  GAS.indexOf("var OOS_HONBU_MAIL = ['yuka.miyab@gmail.com'];") >= 0 &&
+  bodyOf(GAS, 'oosSoukoSheetProtect').indexOf('OOS_SOUKO_MAIL') < 0,
+  '（倉庫を「書ける人」に入れると、保護が意味を失います）');
+ok('⑧付けたあと、実物を読み返して返す',
+  bodyOf(GAS, 'oosSoukoSheetProtect').indexOf('var after = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET)') >= 0,
+  '（「okが返った」で終わらせないため）');
+ok('⑧倉庫のアドレスが発注書の編集者に入る窓口がある',
+  GAS.indexOf('function oosShareSoukoSheet') >= 0 &&
+  bodyOf(GAS, 'oosShareSoukoSheet').indexOf('f.addEditor(mail)') >= 0);
+ok('⑧送り状NO.・発送済・倉庫用メモ の列番号が変わっていない',
+  /track:24, shipped:25, soukoMemo:26/.test(GAS),
+  '（列を動かしたら、保護の範囲も付け直してください）');
+
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10 ひろみさん指示）';
 if (fail) {
