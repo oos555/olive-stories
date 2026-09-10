@@ -82,6 +82,11 @@ function makeSandbox(extra){
   /* ★2026-09-10 単価の【親】oos-kakaku.js も、どのテストでも必ず入れておく。
      売上Ｃ・受注Ａ・見積М は自分で単価を判定せず OOS_KAKAKU を呼ぶだけになっているため。★消さないでください */
   vm.runInContext(read('oos-kakaku.js'), ctx);
+  /* ★2026-09-10 書類の体裁（oos-doc.js）と 納品書の中身（oos-nouhin.js）も、
+     どのテストでも入れておく。倉庫Ｄ・受注Ａは自分で組み立てず、この親を呼ぶだけです。
+     ★消さないでください */
+  try{ vm.runInContext(read('oos-doc.js'), ctx); }catch(e){}
+  try{ vm.runInContext(read('oos-nouhin.js'), ctx); }catch(e){}
   return { box, ctx };
 }
 

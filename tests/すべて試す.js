@@ -48,6 +48,7 @@ const FILES = [
   ['test_rt_gekkiji.js',   'RT月次まとめ「この月の分を集計する」（2026-09-10）'],
   ['test_yoyaku_sheet_haiki.js','古い「取り置き・予約シート」はもう使わない（2026-09-10）'],
   ['test_yoyaku_list_okuru.js','🗂 発注前予約リスト：A列で「送る」を選んだときの動き（2026-09-10）'],
+  ['test_nouhin_oya.js',   '📄 納品書の親と、請求書との金額一致（2026-09-10）'],
   ['test_yunyu_free.js',   '輸入のフリー（予定−予約）'],
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
   ['test_kienai.js',      '通しの動きと「消えない」の見張り'],

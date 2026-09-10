@@ -358,6 +358,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="oos-doc.js?v=20260824"></script>
+<script src="oos-nouhin.js?v=20260910"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -379,7 +380,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-10-03">
+<meta name="oos-version" content="2026-09-10-04">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -910,121 +911,16 @@ function invoiceNeedsAmount(encDoc){
   var d = String(encDoc||'');
   return d.indexOf('請求書') >= 0 || d.indexOf('領収書') >= 0;
 }
-
 function buildInvoiceHtml(o){
-  /* ★2026-08-19 表題は、受注Ａで選んだ同梱書類の名前をそのまま出す
-     （納品書／納品書兼請求書／請求書／領収書…）。「納品書」で固定しないでください。
-     体裁は見積・請求書Ｍで決めたもの（oos-doc.js）を使います。 */
-  /* ★2026-08-19 表題は【お客様から見た書類の名前】だけ。社内の言葉（RT・卸など）は出さない */
-  const docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
-  /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
-     お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
-  const withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
-  /* ★2026-08-19 区分（定価・卸・バサラ等）のバッジは【書類に出さない】と決めました。
-     下の title で (badge ? '' : '') となっていて、どちらでも空です＝出ません。
-     ★この badge を title に足さないでください（社内の言葉がお客様の書類に出てしまいます）。
-     ※変数だけ残っているのは、決めごとの目印としてです。 */
-  const badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-'+o.customerType+'">'+CTYPE_BADGE[o.customerType]+'</span>' : '';
-
-  var items = [], unknown = false;
-  (o.lines||[]).forEach(function(l){
-    var prod = findProduct(l.productId);
-    var sku = prod ? prod.sku : '';
-    var qty = lineTotal(l);
-    var unit = (withAmount && sku) ? priceForSku(sku, lineTierType(o, l)) : 0;
-    if(withAmount && !unit) unknown = true;
-    items.push({
-      name: l.productName,
-      qty: qty,
-      qtyText: qty + '本' + (l.boxes ? '（バラ'+l.bottles+'＋'+l.boxes+'箱）' : ''),
-      unitPrice: unit,
-      amount: unit * qty,
-      taxRate: sku ? taxRateForSku(sku) : OOS_ZEI.RATE_SERVICE   /* ★品番が分からない行は10%（安全側）。8%にしないでください */
-    });
-  });
-
   /* ══════════════════════════════════════════════════════════════════
-     ★2026-08-24 ひろみさん確定：送料と倉庫ピッキング手数料も書類に出す。
-     それまでは商品だけで「ご請求金額」を出していたため、
-     お客様が実際に払った金額と書類の金額が食い違っていました。
-
-     ・送料は【税込】で持っている（決めごとＳ：北海道・沖縄¥1,100／その他¥880）
-       → 書類は税抜で並べるので 1.1 で割り戻して税抜にし、税率10%で出す
-     ・倉庫ピッキング手数料は【税抜】で持っている → そのまま税率10%で出す
-     ・金額を持っていない注文（手入力・RT伝票取込など）は行を出さず、
-       下の備考に「送料は別途申し受けます」と出す（黙って0円にしない）
-     ★この かたまり を消さないでください。
+     ★2026-09-10 中身は【親＝oos-nouhin.js】に移しました。
+     受注Ａでも同じ納品書をPDFにして、発注書のV列から倉庫が開けるようにするためです。
+     ここに組み立てを書き写すと、片方だけ直って
+     【倉庫が渡した紙】と【あとから送る請求書】が食い違います。
+     ★決めごと（表題・金額を出す条件・お振込先・社印・破損のご案内）は
+     　ぜんぶ親に書いてあります。★親を見てください。
      ══════════════════════════════════════════════════════════════════ */
-  var _shipIncl = parseInt(o.shippingFee)||0;      // 送料（税込）
-  var _whFee    = parseInt(o.warehouseFee)||0;     // 倉庫ピッキング手数料（税抜）
-  if(withAmount && _whFee > 0){
-    items.push({ name:'倉庫ピッキング手数料（バラ出荷）', qty:1, qtyText:'1式',
-                 unitPrice:_whFee, amount:_whFee, taxRate: OOS_ZEI.RATE_SERVICE });
-  }
-  if(withAmount && _shipIncl > 0){
-    var _shipNet = Math.round(_shipIncl / (1 + OOS_ZEI.RATE_SERVICE));
-    items.push({ name:'送料', qty:1, qtyText:'1式',
-                 unitPrice:_shipNet, amount:_shipNet, taxRate: OOS_ZEI.RATE_SERVICE });
-  }
-
-  /* ★2026-08-19 ひろみさんと決めた文言です。★勝手に書き換えないでください。
-     ・「キャンセル・変更について」の段落は入れない
-     ・破損のご連絡は【到着後3日以内】
-     ・「破損以外のお客様都合による変更は、食品のため承れません」 */
-  var notes = [];
-  /* ★2026-08-24 送料の金額を持っていない注文は、0円と思われないように一言そえる */
-  if(withAmount && _shipIncl <= 0){
-    notes.push('<div style="font-weight:700;margin-bottom:2px">■ 送料について</div>'
-      + '上記の金額に送料は含まれておりません。送料は別途申し受けます。');
-  }
-  notes.push('<div style="font-weight:700;margin-bottom:2px">■ 破損していた場合</div>'
-    + 'ご迷惑をおかけし、大変申し訳ございません。到着後3日以内に、破損の状態がわかる写真を複数枚撮影のうえ、弊社または配送会社までご連絡ください。'
-    + '到着から1週間以上経過したもの、およびお客様が商品を廃棄された後のご連絡は、状況を確認できないため対応いたしかねる場合がございます。'
-    + '破損以外のお客様都合による変更は、食品のため承れません。'
-    + '破損による返品の際は、返品先倉庫住所を別途お知らせいたしますので、<strong>弊社宛には返品なさらないようご注意ください</strong>。');
-  var foot = '<strong>🎁 大切な人にお贈りする最高のギフトをご用意しています。</strong>　複数のお届け先へのギフト発送も承っております。'
-    + '<br>'
-    + '<span style="color:#57534e">お問い合わせ：'+COMPANY_EMAIL+'　／　'+COMPANY_WEBSITE+'</span>';
-  notes.push(foot);
-
-  var html = OOS_DOC.buildDoc({
-    title: docName + (badge ? '' : ''),
-    addressee: recipientAddressBlock(o) + '　様',
-    zip: o.zip, addr: o.addr, tel: o.tel,
-    /* ★2026-08-19 ゆかさん指摘：伝票から来た注文は【納品日】と【伝票番号（アイポーターと同じ）】を出す。
-       それ以外は 発行日と注文番号（社内の暗号は外す）。★暗号つきの番号に戻さないでください */
-    metaRight: (function(){
-      var slip = docSlipNoOf(o), deliv = docDeliveryDateOf(o);
-      var rows = [];
-      rows.push(deliv ? ('納品日：' + esc(deliv)) : ('発行日：' + new Date().toLocaleDateString('ja-JP')));
-      rows.push(slip ? ('伝票番号：' + esc(slip)) : ('注文番号：' + esc(docNumberOf(o.num))));
-      return rows;
-    })(),
-    lead: withAmount
-      ? '下記の通りお納めいたします。本書はご請求書を兼ねております。'
-      : '下記の通りお納めいたします。この度はお買い上げいただき、誠にありがとうございます。',
-    items: items,
-    /* ★2026-08-19 お振込先：個人のお客様は三菱UFJ（ナカムラヒロミ）、
-       会社（法人）のお客様は三井住友（カ）オリーブオイルストーリーズ）。★入れ替えないでください */
-    /* ★2026-08-19 お振込先：個人のお客様は三菱UFJ（ナカムラヒロミ）、
-       会社あて（卸・RT・バサラ・特別提供など、一般以外）は三井住友（カ）オリーブオイルストーリーズ）。
-       ★「isCompany だけ」で決める形に戻さないでください（RTがUFJになっていました） */
-    bankIndex: (((o.customerType && o.customerType !== 'general') || o.isCompany) ? 0 : 1),
-    /* ★2026-08-19 ひろみさん指示：【卸のお客様には社印（社判）が必須】。
-       一般（定価）のお客様には押さない。★この判定を消さないでください */
-    seal: (o.customerType && o.customerType !== 'general'),
-    /* ★2026-08-19 ゆかさん報告：納品書にお振込先を出さない（RTは月末まとめ請求）。
-       お振込先は【請求書・領収書を兼ねるとき】だけ出す。★戻さないでください */
-    showBank: invoiceNeedsAmount(docName),
-    showAmount: withAmount,
-    notes: notes
-  });
-  if(unknown){
-    html += '<div class="no-print" style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:6px">⚠ 単価が登録されていない商品があります（統合マスタＮの価格マスタをご確認ください）。金額は「―」で出しています。</div>';
-  }
-  /* ★2026-08-19 区分バッジ（卸●など）は【社内の印】なので、書類には出しません。
-     no-print にしていてもPDFには写ってしまうため、そもそも入れません。★戻さないでください */
-  return html;
+  return OOS_NOUHIN.build(o, { products: PRODUCTS, priceMaster: PRICE_MASTER, defaults: null });
 }
 
 /* ★2026-08-19 いま見ている書類を、そのままPDFファイルとして保存する（確認用）。
