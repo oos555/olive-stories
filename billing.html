@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-01">
+<meta name="oos-version" content="2026-09-10-02">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -185,6 +185,7 @@ tr:last-child td{border-bottom:none}
 <script src="oos-zaiko.js?v=20260904"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
 <script src="oos-zei.js?v=20260824"></script>
+<script src="oos-kakaku.js?v=20260910"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率で請求書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -1028,24 +1029,24 @@ function loadAllBilling(){
 // 2026年7月、中村様と協議のうえ決定：
 // 「頑張って買ってくれた人が得をする」方式を採用。商品ごとに6箱以上の注文で、その商品だけ自動的に卸②価格になる。
 // （4箱案も検討したが、卸①→卸②の値引き幅が20〜25%と大きく、条件が易しすぎると判断し6箱に決定）
-const BULK_UPGRADE_BOXES = 6; // 卸①のお客様が、同じ商品を1回の注文でこの箱数以上買うと、その行だけ自動的に卸②価格になる
+/* ★2026-09-10 単価の決め方は【親＝oos-kakaku.js】に移しました。
+   受注Ａ（納品書）と売上Ｃ（請求書）で金額がズレると、倉庫がお客様に渡した紙と
+   あとから送る請求書が違う、という事故になります。判定はここに書き写さないでください。
+   （消費税で同じ事故を起こしたので、oos-zei.js と同じ形にしてあります）*/
+const BULK_UPGRADE_BOXES = OOS_KAKAKU.BULK_UPGRADE_BOXES; // 6箱で卸②へ（決めた数字は親が持っています）
 function effectiveCustomerType(customerType, boxes){
-  if(customerType==='wholesale1' && (boxes||0) >= BULK_UPGRADE_BOXES) return 'wholesale2';
-  return customerType;
+  /* ★判定は親（oos-kakaku.js）に1つだけ。ここに書き写さないでください */
+  return OOS_KAKAKU.effectiveCustomerType(customerType, boxes);
 }
 // この行だけ卸①/卸②の値段にする指定（受注Aの種別で「卸①価格/卸②価格」を選んだ行＝l.giftType が w1/w2）。
 // 指定が無ければ従来どおりお客様区分（と箱数昇格）で計算する。
 function lineTierType(o, l){
-  if(l && l.giftType==='w1') return 'wholesale1';
-  if(l && l.giftType==='w2') return 'wholesale2';
-  return effectiveCustomerType(o.customerType, (l&&l.boxes)||0);
+  /* ★判定は親（oos-kakaku.js）に1つだけ。ここに書き写さないでください */
+  return OOS_KAKAKU.lineTierType(o, l);
 }
 function priceForSku(sku, customerType){
-  const p = priceMaster.find(x=>x.sku===sku) || DEFAULT_PRICES[sku];
-  if(!p) return 0;
-  const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };
-  const key = map[customerType] || 'priceGeneral';
-  return parseFloat(p[key])||0;
+  /* ★判定は親（oos-kakaku.js）に1つだけ。表（priceMaster・DEFAULT_PRICES）はここから渡します */
+  return OOS_KAKAKU.priceForSku(sku, customerType, priceMaster, DEFAULT_PRICES);
 }
 // この受注は「月次まとめ」対象か（RT・RTGC、または月次まとめ請求の会社として登録済みの相手＝バサラ等）
 // 対象なら売上一覧では入金チェックせず「月次まとめ予定」と表示。入金チェックはまとめタブの発行済み一覧で1枚ごとに行う。

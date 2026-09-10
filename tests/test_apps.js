@@ -359,11 +359,19 @@ eq('⑤ お振込先を持っている', docSrc.indexOf('三井住友銀行') >=
 eq('⑤ 表題は選んだ書類名から作る', pkSrc2.indexOf("String(o.enclosedDoc).split(' ＋ ')[0]") >= 0, true);
 eq('⑤ 請求書・領収書のときだけ金額を入れる',
    pkSrc2.indexOf("return d.indexOf('請求書') >= 0 || d.indexOf('領収書') >= 0;") >= 0, true);
-eq('⑤ 単価の出し方は売上Ｃと同じ（写し）',
-   pkSrc2.indexOf("const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };") >= 0
-   && H.read('billing.html').indexOf("const map = { general:'priceGeneral', wholesale1:'priceWholesale1', wholesale2:'priceWholesale2', rt:'priceRT', rtgc:'priceRT', basara:'priceBasara', special:'priceSpecial', defectprice:'priceDefect' };") >= 0, true);
-eq('⑤ 箱数での卸②昇格も売上Ｃと同じ',
-   pkSrc2.indexOf('const BULK_UPGRADE_BOXES = 6;') >= 0 && H.read('billing.html').indexOf('const BULK_UPGRADE_BOXES = 6;') >= 0, true);
+/* ★2026-09-10 単価の決め方は【親＝oos-kakaku.js】に移しました。
+   売上Ｃ・見積М・倉庫Ｄ の3か所に同じ表が写されていて、直すときに片方だけ直る形でした。
+   ★これからは「写しが同じか」ではなく「親を呼んでいるか」を見張ります。
+   ★HTMLに価格表を書き写さないでください。 */
+eq('⑤ 倉庫Ｄは単価を親（oos-kakaku.js）に聞く',
+   pkSrc2.indexOf('OOS_KAKAKU.priceForSku(') >= 0 && pkSrc2.indexOf('oos-kakaku.js?v=') >= 0, true);
+eq('⑤ 倉庫Ｄに価格表の写しが残っていない',
+   pkSrc2.indexOf("rt:'priceRT'") < 0, true);
+eq('⑤ 6箱で卸②の数字は親だけが持つ',
+   pkSrc2.indexOf('BULK_UPGRADE_BOXES = 6') < 0
+   && H.read('billing.html').indexOf('BULK_UPGRADE_BOXES = 6') < 0
+   && H.read('mitsumori.html').indexOf('BULK_UPGRADE_BOXES = 6') < 0
+   && H.read('oos-kakaku.js').indexOf('BULK_UPGRADE_BOXES = 6') >= 0, true);
 
 /* 本物の関数で「納品書兼請求書」を1枚作ってみる */
 try{

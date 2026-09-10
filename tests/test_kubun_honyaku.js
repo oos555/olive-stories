@@ -88,10 +88,21 @@ ok('④RT月次まとめが「キャンセル以外ぜんぶ」に戻ってい�
   '（未発送の注文まで請求書に載ってしまいます）');
 
 /* ── ⑤ 価格表の引き方が親と同じであること ───────────────────────── */
-['billing.html', 'mitsumori.html'].forEach(f => {
-  has('⑤' + f + ' の価格表の対応', SRC[f], "rt:'priceRT'");
-  has('⑤' + f + ' のバサラ価格', SRC[f], "basara:'priceBasara'");
+/* ★2026-09-10 単価の決め方は【親＝oos-kakaku.js】に移しました。
+   売上Ｃ・見積М・倉庫Ｄ の3か所に同じ表が写されていて、直すときに片方だけ直る形でした。
+   ★これからは、どのアプリも親を呼ぶだけです。表をHTMLに書き写さないでください。 */
+['billing.html', 'mitsumori.html', 'pickup.html'].forEach(f => {
+  has('⑤' + f + ' は親（oos-kakaku.js）を読んでいる', SRC[f], 'oos-kakaku.js?v=');
+  has('⑤' + f + ' は単価を親に聞く', SRC[f], 'OOS_KAKAKU.priceForSku(');
+  ok('⑤' + f + ' に価格表の写しが残っていない', SRC[f].indexOf("rt:'priceRT'") < 0);
+  ok('⑤' + f + ' に6箱の数字を書き写していない', SRC[f].indexOf('BULK_UPGRADE_BOXES = 6') < 0);
 });
+/* 親そのものの中身 */
+const KAK = fs.readFileSync(require('path').join(__dirname,'..','oos-kakaku.js'),'utf8');
+has('⑤親：RTの価格表',      KAK, "rt:          'priceRT'");
+has('⑤親：バサラの価格表',  KAK, "basara:      'priceBasara'");
+has('⑤親：6箱で卸②へ',      KAK, 'BULK_UPGRADE_BOXES = 6');
+has('⑤親：日本語の区分も受ける', KAK, "'RT': 'rt'");
 
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '区分の翻訳（RT・卸が定価で計算される事故の見張り／2026-09-07）';

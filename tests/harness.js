@@ -79,6 +79,9 @@ function makeSandbox(extra){
   /* ★2026-08-24 消費税の【親】oos-zei.js は、どのテストでも必ず入れておく。
      アプリ側は自分で税率を判定せず OOS_ZEI を呼ぶだけになっているため。★消さないでください */
   vm.runInContext(read('oos-zei.js'), ctx);
+  /* ★2026-09-10 単価の【親】oos-kakaku.js も、どのテストでも必ず入れておく。
+     売上Ｃ・受注Ａ・見積М は自分で単価を判定せず OOS_KAKAKU を呼ぶだけになっているため。★消さないでください */
+  vm.runInContext(read('oos-kakaku.js'), ctx);
   return { box, ctx };
 }
 
