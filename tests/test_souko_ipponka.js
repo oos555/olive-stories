@@ -104,9 +104,8 @@ ok('④出荷依頼書タブの「LINEに通知」もグレー',
 
 /* ── ⑤ 例外なし：登録した注文は、どれも自動で発注書へ ───────────── */
 ok('⑤RTだけでなく、登録した注文は全部が自動で発注書へ',
-  IDX.indexOf(`      if(typeof yukaImportOne==='function'){
-        try{ yukaImportOne(o.id); }catch(eY){}
-      }`) >= 0,
+  bodyOf(IDX, 'registerOrder').indexOf("if(typeof yukaImportOne==='function'){") >= 0 &&
+  bodyOf(IDX, 'registerOrder').indexOf("o.customerType==='rt' && /RT伝票取込/") < 0,
   '（RTだけにすると、一般・卸が倉庫に流れなくなります）');
 ok('⑤取り置き・予約は流れない（pendingのときだけ）',
   IDX.indexOf("if(recordType==='pending'){\n    list.forEach(function(o){\n      if(typeof yukaImportOne==='function')") >= 0);
@@ -164,6 +163,53 @@ ok('⑥一覧の読み込みが軽い（loadAllDataを一緒に読まない）',
 ok('⑥書類の画面（?id=）では今までどおり読んでいる',
   bodyOf(PIC, 'loadSingleOrder').indexOf('await fetchWarehouseNotes();') >= 0,
   '（納品書の金額とロットに必要です）');
+
+/* ── ⑦ RTの書類は、発注書の行にリンクで貼る（メール・LINEはやめた）─────
+   ★2026-09-10 ひろみさん決定
+     「RT同梱書類　取り込んだ伝票と、伝票から作った納品書のリンクが入ったら最高です。
+     　それを倉庫が見て印刷します」
+     「ご提案どおり（メール・LINEをやめて、発注書にリンクを貼る）にしたい」
+   ・V列（22＝同梱書類 納品書）　… 伝票から作った納品書PDF
+   ・W列（23＝同梱書類 他あれば）… 取り込んだ発注伝票PDF　★見出しはそのまま（ひろみさん決定）
+   ・PDFの置き場所は Drive の「OOS_同梱追加PDF」。リンクを知っている人は開ける設定。 */
+ok('⑦リンクを貼る窓口がある（oosYukaSetDocLinks）',
+  GAS.indexOf('function oosYukaSetDocLinks') >= 0 &&
+  GAS.indexOf("if(action === 'yukaSetDocLinks')") >= 0);
+ok('⑦V列（doc1）＝納品書、W列（doc2）＝発注伝票',
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('put(OOS_YC.doc1, String(p.nouhinName') >= 0 &&
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('put(OOS_YC.doc2, String(p.hokaName') >= 0,
+  '（入れかえると、倉庫が見出しと中身のちがう書類を印刷します）');
+ok('⑦ふだ（転記キー）で行を探す（まちがった行に貼らない）',
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('oosFindRowByKey_(sh, oosKeyColByHeader_(sh), key)') >= 0);
+ok('⑦ふだが無いときは何もしない',
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('ふだ（転記キー）がありません') >= 0);
+ok('⑦PDFはDriveに保存する（リンクを知っている人は開ける）',
+  bodyOf(GAS, 'saveExtraDoc').indexOf('DriveApp.Access.ANYONE_WITH_LINK') >= 0 &&
+  GAS.indexOf("var OOS_RT_DOC_FOLDER     = 'RT書類：本部・倉庫のみ閲覧可';") >= 0 &&
+  bodyOf(GAS, 'oosRtDocFolder_').indexOf('f.setName(OOS_RT_DOC_FOLDER)') >= 0,
+  '（フォルダ名も置き場所も2026-09-10 ひろみさん決定。前の名前のフォルダは【名前を変えるだけ】で引き継ぎます）');
+ok('⑦フォルダの中身を確かめる窓口がある',
+  GAS.indexOf("action === 'oosRtDocFolderCheck'") >= 0);
+ok('⑦「ほかの人に渡す書類は入れない」と書き残してある',
+  GAS.indexOf('お客様や取引先にお渡しする書類を、ここに入れないでください。') >= 0,
+  '（ひろみさんの注意。フォルダ名だけでは伝わらないため）');
+ok('⑦倉庫Ｄのカードにも、そのリンクがボタンで出る',
+  bodyOf(GAS, 'oosKonpoOrders').indexOf('getRichTextValues()') >= 0,
+  '（発注書のV列・W列のリンクを読んでいます）');
+ok('⑦受注Ａ：発注書に入ってから貼る（順番）',
+  IDX.indexOf('Promise.resolve(yukaImportOne(o.id)).then(function(){') >= 0 &&
+  IDX.indexOf('rtAttachDocsToOrder(o)') >= 0,
+  '（先に貼ろうとすると、貼る先の行がまだありません）');
+ok('⑦受注Ａ：貼る部品がある（rtAttachDocsToOrder）',
+  IDX.indexOf('async function rtAttachDocsToOrder(o)') >= 0);
+ok('⑦受注Ａ：RTの伝票から作った注文だけに貼る',
+  bodyOf(IDX, 'rtAttachDocsToOrder').indexOf('/RT伝票取込/.test(String(o.note') >= 0);
+ok('⑦倉庫へのメール・LINEはやめた（rt-mailerを呼ばない）',
+  /^async function rtDoSendDocs\(\)\{\s*\/\*[\s\S]*?\*\/\s*alert\(\[/.test('async ' + bodyOf(IDX, 'rtDoSendDocs')),
+  '（倉庫へ連絡が行くのは🔵にしたときだけ、という決まりです）');
+ok('⑦納品書PDFのURLを受注データに控えている',
+  GAS.indexOf("nouhinDocUrl: o.nouhinDocUrl||''") >= 0,
+  '（控えないと、画面を開き直すと分からなくなります）');
 
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10 ひろみさん指示）';

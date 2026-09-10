@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-01">
+<meta name="oos-version" content="2026-09-10-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -1000,15 +1000,15 @@ body{background:#fff}
       </div>
       <div id="rt-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:16px">
         <div style="background:#fff;border-radius:14px;max-width:430px;width:100%;padding:18px 18px 16px;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
-          <div style="font-size:17px;font-weight:800;color:#166534;margin-bottom:4px">📮 倉庫へ送る前の確認</div>
-          <div style="font-size:12.5px;color:#8a8578;margin-bottom:12px">送る前に、いちど中身を確認してください。よければ下の緑ボタンで送信します。</div>
+          <div style="font-size:17px;font-weight:800;color:#166534;margin-bottom:4px">📄 発注書に貼る書類の確認</div>
+          <div style="font-size:12.5px;color:#8a8578;margin-bottom:12px">中身をご確認ください。書類は、受注を登録したときに発注書の行へ自動で貼られます。</div>
           <div id="rt-send-modal-body" style="background:#f7f4ee;border:1px solid #e2ddce;border-radius:10px;padding:11px 13px;margin-bottom:12px"></div>
           <div style="background:#eef4f9;border:1.5px solid #b9d0e3;border-radius:10px;padding:11px 12px;margin-bottom:12px">
-            <div style="font-size:12.5px;font-weight:700;color:#1f4a6d;margin-bottom:8px">📎 メールに添付されるもの（PDF 2つ）</div>
-            <div style="font-size:13px;color:#2b2a26;line-height:1.9">① 発注伝票PDF（取り込んだ元ファイル）<br>② 納品書PDF（下のボタンで開いて確認できます）</div>
+            <div style="font-size:12.5px;font-weight:700;color:#1f4a6d;margin-bottom:8px">📎 発注書に貼られるもの（PDF 2つ）</div>
+            <div style="font-size:13px;color:#2b2a26;line-height:1.9">① <b>W列</b>（同梱書類 他あれば）… 発注伝票PDF（取り込んだ元ファイル）<br>② <b>V列</b>（同梱書類 納品書）… 納品書PDF（下のボタンで開いて確認できます）<br><span style="font-size:12px;color:#57534e">倉庫さんは、発注書のこの2つのリンクから開いて印刷します。</span></div>
             <button type="button" onclick="rtMakeDeliveryNote()" style="width:100%;margin-top:10px;background:#2563eb;border:none;color:#fff;font-weight:800;font-size:15px;border-radius:9px;padding:11px;cursor:pointer">🖨️ 納品書を開いて確認する</button>
           </div>
-          <button type="button" id="rt-send-go-btn" onclick="rtDoSendDocs()" style="width:100%;background:#16a34a;border:none;color:#fff;font-weight:800;font-size:16px;border-radius:10px;padding:13px;cursor:pointer">✅ この内容で倉庫へ送る</button>
+          <button type="button" id="rt-send-go-btn" onclick="rtDoSendDocs()" style="width:100%;background:#16a34a;border:none;color:#fff;font-weight:800;font-size:16px;border-radius:10px;padding:13px;cursor:pointer">✅ 内容を確認しました（閉じる）</button>
           <button type="button" onclick="rtCloseSendConfirm()" style="width:100%;margin-top:9px;background:#f1efe8;border:1px solid #cfc9bd;color:#57534e;font-weight:700;font-size:14px;border-radius:10px;padding:11px;cursor:pointer">やめる</button>
         </div>
       </div>
@@ -4185,7 +4185,13 @@ function registerOrder(){
   if(recordType==='pending'){
     list.forEach(function(o){
       if(typeof yukaImportOne==='function'){
-        try{ yukaImportOne(o.id); }catch(eY){}
+        /* ★2026-09-10 発注書に入ってから（＝ふだが付いてから）、RTの書類のリンクを貼ります。
+           順番が逆だと、貼る先の行が見つかりません。★消さないでください */
+        try{
+          Promise.resolve(yukaImportOne(o.id)).then(function(){
+            if(typeof rtAttachDocsToOrder === 'function') return rtAttachDocsToOrder(o);
+          }).catch(function(){});
+        }catch(eY){}
       }
     });
   }
@@ -9918,6 +9924,55 @@ function rtDeliveryNoteCss(){ return '*{box-sizing:border-box;margin:0;padding:0
     +'.noprint{text-align:center;margin-top:20px}'
     +'.noprint button{background:#2563eb;color:#fff;border:none;font-size:15px;font-weight:800;padding:11px 26px;border-radius:8px;cursor:pointer}'
     +'@media print{body{background:#fff;padding:0}.dn{width:auto;min-height:auto;padding:0}.noprint{display:none!important}@page{size:A4;margin:12mm}}'; }
+/* ══════════════════════════════════════════════════════════════════════
+   📄 RTの書類を、発注書の行にリンクで貼る　★2026-09-10 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「RT同梱書類　取り込んだ伝票と、伝票から作った納品書のリンクが
+   　　　　　　　入ったら最高です。それを倉庫が見て印刷します」
+
+   ・V列（同梱書類 納品書）　… 伝票から作った納品書PDF
+   ・W列（同梱書類 他あれば）… 取り込んだ発注伝票PDF
+   PDFは Drive の「OOS_同梱追加PDF」に保存します（リンクを知っている人は開ける）。
+
+   ★倉庫へのメール・LINEは出しません。倉庫へ連絡が行くのは、
+   　発注書のA列を【🔵 発送してください】にしたときだけです。
+   ★この決まりを変えないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+async function rtAttachDocsToOrder(o){
+  try{
+    if(!o || !o.yukaKey) return;                       // ふだが無ければ貼る先が分からない
+    if(!rtParsed) return;                              // RTの伝票が読み込まれていないとき
+    if(!/RT伝票取込/.test(String(o.note||''))) return;  // RTの伝票から作った注文だけ
+
+    var nouhinUrl = '', nouhinName = '';
+    try{
+      var b64 = await rtBuildNotePdfB64();
+      var nm  = '納品書_' + ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT') + '.pdf';
+      var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:nm }) });
+      var d = await res.json();
+      if(d && d.status==='ok' && d.url){ nouhinUrl = d.url; nouhinName = d.name || nm; }
+    }catch(e){ /* 納品書が作れなくても、伝票のリンクだけは貼る */ }
+
+    if(!nouhinUrl && !o.extraDocUrl) return;           // 貼るものが何も無い
+
+    var r2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'yukaSetDocLinks', payload:{
+        key: o.yukaKey,
+        nouhinUrl: nouhinUrl, nouhinName: nouhinUrl ? '📄 納品書（ひらく）' : '',
+        hokaUrl:   o.extraDocUrl || '', hokaName: o.extraDocUrl ? '📄 発注伝票（ひらく）' : ''
+      }})});
+    var d2 = await r2.json();
+    if(d2 && d2.status==='ok'){
+      /* 受注Ａ側にも控えておく（あとで見返せるように） */
+      if(nouhinUrl){ o.nouhinDocUrl = nouhinUrl; o.nouhinDocName = nouhinName; if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]); }
+      if(typeof showSyncStatus==='function') showSyncStatus('📄 発注書に書類のリンクを貼りました（納品書・発注伝票）');
+    } else {
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注書に書類のリンクを貼れませんでした：'+((d2&&d2.message)||'不明'), true);
+    }
+  }catch(e){ /* ここで止まっても、発注そのものは通っています */ }
+}
+
 function rtSendDocsToWarehouse(){
   if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
   rtShowSendConfirm();
@@ -9958,6 +10013,21 @@ async function rtBuildNotePdfB64(){
   } finally { document.body.removeChild(holder); }
 }
 async function rtDoSendDocs(){
+  /* ★2026-09-10 ひろみさん決定：倉庫へのメール・LINEはやめました。
+     書類は【発注書の行にリンクで貼る】かたちに変えています。
+     倉庫へ連絡が行くのは、発注書のA列を【🔵 発送してください】にしたときだけです。
+     ★この止め木を外さないでください。 */
+  alert([
+    '📄 書類は、受注を登録したときに【発注書の行】へ自動で貼られます。',
+    '',
+    '　・V列（同梱書類 納品書）　… 伝票から作った納品書',
+    '　・W列（同梱書類 他あれば）… 取り込んだ発注伝票',
+    '',
+    '倉庫さんは、そこから開いて印刷します。',
+    'ここから倉庫へメールやLINEを送ることは、もうありません。'
+  ].join('\n'));
+  return;
+
   var p=rtParsed; if(!p) return;
   var url = OOS_RT_MAILER_URL;   /* ★2026-08-18 コードに固定。もう貼り直しは聞きません */
   var btn=document.getElementById('rt-send-go-btn');
