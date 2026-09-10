@@ -233,10 +233,19 @@ ok('⑦ふだが無いときは何もしない',
    ＝ 置き場所は【1つだけ】／見るのは【リンクを知っている人】。
    ★いちど『決めた人だけ』に絞ったら、れい子さんが開けなくなりました。絞らないこと。
    ★フォルダを増やさないこと。 */
-ok('⑦PDFの置き場所は「RT書類：社内・倉庫用」の1つだけ',
-  GAS.indexOf("var OOS_RT_DOC_FOLDER      = 'RT書類：社内・倉庫用（リンクを知っている人が開けます）';") >= 0 &&
+/* ★2026-09-10（夕方）フォルダ名を変えました。
+   　「RT書類：社内・倉庫用」→「RT書類・納品書：社内・倉庫用」
+   　一般・卸の納品書もここに入るようになり、名前と中身が合わなくなったためです
+   　（ひろみさん：「フォルダーの名前がRT専用になってるよね？変更する必要があるね」）。
+   ★フォルダは【1つだけ】のままです。増やさないでください。
+   ★名前を変えるときは、古い名前を OOS_RT_DOC_FOLDER_OLDS に足すこと。
+   　足さないと新しいフォルダが作られ、すでに貼ったリンクの書類がばらけます。 */
+ok('⑦PDFの置き場所は「RT書類・納品書：社内・倉庫用」の1つだけ',
+  GAS.indexOf("var OOS_RT_DOC_FOLDER      = 'RT書類・納品書：社内・倉庫用（リンクを知っている人が開けます）';") >= 0 &&
   bodyOf(GAS, 'oosRtDocFolder_').indexOf('f.setName(OOS_RT_DOC_FOLDER)') >= 0,
   '（前の名前のフォルダは【名前を変えるだけ】で引き継ぎます。作り直すとリンクがばらけます）');
+ok('⑦前の名前は「引き継ぐ名前」に残してある（フォルダを作り直さないため）',
+  GAS.indexOf("OOS_RT_DOC_FOLDER_OLDS = ['RT書類：社内・倉庫用（リンクを知っている人が開けます）'") >= 0);
 ok('⑦伝票も納品書も、同じフォルダに入る',
   bodyOf(GAS, 'saveExtraDoc').indexOf('oosRtDocFolder_()') >= 0 &&
   bodyOf(GAS, 'saveInvoiceToDrive').indexOf('oosRtDocFolder_()') >= 0,
@@ -440,6 +449,18 @@ ok('⑫次の伝票では聞き直す', IDX.indexOf('前の伝票の答えを引
 ok('⑬手入力のRTでも納品書を作る', IDX.indexOf("if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;") >= 0);
 ok('⑬RTを丸ごとおことわりしていない', IDX.indexOf("if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */") < 0);
 ok('⑬入れる先は saveExtraDoc（RT書類フォルダ）', IDX.indexOf("action:'saveExtraDoc'") >= 0);
+/* ★2026-09-10 ひろみさん決定：書類の置き場所は【1つだけ】。
+   　「Aでいっか！ 倉庫はリンクを開くだけで、フォルダーの中までは基本的には見ないしね」
+   RTの伝票・RTの納品書・一般や卸の納品書、ぜんぶ同じフォルダに入ります。
+   ★置き場所を増やさないでください（分けると「伝票がない」と探すことになります）。 */
+ok('⑬置き場所は1つだけ（決定を書き残してある）',
+   GAS.indexOf('書類の置き場所は【この1つだけ】です') >= 0);
+ok('⑬フォルダを決めている場所は1か所',
+   (GAS.match(/var OOS_RT_DOC_FOLDER      = /g)||[]).length === 1);
+ok('⑬一般・卸の納品書も同じ窓口（saveExtraDoc）を使う',
+   IDX.indexOf("action:'saveExtraDoc', base64:b64, filename:nm") >= 0);
+ok('⑬別のフォルダを作るコードを書いていない',
+   GAS.indexOf('一般書類') < 0 && GAS.indexOf('卸書類') < 0);
 ok('⑪窓口はelse ifでつながっている', GAS.indexOf("else if (action === 'renameExtraDoc')") >= 0);
 ok('⑪RT書類フォルダの中のファイルしか名前を変えない',
    GAS.indexOf('このファイルは「') >= 0 && GAS.indexOf('の中にありません。名前は変えませんでした。') >= 0);
