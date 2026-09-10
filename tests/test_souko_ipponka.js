@@ -203,7 +203,11 @@ ok('⑦伝票も納品書も、同じフォルダに入る',
   '（分けると、見るときに2か所を見に行くことになります）');
 ok('⑦フォルダを増やしていない（納品書用の別フォルダが無い）',
   GAS.indexOf('OOS_NOUHIN_FOLDER') < 0);
-ok('⑦倉庫のれい子さんたちが、ログインなしで開ける',
+ok('⑦倉庫のアドレスが登録してある（info@oliosanto.jp）',
+  GAS.indexOf("var OOS_SOUKO_MAIL = ['info@oliosanto.jp'];") >= 0 &&
+  bodyOf(GAS, 'oosRtDocShare_').indexOf('item.addViewer(mail)') >= 0,
+  '（倉庫のみなさんが全員で使うアドレス。2026-09-10 ひろみさんに教えていただきました）');
+ok('⑦倉庫のれい子さんたちが、ログインなしでも開ける',
   bodyOf(GAS, 'oosRtDocShare_').indexOf('setSharing(DriveApp.Access.ANYONE_WITH_LINK') >= 0 &&
   bodyOf(GAS, 'oosRtDocShare_').indexOf('DriveApp.Access.PRIVATE') < 0,
   '（PRIVATEに戻すと、れい子さんが印刷できなくなります）');
