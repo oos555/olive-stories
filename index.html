@@ -384,7 +384,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-14">
+<meta name="oos-version" content="2026-09-10-15">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7781,6 +7781,13 @@ function basaraOrderNoOf(o){                   // メモから発注番号を取
   var other = [acts.one||'', acts.twoTop||'', acts.two||''].join('');
 
   /* ── 発注書（スプシ）に行ったか ── */
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-10 夜の点検で見つけたバグ。
+     取り消した注文（🗑 発注から消した・✖ キャンセル）にも
+     「📥 発注書に送る」のボタンが出ていました。押せてしまうと、
+     取り消したはずの注文が倉庫へ流れます。
+     ★取り消したものには、送るボタンを出さないでください。 */
+  var _torikeshi = (o.status === 'deleted' || o.status === 'cancelled');
   var okuri, btn = '';
   if(whSkipStateOf(o) === 'skip'){
     /* ストアーズなど、倉庫へは別経路ですでに届いているもの */
@@ -7790,18 +7797,18 @@ function basaraOrderNoOf(o){                   // メモから発注番号を取
   } else if(o.yukaImport && o.yukaImport.at){
     okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 発注書に送りました　'
           + esc(String(o.yukaImport.at||'').slice(0,16).replace('T',' ')) + '</span>';
-    btn = '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">📥 もう一度 発注書に送る（二重にはなりません）</button>';
+    if(!_torikeshi) btn = '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">📥 もう一度 発注書に送る（二重にはなりません）</button>';
   } else if(o.notified){
     /* 古い流れ（出荷依頼書）で倉庫へ渡していた分。発注書は通っていません */
     okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 倉庫へ送りました　'
           + esc(String(o.notifiedAt||'').slice(0,16).replace('T',' ')) + '</span>';
-    btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
+    if(!_torikeshi) btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
   } else {
     okuri = '<span style="display:inline-block;background:#fdeaea;color:#a32d2d;border:1px solid #e0a3a1;border-radius:8px;padding:3px 11px;font-weight:800">🔴 まだ発注書に送っていません</span>'
       /* ★2026-08-25 ゆかさん提案：STORESなど、倉庫へは別経路ですでに届いている注文は
          「記録のみ」にできる（未対応に見えて、誤ってもう一度送る事故を防ぐ）。★消さないでください */
       + '<span onclick="whSkip(\'' + o.id + '\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">🚫 倉庫には送らない（記録のみ・すでに別経路で届いている等）</span>';
-    btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
+    if(!_torikeshi) btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
   }
 
   /* ── 在庫が足りないときは、そう出す（送っても倉庫が困るため） ── */
@@ -8045,6 +8052,18 @@ async function yoyakuListAddOne(o){
 
 async function yukaImportOne(id){
   var o = orders.find(x=>x.id===id); if(!o) return;
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-10 夜の点検で見つけたバグの手当て（二重の守り）。
+     取り消した注文（🗑 発注から消した・✖ キャンセル）を発注書へ送ると、
+     取り消したはずの注文が倉庫へ流れます。ボタンは隠していますが、
+     ほかの道から呼ばれても止まるように、ここでも見ます。
+     ★この止めを外さないでください。 */
+  if(o.status === 'deleted' || o.status === 'cancelled'){
+    alert('⛔ この注文は取り消されています（' + (o.status === 'deleted' ? '🗑 発注から消した' : '✖ キャンセル') + '）。' + String.fromCharCode(10)
+      + '発注書へは送れません。' + String.fromCharCode(10) + String.fromCharCode(10)
+      + 'もう一度お届けする場合は、受注登録から新しく登録してください。');
+    return;
+  }
   if(o.yukaImport && o.yukaImport.at){
     alert('✋ すでに取込済です。もう一度押しても、ゆかスプシに2行目はできません（1回だけの印つき）。');
     return;
