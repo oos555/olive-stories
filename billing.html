@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-08-01">
+<meta name="oos-version" content="2026-09-10-01">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1127,9 +1127,11 @@ function renderQiInvoices(){
 const SALES_HIDE_INFO = {
   cancelled:{label:'✖ キャンセル',             how:'出ません（今までどおり）',                        dim:true},
   deleted  :{label:'🗑 発注から消した',          how:'出ません（消した注文です）',                      dim:true},
-  held     :{label:'📦 取り置き',               how:'出荷依頼書を作って倉庫へ送ったとき',              dim:false},
-  reserved :{label:'🗓 予約（入荷まち）',        how:'入荷して出荷依頼書を送ったとき',                  dim:false},
-  unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'受注Ａのカードで「② 倉庫へ送る」を押したとき',    dim:false}
+  /* ★2026-09-10 言い方を新しい流れに直しました。出荷依頼書はもう使っていません。
+     いまは【発注書（倉庫＆OOS発送連絡スプシ）のA列を🔵にしたとき】に倉庫へ行き、そこで売上に載ります。 */
+  held     :{label:'📦 取り置き',               how:'発注書へ送って、A列を🔵にしたとき',               dim:false},
+  reserved :{label:'🗓 予約（入荷まち）',        how:'入荷して発注書へ送り、A列を🔵にしたとき',         dim:false},
+  unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'発注書のA列を🔵にしたとき（倉庫へLINEが行きます）', dim:false}
 };
 function salesWasSentToWarehouse(o){
   return !!(o && (o.notified || o.shippedAt || o.status === 'shipped'));
@@ -3575,15 +3577,60 @@ function runRtMonthly(){
   var invoices=[];
   if(rtOrders.length){ invoices.push({ title:'RT（ホテル）まとめ', clientName:'RT（ホテル）ご担当', rows:rtOrders.map(rtmRow), invoiceNumber:makeRtInvoiceNumber(), kind:'rt' }); }
   gcOrder.forEach(function(fac){ invoices.push({ title:fac, clientName:fac, rows:gcMap[fac].map(rtmRow), invoiceNumber:makeRtInvoiceNumber(), kind:'gc' }); });
-  _rtMonthlyCtx = { ym:ym, invoices:invoices, rtCount:(rtOrders.length?1:0), gcCount:gcOrder.length };
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-10 ひろみさん「押したら何も出てこなくなった」の手当て。
+     ──────────────────────────────────────────────────────────────────
+     請求書が0枚のとき、前は「受注が見つかりませんでした」としか出ませんでした。
+     それだと【そもそも読み込めていない】のか【その月は発送が無かった】のかが
+     見分けられません。そこで、いつでも下の3つを数えて画面に出します。
+       ・読み込めているか（orders が空かどうか）
+       ・その月のRT・RTGCの受注は何件あるか
+       ・そのうち、まだ倉庫へ送っていないのは何件か（理由ごと）
+     ★この数え方は salesWasSentToWarehouse を呼ぶだけです。
+       判定を書き写していません（書き写しは過去に事故を起こしました）。
+     ★消さないでください。 */
+  var _loaded = (typeof orders !== 'undefined' && orders && orders.length > 0);
+  var _ymRt = (typeof orders!=='undefined'?orders:[]).filter(function(o){
+    if(!o) return false;
+    if(o.status==='cancelled' || o.status==='deleted') return false;
+    if(o.customerType!=='rt' && o.customerType!=='rtgc') return false;
+    return String(o.registeredAt||'').slice(0,7)===ym;
+  });
+  var _machi = {};
+  _ymRt.forEach(function(o){
+    if(salesWasSentToWarehouse(o)) return;
+    var r = salesExcludeReason(o) || 'unsent';
+    _machi[r] = (_machi[r]||0) + 1;
+  });
+  _rtMonthlyCtx = { ym:ym, invoices:invoices, rtCount:(rtOrders.length?1:0), gcCount:gcOrder.length,
+                    loaded:_loaded, ymRtCount:_ymRt.length, machi:_machi,
+                    nosaiCount:(rtOrders.length + inMonth.filter(function(o){ return o.customerType==='rtgc'; }).length) };
   renderRtMonthlyPreview();
   var pv=document.getElementById('rtmonthly-preview'); if(pv) pv.scrollIntoView({behavior:'smooth'});
 }
 function renderRtMonthlyPreview(){
   var ctx=_rtMonthlyCtx, area=document.getElementById('rtmonthly-preview'); if(!area) return;
   if(!ctx){ area.innerHTML=''; return; }
-  if(!ctx.invoices.length){ area.innerHTML='<div class="card"><div class="info-box">この月に、RT・RTGC区分の受注が見つかりませんでした。対象年月と、お客様の区分（RT／RTGC）をご確認ください。</div></div>'; return; }
-  var h='<div class="info-box" style="background:#eef4e3;border-color:#6b7a3a"><b>この月の請求書：'+ctx.invoices.length+'枚</b>（RTホテル '+ctx.rtCount+'枚 ＋ ゴルフクラブ '+ctx.gcCount+'枚）</div>';
+  /* ★2026-09-10 何が起きているか、いつも同じ形で見せます。★消さないでください */
+  var wake = '';
+  if(!ctx.loaded){
+    wake = '<div class="info-box" style="background:#fdeaea;border-color:#b94a48"><b>⚠️ まだ受注データを読み込めていません。</b><br>'
+         + 'この画面は、開いたときに1回だけ読み込みます（いまは10秒ほどかかります）。<br>'
+         + '右上の 🔄 を押して「✅ データを読み込みました」と出てから、もう一度「この月の分を集計する」を押してください。</div>';
+  } else {
+    var machiTxt = Object.keys(ctx.machi||{}).map(function(k){
+      var info = (typeof SALES_HIDE_INFO!=='undefined' && SALES_HIDE_INFO[k]) ? SALES_HIDE_INFO[k] : null;
+      return '　・' + (info ? info.label : k) + '　' + ctx.machi[k] + '件　→ ' + (info ? info.how : '') + 'に載ります';
+    }).join('<br>');
+    wake = '<div class="info-box" style="background:#f3f1e6;border-color:#8a857a;font-size:13px">'
+         + '<b>この月（' + ctx.ym + '）のRT・RTGCの受注：' + ctx.ymRtCount + '件</b>'
+         + '　うち、請求書に載せた（＝倉庫へ送った）分：<b>' + ctx.nosaiCount + '件</b>'
+         + (machiTxt ? ('<br>載せなかった分：<br>' + machiTxt) : '')
+         + '<br><span style="color:#6b665c">※請求書に載るのは【倉庫へ送った注文だけ】です（2026-09-07 決定）。取り置き・予約のままの分は、発注書のA列を🔵にしたときに載ります。</span>'
+         + '</div>';
+  }
+  if(!ctx.invoices.length){ area.innerHTML='<div class="card">'+wake+'<div class="info-box">この月に、請求書にできるRT・RTGCの受注はありませんでした。対象年月と、お客様の区分（RT／RTGC）をご確認ください。</div></div>'; return; }
+  var h=wake+'<div class="info-box" style="background:#eef4e3;border-color:#6b7a3a"><b>この月の請求書：'+ctx.invoices.length+'枚</b>（RTホテル '+ctx.rtCount+'枚 ＋ ゴルフクラブ '+ctx.gcCount+'枚）</div>';
   ctx.invoices.forEach(function(inv,idx){
     var total=inv.rows.reduce(function(s,r){return s+r.amount;},0);
     var badge = inv.kind==='rt'

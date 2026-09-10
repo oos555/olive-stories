@@ -45,6 +45,7 @@ const FILES = [
   ['test_yoyaku_torioki.js','入荷したら予約が取り置きに変わるか'],
   ['test_basara_okurijou.js','バサラの送り状No.のページ'],
   ['test_uriage_list.js',  '売上一覧に載せるタイミング'],
+  ['test_rt_gekkiji.js',   'RT月次まとめ「この月の分を集計する」（2026-09-10）'],
   ['test_yunyu_free.js',   '輸入のフリー（予定−予約）'],
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
   ['test_kienai.js',      '通しの動きと「消えない」の見張り'],
