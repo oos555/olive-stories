@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>発注前予約リスト（モック）</title>
+<title>発注前予約リスト（第2版）</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@700&display=swap">
 <style>
   :root{
@@ -15,6 +15,7 @@
     --warn:#8a6a1f; --warn-bg:#fbf2dd; --warn-ed:#dfc384;
     --ok:#2f7d4a;   --ok-bg:#e6f3ea;   --ok-ed:#9fcdaf;
     --now:#7b2fa0;  --now-bg:#f5ebfa;  --now-ed:#ddc2ea;
+    --same:#0f766e; --same-bg:#e3f2f0; --same-ed:#a9d6d0;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
@@ -25,6 +26,7 @@
       --warn:#d9b263; --warn-bg:#2e2617; --warn-ed:#5e4c22;
       --ok:#7cc294; --ok-bg:#1a2a20; --ok-ed:#325c40;
       --now:#c79fe0; --now-bg:#271b2e; --now-ed:#4d3559;
+      --same:#6fc4ba; --same-bg:#152a28; --same-ed:#2f5a55;
     }
   }
   :root[data-theme="dark"]{
@@ -35,11 +37,12 @@
     --warn:#d9b263; --warn-bg:#2e2617; --warn-ed:#5e4c22;
     --ok:#7cc294; --ok-bg:#1a2a20; --ok-ed:#325c40;
     --now:#c79fe0; --now-bg:#271b2e; --now-ed:#4d3559;
+    --same:#6fc4ba; --same-bg:#152a28; --same-ed:#2f5a55;
   }
   *{box-sizing:border-box}
   body{margin:0; background:var(--ground); color:var(--ink); font-size:13px; line-height:1.5;
        font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
-  .wrap{max-width:1080px; margin:0 auto; padding:14px 16px 20px}
+  .wrap{max-width:1160px; margin:0 auto; padding:14px 16px 20px}
   header{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
          border-bottom:2px solid var(--strong); padding-bottom:5px; margin-bottom:8px}
   h1{font-family:"Zen Old Mincho",serif; font-size:19px; margin:0}
@@ -49,41 +52,46 @@
   .lead{background:var(--card); border:1px solid var(--line); border-radius:5px;
         padding:8px 12px; margin-bottom:10px; font-size:12.5px; line-height:1.65}
   .lead b{font-weight:900}
+  .hiromi{background:var(--now-bg); border:1px solid var(--now-ed); border-radius:5px;
+          padding:7px 12px; margin-bottom:10px; font-size:12px; color:var(--ink-2); line-height:1.6}
+  .hiromi b{color:var(--now); font-weight:900}
 
-  /* ── スプレッドシートらしく見せる ── */
   .sheet{background:var(--card); border:1px solid var(--grid); border-radius:4px; overflow-x:auto}
   .tabbar{display:flex; gap:2px; padding:5px 6px 0; background:var(--head); border-bottom:1px solid var(--grid)}
   .tabbar span{font-size:11.5px; padding:4px 10px; border:1px solid var(--grid); border-bottom:none;
-               border-radius:4px 4px 0 0; background:var(--card); color:var(--ink-3)}
+               border-radius:4px 4px 0 0; background:var(--card); color:var(--ink-3); white-space:nowrap}
   .tabbar span.on{font-weight:900; color:var(--resv); background:var(--resv-bg); border-color:var(--resv-ed)}
-  table{border-collapse:collapse; width:100%; min-width:940px; font-size:11.5px}
-  th,td{border:1px solid var(--grid); padding:4px 7px; text-align:left; vertical-align:top}
-  thead th{background:var(--head); font-weight:700; font-size:11px; white-space:nowrap}
-  .rowno{background:var(--head); color:var(--ink-3); text-align:center; width:26px; font-size:10px}
+  table{border-collapse:collapse; width:100%; min-width:1900px; font-size:11px}
+  th,td{border:1px solid var(--grid); padding:4px 6px; text-align:left; vertical-align:top; white-space:nowrap}
+  thead th{background:var(--head); font-weight:700; font-size:10.5px}
+  thead th.new{background:var(--resv-bg); color:var(--resv)}
+  thead th.same{background:var(--same-bg); color:var(--same)}
+  .colid{font-size:9px; color:var(--ink-3); font-weight:400; display:block}
+  .rowno{background:var(--head); color:var(--ink-3); text-align:center; width:24px; font-size:9.5px}
   .num{text-align:right; font-variant-numeric:tabular-nums}
-  .banner td{background:var(--resv-bg); color:var(--resv); font-weight:900; font-size:12px}
+  .banner td{background:var(--resv-bg); color:var(--resv); font-weight:900; font-size:11.5px; white-space:normal}
   .sumrow td{background:var(--ok-bg)}
   .sumrow .k{font-weight:900; color:var(--ok)}
-  .pill{display:inline-block; border-radius:99px; padding:1px 9px; font-size:10.5px; font-weight:700; border:1px solid}
+  .pill{display:inline-block; border-radius:99px; padding:1px 8px; font-size:10px; font-weight:700; border:1px solid}
   .p-stop{background:#fdecea; color:var(--stop); border-color:#f3b7b1}
   .p-go{background:#e8f0fe; color:var(--go); border-color:#b3ccf5}
-  .cell-sel{background:#fff; border:1px solid var(--grid); border-radius:3px; padding:2px 6px;
-            font-size:11px; display:inline-flex; align-items:center; gap:6px}
-  .cell-sel .caret{color:var(--ink-3); font-size:9px}
+  .cell-sel{background:#fff; border:1px solid var(--grid); border-radius:3px; padding:2px 5px;
+            font-size:10.5px; display:inline-flex; align-items:center; gap:5px; color:#20211d}
+  .cell-sel .caret{color:#83857a; font-size:8px}
   .lock{background:var(--head); color:var(--ink-3)}
+  .done td{color:var(--ink-3); background:var(--head)}
 
   .two{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:11px}
   @media (max-width:800px){ .two{grid-template-columns:1fr} }
   .box{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:8px 13px 9px}
   .box .t{margin:0 0 5px; font-size:13px; font-weight:900}
-  .box.warn{background:var(--warn-bg); border-color:var(--warn-ed)}
-  .box.warn .t{color:var(--warn)}
-  .box.now{background:var(--now-bg); border-color:var(--now-ed)}
-  .box.now .t{color:var(--now)}
+  .box.warn{background:var(--warn-bg); border-color:var(--warn-ed)} .box.warn .t{color:var(--warn)}
+  .box.now{background:var(--now-bg); border-color:var(--now-ed)} .box.now .t{color:var(--now)}
+  .box.same{background:var(--same-bg); border-color:var(--same-ed)} .box.same .t{color:var(--same)}
   .tbl{width:100%; border-collapse:collapse; font-size:11.5px}
-  .tbl td{padding:3px 0; vertical-align:top; color:var(--ink-2); line-height:1.55; border:none; border-top:1px solid var(--line)}
+  .tbl td{padding:3px 0; vertical-align:top; color:var(--ink-2); line-height:1.55; border:none; border-top:1px solid var(--line); white-space:normal}
   .tbl tr:first-child td{border-top:none}
-  .tbl td:first-child{width:118px; font-weight:700; color:var(--ink)}
+  .tbl td:first-child{width:120px; font-weight:700; color:var(--ink)}
   .flow{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:9px}
   @media (max-width:820px){ .flow{grid-template-columns:repeat(2,1fr)} }
   .fb{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:6px 10px}
@@ -93,22 +101,38 @@
   .stamp{margin-top:10px; font-size:10px; color:var(--ink-3); text-align:right}
   .q{background:var(--now-bg); border:1px solid var(--now-ed); border-radius:6px; padding:8px 13px; margin-top:11px}
   .q .t{margin:0 0 4px; font-size:13px; font-weight:900; color:var(--now)}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; margin:7px 0 0; font-size:11px}
+  .lg{border-radius:4px; padding:2px 9px; border:1px solid; font-weight:700}
+  .lg-new{background:var(--resv-bg); color:var(--resv); border-color:var(--resv-ed)}
+  .lg-same{background:var(--same-bg); color:var(--same); border-color:var(--same-ed)}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>🗓 発注前予約リスト（たたき台）</h1>
-  <p class="sub">まだ作っていません。この形でよいかを見てください　│　2026-09-10</p>
+  <h1>🗓 発注前予約リスト（第2版）</h1>
+  <p class="sub">発注書と同じ「そのまま出せる状態」で載せる　│　2026-09-10</p>
 </header>
 
-<div class="lead">
-  <b>置き場所は【倉庫＆OOS発送連絡スプシ】</b>（発注書と同じファイル）。<b>倉庫も見られます</b>が、
-  <b>書けるのは本部だけ</b>にします（倉庫は見るだけ）。<br>
-  倉庫は、いちばん上の合計を見て「この先どれくらい来るか」が分かるので、場所も箱も前もって用意できます。
+<div class="hiromi">
+  <b>ひろみさんのご指摘（第1版から直したところ）</b>　「お客様の住所・電話を載せていなければ、
+  発注書へ送って出荷を依頼するにしたときに、倉庫は<b>住所ください、電話番号くださいって言ってくる</b>から、
+  ここでまたラリーが始まってしまう。<b>乗せるんだったら、もう完璧な状態、つまり発注と同じ状態で</b>載っていて、
+  ただ掲載されている場所が予約リストで、<b>出荷の指示が出ていない</b>というだけ。
+  倉庫の人に<b>伝えなくても『これだけ予約が入ってるのね』が分かる</b>状態に」
 </div>
 
-<h2>① タブの見た目</h2>
+<div class="lead">
+  <b>そのとおりにしました。</b>列を<b>発注書とそろえて</b>、住所・電話・送り主・同梱書類まで全部入れています。
+  ちがうのは<b>A列の選べる言葉</b>と、頭に足した<b>分類・入荷予定</b>だけです。<br>
+  つまり <b>「発注書に出す準備が100%できている行が、まだ予約リストに置いてあるだけ」</b> という状態です。
+  <div class="legend">
+    <span class="lg lg-new">🆕 予約リストだけの列</span>
+    <span class="lg lg-same">＝ 発注書とまったく同じ列</span>
+  </div>
+</div>
+
+<h2>① タブの見た目（横にスクロールします）</h2>
 
 <div class="sheet">
   <div class="tabbar">
@@ -116,77 +140,143 @@
   </div>
   <table>
     <tbody>
-      <tr class="banner"><td class="rowno">1</td><td colspan="9">🗓 発注前予約リスト　まだ入荷していない予約です。<b>ここから倉庫へは出ません。</b>本部がA列を変えたときだけ発注書へ移ります。　🕐 最終更新 9/10 14:02</td></tr>
+      <tr class="banner"><td class="rowno">1</td><td colspan="23">🗓 発注前予約リスト　まだ入荷していない予約です。<b>ここから倉庫へは出ません。</b>本部がA列を変えたときだけ発注書へ移り、そこではじめて倉庫へ連絡が行きます。　🕐 最終更新 9/10 14:02</td></tr>
     </tbody>
     <thead>
-      <tr><th class="rowno">2</th><th style="min-width:210px">A　いまどうする？</th><th style="min-width:150px">分類（予約の名前）</th><th>登録日</th><th style="min-width:130px">お客様</th><th style="min-width:170px">商品</th><th class="num">本数</th><th>入荷予定</th><th style="min-width:130px">備考</th><th>ふだ</th></tr>
+      <tr>
+        <th class="rowno">2</th>
+        <th class="new" style="min-width:200px">いまどうする？<span class="colid">A</span></th>
+        <th class="new" style="min-width:150px">分類（予約の名前）<span class="colid">B</span></th>
+        <th class="new">入荷予定<span class="colid">C</span></th>
+        <th class="new">登録日<span class="colid">D</span></th>
+        <th class="same" style="min-width:160px">商品① コード 品名<span class="colid">E</span></th>
+        <th class="same">数<span class="colid">F</span></th>
+        <th class="same" style="min-width:160px">商品② コード 品名<span class="colid">G</span></th>
+        <th class="same">数<span class="colid">H</span></th>
+        <th class="same" style="min-width:130px">【お届け先】氏名<span class="colid">I</span></th>
+        <th class="same">郵便番号<span class="colid">J</span></th>
+        <th class="same" style="min-width:190px">住所<span class="colid">K</span></th>
+        <th class="same">電話<span class="colid">L</span></th>
+        <th class="same">お届け日指定<span class="colid">M</span></th>
+        <th class="same">時間指定<span class="colid">N</span></th>
+        <th class="same" style="min-width:130px">【送り元】氏名<span class="colid">O</span></th>
+        <th class="same">郵便番号<span class="colid">P</span></th>
+        <th class="same" style="min-width:170px">住所<span class="colid">Q</span></th>
+        <th class="same">電話<span class="colid">R</span></th>
+        <th class="same" style="min-width:130px">備考欄<span class="colid">S</span></th>
+        <th class="same" style="min-width:110px">同梱書類 納品書<span class="colid">T</span></th>
+        <th class="same">同梱書類 他<span class="colid">U</span></th>
+        <th class="same">発注者<span class="colid">V</span></th>
+        <th class="lock">ふだ<span class="colid">W</span></th>
+      </tr>
     </thead>
     <tbody>
-      <tr class="sumrow"><td class="rowno">3</td><td class="k">■ ノヴェッロ2026予約</td><td class="k">12件</td><td colspan="2">オルガニック250ml <b>240</b>／500ml <b>120</b></td><td colspan="2" class="k">合計 360本</td><td>2026-11 予定</td><td colspan="2">倉庫：11月に大きく入ります</td></tr>
-      <tr class="sumrow"><td class="rowno">4</td><td class="k">■ 次回入荷予約</td><td class="k">3件</td><td colspan="2">メメジック500ml <b>60</b></td><td colspan="2" class="k">合計 60本</td><td>時期未定</td><td colspan="2"></td></tr>
-      <tr class="sumrow"><td class="rowno">5</td><td class="k">■ 2026年11月入荷予定分の予約</td><td class="k">5件</td><td colspan="2">オルガニック100ml <b>100</b></td><td colspan="2" class="k">合計 100本</td><td>2026-11 予定</td><td colspan="2">★分類は自分で増やせます</td></tr>
-      <tr><td class="rowno">6</td><td colspan="9" style="background:var(--head);color:var(--ink-3);font-size:10.5px">▼ ここから1件ずつ（新しい予約は下に増えます）</td></tr>
+      <tr class="sumrow"><td class="rowno">3</td><td class="k">■ ノヴェッロ2026予約</td><td class="k">12件</td><td>2026-11</td><td colspan="4">オルガニック250ml <b>240</b>／500ml <b>120</b></td><td colspan="16" class="k">合計 360本　　倉庫：11月に大きく入ります</td></tr>
+      <tr class="sumrow"><td class="rowno">4</td><td class="k">■ 次回入荷予約</td><td class="k">3件</td><td>時期未定</td><td colspan="4">メメジック500ml <b>60</b></td><td colspan="16" class="k">合計 60本</td></tr>
+      <tr class="sumrow"><td class="rowno">5</td><td class="k">■ 2026年11月入荷予定分の予約</td><td class="k">5件</td><td>2026-11</td><td colspan="4">オルガニック100ml <b>100</b></td><td colspan="16" class="k">合計 100本　　★分類は自分で増やせます</td></tr>
+      <tr><td class="rowno">6</td><td colspan="23" style="background:var(--head);color:var(--ink-3);font-size:10px">▼ ここから1件ずつ（新しい予約は下に増えます）</td></tr>
 
       <tr>
         <td class="rowno">7</td>
         <td><span class="cell-sel">🗓 予約（入荷まち）<span class="caret">▼</span></span></td>
-        <td>ノヴェッロ2026予約</td><td>9/14</td><td>山本 花子 様</td>
-        <td>ORG250 オルガニック250ml</td><td class="num">24</td><td>2026-11</td><td></td><td class="lock">K…-4821</td>
+        <td>ノヴェッロ2026予約</td><td>2026-11</td><td>9/14</td>
+        <td>ORG250 オルガニック250ml</td><td class="num">24</td><td></td><td class="num"></td>
+        <td>山本 花子</td><td>150-0001</td><td>東京都渋谷区神宮前1-2-3</td><td>090-1234-5678</td>
+        <td>入荷後すぐ</td><td>午前中</td>
+        <td>㈱オリーブオイル・ストーリーズ</td><td>150-0002</td><td>東京都渋谷区渋谷4-5-6</td><td>03-1234-5678</td>
+        <td>ノヴェッロ予約</td><td>納品書兼請求書</td><td>パンフレット</td><td>その他</td><td class="lock">K…4821</td>
       </tr>
       <tr>
         <td class="rowno">8</td>
         <td><span class="cell-sel">🗓 予約（入荷まち）<span class="caret">▼</span></span></td>
-        <td>ノヴェッロ2026予約</td><td>9/14</td><td>㈱みどり商店</td>
-        <td>ORG500 オルガニック500ml</td><td class="num">60</td><td>2026-11</td><td>のし希望</td><td class="lock">K…-4822</td>
+        <td>ノヴェッロ2026予約</td><td>2026-11</td><td>9/14</td>
+        <td>ORG500 オルガニック500ml</td><td class="num">60</td><td>ORG250 オルガニック250ml</td><td class="num">12</td>
+        <td>㈱みどり商店 田中</td><td>530-0001</td><td>大阪府大阪市北区梅田7-8-9</td><td>06-1111-2222</td>
+        <td>指定なし</td><td>指定なし</td>
+        <td>㈱オリーブオイル・ストーリーズ</td><td>150-0002</td><td>東京都渋谷区渋谷4-5-6</td><td>03-1234-5678</td>
+        <td>のし希望（御歳暮）</td><td>納品書兼請求書</td><td>入れない</td><td>その他</td><td class="lock">K…4822</td>
       </tr>
       <tr>
         <td class="rowno">9</td>
         <td><span class="cell-sel" style="border-color:var(--go);color:var(--go);font-weight:800">📦 発注書へ送って出荷を依頼する<span class="caret">▼</span></span></td>
-        <td>次回入荷予約</td><td>9/2</td><td>佐藤 太郎 様</td>
-        <td>MEM500 メメジック500ml</td><td class="num">12</td><td>入荷ずみ</td><td></td><td class="lock">K…-4790</td>
+        <td>次回入荷予約</td><td>入荷ずみ</td><td>9/2</td>
+        <td>MEM500 メメジック500ml</td><td class="num">12</td><td></td><td class="num"></td>
+        <td>佐藤 太郎</td><td>231-0001</td><td>神奈川県横浜市中区1-1-1</td><td>045-999-8888</td>
+        <td>指定なし</td><td>夜間</td>
+        <td>㈱オリーブオイル・ストーリーズ</td><td>150-0002</td><td>東京都渋谷区渋谷4-5-6</td><td>03-1234-5678</td>
+        <td></td><td>納品書兼請求書</td><td>パンフレット</td><td>その他</td><td class="lock">K…4790</td>
       </tr>
-      <tr>
+      <tr class="done">
         <td class="rowno">10</td>
-        <td style="background:var(--head)"><span class="pill p-go">✅ 送りました 9/10 14:01</span></td>
-        <td style="color:var(--ink-3)">次回入荷予約</td><td style="color:var(--ink-3)">9/1</td><td style="color:var(--ink-3)">鈴木 商事㈱</td>
-        <td style="color:var(--ink-3)">ORG250 オルガニック250ml</td><td class="num" style="color:var(--ink-3)">36</td><td style="color:var(--ink-3)">入荷ずみ</td><td style="color:var(--ink-3)">発注書 12行目へ</td><td class="lock">K…-4711</td>
+        <td><span class="pill p-go">✅ 送りました 9/10 14:01</span></td>
+        <td>次回入荷予約</td><td>入荷ずみ</td><td>9/1</td>
+        <td>ORG250 オルガニック250ml</td><td class="num">36</td><td></td><td class="num"></td>
+        <td>鈴木 商事㈱</td><td>460-0001</td><td>愛知県名古屋市中区3-3-3</td><td>052-777-6666</td>
+        <td>指定なし</td><td>指定なし</td>
+        <td>㈱オリーブオイル・ストーリーズ</td><td>150-0002</td><td>東京都渋谷区渋谷4-5-6</td><td>03-1234-5678</td>
+        <td>発注書 12行目へ</td><td>納品書兼請求書</td><td>入れない</td><td>その他</td><td class="lock">K…4711</td>
       </tr>
     </tbody>
   </table>
 </div>
 
 <div class="two">
-  <div class="box">
-    <p class="t">A列で選べるのは、この2つだけ</p>
-    <table class="tbl"><tbody>
-      <tr><td><span class="pill p-stop">🗓 予約（入荷まち）</span></td><td>ふだんはこれ。<b>倉庫へは何も行きません</b></td></tr>
-      <tr><td><span class="pill p-go">📦 発注書へ送って<br>出荷を依頼する</span></td><td>入荷して、出せるようになったら本部が選ぶ</td></tr>
-    </tbody></table>
-    <p style="font-size:11px;color:var(--ink-2);margin:6px 0 0;line-height:1.55">
-      送ったあとの行は<b>グレーになって、もう選べません</b>（二重に送れません）。行は消えずに残ります。</p>
-  </div>
-
-  <div class="box warn">
-    <p class="t">⚠️ 在庫が足りないときは、その場で止まります</p>
+  <div class="box same">
+    <p class="t">＝ 発注書とまったく同じ列（E〜V）</p>
     <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
-      「📦 発注書へ送って出荷を依頼する」を選んでも、<b>棚に足りなければ 🗓 にもどります</b>。
-      理由（何が何本たりないか）がそのセルに出ます。<br>
-      <b>予約は在庫を押さえていません</b>ので、入荷後は<b>送った順に確定</b>します。
+      商品①②（コード品名・数）／<b>お届け先の氏名・郵便番号・住所・電話</b>／お届け日指定・時間指定／
+      <b>送り元の氏名・郵便番号・住所・電話</b>／備考欄／同梱書類（納品書・他）／発注者。<br>
+      <b>倉庫がそのまま発送できる情報が、全部そろっています。</b>あとから聞かれることはありません。
     </p>
+  </div>
+  <div class="box">
+    <p class="t">🆕 予約リストだけの列（A〜D）</p>
+    <table class="tbl"><tbody>
+      <tr><td>A いまどうする？</td><td>🗓 予約（入荷まち）／📦 発注書へ送って出荷を依頼する</td></tr>
+      <tr><td>B 分類</td><td>ノヴェッロ2026予約 など。<b>自分で増やせます</b></td></tr>
+      <tr><td>C 入荷予定</td><td>2026-11／時期未定／入荷ずみ　など</td></tr>
+      <tr><td>D 登録日</td><td>いつ予約が入ったか</td></tr>
+    </tbody></table>
   </div>
 </div>
 
-<h2>② 「📦 発注書へ送って出荷を依頼する」を選ぶと、何が起きるか</h2>
+<div class="box warn" style="margin-top:11px">
+  <p class="t">⚠️ 発注書とちがうのは、この2つだけ</p>
+  <table class="tbl"><tbody>
+    <tr><td>賞味期限の列</td><td><b>置きません</b>。まだ入荷していないので分からないためです（発注書に移ったときに入ります）</td></tr>
+    <tr><td>送り状NO.・発送済・倉庫用メモ</td><td><b>置きません</b>。発注書に移ってから、倉庫が書く欄です</td></tr>
+  </tbody></table>
+</div>
+
+<h2>② 「📦 発注書へ送って出荷を依頼する」を選ぶと</h2>
 
 <div class="flow">
   <div class="fb"><p class="n">① 自動</p><p class="t">在庫を引く</p><p class="d">足りなければ止まる</p></div>
-  <div class="fb"><p class="n">② 自動</p><p class="t">発注書に1行</p><p class="d">同じファイルのとなりのタブ</p></div>
+  <div class="fb"><p class="n">② 自動</p><p class="t">発注書に1行</p><p class="d">E〜V をそのまま写すだけ</p></div>
   <div class="fb"><p class="n">③ 自動</p><p class="t">A列が<br>いきなり🔵</p><p class="d">赤を飛ばします</p></div>
   <div class="fb"><p class="n">④ 自動</p><p class="t">💬 倉庫にLINE</p><p class="d">いつもの「出荷おねがいします」</p></div>
   <div class="fb"><p class="n">⑤ 自動</p><p class="t">受注Ａも<br>「予約→通常受注」</p><p class="d">これを忘れると売上に出ません</p></div>
 </div>
 
-<h2>③ いまどうなっているか（実物で確認した現状）</h2>
+<div class="two">
+  <div class="box warn">
+    <p class="t">⚠️ 在庫が足りないときは、その場で止まります</p>
+    <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
+      選んでも、棚に足りなければ <b>🗓 にもどります</b>。何が何本たりないかが、そのセルに出ます。<br>
+      <b>予約は在庫を押さえていません</b>ので、入荷後は<b>送った順に確定</b>します。
+    </p>
+  </div>
+  <div class="box">
+    <p class="t">🔒 倉庫は「見るだけ」</p>
+    <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
+      このタブは<b>保護をかけて、倉庫は1マスも書けません</b>（発注書と同じ守り方）。<br>
+      倉庫は、いちばん上の<b>分類ごとの合計</b>を見て、場所・箱・ラベルを前もって用意できます。
+      <b>こちらから伝えなくても分かります。</b>
+    </p>
+  </div>
+</div>
+
+<h2>③ いまどうなっているか（実物で確認ずみ）</h2>
 
 <div class="two">
   <div class="box">
@@ -194,39 +284,33 @@
     <table class="tbl"><tbody>
       <tr><td>予約の本数</td><td><b>統合マスタＮの「予約（受注Ａから）」列</b>に、商品ごとの本数が出ています</td></tr>
       <tr><td>予約の控え</td><td>【本部管理専用ゆかスプシ】の<b>「取り置き・予約シート」</b>に自動で写っています</td></tr>
+      <tr><td>いまの数</td><td>予約 <b>0件</b>／取り置き 30件（ぜんぶRT）</td></tr>
     </tbody></table>
   </div>
   <div class="box warn">
     <p class="t">⚠️ 足りないもの（だからこのタブを作ります）</p>
     <table class="tbl"><tbody>
-      <tr><td>上書きされる</td><td>「取り置き・予約シート」は<b>読むだけの鏡</b>。数十秒ごとに全部書き直されるので、<b>ボタンを置いても消えます</b></td></tr>
-      <tr><td>1件ずつ操作できない</td><td>取引先ごとに1行の<b>集計</b>なので、1件だけ送ることができません</td></tr>
-      <tr><td>分類が無い</td><td>いまは「予約」としか分かれていません。<b>ノヴェッロ2026予約が何本か</b>が出せません</td></tr>
-      <tr><td>倉庫に見えない</td><td>本部のファイルにあるので、<b>倉庫は見られません</b></td></tr>
+      <tr><td>上書きされる</td><td>「取り置き・予約シート」は<b>読むだけの鏡</b>。数十秒ごとに全部書き直されるので<b>ボタンを置けません</b></td></tr>
+      <tr><td>1件ずつ操作できない</td><td>取引先ごとに1行の<b>集計</b>だから</td></tr>
+      <tr><td>分類が無い</td><td><b>ノヴェッロ2026予約が何本か</b>が出せません</td></tr>
+      <tr><td>倉庫に見えない</td><td>本部のファイルにあるため</td></tr>
+      <tr><td>住所・電話が無い</td><td>集計なので、<b>そのまま発送できる情報になっていません</b></td></tr>
     </tbody></table>
   </div>
 </div>
 
-<div class="box now" style="margin-top:11px">
-  <p class="t">🏷 分類は、自分で増やせます（登録するときに打つだけ）</p>
-  <p style="font-size:11.5px;color:var(--ink-2);margin:0;line-height:1.6">
-    受注Ａで予約を登録するとき、<b>分類の欄に自由に打てます</b>。これまで使った名前は<b>候補に出ます</b>。
-    新しく「2026年11月入荷予定分の予約」と打てば、それがそのまま分類になり、<b>次から候補に入ります</b>。
-    どこかに登録してもらう必要はありません。合計の行も<b>自動で増えます</b>。
-  </p>
-</div>
-
 <div class="q">
-  <p class="t">✋ 決めていただきたいこと</p>
+  <p class="t">✋ これで進めてよいですか</p>
   <table class="tbl"><tbody>
-    <tr><td>1　タブの名前</td><td>「🗓 発注前予約リスト」でよいですか（倉庫も見るので、倉庫が見て分かる名前に）</td></tr>
-    <tr><td>2　倉庫の見え方</td><td>倉庫は<b>見るだけ</b>（書けない）でよいですか</td></tr>
-    <tr><td>3　列</td><td>足したい列・要らない列はありますか（お客様の住所・電話は、いまは載せていません）</td></tr>
-    <tr><td>4　合計の出し方</td><td>分類ごとに<b>件数と本数</b>の両方でよいですか</td></tr>
+    <tr><td>タブの名前</td><td>「🗓 発注前予約リスト」　※このままでOKと伺いました</td></tr>
+    <tr><td>倉庫</td><td>見るだけ（保護をかける）　※このままでOKと伺いました</td></tr>
+    <tr><td>列</td><td><b>発注書と同じ（E〜V）＋ 分類・入荷予定・登録日</b>にしました。<br>
+      足したい列・要らない列はありますか（商品は③④まで増やせます）</td></tr>
+    <tr><td>合計</td><td>分類ごとに<b>件数と本数</b>の両方</td></tr>
   </tbody></table>
 </div>
 
-<p class="stamp">株式会社オリーブオイル・ストーリーズ　2026-09-10　／　たたき台。OKをいただいてから作ります</p>
+<p class="stamp">株式会社オリーブオイル・ストーリーズ　2026-09-10　第2版　／　たたき台。OKをいただいてから作ります</p>
 </div>
 </body>
 </html>
