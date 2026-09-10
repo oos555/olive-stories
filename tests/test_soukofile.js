@@ -202,9 +202,16 @@ has('⑥GAS：窓口3つ（yukaImportOrder）', routeGas, "'yukaImportOrder'");
 
 const idxSrc = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 has('⑥受注Ａ：📥ボタンの文言', idxSrc, '📥 ゆかスプシに取り込む');
-has('⑥受注Ａ：取込済バッジ', idxSrc, '📗 ゆかスプシへ取込済');
-has('⑥受注Ａ：在庫は動かない説明', idxSrc, '在庫はここでは動きません。登録のときにもう引いてあります');
-eq('⑥受注Ａ：①と②の両方の枠に📥が出る', (idxSrc.match(/whHint\+yk/g)||[]).length, 2);
+/* ★2026-09-10 ひろみさん指示で、受注一覧のカードから【大きな枠（①②のステップ）】を外しました。
+     「今はバサラに受注確定のメールも出してないし、倉庫にLINEも流してないし、出荷依頼書も
+     　作ってない。この枠の外の情報と、スプシに再度取り込むボタンがあればもうそれでいい」
+   見るのは【発注書に行ったか・行っていないか】の1つだけです。
+   ★古い言い方（📗 ゆかスプシへ取込済／①と②の枠）に戻さないでください。 */
+has('⑥受注Ａ：発注書に送ったら緑で出る', idxSrc, '✅ 発注書に送りました');
+has('⑥受注Ａ：まだなら赤で出る', idxSrc, '🔴 まだ発注書に送っていません');
+has('⑥受注Ａ：もう一度押しても二重にならない', idxSrc, '📥 もう一度 発注書に送る（二重にはなりません）');
+has('⑥受注Ａ：倉庫へ行くのは🔵のときだけと書いてある', idxSrc, '発注書のA列を【🔵 発送してください】');
+eq('⑥受注Ａ：①②のステップはもう作らない', (idxSrc.match(/whHint\\+yk/g)||[]).length, 0);
 const impIdx = H.cut(idxSrc, 'yukaImportOne');
 eq('⑥受注Ａ：📥は在庫をいっさい触らない', /applyStockDeductOnSend|restoreStockForOrder/.test(impIdx), false);
 has('⑥受注Ａ：最新読み直しの二重よけ', impIdx, 'fetchOrderFresh');

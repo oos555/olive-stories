@@ -96,9 +96,12 @@ ok('④1件ずつ送る道が、いちばん最初で止まる',
 const nl = bodyOf(IDX, 'notifyLineShort');
 ok('④まとめて送る道も、いちばん最初で止まる',
   /^function notifyLineShort\(listArg\)\{\s*\/\*[\s\S]*?\*\/\s*if\(OOS_WH_LINE_OFF\)\{ whLineOffNotice\(\); return; \}/.test(nl));
-ok('④📮ボタンはグレー（消してはいない・ひろみさん指示）',
-  IDX.indexOf(`'<button class="rk-wh" disabled onclick="notifyWarehouseOne(`) >= 0 &&
-  IDX.indexOf('📮 倉庫にLINEで送る（いまは使いません）') >= 0);
+/* ★2026-09-10（同じ日の夕方）ひろみさん指示で受注一覧のカードを痩せさせたとき、📮ボタンごと外しました。
+   「今はバサラに受注確定のメールも出してないし、倉庫にLINEも流してないし、出荷依頼書も作ってない。
+   　ここは全部書き換えなきゃいけないよね。この枠の外の情報と、スプシに再度取り込むボタンがあればもうそれでいい」
+   ★大事なのは【倉庫へ直接LINEを出す道が塞がっていること】。それは上の①②で見張っています。
+   ★受注一覧に📮ボタンを戻さないでください。 */
+ok('④受注一覧に📮ボタンはもう無い', IDX.indexOf('📮 倉庫にLINEで送る') < 0);
 ok('④出荷依頼書タブの「LINEに通知」もグレー',
   IDX.indexOf('id="line-notify-btn" onclick="notifyLineShort()" style="display:none" disabled') >= 0);
 

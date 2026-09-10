@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-08">
+<meta name="oos-version" content="2026-09-10-09">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -7757,106 +7757,61 @@ function ackDone(o){                           // ②を押してよいか
 function basaraOrderNoOf(o){                   // メモから発注番号を取り出す
   var m = String(o.note||'').match(/発注番号\s*([^\s／\/]+)/);
   return m ? m[1] : '';
-}
-function renrakuBox(o, acts){
-  acts = acts || {one:'', two:''};
-  // ★出荷待ち以外（出荷済み・キャンセル等）は、①②を出さずに操作だけを枠に入れる
-  //   ★2026-08-17 twoTop（出荷依頼書を確認・編集する）もここに入れる。入れないと、
-  //     出荷済みの注文から出荷依頼書を見られなくなってしまう（今までは見られた）。
-  if(o.status !== 'pending'){
-    if(!acts.two && !acts.one && !acts.twoTop) return '';
-    return '<div class="rk"><div class="rk-step"><div class="rk-no">操作</div><div class="rk-b">'+
-      '<div class="rk-l">この受注にできること</div><div class="rk-row">'+(acts.one||'')+(acts.twoTop||'')+(acts.two||'')+'</div>'+
-      '</div></div></div>';
-  }
-  /* ★2026-08-18 在庫が足りないときは倉庫ボタンをグレーにする（承認済みモック第2版）。
-     ひろみさん：「出荷できないわけだから、倉庫に送っちゃうと倉庫混乱するから」
-     ★このロックを外さないでください。どうしてもの逃げ道は下の小さなリンクだけです。 */
-  var zkShort = orderShortages(o);
-  var canWh = ackDone(o) && !zkShort.length;
-  var whIsSkip = whSkipStateOf(o) === 'skip';
-  var wh;
-  if(o.notified){
-    wh = '<div class="rk-ok">✅ 送りました　'+esc(String(o.notifiedAt||'').slice(0,16).replace('T',' '))+'　送り先：<b>OOS出荷依頼グループ（倉庫）</b></div>';
-  } else if(whIsSkip){
-    /* ★2026-08-25 ゆかさん提案：STORESなど、倉庫へは別経路ですでに届いている注文は「記録のみ」にできる */
-    wh = '<div class="rk-skip">🚫 倉庫には送りません（記録のみ）　'+esc(String((o.whSkip&&o.whSkip.at)||'').slice(0,16).replace('T',' '))+
-      '<div style="margin-top:5px"><span onclick="whSkipUndo(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">↩️ やっぱり倉庫へ送れるようにする</span></div></div>';
+}function renrakuBox(o, acts){
+  /* ══════════════════════════════════════════════════════════════════════
+     ★2026-09-10 ひろみさん指示：大きな枠（①②のステップ）をやめました。
+     ──────────────────────────────────────────────────────────────────────
+     　「今はバサラに受注確定のメールも出してないし、倉庫にLINEも流してないし、
+     　　出荷依頼書も作ってないし、スプシも今は違うところにつながってるでしょ。
+     　　この枠の外の情報と、スプシに再度取り込むボタンがあればもうそれでいい。
+     　　そしたらこんなに大きな枠も要らないよね」
+
+     受注一覧は【万が一のときのチェックリスト】です。見たいのは1つだけ：
+     　　★この注文は、発注書（スプシ）に行ったか・行っていないか★
+     行っていないものが赤で目に入るように、それだけを出します。
+     倉庫へ行くのは、発注書のA列を🔵にしたときだけ（2026-09-10 確定・例外なし）。
+     ★①②のステップや、バサラの受注確定メール、出荷依頼書、倉庫への直接LINEを
+     　ここに戻さないでください。どれも、いまの流れでは通りません。
+     ══════════════════════════════════════════════════════════════════════ */
+  acts = acts || {one:'', two:'', twoTop:''};
+  var other = [acts.one||'', acts.twoTop||'', acts.two||''].join('');
+
+  /* ── 発注書（スプシ）に行ったか ── */
+  var okuri, btn = '';
+  if(whSkipStateOf(o) === 'skip'){
+    /* ストアーズなど、倉庫へは別経路ですでに届いているもの */
+    okuri = '<span class="rk-skip" style="display:inline-block;padding:3px 10px">🚫 倉庫には送りません（記録のみ）　'
+          + esc(String((o.whSkip&&o.whSkip.at)||'').slice(0,16).replace('T',' '))
+          + '　<span onclick="whSkipUndo(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">↩️ やっぱり倉庫へ送れるようにする</span></span>';
+  } else if(o.yukaImport && o.yukaImport.at){
+    okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 発注書に送りました　'
+          + esc(String(o.yukaImport.at||'').slice(0,16).replace('T',' ')) + '</span>';
+    btn = '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">📥 もう一度 発注書に送る（二重にはなりません）</button>';
+  } else if(o.notified){
+    /* 古い流れ（出荷依頼書）で倉庫へ渡していた分。発注書は通っていません */
+    okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 倉庫へ送りました　'
+          + esc(String(o.notifiedAt||'').slice(0,16).replace('T',' ')) + '</span>';
+    btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
   } else {
-    /* ★2026-09-10 ひろみさん指示：倉庫への直接LINEは使いません。
-       「消さなくていいけどグレーにして押せないように」＝ボタンは残してグレーにします。
-       倉庫へ連絡が行くのは、発注書のA列を【🔵 発送してください】にしたときだけです。 */
-    wh = '<button class="rk-wh" disabled onclick="notifyWarehouseOne(\''+o.id+'\')">📮 倉庫にLINEで送る（いまは使いません）</button>'
-      + '<div class="rk-hint">倉庫へのご連絡は、発注書のA列を【🔵 発送してください】にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>'
-      + (ackDone(o) ? '' : '<div class="rk-lock">🔒 先に①バサラへの連絡を済ませてください（または「メールを送らない」を押してください）</div>')
-      + (zkShort.length ? '<div class="rk-lock">🔒 在庫が入るまで押せません（在庫がありません）</div>'
-          + '<div style="margin-top:5px"><span onclick="forceWarehouseShort(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">在庫がないまま、どうしても倉庫へ送る</span></div>' : '')
-      + (canWh ? '<div style="margin-top:5px"><span onclick="whSkip(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">🚫 倉庫には送らない（記録のみ・すでに別経路で届いている等）</span></div>' : '');
+    okuri = '<span style="display:inline-block;background:#fdeaea;color:#a32d2d;border:1px solid #e0a3a1;border-radius:8px;padding:3px 11px;font-weight:800">🔴 まだ発注書に送っていません</span>'
+      /* ★2026-08-25 ゆかさん提案：STORESなど、倉庫へは別経路ですでに届いている注文は
+         「記録のみ」にできる（未対応に見えて、誤ってもう一度送る事故を防ぐ）。★消さないでください */
+      + '<span onclick="whSkip(\'' + o.id + '\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">🚫 倉庫には送らない（記録のみ・すでに別経路で届いている等）</span>';
+    btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
   }
 
-  /* ★2026-08-17 ひろみさん指示：出荷依頼書に備考欄があることを、ここで案内する。 */
-  var whHint = '<div class="rk-hint">出荷依頼書の中に「出荷時の備考」欄があります。倉庫へ伝えることがあればそこに書いてください（倉庫Ｄの画面にも出ます）。</div>';
+  /* ── 在庫が足りないときは、そう出す（送っても倉庫が困るため） ── */
+  var zkShort = (typeof orderShortages==='function') ? orderShortages(o) : [];
+  var zk = zkShort.length
+    ? '<div class="rk-lock" style="margin-top:6px">🔒 在庫がありません（' + esc(zkShort.map(function(x){ return (x.name||x.sku||''); }).join('・')) + '）</div>'
+    : '';
 
-  /* ★2026-09-03 スプシ一本化・第3弾：📥 ゆかスプシに取り込む
-     （承認済みモック mocks/mock_受注A_ゆかスプシ取り込み_2026-09-02.html）
-     転記だけ。在庫はいっさい触らない。②のLINEは並走期間そのまま残す（いきなり消さない）。 */
-  var yk;
-  if(o.yukaImport && o.yukaImport.at){
-    /* モックと同じ3点セット：バッジ＋グレーのボタン（押すと✋の案内）＋done-note */
-    yk = '<div class="rk-ok">📗 ゆかスプシへ取込済 '+esc(String(o.yukaImport.at||'').slice(0,16).replace('T',' '))+'</div>'
-       + '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">✅ 取込済（もう一度押しても二重にはなりません）</button>'
-       + '<div class="rk-hint">📗 ゆかスプシの一番下に1行入りました。このあとは、ゆかちゃんが内容を見て【📦 倉庫へ依頼する】を押すと倉庫に流れます。</div>';
-  } else {
-    yk = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 ゆかスプシに取り込む</button>'
-       + '<div class="rk-hint">押すと、この注文がゆかちゃんスプシに1行で入ります（在庫はここでは動きません。登録のときにもう引いてあります）。</div>';
-  }
-
-  var actsTwo = acts.two ? '<div class="rk-acts">'+acts.two+'</div>' : '';
-  var actsOne = acts.one ? '<div class="rk-acts">'+acts.one+'</div>' : '';
-  /* ★2026-08-17 「📄 出荷依頼書を確認・編集する」は倉庫へ送る前に置く（順番が分かるように） */
-  var twoTop  = acts.twoTop ? '<div class="rk-row" style="margin-bottom:7px">'+acts.twoTop+'</div>' : '';
-  /* ★2026-09-10 ひろみさん指示：見出しを、いまの流れの言い方に直しました。
-     倉庫へ行くのは【発注書のA列を🔵にしたとき】だけ。出荷依頼書はもう通りません。
-     ★「倉庫へ出荷依頼書を送る」に戻さないでください。 */
-  var STEP_SOUKO = '発注書に入れる（倉庫へ行くのは、発注書のA列を🔵にしたとき）';
-  if(!isBasaraOrder(o)){
-    return '<div class="rk"><div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">'+STEP_SOUKO+'</div>'+twoTop+wh+whHint+yk+actsTwo+'</div></div></div>';
-  }
-  var st = ackStateOf(o), a = o.ack || {};
-  var one;
-  /* ★2026-08-17 ひろみさん指示でボタンの名前を変えた（何をするボタンかを名前で分かるように）
-       バサラに受注の連絡をする → バサラに受注確定のメールを送る
-       ✏️ 編集する            → ✏️ メール文章編集
-       送らない               → メールを送らない */
-  /* ★2026-09-10 ひろみさん指示＋バサラの確定した流れに合わせました。
-     確定した流れ（mock_バサラ発注の流れ_2026-09-10.html）では
-     　「原さんへのメールは出ません」「原さんへの連絡はしません（2026-09-09 決定）」
-     　原さんは【自分の発注シートを見て】受付と送り状NO.に気づきます。
-     　✉️ メールが出るのは【請求書を発行したとき】だけです。
-     だから、この3つのボタンは（使いません）にしてグレーにしました。
-     ★バサラの流れは確定です。ここを押せる形に戻さないでください。 */
-  var oneRow = '<div class="rk-row"><button class="rk-ba" disabled style="opacity:.5;cursor:not-allowed">✉️ （使いません）バサラに受注確定のメールを送る</button>'
-             + '<button class="rk-ed" disabled style="opacity:.5;cursor:not-allowed">✏️ メール文章編集</button>'
-             + '<button class="rk-sk" disabled style="opacity:.5;cursor:not-allowed">メールを送らない</button></div>'
-             + '<div class="rk-hint">バサラの原さんへのメールは、いまは出しません（2026-09-09 決定）。原さんはご自分の発注シートで「✅ 受付」と送り状NO.を見ます。メールが出るのは請求書を発行したときだけです。</div>';
-  if(renrakuBefore_(o) && st === 'wait'){
-    one = '<div class="rk-skip">この決まりを入れる前の注文です（'+esc(String(o.registeredAt||'').slice(0,10))+'）。②はすぐ押せます。<br>'
-        + 'お礼返信を送るときは、下のボタンからどうぞ。</div>'
-        + oneRow;
-  } else if(st === 'sent'){
-    one = '<div class="rk-ok">✅ 受注確定のメールを送りました　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+(a.edited?'　<b>（一言追記あり）</b>':'')+'</div>';
-  } else if(st === 'skip'){
-    one = '<div class="rk-skip">🚫 メールを送りませんでした　'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'　'+esc(a.by||'')+'</div>';
-  } else {
-    one = oneRow;
-  }
-  return '<div class="rk">'+
-    '<div class="rk-step"><div class="rk-no">①</div><div class="rk-b">'+
-      '<div class="rk-l">バサラへの連絡（いまは出しません）</div>'+one+actsOne+'</div></div>'+
-    '<div class="rk-step"><div class="rk-no'+(ackDone(o)?'':' off')+'">②</div><div class="rk-b">'+
-      '<div class="rk-l">'+STEP_SOUKO+'</div>'+twoTop+wh+whHint+yk+actsTwo+'</div></div>'+
-  '</div>';
+  if(o.status !== 'pending' && !other && !btn) return '';
+  return '<div class="rk" style="padding:9px 11px">'
+    + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">' + okuri + btn + other + '</div>'
+    + zk
+    + '<div class="rk-hint" style="margin-top:5px">倉庫へのご連絡は、<b>発注書のA列を【🔵 発送してください】</b>にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>'
+    + '</div>';
 }
 
 // ── ①お礼返信を送る／編集して送る／送らない ────────────────────────
