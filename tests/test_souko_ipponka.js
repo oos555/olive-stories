@@ -261,6 +261,17 @@ ok('⑧付けたあと、実物を読み返して返す',
 ok('⑧倉庫のアドレスが発注書の編集者に入る窓口がある',
   GAS.indexOf('function oosShareSoukoSheet') >= 0 &&
   bodyOf(GAS, 'oosShareSoukoSheet').indexOf('f.addEditor(mail)') >= 0);
+ok('⑧バサラの請求書発行タブに【入金】の☑がある',
+  GAS.indexOf('var OOS_SEIKYU_NYUKIN   = 8;') >= 0 &&
+  GAS.indexOf('function oosSeikyuNyukinColumn_') >= 0 &&
+  GAS.indexOf("action === 'oosSeikyuNyukinColumn'") >= 0,
+  '（2026-09-10 ひろみさん指示：入金したらここに☑）');
+ok('⑧入金の☑を入れたら、行がグレーになるだけ',
+  GAS.indexOf("whenFormulaSatisfied('=$H3=TRUE')") >= 0 &&
+  bodyOf(GAS, 'oosKanriOnEdit').indexOf('OOS_SEIKYU_NYUKIN') < 0,
+  '（メールもLINEも飛ばしません。何かを足さないでください）');
+ok('⑧新しい請求書の行にも☑が置かれる',
+  bodyOf(GAS, 'oosSeikyuHakkoAdd_').indexOf('s.getRange(row, OOS_SEIKYU_NYUKIN).insertCheckboxes()') >= 0);
 ok('⑧送り状NO.・発送済・倉庫用メモ の列番号が変わっていない',
   /track:24, shipped:25, soukoMemo:26/.test(GAS),
   '（列を動かしたら、保護の範囲も付け直してください）');
