@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-06">
+<meta name="oos-version" content="2026-09-10-07">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -720,7 +720,26 @@ body{background:#fff}
         <button class="btn btn-green" onclick="registerOrder()">受注一覧に登録する</button>
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
-      <div style="margin-top:12px;background:#fff4f2;border:2px solid #e24b4a;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#a32d2d;font-weight:700;line-height:1.7">⚠️ 登録すると「受注一覧」と「発注書」に入ります。<span style="color:#791f1f">この時点では倉庫にはまだ連絡が行っていません。</span><br><span style="font-weight:500;color:#7a2a24">倉庫に出すには、発注書のA列を【🔵 発送してください】に変えてください。</span></div>
+      <!-- ══════════════════════════════════════════════════════════════
+           ★2026-09-10 ひろみさんの文言。登録したあと、どこへ入るかを2つに分けて書く。
+           　 ① ふつうの受注（通常受注）→ 受注一覧タブ ＋ 発注書タブ
+           　 ② 予約・取り置き        → 取り置き及び発注前予約リスト（ホテル以外）タブ
+           どちらも【この時点では倉庫にはまだ連絡が行っていません】。
+           倉庫へ行くのは、A列を変えたときだけ（2026-09-10 確定・例外なし）。
+           ★言い回しを変えないでください。ひろみさんが書いた文です。 -->
+      <div id="reg-yukisaki-futsuu" style="margin-top:12px;background:#fff4f2;border:2px solid #e24b4a;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#a32d2d;font-weight:700;line-height:1.75">
+        ⚠️ 登録すると、<br>
+        <span style="font-weight:500;color:#7a2a24">↓<br>
+        受注出荷アプリAの『受注一覧タブ』と【倉庫＆OOS発送連絡スプシ】の『発注書』タブに入ります。</span>
+        <span style="color:#791f1f">この時点では倉庫にはまだ連絡が行っていません。</span><br>
+        <span style="font-weight:500;color:#7a2a24">倉庫に出すには、スプシ『発注書』のA列を【🔵 発送してください】に変えてください。即倉庫Dアプリに情報が流れ、出荷依頼となります。</span>
+      </div>
+      <div id="reg-yukisaki-yoyaku" style="display:none;margin-top:12px;background:#f0f6ff;border:2px solid #2f6fbf;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#123f76;font-weight:700;line-height:1.75">
+        📦 予約や取り置きを選択していると、<br>
+        <span style="font-weight:500;color:#1c4e8a">【倉庫＆OOS発送連絡スプシ】の『取り置き及び発注前予約リスト（ホテル以外）』タブに入ります。</span>
+        <span style="color:#0c3663">この時点では倉庫にはまだ連絡が行っていません。</span><br>
+        <span style="font-weight:500;color:#1c4e8a">倉庫に出すには、同タブのA列を【📦 発注書へ送って出荷を依頼する】に変えてください。即倉庫Dアプリに情報が流れ、出荷依頼となります。（発注書タブは自分で触らなくてOKです）</span>
+      </div>
     </div>
   </div>
 </div>
@@ -2204,6 +2223,22 @@ function bunruiCandidates(){
     return a.localeCompare(b, 'ja');
   });
 }
+/* ══════════════════════════════════════════════════════════════════════
+   📮 登録したあと、どこへ入るかの案内を出し分ける（2026-09-10 ひろみさん指示）
+   ・通常受注 … 赤い箱（受注一覧タブ ＋ 発注書タブ）
+   ・取り置き／予約 … 青い箱（取り置き及び発注前予約リスト）
+   ★どちらも「この時点では倉庫にはまだ連絡が行っていません」が要です。★消さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function renderYukisakiNotice(){
+  var sel = document.getElementById('o-record-type');
+  var t = sel ? String(sel.value || '') : '';
+  var yoyaku = (t === 'held' || t === 'reserved');
+  var a = document.getElementById('reg-yukisaki-futsuu');
+  var b = document.getElementById('reg-yukisaki-yoyaku');
+  if(a) a.style.display = yoyaku ? 'none' : '';
+  if(b) b.style.display = yoyaku ? '' : 'none';
+}
+
 function renderBunruiList(){
   var dl = document.getElementById('o-bunrui-list');
   if(!dl) return;
@@ -2686,6 +2721,8 @@ function onRecordTypeChange(){
   const colors = { pending: ['#fff','#2b2a26'], held: ['#fef3c7','#78350f'], reserved: ['#dbeafe','#1e3a8a'] };
   sel.style.background = colors[type][0];
   sel.style.color = colors[type][1];
+  /* ★2026-09-10 登録したあとの行き先の案内も、ここで出し分けます */
+  try{ renderYukisakiNotice(); }catch(eY){}
 }
 // ── 📦 梱包の指示（お届け先ごと）★2026-09-05 承認モック：おためし版_梱包の指示_受注A入力画面_2026-09-05.html
 //    ・同梱書類は「入れるものを押す」札。もとは注文ごとに1か所だったが、お届け先ごとへ引っ越した（ひろみさん指示A）
@@ -4045,6 +4082,8 @@ function previewOrder(){
       }
     }
     const recordType = document.getElementById('o-record-type').value;
+    /* ★2026-09-10 確認欄を出すときにも、行き先の案内を合わせます（選び直した直後でもズレないように） */
+    try{ renderYukisakiNotice(); }catch(eY2){}
     const recordTypeLabel = {pending:'通常受注', held:'🗄 取り置き', reserved:'🗓 予約'}[recordType];
     let html = '<div style="font-size:13px;line-height:1.8">';
     html += '<div style="margin-bottom:10px"><strong>お客様（発注元）：</strong>'+client+'　（'+(CUSTOMER_TYPE_LABEL[list[0].customerType]||list[0].customerType)+'）　'+recordTypeLabel+'　'+list.length+'件の届け先へ発送します</div>';
