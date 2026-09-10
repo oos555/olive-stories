@@ -379,7 +379,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-10-05">
+<meta name="oos-version" content="2026-09-10-06">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4233,6 +4233,12 @@ function registerOrder(){
      　倉庫への直接LINEをやめたので、📥の押し忘れ＝倉庫に流れない、になってしまうため。
      　（二重よけは📥と同じ3重のまま。取り置き・予約は pending ではないので流れません）
      ★消さないでください */
+  /* ★2026-09-10 取り置き・予約は【発注前リスト】へ1行。登録したその場で残します */
+  if(recordType==='held' || recordType==='reserved'){
+    list.forEach(function(o){
+      if(typeof yoyakuListAddOne==='function'){ try{ yoyakuListAddOne(o); }catch(eL){} }
+    });
+  }
   if(recordType==='pending'){
     list.forEach(function(o){
       if(typeof yukaImportOne==='function'){
@@ -7953,6 +7959,61 @@ async function notifyWarehouseOne(id, force){
      在庫は受注Ａの登録時に引き済み）。
    ・二重よけは3重：画面の印（yukaImport）／最新読み直し（fetchOrderFresh）／
      GAS側の備考欄マーク【出どころ 注文番号】の照合（status:'dup'）。 */
+/* ══════════════════════════════════════════════════════════════════════
+   🗂 取り置き・予約を【取り置き及び発注前予約リスト（ホテル以外）】へ1行送る
+   ★2026-09-10 ひろみさん指示
+   　「アプリに置いておくだけっていうのはもう恐ろしすぎる。何度も消えてきたし、
+   　　何度も狂ってきたから、そこが一番怖い」
+   　→ 登録したその場で、スプレッドシートにも1行残します（上書きされません）。
+   ・RT（ホテル）は送りません（RT専用のタブで見るため）
+   ・ふだ（転記キー）をもらって、受注Ａ側にも控えます
+   　（これが無いと、あとで発注書へ送ったときに在庫が引けません）
+   ★消さないでください
+   ══════════════════════════════════════════════════════════════════════ */
+async function yoyakuListAddOne(o){
+  try{
+    if(!o) return;
+    if(o.status !== 'held' && o.status !== 'reserved') return;          // 待つものだけ
+    if(o.customerType === 'rt' || o.customerType === 'rtgc') return;    // RTは別タブ
+    if(o.rtmOwned) return;
+    if(o.yoyakuList && o.yoyakuList.at) return;                          // もう送ってある
+    var items = (o.lines||[]).map(function(l){
+      var p = (typeof findProduct==='function' ? findProduct(l.productId) : null) || {};
+      var _u = (typeof lineUnit==='function') ? lineUnit(l) : '本';
+      var qty = String((typeof lineTotal==='function' ? lineTotal(l) : (l.bottles||0))) + (_u!=='本'?_u:'');
+      return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
+    });
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'yoyakuListAdd', order:{
+        key: (o.yukaKey || ''),
+        kind: o.status,                                   // held / reserved → 在庫の列
+        bunrui: (o.bunrui || ''),
+        yotei: (o.status==='held' ? (o.holdUntilDate||'') : (o.expectedDate||'')),
+        touroku: String(o.registeredAt||'').slice(0,10),
+        exp: '',                                          // 賞味期限は分かるときに手で入れます
+        items: items,
+        name: (o.recipientName || o.client || ''),
+        zip: (o.zip || ''), addr: (o.addr || ''), tel: (o.tel || ''),
+        day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''), time: '',
+        sName: (o.senderName || ''), sZip: (o.senderZip || ''),
+        sAddr: (o.senderAddr || ''), sTel: (o.senderTel || ''),
+        docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')>=0; }).join('・') || '入れない') : ''),
+        docHoka:   (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')<0;  }).join('・') || '入れない') : ''),
+        orderer: 'その他',
+        note: String(o.note || '').trim()
+      }})});
+    var d = await res.json();
+    if(d && (d.status==='ok' || d.status==='dup')){
+      o.yoyakuList = { at: new Date().toISOString(), row: d.row || 0 };
+      if(d.key) o.yukaKey = String(d.key);
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+      if(typeof showSyncStatus==='function') showSyncStatus('🗂 取り置き及び発注前予約リストに1行入りました：'+o.num);
+    } else {
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注前リストに入れられませんでした：'+((d&&d.message)||'不明'), true);
+    }
+  }catch(e){ /* ここで止まっても、登録そのものは通っています */ }
+}
+
 async function yukaImportOne(id){
   var o = orders.find(x=>x.id===id); if(!o) return;
   if(o.yukaImport && o.yukaImport.at){

@@ -334,6 +334,64 @@ ok('⑨備考欄の【いちばん先頭】に【分類】が入る',
   bodyOf(GAS, 'oosYukaImportOrder').indexOf("((String(order.bunrui||'').trim() ? '【'+String(order.bunrui).trim()+'】 ' : '')") >= 0,
   '（先頭から動かさないでください）');
 
+/* ── ⑩ 取り置き及び発注前予約リスト（ホテル以外）── 2026-09-10 ひろみさん承認
+   承認モック：mocks/mock_発注前予約リスト_2026-09-10.html 第5版
+   ・置き場所は【倉庫＆OOS発送連絡スプシ】（倉庫も見える／書けるのは本部だけ）
+   ・左5列を足して、6列目から先は【発注書とまったく同じ並び】
+   ・上書きしません。1件ずつ追記します（ひろみさん：アプリだけに置くのが怖い）
+   ★並びを変えるときは発注書と一緒に。 */
+ok('⑩タブの名前が決まったとおり',
+  GAS.indexOf("var OOS_YL_SHEET = '🗂 取り置き及び発注前予約リスト（ホテル以外）';") >= 0);
+ok('⑩A列の言葉は2つだけ',
+  GAS.indexOf("var OOS_YL_STAY  = '🗓 まだ出しません';") >= 0 &&
+  GAS.indexOf("var OOS_YL_GO    = '📦 発注書へ送って出荷を依頼する';") >= 0);
+ok('⑩並びが発注書と同じ（6列目から・ずれは+4）',
+  /OOS_YL = { state:1, bunrui:2, zaiko:3, yotei:4, touroku:5,/.test(GAS) &&
+  /name:15, zip:16, addr:17, tel:18,/.test(GAS) &&
+  /note:25,/.test(GAS) && /doc1:26, doc2:27,/.test(GAS),
+  '（発注書の2〜23列目と同じ順。ずらさないでください）');
+ok('⑩倉庫は見るだけ（本部だけが書ける）',
+  bodyOf(GAS, 'oosYoyakuListSheet_').indexOf("setDescription('本部だけが書けます（倉庫は見るだけ）')") >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListSheet_').indexOf('OOS_HONBU_MAIL') >= 0);
+ok('⑩左2列と上2行を固定する',
+  bodyOf(GAS, 'oosYoyakuListSheet_').indexOf('sh.setFrozenColumns(2)') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListSheet_').indexOf('sh.setFrozenRows(2)') >= 0);
+ok('⑩追記だけ（上書きしない）',
+  bodyOf(GAS, 'oosYoyakuListAdd').indexOf('clearContent') < 0 &&
+  bodyOf(GAS, 'oosYoyakuListAdd').indexOf('var newRow = Math.max(last, 2) + 1;') >= 0,
+  '（上書きにすると、ひろみさんがいちばん心配されている消失が起きます）');
+ok('⑩同じふだの行は二重に入らない',
+  bodyOf(GAS, 'oosYoyakuListAdd').indexOf("return { status:'dup', row:i+3 }") >= 0);
+ok('⑩分類ごとの合計を1行目に出す',
+  GAS.indexOf('function oosYoyakuListSummary_') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListSummary_').indexOf('📊 分類ごとの合計（自動）：') >= 0);
+ok('⑩送った行は合計に数えない',
+  bodyOf(GAS, 'oosYoyakuListSummary_').indexOf("indexOf('送りました') >= 0) return;") >= 0);
+ok('⑩1回目は抜けを教えて止める／2回目は送る',
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('⚠️ 足りないところがあります') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('if(lack.length && !kakunin)') >= 0,
+  '（スプレッドシートではダイアログを出せないので、2回選ぶ形にしました）');
+ok('⑩送ると発注書のA列がいきなり🔵になる',
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('ysh.getRange(imp.row, 1).setValue(OOS_YUKA_BTN_GO)') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('oosYukaShipGo_(ysh, imp.row)') >= 0);
+ok('⑩在庫が足りないときは送らず、発注書の行も消す',
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('在庫が足りないため、まだ送れません') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('ysh.deleteRow(imp.row)') >= 0);
+ok('⑩受注Ａ側も通常受注に変える（売上に出すため）',
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf("oosSetOrderStatusByKey_(String(d[OOS_YL.key-1]||''), 'pending')") >= 0);
+ok('⑩送った行はもう選べない（二重に送れない）',
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('cell.setDataValidation(null)') >= 0 &&
+  bodyOf(GAS, 'oosYoyakuListGo_').indexOf('この行はもう送ってあります') >= 0);
+ok('⑩受注ＡからRTは送らない（RTは別タブ）',
+  bodyOf(IDX, 'yoyakuListAddOne').indexOf("o.customerType === 'rt' || o.customerType === 'rtgc'") >= 0);
+ok('⑩取り置き・予約を登録したら、その場で送る',
+  IDX.indexOf("if(recordType==='held' || recordType==='reserved'){") >= 0 &&
+  IDX.indexOf('yoyakuListAddOne(o)') >= 0);
+ok('⑩入れた印を受注データにも控える（二重に入らない）',
+  GAS.indexOf('yoyakuList: o.yoyakuList||null') >= 0);
+ok('⑩通しで確かめる窓口がある（oosYoyakuListRoundTrip）',
+  GAS.indexOf('function oosYoyakuListRoundTrip') >= 0 &&
+  GAS.indexOf("action === 'oosYoyakuListRoundTrip'") >= 0);
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10 ひろみさん指示）';
 if (fail) {
