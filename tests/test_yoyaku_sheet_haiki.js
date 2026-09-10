@@ -94,6 +94,41 @@ has('⑧ RT専用タブの名前は変わっていない', "var OOS_RTC_SHEET = 
 ok('⑧ RT専用タブをしまう・消すコードを書いていない',
    GAS.indexOf('oosRtcSheetDelete') < 0 && GAS.indexOf('oosRtcSheetRetire') < 0);
 
+/* ── ⑨ 「（使いません）」で言葉がそろっているか（2026-09-10 ひろみさん指示） ── */
+/* ひろみさん：「出荷依頼書のタブのところを、今は使ってないとか消す予定とか、
+   　　　　　　何か統一したその言葉をつけておいてもらって、
+   　　　　　　できるだけシンプルに分かりやすくしていってもらいたい」
+   → 統一の言葉は【（使いません）】。ほかの言い方を混ぜないでください。 */
+const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/index.html', 'utf8');
+function hasIdx(name, needle){ ok(name, IDX.indexOf(needle) >= 0, '（' + needle.slice(0,40) + ' が無い）'); }
+hasIdx('⑨出荷依頼書タブに印',        '（使いません）出荷依頼書');
+hasIdx('⑨バサラ半自動取込タブに印',  '（使いません）📧 バサラ半自動化・取り込み');
+hasIdx('⑨出荷依頼書のパネルに理由',  '🗃 このタブは使いません（2026-09-10）');
+hasIdx('⑨いまの行き先も書いてある',  '発注書』タブのA列を【🔵 発送してください】にしたとき');
+hasIdx('⑨カードの出荷依頼書ボタンもグレー', '📄 （使いません）出荷依頼書を確認・編集する');
+hasIdx('⑨バサラの受注確定メールは押せない', '✉️ （使いません）バサラに受注確定のメールを送る');
+ok('⑨バサラの確定メールは本当に押せない（disabled）',
+   IDX.indexOf('onclick=\'ackSend(') < 0);
+hasIdx('⑨見出しは新しい流れの言い方',  '発注書に入れる（倉庫へ行くのは、発注書のA列を🔵にしたとき）');
+ok('⑨古い見出し「倉庫へ出荷依頼書を送る」は残っていない', IDX.indexOf("rk-l\">倉庫へ出荷依頼書を送る") < 0);
+
+/* ── ⑩ 取り置き・予約の説明書がスプシにある ───────────────── */
+/* ひろみさん：「新しい説明書をちょっとずつスプレッドシートの方に残しながら、
+   　　　　　　前に作っていたもう古くなっちゃった説明書をどんどん消していかないと、
+   　　　　　　結局どうすればいいのか、みんな分かんなくなっちゃう」 */
+has('⑩説明書を作る窓口がある',   'function oosYoyakuManualBuild(');
+has('⑩タブ名が決まっている',     "var OOS_YM_SHEET = '📖 取り置き・予約のやり方';");
+has('⑩外からも押せる',           "if(action === 'oosYoyakuManualBuild')");
+const man = bodyOf(GAS, 'oosYoyakuManualBuild');
+ok('⑩本部管理専用ゆかスプシに作る',   man.indexOf('oosKanriFile_()') >= 0);
+ok('⑩リンクも一緒に入れる',           man.indexOf('HYPERLINK') >= 0);
+ok('⑩新しいリストへのリンクがある',   man.indexOf('OOS_YL_SHEET') >= 0);
+ok('⑩RT専用タブへのリンクがある',     man.indexOf('OOS_RTC_SHEET') >= 0);
+ok('⑩「2回選ぶ」の説明が入っている',  man.indexOf('2回選ぶ') >= 0);
+ok('⑩倉庫へ行くのは1か所だけと書く',  man.indexOf('この1か所だけです') >= 0);
+ok('⑩読むだけにする（保護）',         man.indexOf('oosSoukoProtect_') >= 0);
+ok('⑩何度でも作り直せる（先にclear）', man.indexOf('sh.clear()') >= 0);
+
 console.log('===== 古い「取り置き・予約シート」はもう使わない（2026-09-10）=====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if (fails.length) { console.log('--- FAIL の中身 ---'); fails.forEach(function (f) { console.log(f); }); }
