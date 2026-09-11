@@ -530,6 +530,59 @@ function hacchuushoGyou(payload){
     });
   })();
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑬ 発送区分は3つ／希望到着日は自由／状態は3つ
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん指示。
+     　「通常（3日以内に発送）、急ぎ（明日発送希望）、日時指定 だけにして」
+     　「希望到着日（お届け日指定）は、自由に選べるようにして制限外して」
+     　「状態もシンプルに。正規、旧ロット、不良品だけで」
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    /* ── 発送区分 ── */
+    const lbox = { console }; lbox.globalThis = lbox;
+    const lctx = vm.createContext(lbox);
+    vm.runInContext(H.cutVar(idx, 'LEAD_LABEL'), lctx);
+    vm.runInContext(H.cutVar(idx, 'LEAD_ERABERU'), lctx);
+    vm.runInContext(H.cut(idx, 'leadOptionsHtml'), lctx);
+    eq('⑬-1 えらべる発送区分は3つ', lbox.LEAD_ERABERU.length, 3);
+    eq('⑬-2 えらべる中身', lbox.LEAD_ERABERU.join('／'), 'normal／urgent／scheduled');
+    const lh = lbox.leadOptionsHtml();
+    ok('⑬-3 「通常（3日以内に発送）」がある', lh.indexOf('通常（3日以内に発送）') >= 0);
+    ok('⑬-4 「急ぎ（明日発送希望）」がある', lh.indexOf('急ぎ（明日発送希望）') >= 0);
+    ok('⑬-5 「日時指定」がある',             lh.indexOf('日時指定') >= 0);
+    ok('⑬-6 「不良在庫出荷」を出していない', lh.indexOf('不良在庫出荷') < 0);
+    ok('⑬-7 「特別注意」を出していない',     lh.indexOf('特別注意') < 0);
+    /* 本番に7件ある「特別注意」の注文を開いても、値が消えないか */
+    const lh2 = lbox.leadOptionsHtml('caution');
+    ok('⑬-8 古い注文の「特別注意」は、その注文では見せる', lh2.indexOf('特別注意') >= 0);
+    ok('⑬-9 そのとき選ばれたままになっている', /value="caution"\s+selected/.test(lh2));
+    ok('⑬-10 古い注文を開くとき、えらび一覧を作り直してから入れている',
+       /leadSel\.innerHTML\s*=\s*leadOptionsHtml\(\s*o\.leadType\s*\)/.test(idx));
+
+    /* ── 希望到着日：制限を外したか ── */
+    const dmin = H.cut(idx, 'applyDeliveryMin');
+    ok('⑬-11 カレンダーの下限（min）を付けていない', !/input\.min\s*=/.test(dmin));
+    ok('⑬-12 min を外している',                       /removeAttribute\(\s*'min'\s*\)/.test(dmin));
+    ok('⑬-13 書いた日を黙って消していない',           !/input\.value\s*=\s*''/.test(dmin));
+    ok('⑬-14 最短お届け日は案内として出している',      /最短お届け日/.test(dmin));
+
+    /* ── 状態：3つか ── */
+    const cond = H.cut(idx, 'conditionOptionsHtml');
+    ok('⑬-15 状態は「正規」',   /'正規'/.test(cond));
+    ok('⑬-16 状態は「旧ロット」', /旧ロット（残/.test(cond));
+    ok('⑬-17 状態は「不良品」',  /不良品（残/.test(cond));
+    ok('⑬-18 程度（DEFECT_LEVELS）で分けていない', !/DEFECT_LEVELS/.test(cond));
+    ok('⑬-19 現ロット／旧ロットで不良を分けていない', !/'cur','現ロット'/.test(cond));
+    const lab = H.cut(idx, 'condLabelOfLine');
+    ok('⑬-20 名前も「不良品」ひとつ', /'不良品'/.test(lab) && !/不良・/.test(lab));
+    ok('⑬-21 倉庫Ｄの札も「不良品」ひとつ',
+       /不良品<\/span>/.test(H.cut(pickupSrc, 'condBadgeHtml')));
+    /* 分けないと決めたので、「出どころが分からない」の印はもう付けない */
+    ok('⑬-22 不良の出どころ不明の印を、もう付けていない',
+       !/o\.defectSrcUnknown\s*=\s*true/.test(H.cut(idx, 'deductStockForOrder')));
+  })();
+
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();

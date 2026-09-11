@@ -82,7 +82,12 @@ b=fresh(); o=ord({lines:[{productId:2,bottles:3,boxes:0,boxQty:1,condition:'defe
 b.orders.push(o);
 sh=b.orderShortages(o);
 eq('④ 不良・軽（現）2本しかない → たりない 1', sh[0].short, 1);
-eq('④ 名前に程度とロットが出る', sh[0].label, '不良・軽（現ロット）');
+/* ★2026-09-12 ひろみさん「不良品は、もう状態は分けない。そこも統一して」。
+   足りないときの名前も「不良品」ひとつにしました。
+   ★「不良・軽（現ロット）」に戻さないでください。
+   　（在庫の引き算そのものは今までどおり、程度が入っていればその指定から引きます。
+   　　上の「たりない 1」がそれを見ています） */
+eq('④ 名前は「不良品」ひとつ', sh[0].label, '不良品');
 b=fresh(); o=ord({lines:[{productId:2,bottles:1,boxes:0,boxQty:1,condition:'defect',defectLevel:'lv3',defectLotKind:'old'}]});
 b.orders.push(o);
 eq('④ 不良・重（旧）は0本 → 在庫待ち', b.isZaikoMachi(o), true);

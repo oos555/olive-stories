@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-05">
+<meta name="oos-version" content="2026-09-12-06">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2189,11 +2189,22 @@ function applyDeliveryMin(card){
   if(!card) return;
   var input = card.querySelector('[data-role=leadDate]');
   if(!input) return;
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん：「希望到着日（お届け日指定）は、自由に選べるように
+     　して制限外して。それがあるとまた書けないとか、選べないとかになるから
+     　もう修正ばかりめんどくさい」
+
+     外した2つ（★戻さないでください）
+     　① input.min … カレンダーで最短より前の日を【選べなくして】いました
+     　② input.value を空にする … 一度書いた日を【黙って消して】いました
+     　　　↑これが「書けない・選べない」の正体でした
+
+     最短お届け日は【案内として出すだけ】にします。止めません。
+     ══════════════════════════════════════════════════════════════════ */
   var min = earliestDeliveryDate();
-  input.min = fmtISO(min);
-  if(input.value && input.value < input.min){ input.value = ''; }
+  input.removeAttribute('min');          /* ★min を付けないでください（選べなくなります） */
   var hint = card.querySelector('[data-role=leadDateHint]');
-  if(hint) hint.textContent = '最短お届け日：'+hFmtMD(min)+'（発注日から6日目。発注日を1日目として数えます。長期休暇（夏休み・年末年始）はとばします）。これより前の日も入れられますが、確認が出ます。';
+  if(hint) hint.textContent = 'ご参考：倉庫の最短お届け日は '+hFmtMD(min)+' です（発注日から6日目。長期休暇はとばします）。どの日でも入れられます。';
 }
 function refreshAllDeliveryMins(){
   document.querySelectorAll('.recipient-card').forEach(function(card){
@@ -3343,13 +3354,13 @@ function addRecipient(){
     '<div class="g2">'+
       '<div class="fg">'+
         '<label>発送区分</label>'+
-        '<select data-role="lead" onchange="toggleCardLeadDate(\''+id+'\')">'+
-          '<option value="normal">通常（3日以内に発送）</option>'+
-          '<option value="urgent">🚨 急ぎ（明日までに発送）</option>'+
-          '<option value="defect">🔵 不良在庫出荷</option>'+
-          '<option value="caution">🟡 特別注意</option>'+
-          '<option value="scheduled">🗓 日程指定</option>'+
-        '</select>'+
+        /* ★2026-09-12 ひろみさん：「通常（3日以内に発送）、急ぎ（明日発送希望）、日時指定
+           　だけにして」
+           外したもの：🔵不良在庫出荷（本番の全注文79件で0件）／🟡特別注意（7件あり）
+           ★外した2つも、名前だけは leadOptionsHtml に残してあります。
+           　古い注文を開いたときに、その注文の値が勝手に変わらないようにするためです。
+           ★えらべる一覧に戻さないでください。見張り：tests/test_ikisaki.js の ⑬ */
+        '<select data-role="lead" onchange="toggleCardLeadDate(\''+id+'\')">'+ leadOptionsHtml() +'</select>'+
       '</div>'+
       '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日（お届け日指定）</label><input type="date" data-role="leadDate"><div data-role="leadDateHint" style="font-size:12px;color:#185fa5;margin-top:4px;line-height:1.5"></div></div>'+
     '</div>'+
@@ -3634,6 +3645,35 @@ function condAvail(pid){
    ★この関数と deductFromDefects の「絞り込み」を外してはいけない。
    ★起動時の自己点検（oosZaikoSelfCheck）がここを見張っている。
    ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   🚚 発送区分　★2026-09-12 ひろみさん指示で3つにしました
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「通常（3日以内に発送）、急ぎ（明日発送希望）、日時指定 だけにして」
+
+   ★えらべるのは LEAD_ERABERU の3つだけです。
+   ★LEAD_LABEL からは消さないでください。
+     🟡特別注意は【本番に7件あります】（2026-09-12に数えました）。
+     名前を消すと、その7件を開いたときに画面がおかしくなります。
+   ★🔵不良在庫出荷 は本番に0件でしたが、同じ理由で名前は残します。
+   見張り：tests/test_ikisaki.js の ⑬
+   ══════════════════════════════════════════════════════════════════════ */
+var LEAD_LABEL = {
+  normal:    '通常（3日以内に発送）',
+  urgent:    '🚨 急ぎ（明日発送希望）',
+  scheduled: '🗓 日時指定',
+  defect:    '🔵 不良在庫出荷（いまは使いません）',
+  caution:   '🟡 特別注意（いまは使いません）'
+};
+var LEAD_ERABERU = ['normal', 'urgent', 'scheduled'];
+function leadOptionsHtml(selected){
+  var keys = LEAD_ERABERU.slice();
+  /* 古い注文に、いまはえらべない区分が入っていたら、その1つだけ足して見せる（勝手に変えない） */
+  if(selected && keys.indexOf(selected) < 0 && LEAD_LABEL[selected]) keys = keys.concat([selected]);
+  return keys.map(function(k){
+    return '<option value="'+k+'"'+(k===selected?' selected':'')+'>'+LEAD_LABEL[k]+'</option>';
+  }).join('');
+}
+
 var DEFECT_LEVELS = [ {lv:'lv1', label:'軽'}, {lv:'lv2', label:'中'}, {lv:'lv3', label:'重'} ];
 
 /* 不良を「程度 × 現ロット/旧ロット」の6つに分けて残り本数を出す。
@@ -3671,14 +3711,15 @@ function condValueOfLine(l){
 /* ★2026-08-17 画面と出荷依頼書に出す状態の名前。
    「不良」だけだと倉庫さんがどの箱から取るか分からず、結局数字と合わなくなるので、
    必ず「不良・軽（現ロット）」まで書く。 */
+/* ★2026-09-12 ひろみさん「不良品は、もう状態は分けない」。
+   程度（軽・中・重）と 現/旧ロット を、書かないようにしました。
+   古い注文（程度が入っているもの）も、まとめて「不良品」と出します。
+   ★「不良・軽（現ロット）」の書き方に戻さないでください。 */
 function condLabelOfLine(l){
-  var c = (l && l.condition) || 'normal';
+  var c = String((l && l.condition) || 'normal');
   if(c==='old') return '旧ロット';
-  if(c!=='defect') return '正規';
-  var lv = { lv1:'軽', lv2:'中', lv3:'重' }[l.defectLevel||''] || '';
-  var lk = (l.defectLotKind==='old') ? '旧ロット' : (l.defectLotKind==='cur' ? '現ロット' : '');
-  if(!lv || !lk) return '不良（程度が未指定）';
-  return '不良・'+lv+'（'+lk+'）';
+  if(c.indexOf('defect')===0) return '不良品';
+  return '正規';
 }
 function condRemainFor(pid, val){
   if(val==='old') return condAvail(pid).old;
@@ -3786,22 +3827,34 @@ function zaikoAlertHtml(o){
     +   '🗓 予約リストにも同じ注文が出ます。<b>二重ではありません。同じ1件です。</b></div>'
     + '</div>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   📦 商品の状態　★2026-09-12 ひろみさん指示で3つにしました
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「状態もシンプルに。正規、旧ロット、不良品だけで。
+   　　　　　　つまり、不良品は、もう状態は分けない。そこも統一して。
+   　　　　　　倉庫スプシもわけてたけど、もう不良品は不良品一つでOK」
+
+   それまでは【不良 ＝ 程度（軽・中・重）× 現ロット/旧ロット の6つ】に分かれていて、
+   状態のえらび一覧が8つありました（2026-08-17の決めごと）。
+   2026-09-12 にひろみさんが【1つにまとめる】と決めました。上の決めごとを差し替えます。
+
+   ★えらべるのは 正規／旧ロット／不良品 の3つだけです。
+   ★不良品は、残っている不良在庫から【古い順に】引きます。
+     程度や現/旧はえらびません。分けないと決めたからです。
+   ★「不良・軽（現ロット）」のような6分けに戻さないでください。
+   ★不良在庫データそのもの（不良品の登録）には、いままでどおり程度が入ります。
+     貼り直し（relabel）・廃棄（discard）の見分けに使っているので、消していません。
+   見張り：tests/test_ikisaki.js の ⑬
+   ══════════════════════════════════════════════════════════════════════ */
 function conditionOptionsHtml(pid, selected){
   var a = condAvail(pid);
-  var b = defectBuckets(pid);
   var sel = selected||'normal';
+  /* 古い注文に「不良・軽（現ロット）」のような値が入っていたら、まとめて「不良品」として見せる */
+  if(String(sel).indexOf('defect') === 0) sel = 'defect';
   function opt(val,label,dis){ return '<option value="'+val+'"'+(sel===val?' selected':'')+(dis?' disabled':'')+'>'+label+'</option>'; }
-  var html = opt('normal','正規',false)
-           + opt('old','旧ロット（残'+a.old+'）', a.old<=0);
-  [['cur','現ロット'],['old','旧ロット']].forEach(function(k){
-    DEFECT_LEVELS.forEach(function(d){
-      var have = b[d.lv+'|'+k[0]] || 0;
-      html += opt('defect|'+d.lv+'|'+k[0], '不良・'+d.label+'（'+k[1]+'）（残'+have+'）', have<=0);
-    });
-  });
-  // 程度が入っていない古い注文を開いたときだけ、その値を残すための選択肢を足す（勝手に正規へ変えない）
-  if(sel==='defect') html += opt('defect','不良（程度が未指定・古い注文）', false);
-  return html;
+  return opt('normal','正規',false)
+       + opt('old',   '旧ロット（残'+a.old+'）',  a.old<=0)
+       + opt('defect','不良品（残'+a.defect+'）', a.defect<=0);
 }
 function refreshLineCondition(row){
   if(!row) return;
@@ -3810,7 +3863,10 @@ function refreshLineCondition(row){
   if(!prodSel || !condSel) return;
   var pid = prodSel.value;
   var cur = condSel.value || 'normal';
-  /* ★2026-08-17 残り0本の選択肢は選べないので、正規に戻す（不良は程度×現/旧ごとに見る） */
+  /* ★2026-09-12 不良は1つにまとめたので、古い「defect|lv1|cur」のような値も
+     「defect」として扱います。★6分けに戻さないでください。 */
+  if(String(cur).indexOf('defect') === 0) cur = 'defect';
+  /* ★2026-08-17 残り0本の選択肢は選べないので、正規に戻す */
   if(condRemainFor(pid, cur) <= 0) cur = 'normal';
   condSel.innerHTML = conditionOptionsHtml(pid, cur);
   condSel.value = cur;
@@ -4237,7 +4293,9 @@ function nextOrderNum(offset, ctype, ymdOverride){
 }
 function generateOrderId(){ return 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
 
-const LEAD_LABEL = {normal:'通常（3日以内）', urgent:'🚨急ぎ（明日まで）', defect:'🔵不良在庫出荷', caution:'🟡特別注意', scheduled:'🗓 日程指定'};
+/* ★2026-09-12 ここにあった LEAD_LABEL は【どこからも呼ばれていない残り】でした。
+   発送区分の名前は、えらび一覧を作るところ（上のほうの LEAD_LABEL）に1つだけにしました。
+   2つあると、片方だけ直して名前がズレます。★ここに書き戻さないでください。 */
 
 // ── 発送区分の期限日表示・期限超過チェック ────────────────────────────
 function computeDueDateISO(o){
@@ -7545,11 +7603,16 @@ function deductStockForOrder(o){
         /* ★2026-08-17 選んだ「程度×現/旧」からだけ減らす。
            古い注文で程度が入っていない場合だけ、今までどおり（古い順）で減らし、
            あとで人が気づけるように印を付ける（黙って進めない）。 */
+        /* ★2026-09-12 ひろみさん「もう不良品は不良品一つでOK」。
+           不良品は【古い順に】引きます。程度や現/旧はえらびません。
+           ・古い注文に程度が入っていたら、そのときの指定をそのまま使います（値を勝手に変えない）。
+           ・程度が無くても【もう印は付けません】。分けないと決めたので、
+             「出どころが分からない」という注意はもう当てはまりません。
+           ★defectSrcUnknown を戻さないでください（全部の注文に注意が出てしまいます）。 */
         if(l.defectLevel && l.defectLotKind){
           deductFromDefects(prod.id, t.qty, log, l.defectLevel, l.defectLotKind);
         } else {
           deductFromDefects(prod.id, t.qty, log);
-          o.defectSrcUnknown = true;
         }
       }
       else deductFromLots(prod.id, cond==='old' ? 'old' : 'new', t.qty, log);
@@ -7961,7 +8024,15 @@ function reopenOrderForEdit(id){
   rtSetVal(card,'tel', o.tel);
   if(typeof pkgFillCard==='function') pkgFillCard(card, o);   /* ★2026-09-05 梱包の指示（箱・包装・リボン・熨斗・書類）を戻す */
   var leadSel = card.querySelector('[data-role=lead]');
-  if(leadSel && o.leadType){ leadSel.value=o.leadType; if(typeof toggleCardLeadDate==='function') toggleCardLeadDate(card.id); }
+  /* ★2026-09-12 いまはえらべない発送区分（🟡特別注意など）が入っている古い注文は、
+     その1つだけ一覧に足してから入れます。足さないと .value が効かず、
+     【勝手に「通常」に変わって保存されます】（本番に7件あります）。
+     ★この作りを消さないでください。 */
+  if(leadSel && o.leadType){
+    if(typeof leadOptionsHtml === 'function') leadSel.innerHTML = leadOptionsHtml(o.leadType);
+    leadSel.value = o.leadType;
+    if(typeof toggleCardLeadDate==='function') toggleCardLeadDate(card.id);
+  }
   if(o.leadDate) rtSetVal(card,'leadDate', o.leadDate);
   var timeSel = card.querySelector('[data-role=time]');
   if(timeSel && o.delivTime){
