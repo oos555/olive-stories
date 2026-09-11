@@ -74,19 +74,40 @@
       else                        cur.avail += q;          // 'new' ほか＝現ロット
     });
 
+    /* ══════════════════════════════════════════════════════════════════
+       不良品は【分けません】　★2026-09-12 ひろみさん決定（承認済みモック）
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん：「登録側は不良品と廃棄は欲しい」
+       　　　　　　「貼り直しはもう良品とみとめよう。倉庫がそこまで細かく管理できない」
+
+       それまでは 軽（lv1）・中（lv2）・重（lv3）の3つに分けて数えていました。
+       2026-09-12 に【不良品ひとつ】にまとめました。数は1本も変わりません。
+
+       ★defLight・defMid・defHeavy という名前は【残してあります】。
+       　古い画面やGASがまだ呼んでいるので、消すとその画面が空になります。
+       　中身は「ぜんぶ defectQty と同じ数」です（分けていません）。
+       ★lv1・lv3 で振り分ける形に戻さないでください。
+       見張り：tests/test_ikisaki.js の ⑭
+       ══════════════════════════════════════════════════════════════════ */
     defects.forEach(function(d){
       if(!d || d.pid != pid || !isActiveDefect(d)) return;
       var dq = Math.max(0, num(d.qty) - num(d.shippedQty));
       var t = (d.lotKind==='old') ? old : cur;
-      if(d.level==='lv1')      t.defLight += dq;
-      else if(d.level==='lv3') t.defHeavy += dq;
-      else                     t.defMid   += dq;
+      t.defectQty += dq;                       /* 程度で分けず、ぜんぶ「不良品」 */
     });
 
     holds.forEach(function(h){ if(h && h.pid == pid) cur.autoHold += num(h.qty); });  // 受注Aの取り置きは現ロットから
 
     [cur, old].forEach(function(t){
-      t.defectQty = t.defLight + t.defMid + t.defHeavy;
+      /* ★2026-09-12 不良品はもう分けないので、defectQty が本物の数です。
+         古い名前（軽・中・重）も残しますが、【足しても正しい数になる】ように
+         　defLight ＝ 不良品ぜんぶ ／ defMid ＝ 0 ／ defHeavy ＝ 0
+         と入れます。こうしておくと、
+         　・まだ3列で見ている画面 → 足すと正しい数になる
+         　・不良品を隠してしまうこともない
+         ★3つとも defectQty を入れないでください（足すと3倍になります）。
+         ★lv1・lv3 で振り分ける形にも戻さないでください。 */
+      t.defLight = t.defectQty; t.defMid = 0; t.defHeavy = 0;
       t.holdQty   = t.autoHold + t.manualHold;
       t.stock     = t.avail + t.defectQty + t.manualHold;   // 実在庫
       t.sellable  = Math.max(0, t.avail - t.autoHold);      // 販売可能
@@ -164,11 +185,15 @@
     }
     return numbers(p.id, data).old.avail;
   }
-  // その商品の「不良（程度 × 現/旧ロット）」（セットは中身の少ないほうに合わせる）
+  /* その商品の「不良品（現/旧ロット）」（セットは中身の少ないほうに合わせる）
+     ★2026-09-12 不良品は分けなくなったので、程度（lv）は【見ません】。
+     　どの程度を聞かれても、その ロット の不良品ぜんぶの数を返します。
+     　引数 lv は、古い呼び出しがそのまま動くように残してあります。
+     ★lv で振り分ける形に戻さないでください。 */
   function defectGoodFor(p, lv, lk, data, products){
     function one(id){
       var n = numbers(id, data), t = (lk === 'old') ? n.old : n.cur;
-      return (lv === 'lv1') ? t.defLight : (lv === 'lv3') ? t.defHeavy : t.defMid;
+      return t.defectQty;
     }
     if(p.isSet && p.components && p.components.length){
       return Math.min.apply(null, p.components.map(function(c){

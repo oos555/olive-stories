@@ -583,6 +583,83 @@ function hacchuushoGyou(payload){
        !/o\.defectSrcUnknown\s*=\s*true/.test(H.cut(idx, 'deductStockForOrder')));
   })();
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑭ 不良品はひとつ（統合マスタＮの在庫表・在庫の親）
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 承認済みモック「mock_不良品をひとつにする」のとおり。
+     ひろみさん：「登録側は不良品と廃棄は欲しい」
+     　　　　　　「貼り直しはもう良品とみとめよう。倉庫がそこまで細かく管理できない」
+     ★軽・中・重の3つに戻さないでください。
+     ★数は1本も変わりません（3つを足して1つにするだけ）。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    /* ★在庫の親は window が要るので、砂場で動かします（require では動きません） */
+    const zctx = H.makeSandbox({});
+    H.runZaiko(zctx.ctx);
+    const Z = zctx.box.OOS_ZAIKO;
+    const data = {
+      lots: [ {pid:1, status:'new', stock:120}, {pid:1, status:'old', stock:20} ],
+      defects: [
+        {pid:1, level:'lv1', qty:2, shippedQty:0, status:'pending', reviewed:true, lotKind:'cur'},
+        {pid:1, level:'lv2', qty:3, shippedQty:0, status:'pending', reviewed:true, lotKind:'cur'},
+        {pid:1, level:'lv3', qty:1, shippedQty:0, status:'pending', reviewed:true, lotKind:'cur'},
+        {pid:1, level:'lv2', qty:4, shippedQty:0, status:'pending', reviewed:true, lotKind:'old'},
+        /* 貼り直しと廃棄は【良品】あつかい＝不良に数えない */
+        {pid:1, level:'relabel', qty:9, shippedQty:0, status:'pending', reviewed:true, lotKind:'cur'},
+        {pid:1, level:'discard', qty:7, shippedQty:0, status:'pending', reviewed:true, lotKind:'cur'}
+      ],
+      holds: []
+    };
+    const n = Z.numbers(1, data);
+    eq('⑭-1 現ロットの不良品は 2+3+1 ＝ 6', n.cur.defectQty, 6);
+    eq('⑭-2 旧ロットの不良品は 4',           n.old.defectQty, 4);
+    eq('⑭-3 合わせて 10',                    n.defectQty, 10);
+    /* 古い名前を足しても、二重に数えない */
+    eq('⑭-4 古い名前を足しても同じ数（現）', n.cur.defLight + n.cur.defMid + n.cur.defHeavy, 6);
+    eq('⑭-5 古い名前を足しても同じ数（旧）', n.old.defLight + n.old.defMid + n.old.defHeavy, 4);
+    /* 貼り直し・廃棄は良品のまま（不良に入れない） */
+    eq('⑭-6 貼り直しは不良に数えない（9本足しても10のまま）', n.defectQty, 10);
+    eq('⑭-7 棚の良品は120のまま', n.cur.avail, 120);
+    /* 程度をどう聞かれても、その ロット の不良品ぜんぶを見る
+       （shortages ＝「在庫がたりるか」を見る本物の窓口から確かめます） */
+    const P = [{id:1, sku:'X', name:'ためし商品'}];
+    function tarinai(lv, lk, hoshii){
+      const ords = [{ id:'o1', status:'ordered',
+        lines:[{ productId:1, bottles:hoshii, boxes:0, boxQty:1,
+                 condition:'defect', defectLevel:lv, defectLotKind:lk }] }];
+      const r = Z.shortages(ords[0], data, P) || [];
+      return r.length ? r[0].short : 0;
+    }
+    eq('⑭-8 不良品6本に対して7本ほしい → たりない1（軽と聞かれても）', tarinai('lv1','cur',7), 1);
+    eq('⑭-9 重と聞かれても同じ（6本あるので6本はたりる）',            tarinai('lv3','cur',6), 0);
+    eq('⑭-10 旧ロットは4本。5本ほしい → たりない1',                  tarinai('lv2','old',5), 1);
+    /* 実在庫は 棚の良品＋不良品＋手入力の取置 */
+    eq('⑭-11 現ロットの実在庫は 120+6 ＝ 126', n.cur.stock, 126);
+
+    /* 画面の作り */
+    const mst = H.read('master.html');
+    ok('⑭-12 在庫表の不良は1列（見出しが「不良品」）', /不良品 <span class="help-ic"/.test(mst));
+    ok('⑭-13 見出しに「軽」「中」「重」を出していない',
+       !/<th style="text-align:right">軽<\/th>/.test(mst));
+    ok('⑭-14 不良のマスは1つ（c-d2・c-d3 を使っていない）',
+       mst.indexOf('class="c-d2"') < 0 && mst.indexOf('class="c-d3"') < 0);
+    ok('⑭-15 マスに出すのは不良品ぜんぶの数', /editNumCell\(p\.id,kind,'lv1',side\.defectQty/.test(mst));
+    ok('⑭-16 廃棄のえらびは「不良品から」1つ', /label:'不良品から'/.test(mst));
+    ok('⑭-17 廃棄から戻すのは「不良品に戻す」1つ', /label:'不良品に戻す'/.test(mst));
+    ok('⑭-18 「不良・軽から」を残していない', mst.indexOf("label:'不良・軽から'") < 0);
+    ok('⑭-19 数を動かすえらび一覧は3つ', /var order = \['new','old','lv1'\];/.test(mst));
+    ok('⑭-20 登録のえらびは「不良品」と「廃棄」', /lv1:.*label:'不良品'/.test(mst) && /discard:.*label:'廃棄'/.test(mst));
+    ok('⑭-21 貼り直しは「良品」と書いてある', /relabel:.*label:'貼り直し（良品）'/.test(mst));
+    ok('⑭-22 「緑・レベル1」を残していない', mst.indexOf('緑・レベル1') < 0);
+    const stk = H.read('stock.html');
+    ok('⑭-23 stock.html も同じ（緑・レベル1を残していない）', stk.indexOf('緑・レベル1') < 0);
+    /* 在庫の親：振り分けに戻っていないか */
+    const zsrc = H.read('oos-zaiko.js');
+    ok('⑭-24 在庫の親が程度で振り分けていない', !/if\(d\.level==='lv1'\)\s+t\.defLight/.test(zsrc));
+    ok('⑭-25 貼り直し・廃棄は不良に数えない判定が残っている',
+       /d\.level==='relabel' \|\| d\.level==='discard'/.test(zsrc));
+  })();
+
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();
