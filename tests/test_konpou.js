@@ -129,7 +129,13 @@ function box(){
   const gas = require('fs').readFileSync(gasPath, 'utf8');
   has('⑥受注Ａが梱包の1行を送る', H.cut(idx,'yukaImportOne'), "pkg: (typeof pkgOneLine==='function' ? pkgOneLine(o) : '')");
   has('⑥受注Ａが同梱書類を2つに分けて送る', H.cut(idx,'yukaImportOne'), 'docNouhin:');
-  has('⑥納品書系とそれ以外で分ける', H.cut(idx,'yukaImportOne'), "d.indexOf('納品書')>=0");
+  /* ★2026-09-12 この見張りは【捨てました】。
+     見ていたのは「納品書という字が入っているかで2列に分ける」という古い決めごとです。
+     いまは【決めごとの親（oos-shorui-kimari.js）の「数字が載る6種類」】で分けます
+     　（「請求書」だけの注文にPDFが1枚も作られない穴があったため・ひろみさん指摘）。
+     新しい決めごとの見張りは tests/test_ikisaki.js の ⑰-8／⑰-9 にあります。
+     ★ここに書き戻さないでください。同じ決めごとを2か所で見張ると、
+     　どちらが本物か分からなくなり、また不安定になります（ひろみさん指摘 2026-09-12）。 */
   has('⑥入れないものは「入れない」と書く（空欄にしない）', H.cut(idx,'yukaImportOne'), "|| '入れない'");
   /* ★2026-09-05夜 実データで見つけた穴の見張り：STORESの注文（productIdが文字）でも品番が消えないこと */
   has('⑥品番はゆるい照合で探す（STORESの注文でもコードが出る）', H.cut(idx,'yukaImportOne'), 'findProduct(l.productId)');

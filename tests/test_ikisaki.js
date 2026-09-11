@@ -121,7 +121,7 @@ async function okuruNakami(order){
   code += H.cutVar(idx, 'PRODUCTS') + '\n';
   code += 'var GAS_URL = "x";\n';
   code += 'var orders = [];\n';
-  ['findProduct','findProductBySku','unitOfProduct','lineTotal','lineUnit','pkgDocsIn','pkgOf','pkgOneLine','yukaImportOne']
+  ['findProduct','findProductBySku','unitOfProduct','lineTotal','lineUnit','pdfNiSuruKa','pkgDocsIn','pkgOf','pkgOneLine','yukaImportOne']
     .forEach(function(n){ code += H.cut(idx, n) + '\n'; });
   /* 画面まわりの身代わり（送る中身には関係しません） */
   code += 'function fetchOrderFresh(){ return Promise.resolve(null); }\n';
@@ -579,13 +579,17 @@ function hacchuushoGyou(payload){
     ok('⑬-25 日時指定で日付が空のときだけは止める',
        /_r\.lead==='scheduled' && !_r\.leadDate/.test(bof));
 
-    /* ── 状態：3つか ── */
-    const cond = H.cut(idx, 'conditionOptionsHtml');
-    ok('⑬-15 状態は「正規」',   /'正規'/.test(cond));
-    ok('⑬-16 状態は「旧ロット」', /旧ロット（残/.test(cond));
-    ok('⑬-17 状態は「不良品」',  /不良品（残/.test(cond));
-    ok('⑬-18 程度（DEFECT_LEVELS）で分けていない', !/DEFECT_LEVELS/.test(cond));
-    ok('⑬-19 現ロット／旧ロットで不良を分けていない', !/'cur','現ロット'/.test(cond));
+    /* ── 状態：3つか ──
+       ★2026-09-12 ひろみさん：「出来てない見張りは捨てないと、
+       　どの見張りが動いてるかで、また不安定になるのでは？」
+       ここにあった ⑬-15〜⑬-19（コードの文字を探すだけの5項目）は【捨てました】。
+       同じ決めごとを tests/test_apps.js の ② が【本物の関数を動かして】確かめています。
+       　・選択肢が3つであること
+       　・正規／旧ロット（残◯）／不良品（残◯）の3つが出ること
+       　・程度（軽・中・重）を出していないこと
+       　・残0のものは選べないこと（実際に0にして確かめています）
+       そちらのほうが強い見張りです。2か所で見張ると、どちらが本物か分からなくなります。
+       ★ここに書き戻さないでください。 */
     const lab = H.cut(idx, 'condLabelOfLine');
     ok('⑬-20 名前も「不良品」ひとつ', /'不良品'/.test(lab) && !/不良・/.test(lab));
     ok('⑬-21 倉庫Ｄの札も「不良品」ひとつ',
@@ -751,6 +755,43 @@ function hacchuushoGyou(payload){
     /* 受注Ａは、価格を loadAll から取ろうとしていないか */
     ok('⑯-13 受注Ａは価格マスタを loadAllData 側から受け取っている',
        /if\(Array\.isArray\(d\.priceMaster\)/.test(idx));
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑰ 金額が載る6種類は、ぜんぶPDFを作って発注書のリンク列に入れる
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん：「同梱書類のところのPDFが添付されないんだけど」
+     　同梱書類に「請求書」をえらんだ注文で、PDFが1枚も作られていませんでした。
+     　「納品書」という字が入っているかだけで決めていたためです。
+     ★「納品書という字が入っているか」に戻さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    const NOU = vm.runInContext('OOS_NOUHIN', dctx);
+    const KIM = vm.runInContext('OOS_SHORUI', dctx);
+    /* 決めごとに書いてある「数字が載る6種類」は、ぜんぶ作る */
+    ['納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書','納品書','請求書','領収書'].forEach(function(nm){
+      ok('⑰-1 「'+nm+'」はPDFを作る', NOU.needsNouhin({ enclosedDoc: nm }) === true);
+      ok('⑰-2 「'+nm+'」は金額が載る（決めごと）', KIM.sujiGaNoruKa(nm) === true);
+    });
+    /* 数字が載らないものは作らない */
+    ['パンフレット','その他','なし'].forEach(function(nm){
+      ok('⑰-3 「'+nm+'」はPDFを作らない', NOU.needsNouhin({ enclosedDoc: nm }) === false);
+    });
+    ok('⑰-4 同梱書類が空のときは作る（既定は納品書兼請求書）', NOU.needsNouhin({ enclosedDoc: '' }) === true);
+    /* 実際に「請求書」でHTMLが作れて、金額が載るか */
+    const oSei = testOrder({ enclosedDoc:'請求書' });
+    dbox.__o = oSei;
+    const hSei = String(vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx));
+    ok('⑰-5 「請求書」で書類が作れる', hSei.length > 500);
+    ok('⑰-6 「請求書」に金額が載る',   hSei.indexOf('¥') >= 0);
+    ok('⑰-7 「請求書」に倉庫ピックアップ料金の枠が出る', hSei.indexOf('倉庫ピックアップ料金') >= 0);
+    /* 発注書のリンク列（22列目）の振り分けも、決めごとに聞いているか */
+    ok('⑰-8 発注書の列分けは決めごとの親に聞いている',
+       /function pdfNiSuruKa/.test(idx) && /OOS_SHORUI\.sujiGaNoruKa/.test(H.cut(idx, 'pdfNiSuruKa')));
+    ok('⑰-9 「納品書という字が入っているか」で分けていない',
+       idx.indexOf("filter(function(d){ return d.indexOf('納品書')>=0; })") < 0);
+    ok('⑰-10 PDFを作るかどうかも決めごとの親に聞いている',
+       /KIM\.sujiGaNoruKa\(enc\)/.test(H.read('oos-nouhin.js')));
   })();
 
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */

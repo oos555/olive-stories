@@ -135,7 +135,11 @@ box.setBucketDirect(1, 'cur', 'lv1', 5);
 box.setBucketDirect(1, 'cur', 'lv1', 5);
 box.setBucketDirect(1, 'cur', 'lv1', 5);
 n = N();
-eq('8 同じ数を3回打っても 不良軽=5', n.cur.defLight, 5);
+/* ★2026-09-12 不良は程度で分けなくなりました（ひろみさん決定）。
+   それまで defLight は「不良・軽」でしたが、いまは【不良品ぜんぶ】です。
+   名前が意味とズレたままだと、読む人が勘違いします。defectQty に直しました。
+   ★「不良軽」という書き方に戻さないでください。 */
+eq('8 同じ数を3回打っても 不良品=5', n.cur.defectQty, 5);
 eq('8 同じ数を3回打っても 実在庫47', n.cur.stock, 47);
 
 /* ── 9. 廃棄の出どころ ────────────────────────────── */
@@ -149,7 +153,7 @@ box.discardFrom(1, 'cur', 'lv1', 1);
 n = N();
 eq('9 不良軽から廃棄1 → 販売可能 35（動かない）', n.cur.sellable, 35);
 eq('9 不良軽から廃棄1 → 実在庫 46',              n.cur.stock,    46);
-eq('9 不良軽から廃棄1 → 不良軽 1',               n.cur.defLight, 1);
+eq('9 不良品から廃棄1 → 不良品 1',               n.cur.defectQty, 1);
 
 /* ── 10. 旧ロットから廃棄 → 現ロットは動かない ───────── */
 reset();
@@ -180,7 +184,7 @@ box.restoreFromDiscard(1, 'cur', 'lv1', 1);
 n = N();
 eq('13-2 不良軽へ1本戻す → 販売可能そのまま', n.cur.sellable, base.cur.sellable);
 eq('13-2 不良軽へ1本戻す → 実在庫 +1',        n.cur.stock,    base.cur.stock + 1);
-eq('13-2 不良軽へ1本戻す → 不良軽 +1',        n.cur.defLight, base.cur.defLight + 1);
+eq('13-2 不良品へ1本戻す → 不良品 +1',        n.cur.defectQty, base.cur.defectQty + 1);
 eq('13-2 不良軽へ1本戻す → 廃棄 −1',          n.cur.discardQty, base.cur.discardQty - 1);
 const rest13 = N().cur.discardQty;                                    // いま廃棄に残っている本数
 eq('13-2 廃棄の残りを超える指定は残り分だけ', box.restoreFromDiscard(1, 'cur', 'good', 999), rest13);

@@ -366,7 +366,7 @@ body{background:#fff}
 <script src="oos-kakaku.js?v=20260912"></script>
 <script src="oos-shorui-kimari.js?v=20260911"></script>
 <script src="oos-doc.js?v=20260824"></script>
-<script src="oos-nouhin.js?v=20260912b"></script>
+<script src="oos-nouhin.js?v=20260912c"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-09">
+<meta name="oos-version" content="2026-09-12-10">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2968,6 +2968,18 @@ function soryoYenIn(card){
   return isNaN(n) ? null : n;   /* 「その他」で何も書いていなければ、まだ未選択あつかい */
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   その書類は【PDFにして発注書のリンク列に入れるもの】か　★2026-09-12
+   ──────────────────────────────────────────────────────────────────
+   決めごとの親（oos-shorui-kimari.js）の【数字が載る6種類】に聞くだけです。
+   　納品書兼請求書／納品書兼領収書／RT発注伝票＋納品書／納品書／請求書／領収書
+   ★ここに判定を書き写さないでください。書き写すと、書類を足したときにズレます。
+   見張り：tests/test_ikisaki.js の ⑰
+   ══════════════════════════════════════════════════════════════════ */
+function pdfNiSuruKa(docName){
+  if(typeof OOS_SHORUI!=='undefined' && OOS_SHORUI && OOS_SHORUI.sujiGaNoruKa) return OOS_SHORUI.sujiGaNoruKa(docName);
+  return String(docName||'').indexOf('納品書') >= 0;
+}
 function pkgDocsIn(o){
   var a = [];
   /* ★2026-09-05 空のときの既定は、画面のほかの場所とそろえる（ここだけ違うと倉庫が迷う）
@@ -8502,7 +8514,12 @@ async function yoyakuListAddOne(o){
         day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''), time: (o.delivTime || ''),
         sName: (o.senderName || ''), sZip: (o.senderZip || ''),
         sAddr: (o.senderAddr || ''), sTel: (o.senderTel || ''),
-        docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')>=0; }).join('・') || '入れない') : ''),
+        /* ★2026-09-12 直しました。それまでは【「納品書」という字が入っているか】で
+           　　　この列に入れるか決めていたので、「請求書」や「領収書」だけの注文は
+           　　　『入れない』になり、PDFのリンクも貼られませんでした。
+           　　　いまは決めごとの親（oos-shorui-kimari.js）の【数字が載る6種類】に聞きます。
+           ★「納品書という字が入っているか」に戻さないでください。 */
+        docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(pdfNiSuruKa).join('・') || '入れない') : ''),
         docHoka:   (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')<0;  }).join('・') || '入れない') : ''),
         orderer: 'その他',
         note: String(o.note || '').trim()
@@ -8584,7 +8601,12 @@ async function yukaImportOne(id){
         sTel:  (o.senderTel  || ''),
         /* ★2026-09-05 承認モック：ゆかスプシにも梱包の指示を送る（列は増やさず、備考の先頭と同梱書類の2列へ） */
         pkg: (typeof pkgOneLine==='function' ? pkgOneLine(o) : ''),
-        docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')>=0; }).join('・') || '入れない') : ''),
+        /* ★2026-09-12 直しました。それまでは【「納品書」という字が入っているか】で
+           　　　この列に入れるか決めていたので、「請求書」や「領収書」だけの注文は
+           　　　『入れない』になり、PDFのリンクも貼られませんでした。
+           　　　いまは決めごとの親（oos-shorui-kimari.js）の【数字が載る6種類】に聞きます。
+           ★「納品書という字が入っているか」に戻さないでください。 */
+        docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(pdfNiSuruKa).join('・') || '入れない') : ''),
         docHoka:   (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')<0;  }).join('・') || '入れない') : ''),
         note: String(o.note || '').trim()
       }})});
