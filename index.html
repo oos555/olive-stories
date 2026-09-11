@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-13">
+<meta name="oos-version" content="2026-09-12-14">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4069,7 +4069,11 @@ function yomiMachiStart(cardId){
   var kaisu = 0;
   __yomiMachi[cardId] = setInterval(function(){
     kaisu++;
-    var kita = (typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length);
+    /* ★2026-09-12 価格の表【と】在庫の両方が届くまで待ちます。
+       　在庫が届かないと「旧ロット（残0）」のままで選べません（ひろみさん指摘）。
+       ★片方だけ見る形に戻さないでください。 */
+    var kita = (typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length)
+            && (typeof lots !== 'undefined' && lots && lots.length);
     if(kita || kaisu > 60){
       clearInterval(__yomiMachi[cardId]); delete __yomiMachi[cardId];
       if(kita && typeof refreshLineYomi === 'function') refreshLineYomi(cardId);
@@ -4105,6 +4109,22 @@ function refreshLineYomi(cardId){
     var p = findProduct(ps.value);
     if(!p){ hk.textContent='―'; tk.textContent='―'; tk.className='ol-tanka';
             gk.textContent='―'; kg.textContent='―'; kg.className='ol-kingaku'; return; }
+
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「旧ロットはすでに登録してる！在庫もあるはず。
+       　なぜ選べない？見ている場所が分かってないのでは？」
+       　見ている場所は合っていました。原因は【届く前に作っていた】ことです。
+       　在庫データが届く前に「状態」のえらび一覧を作っていたので、
+       　旧ロットも不良品も（残0）のままになり、選べませんでした。
+       　（実データで確認：メメジック500ml の旧ロットは19本あります）
+       　いまは、在庫が届いたら ここで作り直します。
+       ★在庫が届いていないうちは作り直しません（人がえらんだ値を消さないため）。
+       ★この1かたまりを消さないでください。見張り：tests/test_ikisaki.js の ⑮-6
+       ══════════════════════════════════════════════════════════════ */
+    if(typeof lots !== 'undefined' && lots && lots.length
+       && typeof refreshLineCondition === 'function'){
+      refreshLineCondition(row);
+    }
 
     /* 行のいまの中身（書類と同じ数え方） */
     var l = {

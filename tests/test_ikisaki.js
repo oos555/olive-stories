@@ -707,6 +707,41 @@ function hacchuushoGyou(payload){
     ok('⑮-5g カードが消えたらやめる',   /document\.getElementById\(cardId\)/.test(ym));
     ok('⑮-5h 二重に待たない',           /if\(!cardId \|\| __yomiMachi\[cardId\]\) return;/.test(ym));
 
+    /* ══════════════════════════════════════════════════════════════
+       ⑮-6 「状態」のえらび一覧も、在庫が届いたら作り直す
+       ──────────────────────────────────────────────────────────────
+       ★2026-09-12 ひろみさん：「旧ロットはすでに登録してる！在庫もあるはず。
+       　なぜ選べない？」
+       　在庫が届く前に作っていたので、旧ロットも不良品も（残0）のまま固まっていました。
+       　（実データ：メメジック500ml の旧ロットは19本）
+       ★作り直しを消さないでください。
+       ★在庫が届いていないうちは作り直さないこと（人がえらんだ値を消さないため）。
+       ══════════════════════════════════════════════════════════════ */
+    ok('⑮-6 在庫が届いたら「状態」も作り直す', /refreshLineCondition\(row\)/.test(yomi));
+    ok('⑮-6b 届いていないうちは作り直さない',
+       /typeof lots !== 'undefined' && lots && lots\.length[\s\S]{0,120}refreshLineCondition\(row\)/.test(yomi));
+    ok('⑮-6c 待つときは 価格と在庫の両方を見る',
+       /priceMaster\.length\)[\s\S]{0,120}lots && lots\.length\)/.test(ym));
+    /* 本物の関数で、在庫の有無で答えが変わることを確かめる */
+    (function(){
+      const zc = H.makeSandbox({});
+      H.runZaiko(zc.ctx);
+      vm.runInContext(H.cutVar(idx, 'PRODUCTS'), zc.ctx);
+      vm.runInContext(H.cutVar(idx, 'DEFECT_LEVELS'), zc.ctx);
+      ['findProduct','findProductBySku','isActiveDefect','buildHoldsForZaiko','computeAvailable',
+       'lotStockFor','defectStockFor','condAvail','condRemainFor','conditionOptionsHtml']
+        .forEach(function(n){ vm.runInContext(H.cut(idx, n), zc.ctx); });
+      zc.box.defects = []; zc.box.holds = []; zc.box.orders = [];
+      zc.box.__p = 9;   /* メメジック 500ml */
+      zc.box.lots = [];
+      const h0 = vm.runInContext("conditionOptionsHtml(__p, 'normal')", zc.ctx);
+      ok('⑮-6d 在庫が届く前は（残0）', /旧ロット（残0）/.test(h0));
+      zc.box.lots = [{ pid:9, status:'old', stock:19 }];
+      const h1 = vm.runInContext("conditionOptionsHtml(__p, 'normal')", zc.ctx);
+      ok('⑮-6e 在庫が届いたら（残19）', /旧ロット（残19）/.test(h1));
+      ok('⑮-6f そのとき選べる（disabled でない）', !/value="old"[^>]*disabled/.test(h1));
+    })();
+
     /* 本物の値段の表で、本物の親に聞く（ひろみさんが見た商品そのもの） */
     const KAK = vm.runInContext('OOS_KAKAKU', dctx);
     const PM = [{ sku:'MEM500', productName:'メメジック 500ml',
