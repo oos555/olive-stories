@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-12">
+<meta name="oos-version" content="2026-09-12-13">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4045,6 +4045,41 @@ function ctypeNow(){
   var el = document.getElementById('o-ctype');
   return (el && el.value) || 'general';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ⏳ 価格の表が届くのを待って、自分で計算し直す　★2026-09-12
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「単価と合計金額がいつまでも計算中」
+   　読み込みの終わりに1回だけ計算し直す形だと、通信が遅いときや
+   　カードをあとから開いたときに取りこぼして、ずっと「読込中…」のままでした。
+   　いまは【届くまで自分で見にいきます】（1.5秒ごと・最大90秒）。
+   ★この仕組みを消さないでください。
+   ★届いたら止まります（ずっと動き続けることはありません）。
+   ══════════════════════════════════════════════════════════════════════ */
+var __yomiMachi = {};
+function yomiMachiStart(cardId){
+  if(!cardId || __yomiMachi[cardId]) return;              /* すでに待っています */
+  var kaisu = 0;
+  __yomiMachi[cardId] = setInterval(function(){
+    kaisu++;
+    var kita = (typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length);
+    if(kita || kaisu > 60){
+      clearInterval(__yomiMachi[cardId]); delete __yomiMachi[cardId];
+      if(kita && typeof refreshLineYomi === 'function') refreshLineYomi(cardId);
+      else if(!kita){
+        /* 90秒たっても届かないときは、正直にそう出します（黙って待ち続けない） */
+        var card = document.getElementById(cardId);
+        if(card) card.querySelectorAll('[data-role=tanka],[data-role=kingaku]').forEach(function(el){
+          el.className = el.getAttribute('data-role')==='tanka' ? 'ol-tanka mi' : 'ol-kingaku mi';
+          el.textContent = '読めません';
+        });
+      }
+      return;
+    }
+    if(!document.getElementById(cardId)){                  /* カードが消えたらやめます */
+      clearInterval(__yomiMachi[cardId]); delete __yomiMachi[cardId];
+    }
+  }, 1500);
+}
 function refreshLineYomi(cardId){
   var card = document.getElementById(cardId);
   if(!card) return;
@@ -4094,6 +4129,15 @@ function refreshLineYomi(cardId){
     if(!(typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length)){
       tk.className = 'ol-tanka mu'; tk.textContent = '読込中…';
       kg.className = 'ol-kingaku';  kg.textContent = '読込中…';
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-12 ひろみさん：「単価と合計金額がいつまでも計算中」
+         　価格の表が届くのを【自分で待って】、届いたら計算し直します。
+         　読み込みの終わりに1回だけ呼ぶ形だと、通信が遅いときに取りこぼして、
+         　ずっと「読込中…」のままになっていました。
+         ★この自分で直る仕組みを消さないでください。
+         見張り：tests/test_ikisaki.js の ⑮
+         ══════════════════════════════════════════════════════════════ */
+      yomiMachiStart(cardId);
     } else if(muryou){
       tk.className = 'ol-tanka mu'; tk.textContent = '無償';
       kg.className = 'ol-kingaku';  kg.textContent = '¥0';

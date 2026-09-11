@@ -695,6 +695,17 @@ function hacchuushoGyou(payload){
        /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'loadInitialData')));
     ok('⑮-5 名簿が届いたら入力行を計算し直す',
        /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'applyLoadedProducts')));
+    /* ★2026-09-12 ひろみさん：「単価と合計金額がいつまでも計算中」
+       　1回だけ呼ぶ形では取りこぼすので、届くまで自分で見にいくようにしました。
+       ★この自分で直る仕組みを消さないでください。 */
+    ok('⑮-5b 届くまで自分で待って計算し直す', /function yomiMachiStart\s*\(/.test(idx));
+    ok('⑮-5c 読込中のときに その待ちを始める', /yomiMachiStart\(cardId\)/.test(yomi));
+    const ym = H.cut(idx, 'yomiMachiStart');
+    ok('⑮-5d 届いたら止まる',           /clearInterval\(__yomiMachi\[cardId\]\)/.test(ym));
+    ok('⑮-5e 届いたら計算し直す',       /refreshLineYomi\(cardId\)/.test(ym));
+    ok('⑮-5f 待ちすぎたら正直に出す',   /読めません/.test(ym));
+    ok('⑮-5g カードが消えたらやめる',   /document\.getElementById\(cardId\)/.test(ym));
+    ok('⑮-5h 二重に待たない',           /if\(!cardId \|\| __yomiMachi\[cardId\]\) return;/.test(ym));
 
     /* 本物の値段の表で、本物の親に聞く（ひろみさんが見た商品そのもの） */
     const KAK = vm.runInContext('OOS_KAKAKU', dctx);
