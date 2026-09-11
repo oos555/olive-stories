@@ -385,7 +385,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-11-02">
+<meta name="oos-version" content="2026-09-12-01">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2745,6 +2745,31 @@ function onRecordTypeChange(){
 //    ・同梱書類は「入れるものを押す」札。もとは注文ごとに1か所だったが、お届け先ごとへ引っ越した（ひろみさん指示A）
 //    ・項目・並び・文言はモックのまま。★勝手に足さない・消さない・言い換えない
 var PKG_DOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書'];
+/* ══════════════════════════════════════════════════════════════════════
+   💰 倉庫ピックアップ料金・送料　★2026-09-12 承認済みモック（第7版）のとおり
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「ピックアップ料金は、毎回人間に選ばせて。
+   　　　　　　無料サービス、250円（＋税）、700円（＋税）この3つ。
+   　　　　　　でもそうやってルールを作っても、またどうせ壊すでしょ？
+   　　　　　　だから、もう全部人間に選ばせて」
+   　　　　　「（＋10％）は、ボタンの中に書かず、
+   　　　　　　倉庫ピックアップ料金（＋税10％）、送料（＋税10％）にかえて」
+   　　　　　「送料1000円（沖縄・北海道）と書いて」
+   ★ボタンの文言を言い換えないでください（一字一句そのままです）。
+   ★どれも【いつでも押せます】。RTかどうかで止めていません（ひろみさん決定）。
+   ★えらぶまで登録できません（毎回まっさら）。
+   ══════════════════════════════════════════════════════════════════════ */
+var PKG_PICKUP = [
+  { label:'無料サービス　個人はここ', yen:0 },
+  { label:'250円　その他卸',         yen:250 },
+  { label:'700円　RT・ホテルのみ',   yen:700 }
+];
+var PKG_SORYO = [
+  { label:'無料サービス',            yen:0 },
+  { label:'800円',                   yen:800 },
+  { label:'1000円（沖縄・北海道）',   yen:1000 },
+  { label:'その他',                  yen:null }   /* null＝自分で書き込む */
+];
 var PKG_BOX  = ['卸レベルでOK','きれいなものならリサイクル箱OK','新しい箱で'];
 var PKG_GBOX = ['化粧箱に入れる','クラフト箱でOK'];
 function pkgOpts(g, vals, cur, gift){
@@ -2781,6 +2806,27 @@ function pkgBlockHtml(id){
     /* ★2026-09-05 ひろみさん指示：ギフトなのに金額の紙が選ばれていたら、受注Ａでも気づけるようにする。
        数え方は倉庫Ｄとまったく同じ（ギフト＋よそ様あて＋RT以外）。★勝手に外しません・止めません */
     '<div data-role="giftMoneyWarn" style="display:none;background:#fbeaea;border:2px solid #dc2626;color:#991b1b;border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:13px;line-height:1.7"></div>'+
+    /* ══════════════════════════════════════════════════════════════
+       💰 倉庫ピックアップ料金（＋税10％）／送料（＋税10％）
+       ★2026-09-12 承認済みモック（第7版）のとおり。
+       　どちらも【毎回えらぶ】。えらぶまで登録できません。
+       ★はじめから選ばれている印を付けないでください（毎回まっさら）。
+       ══════════════════════════════════════════════════════════════ */
+    '<div class="pkg-row" style="align-items:flex-start"><span class="pkg-lb">倉庫ピックアップ料金（＋税10％）</span><div>'+
+      '<div class="pkg-docs" data-role="pickupBtns">'+
+        PKG_PICKUP.map(function(x,i){ return '<span class="pkg-doc" data-pickup="'+i+'" onclick="pickupTog(this)">'+esc(x.label)+'</span>'; }).join('')+
+      '</div>'+
+      '<div class="pkg-hint" style="margin-top:5px">バラ（単品・ケース割れ）でのご出荷のときにいただく、倉庫の作業手数料です</div>'+
+      '<div data-role="pickupMada" style="margin-top:5px;background:#fff4f2;border:1px solid #e6b3b1;border-radius:6px;padding:5px 9px;font-size:12px;color:#a32d2d;font-weight:700">⚠ えらぶまで受注登録できません</div>'+
+    '</div></div>'+
+    '<div class="pkg-row" style="align-items:flex-start"><span class="pkg-lb">送料（＋税10％）</span><div>'+
+      '<div class="pkg-docs" data-role="soryoBtns">'+
+        PKG_SORYO.map(function(x,i){ return '<span class="pkg-doc" data-soryo="'+i+'" onclick="soryoTog(this)">'+esc(x.label)+'</span>'; }).join('')+
+      '</div>'+
+      '<div data-role="soryoOtherWrap" style="display:none;margin-top:6px"><input type="number" min="0" data-role="soryoOther" placeholder="円（税抜）" style="padding:7px 9px;border:1.5px solid #d5cfc3;border-radius:7px;font-size:15px;font-weight:700;width:150px"></div>'+
+      '<div class="pkg-hint" style="margin-top:5px">沖縄・北海道は1000円、それ以外は800円</div>'+
+      '<div data-role="soryoMada" style="margin-top:5px;background:#fff4f2;border:1px solid #e6b3b1;border-radius:6px;padding:5px 9px;font-size:12px;color:#a32d2d;font-weight:700">⚠ えらぶまで受注登録できません</div>'+
+    '</div></div>'+
     '<div class="pkg-row"><span class="pkg-lb">送り状の貼り方</span><span class="pkg-fixed">倉庫さんにおまかせ</span></div>'+
   '</div>';
 }
@@ -2789,6 +2835,52 @@ function pkgBlockHtml(id){
    ・ふつうの発送にも必ず出す（「ギフトではありません」と書いてあることが答えになる）
    ★項目・並び・文言はモックのまま */
 var PKG_ALLDOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書','パンフレット'];
+/* ══════════════════════════════════════════════════════════════════════
+   💰 倉庫ピックアップ料金・送料をえらぶ（2026-09-12 承認済みモック 第7版）
+   ・1つだけえらべます（押すと前のが外れます）
+   ・えらぶまで「⚠ えらぶまで受注登録できません」が出ます
+   ★勝手に既定を選ばないでください（ひろみさん：毎回まっさら）
+   ══════════════════════════════════════════════════════════════════════ */
+function pickupTog(el){
+  var wrap = el.parentNode;
+  Array.prototype.forEach.call(wrap.querySelectorAll('.pkg-doc'), function(x){ x.classList.remove('on'); });
+  el.classList.add('on');
+  var card = el.closest('[data-role="pkgBox"]') || el.closest('.deliv-card') || document;
+  var mada = card.querySelector('[data-role="pickupMada"]');
+  if(mada) mada.style.display = 'none';
+}
+function soryoTog(el){
+  var wrap = el.parentNode;
+  Array.prototype.forEach.call(wrap.querySelectorAll('.pkg-doc'), function(x){ x.classList.remove('on'); });
+  el.classList.add('on');
+  var card = el.closest('[data-role="pkgBox"]') || el.closest('.deliv-card') || document;
+  var mada = card.querySelector('[data-role="soryoMada"]');
+  if(mada) mada.style.display = 'none';
+  /* 「その他」だけ、書き込む欄を出す */
+  var i = parseInt(el.getAttribute('data-soryo'), 10);
+  var w = card.querySelector('[data-role="soryoOtherWrap"]');
+  if(w) w.style.display = (PKG_SORYO[i] && PKG_SORYO[i].yen === null) ? 'block' : 'none';
+}
+
+/* えらばれた金額を読む（税抜）。えらばれていなければ null */
+function pickupYenIn(card){
+  var el = card && card.querySelector('[data-role="pickupBtns"] .pkg-doc.on');
+  if(!el) return null;
+  var i = parseInt(el.getAttribute('data-pickup'), 10);
+  return (PKG_PICKUP[i] ? PKG_PICKUP[i].yen : null);
+}
+function soryoYenIn(card){
+  var el = card && card.querySelector('[data-role="soryoBtns"] .pkg-doc.on');
+  if(!el) return null;
+  var i = parseInt(el.getAttribute('data-soryo'), 10);
+  var x = PKG_SORYO[i];
+  if(!x) return null;
+  if(x.yen !== null) return x.yen;
+  var v = card.querySelector('[data-role="soryoOther"]');
+  var n = v ? parseInt(v.value, 10) : NaN;
+  return isNaN(n) ? null : n;   /* 「その他」で何も書いていなければ、まだ未選択あつかい */
+}
+
 function pkgDocsIn(o){
   var a = [];
   /* ★2026-09-05 空のときの既定は、画面のほかの場所とそろえる（ここだけ違うと倉庫が迷う）

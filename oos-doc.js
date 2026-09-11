@@ -22,7 +22,7 @@
   { label: '三井住友銀行 立川支店', bank:'三井住友銀行', branch:'立川支店（支店番号742）', type:'普通', number:'4723882', holder:'カ）オリーブオイルストーリーズ' },
   { label: '三菱UFJ銀行 新座志木支店', bank:'三菱UFJ銀行', branch:'新座志木支店（支店番号296）', type:'普通', number:'1300801', holder:'ナカムラヒロミ' }
 ];
-  const CSS = ".invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem;margin:1rem auto 0;max-width:820px;box-sizing:border-box}\n.invoice-doc.pricelist-doc{max-width:none}\n.invoice-doc-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.15em}\n.invoice-doc-top{display:flex;justify-content:space-between;margin-bottom:1.5rem;font-size:14.5px}\n.invoice-doc-summary{border:2px solid #1a1a18;border-radius:6px;margin-bottom:1rem}\n.invoice-doc-summary table{width:100%;border-collapse:collapse}\n.invoice-doc-summary th{background:#f9f8f5;padding:8px;font-size:13.5px;color:#2b2a26;border-right:1px solid #e8e2d8}\n.invoice-doc-summary td{padding:10px 8px;text-align:center}\n.invoice-doc-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:15px}\n.invoice-doc-table th{background:#f9f8f5;padding:8px 10px;border:1px solid #d5cfc3;font-size:13px;color:#2b2a26}\n.invoice-doc-table td{padding:9px 10px;border:1px solid #d5cfc3}\n.invoice-doc-note{font-size:12.5px;color:#2b2a26;line-height:1.8;border:1px solid #e8e2d8;border-radius:6px;padding:12px 14px;margin-top:1rem}\n/* ── 2026-07 新帳票デザイン（お見積書・ご請求書・お見積兼ご請求書） ── */\n.doc2-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:0;margin-bottom:1.2rem}\n.doc2-grand{display:inline-block;min-width:62%;border-bottom:3px double #1a1a18;padding:0 14px 6px 6px;margin-bottom:1.2rem}\n.doc2-grand .lbl{font-size:13.5px;font-weight:700}\n.doc2-grand .amt{font-size:28px;font-weight:700;float:right;letter-spacing:.02em}\n.doc2-grand::after{content:\"\";display:block;clear:both}\n.doc2-items{width:100%;border-collapse:collapse;font-size:14px;margin:1rem 0}\n.doc2-items th{border-top:2px solid #1a1a18;border-bottom:1px solid #1a1a18;padding:7px 8px;font-size:12px;font-weight:700;background:#fff;color:#1a1a18}\n.doc2-items td{border-bottom:1px solid #cfc9bd;padding:8px}\n.doc2-items tr:last-child td{border-bottom:2px solid #1a1a18}\n.doc2-items th+th,.doc2-items td+td{border-left:1px solid #d9d3c7}\n.doc2-eq{white-space:nowrap}\n.doc2-eq b{font-size:15px}\n.doc2-breakdown{display:flex;justify-content:flex-end;margin:0 0 1rem}\n.doc2-breakdown table{border-collapse:collapse;font-size:13px}\n.doc2-breakdown td{padding:3px 0 3px 18px;text-align:right;white-space:nowrap}\n.doc2-breakdown tr.doc2-total td{border-top:2px solid #1a1a18;font-weight:700;font-size:15px;padding-top:6px}";
+  const CSS = ".invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem;margin:1rem auto 0;max-width:820px;box-sizing:border-box}\n.invoice-doc.pricelist-doc{max-width:none}\n.invoice-doc-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.15em}\n.invoice-doc-top{display:flex;justify-content:space-between;margin-bottom:1.5rem;font-size:14.5px}\n.invoice-doc-summary{border:2px solid #1a1a18;border-radius:6px;margin-bottom:1rem}\n.invoice-doc-summary table{width:100%;border-collapse:collapse}\n.invoice-doc-summary th{background:#f9f8f5;padding:8px;font-size:13.5px;color:#2b2a26;border-right:1px solid #e8e2d8}\n.invoice-doc-summary td{padding:10px 8px;text-align:center}\n.invoice-doc-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:15px}\n.invoice-doc-table th{background:#f9f8f5;padding:8px 10px;border:1px solid #d5cfc3;font-size:13px;color:#2b2a26}\n.invoice-doc-table td{padding:9px 10px;border:1px solid #d5cfc3}\n.invoice-doc-note{font-size:12.5px;color:#2b2a26;line-height:1.8;border:1px solid #e8e2d8;border-radius:6px;padding:12px 14px;margin-top:1rem}\n/* ── 2026-07 新帳票デザイン（お見積書・ご請求書・お見積兼ご請求書） ── */\n.doc2-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:0;margin-bottom:1.2rem}\n.doc2-grand{display:inline-block;min-width:62%;border-bottom:3px double #1a1a18;padding:0 14px 6px 6px;margin-bottom:1.2rem}\n.doc2-grand .lbl{font-size:13.5px;font-weight:700}\n.doc2-grand .amt{font-size:28px;font-weight:700;float:right;letter-spacing:.02em}\n.doc2-grand::after{content:\"\";display:block;clear:both}\n.doc2-items{width:100%;border-collapse:collapse;font-size:14px;margin:1rem 0}\n.doc2-items th{border-top:2px solid #1a1a18;border-bottom:1px solid #1a1a18;padding:7px 8px;font-size:12px;font-weight:700;background:#fff;color:#1a1a18}\n.doc2-items td{border-bottom:1px solid #cfc9bd;padding:8px}\n.doc2-items tr:last-child td{border-bottom:2px solid #1a1a18}\n.doc2-items th+th,.doc2-items td+td{border-left:1px solid #d9d3c7}\n.doc2-eq{white-space:nowrap}\n.doc2-eq b{font-size:15px}\n.doc2-breakdown{display:flex;justify-content:flex-end;margin:0 0 1rem}\n.doc2-breakdown table{border-collapse:collapse;font-size:13px}\n.doc2-breakdown td{padding:3px 0 3px 18px;text-align:right;white-space:nowrap}\n.doc2-breakdown tr.doc2-total td{border-top:2px solid #1a1a18;font-weight:700;font-size:15px;padding-top:6px}\n/* ── 2026-09-11 承認済みモック（mock_書類の金額まわり_第6版）のとおり ── */\n/* ★（税抜価格）は表の右上に1回だけ。見出しには書かない */\n.doc2-zeinuki{text-align:right;font-size:11px;color:#54564d;margin:0 0 2px}\n/* ★数量は2段見出し（バラ／箱／合計本数） */\n.doc2-items th.doc2-sub{font-size:10.5px;font-weight:700;padding:2px 4px}\n/* ★ピックアップ料金と送料は、内訳（右）の左の空きに置く。線は灰色・背景色はつけない */\n.doc2-2retsu{display:flex;align-items:flex-start;gap:14px;justify-content:space-between}\n.doc2-hidari{flex:1 1 auto;max-width:58%;padding-top:2px}\n.doc2-waku{border:1px solid #c9c5b8;border-radius:5px;padding:7px 10px;background:transparent}\n.doc2-waku table{width:100%;border-collapse:collapse}\n.doc2-waku td{padding:2px 0;font-size:12.5px;border:none}\n.doc2-waku td.wn{text-align:right;white-space:nowrap;font-weight:700}\n.doc2-2retsu .doc2-breakdown{flex:0 0 auto;margin-bottom:0}";
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function yen(n){ return '¥' + Math.round(n||0).toLocaleString('ja-JP'); }
@@ -63,7 +63,10 @@
     opt = opt || {};
     var items = opt.items || [];
     var sub8 = 0, sub10 = 0, tax8 = 0, tax10 = 0;
-    items.forEach(function(it){
+    /* ★2026-09-11 承認済みモック：ピックアップ料金と送料は明細に出さず、
+       内訳（右）の左の枠に出します。でも【消費税の計算には入れます】。
+       zeiOnly がそのぶんです。★足し忘れると、10%の消費税が取りそこねになります。 */
+    items.concat(opt.zeiOnly || []).forEach(function(it){
       /* ★2026-08-24 税率は【親＝oos-zei.js】で判定する。0.10 との一致で見ていたため、
          「10」や「10%」と書かれた行が黙って8%に転んでいた。★戻さないでください */
       if(!OOS_ZEI.isReduced(it.taxRate)){ sub10 += it.amount||0; tax10 += Math.round((it.amount||0)*0.10); }
@@ -92,29 +95,76 @@
       h += '<div class="doc2-grand"><span class="lbl">ご請求金額（税込）</span><span class="amt">'+yen(total)+'</span></div>';
     }
 
-    h += '<table class="doc2-items"><thead><tr><th style="width:5%">No.</th><th style="text-align:left">商品</th>'
-       + (opt.showAmount ? '<th style="width:16%">単価（税抜）</th>' : '')
-       + '<th style="width:16%">数量</th>'
-       + (opt.showAmount ? '<th style="width:18%">金額（税抜）</th>' : '')
+    /* ★2026-09-11 承認済みモック：（税抜価格）は表の右上に1回だけ。見出しには書かない */
+    if(opt.showAmount) h += '<div class="doc2-zeinuki">（税抜価格）</div>';
+    /* ★2026-09-12 ひろみさん：「商品と単価の間に、1箱の数を書く欄を設けて。
+       二段で　上の段：（参考）　下の段：1箱入り数」
+       ★この列を消さないでください。並びも変えないでください（商品のすぐ右です）。 */
+    h += '<table class="doc2-items"><thead><tr><th rowspan="2" style="width:5%">No.</th><th rowspan="2" style="text-align:left">商品</th>'
+       + '<th class="doc2-sub" style="width:9%">（参考）</th>'
+       /* ══════════════════════════════════════════════════════════════
+          ★2026-09-11 承認済みモック（mock_書類の金額まわり_第6版）のとおり。
+          ひろみさん：
+          　「それぞれに（税抜き）とかかず、枠の外の右上に（税抜き価格）と
+          　　一回だけ表示すればよし」
+          　「数量の部分、二段に。バラ　箱　合計本数　でそれぞれ行を作って。
+          　　1本なら、箱のところは記載なし、合計本数が1本。
+          　　1箱ならバラの列は記載なし、1箱、合計本数がその箱単位の合計本数」
+          ★見出しに（税抜）を書き戻さないでください。
+          ★数量を1列に戻さないでください。
+          ══════════════════════════════════════════════════════════════ */
+       + (opt.showAmount ? '<th rowspan="2" style="width:12%">単価</th>' : '')
+       + '<th colspan="3" style="width:28%">数量</th>'
+       + (opt.showAmount ? '<th rowspan="2" style="width:16%">金額</th>' : '')
+       + '</tr><tr>'
+       + '<th class="doc2-sub">1箱入り数</th>'
+       + '<th class="doc2-sub" style="width:8%">バラ</th>'
+       + '<th class="doc2-sub" style="width:7%">箱</th>'
+       + '<th class="doc2-sub" style="width:13%">合計本数</th>'
        + '</tr></thead><tbody>';
     items.forEach(function(it, i){
       var taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
+      /* バラ・箱は、入っていないときは空欄（ひろみさんの決めごと） */
+      var bara = (it.bara === '' || it.bara == null || it.bara === 0) ? '' : String(it.bara);
+      var hako = (it.hako === '' || it.hako == null || it.hako === 0) ? '' : String(it.hako);
       h += '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(it.name)+taxMark+'</td>'
+         + '<td style="text-align:center">'+(it.hakoIri ? esc(String(it.hakoIri)) : '')+'</td>'
          + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.unitPrice):(it.zeroText||'―'))+'</td>' : '')
-         + '<td style="text-align:center"><b style="font-size:15px">'+esc(it.qtyText||((it.qty||0)+'本'))+'</b></td>'
-         /* ★2026-09-11 0円のときに「無料」「別途」と書く。空欄だと入れ忘れに見えるため。
-            ひろみさん：「そこに書く書かないはある。一般の方にはピックアップ料金はサービスで無料」 */
+         + '<td style="text-align:center">'+esc(bara)+'</td>'
+         + '<td style="text-align:center">'+esc(hako)+'</td>'
+         + '<td style="text-align:center"><b style="font-size:14px">'+esc(it.qtyText||((it.qty||0)+'本'))+'</b></td>'
+         /* ★2026-09-11 0円のときに「無料」「別途」と書く。空欄だと入れ忘れに見えるため。 */
          + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.amount):(it.zeroText||'―'))+'</td>' : '')
          + '</tr>';
     });
     h += '</tbody></table>';
 
     if(opt.showAmount){
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-11 承認済みモックのとおり。ひろみさん：
+         　「小計からご請求金額が右側にあるから、左側にスペースが空いてるから、
+         　　そこに倉庫ピックアップ料金と送料を乗せてください。
+         　　そうするとこれ以上下に触らなくなるから」
+         　「送料と倉庫ピックアップは背景に色はつけない、目立たせる意味がない」
+         　「税は、8％、10％それぞれまとめて記載。わけると行ばかり増えるだろ」
+         ★この2行を明細の表の中に戻さないでください（行が増えて1枚に収まりません）。
+         ★消費税の行をここに足さないでください（右の内訳にまとまっています）。
+         ══════════════════════════════════════════════════════════════ */
+      var waku = opt.wakuRows || [];
+      h += '<div class="doc2-2retsu">';
+      if(waku.length){
+        h += '<div class="doc2-hidari"><div class="doc2-waku"><table>';
+        waku.forEach(function(w){
+          h += '<tr><td>'+esc(w.name)+'</td><td class="wn">'
+             + (w.amount ? yen(w.amount) : esc(w.zeroText || '―')) + '</td></tr>';
+        });
+        h += '</table></div></div>';
+      }
       h += '<div class="doc2-breakdown"><table>';
       if(sub8){  h += '<tr><td>8%対象（軽減税率※・税抜）</td><td>'+yen(sub8)+'</td></tr><tr><td>消費税（8%）</td><td>'+yen(tax8)+'</td></tr>'; }
       if(sub10){ h += '<tr><td>10%対象（税抜）</td><td>'+yen(sub10)+'</td></tr><tr><td>消費税（10%）</td><td>'+yen(tax10)+'</td></tr>'; }
       h += '<tr class="doc2-total"><td>合計（税込）</td><td>'+yen(total)+'</td></tr>';
-      h += '</table></div>';
+      h += '</table></div></div>';
       /* ★2026-08-19 ひろみさん指示：※印の断り書きは、合計（税込）のすぐ下に置く。
          いちばん下の備考に混ぜないでください（読み手がすぐ結びつけられるように） */
       if(sub8) h += '<div style="text-align:right;font-size:11px;color:#57534e;margin:-10px 0 14px">※印は軽減税率対象商品です。</div>';

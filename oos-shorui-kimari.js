@@ -54,7 +54,9 @@
      ★ひろみさん決定（2026-09-11）。消さないでください。
      ══════════════════════════════════════════════════════════════════ */
   var KANARAZU = [
-    { key: 'pickup', name: '倉庫ピッキング手数料（バラ出荷）', memo: 'バラ（単品・ケース割れ）のときだけ金額が入ります' },
+    /* ★2026-09-12 承認済みモック（第7版）の文言にそろえました。
+       ★「倉庫ピッキング手数料」に戻さないでください。ひろみさんの言葉は「ピックアップ料金」です。 */
+    { key: 'pickup', name: '倉庫ピックアップ料金（バラ出荷）', memo: 'バラ（単品・ケース割れ）のときだけ金額が入ります' },
     { key: 'soryo',  name: '送料',                             memo: 'お届け先の都道府県で決まります' }
   ];
 
@@ -83,6 +85,50 @@
        いまは0（無料）です。もらうことになったら、ここに足してください。
        ★Claudeが勝手に足さないこと。 */
   };
+
+  /* ══════════════════════════════════════════════════════════════════
+     ④ 単位（本・缶・個）　★ひろみさん決定（2026-09-12）
+     ──────────────────────────────────────────────────────────────────
+     ひろみさん：「単位について　100ｍｌ、250ｍｌ、500ｍｌは 本
+     　　　　　　750ｍｌ、2000ｍｌ、5000ｍｌは 缶　3000ｍｌは 個」
+     　　　　　「単位は、アプリの方でもし間違っていたら人間が修正できるようにして」
+     → 商品マスタの「単位」欄に書いてあれば【そちらが優先】します（人が直せます）。
+     　 書いていなければ、下の表で容量から決めます。
+     ★この表を勝手に増やさない・減らさないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  var TANI_BY_ML = [
+    { ml: 100,  tani: '本' },
+    { ml: 250,  tani: '本' },
+    { ml: 500,  tani: '本' },
+    { ml: 750,  tani: '缶' },
+    { ml: 2000, tani: '缶' },
+    { ml: 3000, tani: '個' },
+    { ml: 5000, tani: '缶' }
+  ];
+  var TANI_KITEI = '本';   /* どれにも当てはまらないときは「本」 */
+
+  /* 商品名から容量（ml）を読み取る。250ml・2L・3L・5000ml など、いろいろな書き方に合わせます */
+  function mlOf(p) {
+    var n = String((p && (p.name || p.sku)) || '');
+    var m = n.match(/(\d+(?:\.\d+)?)\s*(ml|ｍｌ|ML|mL)/);
+    if (m) return Math.round(parseFloat(m[1]));
+    m = n.match(/(\d+(?:\.\d+)?)\s*(L|l|Ｌ|ℓ|リットル)/);
+    if (m) return Math.round(parseFloat(m[1]) * 1000);
+    return null;
+  }
+
+  /* この商品の単位（本・缶・個）。★人が直した「単位」欄がいちばん強い */
+  function taniOf(p) {
+    var te = (p && p.extras && String(p.extras['単位'] || '').trim()) || '';
+    if (te) return te;                      /* ★人が直したものを優先 */
+    var ml = mlOf(p);
+    if (ml != null) {
+      for (var i = 0; i < TANI_BY_ML.length; i++) {
+        if (TANI_BY_ML[i].ml === ml) return TANI_BY_ML[i].tani;
+      }
+    }
+    return TANI_KITEI;
+  }
 
   /* お届け先の住所・都道府県から、送料（税込）を出す */
   function soryoOf(jusho) {
@@ -154,6 +200,9 @@
     SUJI_GA_NORU: SUJI_GA_NORU,
     SUJI_NASHI: SUJI_NASHI,
     sujiGaNoruKa: sujiGaNoruKa,
+    TANI_BY_ML: TANI_BY_ML,
+    mlOf: mlOf,
+    taniOf: taniOf,
     kanarazuDasuKa: kanarazuDasuKa
   };
 })(typeof window !== 'undefined' ? window : globalThis);

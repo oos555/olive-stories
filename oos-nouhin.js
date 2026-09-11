@@ -72,8 +72,15 @@
   /* ══════════════════════════════════════════════════════════════════════
      納品書のHTMLを組み立てる（倉庫Ｄ buildInvoiceHtml からそのまま）
      ══════════════════════════════════════════════════════════════════════ */
-  /* 商品の単位（本／個／枚…）。商品マスタの「単位」欄。無ければ「本」 */
+  /* ══════════════════════════════════════════════════════════════════
+     商品の単位（本・缶・個）★2026-09-12 ひろみさん決定
+     　100ml・250ml・500ml＝本／750ml・2000ml・5000ml＝缶／3000ml＝個
+     　★名簿（商品マスタ）の「単位」欄に書いてあれば、そちらが優先（人が直せます）
+     決め方は【親＝oos-shorui-kimari.js】に1つだけ。ここに書き写さないでください。
+     ══════════════════════════════════════════════════════════════════ */
   function tani(p) {
+    var KIM = root.OOS_SHORUI;
+    if (KIM && KIM.taniOf) return KIM.taniOf(p);
     return (p && p.extras && String(p.extras['単位'] || '').trim()) || '本';
   }
 
@@ -131,7 +138,15 @@
         /* ★2026-09-11 ひろみさん指摘「本と箱の単位もない」。
            単位は商品マスタの「単位」欄から取ります（本／個／枚…）。
            箱で買われた分は「（バラ○＋○箱）」と添えます。★消さないでください */
-        qtyText: qty + tani(prod) + (l.boxes ? '（バラ' + (Number(l.bottles)||0) + tani(prod) + '＋' + l.boxes + '箱）' : ''),
+        /* ★2026-09-11 承認済みモック：数量は二段（バラ／箱／合計本数）。
+           1本なら箱は空欄、1箱ならバラは空欄。合計本数はその箱の本数。
+           ★「（バラ5本＋1箱）」という1列の書き方に戻さないでください。 */
+        /* ★2026-09-12 ひろみさん：「商品と単価の間に、1箱の数を書く欄を設けて。
+           二段で　上の段：（参考）　下の段：1箱入り数」 */
+        hakoIri: (Number(l.boxQty) || (prod && Number(prod.boxQty)) || 0),
+        bara: (Number(l.bottles) || 0),
+        hako: (Number(l.boxes) || 0),
+        qtyText: qty + tani(prod),
         unitPrice: unit,
         amount: unit * qty,
         /* ★品番が分からない行は10%（安全側）。8%にしないでください */
@@ -162,6 +177,10 @@
        ★行を消す形に戻さないでください。tests/test_shorui_kanarazu.js が落ちます。
        ══════════════════════════════════════════════════════════════════ */
     var kanarazu = KIM ? KIM.kanarazuDasuKa(o.enclosedDoc || docName) : false;
+    /* ★2026-09-11 承認済みモック：ピックアップ料金と送料は、明細ではなく
+       内訳（右）の左に置く枠に入れます。 */
+    var wakuRows = [];   /* 枠に出す行（ピックアップ料金・送料） */
+    var zeiOnly  = [];   /* 消費税の計算にだけ使う（表には出しません） */
 
     var _shipIncl = parseInt(o.shippingFee) || 0;      // 送料（税込）
     var _whFee = parseInt(o.warehouseFee) || 0;        // 倉庫ピッキング手数料（税抜）
@@ -170,24 +189,25 @@
     if (KIM && !_shipIncl) _shipIncl = KIM.soryoOf(String(o.addr || '')).fee;
 
     if (withAmount) {
-      /* ── 倉庫ピッキング手数料（税抜）── */
-      if (_whFee > 0) {
-        items.push({ name: '倉庫ピッキング手数料（バラ出荷）', qty: 1, qtyText: '1式',
-                     unitPrice: _whFee, amount: _whFee, taxRate: ZEI.RATE_SERVICE });
-      } else if (kanarazu) {
-        /* ★金額が0でも枠は出す。一般のお客様はサービスで無料です */
-        items.push({ name: '倉庫ピッキング手数料（バラ出荷）', qty: 1, qtyText: '―',
-                     unitPrice: 0, amount: 0, taxRate: ZEI.RATE_SERVICE, zeroText: '無料' });
-      }
-      /* ── 送料（税込で持っているので、税抜に割り戻して並べます）── */
-      if (_shipIncl > 0) {
-        var _shipNet = Math.round(_shipIncl / (1 + ZEI.RATE_SERVICE));
-        items.push({ name: '送料', qty: 1, qtyText: '1式',
-                     unitPrice: _shipNet, amount: _shipNet, taxRate: ZEI.RATE_SERVICE });
-      } else if (kanarazu) {
-        items.push({ name: '送料', qty: 1, qtyText: '―',
-                     unitPrice: 0, amount: 0, taxRate: ZEI.RATE_SERVICE, zeroText: '別途' });
-      }
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-11 承認済みモック（mock_書類の金額まわり_第6版）のとおり。
+         ピックアップ料金と送料は【明細の表に入れず】、
+         内訳（右）の左の空きに置く枠へ入れます。
+         ひろみさん：「小計からご請求金額が右側にあるから、左側にスペースが
+         　　　　　　空いてるから、そこに倉庫ピックアップ料金と送料を乗せて。
+         　　　　　　そうするとこれ以上下に触らなくなるから」
+         ★items.push に戻さないでください（明細の行が増えて1枚に収まりません）。
+         ★消費税は右の内訳（10%対象）にまとめます。枠に税の行を足さないでください。
+         ══════════════════════════════════════════════════════════════ */
+      var _shipNet = (_shipIncl > 0) ? Math.round(_shipIncl / (1 + ZEI.RATE_SERVICE)) : 0;
+      /* ★2026-09-12 ひろみさん：「無料サービスを選択したら、書類の送料にも
+         　無料サービスと表示させて」
+         ★「―」や空欄にしないでください（入れ忘れに見えます）。 */
+      wakuRows.push({ name: '倉庫ピックアップ料金（バラ出荷）', amount: _whFee,   zeroText: '無料サービス' });
+      wakuRows.push({ name: '送料',                          amount: _shipNet, zeroText: '無料サービス' });
+      /* 消費税の計算には入れる（表には出しません） */
+      zeiOnly.push({ amount: _whFee,   taxRate: ZEI.RATE_SERVICE });
+      zeiOnly.push({ amount: _shipNet, taxRate: ZEI.RATE_SERVICE });
     }
 
     /* ★2026-08-19 ひろみさんと決めた文言です。★勝手に書き換えないでください。
@@ -225,10 +245,15 @@
         rows.push(slip ? ('伝票番号：' + esc(slip)) : ('注文番号：' + esc(docNumberOf(o.num))));
         return rows;
       })(),
-      lead: withAmount
-        ? '下記の通りお納めいたします。本書はご請求書を兼ねております。'
-        : '下記の通りお納めいたします。この度はお買い上げいただき、誠にありがとうございます。',
+      /* ★2026-09-11 ひろみさん：「下記の通りお納めいたします。本書はご請求書を兼ねております。」
+         →「いつもお世話になっております。どうぞよろしくお願いいたします。」で【統一】。
+         ★書類の種類で書き分けないでください。どれも同じ1文です。 */
+      lead: 'いつもお世話になっております。どうぞよろしくお願いいたします。',
       items: items,
+      /* ★2026-09-11 承認済みモック：内訳（右）の左に置く枠（ピックアップ料金・送料） */
+      wakuRows: wakuRows,
+      /* ★消費税の計算にだけ入れる（表には出しません） */
+      zeiOnly: zeiOnly,
       /* ★2026-08-19 お振込先：個人のお客様は三菱UFJ（ナカムラヒロミ）、
          会社あて（卸・RT・バサラ・特別提供など、一般以外）は三井住友（カ）オリーブオイルストーリーズ）。
          ★「isCompany だけ」で決める形に戻さないでください（RTがUFJになっていました） */

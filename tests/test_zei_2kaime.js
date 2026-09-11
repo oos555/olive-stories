@@ -74,7 +74,8 @@ console.log('\n■ Ｄ 倉庫Ｄの納品書に送料・倉庫手数料');
   const h1 = box.buildInvoiceHtml(Object.assign({}, baseOrder, { shippingFee:880, warehouseFee:250 }));
   t('Ｄ 納品書に送料の行が出る', h1.indexOf('送料') >= 0, true);
   t('Ｄ 送料は税抜800円で出る（税込880を割り戻す）', h1.indexOf('800') >= 0, true);
-  t('Ｄ 倉庫ピッキング手数料の行が出る', h1.indexOf('倉庫ピッキング手数料') >= 0, true);
+  /* ★2026-09-12 承認済みモック（第7版）：名前は「倉庫ピックアップ料金」 */
+  t('Ｄ 倉庫ピックアップ料金の行が出る', h1.indexOf('倉庫ピックアップ料金') >= 0, true);
   const goods = 4750 * 2;
   const want = goods + Math.round(goods*0.08) + 250 + 25 + 800 + 80;
   t('Ｄ 合計＝商品＋8% ＋（手数料＋送料）＋10%', h1.indexOf(want.toLocaleString()) >= 0, true);
@@ -82,7 +83,11 @@ console.log('\n■ Ｄ 倉庫Ｄの納品書に送料・倉庫手数料');
 
   const h2 = box.buildInvoiceHtml(Object.assign({}, baseOrder, { shippingFee:'', warehouseFee:'' }));
   t('Ｄ 送料が無い注文は「別途申し受けます」と出る', h2.indexOf('送料は別途申し受けます') >= 0, true);
-  t('Ｄ そのとき送料の行は出さない（0円と誤解させない）', h2.indexOf('>送料<') >= 0, false);
+  /* ★2026-09-11 ひろみさん：「6種類すべての書類に、毎回 倉庫ピックアップ料金と送料の枠は、
+     消費税のように当たり前のようにまず枠を設けるようにして」
+     → 金額を持っていない注文でも【枠は必ず出す】ようになりました。
+     ★「行を出さない」に戻さないでください。 */
+  t('Ｄ 金額が無くても送料の枠は出る', h2.indexOf('>送料<') >= 0, true);
   t('Ｄ そのとき合計は商品だけ', h2.indexOf((goods + Math.round(goods*0.08)).toLocaleString()) >= 0, true);
 
   const h3 = box.buildInvoiceHtml(Object.assign({}, baseOrder, { shippingFee:1100, warehouseFee:0 }));

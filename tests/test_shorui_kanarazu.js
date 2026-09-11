@@ -54,8 +54,15 @@ const PM = [
 ];
 box.__d = { products: PRODUCTS, priceMaster: PM, defaults: null };
 function nouhin(o){ box.__o = o; return vm.runInContext('OOS_NOUHIN.build(__o, __d)', ctx); }
+/* ★2026-09-12 承認済みモック（第7版）で、ピックアップ料金と送料は
+   【明細の表の外】＝内訳の左の枠に移りました。
+   だから明細の行だけでなく、枠の行も一緒に見ます。
+   ★明細だけを見る形に戻さないでください（枠にあるのに「抜けた」と出ます）。 */
 function gyou(html){
-  return [...String(html).matchAll(/<tr><td style="text-align:center">\d+<\/td><td>([^<]*)<\/td>/g)].map(function(m){ return m[1]; });
+  var s = String(html);
+  var meisai = [...s.matchAll(/<tr><td style="text-align:center">\d+<\/td><td>([^<]*)<\/td>/g)].map(function(m){ return m[1]; });
+  var waku   = [...s.matchAll(/<tr><td>([^<]*)<\/td><td class="wn">/g)].map(function(m){ return m[1]; });
+  return meisai.concat(waku);
 }
 function goukei(html){
   var m = String(html).match(/ご請求金額（税込）<\/span><span class="amt">([^<]*)</);
@@ -117,7 +124,7 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
 {
   const h = nouhin(mkOrder({ customerType:'general' }));   /* 一般＝ピッキングは無料 */
   const rows = gyou(h);
-  ok('③一般でもピッキングの行は出る', rows.some(function(r){ return r.indexOf('倉庫ピッキング手数料') >= 0; }));
+  ok('③一般でもピッキングの行は出る', rows.some(function(r){ return r.indexOf('倉庫ピックアップ料金') >= 0; }));
   inc('③0円のところは「無料」と書く', h, '無料', true);
   ok('③送料の行も出る', rows.some(function(r){ return r.indexOf('送料') >= 0; }));
 }
@@ -146,7 +153,13 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
   const h1 = nouhin(mkOrder({}));
   inc('⑤オイルは「本」',           h1, '3本', true);
   const h2 = nouhin(mkOrder({ lines:[{productId:1,sku:'ORG250',productName:'オルガニック 250ml',bottles:5,boxes:2,boxQty:20}] }));
-  inc('⑤箱があれば「（バラ5本＋2箱）」', h2, '（バラ5本＋2箱）', true);
+  /* ★2026-09-12 承認済みモック（第7版）：数量は二段（バラ／箱／合計本数）になりました。
+     「（バラ5本＋2箱）」という1列の書き方はもうありません。
+     ★1列に戻さないでください。 */
+  inc('⑤見出しが二段になっている（バラ）',   h2, '>バラ<', true);
+  inc('⑤見出しが二段になっている（箱）',     h2, '>箱<', true);
+  inc('⑤見出しが二段になっている（合計本数）', h2, '>合計本数<', true);
+  inc('⑤1列の古い書き方は使わない',          h2, '（バラ5本＋2箱）', false);
   const h3 = nouhin(mkOrder({ lines:[{productId:2,sku:'GFT001',productName:'カップオイル3個ギフトセット',bottles:4,boxes:0,boxQty:10}] }));
   inc('⑤単位が「個」の商品は「個」', h3, '4個', true);
   inc('⑤「個」の商品を「本」と書かない', h3, '4本', false);
@@ -160,7 +173,7 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
   const h1 = nouhin(mkOrder({ enclosedDoc:'納品書', customerType:'general' }));
   const r1 = gyou(h1);
   ok('⑥納品書だけでも送料の行は出る',       r1.some(function(r){ return r.indexOf('送料') >= 0; }));
-  ok('⑥納品書だけでもピッキングの行は出る', r1.some(function(r){ return r.indexOf('倉庫ピッキング') >= 0; }));
+  ok('⑥納品書だけでもピッキングの行は出る', r1.some(function(r){ return r.indexOf('倉庫ピックアップ') >= 0; }));
   inc('⑥納品書だけでも金額は出る', h1, 'ご請求金額（税込）', true);
   ['パンフレット', 'その他', 'なし'].forEach(function(e){
     const h2 = nouhin(mkOrder({ enclosedDoc:e }));
