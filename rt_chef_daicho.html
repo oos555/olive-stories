@@ -216,7 +216,7 @@
     <table class="owg-tb"><tbody>
       <tr><td class="k">なぜ必要か</td><td>人物カードは<b>この端末のブラウザの中だけ</b>に保存されています。機種変更・ブラウザのデータ削除・しばらく開かなかったときに、消えることがあります。</td></tr>
       <tr><td class="k">置き場所①<br>（原本）</td><td><b>Dropbox ／ RTシェフ台帳データバンク ／ 04_名刺 ／ バックアップ ／</b><br>ファイル名は <b>RT名刺台帳_バックアップ_日付.json</b>。ここに置いたものから、そっくり元に戻せます。</td></tr>
-      <tr><td class="k">置き場所②<br>（見る用）</td><td><b>台帳のスプレッドシート ／「名刺台帳」シート</b><br>表の形で入っているので、人・住所・電話をその場で探せます。（戻すのは①のファイルを使います）</td></tr>
+      <tr><td class="k">置き場所②<br>（自動）</td><td><b>台帳のスプレッドシート ／「名刺情報」タブ</b><br>名刺を保存するたびに<b>自動で</b>ここに入ります（登録日・手書きメモ・名刺の写真つき）。表の形なので、人・住所・電話をその場で探せます。</td></tr>
       <tr><td class="k">取り方</td><td>「📇 名刺を入れる」→ <b>📥 まとめて取り込む／💾 バックアップ</b> をひらいて<br>・<b>⬇️ バックアップを保存</b>：①のファイルが端末に落ちます。そのままDropboxへ。<br>・<b>📋 スプレッドシート用にコピー</b>：②に貼り付ける表がコピーされます。</td></tr>
       <tr><td class="k">戻し方</td><td>①のファイルをテキストで開いて<b>中身を全部コピー</b> → 同じ画面の枠に貼り付け → <b>📥 取り込む</b>。すでに入っている人はとばされるので、二重になりません。</td></tr>
       <tr><td class="k">いつ取るか</td><td><b>名刺をまとめて入れた日</b>と、<b>月に1回</b>。これだけで守れます。</td></tr>
@@ -387,12 +387,12 @@
       <div class="mini" style="margin:6px 0 2px;">原本の写真をDropboxの「04_名刺」に残したいときはこちら（容量・アカウント不要）。</div>
       <a class="big" style="display:block;text-decoration:none;text-align:center;background:#c2761f;" href="https://www.dropbox.com/request/faeyuxa3v5dmsyd5dflv" target="_blank" rel="noopener">📤 名刺をアップロードする</a>
     </div>
-    <div class="stagenote">人物カードは<b>この端末の中だけ</b>に保存されます。機種変更やブラウザのデータ削除で消えてしまうので、ときどき下の「💾 書き出す」でバックアップを取ってください。名刺の<b>自動読み取り（AI）</b>は次の段階で足します。</div>
+    <div class="stagenote">「保存」を押すと、この端末と<b>台帳スプレッドシートの「名刺情報」タブ</b>の両方に入ります（登録日・名刺の手書きメモ・名刺の写真も一緒に）。念のため、ときどき下の「⬇️ バックアップを保存」も取って、Dropboxの「04_名刺／バックアップ」に入れてください。名刺の<b>自動読み取り（AI）</b>は次の段階で足します。</div>
     <div id="shoot-box" class="shoot">
       <div class="cam">📇</div>
       <div style="font-weight:700;margin-top:6px;">名刺を撮って取り込む</div>
       <label class="big" for="cam">📷 カメラで名刺を撮る／写真を選ぶ</label>
-      <input id="cam" type="file" accept="image/*" capture="environment" onchange="onShot(event)">
+      <input id="cam" type="file" accept="image/*" onchange="onShot(event)">
       <div class="hint" style="margin-top:14px;">・何枚でも続けて入れられます。<br>・区分（シェフ／購買／EC／本部／ショップ）で分けられます。<br>・施設を選ぶと、その施設の人としてひもづきます。</div>
     </div>
     <details class="shoot" style="border-color:#3a6b7a;padding:14px;text-align:left;">
@@ -407,6 +407,10 @@
         <button class="cancel" onclick="downloadBackup()" style="background:#e8eef6;color:#2b4a66;">⬇️ バックアップを保存</button>
         <button class="cancel" onclick="copyForSheet()" style="background:#e5eecf;color:#3f4a1d;">📋 スプレッドシート用にコピー</button>
       </div>
+      <div class="saverow" style="margin-top:8px;">
+        <button class="cancel" onclick="sheetSendAll()" style="background:#dce9f5;color:#22506e;flex:1;">☁️ 今の人物カードを「名刺情報」タブにまとめて送る</button>
+      </div>
+      <div id="meishi-msg" class="mini" style="margin-top:6px;min-height:16px;"></div>
       <div class="mini" style="margin-top:8px;">・<b>バックアップを保存</b>：日付入りのファイルとして端末に落ちます。そのままDropboxの「04_名刺」に入れておけば、何かあってもここから元に戻せます。<br>・<b>スプレッドシート用にコピー</b>：表の形でコピーされます。台帳のスプレッドシートに新しいシートを作って貼り付ければ、大元にも残ります。
     </details>
     <div id="review" class="review" style="display:none;">
@@ -434,6 +438,7 @@
         <input id="f-vip" type="checkbox" style="width:22px;height:22px;">
         <label for="f-vip" style="margin:0;font-weight:700;">◎ 重要人物にする<span class="mini" style="font-weight:400;display:block;">購入実績とは別に、あなたの判断で付ける印です</span></label>
       </div>
+      <div class="fld"><label>名刺の手書きメモ（名刺に書き込んだ日付・ひとこと）</label><input id="f-hand" placeholder="例）2026-06-12 交換／野口さんの後任"></div>
       <div class="fld"><label>メモ</label><input id="f-note" placeholder="例）〇〇シェフの後任 ／ 2026年6月に名刺交換"></div>
       <div class="saverow">
         <button class="cancel" onclick="cancelReview()">やめる</button>
@@ -1471,21 +1476,25 @@ function fillFacOptions(){
 var shotDataUrl='';
 function onShot(ev){
   var file=ev.target.files && ev.target.files[0]; if(!file) return;
-  var reader=new FileReader();
-  reader.onload=function(e){ shotDataUrl=e.target.result;
-    document.getElementById('thumb').src=shotDataUrl;
-    document.getElementById('shoot-box').style.display='none';
+  var box=document.getElementById('shoot-box'); if(box) box.style.opacity='.5';
+  var show=function(url){
+    shotDataUrl=url||'';
+    var th=document.getElementById('thumb'); if(th) th.src=shotDataUrl;
+    if(box){ box.style.opacity=''; box.style.display='none'; }
     document.getElementById('review').style.display='block';
     window.scrollTo({top:0,behavior:'smooth'});
   };
-  reader.readAsDataURL(file);
+  /* スマホの写真はそのままだと2〜4MBあり、端末の保存箱(5MB)を1枚で溢れさせる。
+     「できごと」タブと同じ圧縮（長辺1000px・45KB以内）を通してから扱う。 */
+  if(typeof katCompress==='function'){ katCompress(file, function(url){ show(url); }); }
+  else { var r=new FileReader(); r.onload=function(e){ show(e.target.result); }; r.readAsDataURL(file); }
 }
 function cancelReview(){
   shotDataUrl='';
   document.getElementById('review').style.display='none';
   document.getElementById('shoot-box').style.display='block';
   document.getElementById('cam').value='';
-  ['f-name','f-role','f-dept','f-tel','f-mail','f-note','f-cert','f-career','f-oils'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
+  ['f-name','f-role','f-dept','f-tel','f-mail','f-note','f-hand','f-cert','f-career','f-oils'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   var vp=document.getElementById('f-vip'); if(vp) vp.checked=false;
   var d=document.getElementById('f-date'); if(d) d.value=today();
   var st=document.getElementById('f-status'); if(st) st.value='現任';
@@ -1511,13 +1520,16 @@ function savePerson(){
   var name=document.getElementById('f-name').value.trim();
   if(!name){ alert('お名前を入れてください。'); return; }
   var vipEl=document.getElementById('f-vip');
+  /* 写真は端末に残さない（容量オーバーで全部の保存が失敗するため）。写真はスプレッドシート側に送る。 */
   var rec={ name:name, role:v('f-role'), dept:v('f-dept'), fac:v('f-fac'), tel:v('f-tel'), mail:v('f-mail'),
-            type:v('f-type'), photo:shotDataUrl||'', regDate:v('f-date')||today(), status:v('f-status')||'現任',
-            pred:'', succ:'', certs:splitCerts(v('f-cert')), career:v('f-career'), oils:v('f-oils'), vip:!!(vipEl&&vipEl.checked), note:v('f-note') };
+            type:v('f-type'), photo:'', regDate:v('f-date')||today(), status:v('f-status')||'現任',
+            pred:'', succ:'', certs:splitCerts(v('f-cert')), career:v('f-career'), oils:v('f-oils'),
+            vip:!!(vipEl&&vipEl.checked), hand:v('f-hand'), note:v('f-note') };
   PEOPLE.push(rec);
   if(rec.status==='現任') checkSuccession(rec);
   storePeople();
   document.getElementById('pcount').textContent=PEOPLE.length;
+  sheetSaveMeishi(rec, shotDataUrl);
   cancelReview(); nav('people');
 }
 function v(id){ var el=document.getElementById(id); return el? el.value : ''; }
@@ -1536,7 +1548,7 @@ function doExport(){
   alert('書き出しました。枠の中を全部コピーして、メールやメモに保存しておいてください。（写真は含みません）');
 }
 /* 表形式（スプレッドシート貼り付け用） */
-var SHEET_COLS=[['fac','施設・所属'],['name','お名前'],['role','役職'],['dept','部署'],['type','区分'],['status','状態'],['tel','電話'],['mail','メール'],['regDate','登録日'],['pred','前任'],['succ','後任'],['certs','資格・認定'],['career','これまでの経歴'],['oils','使っているオイル'],['vip','重要人物'],['note','メモ'],['addr','住所']];
+var SHEET_COLS=[['fac','施設・所属'],['name','お名前'],['role','役職'],['dept','部署'],['type','区分'],['status','状態'],['tel','電話'],['mail','メール'],['regDate','登録日'],['pred','前任'],['succ','後任'],['certs','資格・認定'],['career','これまでの経歴'],['oils','使っているオイル'],['vip','重要人物'],['hand','名刺の手書きメモ'],['note','メモ'],['addr','住所']];
 function peopleTSV(){
   var head=SHEET_COLS.map(function(c){return c[1];}).join('\t');
   var rows=PEOPLE.map(function(p){
@@ -1597,7 +1609,7 @@ function doImport(){
     if(dup){ skipped++; return; }
     PEOPLE.push({ name:x.name, role:x.role||'', dept:x.dept||'', fac:x.fac||'その他', tel:x.tel||'', mail:x.mail||'',
                   type:x.type||'その他', photo:'', regDate:x.regDate||today(), status:x.status||'現任',
-                  pred:x.pred||'', succ:x.succ||'', certs:(x.certs||[]), career:x.career||'', oils:x.oils||'', vip:!!x.vip, note:x.note||'' });
+                  pred:x.pred||'', succ:x.succ||'', certs:(x.certs||[]), career:x.career||'', oils:x.oils||'', vip:!!x.vip, hand:x.hand||'', note:x.note||'' });
     added++;
   });
   storePeople();
@@ -1627,11 +1639,67 @@ function loadPeople(){
     if(p.vip===undefined) p.vip=false;
     if(p.career===undefined) p.career='';
     if(p.oils===undefined) p.oils='';
+    if(p.hand===undefined) p.hand='';
+    if(p.photo) p.photo='';   /* 古い版が端末に貯めた写真は捨てる（保存箱を溢れさせるため） */
   });
   storePeople();
   var pc=document.getElementById('pcount'); if(pc) pc.textContent=PEOPLE.length;
 }
-function storePeople(){ try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); }catch(e){} }
+function storePeople(){
+  try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); storeWarn(''); return true; }
+  catch(e){ storeWarn('⚠️ この端末に保存できませんでした（保存箱が いっぱいの可能性）。下の「⬇️ バックアップを保存」でファイルに残してください。'); return false; }
+}
+/* 保存できなかったことを必ず目に見える形で出す（黙って消えるのを防ぐ見張り。外さないこと） */
+function storeWarn(msg){
+  var el=document.getElementById('store-warn');
+  if(!msg){ if(el) el.style.display='none'; return; }
+  if(!el){
+    el=document.createElement('div'); el.id='store-warn';
+    el.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;background:#c0392b;color:#fff;font-weight:800;font-size:13px;line-height:1.6;padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg; el.style.display='block';
+}
+
+
+/* ===== 名刺 → スプレッドシート「名刺情報」タブ（2026-09-12 追加） =====
+   保存先：台帳スプレッドシート 1lx17JjiKYMSNxNBywx0tXbmw57xn3kcezSab4pxE_hY の「名刺情報」タブ。
+   GAS側の窓口は saveMeishiCard / saveMeishiBulk。タブが無ければGASが自動で作る。 */
+function setMeishiMsg(t, ok){
+  var el=document.getElementById('meishi-msg'); if(!el) return;
+  el.textContent=t||''; el.style.color = ok? '#2f6b2f' : '#b03a2e'; el.style.fontWeight='700';
+}
+function meishiRow(p, photo){
+  return { regDate:p.regDate||'', fac:p.fac||'', name:p.name||'', role:p.role||'', dept:p.dept||'',
+           type:p.type||'', status:p.status||'', tel:p.tel||'', mail:p.mail||'',
+           certs:(p.certs||[]).join('、'), career:p.career||'', oils:p.oils||'', vip:p.vip?'◎':'',
+           hand:p.hand||'', note:p.note||'', pred:p.pred||'', succ:p.succ||'', photo:photo||'' };
+}
+function sheetSaveMeishi(p, photo){
+  setMeishiMsg('☁️ 「名刺情報」タブに送っています…', true);
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action:'saveMeishiCard', rec:meishiRow(p, photo)})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'){ setMeishiMsg('☁️ スプレッドシートの「名刺情報」タブに保存しました：'+p.name, true); }
+      else { setMeishiMsg('スプレッドシートに保存できませんでした：'+((d&&d.message)||'不明')+'（GASの更新・デプロイがまだかもしれません）。この端末には入っています。', false); }
+    })
+    .catch(function(){ setMeishiMsg('通信できませんでした。この端末には入っています。電波の良いところで「☁️ まとめて送る」をお試しください。', false); });
+}
+/* 今ある人物カードを全部まとめて「名刺情報」タブへ（写真は付きません） */
+function sheetSendAll(){
+  if(!PEOPLE.length){ setMeishiMsg('送る人物カードがありません。', false); return; }
+  if(!confirm(PEOPLE.length+'人分を、スプレッドシートの「名刺情報」タブに送ります。\n同じ施設・同じお名前の行は上書きされます。よろしいですか？')) return;
+  setMeishiMsg('☁️ '+PEOPLE.length+'人分を送っています…（少し時間がかかります）', true);
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action:'saveMeishiBulk', list:PEOPLE.map(function(p){ return meishiRow(p,''); })})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.status==='ok'){ setMeishiMsg('☁️ '+((d.data&&d.data.saved)||d.saved||PEOPLE.length)+'人分を「名刺情報」タブに保存しました。', true); }
+      else { setMeishiMsg('送れませんでした：'+((d&&d.message)||'不明')+'（GASの更新・デプロイがまだかもしれません）', false); }
+    })
+    .catch(function(){ setMeishiMsg('通信できませんでした。電波の良いところでもう一度お試しください。', false); });
+}
 
 /* ===== 📈 うごき（年・月・施設） ===== */
 function yen(n){ return '¥' + Number(n||0).toLocaleString('ja-JP'); }
@@ -1771,7 +1839,7 @@ function renderPeople(){
   var q=(document.getElementById('pq').value||'').trim();
   var list=PEOPLE.map(function(p,i){return {p:p,i:i};}).filter(function(o){
     var p=o.p;
-    var hay=p.name+' '+p.fac+' '+facAlias(p.fac)+' '+p.type+' '+p.dept+' '+p.role+' '+(p.status||'')+' '+(p.note||'')+' '+(p.mail||'')+' '+(p.tel||'')+' '+((p.certs||[]).join(' '))+' '+(p.career||'')+' '+(p.oils||'')+(p.vip?' 重要 重要人物 ◎':'')+((facTotal(p.fac)||0)>=48?' よく買ってくれている 上得意':'')+((facTotal(p.fac)||0)===0?' 未取引 まだ取引なし':'');
+    var hay=p.name+' '+p.fac+' '+facAlias(p.fac)+' '+p.type+' '+p.dept+' '+p.role+' '+(p.status||'')+' '+(p.note||'')+' '+(p.mail||'')+' '+(p.tel||'')+' '+((p.certs||[]).join(' '))+' '+(p.career||'')+' '+(p.oils||'')+' '+(p.hand||'')+(p.vip?' 重要 重要人物 ◎':'')+((facTotal(p.fac)||0)>=48?' よく買ってくれている 上得意':'')+((facTotal(p.fac)||0)===0?' 未取引 まだ取引なし':'');
     if(vipOnly && !p.vip) return false;
     if(buyOnly && (facTotal(p.fac)||0)<48) return false;
     return match(q, hay);
@@ -1848,6 +1916,7 @@ function buildPersonCard(p,i){
         (p.succ? '<span>後任：<b>'+esc(p.succ)+'</b></span>':'')+'</div>'+
       (p.oils? '<div class="row2" style="color:#6b5124;background:#fdf8ee;border-radius:6px;padding:5px 8px;margin-top:6px;"><span>🧴 使っているオイル：<b>'+esc(p.oils)+'</b></span></div>':'')+
       (p.career? '<div class="row2" style="color:#5c6636;"><span>これまで：<b>'+esc(p.career)+'</b></span></div>':'')+
+      (p.hand? '<div class="row2" style="color:#6b5124;background:#fff8ec;border-radius:6px;padding:5px 8px;margin-top:6px;"><span>✍️ 名刺の手書き：<b>'+esc(p.hand)+'</b></span></div>':'')+
       (p.note? '<div class="row2" style="color:#7a7266;"><span>📝 '+esc(p.note)+'</span></div>':'')+
       '<span class="tagfac">🏨 '+esc(p.fac)+'</span>'+
       '<button class="pcard-kat" onclick="openKatsudoForIdx('+o.i+')">📇 この人とのできごとを見る・書く</button>'+
