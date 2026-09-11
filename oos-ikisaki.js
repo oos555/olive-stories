@@ -185,6 +185,46 @@
       souko:false, shorui:false, soukoD:false, hoka:'🗂 取り置き及び発注前予約リスト' }
   ];
 
+  /* ══════════════════════════════════════════════════════════════════════
+     Ｄ表　データはどこから来るか（GASの窓口）　★2026-09-12 追加
+     ──────────────────────────────────────────────────────────────────────
+     ひろみさん：「loadAll は注文だけ、価格は loadAllData でした。
+     　　　　　　これどちらか消さなくていいの？また起きない？」
+
+     ★どちらも消せません。別の仕事をしていて、両方たくさん使われています。
+     　　loadAll     … 17か所・6画面
+     　　loadAllData … 39か所・11画面
+     　消すと、その画面が真っ白になります。
+
+     ★問題は【名前】です。
+     　`loadAll` は「全部」に読めますが、返すのは【注文だけ】です。
+     　2026-09-12 に、私（Claude）はこれを「全部のデータ」と思って読み、
+     　「本番の不良在庫は0件です」と【間違った報告】をしました。
+     　実際は21件ありました。データが無かったのではなく、
+     　【その窓口が返さないものを見ていた】だけでした。
+
+     ★だから、ここに書いておきます。
+     　これから何かを調べるときは、まずこの表を見てください。
+     　見張り（tests/test_ikisaki.js の ⑯）が、GASの本物のコードと突き合わせます。
+     ══════════════════════════════════════════════════════════════════════ */
+  var DATA_MADOGUCHI = [
+    { na:'loadAll',
+      kaesu:'注文だけ（orders）',
+      nai:'価格マスタ・在庫ロット・不良在庫・お客様・取り置き は入っていません',
+      moto:'受注データ シート',
+      memo:'★名前は「全部」ですが、注文だけです。ここで間違えました（2026-09-12）' },
+    { na:'loadAllData',
+      kaesu:'在庫ロット・不良在庫・取り置き・お客様・価格マスタ・特価・見積り履歴・月次 など',
+      nai:'注文（orders）は入っていません',
+      moto:'統合マスタＮのいろいろなシート',
+      memo:'価格マスタ（priceMaster）はここです。★単価を調べるときはこちら' },
+    { na:'loadBundleForOrders',
+      kaesu:'上の2つを1回でまとめて（data と orders の両方）＋お休みカレンダー',
+      nai:'—',
+      moto:'上の2つと同じ',
+      memo:'受注Ａと玄関が、速く開くために使っています。失敗したら上の2本立てに戻ります' }
+  ];
+
   /* 発注書へ行く（＝Ａ表で juchuA が書かれている）列だけ */
   function soukoIkuRetsu() {
     return SOUKO_RETSU.filter(function (r) { return String(r.juchuA || '').trim() !== ''; });
@@ -200,10 +240,10 @@
 
   /* 封（この表の中身から出す数字）。表を1文字でも変えると変わります */
   function fuu() {
-    var s = JSON.stringify([SOUKO_RETSU, SHORUI_DAKE, DOKO_NIMO]);
+    var s = JSON.stringify([SOUKO_RETSU, SHORUI_DAKE, DOKO_NIMO, DATA_MADOGUCHI]);
     var h = 0, i;
     for (i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) % 2147483647; }
-    return { kazu: SOUKO_RETSU.length + SHORUI_DAKE.length + DOKO_NIMO.length,
+    return { kazu: SOUKO_RETSU.length + SHORUI_DAKE.length + DOKO_NIMO.length + DATA_MADOGUCHI.length,
              moji: s.length, fuu: h };
   }
 
@@ -211,6 +251,7 @@
     SOUKO_RETSU: SOUKO_RETSU,
     SHORUI_DAKE: SHORUI_DAKE,
     DOKO_NIMO: DOKO_NIMO,
+    DATA_MADOGUCHI: DATA_MADOGUCHI,
     soukoIkuRetsu: soukoIkuRetsu,
     shoruiNiDeruRetsu: shoruiNiDeruRetsu,
     kanarazuWaku: kanarazuWaku,

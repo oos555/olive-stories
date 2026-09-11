@@ -696,6 +696,51 @@ function hacchuushoGyou(payload){
        KAK.unitPriceForLine({customerType:'general'}, line, 'MEM500', [], null), 0);
   })();
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑯ データの窓口（Ｄ表）が、GASの本物と合っているか
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん：「loadAll は注文だけ、価格は loadAllData でした。
+     　これどちらか消さなくていいの？また起きない？」
+     　→ どちらも消せません（両方たくさん使われています）。
+     　　問題は名前です。`loadAll` は「全部」に読めるのに、返すのは注文だけ。
+     　　私はここで間違えて「本番の不良在庫は0件」と誤って報告しました（実際は21件）。
+     ★だからＤ表に書いて、GASの本物と突き合わせます。
+     　GASの中身が変わったら、この見張りが落ちます。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    const D = IK.DATA_MADOGUCHI || [];
+    eq('⑯-0 Ｄ表に窓口が3つ書いてある', D.length, 3);
+    ['loadAll','loadAllData','loadBundleForOrders'].forEach(function(n){
+      ok('⑯-1 Ｄ表に「'+n+'」が載っている', D.some(function(r){ return r.na === n; }));
+    });
+    if(!gasSrc){ console.log('（GASのファイルが手元にないので ⑯ の突き合わせは飛ばしました）'); return; }
+
+    /* loadAll は【注文だけ】を返す（価格マスタを返さない） */
+    const la = H.cut(gasSrc, 'loadAll');
+    ok('⑯-2 loadAll は orders を返す',            /result\s*=\s*\{orders:\[\]\}/.test(la));
+    ok('⑯-3 loadAll は価格マスタを返さない',      la.indexOf('priceMaster') < 0);
+    ok('⑯-4 loadAll は在庫ロットを返さない',      la.indexOf("readSheet('在庫データ'") < 0);
+    ok('⑯-5 loadAll は不良在庫を返さない',        la.indexOf("readSheet('不良在庫データ'") < 0);
+
+    /* loadAllData は 価格マスタ・在庫・不良在庫 を返す */
+    const lad = H.cut(gasSrc, 'loadAllData');
+    ok('⑯-6 loadAllData は価格マスタを返す',      /result\.priceMaster\s*=/.test(lad));
+    ok('⑯-7 loadAllData は在庫ロットを返す',      /result\.lots\s*=/.test(lad));
+    ok('⑯-8 loadAllData は不良在庫を返す',        /result\.defects\s*=/.test(lad));
+    ok('⑯-9 loadAllData は注文を返さない',        !/result\.orders\s*=/.test(lad));
+
+    /* Ｄ表に書いた「入っていないもの」が、本当に入っていないか */
+    const laRow  = D.filter(function(r){ return r.na === 'loadAll'; })[0] || {};
+    const ladRow = D.filter(function(r){ return r.na === 'loadAllData'; })[0] || {};
+    ok('⑯-10 Ｄ表に「loadAll は注文だけ」と書いてある',    /注文だけ/.test(laRow.kaesu || ''));
+    ok('⑯-11 Ｄ表に「価格マスタは入っていない」と書いてある', /価格マスタ/.test(laRow.nai || ''));
+    ok('⑯-12 Ｄ表に「loadAllData に価格マスタ」と書いてある', /価格マスタ/.test(ladRow.kaesu || ''));
+
+    /* 受注Ａは、価格を loadAll から取ろうとしていないか */
+    ok('⑯-13 受注Ａは価格マスタを loadAllData 側から受け取っている',
+       /if\(Array\.isArray\(d\.priceMaster\)/.test(idx));
+  })();
+
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();
