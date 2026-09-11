@@ -278,6 +278,47 @@ ok('⑨-2 いままでの4つも残っている',
 })();
 ok('⑨-3 容器を直すとき、空の生産地も戻す', src.indexOf('origin: (p.origin || originOf(p) ||') >= 0);
 
+/* ══════ ⑨-3B 容器の表が、請求Ｃと見積Мでズレていないか ══════
+   ★2026-09-12 ここを足した理由（実際にあったズレ）
+   ──────────────────────────────────────────────────────────
+   容器を決めている場所が【3か所】ある。
+   　① master.html の containerFor … 上の⑨-3が見張っている（農園ごとのルール）
+   　② mitsumori.html の CONTAINER_BY_SKU … 見積Мの書類が使う
+   　③ billing.html の CONTAINER_BY_SKU … 請求Ｃの書類が使う
+   2026-07-24 に中村様から
+   　「唐辛子オイル(TGR100)は遮光瓶。bag in box はアルモニア3L(ARM3L)だけ」
+   と訂正をいただいたが、②だけ直されて③が直っていなかった。
+   その結果、請求Ｃの書類では
+   　・唐辛子オイル → bag in box（まちがい）
+   　・アルモニア3L → 遮光瓶（まちがい。既定値に落ちていた）
+   と出ていた。お客様にお渡しする書類なので直した。
+   ★②と③は必ず同じ中身にしてください。片方だけ直すと、また同じことが起きます。
+   ──────────────────────────────────────────────────────── */
+(function(){
+  function hiku(file){
+    var s = fs.readFileSync(path.join(H.LIVE, file), "utf8");
+    var c = vm.createContext({});
+    vm.runInContext(H.cutVar(s, "CONTAINER_BY_SKU"), c);
+    return c.CONTAINER_BY_SKU || {};
+  }
+  var B = hiku("billing.html");      /* 請求Ｃ */
+  var M = hiku("mitsumori.html");    /* 見積М */
+  ok("⑨-3B 請求Ｃの容器の表が読める（" + Object.keys(B).length + "件）", Object.keys(B).length > 0);
+  ok("⑨-3B 見積Мの容器の表が読める（" + Object.keys(M).length + "件）", Object.keys(M).length > 0);
+  eq("⑨-3B 2つの表の件数が同じ", Object.keys(B).length, Object.keys(M).length);
+  Object.keys(M).forEach(function(sku){
+    eq("⑨-3B 請求Ｃと見積Мで同じ（" + sku + "）", B[sku], M[sku]);
+  });
+  Object.keys(B).forEach(function(sku){
+    if (M[sku] == null) ok("⑨-3B 請求Ｃにだけある品番が無い（" + sku + "）", false);
+  });
+  /* ★中村様の訂正そのもの。ここを直接見る */
+  eq("⑨-3B ★アルモニア3L は bag in box（請求Ｃ）", B.ARM3L, "bag in box");
+  eq("⑨-3B ★アルモニア3L は bag in box（見積М）", M.ARM3L, "bag in box");
+  ok("⑨-3B ★唐辛子オイル(TGR100)を表に書かない（既定の遮光瓶になる・請求Ｃ）", B.TGR100 == null);
+  ok("⑨-3B ★唐辛子オイル(TGR100)を表に書かない（既定の遮光瓶になる・見積М）", M.TGR100 == null);
+})();
+
 /* ══════ ⑨-4 「この画面は古い」の見張り（2026-08-18） ══════
    輸入Ｅの転記などでサーバーの在庫が変わったのに、この画面が気づかないまま
    在庫をさわると、古い数字で上書きしてしまう。ときどき読むだけで見に行って知らせる。
