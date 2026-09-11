@@ -293,6 +293,43 @@ FILES.concat(['tests/harness.js']).forEach(function(f){
       t("⑩order.html の送料 北海道が親と同じ", hiku("hokkaido"), KIM10.SORYO_ZEIKOMI["北海道"]);
       t("⑩order.html の送料 沖縄が親と同じ",   hiku("okinawa"),  KIM10.SORYO_ZEIKOMI["沖縄県"]);
       t("⑩order.html の送料 その他が親と同じ", hiku("other"),    KIM10.SORYO_ZEIKOMI["その他"]);
+
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-12 送料の決めごとは【3か所】にあります。ここで全部を結びます。
+         ──────────────────────────────────────────────────────────────
+         ① soryo.html の <script id="soryo-data"> … ひろみさんが直す決めごと
+         ② order.html の SHIP …… お客様の注文ページが自分で持っている写し
+         　　（soryo.html の手引きにも「必ず両方」直すと書いてあります）
+         ③ oos-shorui-kimari.js の SORYO_ZEIKOMI … 書類の親（納品書・請求書）が使う
+         　　★これは2026-09-11に足した3つ目で、①との関係がどこにも書かれて
+         　　　いませんでした。①を直しても③は変わらないので、見積と納品書で
+         　　　送料がちがう、ということが起こり得ます。
+         いまは3つとも同じ値です（北海道・沖縄 1,100／その他 880）。
+         どれか1つを直して他を忘れたら、この見張りが落ちます。
+         ★どれを本当の親にするかはひろみさんが決めることなので、
+         　ここでは「ズレたら気づく」ところまでにしてあります。
+         ══════════════════════════════════════════════════════════════ */
+      const soSrc = fs.readFileSync(R + "soryo.html", "utf8");
+      const soM = /<script\s+id="soryo-data"[^>]*>([\s\S]*?)<\/script>/.exec(soSrc);
+      t("⑩soryo.html の決めごと（soryo-data）が読める", !!soM, true);
+      if (soM) {
+        let soD = null;
+        try { soD = JSON.parse(soM[1]); } catch (e) { soD = null; }
+        t("⑩soryo.html の決めごとが JSON として読める", !!(soD && soD.ship), true);
+        if (soD && soD.ship) {
+          t("⑩soryo.html と親（書類）の送料が同じ：北海道・沖縄",
+            Number(soD.ship.hokkaido), KIM10.SORYO_ZEIKOMI["北海道"]);
+          t("⑩soryo.html と親（書類）の送料が同じ：その他",
+            Number(soD.ship.other), KIM10.SORYO_ZEIKOMI["その他"]);
+          t("⑩soryo.html と お客様の注文ページ の送料が同じ：北海道",
+            Number(soD.ship.hokkaido), hiku("hokkaido"));
+          t("⑩soryo.html と お客様の注文ページ の送料が同じ：その他",
+            Number(soD.ship.other), hiku("other"));
+          /* ★親（書類）は北海道と沖縄を別のキーで持っているが、同じ値のはず */
+          t("⑩親（書類）の北海道と沖縄は同じ値",
+            KIM10.SORYO_ZEIKOMI["北海道"], KIM10.SORYO_ZEIKOMI["沖縄県"]);
+        }
+      }
     }
   } catch (e) {
     t("⑩order.html の送料を読み取れる", "読めました", "エラー: " + e.message);
