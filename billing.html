@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-03">
+<meta name="oos-version" content="2026-09-12-04">
 <script src="oos-version.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1733,8 +1733,31 @@ function confirmRtGate(isRt){
   document.getElementById('q-after-gate').style.display = '';
   renderQuoteCustomerSelect();
 }
-function warehouseFeeForGate(){
+/* ══════════════════════════════════════════════════════════════════
+   ★2026-09-12 ここは【決めごとの親に聞く】ようになりました。
+   ──────────────────────────────────────────────────────────────────
+   前：RT なら700円、それ以外は全部250円
+   　　→ 一般のお客様の見積書にも 250円 がついていました。
+   ひろみさんの言葉（親 oos-shorui-kimari.js に書いてあります）：
+   　「一般の方にはピックアップ料金はサービスで無料。卸の人は必ずもらう。
+   　　RTの場合は一回700円プラス消費税。
+   　　そうじゃない卸の場合は、一回につき250円プラス消費税」
+   今：OOS_SHORUI.pickupOf（親）に区分を渡して決めてもらいます。
+   　　一般＝0円（無料サービス）／卸①②＝250円／RT・RTGC＝700円
+   ★金額をここに書き写さないでください。変えるときは親の表を直します。
+   ★「10箱以上のご注文で無料」は請求Ｃだけの決めごとなので、呼ぶ側に残してあります。
+   ══════════════════════════════════════════════════════════════════ */
+function warehouseFeeForGate(ctype){
+  /* 区分がわかっていれば、それで親に聞く（いちばん正しい） */
+  if(ctype && window.OOS_SHORUI && window.OOS_SHORUI.pickupOf){
+    return window.OOS_SHORUI.pickupOf(ctype, true);
+  }
+  /* 区分がわからないときは、RTかどうかの確認だけで親に聞く */
   const rtSelected = document.getElementById('q-rt-gate-card').dataset.rtSelected;
+  if(window.OOS_SHORUI && window.OOS_SHORUI.pickupOf){
+    return window.OOS_SHORUI.pickupOf(rtSelected==='true' ? 'rt' : 'wholesale1', true);
+  }
+  /* ★親が読めなかったときだけ、前と同じ動きにする（画面を止めないため） */
   return rtSelected==='true' ? 700 : 250;
 }
 
@@ -2152,7 +2175,8 @@ function generateQuoteDoc(){
   const today = new Date();
   const expiry = new Date(today); expiry.setMonth(expiry.getMonth()+1);
   const expiryStr = expiry.getFullYear()+'年'+(expiry.getMonth()+1)+'月'+expiry.getDate()+'日';
-  const bulkWarehouseFee = totalBoxes >= 10 ? 0 : warehouseFeeForGate();
+  /* ★2026-09-12 お客様の区分を渡して、親に金額を決めてもらう（一般は0円） */
+  const bulkWarehouseFee = totalBoxes >= 10 ? 0 : warehouseFeeForGate(c.type);
   const record = {
     id: 'q'+Date.now(), customerId: c.id, customerName: c.name, customerType: c.type,
     contactPerson: contactPerson, subject: subject,

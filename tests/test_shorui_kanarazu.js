@@ -202,6 +202,46 @@ inc('⑧納品書の親は決めごとを使っている', H.read('oos-nouhin.js
 inc('⑧「金額があれば出す」に戻っていない', H.read('oos-nouhin.js'),
     'if (withAmount && _shipIncl > 0) {', false);
 
+/* ══ ⑧-B 請求Ｃ（billing.html）の見積書も、親に聞いているか ══════
+   ★2026-09-12 ここを足した理由（実際にあった食い違い）
+   billing.html の warehouseFeeForGate は
+   　　「RT なら700円、それ以外は全部250円」
+   と自分で持っていて、【一般のお客様の見積書にも250円】がついていました。
+   ひろみさんの言葉は「一般の方にはピックアップ料金はサービスで無料」。
+   親（oos-shorui-kimari.js）には 一般＝0 と書いてあるのに、
+   請求Ｃだけが写しを持っていたので気づけませんでした。
+
+   ★この見張りは【本物の関数を動かして】金額を見ます。
+   　「文字があるか」だけでは、また写しに戻されても気づけません。
+   ══════════════════════════════════════════════════════════ */
+{
+  var bSrc = H.read("billing.html");
+  inc("⑧-B 請求Ｃが決めごとを読み込んでいる", bSrc, "oos-shorui-kimari.js?v=", true);
+  /* ★金額の文字そのものは「親が読めなかったときの非常走用」として残してあるので、
+     　文字があるかでは見ません。【親に聞いているか】と【動かした答え】で見ます。 */
+  inc("⑧-B 請求Ｃが親に金額を聞いている（OOS_SHORUI.pickupOf を呼ぶ）",
+      bSrc, "OOS_SHORUI.pickupOf", true);
+
+  /* 本物の warehouseFeeForGate を切り出して動かす */
+  var wBox = { window: null, document: { getElementById: function(){ return { dataset: {} }; } } };
+  wBox.window = wBox; wBox.globalThis = wBox;
+  wBox.OOS_KAKAKU = box.OOS_KAKAKU; wBox.OOS_SHORUI = box.OOS_SHORUI;
+  var wCtx = vm.createContext(wBox);
+  try {
+    vm.runInContext(H.cut(bSrc, "warehouseFeeForGate"), wCtx);
+    eq("⑧-B 請求Ｃ：一般のお客様は 0円（無料サービス）", wBox.warehouseFeeForGate("general"), 0);
+    eq("⑧-B 請求Ｃ：卸①は 250円",                      wBox.warehouseFeeForGate("wholesale1"), 250);
+    eq("⑧-B 請求Ｃ：卸②は 250円",                      wBox.warehouseFeeForGate("wholesale2"), 250);
+    eq("⑧-B 請求Ｃ：RTは 700円",                        wBox.warehouseFeeForGate("rt"), 700);
+    eq("⑧-B 請求Ｃ：日本語の区分でも通る（一般）",        wBox.warehouseFeeForGate("一般"), 0);
+  } catch (e) {
+    ok("⑧-B 請求Ｃの warehouseFeeForGate を切り出して動かせる", false, String(e.message));
+  }
+  /* 呼ぶ側が、お客様の区分を渡しているか（渡さないと一般が判定できない） */
+  inc("⑧-B 請求Ｃは見積書を作るとき区分を渡している",
+      bSrc, "warehouseFeeForGate(c.type)", true);
+}
+
 console.log('===== 📄 書類に【必ず載るもの】（2026-09-11）=====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(function(f){ console.log('  ' + f); }); }
