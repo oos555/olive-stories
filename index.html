@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-04">
+<meta name="oos-version" content="2026-09-12-05">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2385,7 +2385,29 @@ const EC_WAREHOUSE = {
   bikoLine: 'お届け先：〒601-8203 京都府京都市南区久世築山町212-1　株式会社カワタキコーポレーション内　リゾートトラスト様通販倉庫に納品しています。'
 };
 
-const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'包装紙ギフト', sample_free:'無料サンプル', sample_paid:'有償サンプル', w1:'卸①価格', w2:'卸②価格' };
+/* ══════════════════════════════════════════════════════════════════════
+   1商品ごとの扱い種別　★2026-09-12 ひろみさん指示で整えました
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「種別から卸①②を外せばスッキリじゃない？」
+
+   ★卸①価格・卸②価格（w1・w2）を【えらべる一覧から外しました】。
+     ・値段は「この顧客の価格区分」で決まります。行ごとの上書きは要りません。
+     ・本番の全注文79件を調べて、w1・w2 は【1回も使われていませんでした】（2026-09-12確認）。
+     ・ただし【名前だけは下に残してあります】。
+       万一どこかに古い注文があったとき、画面に「undefined」と出ないようにするためです。
+       値段の上書きのしくみ（oos-kakaku.js の lineTierType）も残してあります。
+       ★この2つを消さないでください。消すと古い注文の表示と金額が壊れます。
+   ★えらべる一覧に w1・w2 を戻さないでください（giftOptionsHtml を見てください）。
+
+   ★none は「種別を決めない」行です（RT・バサラ・STORESが自動で作る行）。
+     名前が無かったので、画面に「[undefined]」と出ていました（2026-09-12に見つけました）。
+     「―」と出すようにしました。★消さないでください。
+   見張り：tests/test_ikisaki.js の ⑫
+   ══════════════════════════════════════════════════════════════════════ */
+const GIFT_TYPE_LABEL = { normal:'通常', none:'―', gift:'ギフト', simple:'包装紙ギフト', sample_free:'無料サンプル', sample_paid:'有償サンプル', w1:'卸①価格', w2:'卸②価格' };
+/* ★えらべるのはこの5つだけ（上の表のうち、人がえらんでよいもの）。
+   none は自動で入る行の印、w1・w2 は古い注文のための名前です。 */
+const GIFT_TYPE_ERABERU = ['normal', 'gift', 'simple', 'sample_free', 'sample_paid'];
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
@@ -3560,7 +3582,18 @@ function renumberRecipients(){
   });
 }
 function giftOptionsHtml(isSet, selected){
-  const keys = isSet ? ['gift'] : Object.keys(GIFT_TYPE_LABEL).filter(k=>k!=='gift');
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 えらべるのは GIFT_TYPE_ERABERU の5つだけにしました。
+     ひろみさん：「種別から卸①②を外せばスッキリじゃない？」
+     それまでは GIFT_TYPE_LABEL の中身を【ぜんぶ】出していたので、
+     名前を1つ足すだけで、えらべる一覧にも黙って増えていました。
+     ★Object.keys(GIFT_TYPE_LABEL) に戻さないでください。
+     　戻すと 卸①価格・卸②価格・「―」まで、またえらべるようになります。
+     ══════════════════════════════════════════════════════════════════ */
+  let keys = isSet ? ['gift'] : GIFT_TYPE_ERABERU.filter(k=>k!=='gift');
+  /* ★古い注文を開いたとき、いまはえらべない種別（卸①価格など）が入っていたら、
+     その注文の値を勝手に変えないように、その1つだけ足して見せます。 */
+  if(selected && keys.indexOf(selected) < 0 && GIFT_TYPE_LABEL[selected]) keys = keys.concat([selected]);
   return keys.map(k=>'<option value="'+k+'" '+(k===selected?'selected':'')+'>'+GIFT_TYPE_LABEL[k]+'</option>').join('');
 }
 function isActiveDefect(d){ return OOS_ZAIKO.isActiveDefect(d); }   // ★親（oos-zaiko.js）を見に行く

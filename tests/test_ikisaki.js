@@ -479,6 +479,57 @@ function hacchuushoGyou(payload){
        /sample_free:'無料サンプル'/.test(pickupSrc) && /sample_paid:'有償サンプル'/.test(pickupSrc));
   })();
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑫ 1商品ごとの扱い種別　えらべるのは5つだけ／名前のぬけが無いか
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん「種別から卸①②を外せばスッキリじゃない？」
+     　本番の全注文79件で w1・w2 は1回も使われていませんでした（調べてから外しました）。
+     ★えらべる一覧に w1・w2 を戻さないでください。
+     ★名前の表（GIFT_TYPE_LABEL）からは消さないでください。
+     　消すと、古い注文を開いたときに画面に「undefined」と出ます。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    const gbox = { console }; gbox.globalThis = gbox;
+    const gctx = vm.createContext(gbox);
+    vm.runInContext(H.cutVar(idx, 'GIFT_TYPE_LABEL'), gctx);
+    vm.runInContext(H.cutVar(idx, 'GIFT_TYPE_ERABERU'), gctx);
+    vm.runInContext(H.cut(idx, 'giftOptionsHtml'), gctx);
+
+    /* えらべるのは5つだけ */
+    eq('⑫-1 えらべる扱い種別は5つ', gbox.GIFT_TYPE_ERABERU.length, 5);
+    eq('⑫-2 えらべる中身', gbox.GIFT_TYPE_ERABERU.join('／'),
+       ['normal','gift','simple','sample_free','sample_paid'].join('／'));
+    const html5 = gbox.giftOptionsHtml(false);
+    ok('⑫-3 えらべる一覧に「卸①価格」を出していない', html5.indexOf('卸①価格') < 0);
+    ok('⑫-4 えらべる一覧に「卸②価格」を出していない', html5.indexOf('卸②価格') < 0);
+    ok('⑫-5 えらべる一覧に「―」（自動の行の印）を出していない', html5.indexOf('>―<') < 0);
+    ok('⑫-6 えらべる一覧に「無料サンプル」がある', html5.indexOf('無料サンプル') >= 0);
+    ok('⑫-7 えらべる一覧に「有償サンプル」がある', html5.indexOf('有償サンプル') >= 0);
+
+    /* 古い注文に卸①価格が入っていたら、その1つだけは見せる（勝手に変えない） */
+    const hOld = gbox.giftOptionsHtml(false, 'w1');
+    ok('⑫-8 古い注文の「卸①価格」は、その注文では見せる', hOld.indexOf('卸①価格') >= 0);
+    ok('⑫-9 そのとき選ばれたままになっている', /value="w1"\s*selected/.test(hOld));
+
+    /* 名前のぬけ（画面に undefined が出ないか） */
+    const L = gbox.GIFT_TYPE_LABEL;
+    ['normal','none','gift','simple','sample_free','sample_paid','w1','w2'].forEach(function(k){
+      ok('⑫-10 「' + k + '」に名前がある（undefined と出ない）', typeof L[k] === 'string' && L[k] !== '');
+    });
+    eq('⑫-11 none の名前は「―」', L['none'], '―');
+    /* 倉庫Ｄの写しも同じか（名前がちがうと同じ注文が別の言葉で出ます） */
+    const pbox = { console }; pbox.globalThis = pbox;
+    const pctx = vm.createContext(pbox);
+    vm.runInContext(H.cutVar(pickupSrc, 'GIFT_TYPE_LABEL'), pctx);
+    ['normal','none','sample_free','sample_paid','w1','w2'].forEach(function(k){
+      eq('⑫-12 倉庫Ｄの「' + k + '」の名前が受注Ａと同じ', pbox.GIFT_TYPE_LABEL[k], L[k]);
+    });
+    /* 本番で使われている種別ぜんぶに名前があるか（2026-09-12に実データで調べた5種類） */
+    ['normal','none','sample_free','gift'].forEach(function(k){
+      ok('⑫-13 本番で使われている「' + k + '」に名前がある', !!L[k]);
+    });
+  })();
+
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();
