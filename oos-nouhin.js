@@ -84,7 +84,10 @@
     return (p && p.extras && String(p.extras['単位'] || '').trim()) || '本';
   }
 
-  function build(o, deps) {
+  /* ★2026-09-12 3つ目の引数 shoruiMei を足しました（ひろみさん：2枚とも作る）。
+     　渡さなければ今までどおり（同梱書類から1枚ぶん決めます）。
+     　渡すと、その名前の書類を作ります。★引数を消さないでください。 */
+  function build(o, deps, shoruiMei) {
     /* ★2026-09-10 斜めからの試験で見つけた守りもれ。注文が無いのに呼ばれると落ちていました。
        落ちると、その先の「発注書にリンクを貼る」まで止まります。★この1行を消さないでください */
     if (!o) return '';
@@ -100,7 +103,8 @@
     /* ★2026-08-19 表題は、受注Ａで選んだ同梱書類の名前をそのまま出す
        （納品書／納品書兼請求書／請求書／領収書…）。「納品書」で固定しないでください。 */
     /* ★2026-08-19 表題は【お客様から見た書類の名前】だけ。社内の言葉（RT・卸など）は出さない */
-    var docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
+    var _mei = String(shoruiMei || '').trim();
+    var docName = _mei ? docTitleOf(_mei) : docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
     /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
        お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
     /* ══════════════════════════════════════════════════════════════════
@@ -116,7 +120,7 @@
       /* ★見るのは【ひろみさんが選んだ書類名】だけ。
          表題（docName）も見ると、パンフレットだけのときに既定の「納品書」に化けて
          数字が出てしまいます（2026-09-11に気づきました）。★足さないでください */
-      ? KIM.sujiGaNoruKa(o.enclosedDoc)
+      ? KIM.sujiGaNoruKa(_mei || o.enclosedDoc)
       : (invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc');
     /* ★2026-08-19 区分（定価・卸・バサラ等）のバッジは【書類に出さない】と決めました。
        ★この badge を title に足さないでください（社内の言葉がお客様の書類に出てしまいます）。
@@ -201,9 +205,21 @@
       var n = parseInt(v, 10);
       return isNaN(n) ? null : n;
     }
-    var _shipIncl = _yen(o.shippingFee);                // 送料（税込）　null＝まだ決まっていない
-    var _whFee    = _yen(o.warehouseFee);               // 倉庫ピッキング手数料（税抜）
-    var _shipEranda = (_shipIncl !== null);             /* 人がえらんだか（0を含む） */
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「送料は別途申し受けます。も選べるようにして！
+       　見積の時に使う可能性大」
+       受注Ａで【別途申し受けます】をえらぶと、o.shippingFee に 'betto' が入ります。
+       そのときは
+       　・枠の送料に「別途申し受けます」と出す
+       　・合計にも消費税にも入れない
+       　・備考に「上記の金額に送料は含まれておりません。送料は別途申し受けます。」を出す
+       ★'betto' を数字に直そうとしないでください（NaNになります）。
+       見張り：tests/test_ikisaki.js の ⑲
+       ══════════════════════════════════════════════════════════════════ */
+    var _shipBetto = (String(o.shippingFee) === 'betto');
+    var _shipIncl = _shipBetto ? 0 : _yen(o.shippingFee);   // 送料（税込）　null＝まだ決まっていない
+    var _whFee    = _yen(o.warehouseFee);                   // 倉庫ピッキング手数料（税抜）
+    var _shipEranda = _shipBetto || (_shipIncl !== null);   /* 人がえらんだか（0・別途を含む） */
     /* まだ決まっていない注文（2026-09-12より前の注文）は、今までどおり決めごとから出す */
     if (_whFee    === null) _whFee    = (KIM ? KIM.pickupOf(o.customerType, KIM.baraAriKa(o)) : 0);
     if (_shipIncl === null) _shipIncl = (KIM ? KIM.soryoOf(String(o.addr || '')).fee : 0);
@@ -224,7 +240,10 @@
          　無料サービスと表示させて」
          ★「―」や空欄にしないでください（入れ忘れに見えます）。 */
       wakuRows.push({ name: '倉庫ピックアップ料金（バラ出荷）', amount: _whFee,   zeroText: '無料サービス' });
-      wakuRows.push({ name: '送料',                          amount: _shipNet, zeroText: '無料サービス' });
+      /* ★2026-09-12 「別途申し受けます」をえらんだときは、そう出します。
+         　金額ではないので、合計にも消費税にも入れません。 */
+      wakuRows.push({ name: '送料', amount: _shipNet,
+                      zeroText: (_shipBetto ? '別途申し受けます' : '無料サービス') });
       /* 消費税の計算には入れる（表には出しません） */
       zeiOnly.push({ amount: _whFee,   taxRate: ZEI.RATE_SERVICE });
       zeiOnly.push({ amount: _shipNet, taxRate: ZEI.RATE_SERVICE });
@@ -239,7 +258,9 @@
     /* ★2026-09-12 ただし、人が【無料サービス】をえらんだ注文には添えません。
        枠に「無料サービス」と出しているのに「別途申し受けます」と書くと、
        お客様にはどちらが本当か分かりません。★この _shipEranda の条件を外さないでください */
-    if (withAmount && _shipIncl <= 0 && !_shipEranda) {
+    /* ★2026-09-12 「別途申し受けます」をえらんだときは、この一言を【必ず出します】
+       　（見積で使うので、お客様に伝わらないと困ります）。 */
+    if (withAmount && (_shipBetto || (_shipIncl <= 0 && !_shipEranda))) {
       notes.push('<div style="font-weight:700;margin-bottom:2px">■ 送料について</div>'
         + '上記の金額に送料は含まれておりません。送料は別途申し受けます。');
     }
@@ -361,14 +382,40 @@
      ★「納品書という字が入っているか」に戻さないでください。
      見張り：tests/test_ikisaki.js の ⑰
      ══════════════════════════════════════════════════════════════════════ */
-  function needsNouhin(o) {
-    if (!o) return false;
+  /* ══════════════════════════════════════════════════════════════════════
+     この注文で【作る書類の名前】を、ぜんぶ並べる　★2026-09-12 追加
+     ──────────────────────────────────────────────────────────────────────
+     ひろみさん：「納品書と請求書、2枚作った場合は2枚ともチェックできるように。
+     　　　　　　作成した書類だけでいい」
+
+     同梱書類は「納品書 ＋ 請求書」のように【2つ以上えらべます】。
+     ところが、それまでは1枚しか作っていませんでした。
+     　　「納品書 ＋ 請求書」　→ 納品書だけ（請求書が作られない）
+     　　「納品書兼請求書 ＋ 領収書」→ 納品書兼請求書だけ（領収書が作られない）
+     ★2026-09-12 に見つけた穴です。いまは【えらんだ数だけ】作ります。
+     ★1枚にまとめる形に戻さないでください。
+     見張り：tests/test_ikisaki.js の ⑳
+     ══════════════════════════════════════════════════════════════════════ */
+  function shoruiList(o) {
+    if (!o) return [];
     var enc = String(o.enclosedDoc || '');
-    if (enc === 'なし') return false;
-    if (!enc) return true;              /* 空の既定は「納品書兼請求書」（受注Ａ・倉庫Ｄと同じ） */
+    if (enc === 'なし') return [];
+    if (!enc) return ['納品書兼請求書'];          /* 空の既定 */
     var KIM = root.OOS_SHORUI;
-    if (KIM && KIM.sujiGaNoruKa) return KIM.sujiGaNoruKa(enc);
-    return enc.indexOf('納品書') >= 0;  /* 決めごとが読めないときだけ、昔の見かた */
+    var out = [];
+    enc.split(' ＋ ').forEach(function (x) {
+      var nm = String(x || '').trim();
+      if (!nm) return;
+      var noru = KIM && KIM.sujiGaNoruKa ? KIM.sujiGaNoruKa(nm) : (nm.indexOf('納品書') >= 0);
+      if (noru && out.indexOf(nm) < 0) out.push(nm);   /* 金額が載るものだけ・同じ名前は1回 */
+    });
+    return out;
+  }
+
+  function needsNouhin(o) {
+    /* ★2026-09-12 判断は shoruiList の1か所だけ。ここに書き写さないでください。
+       　（作る書類が1枚でもあれば「作る」です） */
+    return shoruiList(o).length > 0;
   }
 
   root.OOS_NOUHIN = {
@@ -384,7 +431,8 @@
     lineTotal: lineTotal,
     build: build,
     missingPrices: missingPrices,
-    needsNouhin: needsNouhin
+    needsNouhin: needsNouhin,
+    shoruiList: shoruiList
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

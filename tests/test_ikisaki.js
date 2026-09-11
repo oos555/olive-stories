@@ -790,8 +790,122 @@ function hacchuushoGyou(payload){
        /function pdfNiSuruKa/.test(idx) && /OOS_SHORUI\.sujiGaNoruKa/.test(H.cut(idx, 'pdfNiSuruKa')));
     ok('⑰-9 「納品書という字が入っているか」で分けていない',
        idx.indexOf("filter(function(d){ return d.indexOf('納品書')>=0; })") < 0);
-    ok('⑰-10 PDFを作るかどうかも決めごとの親に聞いている',
-       /KIM\.sujiGaNoruKa\(enc\)/.test(H.read('oos-nouhin.js')));
+    /* ★2026-09-12 判断は shoruiList の1か所にまとめました（2枚とも作るため）。
+       needsNouhin はその一覧の数を見るだけです。★写しを作らないでください。 */
+    ok('⑰-10 PDFを作るかどうかは shoruiList の1か所で決めている',
+       /KIM && KIM\.sujiGaNoruKa \? KIM\.sujiGaNoruKa\(nm\)/.test(H.read('oos-nouhin.js'))
+       && /return shoruiList\(o\)\.length > 0;/.test(H.read('oos-nouhin.js')));
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑱ 書類は【見てから貼る】／貼れていないとカードに出る
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん：
+     　「自動でスプシに貼られる前に、アプリ上でチェックしたい。
+     　　じゃないと、データーを何度もキャンセルすることも起きる」
+     　「届いていなくても気が付けない」
+     ★自動で貼る形に戻さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    /* 登録したときに、その場では貼らない */
+    const reg = H.cut(idx, 'registerOrder').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('⑱-1 登録のときに自動で貼っていない', !/nouhinAttachToOrder\s*\(/.test(reg));
+    ok('⑱-2 登録のあとに書類を画面に出す',   /docCheckStart\s*\(/.test(reg));
+
+    /* 見てから貼る画面がある */
+    ok('⑱-3 書類を出す枠が画面にある', /id="doc-check"/.test(idx));
+    ok('⑱-4 出す関数がある',           /function docCheckNext\s*\(/.test(idx));
+    const nx = H.cut(idx, 'docCheckNext');
+    ok('⑱-5 本物の書類を、その書類名で組み立てて見せている',
+       /OOS_NOUHIN\.build\(o, nouhinDeps\(\), _mei\)/.test(nx));
+    ok('⑱-6 ［この内容で発注書に貼る］がある', /この内容で発注書に貼る/.test(nx));
+    ok('⑱-7 ［直す（貼らない）］がある',       /直す（貼らない）/.test(nx));
+    ok('⑱-8 単価が未登録なら、そう出して貼らせない', /単価が登録されていない商品があるので/.test(nx));
+    ok('⑱-9 押したときだけ、その書類名で貼る',
+       /nouhinAttachToOrder\(q\.o, q\.mei\)/.test(H.cut(idx, 'docCheckOk')));
+    ok('⑱-10 「直す」では貼らない', !/nouhinAttachToOrder/.test(H.cut(idx, 'docCheckSkip')));
+
+    /* どの注文を出すか（バサラとRT伝票取込は出さない） */
+    const ts = H.cut(idx, 'docCheckTaisho');
+    ok('⑱-11 バサラは出さない',            /source === 'basara'/.test(ts));
+    ok('⑱-12 RTの伝票取込は出さない',      /RT伝票取込/.test(ts));
+    ok('⑱-13 もう貼ってあるものは出さない', /o\.nouhinDocUrl/.test(ts));
+    ok('⑱-14 金額の載らない書類は出さない', /needsNouhin/.test(ts));
+
+    /* カードの札 */
+    const fd = H.cut(idx, 'docFudaHtml');
+    ok('⑱-15 貼れていたら「貼れています」と出す',       /貼れています/.test(fd));
+    ok('⑱-16 貼れていなければ「まだ貼れていません」',   /まだ貼れていません/.test(fd));
+    /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
+    ok('⑱-17 そのとき［PDFをスプシに貼る前に確認する］を出す',
+       /PDFをスプシに貼る前に確認する/.test(fd));
+    /* ★2枚えらんだら2枚とも札が出るか（1枚ぶんに戻さないための見張り） */
+    ok('⑱-17b 札は書類の枚数ぶん出す', /OOS_NOUHIN\.shoruiList\(o\)/.test(fd) && /meis\.forEach/.test(fd));
+    ok('⑱-18 書類が無い注文は「書類はありません」',     /金額の載る書類はありません/.test(fd));
+    ok('⑱-19 貼れていたら「ひらく」が押せる',           /ひらく<\/a>/.test(fd));
+    ok('⑱-20 理由も出す',                               /o\.nouhinDocNg/.test(fd));
+    ok('⑱-21 カードに札を出している', /docFudaHtml\(o, _torikeshi\)/.test(H.cut(idx, 'renrakuBox')));
+
+    /* 貼れなかった理由を注文に残している（1秒で消える字だけにしない） */
+    const at = H.cut(idx, 'nouhinAttachToOrder');
+    /* ★空にする1か所（貼れたとき）は数えません。理由を入れている所だけ数えます */
+    eq('⑱-22 貼れなかった理由を3か所で残している',
+       (at.match(/o\.nouhinDocNg\s*=\s*'[^']/g) || []).length
+       + (at.match(/o\.nouhinDocNg\s*=\s*String/g) || []).length, 3);
+    ok('⑱-23 貼れたら理由を消す', /o\.nouhinDocNg\s*=\s*''/.test(at));
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑲⑳ 送料「別途申し受けます」／書類を2枚えらんだら2枚とも作る
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん：
+     　「送料は別途申し受けます。も選べるようにして！見積の時に使う可能性大」
+     　「納品書と請求書、2枚作った場合は2枚ともチェックできるように。
+     　　作成した書類だけでいい」
+     ★2枚えらんでも1枚しか作られていませんでした（2026-09-12に見つけた穴）。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    /* ── ⑲ 送料の「別途申し受けます」── */
+    ok('⑲-1 送料のえらび一覧に「別途申し受けます」がある', /label:'別途申し受けます',\s*yen:'betto'/.test(idx));
+    ok('⑲-2 数字に直そうとしていない（NaN防止）', /r\.soryoYen === 'betto' \? 'betto'/.test(idx));
+    const nb = H.read('oos-nouhin.js');
+    ok('⑲-3 書類の親が「別途」を見ている', /_shipBetto = \(String\(o\.shippingFee\) === 'betto'\)/.test(nb));
+    ok('⑲-4 枠に「別途申し受けます」と出す', /_shipBetto \? '別途申し受けます'/.test(nb));
+    ok('⑲-5 備考の一言も必ず出す',           /_shipBetto \|\| \(_shipIncl <= 0/.test(nb));
+    function doc2(fee){
+      dbox.__o = testOrder({ warehouseFee:0, shippingFee:fee });
+      return String(vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx));
+    }
+    const hB = doc2('betto');
+    ok('⑲-6 別途をえらぶと 枠に「別途申し受けます」', hB.indexOf('別途申し受けます') >= 0);
+    ok('⑲-7 別途をえらぶと 備考の一言も出る', hB.indexOf('上記の金額に送料は含まれておりません') >= 0);
+    ok('⑲-8 別途は 送料の金額を出さない',     hB.indexOf('¥800') < 0);
+    const h0 = doc2(0);
+    ok('⑲-9 無料をえらんだら「無料サービス」',  h0.indexOf('無料サービス') >= 0);
+    ok('⑲-10 無料のときに「別途」と書かない',   h0.indexOf('別途申し受けます') < 0);
+
+    /* ── ⑳ 2枚とも作る ── */
+    const NOU = vm.runInContext('OOS_NOUHIN', dctx);
+    eq('⑳-1 「納品書」なら1枚',            NOU.shoruiList({enclosedDoc:'納品書'}).join('／'), '納品書');
+    eq('⑳-2 「納品書 ＋ 請求書」なら2枚',   NOU.shoruiList({enclosedDoc:'納品書 ＋ 請求書'}).join('／'), '納品書／請求書');
+    eq('⑳-3 「納品書兼請求書 ＋ 領収書」なら2枚',
+       NOU.shoruiList({enclosedDoc:'納品書兼請求書 ＋ 領収書'}).join('／'), '納品書兼請求書／領収書');
+    eq('⑳-4 パンフレットは数えない',        NOU.shoruiList({enclosedDoc:'請求書 ＋ パンフレット'}).join('／'), '請求書');
+    eq('⑳-5 「パンフレット」だけなら0枚',   NOU.shoruiList({enclosedDoc:'パンフレット'}).length, 0);
+    eq('⑳-6 「なし」なら0枚',              NOU.shoruiList({enclosedDoc:'なし'}).length, 0);
+    eq('⑳-7 空なら既定の1枚',              NOU.shoruiList({enclosedDoc:''}).join('／'), '納品書兼請求書');
+    dbox.__o = testOrder({ enclosedDoc:'納品書 ＋ 請求書' });
+    dbox.__m1 = '納品書'; dbox.__m2 = '請求書';
+    const d1 = String(vm.runInContext('OOS_NOUHIN.build(__o, __d, __m1)', dctx));
+    const d2 = String(vm.runInContext('OOS_NOUHIN.build(__o, __d, __m2)', dctx));
+    ok('⑳-8 1枚目に「納品書」が出る', d1.indexOf('納品書') >= 0);
+    ok('⑳-9 2枚目に「請求書」が出る', d2.indexOf('請求書') >= 0);
+    ok('⑳-10 2枚は中身がちがう',      d1 !== d2);
+    ok('⑳-11 どちらにも金額が出る',   d1.indexOf('¥') >= 0 && d2.indexOf('¥') >= 0);
+    ok('⑳-12 待ち行列は「注文＋書類名」', /docCheckQueue\.push\(\{ o:o, mei:mei \}\)/.test(idx));
+    ok('⑳-13 貼れた書類を1枚ずつ控える', /o\.nouhinDocs\[_mei\] = \{ url: d\.url/.test(idx));
+    ok('⑳-14 ファイル名に書類の名前を入れる', /who \+ '_' \+ num \+ '_' \+ mei \+ '\.pdf'/.test(idx));
+    ok('⑳-15 その書類が貼ってあるかを見る', /if\(o\.nouhinDocs\[_mei\]\) return;/.test(idx));
   })();
 
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */

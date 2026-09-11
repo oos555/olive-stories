@@ -43,7 +43,10 @@ ok('①倉庫Ｄに納品書の組み立ての写しが残っていない',
    PIC.indexOf('本書はご請求書を兼ねております') < 0, '（親と二重になっています）');
 ok('①受注Ａに納品書の組み立ての写しが無い',
    IDX.indexOf('本書はご請求書を兼ねております') < 0, '（親と二重になっています）');
-ok('①受注Ａは親を呼んでPDFにしている', IDX.indexOf('OOS_NOUHIN.build(o, nouhinDeps())') >= 0);
+/* ★2026-09-12 書類名を渡す形になりました（2枚えらんだら2枚とも作るため）。
+   ★引数なしの書き方に戻さないでください。2枚目が作られなくなります。 */
+ok('①受注Ａは親を呼んで、その書類名でPDFにしている',
+   IDX.indexOf('OOS_NOUHIN.build(o, nouhinDeps(), shoruiMei)') >= 0);
 
 /* ══ 砂場（本物の親を、そのまま動かす） ══════════════════════ */
 function mkEl(){ return { id:'', innerHTML:'', textContent:'', style:{}, setAttribute(){}, appendChild(){},
@@ -55,7 +58,11 @@ const box = { console, Math, Date, JSON, parseInt, parseFloat, isNaN, String, Nu
   Object, Array, Boolean, RegExp, Error, document: doc };
 box.window = box; box.globalThis = box;
 const ctx = vm.createContext(box);
-['oos-zei.js', 'oos-kakaku.js', 'oos-doc.js', 'oos-nouhin.js'].forEach(function(f){
+/* ★2026-09-12 oos-shorui-kimari.js（書類の決めごと）を足しました。
+   入れていなかったので、この見張りは【古い動きのまま】通り続けていました。
+   （本物のアプリは index.html が読み込んでいるので、砂場だけの食い違いでした）
+   ★消さないでください。 */
+['oos-zei.js', 'oos-kakaku.js', 'oos-shorui-kimari.js', 'oos-doc.js', 'oos-nouhin.js'].forEach(function(f){
   vm.runInContext(H.read(f), ctx);
 });
 
@@ -100,6 +107,14 @@ function mkOrder(x){
   return Object.assign({
     num:'TK-20260910-1234', client:'宮西 杏奈', recipientName:'宮西 杏奈',
     customerType:'general', enclosedDoc:'納品書兼請求書',
+    /* ★2026-09-12 ここは【消費税の計算】を見る見張りです。
+       　2026-09-12 から、料金をえらんでいない注文は決めごとから自動で
+       　ピックアップ料金・送料が入るようになりました。そのままだと
+       　手計算した税の答えに料金が混ざって、何を見ているのか分からなくなります。
+       　そこで【人が「無料サービス」をえらんだ】ことにして、商品の税だけを見ます。
+       ★料金こみの見張りは、下の ④ にあります（そちらで確かめています）。
+       ★この2つを消さないでください。消すと ③ の手計算が合わなくなります。 */
+    warehouseFee: 0, shippingFee: 0,
     zip:'150-0001', addr:'東京都渋谷区1-1-1', tel:'03-1111-2222',
     lines:[{ productId:1, sku:'ORG250', productName:'オルガニック 250ml', bottles:6, boxes:0, boxQty:12 }]
   }, x || {});
@@ -227,7 +242,25 @@ function mkOrder(x){
   /* ★2026-09-12 承認済みモック（第7版）：名前は「倉庫ピックアップ料金」。
      置き場所は明細ではなく、内訳の左の枠です。★「ピッキング手数料」に戻さないでください。 */
   inc('④納品書に倉庫ピックアップ料金が出る', nouhin(o), '倉庫ピックアップ料金', true);
-  inc('④送料が無いときは一言そえる',   nouhin(mkOrder({})), '送料は別途申し受けます', true);
+  /* ★2026-09-12 「送料が分からない注文」は、料金の欄そのものが無い注文です。
+     　mkOrder は無料をえらんだ状態（0）なので、その2つを外して作ります。
+     　0（無料をえらんだ）と、無い（まだ決まっていない）は別ものです。 */
+  const _mikettei = mkOrder({});
+  delete _mikettei.shippingFee; delete _mikettei.warehouseFee;
+  /* ★2026-09-12（夜）ひろみさん：「送料は別途申し受けます。も選べるようにして！
+     　見積の時に使う可能性大」
+     えらび一覧に【別途申し受けます】ができました（shippingFee に 'betto' が入ります）。
+     ・えらんだとき　　　　… 枠に「別途申し受けます」／備考の一言を出す／合計に入れない
+     ・まだ決まっていない … 決めごとから 880円（東京）が入るので、一言は出ません
+     ★この2つを取り違えないでください。 */
+  inc('④送料が決まっていない注文でも、決めごとから送料が入る', nouhin(_mikettei), '送料は別途申し受けます', false);
+  inc('④そのとき送料の枠には金額が出る', nouhin(_mikettei), '¥800', true);
+  const _betto = mkOrder({ shippingFee:'betto' });
+  inc('④別途をえらんだら 枠に「別途申し受けます」', nouhin(_betto), '別途申し受けます', true);
+  inc('④別途をえらんだら 備考の一言も出る', nouhin(_betto), '上記の金額に送料は含まれておりません', true);
+  eq('④別途は合計に入れない（無料と同じ合計）', nouhinTotal(nouhin(_betto)), nouhinTotal(nouhin(mkOrder({}))));
+  inc('④無料をえらんだ注文には その一言を出さない',   nouhin(mkOrder({})), '送料は別途申し受けます', false);
+  inc('④無料をえらんだら「無料サービス」と出す',       nouhin(mkOrder({})), '無料サービス', true);
   inc('④送料があるときは その一言を出さない', nouhin(o), '送料は別途申し受けます', false);
 }
 
@@ -248,7 +281,14 @@ function mkOrder(x){
   eq('⑥空なら入れる（既定は納品書兼請求書）', needs(mkOrder({ enclosedDoc:'' })), true);
   eq('⑥「納品書」なら入れる',           needs(mkOrder({ enclosedDoc:'納品書' })), true);
   eq('⑥「納品書兼請求書」なら入れる',    needs(mkOrder({ enclosedDoc:'納品書兼請求書' })), true);
-  eq('⑥「請求書」だけなら入れない',      needs(mkOrder({ enclosedDoc:'請求書' })), false);
+  /* ★2026-09-12 ひろみさん指摘で【逆に】なりました。
+     　「同梱書類のところのPDFが添付されないんだけど」
+     　金額が載る6種類（納品書兼請求書／納品書兼領収書／RT発注伝票＋納品書／
+     　納品書／請求書／領収書）は、ぜんぶPDFを作ります。
+     ★「請求書だけなら入れない」に戻さないでください。 */
+  eq('⑥「請求書」だけでも入れる',        needs(mkOrder({ enclosedDoc:'請求書' })), true);
+  eq('⑥「領収書」だけでも入れる',        needs(mkOrder({ enclosedDoc:'領収書' })), true);
+  eq('⑥「パンフレット」だけなら入れない', needs(mkOrder({ enclosedDoc:'パンフレット' })), false);
   /* ★2026-09-10（夕方）ひろみさん指示で直しました。
      　「納品書と伝票は、RTは必ずどんな形で入ろうと、RTのボックスに入るように」
      前は【RTなら全部おことわり】だったので、伝票から作っていないRT（手入力）は
@@ -258,14 +298,22 @@ function mkOrder(x){
       "if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;", true);
   ok('⑥RTを丸ごとおことわりしていない',
      IDX.indexOf("if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */") < 0);
-  inc('⑥もう貼ってあれば作り直さない',   IDX, 'if(o.nouhinDocUrl) return;', true);
+  /* ★2026-09-12 「もう貼ってあるか」は【書類ごと】に見るようになりました。
+     　2枚えらべるので、1枚目を貼ったからといって2枚目まで済んだことにはなりません。
+     ★o.nouhinDocUrl だけで見る形に戻さないでください。 */
+  inc('⑥その書類がもう貼ってあれば作り直さない', IDX, 'if(o.nouhinDocs[_mei]) return;', true);
   inc('⑥ふだが無ければ貼らない',         IDX, 'if(!o.yukaKey) return;', true);
 }
 
 /* ══ ⑦ 金額を出す・出さないの決めごと ══════════════════════ */
 {
   const nashi = nouhin(mkOrder({ customerType:'general', enclosedDoc:'納品書' }));
-  inc('⑦「納品書」だけなら金額を出さない',   nashi, 'ご請求金額（税込）', false);
+  /* ★2026-09-11 ひろみさん決定で【逆】になりました。
+     　「パンフレットと、その他（自分で書く）以外は全部数字が載る」
+     　納品書も金額が載ります。★「出さない」に戻さないでください。 */
+  inc('⑦「納品書」でも金額を出す',           nashi, 'ご請求金額（税込）', true);
+  const pam = nouhin(mkOrder({ customerType:'general', enclosedDoc:'パンフレット' }));
+  inc('⑦「パンフレット」なら金額を出さない', pam, 'ご請求金額（税込）', false);
   inc('⑦あいさつ文はどの書類でも同じ',        nashi, 'いつもお世話になっております。どうぞよろしくお願いいたします。', true);
   const rt = nouhin(mkOrder({ customerType:'rt', enclosedDoc:'納品書' }));
   inc('⑦RTは「納品書」でも金額を出す',        rt, 'ご請求金額（税込）', true);

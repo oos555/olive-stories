@@ -366,7 +366,7 @@ body{background:#fff}
 <script src="oos-kakaku.js?v=20260912"></script>
 <script src="oos-shorui-kimari.js?v=20260911"></script>
 <script src="oos-doc.js?v=20260824"></script>
-<script src="oos-nouhin.js?v=20260912c"></script>
+<script src="oos-nouhin.js?v=20260912d"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-10">
+<meta name="oos-version" content="2026-09-12-11">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -677,6 +677,10 @@ body{background:#fff}
     </div>
   </div>
 
+  <!-- ★2026-09-12 ひろみさん：「自動でスプシに貼られる前に、アプリ上でチェックしたい」
+       登録したあと、ここに書類が出ます。見てから［貼る］を押します。
+       ★この枠を消さないでください。 -->
+  <div id="doc-check" style="display:none;margin-bottom:10px"></div>
   <div id="confirm-area" style="display:none">
     <div class="card" style="border:2px solid #185fa5">
       <div class="sec" style="color:#185fa5">受注内容の確認</div>
@@ -2855,6 +2859,13 @@ var PKG_SORYO = [
   { label:'無料サービス',            yen:0 },
   { label:'800円',                   yen:800 },
   { label:'1000円（沖縄・北海道）',   yen:1000 },
+  /* ★2026-09-12 ひろみさん：「送料は別途申し受けます。も選べるようにして！
+     　見積の時に使う可能性大」
+     えらぶと、書類の送料の枠に【別途申し受けます】と出ます。
+     合計にも消費税にも入りません。備考にも
+     「上記の金額に送料は含まれておりません。送料は別途申し受けます。」が出ます。
+     ★'betto' という印を変えないでください（書類の親 oos-nouhin.js が見ています）。 */
+  { label:'別途申し受けます',        yen:'betto' },
   { label:'その他',                  yen:null }   /* null＝自分で書き込む */
 ];
 var PKG_BOX  = ['卸レベルでOK','きれいなものならリサイクル箱OK','新しい箱で'];
@@ -4456,8 +4467,12 @@ function buildOrdersFromForm(){
          ★この2行を消さないでください。消すと書類が自動計算に戻ります。
          ══════════════════════════════════════════════════════════════ */
       warehouseFee: (r.pickupYen == null ? null : r.pickupYen),
-      shippingFee:  (r.soryoYen  == null ? null
-                     : Math.round(r.soryoYen * (1 + OOS_ZEI.RATE_SERVICE))),
+      /* ★2026-09-12 「別途申し受けます」は数字ではないので、そのまま渡します。
+         　書類の親（oos-nouhin.js）が 'betto' を見て、枠に「別途申し受けます」と出し、
+         　合計にも消費税にも入れません。★数字に直そうとしないでください（NaNになります）。 */
+      shippingFee:  (r.soryoYen == null ? null
+                     : (r.soryoYen === 'betto' ? 'betto'
+                        : Math.round(r.soryoYen * (1 + OOS_ZEI.RATE_SERVICE)))),
       note: r.note,
       noshi: r.noshi || null,
       senderName: r.senderNameOverride || dSenderName,
@@ -4767,12 +4782,23 @@ function registerOrder(){
             /* ★2026-09-10 一般・卸の納品書も、発注書のV列から倉庫が開けるように。
                RTは上の rtAttachDocsToOrder が貼るので、こちらは何もしません。
                ★消さないでください（倉庫が納品書を刷れなくなります） */
-            if(typeof nouhinAttachToOrder === 'function') return nouhinAttachToOrder(o);
+            /* ★2026-09-12 ひろみさん：「自動でスプシに貼られる前に、アプリ上でチェックしたい。
+               じゃないと、データーを何度もキャンセルすることも起きる」
+               ここでは【貼りません】。下の docCheckStart が書類を画面に出し、
+               ［この内容で発注書に貼る］を押したときに貼ります。
+               ★nouhinAttachToOrder をここで呼ぶ形に戻さないでください。 */
           }).catch(function(){});
         }catch(eY){}
       }
     });
   }
+  /* ★2026-09-12 登録したあと、書類を画面に出して見ていただきます（ひろみさん指示）。
+     　発注書に行が出来てから（＝ふだが付いてから）でないと貼れないので、少し待ちます。
+     ★この1かたまりを消さないでください。消すと、書類が貼られないまま気づけなくなります。 */
+  try{
+    var _docList = list.slice();
+    setTimeout(function(){ if(typeof docCheckStart === "function") docCheckStart(_docList); }, 2500);
+  }catch(_ed){}
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
@@ -8235,7 +8261,162 @@ function ackDone(o){                           // ②を押してよいか
 function basaraOrderNoOf(o){                   // メモから発注番号を取り出す
   var m = String(o.note||'').match(/発注番号\s*([^\s／\/]+)/);
   return m ? m[1] : '';
-}function renrakuBox(o, acts){
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   📄 書類（PDF）の札と、「見てから貼る」画面　★2026-09-12 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「自動でスプシに貼られる前に、アプリ上でチェックしたい。
+   　　　　　　じゃないと、データーを何度もキャンセルすることも起きる」
+   　　　　　　「届いていなくても気が付けない」
+
+   ・登録したあと、書類を画面に出します。見てから［貼る］を押します。
+   ・押さなければ貼りません。あとから受注一覧のカードで貼れます。
+   ・貼れたか貼れていないかは、カードに【ずっと】出ます。
+     （それまでは画面の下に字が1秒出るだけで、見ていなければ気づけませんでした）
+   ★自動で貼る形に戻さないでください。
+   ★RTの伝票＋納品書は、いまのところ今までどおりです（別の道で貼っています）。
+   見張り：tests/test_ikisaki.js の ⑱
+   ══════════════════════════════════════════════════════════════════════ */
+function docFudaHtml(o, torikeshi){
+  if(!o || typeof OOS_NOUHIN === 'undefined') return '';
+  if(o.source === 'basara') return '';            /* バサラは書類を作りません */
+  /* ★2026-09-12 ひろみさん：「2枚作った場合は2枚ともチェックできるように」
+     書類は1枚とはかぎりません。えらんだ枚数ぶん、札を出します。
+     ★1枚ぶんに戻さないでください。2枚目が貼れていなくても気づけなくなります。 */
+  var meis = OOS_NOUHIN.shoruiList(o);
+  if(!meis.length){
+    return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;color:#7a6a45;background:#f6f4ee;'
+         + 'border:1px solid #d9c48a;border-radius:7px;padding:5px 10px">'
+         + '📄 金額の載る書類はありません（' + esc(String(o.enclosedDoc || 'なし')) + '）</div>';
+  }
+  var done = o.nouhinDocs || {};
+  var riyuu = o.nouhinDocNg
+    ? '<div style="font-weight:400;font-size:12px;margin-top:3px">理由：' + esc(o.nouhinDocNg) + '</div>' : '';
+  var h = '';
+  meis.forEach(function(nm){
+    var hit = done[nm];
+    /* 2026-09-12より前に貼った注文は、書類ごとの控えがありません。昔の1本を使います */
+    if(!hit && o.nouhinDocUrl && meis.length === 1) hit = { url: o.nouhinDocUrl };
+    if(hit && hit.url){
+      h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#eef7ea;'
+         + 'border:1.5px solid #86c096;border-radius:7px;padding:5px 10px;color:#166534;font-weight:700">'
+         + '✅ 📄 ' + esc(nm) + '　貼れています　'
+         + '<a href="' + esc(hit.url) + '" target="_blank" style="color:#0c447c">ひらく</a></div>';
+    } else {
+      var b = torikeshi ? ''
+        : '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
+          + 'style="margin-left:8px;background:#0c447c;color:#fff;border:none">📄 PDFをスプシに貼る前に確認する</button>';
+      h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#fff4f2;'
+         + 'border:1.5px solid #e24b4a;border-radius:7px;padding:5px 10px;color:#a32d2d;font-weight:700">'
+         + '⚠ 📄 ' + esc(nm) + '　まだ貼れていません' + b + riyuu + '</div>';
+    }
+  });
+  return h;
+}
+
+/* この注文は「見てから貼る」の対象か（バサラとRTの伝票取込は除く） */
+function docCheckTaisho(o){
+  if(!o || typeof OOS_NOUHIN === 'undefined') return false;
+  if(o.source === 'basara') return false;
+  if(!OOS_NOUHIN.needsNouhin(o)) return false;
+  /* ★2026-09-12 「もう貼ってあるか」は【書類ごと】に見ます（2枚あるため）。
+     　1枚目を貼ったからといって、2枚目まで済んだことにはなりません。
+     ★o.nouhinDocUrl だけで判断する形に戻さないでください。 */
+  var done = o.nouhinDocs || {};
+  var nokori = OOS_NOUHIN.shoruiList(o).filter(function(m){ return !done[m]; });
+  if(!nokori.length) return false;
+  /* 2026-09-12より前の注文（書類ごとの控えが無い）は、昔の1本で済みとみなします */
+  if(o.nouhinDocUrl && OOS_NOUHIN.shoruiList(o).length === 1) return false;
+  var isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
+  if(isRt && /RT伝票取込/.test(String(o.note || ''))) return false;  /* 伝票と一緒に貼ります */
+  return true;
+}
+
+/* ── 見てから貼る（1件ずつ出します） ── */
+var docCheckQueue = [];
+function docCheckOne(id){
+  var o = orders.find(function(x){ return x.id === id; });
+  if(!o) return;
+  docCheckQueue = OOS_NOUHIN.shoruiList(o)
+    .filter(function(mei){ return !(o.nouhinDocs && o.nouhinDocs[mei]); })
+    .map(function(mei){ return { o:o, mei:mei }; });
+  docCheckNext();
+}
+/* ★2026-09-12 ひろみさん：「納品書と請求書、2枚作った場合は2枚ともチェックできるように。
+   　作成した書類だけでいい」
+   待ち行列は【注文1つ】ではなく【注文＋書類名】の組です。
+   同梱書類に「納品書 ＋ 請求書」とあれば、2つ並びます。
+   ★1注文1枚に戻さないでください。2枚目が作られなくなります。 */
+function docCheckStart(list){
+  docCheckQueue = [];
+  (list || []).filter(docCheckTaisho).forEach(function(o){
+    OOS_NOUHIN.shoruiList(o).forEach(function(mei){
+      if(!(o.nouhinDocs && o.nouhinDocs[mei])) docCheckQueue.push({ o:o, mei:mei });
+    });
+  });
+  docCheckNext();
+}
+function docCheckNext(){
+  var box = document.getElementById('doc-check');
+  if(!box) return;
+  if(!docCheckQueue.length){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  var _q = docCheckQueue[0];
+  var o = _q.o, _mei = _q.mei;
+  var miss = [];
+  try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
+  var html = '';
+  try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }catch(e){ html = ''; }
+  var nokori = (docCheckQueue.length > 1) ? ('　（あと' + (docCheckQueue.length - 1) + '件）') : '';
+  var atama = '<div style="font-size:14px;font-weight:800;color:#185fa5;margin-bottom:8px">'
+            + '📄 発注書に貼る書類（ご確認ください）　'
+            + esc(o.recipientName || o.client || '') + ' 様　' + esc(o.num || '')
+            + '　<span style="background:#e6f1fb;border-radius:5px;padding:2px 9px">' + esc(_mei) + '</span>'
+            + nokori + '</div>';
+  var naka, botan;
+  if(miss.length){
+    naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
+         + 'color:#a32d2d;font-weight:700">⚠ 単価が登録されていない商品があるので、書類を作れません：'
+         + esc(miss.join('・'))
+         + '<div style="font-weight:400;margin-top:4px">統合マスタＮ（輸入・原価Ｅ）で単価を入れてから、'
+         + '受注一覧のカードの［📄 いま作って貼る］を押してください。</div></div>';
+    botan = '<button class="btn btn-gray" onclick="docCheckSkip()">閉じる</button>';
+  } else if(!html){
+    naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
+         + 'color:#a32d2d;font-weight:700">⚠ 書類を組み立てられませんでした。'
+         + '<div style="font-weight:400;margin-top:4px">読み込みが終わっていないかもしれません。'
+         + '少し待ってから、カードの［📄 いま作って貼る］を押してください。</div></div>';
+    botan = '<button class="btn btn-gray" onclick="docCheckSkip()">閉じる</button>';
+  } else {
+    naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'
+         + html + '</div>';
+    botan = '<button class="btn btn-green" onclick="docCheckOk()">この内容で発注書に貼る</button>'
+          + '<button class="btn btn-gray" onclick="docCheckSkip()">直す（貼らない）</button>';
+  }
+  box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
+    + '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">' + botan + '</div>'
+    + '<div style="font-size:12px;color:#83857a;margin-top:8px;line-height:1.8">'
+    + '★受注一覧と発注書スプシには<b>もう入っています</b>。貼っていないのは<b>書類のリンクだけ</b>です。<br>'
+    + '★「直す」を押しても消えません。あとから受注一覧のカードで貼れます。</div>'
+    + '</div>';
+  box.style.display = 'block';
+  try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+}
+async function docCheckOk(){
+  var q = docCheckQueue.shift();
+  if(q){
+    try{ await nouhinAttachToOrder(q.o, q.mei); }catch(e){}
+  }
+  if(typeof renderList === 'function') renderList();
+  docCheckNext();
+}
+function docCheckSkip(){
+  docCheckQueue.shift();
+  if(typeof renderList === 'function') renderList();
+  docCheckNext();
+}
+
+function renrakuBox(o, acts){
   /* ══════════════════════════════════════════════════════════════════════
      ★2026-09-10 ひろみさん指示：大きな枠（①②のステップ）をやめました。
      ──────────────────────────────────────────────────────────────────────
@@ -8291,9 +8472,20 @@ function basaraOrderNoOf(o){                   // メモから発注番号を取
     ? '<div class="rk-lock" style="margin-top:6px">🔒 在庫がありません（' + esc(zkShort.map(function(x){ return (x.name||x.sku||''); }).join('・')) + '）</div>'
     : '';
 
-  if(o.status !== 'pending' && !other && !btn) return '';
+  /* ══════════════════════════════════════════════════════════════════════
+     📄 書類（PDF）が発注書に貼れているか　★2026-09-12 ひろみさん指示
+     ──────────────────────────────────────────────────────────────────────
+     ひろみさん：「届いていなくても気が付けない」
+     　これまでは、貼れても貼れなくても画面の下に字が1秒出るだけでした。
+     　見ていなければ気づけません。カードに【ずっと】出すようにします。
+     ★この札を消さないでください。見張り：tests/test_ikisaki.js の ⑱
+     ══════════════════════════════════════════════════════════════════════ */
+  var shorui = docFudaHtml(o, _torikeshi);
+
+  if(o.status !== 'pending' && !other && !btn && !shorui) return '';
   return '<div class="rk" style="padding:9px 11px">'
     + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">' + okuri + btn + other + '</div>'
+    + shorui
     + zk
     + '<div class="rk-hint" style="margin-top:5px">倉庫へのご連絡は、<b>発注書のA列を【🔵 発送してください】</b>にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>'
     + '</div>';
@@ -10825,17 +11017,23 @@ function nouhinDeps(){
 }
 
 /* 納品書のファイル名（お届け先＋注文番号）。RTの伝票と同じフォルダに並びます */
-function nouhinFileName(o){
+function nouhinFileName(o, shoruiMei){
   var who = String((o && (o.recipientName || o.client)) || 'お客様').trim();
   var num = (typeof OOS_NOUHIN!=='undefined') ? OOS_NOUHIN.docNumberOf(o && o.num) : String((o&&o.num)||'');
-  var nm  = (who + '_' + num + '_納品書.pdf').replace(/[\\\/:*?"<>|]/g, '_');
+  /* ★2026-09-12 2枚とも作るので、ファイル名にも書類の名前を入れます。
+     　入れないと、2枚目が1枚目と同じ名前になり、どちらか分からなくなります。
+     　（例）宮西 杏奈_20260912-1234_納品書.pdf ／ 宮西 杏奈_20260912-1234_請求書.pdf
+     ★「_納品書.pdf」で固定に戻さないでください。 */
+  var mei = String(shoruiMei || '納品書').trim() || '納品書';
+  var nm  = (who + '_' + num + '_' + mei + '.pdf').replace(/[\\\/:*?"<>|]/g, '_');
   return nm;
 }
 
 /* 納品書のHTMLを、そのままPDF（base64）にする */
-async function nouhinBuildPdfB64(o){
+async function nouhinBuildPdfB64(o, shoruiMei){
   if(!(window.html2canvas && window.jspdf)) throw new Error('PDF部品の読み込みがまだです');
-  var html = OOS_NOUHIN.build(o, nouhinDeps());
+  /* ★2026-09-12 書類名を渡すと、その書類のPDFになります（2枚とも作るため） */
+  var html = OOS_NOUHIN.build(o, nouhinDeps(), shoruiMei);
   if(!html) throw new Error('納品書を作れませんでした');
   var holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:820px';
@@ -10859,7 +11057,11 @@ async function nouhinBuildPdfB64(o){
 }
 
 /* 登録した注文の納品書を作って、発注書のV列に貼る */
-async function nouhinAttachToOrder(o){
+/* ★2026-09-12 2つ目の引数 shoruiMei を足しました（ひろみさん：2枚とも作る）。
+   　渡さなければ、その注文の1枚目を作ります。
+   　貼れた書類は o.nouhinDocs[書類名] に控えます（2枚目が上書きしないように）。
+   ★引数と o.nouhinDocs を消さないでください。 */
+async function nouhinAttachToOrder(o, shoruiMei){
   try{
     if(!o) return;
     if(typeof OOS_NOUHIN === 'undefined') return;
@@ -10880,7 +11082,11 @@ async function nouhinAttachToOrder(o){
     var _isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
     if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;   /* 伝票から作ったRTは、伝票と一緒に貼ります */
     if(!OOS_NOUHIN.needsNouhin(o)) return;                   /* 同梱書類に納品書が無ければ作りません（バサラ等） */
-    if(o.nouhinDocUrl) return;                               /* もう貼ってあります */
+    var _mei = String(shoruiMei || "").trim()
+      || ((OOS_NOUHIN.shoruiList(o) || [])[0] || "");
+    if(!_mei) return;
+    o.nouhinDocs = o.nouhinDocs || {};
+    if(o.nouhinDocs[_mei]) return;                           /* この書類は もう貼ってあります */
 
     /* ★単価が抜けていたら作らない（0円の納品書を倉庫に渡さないため） */
     var miss = OOS_NOUHIN.missingPrices(o, nouhinDeps());
@@ -10888,27 +11094,40 @@ async function nouhinAttachToOrder(o){
       if(typeof showSyncStatus==='function'){
         showSyncStatus('⚠ 納品書を作れませんでした（単価が未登録：' + miss.join('・') + '）。統合マスタＮの価格をご確認ください。', true);
       }
+      /* ★2026-09-12 理由を注文に残します。カードにずっと出ます（ひろみさん：
+         「届いていなくても気が付けない」）。★消さないでください。 */
+      o.nouhinDocNg = '単価が未登録：' + miss.join('・');
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+      if(typeof renderList==='function') renderList();
       return;
     }
 
-    var b64 = await nouhinBuildPdfB64(o);
-    var nm  = nouhinFileName(o);
+    var b64 = await nouhinBuildPdfB64(o, _mei);
+    var nm  = nouhinFileName(o, _mei);
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:nm }) });
     var d = await res.json();
     if(!d || d.status !== 'ok' || !d.url){
       if(typeof showSyncStatus==='function') showSyncStatus('⚠ 納品書PDFを保存できませんでした：'+((d&&d.message)||'不明'), true);
+      /* ★2026-09-12 理由を注文に残します。カードにずっと出ます（ひろみさん：
+         「届いていなくても気が付けない」）。★消さないでください。 */
+      o.nouhinDocNg = 'PDFを保存できませんでした：' + ((d&&d.message)||'不明');
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+      if(typeof renderList==='function') renderList();
       return;
     }
     var r2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yukaSetDocLinks', payload:{
         key: o.yukaKey,
-        nouhinUrl: d.url, nouhinName: '📄 ' + OOS_NOUHIN.docTitleOf(o.enclosedDoc || '納品書') + '（ひらく）',
+        nouhinUrl: d.url, nouhinName: '📄 ' + OOS_NOUHIN.docTitleOf(_mei) + '（ひらく）',
         hokaUrl: '', hokaName: ''
       }})});
     var d2 = await r2.json();
     if(d2 && d2.status==='ok'){
-      o.nouhinDocUrl = d.url; o.nouhinDocName = d.name || nm;
+      o.nouhinDocs = o.nouhinDocs || {};
+      o.nouhinDocs[_mei] = { url: d.url, name: d.name || nm, at: new Date().toISOString() };
+      o.nouhinDocUrl = d.url; o.nouhinDocName = d.name || nm;   /* 昔の名前も残します */
+      o.nouhinDocNg = '';                 /* ★貼れたので、前の理由は消します */
       if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
       if(typeof showSyncStatus==='function') showSyncStatus('📄 発注書に納品書のリンクを貼りました（' + (d.name||nm) + '）');
     } else {
@@ -10916,6 +11135,11 @@ async function nouhinAttachToOrder(o){
     }
   }catch(e){
     if(typeof showSyncStatus==='function') showSyncStatus('⚠ 納品書を作れませんでした：'+(e&&e.message||e), true);
+      /* ★2026-09-12 理由を注文に残します。カードにずっと出ます（ひろみさん：
+         「届いていなくても気が付けない」）。★消さないでください。 */
+    try{ o.nouhinDocNg = String((e&&e.message)||e);
+         if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+         if(typeof renderList==='function') renderList(); }catch(_e2){}
   }
 }
 
