@@ -660,6 +660,42 @@ function hacchuushoGyou(payload){
        /d\.level==='relabel' \|\| d\.level==='discard'/.test(zsrc));
   })();
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑮ 読み込み中に「未登録」と嘘をつかない／届いたら計算し直す
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさんの指摘：「どこみてんの？登録すでにおわってる。」
+     　価格マスタがまだ届いていないのに【未登録】と赤で出していました。
+     　しかも、届いたあとに計算し直していなかったので、そのまま止まっていました。
+     ★「読込中…」の見分けと、届いたあとの計算し直しを消さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    const yomi = H.cut(idx, 'refreshLineYomi');
+    ok('⑮-1 価格マスタが届いていないかを見ている', /priceMaster\s*&&\s*priceMaster\.length/.test(yomi));
+    ok('⑮-2 そのときは「読込中…」と出す', /読込中…/.test(yomi));
+    ok('⑮-3 そのときに「未登録」と出していない',
+       /読込中…[\s\S]{0,200}?\}\s*else if\s*\(muryou\)/.test(yomi));
+    /* 届いたあとに計算し直しているか（2か所：まとめ読みのあと・名簿が届いたあと） */
+    ok('⑮-4 データが届いたら入力行を計算し直す（まとめ読み）',
+       /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'loadInitialData')));
+    ok('⑮-5 名簿が届いたら入力行を計算し直す',
+       /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'applyLoadedProducts')));
+
+    /* 本物の値段の表で、本物の親に聞く（ひろみさんが見た商品そのもの） */
+    const KAK = vm.runInContext('OOS_KAKAKU', dctx);
+    const PM = [{ sku:'MEM500', productName:'メメジック 500ml',
+                  priceGeneral:9121, priceWholesale1:6884, priceWholesale2:5473,
+                  priceRT:6884, priceBasara:6228, priceSpecial:0, priceDefect:0, priceOldLot:5473 }];
+    const line = { giftType:'normal', boxes:0 };
+    eq('⑮-6 メメジック500ml 定価は ¥9,121', KAK.unitPriceForLine({customerType:'general'},    line, 'MEM500', PM, null), 9121);
+    eq('⑮-7 卸①は ¥6,884',                 KAK.unitPriceForLine({customerType:'wholesale1'}, line, 'MEM500', PM, null), 6884);
+    eq('⑮-8 卸②は ¥5,473',                 KAK.unitPriceForLine({customerType:'wholesale2'}, line, 'MEM500', PM, null), 5473);
+    eq('⑮-9 RTは ¥6,884',                   KAK.unitPriceForLine({customerType:'rt'},         line, 'MEM500', PM, null), 6884);
+    eq('⑮-10 バサラは ¥6,228',              KAK.unitPriceForLine({customerType:'basara'},     line, 'MEM500', PM, null), 6228);
+    /* 表が空のときは 0 が返る＝「未登録」と出してはいけない場面 */
+    eq('⑮-11 値段の表が空なら 0 が返る（ここで未登録と言ってはいけない）',
+       KAK.unitPriceForLine({customerType:'general'}, line, 'MEM500', [], null), 0);
+  })();
+
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();

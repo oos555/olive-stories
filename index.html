@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-07">
+<meta name="oos-version" content="2026-09-12-08">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2459,6 +2459,14 @@ function applyLoadedProducts(products, extraFields){
   refreshAllProductSelects();
   renderStockStrip();
   if(typeof renderRtPriceList==='function') renderRtPriceList();
+  /* ★2026-09-12 商品名簿が後から届いたときも、入力行の単価・金額を計算し直します。
+     （1箱入り数と単位は名簿から取るので、届く前は出せません）
+     ★この1かたまりを消さないでください。見張り：tests/test_ikisaki.js の ⑮ */
+  try{
+    document.querySelectorAll('.recipient-card').forEach(function(c){
+      if(typeof refreshLineYomi === 'function') refreshLineYomi(c.id);
+    });
+  }catch(_ep){}
 }
 async function initializeProducts(){
   const cache = loadProductsFromCache();
@@ -2651,6 +2659,20 @@ function loadInitialData(retry, pre){
     renderHoldPreAlerts();
     if(typeof renderRtPriceList==='function') renderRtPriceList();
     if(typeof rtcRefreshPrices==='function') rtcRefreshPrices();
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさんの指摘で足しました。
+       　「どこみてんの？登録すでにおわってる。」
+       　価格マスタが届く【前】に商品をえらぶと、単価が「読込中…」のまま
+       　止まっていました（届いたあとに計算し直していなかったため）。
+       　いま入っている届け先カードの単価・金額を、ここで計算し直します。
+       ★この1かたまりを消さないでください。消すと、また止まったままになります。
+       見張り：tests/test_ikisaki.js の ⑮
+       ══════════════════════════════════════════════════════════════ */
+    try{
+      document.querySelectorAll('.recipient-card').forEach(function(c){
+        if(typeof refreshLineYomi === 'function') refreshLineYomi(c.id);
+      });
+    }catch(_er){}
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
     if(retry < 3){
@@ -4037,7 +4059,19 @@ function refreshLineYomi(cardId){
     var muryou = (typeof OOS_KAKAKU!=='undefined' && OOS_KAKAKU && OOS_KAKAKU.muryouSampleKa)
       ? OOS_KAKAKU.muryouSampleKa(l) : false;
 
-    if(muryou){
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさんの指摘で直しました。
+       　「どこみてんの？登録すでにおわってる。」
+       　価格マスタがまだ届いていないのに【未登録】と赤で出していました。
+       　＝ 画面が嘘をついていました。いまは「読込中…」と出します。
+       ★「価格マスタが1件も無い」＝まだ届いていない、という意味です。
+       　本当に0件ということはありません（本番に52件あります）。
+       ★この見分けを消さないでください。見張り：tests/test_ikisaki.js の ⑮
+       ══════════════════════════════════════════════════════════════ */
+    if(!(typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length)){
+      tk.className = 'ol-tanka mu'; tk.textContent = '読込中…';
+      kg.className = 'ol-kingaku';  kg.textContent = '読込中…';
+    } else if(muryou){
       tk.className = 'ol-tanka mu'; tk.textContent = '無償';
       kg.className = 'ol-kingaku';  kg.textContent = '¥0';
     } else if(!unit){
