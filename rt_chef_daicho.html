@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-09-12-01">
 <script src="oos-version.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -415,6 +415,9 @@
     </details>
     <div id="review" class="review" style="display:none;">
       <img id="thumb" class="thumb" alt="撮った名刺">
+      <!-- ★2026-09-12 写真が付かなかったときに、その理由をここに出します。
+           　黙って進むと「入らない」と思われてしまいます。★消さないでください。 -->
+      <div id="shot-warn" style="display:none;background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:9px 12px;margin:8px 0;font-size:12.5px;color:#a32d2d;font-weight:700;line-height:1.7"></div>
       <div style="font-weight:700;margin-bottom:8px;">内容を入れて「保存」してください</div>
       <div class="fld"><label>お名前</label><input id="f-name" placeholder="例）野口 太郎"></div>
       <div class="fld"><label>役職</label><input id="f-role" placeholder="例）料理長"></div>
@@ -1474,20 +1477,65 @@ function fillFacOptions(){
   sel.innerHTML = FAC_OPTIONS.map(function(f){return '<option>'+esc(f)+'</option>';}).join('');
 }
 var shotDataUrl='';
+/* ══════════════════════════════════════════════════════════════════════
+   📷 名刺を撮る／写真を選ぶ　★2026-09-12 直しました
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「名刺を写メで入れようとしても入らない」
+
+   直した3つ（★戻さないでください）
+   　① 写真が読めなかったとき【何も起きず、画面が薄くなったまま】でした
+   　　 　（reader.onerror を受け止めていませんでした）
+   　② iPhoneの HEIC 形式は、多くのブラウザで絵として開けません。
+   　　 　そのときは理由を出して【写真なしで先へ進めます】（手で入力できます）
+   　③ いつまでも返事が無いときのために、12秒で打ち切ります
+   ★どの道でも、必ず入力の画面（review）を開きます。黙って止まりません。
+   ══════════════════════════════════════════════════════════════════════ */
 function onShot(ev){
   var file=ev.target.files && ev.target.files[0]; if(!file) return;
   var box=document.getElementById('shoot-box'); if(box) box.style.opacity='.5';
-  var show=function(url){
+  var done=false;
+  var show=function(url, warn){
+    if(done) return; done=true;
     shotDataUrl=url||'';
-    var th=document.getElementById('thumb'); if(th) th.src=shotDataUrl;
+    var th=document.getElementById('thumb');
+    if(th){
+      if(shotDataUrl){ th.src=shotDataUrl; th.style.display=''; }
+      else { th.removeAttribute('src'); th.style.display='none'; }
+    }
     if(box){ box.style.opacity=''; box.style.display='none'; }
     document.getElementById('review').style.display='block';
+    /* ★写真が付かなかったときは、理由を画面に出します（黙って進まない） */
+    var w=document.getElementById('shot-warn');
+    if(w){
+      if(warn){ w.textContent=warn; w.style.display='block'; }
+      else { w.textContent=''; w.style.display='none'; }
+    }
     window.scrollTo({top:0,behavior:'smooth'});
   };
+  var timer=setTimeout(function(){
+    show('', '⚠️ 写真の読み込みに時間がかかっています。写真なしで進みます（手で入力できます）。');
+  }, 12000);
+  var fin=function(url, warn){ clearTimeout(timer); show(url, warn); };
+
   /* スマホの写真はそのままだと2〜4MBあり、端末の保存箱(5MB)を1枚で溢れさせる。
      「できごと」タブと同じ圧縮（長辺1000px・45KB以内）を通してから扱う。 */
-  if(typeof katCompress==='function'){ katCompress(file, function(url){ show(url); }); }
-  else { var r=new FileReader(); r.onload=function(e){ show(e.target.result); }; r.readAsDataURL(file); }
+  try{
+    if(typeof katCompress==='function'){
+      katCompress(file, function(url){
+        if(url) fin(url, '');
+        else fin('', '⚠️ この写真は開けませんでした（iPhoneの HEIC 形式かもしれません）。'
+                   + '写真は付きませんが、このまま手で入力して保存できます。'
+                   + 'iPhoneは［設定］→［カメラ］→［フォーマット］を「互換性優先」にすると、次から入るようになります。');
+      });
+    } else {
+      var r=new FileReader();
+      r.onload=function(e){ fin(e.target.result, ''); };
+      r.onerror=function(){ fin('', '⚠️ 写真を読み込めませんでした。写真なしで進みます（手で入力できます）。'); };
+      r.readAsDataURL(file);
+    }
+  }catch(e){
+    fin('', '⚠️ 写真を読み込めませんでした（'+(e&&e.message||e)+'）。写真なしで進みます。');
+  }
 }
 function cancelReview(){
   shotDataUrl='';
@@ -2072,6 +2120,11 @@ function katSetType(k){
 /* 写真：スマホの元写真は重いので、キャンバスで小さく圧縮してからdataURLにする（セル上限に収める） */
 function katCompress(file, cb){
   var reader=new FileReader();
+  /* ★2026-09-12 読み取りに失敗したときも必ず返事をします。
+     　それまでは何も返さず、画面が薄くなったまま止まっていました
+     　（ひろみさん：「名刺を写メで入れようとしても入らない」）。
+     ★この1行を消さないでください。 */
+  reader.onerror=function(){ cb(''); };
   reader.onload=function(e){
     var img=new Image();
     img.onload=function(){
