@@ -182,11 +182,26 @@
     var wakuRows = [];   /* 枠に出す行（ピックアップ料金・送料） */
     var zeiOnly  = [];   /* 消費税の計算にだけ使う（表には出しません） */
 
-    var _shipIncl = parseInt(o.shippingFee) || 0;      // 送料（税込）
-    var _whFee = parseInt(o.warehouseFee) || 0;        // 倉庫ピッキング手数料（税抜）
-    /* 注文に入っていなければ、決めごとから出す */
-    if (KIM && !_whFee)    _whFee    = KIM.pickupOf(o.customerType, KIM.baraAriKa(o));
-    if (KIM && !_shipIncl) _shipIncl = KIM.soryoOf(String(o.addr || '')).fee;
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-12 「0円」と「まだ決まっていない」を分けます。
+       ──────────────────────────────────────────────────────────────────
+       それまでは `parseInt(...) || 0` で読んでいたので、
+       人が【無料サービス】をえらんで 0 を入れても「入っていない」と見なされ、
+       決めごとの自動計算（卸なら250円）に上書きされていました。
+       ひろみさん：「もう全部人間に選ばせて」──えらんだ0は、0のままにします。
+       ★`|| 0` に戻さないでください。見張り：tests/test_ikisaki.js の ④
+       ══════════════════════════════════════════════════════════════════ */
+    function _yen(v) {                                  /* 未設定なら null、入っていれば数 */
+      if (v === '' || v === null || v === undefined) return null;
+      var n = parseInt(v, 10);
+      return isNaN(n) ? null : n;
+    }
+    var _shipIncl = _yen(o.shippingFee);                // 送料（税込）　null＝まだ決まっていない
+    var _whFee    = _yen(o.warehouseFee);               // 倉庫ピッキング手数料（税抜）
+    var _shipEranda = (_shipIncl !== null);             /* 人がえらんだか（0を含む） */
+    /* まだ決まっていない注文（2026-09-12より前の注文）は、今までどおり決めごとから出す */
+    if (_whFee    === null) _whFee    = (KIM ? KIM.pickupOf(o.customerType, KIM.baraAriKa(o)) : 0);
+    if (_shipIncl === null) _shipIncl = (KIM ? KIM.soryoOf(String(o.addr || '')).fee : 0);
 
     if (withAmount) {
       /* ══════════════════════════════════════════════════════════════
@@ -216,7 +231,10 @@
        ・「破損以外のお客様都合による変更は、食品のため承れません」 */
     var notes = [];
     /* ★2026-08-24 送料の金額を持っていない注文は、0円と思われないように一言そえる */
-    if (withAmount && _shipIncl <= 0) {
+    /* ★2026-09-12 ただし、人が【無料サービス】をえらんだ注文には添えません。
+       枠に「無料サービス」と出しているのに「別途申し受けます」と書くと、
+       お客様にはどちらが本当か分かりません。★この _shipEranda の条件を外さないでください */
+    if (withAmount && _shipIncl <= 0 && !_shipEranda) {
       notes.push('<div style="font-weight:700;margin-bottom:2px">■ 送料について</div>'
         + '上記の金額に送料は含まれておりません。送料は別途申し受けます。');
     }

@@ -339,7 +339,7 @@ body{background:#fff}
 <script src="oos-kakaku.js?v=20260910"></script>
 <script src="oos-shorui-kimari.js?v=20260911"></script>
 <script src="oos-doc.js?v=20260824"></script>
-<script src="oos-nouhin.js?v=20260910"></script>
+<script src="oos-nouhin.js?v=20260912"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -385,7 +385,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-01">
+<meta name="oos-version" content="2026-09-12-02">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -3202,7 +3202,21 @@ function productOptionsHtml(selected){
 function lineTotal(l){ return (l.bottles||0) + (l.boxes||0)*(l.boxQty||1); }
 /* ★2026-09-04 ゆかさん指摘：ギフト用空箱の単位が「●本」になる → 商品マスタの「単位」列で直す。
    単位列が空欄の商品は今まで通り「本」。ギフト箱＝「箱」など、名簿で自由に変えられる。 */
-function unitOfProduct(p){ return (p && p.extras && String(p.extras['単位']||'').trim()) || '本'; }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 単位の決め方は【親＝oos-shorui-kimari.js】に1つだけ。
+   ──────────────────────────────────────────────────────────────────────
+   それまで、ここは商品マスタの「単位」欄だけを見ていました。
+   ところが 2026-09-12 に決まった新しい決めごと
+   　（100/250/500ml＝本、750/2000/5000ml＝缶、3000ml＝個）
+   は書類の親にしか入っておらず、発注書へ送る単位だけが古いままでした。
+   そのため【倉庫は「2」・書類は「2缶」】と食い違っていました（ゆくえ表の見張りで見つけました）。
+   ★ここに判定を書き写さないでください。親を呼ぶだけにしてあります。
+   見張り：tests/test_ikisaki.js の ⑧
+   ══════════════════════════════════════════════════════════════════════ */
+function unitOfProduct(p){
+  if(typeof OOS_SHORUI!=='undefined' && OOS_SHORUI && OOS_SHORUI.taniOf) return OOS_SHORUI.taniOf(p);
+  return (p && p.extras && String(p.extras['単位']||'').trim()) || '本';
+}
 function lineUnit(l){ return unitOfProduct(findProduct(l.productId) || findProductBySku(l.sku||'')); }
 
 // ── 届け先カード（複数追加可能）────────────────────────────────────
@@ -3899,6 +3913,29 @@ function pbAdd(cardId){
 }
 // 商品名を選んでいるのに本数・箱数がどちらも空（0）の明細行を洗い出す。
 // 発送数が決まらないまま登録されるのを防ぐためのチェック。
+/* ══════════════════════════════════════════════════════════════════════
+   💰 倉庫ピックアップ料金・送料を【えらんでいない】届け先をさがす
+   ★2026-09-12 承認済みモック（第7版）の決まり：
+   　ひろみさん「毎回まっさら（選ぶまで登録できない）」
+   ★この見張りを外さないでください。外すと、えらばずに登録でき、
+   　書類が自動計算にもどります（それが2026-09-12まで起きていたことです）。
+   ══════════════════════════════════════════════════════════════════════ */
+function findCardsWithoutFees(){
+  const missing = [];
+  Array.from(document.querySelectorAll('.recipient-card')).forEach(function(card){
+    /* 商品が1つも入っていないカードは、そもそも登録されないので見ません */
+    const rows = card.querySelector('[data-role=lines]');
+    const aru = rows && Array.from(rows.children).some(function(row){
+      const pid = row.querySelector('[data-role=product]');
+      return pid && pid.value;
+    });
+    if(!aru) return;
+    const name = recipientDisplayName(card) || '（お名前なし）';
+    if(pickupYenIn(card) == null) missing.push(name+'様：倉庫ピックアップ料金');
+    if(soryoYenIn(card)  == null) missing.push(name+'様：送料');
+  });
+  return missing;
+}
 function findLinesWithoutQty(){
   const missing = [];
   Array.from(document.querySelectorAll('.recipient-card')).forEach(function(card){
@@ -3952,6 +3989,17 @@ function collectRecipients(){
       lead: card.querySelector('[data-role=lead]').value,
       leadDate: card.querySelector('[data-role=leadDate]').value,
       delivTime: timeSel==='other' ? card.querySelector('[data-role=timeOther]').value : timeSel,
+      /* ══════════════════════════════════════════════════════════════
+         💰 人がえらんだ 倉庫ピックアップ料金・送料（どちらも【税抜】）
+         ★2026-09-12 ここが抜けていました。ボタンは作ってあったのに、
+         　えらんだ値を読む関数を【どこからも呼んでいませんでした】。
+         　そのため書類はいつも決めごとの自動計算で出ていました。
+         　ひろみさん：「もう全部人間に選ばせて」── えらんだ値を使います。
+         ★えらんでいなければ null（＝登録できません。下の見張りで止めます）
+         見張り：tests/test_ikisaki.js の ④
+         ══════════════════════════════════════════════════════════════ */
+      pickupYen: pickupYenIn(card),
+      soryoYen:  soryoYenIn(card),
       note: card.querySelector('[data-role=note]').value,
       noshi: (function(){
         if(!card.querySelector('[data-role=noshiOn]').checked) return null;
@@ -4102,6 +4150,18 @@ function buildOrdersFromForm(){
       positionName: r.positionName, personName: r.personName,
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
       leadType: r.lead, leadDate: r.leadDate, delivTime: r.delivTime,
+      /* ══════════════════════════════════════════════════════════════
+         💰 書類が読む名前に入れかえて持たせます（★2026-09-12）
+         　warehouseFee … 倉庫ピックアップ料金【税抜】そのまま
+         　shippingFee  … 送料【税込】　← 書類は税込で持つ決まりなので 1.1 倍にします
+         　　　　　　　　　（ボタンの「800円」「1000円」は税抜。＋税10％ と書いてあります）
+         ★0 は「無料サービスをえらんだ」という意味です。
+         　書類側（oos-nouhin.js）も、0 を自動計算で上書きしないようにしてあります。
+         ★この2行を消さないでください。消すと書類が自動計算に戻ります。
+         ══════════════════════════════════════════════════════════════ */
+      warehouseFee: (r.pickupYen == null ? null : r.pickupYen),
+      shippingFee:  (r.soryoYen  == null ? null
+                     : Math.round(r.soryoYen * (1 + OOS_ZEI.RATE_SERVICE))),
       note: r.note,
       noshi: r.noshi || null,
       senderName: r.senderNameOverride || dSenderName,
@@ -4140,6 +4200,18 @@ function previewOrder(){
       document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">'+msg+'</div>';
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       alert('商品を選んでいるのに、本数も箱数も入っていない行があります。\n本数か箱数のどちらかを入れてください。\n\n'+missingQty.join('\n'));
+      return;
+    }
+    /* ══════════════════════════════════════════════════════════════
+       💰 ★2026-09-12 承認済みモック（第7版）：えらぶまで登録できません。
+       ひろみさん「毎回まっさら（選ぶまで登録できない）」
+       ★この止めを外さないでください。 */
+    const missingFees = findCardsWithoutFees();
+    if(missingFees.length){
+      const msg = '⚠️ <b>倉庫ピックアップ料金</b>と<b>送料</b>をえらんでください（どちらも毎回えらびます）。<br>'+missingFees.join('<br>');
+      document.getElementById('order-alerts').innerHTML = '<div class="alert-bar alert-danger">'+msg+'</div>';
+      document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
+      alert('倉庫ピックアップ料金と送料をえらんでください。\n（無料のときも「無料サービス」をえらんでください）\n\n'+missingFees.join('\n'));
       return;
     }
     const list = buildOrdersFromForm();
@@ -8123,7 +8195,11 @@ async function yoyakuListAddOne(o){
         items: items,
         name: (o.recipientName || o.client || ''),
         zip: (o.zip || ''), addr: (o.addr || ''), tel: (o.tel || ''),
-        day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''), time: '',
+        /* ★2026-09-12 ここは長いあいだ time:'' と【空】で送っていました（ゆくえ表の見張りで見つけました）。
+           画面で配送時間をえらべて、注文にも保存され、確認画面にも出るのに、
+           発注書の「時間指定」列（16列目）はいつも空で、倉庫は時間指定を知りませんでした。
+           ★空に戻さないでください。見張り：tests/test_ikisaki.js の ②-2 */
+        day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''), time: (o.delivTime || ''),
         sName: (o.senderName || ''), sZip: (o.senderZip || ''),
         sAddr: (o.senderAddr || ''), sTel: (o.senderTel || ''),
         docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')>=0; }).join('・') || '入れない') : ''),
@@ -8193,7 +8269,10 @@ async function yukaImportOne(id){
         addr: (o.addr || ''),
         tel: (o.tel || ''),
         day: (o.leadType==='scheduled' ? (o.leadDate || '') : ''),
-        time: '',
+        /* ★2026-09-12 ここは長いあいだ time:'' と【空】で送っていました（ゆくえ表の見張りで見つけました）。
+           発注書の「時間指定」列（16列目）がいつも空で、倉庫は時間指定を知りませんでした。
+           ★空に戻さないでください。見張り：tests/test_ikisaki.js の ②-2 */
+        time: (o.delivTime || ''),
         /* ★2026-09-07 送り元（贈り物が誰からか）。送り状の「ご依頼主」欄に要る。
            空のときは発注書も空欄のまま（勝手に埋めない）。 */
         sName: (o.senderName || ''),

@@ -1,0 +1,370 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   見張り：項目のゆくえ（oos-ikisaki.js）を【実物】と突き合わせる
+   2026-09-12 作成（ひろみさん指示）
+
+   ★「ゆくえ表に書いてあること」と「実際に動くもの」が合っているかだけを見ます。
+   ★表そのものが間違っていたら、間違ったまま通ります。だから表はひろみさんが点検し、
+     点検したあとは【封】をします（⑦）。封があると、私が表を勝手に変えたら落ちます。
+
+   見るもの
+     ① 発注書の列の名前と数     … tests/data/発注書の見出し_実物.json と照合
+     ② ①へ行くと書いた項目     … 本物の yukaImportOne → 本物の oosYukaImportOrder を動かして、その列に届くか
+     ③ ②へ出ると書いた項目     … 本物の OOS_NOUHIN.build() のHTMLに出ているか
+     ④ 人がえらんだ値          … 注文に保存されているか
+     ⑤ ×と書いた項目           … 勝手にどこかへ出ていないか
+     ⑥ 商品5つ目以降           … 備考欄に入っているか
+     ⑦ 封                      … 表が書き換わっていないか
+
+   GASのファイルは公開リポジトリに置きません。手元に無ければ②⑥は飛ばします。
+   ══════════════════════════════════════════════════════════════════════════ */
+const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const H = require('./harness');
+const IK = require('../oos-ikisaki.js');
+
+let pass = 0, fail = 0; const fails = [];
+function eq(l, g, w){ if(String(g) === String(w)) pass++; else { fail++; fails.push(l + '  期待:' + w + '  実際:' + g); } }
+function ok(l, g){ eq(l, !!g, true); }
+function notEmpty(l, v){ if(String(v == null ? '' : v).trim() !== '') pass++; else { fail++; fails.push(l + '  期待:何か入っている  実際:空'); } }
+
+/* ── GASの置き場所（test_gas.js と同じ作法） ───────────────────── */
+function readGasSource(){
+  const cands = [
+    path.join(__dirname, 'gas', 'コード.js'),
+    path.join(os.homedir(), 'OneDrive', 'ドキュメント', 'olive-stories-gas', 'コード.js')
+  ];
+  for(const c of cands){ if(fs.existsSync(c)) return fs.readFileSync(c, 'utf8'); }
+  return null;
+}
+const gasSrc = readGasSource();
+const idx = H.read('index.html');
+const pickupSrc = H.read('pickup.html');
+
+/* ══════════════════════════════════════════════════════════════════════
+   ① 発注書の列の名前と数　←　実物の控えと照合
+   ══════════════════════════════════════════════════════════════════════ */
+const snapPath = path.join(__dirname, 'data', '発注書の見出し_実物.json');
+const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
+const jitsubutsu = {};                 /* 列番号 → 見出し */
+snap.data.headers.forEach(function(line){
+  const m = String(line).match(/^(\d+)列目 … (.*)$/);
+  if(m) jitsubutsu[Number(m[1])] = m[2];
+});
+const jitsuKazu = Object.keys(jitsubutsu).length;
+
+eq('①-1 実物の列の数とゆくえ表の行数が同じ', IK.SOUKO_RETSU.length, jitsuKazu);
+eq('①-2 実物の列の数（控え）', jitsuKazu, snap.data.cols);
+
+IK.SOUKO_RETSU.forEach(function(r, i){
+  eq('①-3 ゆくえ表の' + (i+1) + '行目の列番号が連番', r.retsu, i + 1);
+  eq('①-4 ' + r.retsu + '列目の見出しが実物と同じ', r.midashi, jitsubutsu[r.retsu] === undefined ? '（実物に無い列）' : jitsubutsu[r.retsu]);
+});
+/* 逆向き：実物にあるのに表に無い列がないか */
+Object.keys(jitsubutsu).forEach(function(k){
+  const n = Number(k);
+  ok('①-5 ' + n + '列目（' + jitsubutsu[n] + '）がゆくえ表に載っている',
+     IK.SOUKO_RETSU.some(function(r){ return r.retsu === n; }));
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   試しの注文（4商品・時間指定あり・送り主あり・備考あり）
+   ══════════════════════════════════════════════════════════════════════ */
+function testOrder(extra){
+  const o = {
+    id:'O-TEST-1', num:'TK-20260912-01', status:'ordered', source:'manual',
+    client:'安保 千尋', custId:'C-1', customerType:'wholesale1',
+    recipientName:'宮西 杏奈', isCompany:true, companyName:'株式会社ミヤニシ',
+    deptName:'総務部', positionName:'課長', personName:'宮西 杏奈',
+    zip:'150-0001', addr:'東京都渋谷区1-1-1', tel:'03-1111-2222',
+    leadType:'scheduled', leadDate:'2026/09/20', delivTime:'午前中',
+    senderName:'株式会社オリーブオイル・ストーリーズ', senderZip:'106-0032',
+    senderAddr:'東京都港区六本木1-1-1', senderTel:'03-9999-8888',
+    note:'のしは不要です', bunrui:'9月の卸', kokyakuMemo:'いつもありがとうございます',
+    enclosedDoc:'納品書兼請求書', includePamphlet:false, pkg:'new',
+    warehouseFee:0, shippingFee:0,
+    lines:[
+      { productId:2,  productName:'オルガニック 250ml', boxQty:20, giftType:'normal', bottles:3, boxes:0, condition:'normal', memo:'こわれもの注意' },
+      { productId:4,  productName:'オルガニック 750ml', boxQty:12, giftType:'normal', bottles:2, boxes:0, condition:'normal', memo:'' },
+      { productId:19, productName:'プリモフルット 3L',  boxQty:4,  giftType:'normal', bottles:1, boxes:0, condition:'normal', memo:'' },
+      { productId:23, productName:'アグルミ 250ml',     boxQty:6,  giftType:'normal', bottles:0, boxes:1, condition:'normal', memo:'' }
+    ]
+  };
+  return Object.assign(o, extra || {});
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ② ①へ行くと書いた項目が、本当にその列に届くか
+      本物の yukaImportOne（受注Ａ）→ 本物の oosYukaImportOrder（GAS）
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 受注Ａの本物 yukaImportOne を動かして、GASへ送る中身を取り出す */
+async function okuruNakami(order){
+  const sent = [];
+  const { box, ctx } = H.makeSandbox({
+    fetch(url, opt){
+      try{ sent.push(JSON.parse(opt.body)); }catch(e){}
+      return Promise.resolve({ json(){ return Promise.resolve({ status:'ok', key:'K-TEST' }); } });
+    },
+    alert(){}, confirm(){ return true; }
+  });
+  let code = '';
+  code += H.cutVar(idx, 'PRODUCTS') + '\n';
+  code += 'var GAS_URL = "x";\n';
+  code += 'var orders = [];\n';
+  ['findProduct','findProductBySku','unitOfProduct','lineTotal','lineUnit','pkgDocsIn','pkgOf','pkgOneLine','yukaImportOne']
+    .forEach(function(n){ code += H.cut(idx, n) + '\n'; });
+  /* 画面まわりの身代わり（送る中身には関係しません） */
+  code += 'function fetchOrderFresh(){ return Promise.resolve(null); }\n';
+  code += 'function renderList(){}\nfunction syncOrdersToGAS(){}\nfunction showSyncStatus(){}\n';
+  vm.runInContext(code, ctx);
+  box.orders.push(order);
+  await box.yukaImportOne(order.id);
+  const hit = sent.filter(function(b){ return b && b.action === 'yukaImportOrder'; });
+  return hit.length ? hit[0].order : null;
+}
+
+/* GASの本物 oosYukaImportOrder を動かして、発注書の1行を作る */
+function makeSheet(width){
+  const s = { rows:[], width:width,
+    getName(){ return '発注書'; },
+    getLastRow(){ return this.rows.length + 1; },
+    getLastColumn(){ return this.width; },
+    getRange(r, c, nr, nc){
+      const self = this;
+      return {
+        getValues(){ const out=[]; for(let i=0;i<(nr||1);i++){ const rw=self.rows[r-2+i]||[]; out.push(rw.slice(c-1, c-1+(nc||1))); } return out; },
+        getDisplayValues(){ const out=[]; for(let i=0;i<(nr||1);i++){ const rw=self.rows[r-2+i]||[]; const line=[]; for(let j=0;j<(nc||1);j++){ const v=rw[c-1+j]; line.push(v==null?'':String(v)); } out.push(line); } return out; },
+        getValue(){ const rw=self.rows[r-2]||[]; return rw[c-1]; },
+        setValue(v){ if(!self.rows[r-2]) self.rows[r-2]=[]; self.rows[r-2][c-1]=v; return this; },
+        setValues(vv){ for(let i=0;i<vv.length;i++){ if(!self.rows[r-2+i]) self.rows[r-2+i]=[]; for(let j=0;j<vv[i].length;j++) self.rows[r-2+i][c-1+j]=vv[i][j]; } return this; },
+        insertCheckboxes(){ return this; }, removeCheckboxes(){ return this; },
+        setDataValidation(){ return this; }, setNote(){ return this; }, getNote(){ return ''; },
+        setBackground(){ return this; }, setFontColor(){ return this; }, setFontWeight(){ return this; },
+        setFontSize(){ return this; }, setWrap(){ return this; },
+        setHorizontalAlignment(){ return this; }, setVerticalAlignment(){ return this; },
+        setNumberFormat(){ return this; }, clearContent(){ return this; }
+      };
+    },
+    setColumnWidth(){}, setFrozenRows(){}, hideColumns(){}
+  };
+  return s;
+}
+
+function hacchuushoGyou(payload){
+  if(!gasSrc) return null;
+  const yuka = makeSheet(32);
+  const box = {
+    console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean, parseInt, parseFloat, isNaN,
+    Logger:{ log(){} },
+    SpreadsheetApp:{ newDataValidation(){ const o={ requireValueInList(){return o;}, setAllowInvalid(){return o;}, build(){return {};} }; return o; } },
+    oosYukaFile_(){ return { getSheetByName(n){ return n === '発注書' ? yuka : null; } }; },
+    oosKeyColByHeader_(){ return 28; }
+  };
+  box.globalThis = box;
+  const ctx = vm.createContext(box);
+  let code = '';
+  ['OOS_YUKA_SHEET','OOS_YC','OOS_YUKA_BTN_STOP','OOS_YUKA_BTN_GO'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
+  ['oosLastDataRow_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
+  vm.runInContext(code, ctx);
+  const res = box.oosYukaImportOrder(payload);
+  return { res: res, gyou: yuka.rows[0] || [] };
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ③④⑤⑥⑦　（②のあと、まとめて走らせます）
+   ══════════════════════════════════════════════════════════════════════ */
+(async function(){
+
+  /* ── ② ─────────────────────────────────────────────── */
+  const payload = await okuruNakami(testOrder());
+  ok('②-0 受注Ａが発注書へ送る中身を取り出せた', !!payload);
+
+  if(payload && gasSrc){
+    const out = hacchuushoGyou(payload);
+    eq('②-1 発注書に1行できた', out && out.res && out.res.status, 'ok');
+    const gyou = (out && out.gyou) || [];
+    /* ゆくえ表で「①へ行く」と書いた列ぜんぶ。その列に値が届いているか */
+    IK.soukoIkuRetsu().forEach(function(r){
+      /* 受注Ａからは入らないと書いてある列（倉庫・GAS・人が書く）はここでは見ません */
+      if(r.dare && (r.dare.indexOf('倉庫') === 0 || r.dare.indexOf('本部') === 0)) return;
+      notEmpty('②-2 ' + r.retsu + '列目「' + r.midashi + '」に値が届く（表：' + r.juchuA + '）', gyou[r.retsu - 1]);
+    });
+  } else if(!gasSrc){
+    console.log('（GASのファイルが手元にないので ② と ⑥ は飛ばしました）');
+  }
+
+  /* ── ③ 書類に出ると書いた項目が、本物のHTMLに出ているか ───── */
+  /* ★本物の親を【そのまま】砂場で動かします（require では動きません。window が要るため）。
+     oos-shorui-kimari.js も必ず入れます。入れないと単位と「必ず枠」が別の動きになります。 */
+  function mkEl(){ return { style:{}, setAttribute(){}, appendChild(){}, classList:{add(){},remove(){}} }; }
+  const dbox = { console, Math, Date, JSON, parseInt, parseFloat, isNaN, String, Number,
+    Object, Array, Boolean, RegExp, Error,
+    document:{ getElementById(){ return null; }, createElement(){ return mkEl(); },
+               head:{ appendChild(){} }, body:{ appendChild(){}, removeChild(){} } } };
+  dbox.window = dbox; dbox.globalThis = dbox;
+  const dctx = vm.createContext(dbox);
+  ['oos-zei.js','oos-kakaku.js','oos-shorui-kimari.js','oos-doc.js','oos-nouhin.js'].forEach(function(f){
+    vm.runInContext(H.read(f), dctx);
+  });
+  vm.runInContext(H.cutVar(idx, 'PRODUCTS'), dctx);
+  const prods = dbox.PRODUCTS;
+  const priceMaster = [
+    { sku:'ORG250', priceGeneral:4200, priceWholesale1:3800, priceWholesale2:3400, taxRate:8 },
+    { sku:'ORG750', priceGeneral:8400, priceWholesale1:7588, priceWholesale2:6800, taxRate:8 },
+    { sku:'PRI3L',  priceGeneral:13000, priceWholesale1:12000, priceWholesale2:11000, taxRate:8 },
+    { sku:'AGR250', priceGeneral:5400, priceWholesale1:4960, priceWholesale2:4400, taxRate:8 }
+  ];
+  dbox.__d = { products: prods, priceMaster: priceMaster, defaults: null };
+  dbox.__o = testOrder();
+  const html = vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx);
+  ok('③-0 書類（納品書兼請求書）が作れた', html && html.length > 500);
+
+  /* 必ず枠が出ると書いたもの（倉庫ピックアップ料金・送料） */
+  IK.kanarazuWaku().forEach(function(r){
+    ok('③-1 書類に「' + r.na + '」の枠が必ず出る', String(html).indexOf(r.na) >= 0
+       || (r.na === '倉庫ピックアップ料金' && String(html).indexOf('倉庫ピックアップ料金') >= 0));
+  });
+  /* Ａ表で「書類に出る」と書いた列のうち、値そのものが出るもの */
+  ok('③-2 書類にお届け先の氏名が出る', String(html).indexOf('宮西 杏奈') >= 0);
+  ok('③-3 書類に1箱入り数が出る（20）', /1箱入り数/.test(String(html)));
+  ok('③-4 書類に単価が出る', /単価/.test(String(html)));
+  ok('③-5 書類に合計本数が出る', /合計本数/.test(String(html)));
+
+  /* ── ④ 人がえらんだ値が、注文に保存されているか ───────────── */
+  /* ★ここは文字で確かめています（画面の操作は見張りでは動かせないため）。
+     「ボタンの値を読む関数を呼んでいて、その結果を注文に入れている」ことを見ます。 */
+  ok('④-1 ボタンの値を読む関数がある（pickupYenIn）', /function\s+pickupYenIn\s*\(/.test(idx));
+  ok('④-2 ボタンの値を読む関数がある（soryoYenIn）',  /function\s+soryoYenIn\s*\(/.test(idx));
+  /* ★ここは「数をかぞえる」だけでは弱すぎました（2026-09-12 の破壊テストで分かりました）。
+     つなぎの式そのものを見ます。★ゆるめないでください。 */
+  ok('④-3 えらんだピックアップ料金を届け先から読んでいる',
+     /pickupYen\s*:\s*pickupYenIn\s*\(\s*card\s*\)/.test(idx));
+  ok('④-4 えらんだ送料を届け先から読んでいる',
+     /soryoYen\s*:\s*soryoYenIn\s*\(\s*card\s*\)/.test(idx));
+  ok('④-5 注文の warehouseFee に、えらんだ値が入る',
+     /warehouseFee\s*:\s*\(\s*r\.pickupYen/.test(idx));
+  ok('④-6 注文の shippingFee に、えらんだ値が入る（税込に直して）',
+     /shippingFee\s*:\s*\(\s*r\.soryoYen/.test(idx) && /RATE_SERVICE/.test(idx));
+  ok('④-7 書類は warehouseFee を読んでいる', /o\.warehouseFee/.test(H.read('oos-nouhin.js')));
+  ok('④-8 書類は shippingFee を読んでいる',  /o\.shippingFee/.test(H.read('oos-nouhin.js')));
+  /* ★関数の定義そのものに当たってしまう書き方では見張りになりません
+     （2026-09-12 の破壊テストで分かりました）。呼んで、その数で止めているかを見ます。 */
+  ok('④-9 えらぶまで登録できない見張りがある（関数がある）',
+     /function\s+findCardsWithoutFees\s*\(\s*\)\s*\{/.test(idx));
+  ok('④-9b えらぶまで登録できない見張りがある（呼んで使っている）',
+     /=\s*findCardsWithoutFees\s*\(\s*\)\s*;/.test(idx));
+  ok('④-9c えらんでいなければ、そこで止めている',
+     /missingFees\.length[\s\S]{0,900}?return;/.test(idx));
+
+  /* ══════════════════════════════════════════════════════════════════
+     ④-10〜 　「0円」と「まだ決まっていない」が、書類で別あつかいか
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 の破壊テストで、ここを見ていないことが分かりました。
+     　`parseInt(...) || 0` に戻されても、どの見張りも落ちませんでした。
+     　手で計算した金額そのものを書いて、戻されたら落ちるようにします。
+     　試しの注文は【卸①・バラ3本・東京】なので、決めごとの自動計算では
+     　ピックアップ料金 250円・送料 880円（税込）＝税抜800円 になります。
+     ══════════════════════════════════════════════════════════════════ */
+  function doc(extra){ dbox.__o = testOrder(extra); return String(vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx)); }
+
+  /* Ａ　人が【無料サービス】をえらんだ注文（0円） */
+  const h0 = doc({ warehouseFee:0, shippingFee:0 });
+  ok('④-10 無料をえらんだら、書類に「無料サービス」が出る', (h0.match(/無料サービス/g) || []).length >= 2);
+  ok('④-11 無料をえらんだら、自動計算の250円に上書きされない', h0.indexOf('¥250') < 0);
+  ok('④-12 無料をえらんだら、自動計算の800円に上書きされない', h0.indexOf('¥800') < 0);
+  ok('④-13 無料をえらんだら「送料は別途申し受けます」と書かない', h0.indexOf('送料は別途申し受けます') < 0);
+
+  /* Ｂ　人が 700円・送料800円（税抜）をえらんだ注文 */
+  const h7 = doc({ warehouseFee:700, shippingFee:880 });
+  ok('④-14 えらんだピックアップ料金 700円が書類に出る', h7.indexOf('¥700') >= 0);
+  ok('④-15 えらんだ送料 800円（税抜）が書類に出る',     h7.indexOf('¥800') >= 0);
+
+  /* Ｃ　まだ決まっていない注文（2026-09-12より前の注文） */
+  const hOld = doc({ warehouseFee:undefined, shippingFee:undefined });
+  ok('④-16 決まっていない注文は、決めごとの250円で出る', hOld.indexOf('¥250') >= 0);
+  ok('④-17 決まっていない注文は、決めごとの800円で出る', hOld.indexOf('¥800') >= 0);
+
+  /* ── ⑤ ×と書いた項目が、勝手にどこかへ出ていないか ─────────── */
+  IK.DOKO_NIMO.forEach(function(r){
+    if(r.souko === false && payload){
+      /* 発注書へ送る中身に混ざっていないか（商品1行ごとのメモなど） */
+      const body = JSON.stringify(payload);
+      if(r.juchuA === 'lines[].memo'){
+        ok('⑤-1 「' + r.na + '」は発注書へ送っていない', body.indexOf('こわれもの注意') < 0);
+      }
+    }
+    if(r.shorui === false && r.juchuA === 'lines[].memo'){
+      ok('⑤-2 「' + r.na + '」は書類に出していない', String(html).indexOf('こわれもの注意') < 0);
+    }
+    if(r.soukoD === false && r.juchuA === 'lines[].memo'){
+      /* ★倉庫Ｄ（pickup.html）のピッキング一覧に出ていないか。
+         決めごと「倉庫Ｄはシンプルに」（2026-09-10）で📝メモは外したはずです。 */
+      ok('⑤-3 「' + r.na + '」は倉庫Ｄの画面に出していない', !/l\.memo\s*\?/.test(pickupSrc));
+    }
+  });
+
+  /* ── ⑥ 商品5つ目以降は備考欄に入るか ──────────────────── */
+  if(gasSrc){
+    const o6 = testOrder();
+    o6.lines = o6.lines.concat([
+      { productId:8,  productName:'メメジック 250ml', boxQty:20, giftType:'normal', bottles:1, boxes:0, condition:'normal', memo:'' },
+      { productId:14, productName:'シェフズブレンド 250ml', boxQty:20, giftType:'normal', bottles:1, boxes:0, condition:'normal', memo:'' }
+    ]);
+    o6.id = 'O-TEST-6';
+    const p6 = await okuruNakami(o6);
+    const out6 = hacchuushoGyou(p6);
+    const g6 = (out6 && out6.gyou) || [];
+    ok('⑥-1 商品は4つまで列に入る（4つ目が入っている）', String(g6[9] || '').trim() !== '');
+    ok('⑥-2 5つ目以降は備考欄に入る', String(g6[20] || '').indexOf('ほかの商品') >= 0);
+    ok('⑥-3 5つ目の商品名が備考欄にある', String(g6[20] || '').indexOf('メメジック 250ml') >= 0);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑧ 単位（本・缶・個）は1か所で決まっているか
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ここで穴が1つ見つかりました。
+     　発注書へ送る単位は商品マスタの「単位」欄だけを見ていて、
+     　書類は新しい決めごと（ml で決める）を見ていたため、
+     　【倉庫は「2」・書類は「2缶」】と食い違っていました。
+     ★受注Ａが自分で判定する形に戻さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    vm.runInContext(H.cut(idx, 'unitOfProduct'), dctx);
+    const shirabe = ['オルガニック 250ml','オルガニック 750ml','オルガニック 2L',
+                     'プリモフルット 3L','アグルミ 3L','カサアルバート 5L'];
+    prods.filter(function(p){ return shirabe.indexOf(p.name) >= 0; }).forEach(function(p){
+      dbox.__p = p;
+      const soukoHe = vm.runInContext('unitOfProduct(__p)', dctx);      /* 発注書へ送る単位 */
+      const shoruiHe = vm.runInContext('OOS_SHORUI.taniOf(__p)', dctx); /* 書類に出る単位 */
+      eq('⑧ ' + p.name + ' の単位が 発注書と書類で同じ', soukoHe, shoruiHe);
+    });
+    ok('⑧-2 受注Ａの単位は親（oos-shorui-kimari.js）を呼んでいる',
+       /OOS_SHORUI[\s\S]{0,40}taniOf/.test(H.cut(idx, 'unitOfProduct')));
+  })();
+
+  /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
+  const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
+  const ima = IK.fuu();
+  if(!fs.existsSync(fuuPath)){
+    fs.writeFileSync(fuuPath, JSON.stringify(ima, null, 2), 'utf8');
+    console.log('（封をはじめて作りました：' + JSON.stringify(ima) + '）');
+    pass++;
+  } else {
+    const hikae = JSON.parse(fs.readFileSync(fuuPath, 'utf8'));
+    eq('⑦-1 ゆくえ表の行数が控えと同じ', ima.kazu, hikae.kazu);
+    eq('⑦-2 ゆくえ表の封が控えと同じ（中身が書き換わっていない）', ima.fuu, hikae.fuu);
+  }
+
+  /* ── しめ ───────────────────────────────────────── */
+  console.log('');
+  console.log('===== 🧭 項目のゆくえ（①発注書 ②書類 ③倉庫Ｄ／2026-09-12）=====');
+  console.log('PASS ' + pass + ' / FAIL ' + fail);
+  if(fails.length){
+    console.log('');
+    console.log('落ちたところ：');
+    fails.forEach(function(f){ console.log('  ✗ ' + f); });
+  }
+  if(fail) process.exitCode = 1;
+})();
