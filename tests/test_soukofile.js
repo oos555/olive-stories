@@ -306,7 +306,14 @@ has('⑪失敗したら正直に知らせる', cancelIdx, 'キャンセルの印
 has('⑫カードの明細は単位つき', idxSrc, "lineTotal(l)+lineUnit(l)).join('　')");
 has('⑫倉庫へのLINEも単位つき', idxSrc, "lineTotal(l)+lineUnit(l); }).join('\\n　')");
 has('⑫出荷依頼書は箱ものに単位を書く', idxSrc, "l.bottles+(_u!=='本'?_u:'')");
-has('⑫ゆかスプシへの転記も単位つき', H.cut(idxSrc,'yukaImportOne'), "(_u!=='本'?_u:'')");
+/* ★2026-09-12 ひろみさん「本もつけて」。
+   それまでは「本」だけ省く形（_u!=='本'?_u:''）だったので、倉庫が見る「数」の列に
+   「3」と「2缶」が混ざっていました。いまは単位を【いつも】書きます。
+   ★「本を省く」形に戻さないでください。前より強い条件にしてあります。
+   　（数そのものの見張りは tests/test_ikisaki.js の ⑨ にあります） */
+has('⑫ゆかスプシへの転記は単位をいつも書く', H.cut(idxSrc,'yukaImportOne'), "String(lineTotal(l)) + _u");
+has('⑫ゆかスプシへの転記で「本」を省いていない',
+    (H.cut(idxSrc,'yukaImportOne').indexOf("!=='本'") < 0) ? 'ok' : 'ng', 'ok');
 has('⑫残高一覧の単位も名簿を先に見る', H.cut(idxSrc,'rtbUnit'), 'unitOfProduct(p)');
 has('⑫GAS：すでに入っている単位は触らない', H.cut(gasSrc,'oosProdUnitColumn'), 'すでに入っている値は触らない');
 has('⑫GAS：「箱」は箱そのものだけ（名前で判定・セットは除外）', H.cut(gasSrc,'oosProdUnitColumn'), "/ギフト箱|ギフトボックス|空箱/.test(nm) && !/セット/.test(nm)");

@@ -94,8 +94,26 @@
     return parseFloat(row[key]) || 0;
   }
 
-  /* 明細1行の単価（区分の判定こみ）。呼ぶ側はこれ1つで足ります */
+  /* ══════════════════════════════════════════════════════════════════════
+     無料サンプルの行は 0円　★2026-09-12 ひろみさん決定
+     ──────────────────────────────────────────────────────────────────────
+     それまで、種別で「サンプル(無償)」をえらんでも、
+     納品書には【通常の単価で金額が載っていました】。
+     無償という指定を金額にする仕組みが、どこにもありませんでした
+     （書類を作る親にも、画面にもありませんでした。2026-09-12に見つけました）。
+
+     ★0円にするのは、この1か所だけです。アプリ側に書き写さないでください。
+     　こうしておくと、納品書・請求書・見積・倉庫Ｄ、どこから見ても同じ0円になります。
+     ★有償サンプル（sample_paid）は【区分どおりの単価】です。0円にしないでください。
+     見張り：tests/test_ikisaki.js の ⑩
+     ══════════════════════════════════════════════════════════════════════ */
+  function muryouSampleKa(line) {
+    return !!(line && line.giftType === 'sample_free');
+  }
+
+  /* 明細1行の単価（区分の判定こみ・無料サンプルこみ）。呼ぶ側はこれ1つで足ります */
   function unitPriceForLine(order, line, sku, priceMaster, defaults) {
+    if (muryouSampleKa(line)) return 0;
     return priceForSku(sku, lineTierType(order, line), priceMaster, defaults);
   }
 
@@ -106,6 +124,7 @@
     effectiveCustomerType: effectiveCustomerType,
     lineTierType: lineTierType,
     priceForSku: priceForSku,
+    muryouSampleKa: muryouSampleKa,
     unitPriceForLine: unitPriceForLine
   };
 })(typeof window !== 'undefined' ? window : globalThis);

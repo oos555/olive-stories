@@ -130,8 +130,13 @@
       var prod = findProduct(l.productId);
       var sku = prod ? prod.sku : (l.sku || '');
       var qty = lineTotal(l);
-      var unit = (withAmount && sku) ? KAK.priceForSku(sku, KAK.lineTierType(o, l), PM, DEF) : 0;
-      if (withAmount && !unit) unknown = true;
+      /* ★2026-09-12 単価は【親の1つの窓口】から取ります（unitPriceForLine）。
+         無料サンプルの行を0円にする決まりも、その中に入っています。
+         ★priceForSku を直に呼ぶ形に戻さないでください。戻すと無料サンプルに
+         　通常の単価が載ります（2026-09-12まで、実際にそうなっていました）。 */
+      var unit = (withAmount && sku) ? KAK.unitPriceForLine(o, l, sku, PM, DEF) : 0;
+      /* 無料サンプルの0円は「単価が登録されていない」ではないので、警告にしません */
+      if (withAmount && !unit && !KAK.muryouSampleKa(l)) unknown = true;
       items.push({
         name: l.productName || (prod && prod.name) || '',
         qty: qty,
@@ -327,6 +332,9 @@
       var prod = null;
       for (var i = 0; i < PRODUCTS.length; i++) { if (PRODUCTS[i] && PRODUCTS[i].id == l.productId) { prod = PRODUCTS[i]; break; } }
       var sku = prod ? prod.sku : (l.sku || '');
+      /* ★2026-09-12 無料サンプルの行は0円が正しいので、「単価が未登録」には数えません。
+         数えると、無料サンプルが1行あるだけで納品書が作れなくなります。 */
+      if (KAK.muryouSampleKa && KAK.muryouSampleKa(l)) return;
       if (!sku) { out.push(l.productName || '（品番なし）'); return; }
       if (!KAK.priceForSku(sku, KAK.lineTierType(o, l), PM, DEF)) out.push((l.productName || prod && prod.name || sku));
     });

@@ -109,6 +109,14 @@ async function okuruNakami(order){
     },
     alert(){}, confirm(){ return true; }
   });
+  /* ★2026-09-12 書類の決めごと（単位の親）を入れます。
+     これが無いと、受注Ａの unitOfProduct が古い動き（「本」だけ）に戻り、
+     750ml が「2本」と出ます。本物のアプリは index.html が読み込んでいます。
+     ★この1行を消さないでください。
+     （土台 harness.js には入れていません。入れると、金額の合計を
+     　ピックアップ料金・送料なしで数えている既存の見張り2本が落ちます。
+     　それは【別に報告ずみの件】で、勝手に直しません） */
+  vm.runInContext(H.read('oos-shorui-kimari.js'), ctx);
   let code = '';
   code += H.cutVar(idx, 'PRODUCTS') + '\n';
   code += 'var GAS_URL = "x";\n';
@@ -342,6 +350,128 @@ function hacchuushoGyou(payload){
     });
     ok('⑧-2 受注Ａの単位は親（oos-shorui-kimari.js）を呼んでいる',
        /OOS_SHORUI[\s\S]{0,40}taniOf/.test(H.cut(idx, 'unitOfProduct')));
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑨ 発注書の「数」の列には、単位を【いつも】書くか
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん「本もつけて」
+     　それまでは「本」だけ省いていたので、倉庫が見る列に
+     　「3」と「2缶」が混ざっていました。
+     ★「本」を省く形に戻さないでください。
+     ══════════════════════════════════════════════════════════════════ */
+  if(payload){
+    const qtys = (payload.items || []).map(function(it){ return String(it.qty || ''); });
+    eq('⑨-0 試しの注文の商品は4つ', qtys.length, 4);
+    /* 試しの注文：250ml バラ3／750ml バラ2／3L バラ1／250ml 箱1（20本入り） */
+    eq('⑨-1 250ml バラ3 → 「3本」',        qtys[0], '3本');
+    eq('⑨-2 750ml バラ2 → 「2缶」',        qtys[1], '2缶');
+    eq('⑨-3 3L バラ1 → 「1個」',           qtys[2], '1個');
+    eq('⑨-4 250ml 箱1（6本入り）→ 「6本（1箱）」', qtys[3], '6本（1箱）');
+    qtys.forEach(function(q, i){
+      ok('⑨-5 ' + (i+1) + 'つ目に単位が入っている（' + q + '）', /[本缶個箱枚セット]/.test(q));
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑩ 無料サンプルは0円／有償サンプルは区分どおり
+     ──────────────────────────────────────────────────────────────────
+     ★2026-09-12 ひろみさん決定。それまでは「サンプル(無償)」をえらんでも
+     　納品書に通常の単価で金額が載っていました（どこにも0円にする仕組みが無かった）。
+     ★0円にするのは oos-kakaku.js の1か所だけ。アプリに書き写さないでください。
+     　試しの注文は【卸①】なので、オルガニック250ml の卸①単価は 3,800円です。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    const KAK = vm.runInContext('OOS_KAKAKU', dctx);
+    const o = { customerType:'wholesale1' };
+    const muryou = { giftType:'sample_free', boxes:0 };
+    const yushou = { giftType:'sample_paid', boxes:0 };
+    const futsuu = { giftType:'normal',      boxes:0 };
+    eq('⑩-1 無料サンプルの単価は0円', KAK.unitPriceForLine(o, muryou, 'ORG250', priceMaster, null), 0);
+    eq('⑩-2 有償サンプルは区分どおり（卸①3,800円）', KAK.unitPriceForLine(o, yushou, 'ORG250', priceMaster, null), 3800);
+    eq('⑩-3 通常も区分どおり（卸①3,800円）',        KAK.unitPriceForLine(o, futsuu, 'ORG250', priceMaster, null), 3800);
+    ok('⑩-4 無料サンプルの見分けが親にある', typeof KAK.muryouSampleKa === 'function');
+
+    /* 書類のほうでも0円になるか（本物の納品書を作って見ます） */
+    const oS = testOrder();
+    oS.lines = [
+      { productId:2, productName:'オルガニック 250ml', boxQty:20, giftType:'sample_free', bottles:2, boxes:0, condition:'normal', memo:'' },
+      { productId:4, productName:'オルガニック 750ml', boxQty:12, giftType:'normal',      bottles:1, boxes:0, condition:'normal', memo:'' }
+    ];
+    dbox.__o = oS;
+    const hS = String(vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx));
+    ok('⑩-5 書類に無料サンプルの行が出る', hS.indexOf('オルガニック 250ml') >= 0);
+    ok('⑩-6 書類で無料サンプルに3,800円を載せていない', hS.indexOf('¥3,800') < 0);
+    ok('⑩-7 書類で通常の行は7,588円が載る', hS.indexOf('¥7,588') >= 0);
+    /* 無料サンプルだけの注文でも、納品書が作れること（単価未登録あつかいにしない） */
+    const oS2 = testOrder();
+    oS2.lines = [{ productId:28, productName:'カサアルバート 5L', boxQty:4, giftType:'sample_free', bottles:1, boxes:0, condition:'normal', memo:'' }];
+    ok('⑩-8 単価が名簿に無い商品でも、無料サンプルなら作れる',
+       (vm.runInContext('OOS_NOUHIN.missingPrices(__o2, __d)', (dbox.__o2 = oS2, dctx)) || []).length === 0);
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     ⑪ 受注Ａの入力の列（承認済みモック「mock_受注Ａの入力項目_第3版」のとおり）
+     ──────────────────────────────────────────────────────────────────
+     ★足さない・消さない・並べ替えない・言い換えない。
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    /* 見出しの言葉（書類と同じ言葉） */
+    const h = idx.slice(idx.indexOf('<div class="order-line-header">'), idx.indexOf('<div data-role="lines">'));
+    ['商品','1箱入り数','単価','種別','バラ','箱','合計本数','金額','状態'].forEach(function(w){
+      ok('⑪-1 入力の見出しに「' + w + '」がある', h.indexOf(w) >= 0);
+    });
+    ok('⑪-2 入力の見出しに「（参考）」がある', h.indexOf('（参考）') >= 0);
+    ok('⑪-3 入力の見出しに「メモ」を戻していない', h.indexOf('メモ') < 0);
+    ok('⑪-4 入力の見出しに「本数」という古い言葉を残していない', h.indexOf('>本数<') < 0);
+    /* 並び順（書類と同じ順で出てくるか）
+       ★「箱」は「1箱入り数」の中にも出てくるので、文字の位置では見られません。
+       　見出しの【文字の並び】を取り出して、順番どおりかを見ます。 */
+    /* 見出しはJSの文字をつないで作っているので、つなぎの ' と + は捨てます */
+    const kotoba = (h.match(/>([^<>]+)</g) || [])
+      .map(function(s){ return s.slice(1, -1).replace(/['"+\s]/g, ''); })
+      .filter(function(s){ return s && s !== '（参考）' && s !== '（税抜）'; });
+    const jun = ['商品','1箱入り数','単価','種別','バラ','箱','合計本数','金額','状態'];
+    eq('⑪-5 入力の見出しの並びが書類と同じ順', kotoba.join('／'), jun.join('／'));
+
+    /* 読むだけの4つ（入力欄ではなく div） */
+    const gyou = H.cut(idx, 'addRecipientLine');
+    ['hakoIri','tanka','goukei','kingaku'].forEach(function(r){
+      ok('⑪-6 ' + r + ' は読むだけ（div）', new RegExp('<div class="ol-[^"]*" data-role="' + r + '"').test(gyou));
+    });
+    ok('⑪-7 メモの入力欄（text）は出していない', !/type="text"[^>]*data-role="memo"/.test(gyou));
+    ok('⑪-8 古い注文のメモを消さないように、見えない入れものは残している',
+       /type="hidden" data-role="memo"/.test(gyou));
+
+    /* 単価は親を呼ぶだけ（写しを作っていないか） */
+    const yomi = H.cut(idx, 'refreshLineYomi');
+    ok('⑪-9 単価は親（OOS_KAKAKU）を呼んでいる', /OOS_KAKAKU\.unitPriceForLine/.test(yomi));
+    ok('⑪-10 単価の判定を画面に書き写していない',
+       !/priceWholesale1|priceGeneral|priceRT/.test(yomi));
+    ok('⑪-11 単位は親を通して取っている（lineUnit）', /lineUnit\s*\(/.test(yomi));
+    /* ★「未登録」という文字があるかだけでは弱すぎます（お知らせ文にも出てくるため。
+       　2026-09-12 の破壊テストで分かりました）。単価の欄に入れているかを見ます。 */
+    ok('⑪-12 単価が無いときは、単価の欄に「未登録」と入れる',
+       /tk\.textContent\s*=\s*'未登録'/.test(yomi));
+    ok('⑪-12b そのとき赤い見た目にする', /tk\.className\s*=\s*'ol-tanka mi'/.test(yomi));
+    ok('⑪-12c そのとき ¥0 と出していない', !/tk\.textContent\s*=\s*'¥0'/.test(yomi));
+    ok('⑪-13 金額の欄に「出せません」と入れる',
+       /kg\.textContent\s*=\s*'出せません'/.test(yomi));
+    ok('⑪-14 区分を変えたら書き直す', /refreshLineYomi/.test(H.cut(idx, 'onCtypeChange')));
+    ok('⑪-15 種別を変えたら書き直す', /updateCardGiftSummary/.test(H.cut(idx, 'onRecipientLineGiftChange')));
+    ok('⑪-16 数や箱を入れたら書き直す', /refreshLineYomi\s*\(\s*cardId\s*\)/.test(H.cut(idx, 'updateCardGiftSummary')));
+
+    /* 列の数（CSS）が10列になっているか */
+    const css = (idx.match(/\.order-line\{display:grid;grid-template-columns:([^;]+);/) || [])[1] || '';
+    eq('⑪-17 入力行は10列', css.trim().split(/\s+/).length, 10);
+    const cssH = (idx.match(/\.order-line-header\{display:grid;grid-template-columns:([^;]+);/) || [])[1] || '';
+    eq('⑪-18 見出しも10列（行とそろっている）', cssH.trim(), css.trim());
+
+    /* 種別の名前 */
+    ok('⑪-19 種別は「無料サンプル」', /sample_free:'無料サンプル'/.test(idx));
+    ok('⑪-20 種別は「有償サンプル」', /sample_paid:'有償サンプル'/.test(idx));
+    ok('⑪-21 倉庫Ｄも同じ名前（写しをそろえた）',
+       /sample_free:'無料サンプル'/.test(pickupSrc) && /sample_paid:'有償サンプル'/.test(pickupSrc));
   })();
 
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */

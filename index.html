@@ -244,20 +244,47 @@ tr:last-child td{border-bottom:none}
 .alert-warn{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}
 .alert-danger{background:#fee2e2;border:1px solid #f87171;color:#991b1b}
 .alert-info{background:#dbeafe;border:1px solid #60a5fa;color:#1e3a8a}
-.order-line{display:grid;grid-template-columns:1.8fr 1fr 52px 52px 108px 1fr 28px;gap:8px;align-items:center;padding:8px 10px;background:#f9f8f5;border-radius:8px;margin-bottom:6px}
-.order-line-header{display:grid;grid-template-columns:1.8fr 1fr 52px 52px 108px 1fr 28px;gap:8px;padding:4px 10px;margin-bottom:4px}
+/* ══════════════════════════════════════════════════════════════════════
+   入力の列　★2026-09-12 承認済みモック「mock_受注Ａの入力項目_第3版」のとおり
+   ──────────────────────────────────────────────────────────────────────
+   並びは【書類と同じ順】：商品／（参考）1箱入り数／単価／種別／バラ／箱／合計本数／金額／状態／✕
+   ひろみさん：「ちゃんと書類と呼応するようにしてください」
+   　　　　　　「⑥だして（金額）」「メモ不要」
+   ★列を足したり・並べ替えたり・メモを戻したりしないでください。
+   　（1箱入り数・単価・合計本数・金額は【読むだけ】です）
+   見張り：tests/test_ikisaki.js の ⑪
+   ══════════════════════════════════════════════════════════════════════ */
+.order-line{display:grid;grid-template-columns:1.75fr 44px 74px 0.75fr 44px 40px 60px 84px 92px 24px;gap:6px;align-items:center;padding:8px 10px;background:#f9f8f5;border-radius:8px;margin-bottom:6px}
+.order-line-header{display:grid;grid-template-columns:1.75fr 44px 74px 0.75fr 44px 40px 60px 84px 92px 24px;gap:6px;padding:4px 10px;margin-bottom:4px}
 .order-line select[data-role=condition]{font-weight:700}
 .order-line select[data-role=condition][data-cond=old]{background:#faeeda;color:#633806;border-color:#e0b45f}
 .order-line select[data-role=condition][data-cond=defect]{background:#fcebeb;color:#a32d2d;border-color:#e89a9a}
-@media(max-width:640px){
+/* 読むだけの欄（点線＝書き換えられません） */
+.ol-yomi{background:#eef0e8;border:1px dashed #c9c5b8;border-radius:6px;padding:6px 3px;font-size:12.5px;text-align:center;color:#54564d;font-weight:700}
+.ol-tanka{background:#eef0e8;border:1px dashed #c9c5b8;border-radius:6px;padding:6px 6px;font-size:12.5px;text-align:right;color:#2b2a26;font-weight:700;font-variant-numeric:tabular-nums}
+.ol-tanka.mi{background:#fff4f2;border:1.5px solid #e24b4a;color:#a32d2d;text-align:center;font-size:11.5px}
+.ol-tanka.mu{text-align:center;font-size:11.5px;color:#54564d}
+.ol-goukei{background:#e8f0fe;border:1.5px solid #9dbde0;border-radius:6px;padding:6px 3px;font-size:13px;text-align:center;color:#0c447c;font-weight:800}
+.ol-kingaku{background:#f2efe6;border:1.5px solid #c9c5b8;border-radius:6px;padding:6px 7px;font-size:13px;text-align:right;color:#20211d;font-weight:800;font-variant-numeric:tabular-nums}
+.ol-kingaku.mi{background:#fff4f2;border-color:#e24b4a;color:#a32d2d;text-align:center;font-size:11.5px}
+.ol-sankou{font-size:9.5px;color:#83857a;font-weight:700}
+/* ★2026-09-12 10列になったので、縦に積みはじめる幅を 640px → 820px に広げました。
+   640〜820pxの窓（小さめのノート・タブレット横）では、10列が詰まって読めませんでした。
+   ★640pxに戻さないでください。 */
+@media(max-width:820px){
   .order-line-header{display:none}
-  .order-line{grid-template-columns:1fr 1fr;grid-template-areas:"product product" "gift gift" "bottles boxes" "state state" "memo memo" "del del";padding:10px}
+  /* ★スマホは縦に積みます。読むだけの4つ（1箱入り数・単価・合計本数・金額）は1行にまとめます */
+  .order-line{grid-template-columns:1fr 1fr 1fr 1fr;
+    grid-template-areas:"product product product product" "gift gift gift gift" "bottles bottles boxes boxes" "state state state state" "hakoiri tanka goukei kingaku" "del del del del";padding:10px}
   .order-line select[data-role=product]{grid-area:product}
   .order-line select[data-role=gift]{grid-area:gift}
   .order-line input[data-role=bottles]{grid-area:bottles}
   .order-line input[data-role=boxes]{grid-area:boxes}
   .order-line select[data-role=condition]{grid-area:state}
-  .order-line input[data-role=memo]{grid-area:memo}
+  .order-line [data-role=hakoIri]{grid-area:hakoiri}
+  .order-line [data-role=tanka]{grid-area:tanka}
+  .order-line [data-role=goukei]{grid-area:goukei}
+  .order-line [data-role=kingaku]{grid-area:kingaku}
   .order-line button{grid-area:del;width:100%;padding:8px}
   .order-line select,.order-line input{padding:9px 8px;font-size:14px}
   .btn-sm{padding:7px 12px;font-size:12px}
@@ -336,10 +363,10 @@ body{background:#fff}
 <script src="oos-zei.js?v=20260824"></script>
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
-<script src="oos-kakaku.js?v=20260910"></script>
+<script src="oos-kakaku.js?v=20260912"></script>
 <script src="oos-shorui-kimari.js?v=20260911"></script>
 <script src="oos-doc.js?v=20260824"></script>
-<script src="oos-nouhin.js?v=20260912"></script>
+<script src="oos-nouhin.js?v=20260912b"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -385,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-02">
+<meta name="oos-version" content="2026-09-12-03">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -2353,7 +2380,7 @@ const EC_WAREHOUSE = {
   bikoLine: 'お届け先：〒601-8203 京都府京都市南区久世築山町212-1　株式会社カワタキコーポレーション内　リゾートトラスト様通販倉庫に納品しています。'
 };
 
-const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'包装紙ギフト', sample_free:'サンプル(無償)', sample_paid:'サンプル(有償)', w1:'卸①価格', w2:'卸②価格' };
+const GIFT_TYPE_LABEL = { normal:'通常', gift:'ギフト', simple:'包装紙ギフト', sample_free:'無料サンプル', sample_paid:'有償サンプル', w1:'卸①価格', w2:'卸②価格' };
 
 function findProduct(pid){ return PRODUCTS.find(p=>p.id==pid); }
 function findProductBySku(sku){ return PRODUCTS.find(p=>p.sku===sku); }
@@ -3108,6 +3135,12 @@ function pkgApplyCtype(card, fresh){
 }
 function onCtypeChange(){
   const sel = document.getElementById('o-ctype');
+  /* ★2026-09-12 区分を変えると単価が変わるので、入力行の単価・金額も書き直します。
+     （承認済みモック第3版：えらびまちがいが目で分かるようにするため）
+     ★この1行を消さないでください。消すと、区分を変えても古い単価が出たままになります。 */
+  document.querySelectorAll('.recipient-card').forEach(function(c){
+    if(typeof refreshLineYomi === 'function') refreshLineYomi(c.id);
+  });
   // No.14 パンフレット既定：RT・卸①・卸②は既定オフ／それ以外は既定オン（手で切替可）
   /* ★2026-09-05 同梱書類・パンフレットの既定は、お届け先カードごとに入れる（決まりは今まで通り） */
   document.querySelectorAll('.recipient-card').forEach(function(c){ if(typeof pkgApplyCtype==='function') pkgApplyCtype(c); });
@@ -3330,16 +3363,28 @@ function addRecipient(){
       '</div>'+
     '</div>'+
     '<div style="margin:10px 0 4px">'+
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-12 承認済みモック「mock_受注Ａの入力項目_第3版」のとおり。
+         見出しは【書類と同じ言葉・同じ順】です。
+         ひろみさん：「本数」→「バラ」にそろえる／「⑥だして（金額）」／「メモ不要」
+         ★言い換えない・並べ替えない・メモを戻さないでください。
+         ══════════════════════════════════════════════════════════════ */
       '<div class="order-line-header">'+
         '<div style="font-size:11px;font-weight:700;color:#2b2a26">商品</div>'+
-        '<div style="font-size:11px;font-weight:700;color:#2b2a26">種別</div>'+
-        '<div style="font-size:11px;font-weight:700;color:#2b2a26">本数</div>'+
-        '<div style="font-size:11px;font-weight:700;color:#2b2a26">箱数</div>'+
-        '<div style="font-size:11px;font-weight:700;color:#2b2a26">状態</div>'+
-        '<div style="font-size:11px;font-weight:700;color:#2b2a26">メモ</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center;line-height:1.35"><span class="ol-sankou">（参考）</span><br>1箱入り数</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center;line-height:1.35">単価<br><span class="ol-sankou">（税抜）</span></div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center">種別</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center">バラ</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center">箱</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center">合計本数</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center;line-height:1.35">金額<br><span class="ol-sankou">（税抜）</span></div>'+
+        '<div style="font-size:11px;font-weight:700;color:#2b2a26;text-align:center">状態</div>'+
         '<div></div>'+
       '</div>'+
       '<div data-role="lines"></div>'+
+      /* ★2026-09-12 承認済みモック第3版：単価が名簿に無い商品があれば、ここに出します。
+         登録は止めません（取り置き・予約もあるため）。★文言を言い換えないでください。 */
+      '<div data-role="tankaWarn" style="display:none;margin-top:7px;background:#fff4f2;border:1px solid #e6b3b1;border-radius:6px;padding:7px 10px;font-size:12.5px;color:#a32d2d;font-weight:700"></div>'+
     '</div>'+
     '<button class="btn-sm" onclick="addRecipientLine(\''+id+'\')" style="width:100%">＋ 商品を追加</button>'+
     '<button class="btn-sm" onclick="togglePouchBuilder(\''+id+'\')" style="width:100%;margin-top:6px;background:#eef2e3">🧩 カップ巾着を組み立てて追加</button>'+
@@ -3737,14 +3782,26 @@ function addRecipientLine(cardId){
   const row = document.createElement('div');
   row.className = 'order-line';
   row.id = id;
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 承認済みモック「mock_受注Ａの入力項目_第3版」のとおり。
+     並びは 商品／1箱入り数／単価／種別／バラ／箱／合計本数／金額／状態／✕
+     ・1箱入り数・単価・合計本数・金額は【読むだけ】（div です。入力欄にしないでください）
+     ・メモの入力欄は外しました（ひろみさん「メモ不要」）。
+     　ただし【古い注文のメモを消さない】ために、見えない入れものだけ残します。
+     　★この hidden を消すと、古い注文を開いて保存したときにメモが消えます。
+     ══════════════════════════════════════════════════════════════════ */
   row.innerHTML =
     '<select onchange="onRecipientLineProductChange(\''+cardId+'\',\''+id+'\')" data-role="product">'+productOptionsHtml()+'</select>'+
+    '<div class="ol-yomi" data-role="hakoIri">―</div>'+
+    '<div class="ol-tanka" data-role="tanka">―</div>'+
     '<select data-role="gift" onchange="onRecipientLineGiftChange(\''+cardId+'\')">'+giftOptionsHtml(false)+'</select>'+
     '<input type="number" min="0" value="0" data-role="bottles" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
     '<input type="number" min="0" value="0" data-role="boxes" oninput="updateCardGiftSummary(\''+cardId+'\')">'+
+    '<div class="ol-goukei" data-role="goukei">―</div>'+
+    '<div class="ol-kingaku" data-role="kingaku">―</div>'+
     '<select data-role="condition" data-cond="normal" onchange="this.setAttribute(\'data-cond\',this.value);updateCardGiftSummary(\''+cardId+'\')"></select>'+
-    '<input type="text" placeholder="メモ" data-role="memo">'+
-    '<button class="btn-sm" onclick="removeRecipientLine(\''+cardId+'\',\''+id+'\')" title="削除">✕</button>';
+    '<button class="btn-sm" onclick="removeRecipientLine(\''+cardId+'\',\''+id+'\')" title="削除">✕</button>'+
+    '<input type="hidden" data-role="memo" value="">';
   wrap.appendChild(row);
   updateCardGiftSummary(cardId);
   refreshLineCondition(row);
@@ -3763,6 +3820,9 @@ function onRecipientLineProductChange(cardId, lineId){
 }
 function onRecipientLineGiftChange(cardId){
   updateRecycleLock(cardId);
+  /* ★2026-09-12 種別で「卸①価格」「卸②価格」「無料サンプル」をえらぶと単価が変わるので、
+     その場で書き直します。★この1行を消さないでください。 */
+  updateCardGiftSummary(cardId);
 }
 /* ★もとは「リサイクル箱使用可」チェックを外して押せなくしていた決まり。
    2026-09-05 に「発送に使う箱」の3択へ変わったので、同じ意味で
@@ -3824,7 +3884,88 @@ function getRecipientLines(cardId){
     };
   }).filter(l=>l.productId && (l.bottles>0 || l.boxes>0));
 }
+/* ══════════════════════════════════════════════════════════════════════
+   📋 入力行の【読むだけの4つ】を書き込む　★2026-09-12
+   　　（参考）1箱入り数 ／ 単価（税抜） ／ 合計本数 ／ 金額（税抜）
+   ──────────────────────────────────────────────────────────────────────
+   承認済みモック「mock_受注Ａの入力項目_第3版」のとおり。
+   ひろみさん：「出したほうがアプリが間違えないなら、出して。
+   　　　　　　とにかくもう壊れてほしくないし、嘘もついてほしくない」
+
+   ★単価は【親＝oos-kakaku.js】を呼ぶだけです。ここに計算を書き写さないでください。
+   　書き写すと、画面の単価と書類の単価が黙ってズレます。
+   ★単価が名簿に無いときは 0円と出さず「未登録」と赤で出します。
+   　金額も「出せません」と出します（0円の納品書が出るのを防ぐため）。
+   ★単位（本・缶・個）も親（oos-shorui-kimari.js）から取ります。
+   見張り：tests/test_ikisaki.js の ⑪
+   ══════════════════════════════════════════════════════════════════════ */
+function ctypeNow(){
+  var el = document.getElementById('o-ctype');
+  return (el && el.value) || 'general';
+}
+function refreshLineYomi(cardId){
+  var card = document.getElementById(cardId);
+  if(!card) return;
+  var wrap = card.querySelector('[data-role=lines]');
+  if(!wrap) return;
+  var ctype = ctypeNow();
+  var mitouroku = [];
+  Array.prototype.forEach.call(wrap.children, function(row){
+    var ps = row.querySelector('[data-role=product]');
+    var hk = row.querySelector('[data-role=hakoIri]');
+    var tk = row.querySelector('[data-role=tanka]');
+    var gk = row.querySelector('[data-role=goukei]');
+    var kg = row.querySelector('[data-role=kingaku]');
+    if(!ps || !hk || !tk || !gk || !kg) return;
+    var p = findProduct(ps.value);
+    if(!p){ hk.textContent='―'; tk.textContent='―'; tk.className='ol-tanka';
+            gk.textContent='―'; kg.textContent='―'; kg.className='ol-kingaku'; return; }
+
+    /* 行のいまの中身（書類と同じ数え方） */
+    var l = {
+      productId: p.id, productName: p.name, boxQty: (p.boxQty||1),
+      giftType: (row.querySelector('[data-role=gift]')||{}).value || 'normal',
+      bottles: parseInt((row.querySelector('[data-role=bottles]')||{}).value)||0,
+      boxes:   parseInt((row.querySelector('[data-role=boxes]')||{}).value)||0
+    };
+    var kazu = lineTotal(l);
+    var tani = lineUnit(l);
+
+    hk.textContent = String(p.boxQty || 1);
+    gk.textContent = kazu ? (kazu + tani) : '―';
+
+    /* 単価（税抜）＝ 親に聞く */
+    var unit = (typeof OOS_KAKAKU!=='undefined' && OOS_KAKAKU)
+      ? OOS_KAKAKU.unitPriceForLine({ customerType: ctype }, l, p.sku, priceMaster, null) : 0;
+    var muryou = (typeof OOS_KAKAKU!=='undefined' && OOS_KAKAKU && OOS_KAKAKU.muryouSampleKa)
+      ? OOS_KAKAKU.muryouSampleKa(l) : false;
+
+    if(muryou){
+      tk.className = 'ol-tanka mu'; tk.textContent = '無償';
+      kg.className = 'ol-kingaku';  kg.textContent = '¥0';
+    } else if(!unit){
+      tk.className = 'ol-tanka mi'; tk.textContent = '未登録';
+      kg.className = 'ol-kingaku mi'; kg.textContent = '出せません';
+      mitouroku.push(p.name);
+    } else {
+      tk.className = 'ol-tanka'; tk.textContent = '¥' + unit.toLocaleString('ja-JP');
+      kg.className = 'ol-kingaku';
+      kg.textContent = kazu ? ('¥' + (unit*kazu).toLocaleString('ja-JP')) : '―';
+    }
+  });
+
+  /* 単価が名簿に無い商品があれば、そのことを出す（登録は止めません。予約や取り置きもあるため） */
+  var warn = card.querySelector('[data-role=tankaWarn]');
+  if(warn){
+    if(mitouroku.length){
+      warn.style.display = 'block';
+      warn.innerHTML = '⚠ 単価が「未登録」の商品があります（'+mitouroku.map(esc).join('・')+'）。'
+        + 'このままだと納品書が作れません（輸入・原価Ｅで単価を入れてください）';
+    } else { warn.style.display = 'none'; warn.innerHTML = ''; }
+  }
+}
 function updateCardGiftSummary(cardId){
+  refreshLineYomi(cardId);                 /* ★読むだけの4つを先に書き直す */
   const lines = getRecipientLines(cardId);
   const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
   if(!lines.length){ el.innerHTML = '<span style="color:#2b2a26">商品を追加すると内訳が表示されます</span>'; return; }
@@ -8181,7 +8322,10 @@ async function yoyakuListAddOne(o){
     var items = (o.lines||[]).map(function(l){
       var p = (typeof findProduct==='function' ? findProduct(l.productId) : null) || {};
       var _u = (typeof lineUnit==='function') ? lineUnit(l) : '本';
-      var qty = String((typeof lineTotal==='function' ? lineTotal(l) : (l.bottles||0))) + (_u!=='本'?_u:'');
+      /* ★2026-09-12 ひろみさん「本もつけて」。単位は【いつも】書きます（本・缶・個）。
+         それまでは「本」だけ省いていたので、倉庫は「3」と「3缶」が混ざって見えていました。
+         ★「本」を省く形に戻さないでください。見張り：tests/test_ikisaki.js の ⑨ */
+      var qty = String((typeof lineTotal==='function' ? lineTotal(l) : (l.bottles||0))) + _u;
       return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
     });
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -8253,7 +8397,10 @@ async function yukaImportOne(id){
        ほかの場所と同じ findProduct（ゆるい照合）に直す。★戻さないでください */
     var p = (typeof findProduct==='function' ? findProduct(l.productId) : null) || {};
     var _u = lineUnit(l);   // ★2026-09-04 単位が「箱」等の商品は数に単位まで書いて送る（スマホの梱包ビューでも正しく出る）
-    var qty = String(lineTotal(l)) + (_u!=='本'?_u:'') + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
+    /* ★2026-09-12 ひろみさん「本もつけて」。単位は【いつも】書きます（本・缶・個）。
+       それまでは「本」だけ省いていたので、発注書の「数」の列に「3」と「2缶」が混ざっていました。
+       ★「本」を省く形に戻さないでください。見張り：tests/test_ikisaki.js の ⑨ */
+    var qty = String(lineTotal(l)) + _u + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
     return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
   });
   try{
