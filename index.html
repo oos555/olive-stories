@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-14">
+<meta name="oos-version" content="2026-09-12-15">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -3905,9 +3905,31 @@ function conditionOptionsHtml(pid, selected){
   /* 古い注文に「不良・軽（現ロット）」のような値が入っていたら、まとめて「不良品」として見せる */
   if(String(sel).indexOf('defect') === 0) sel = 'defect';
   function opt(val,label,dis){ return '<option value="'+val+'"'+(sel===val?' selected':'')+(dis?' disabled':'')+'>'+label+'</option>'; }
-  return opt('normal','正規',false)
-       + opt('old',   '旧ロット（残'+a.old+'）',  a.old<=0)
-       + opt('defect','不良品（残'+a.defect+'）', a.defect<=0);
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん決定：残りの数は出さない・いつでも選べる
+     ──────────────────────────────────────────────────────────────────
+     ひろみさん：「旧ロットはすでに登録してる！在庫もあるはず。なぜ選べない？」
+     　　　　　　「ずっと在庫0表示だった」
+     　　　　　　「その括弧 残りゼロ だけを取り除けばいいだけじゃない?」
+
+     調べたこと（2026-09-12）：
+     　・計算はしていました。実データで メメジック500ml の旧ロットは19本、
+     　　本物の関数に流すと ちゃんと「旧ロット（残19）」と出ます。
+     　・ただし【在庫データが届く前】は 0 と出て、そのうえ【選べなく】なっていました。
+     　　だから「ずっと在庫0」に見え、旧ロットがえらべませんでした。
+
+     決めたこと：
+     　・残りの数は【出しません】（ここで見せる意味がなく、0のとき邪魔になるだけ）
+     　・正規・旧ロット・不良品は【いつでも選べます】
+     　・在庫が足りるかは、発注書へ送るときに見ます（🔒在庫がありません）。
+     　　そちらが本当の守りです（2026-08-18の決めごと・見張り test_zaikomachi）
+     ★（残◯）を書き戻さないでください。
+     ★disabled で選べなくしないでください。
+     見張り：tests/test_ikisaki.js の ⑮-7
+     ══════════════════════════════════════════════════════════════════ */
+  return opt('normal','正規',  false)
+       + opt('old',   '旧ロット', false)
+       + opt('defect','不良品',  false);
 }
 function refreshLineCondition(row){
   if(!row) return;
@@ -3919,8 +3941,13 @@ function refreshLineCondition(row){
   /* ★2026-09-12 不良は1つにまとめたので、古い「defect|lv1|cur」のような値も
      「defect」として扱います。★6分けに戻さないでください。 */
   if(String(cur).indexOf('defect') === 0) cur = 'defect';
-  /* ★2026-08-17 残り0本の選択肢は選べないので、正規に戻す */
-  if(condRemainFor(pid, cur) <= 0) cur = 'normal';
+  /* ★2026-09-12 ひろみさん決定：残り0でも【正規に戻しません】。
+     　それまでは「残り0の選択肢は選べないので正規に戻す」としていましたが、
+     　在庫データが届く前は何もかも0に見えるため、
+     　ひろみさんがえらんだ「旧ロット」が勝手に「正規」へ戻っていました。
+     　（実データでは旧ロットは19本ありました）
+     　在庫が足りるかは、発注書へ送るときに見ます（🔒在庫がありません）。
+     ★ここで勝手に正規へ戻す形に戻さないでください。 */
   condSel.innerHTML = conditionOptionsHtml(pid, cur);
   condSel.value = cur;
   condSel.setAttribute('data-cond', String(cur).split('|')[0]);
@@ -4183,6 +4210,18 @@ function refreshLineYomi(cardId){
   /* 単価が名簿に無い商品があれば、そのことを出す（登録は止めません。予約や取り置きもあるため） */
   var warn = card.querySelector('[data-role=tankaWarn]');
   if(warn){
+    /* ★2026-09-12 ひろみさん：「ずっと在庫0表示だった」
+       　在庫や価格が届いていないことを、画面で分かるようにします。
+       　（届いていないのに「残0」「未登録」とだけ出ていたので、
+       　　本当に0なのか、届いていないのかが分かりませんでした）
+       ★この案内を消さないでください。 */
+    var _pmNai = !(typeof priceMaster !== 'undefined' && priceMaster && priceMaster.length);
+    if(_pmNai){
+      warn.style.display = 'block';
+      warn.innerHTML = '⏳ 価格データがまだ届いていません。届くまで単価と金額は出せません（自動で読み直しています）。'
+        + '<span style="font-weight:400"><br>1分たっても変わらないときは、右下の版をタップして取り直してください。</span>';
+      return;
+    }
     if(mitouroku.length){
       warn.style.display = 'block';
       warn.innerHTML = '⚠ 単価が「未登録」の商品があります（'+mitouroku.map(esc).join('・')+'）。'

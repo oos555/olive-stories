@@ -733,13 +733,25 @@ function hacchuushoGyou(payload){
         .forEach(function(n){ vm.runInContext(H.cut(idx, n), zc.ctx); });
       zc.box.defects = []; zc.box.holds = []; zc.box.orders = [];
       zc.box.__p = 9;   /* メメジック 500ml */
+      /* ★2026-09-12 ひろみさん決定：残りの数は出さない・いつでも選べる。
+         　「ずっと在庫0表示だった」「その括弧 残りゼロ だけを取り除けばいいだけじゃない?」
+         　在庫が届いていてもいなくても、同じ3つが出て、どれも選べます。
+         ★（残◯）や disabled を書き戻さないでください。 */
       zc.box.lots = [];
       const h0 = vm.runInContext("conditionOptionsHtml(__p, 'normal')", zc.ctx);
-      ok('⑮-6d 在庫が届く前は（残0）', /旧ロット（残0）/.test(h0));
       zc.box.lots = [{ pid:9, status:'old', stock:19 }];
       const h1 = vm.runInContext("conditionOptionsHtml(__p, 'normal')", zc.ctx);
-      ok('⑮-6e 在庫が届いたら（残19）', /旧ロット（残19）/.test(h1));
-      ok('⑮-6f そのとき選べる（disabled でない）', !/value="old"[^>]*disabled/.test(h1));
+      ok('⑮-6d 在庫が届く前も 3つ出て どれも選べる', h0.indexOf('>旧ロット<') >= 0 && !/disabled/.test(h0));
+      ok('⑮-6e 在庫が届いたあとも同じ',             h1.indexOf('>旧ロット<') >= 0 && !/disabled/.test(h1));
+      ok('⑮-6f 残りの数を出していない',             !/（残\d/.test(h0) && !/（残\d/.test(h1));
+      /* ★2026-09-12 ひろみさんがえらんだ「旧ロット」が、勝手に「正規」へ
+         　戻されていました（残0だから、という理由で）。
+         　在庫が届く前は何もかも0に見えるので、えらんだそばから戻っていました。
+         ★この戻す処理を書き戻さないでください。いちばん困る壊れ方です。 */
+      const rc = H.cut(idx, 'refreshLineCondition');
+      ok('⑮-6g 残0でも 正規へ勝手に戻さない',
+         !/condRemainFor\([^)]*\)\s*<=\s*0\)\s*cur\s*=\s*'normal'/.test(rc));
+      ok('⑮-6h えらんだ値をそのまま入れ直している', /condSel\.value = cur;/.test(rc));
     })();
 
     /* 本物の値段の表で、本物の親に聞く（ひろみさんが見た商品そのもの） */

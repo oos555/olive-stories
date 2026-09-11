@@ -152,21 +152,33 @@ const opts = (html.match(/<option/g) || []).length;
 const dis  = (html.match(/disabled/g) || []).length;
 eq('② 状態の選択肢は3つ（正規・旧ロット・不良品）', opts, 3);
 eq('② 「正規」がある',       html.indexOf('>正規<') >= 0, true);
-eq('② 「旧ロット（残」がある', html.indexOf('>旧ロット（残') >= 0, true);
-eq('② 「不良品（残」がある',   html.indexOf('>不良品（残') >= 0, true);
+/* ★2026-09-12 ひろみさん決定で【逆】になりました。
+   　「その括弧 残りゼロ だけを取り除けばいいだけじゃない?」
+   　残りの数は出しません。ここで見せる意味がなく、0のとき邪魔になるだけでした。
+   　在庫が足りるかは、発注書へ送るときに見ます（🔒在庫がありません）。
+   ★（残◯）を書き戻さないでください。 */
+eq('② 「旧ロット」と出す（残りの数は出さない）', html.indexOf('>旧ロット<') >= 0, true);
+eq('② 「不良品」と出す（残りの数は出さない）',   html.indexOf('>不良品<') >= 0, true);
+eq('② 残りの数を出していない',                   /（残\d/.test(html), false);
 eq('② 程度（軽・中・重）を出していない', /不良・(軽|中|重)/.test(html), false);
 eq('② 不良を現/旧ロットに分けていない', /不良[^<]*（現ロット）/.test(html), false);
-/* 「残0のものは選べない」を、実際に0にして確かめます
-   （商品1には旧ロットも不良も在庫があるので、全部出した状態を作ります） */
+/* ★2026-09-12 ひろみさん決定で【逆】になりました。
+   　残り0でも えらべます。在庫が足りるかは、発注書へ送るときに見ます。
+   　それまでは「残0なら選べない」だったので、在庫データが届く前は
+   　何もかも0に見えて、旧ロットがえらべませんでした（ひろみさん指摘）。
+   ★disabled で選べなくする形に戻さないでください。
+   　本当の守りは tests/test_zaikomachi.js（在庫がない注文は倉庫へ送れない）です。 */
 a = freshA();
 const av0 = a.condAvail(1);
 a.deductFromDefects(1, av0.defect + 5, []);              /* 不良をぜんぶ出す */
 const html0 = a.conditionOptionsHtml(1, 'normal');
-eq('② 不良が残0になったら「不良品」は選べない',
-   /<option value="defect"[^>]*disabled/.test(html0), true);
-eq('② そのときでも「正規」は選べる',
+eq('② 不良が残0でも「不良品」は選べる',
+   /<option value="defect"[^>]*disabled/.test(html0), false);
+eq('② 「正規」も選べる',
    /<option value="normal"[^>]*disabled/.test(html0), false);
-eq('② そのときの不良品の残は0と出る', html0.indexOf('>不良品（残0）<') >= 0, true);
+eq('② 「旧ロット」も選べる',
+   /<option value="old"[^>]*disabled/.test(html0), false);
+eq('② 選べなくする指定が1つも無い', /disabled/.test(html0), false);
 
 /* ═══ ③ 注文番号が重複しないか（3,000本）═══════════════ */
 const src = H.read('index.html');
