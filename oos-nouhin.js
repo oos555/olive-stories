@@ -96,11 +96,21 @@
     var docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
     /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
        お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
-    /* ★2026-09-11 もとの書類名も見ます（二重の守り）。
-       「請求書兼納品書」のように書かれたとき、表題の拾い方しだいで金額が出なくなることがありました。
-       ★片方だけに戻さないでください。 */
-    var withAmount = invoiceNeedsAmount(docName) || invoiceNeedsAmount(o.enclosedDoc)
-                     || o.customerType === 'rt' || o.customerType === 'rtgc';
+    /* ══════════════════════════════════════════════════════════════════
+       数字（金額）を載せるか　★2026-09-11 ひろみさん決定でやり方を変えました
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん：「受注出荷Ａで同梱する可能性がある書類が6種類ある。
+       　　　　　　パンフレットと、その他（自分で書く）以外は【全部数字が載る】」
+       前は「請求書・領収書のときだけ金額を出す」でした（納品書だけだと出なかった）。
+       いまは【決めごと（oos-shorui-kimari.js）の6種類なら載せる】に変えています。
+       ★「請求書・領収書のときだけ」に戻さないでください。 */
+    var KIM = root.OOS_SHORUI;
+    var withAmount = KIM
+      /* ★見るのは【ひろみさんが選んだ書類名】だけ。
+         表題（docName）も見ると、パンフレットだけのときに既定の「納品書」に化けて
+         数字が出てしまいます（2026-09-11に気づきました）。★足さないでください */
+      ? KIM.sujiGaNoruKa(o.enclosedDoc)
+      : (invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc');
     /* ★2026-08-19 区分（定価・卸・バサラ等）のバッジは【書類に出さない】と決めました。
        ★この badge を title に足さないでください（社内の言葉がお客様の書類に出てしまいます）。
        ※変数だけ残っているのは、決めごとの目印としてです。 */
@@ -151,8 +161,7 @@
        　② 入っていなければ 決めごと（oos-shorui-kimari.js）から計算
        ★行を消す形に戻さないでください。tests/test_shorui_kanarazu.js が落ちます。
        ══════════════════════════════════════════════════════════════════ */
-    var KIM = root.OOS_SHORUI;
-    var kanarazu = KIM ? KIM.kanarazuDasuKa(withAmount) : false;
+    var kanarazu = KIM ? KIM.kanarazuDasuKa(o.enclosedDoc || docName) : false;
 
     var _shipIncl = parseInt(o.shippingFee) || 0;      // 送料（税込）
     var _whFee = parseInt(o.warehouseFee) || 0;        // 倉庫ピッキング手数料（税抜）
@@ -254,11 +263,21 @@
     var out = [];
     if (!KAK) return out;
     var docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
-    /* ★2026-09-11 もとの書類名も見ます（二重の守り）。
-       「請求書兼納品書」のように書かれたとき、表題の拾い方しだいで金額が出なくなることがありました。
-       ★片方だけに戻さないでください。 */
-    var withAmount = invoiceNeedsAmount(docName) || invoiceNeedsAmount(o.enclosedDoc)
-                     || o.customerType === 'rt' || o.customerType === 'rtgc';
+    /* ══════════════════════════════════════════════════════════════════
+       数字（金額）を載せるか　★2026-09-11 ひろみさん決定でやり方を変えました
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん：「受注出荷Ａで同梱する可能性がある書類が6種類ある。
+       　　　　　　パンフレットと、その他（自分で書く）以外は【全部数字が載る】」
+       前は「請求書・領収書のときだけ金額を出す」でした（納品書だけだと出なかった）。
+       いまは【決めごと（oos-shorui-kimari.js）の6種類なら載せる】に変えています。
+       ★「請求書・領収書のときだけ」に戻さないでください。 */
+    var KIM = root.OOS_SHORUI;
+    var withAmount = KIM
+      /* ★見るのは【ひろみさんが選んだ書類名】だけ。
+         表題（docName）も見ると、パンフレットだけのときに既定の「納品書」に化けて
+         数字が出てしまいます（2026-09-11に気づきました）。★足さないでください */
+      ? KIM.sujiGaNoruKa(o.enclosedDoc)
+      : (invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc');
     if (!withAmount) return out;
     (o.lines || []).forEach(function (l) {
       if (!l) return;   /* ★空の明細はとばす */
