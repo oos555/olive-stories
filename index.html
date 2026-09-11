@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-11">
+<meta name="oos-version" content="2026-09-12-12">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -8368,6 +8368,13 @@ function docCheckNext(){
   var html = '';
   try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }catch(e){ html = ''; }
   var nokori = (docCheckQueue.length > 1) ? ('　（あと' + (docCheckQueue.length - 1) + '件）') : '';
+  /* ★2026-09-12 どちらの列に入るかを、押す前に出します（ひろみさん：「2つ書類を乗せるところはある」）
+     　0枚目＝V列「同梱書類 納品書」／1枚目以降＝W列「同梱書類 他あれば」
+     　3枚目からは列がないので、そう書きます。 */
+  var _sumiKazu = Object.keys(o.nouhinDocs || {}).length;
+  var hairu = (_sumiKazu === 0) ? 'V列「同梱書類 納品書（作成したら入ります）」'
+            : (_sumiKazu === 1) ? 'W列「同梱書類 他あれば」'
+            : '（列が2つしかないため、スプシには貼りません。受注一覧のカードから開けます）';
   var atama = '<div style="font-size:14px;font-weight:800;color:#185fa5;margin-bottom:8px">'
             + '📄 発注書に貼る書類（ご確認ください）　'
             + esc(o.recipientName || o.client || '') + ' 様　' + esc(o.num || '')
@@ -8396,6 +8403,7 @@ function docCheckNext(){
   box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
     + '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">' + botan + '</div>'
     + '<div style="font-size:12px;color:#83857a;margin-top:8px;line-height:1.8">'
+    + '★この書類は、発注書スプシの<b>' + esc(hairu) + '</b>に入ります。<br>'
     + '★受注一覧と発注書スプシには<b>もう入っています</b>。貼っていないのは<b>書類のリンクだけ</b>です。<br>'
     + '★「直す」を押しても消えません。あとから受注一覧のカードで貼れます。</div>'
     + '</div>';
@@ -11116,11 +11124,38 @@ async function nouhinAttachToOrder(o, shoruiMei){
       if(typeof renderList==='function') renderList();
       return;
     }
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「よく見ろ！2つ書類を乗せるところはある」
+       ──────────────────────────────────────────────────────────────────
+       発注書スプシには、書類のリンクを置く列が【2つ】あります。
+       　・V列（doc1）「同梱書類 納品書（作成したら入ります）」
+       　・W列（doc2）「同梱書類 他あれば」
+       書類を2枚えらんだときは、1枚目をV列、2枚目をW列に貼ります。
+       　（それまでは2枚ともV列に貼っていたので、あとの1枚で上書きされていました）
+       ★3枚目はどちらにも入りません（列が2つしかないため）。
+       　そのときは受注一覧のカードから開いてください。
+       ★hokaUrl を空で固定に戻さないでください。2枚目が貼れなくなります。
+       見張り：tests/test_ikisaki.js の ㉑
+       ══════════════════════════════════════════════════════════════════ */
+    var _sumi = Object.keys(o.nouhinDocs || {}).length;   /* もう貼ってある枚数 */
+    var _nimaime = (_sumi === 1);                         /* 0枚ならV列、1枚ならW列 */
+    var _label = '📄 ' + OOS_NOUHIN.docTitleOf(_mei) + '（ひらく）';
+    /* ★3枚目からは、貼る列がありません。W列を上書きすると2枚目が消えるので、
+       　PDFはドライブに入れたまま、スプシには貼りません。
+       　受注一覧のカードから開けます。★W列に上書きする形にしないでください。 */
+    if(_sumi >= 2){
+      o.nouhinDocs[_mei] = { url: d.url, name: d.name || nm, at: new Date().toISOString(), sheet: false };
+      o.nouhinDocNg = '';
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+      if(typeof renderList==='function') renderList();
+      if(typeof showSyncStatus==='function') showSyncStatus('📄 ' + OOS_NOUHIN.docTitleOf(_mei) + ' を作りました（スプシの列は2つまでなので、受注一覧のカードから開けます）');
+      return;
+    }
     var r2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yukaSetDocLinks', payload:{
         key: o.yukaKey,
-        nouhinUrl: d.url, nouhinName: '📄 ' + OOS_NOUHIN.docTitleOf(_mei) + '（ひらく）',
-        hokaUrl: '', hokaName: ''
+        nouhinUrl: _nimaime ? '' : d.url, nouhinName: _nimaime ? '' : _label,
+        hokaUrl:   _nimaime ? d.url : '', hokaName:   _nimaime ? _label : ''
       }})});
     var d2 = await r2.json();
     if(d2 && d2.status==='ok'){

@@ -906,6 +906,31 @@ function hacchuushoGyou(payload){
     ok('⑳-13 貼れた書類を1枚ずつ控える', /o\.nouhinDocs\[_mei\] = \{ url: d\.url/.test(idx));
     ok('⑳-14 ファイル名に書類の名前を入れる', /who \+ '_' \+ num \+ '_' \+ mei \+ '\.pdf'/.test(idx));
     ok('⑳-15 その書類が貼ってあるかを見る', /if\(o\.nouhinDocs\[_mei\]\) return;/.test(idx));
+
+    /* ── ㉑ 発注書スプシの【2つの列】を使い分ける ──
+       ★2026-09-12 ひろみさん：「よく見ろ！2つ書類を乗せるところはある」
+       　V列（doc1）＝同梱書類 納品書 ／ W列（doc2）＝同梱書類 他あれば
+       ★2枚ともV列に貼る形に戻さないでください（あとの1枚で上書きされます）。 */
+    const at2 = H.cut(idx, 'nouhinAttachToOrder');
+    ok('㉑-1 もう貼ってある枚数を見ている', /_sumi = Object\.keys\(o\.nouhinDocs \|\| \{\}\)\.length/.test(at2));
+    ok('㉑-2 0枚目はV列、1枚目はW列',       /_nimaime = \(_sumi === 1\)/.test(at2));
+    ok('㉑-3 V列へ貼る式がある',             /nouhinUrl: _nimaime \? '' : d\.url/.test(at2));
+    ok('㉑-4 W列へ貼る式がある',             /hokaUrl:\s*_nimaime \? d\.url : ''/.test(at2));
+    ok('㉑-5 hokaUrl を空で固定していない',  !/hokaUrl: '', hokaName: ''/.test(at2));
+    ok('㉑-6 3枚目はスプシに貼らない（W列を上書きしない）', /if\(_sumi >= 2\)\{/.test(at2));
+    /* 画面にも、どちらの列に入るか出しているか */
+    /* ★コメントを先に落とします。落とさないと、決めごとを書いたコメント自身に当たります */
+    const nx2 = H.cut(idx, 'docCheckNext').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('㉑-7 押す前に「V列」と出す', /hairu = \(_sumiKazu === 0\) \? 'V列/.test(nx2));
+    ok('㉑-8 押す前に「W列」と出す', /'W列「同梱書類 他あれば」'/.test(nx2));
+    ok('㉑-8b 画面にその案内を出している', /発注書スプシの<\/b>' \+ esc\(hairu\)/.test(nx2) || /esc\(hairu\)/.test(nx2));
+    /* GAS側が2列とも書けること（読むだけ） */
+    if(gasSrc){
+      const sl = H.cut(gasSrc, 'oosYukaSetDocLinks');
+      ok('㉑-9 GASはV列に書ける',  /put\(OOS_YC\.doc1/.test(sl));
+      ok('㉑-10 GASはW列に書ける', /put\(OOS_YC\.doc2/.test(sl));
+      ok('㉑-11 空のURLなら そのマスを触らない', /if\(!String\(url\|\|''\)\.trim\(\)\) return '';/.test(sl));
+    }
   })();
 
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
