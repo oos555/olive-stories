@@ -566,6 +566,18 @@ function hacchuushoGyou(payload){
     ok('⑬-12 min を外している',                       /removeAttribute\(\s*'min'\s*\)/.test(dmin));
     ok('⑬-13 書いた日を黙って消していない',           !/input\.value\s*=\s*''/.test(dmin));
     ok('⑬-14 最短お届け日は案内として出している',      /最短お届け日/.test(dmin));
+    /* ★2026-09-12 ひろみさん「この見張りを取り除いて。急ぎで出す場合にお届け日程が書けない」
+       最短より前の日でも、確認（はい／いいえ）を出さずにそのまま進みます。
+       ★この確認を書き戻さないでください。 */
+    /* ★コメントを先に落とします。落とさないと、決めごとを書いたコメント自身に
+       　当たってしまいます（2026-09-12 に実際に起きました）。 */
+    const bof = H.cut(idx, 'buildOrdersFromForm').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('⑬-23 最短より前の日でも確認を出さない',
+       bof.indexOf('倉庫が間に合わないことがあります') < 0);
+    ok('⑬-24 そのための confirm も残っていない',
+       !/confirm\([\s\S]{0,200}最短お届け日/.test(bof));
+    ok('⑬-25 日時指定で日付が空のときだけは止める',
+       /_r\.lead==='scheduled' && !_r\.leadDate/.test(bof));
 
     /* ── 状態：3つか ── */
     const cond = H.cut(idx, 'conditionOptionsHtml');
