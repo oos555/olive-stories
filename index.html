@@ -412,7 +412,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-15">
+<meta name="oos-version" content="2026-09-12-16">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -685,8 +685,17 @@ body{background:#fff}
     <div class="card" style="border:2px solid #185fa5">
       <div class="sec" style="color:#185fa5">受注内容の確認</div>
       <div id="confirm-content"></div>
+      <!-- ══════════════════════════════════════════════════════════════
+           ★2026-09-12 ひろみさん：「どこでPDF開いてチェックできるの？？？？？」
+           　登録する【前】に、ここで書類を見られるようにしました。
+           　2枚以上えらんでいれば、2枚とも1枚ずつ見られます。
+           　ここではスプシに貼りません（まだ登録もしていません）。
+           ★このボタンを消さないでください。
+           見張り：tests/test_ikisaki.js の ㉒ -->
+      <div id="doc-check-mae" style="display:none;margin-top:12px"></div>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-green" onclick="registerOrder()">受注一覧に登録する</button>
+        <button class="btn" style="background:#0c447c;color:#fff;border:none" onclick="docMaeMiru()">📄 書類（PDF）を見て確かめる</button>
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
       <!-- ══════════════════════════════════════════════════════════════
@@ -8445,6 +8454,103 @@ function docCheckTaisho(o){
 }
 
 /* ── 見てから貼る（1件ずつ出します） ── */
+/* ══════════════════════════════════════════════════════════════════════
+   📄 登録する【前】に、書類（PDF）を見て確かめる　★2026-09-12
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「どこでPDF開いてチェックできるの？？？？？」
+   　それまでは【登録したあと】にしか出ませんでした。それでは遅いので、
+   　受注内容の確認の画面（登録する前）でも見られるようにしました。
+
+   ・えらんだ書類が2枚以上なら、2枚とも1枚ずつ見られます
+   ・ここでは【スプシに貼りません】（まだ登録もしていません）
+   ・中身がちがったら［修正する］で直して、もう一度押せます
+   ★このボタンと関数を消さないでください。
+   見張り：tests/test_ikisaki.js の ㉒
+   ══════════════════════════════════════════════════════════════════════ */
+var docMaeList = [];   /* 見る順番（注文＋書類名） */
+var docMaeIdx  = 0;
+
+function docMaeMiru(){
+  var box = document.getElementById('doc-check-mae');
+  if(!box) return;
+  var list = (window._pendingOrders || []);
+  docMaeList = [];
+  list.forEach(function(o){
+    if(typeof OOS_NOUHIN === 'undefined') return;
+    (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){ docMaeList.push({ o:o, mei:mei }); });
+  });
+  docMaeIdx = 0;
+  if(!docMaeList.length){
+    box.style.display = 'block';
+    box.innerHTML = '<div class="card" style="border:2px solid #d9c48a;background:#f6f4ee">'
+      + '<div style="font-weight:800;color:#7a6a45;margin-bottom:5px">📄 金額の載る書類はありません</div>'
+      + '<div style="font-size:12.5px;color:#7a6a45">'
+      + 'えらんだ同梱書類：' + esc(String((list[0] && list[0].enclosedDoc) || 'なし')) + '<br>'
+      + '納品書・請求書・領収書・納品書兼請求書・納品書兼領収書・RT発注伝票＋納品書 のどれかをえらぶと、ここに出ます。</div>'
+      + '<div style="margin-top:10px"><button class="btn btn-gray" onclick="docMaeTojiru()">閉じる</button></div>'
+      + '</div>';
+    box.scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  docMaeShow();
+}
+
+function docMaeShow(){
+  var box = document.getElementById('doc-check-mae');
+  if(!box) return;
+  var q = docMaeList[docMaeIdx];
+  if(!q){ docMaeTojiru(); return; }
+  var o = q.o, mei = q.mei;
+  var miss = [];
+  try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
+  var html = '';
+  try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }catch(e){ html = ''; }
+
+  var atama = '<div style="font-size:14px;font-weight:800;color:#185fa5;margin-bottom:8px">'
+            + '📄 登録する前の確認　'
+            + esc(o.recipientName || o.client || '') + ' 様　'
+            + '<span style="background:#e6f1fb;border-radius:5px;padding:2px 9px">' + esc(mei) + '</span>'
+            + '　' + (docMaeIdx + 1) + '枚目／全' + docMaeList.length + '枚</div>';
+
+  var naka, botan;
+  if(miss.length){
+    naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
+         + 'color:#a32d2d;font-weight:700">⚠ 単価が登録されていない商品があるので、書類を作れません：'
+         + esc(miss.join('・'))
+         + '<div style="font-weight:400;margin-top:4px">統合マスタＮ（輸入・原価Ｅ）で単価を入れてください。</div></div>';
+  } else if(!html){
+    naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
+         + 'color:#a32d2d;font-weight:700">⚠ 書類を組み立てられませんでした。'
+         + '<div style="font-weight:400;margin-top:4px">価格データがまだ届いていないかもしれません。少し待ってからもう一度押してください。</div></div>';
+  } else {
+    naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'
+         + html + '</div>';
+  }
+  botan = (docMaeIdx > 0 ? '<button class="btn btn-gray" onclick="docMaeSusumu(-1)">← 前の書類</button>' : '')
+        + (docMaeIdx < docMaeList.length - 1 ? '<button class="btn" style="background:#0c447c;color:#fff;border:none" onclick="docMaeSusumu(1)">次の書類 →</button>' : '')
+        + '<button class="btn btn-gray" onclick="docMaeTojiru()">閉じる</button>';
+
+  box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
+    + '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">' + botan + '</div>'
+    + '<div style="font-size:12px;color:#83857a;margin-top:8px;line-height:1.8">'
+    + '★これは<b>登録する前</b>の下見です。まだ受注一覧にも発注書にも入っていません。<br>'
+    + '★中身がちがっていたら［修正する］で直して、もう一度この ボタン を押してください。<br>'
+    + '★これでよければ［受注一覧に登録する］を押してください。登録のあと、'
+    + '発注書に貼るかどうかを もう一度たしかめます。</div>'
+    + '</div>';
+  box.style.display = 'block';
+  try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+}
+
+function docMaeSusumu(d){
+  docMaeIdx = Math.max(0, Math.min(docMaeList.length - 1, docMaeIdx + d));
+  docMaeShow();
+}
+function docMaeTojiru(){
+  var box = document.getElementById('doc-check-mae');
+  if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+}
+
 var docCheckQueue = [];
 function docCheckOne(id){
   var o = orders.find(function(x){ return x.id === id; });
