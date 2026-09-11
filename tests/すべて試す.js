@@ -49,6 +49,7 @@ const FILES = [
   ['test_yoyaku_sheet_haiki.js','古い「取り置き・予約シート」はもう使わない（2026-09-10）'],
   ['test_yoyaku_list_okuru.js','🗂 発注前予約リスト：A列で「送る」を選んだときの動き（2026-09-10）'],
   ['test_nouhin_oya.js',   '📄 納品書の親と、請求書との金額一致（2026-09-10）'],
+  ['test_shorui_kanarazu.js','📄 書類に【必ず載るもの】が本当に載っているか（2026-09-11）'],
   ['test_yunyu_free.js',   '輸入のフリー（予定−予約）'],
   ['test_ura_label.js',    '裏ラベル（シール）の在庫'],
   ['test_kienai.js',      '通しの動きと「消えない」の見張り'],

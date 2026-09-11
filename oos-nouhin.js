@@ -41,7 +41,7 @@
     var d = String(encDoc || '');
     /* ★並びは倉庫Ｄ（pickup.html）と同じにしてください。長い名前から先に見ます。
        並びが違うと『納品書 ＋ 請求書』のような指定で、出る表題が変わってしまいます。 */
-    var names = (root.OOS_DOC_NAMES || ['納品書兼請求書', '納品書兼領収書', '納品書', '請求書', '領収書']);
+    var names = (root.OOS_DOC_NAMES || ['納品書兼請求書', '納品書兼領収書', '請求書兼納品書', '請求書兼領収書', '領収書兼納品書', '納品書', '請求書', '領収書']);
     for (var i = 0; i < names.length; i++) { if (d.indexOf(names[i]) >= 0) return names[i]; }
     return '納品書';
   }
@@ -72,6 +72,11 @@
   /* ══════════════════════════════════════════════════════════════════════
      納品書のHTMLを組み立てる（倉庫Ｄ buildInvoiceHtml からそのまま）
      ══════════════════════════════════════════════════════════════════════ */
+  /* 商品の単位（本／個／枚…）。商品マスタの「単位」欄。無ければ「本」 */
+  function tani(p) {
+    return (p && p.extras && String(p.extras['単位'] || '').trim()) || '本';
+  }
+
   function build(o, deps) {
     /* ★2026-09-10 斜めからの試験で見つけた守りもれ。注文が無いのに呼ばれると落ちていました。
        落ちると、その先の「発注書にリンクを貼る」まで止まります。★この1行を消さないでください */
@@ -91,7 +96,11 @@
     var docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
     /* ★2026-08-19 RT（ホテル・レストラン）は、ギフトでも【金額の入った書類】を必ず入れる
        お約束なので、書類名に「請求書」が無くても金額を出す。★消さないでください */
-    var withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
+    /* ★2026-09-11 もとの書類名も見ます（二重の守り）。
+       「請求書兼納品書」のように書かれたとき、表題の拾い方しだいで金額が出なくなることがありました。
+       ★片方だけに戻さないでください。 */
+    var withAmount = invoiceNeedsAmount(docName) || invoiceNeedsAmount(o.enclosedDoc)
+                     || o.customerType === 'rt' || o.customerType === 'rtgc';
     /* ★2026-08-19 区分（定価・卸・バサラ等）のバッジは【書類に出さない】と決めました。
        ★この badge を title に足さないでください（社内の言葉がお客様の書類に出てしまいます）。
        ※変数だけ残っているのは、決めごとの目印としてです。 */
@@ -109,7 +118,10 @@
       items.push({
         name: l.productName || (prod && prod.name) || '',
         qty: qty,
-        qtyText: qty + '本' + (l.boxes ? '（バラ' + l.bottles + '＋' + l.boxes + '箱）' : ''),
+        /* ★2026-09-11 ひろみさん指摘「本と箱の単位もない」。
+           単位は商品マスタの「単位」欄から取ります（本／個／枚…）。
+           箱で買われた分は「（バラ○＋○箱）」と添えます。★消さないでください */
+        qtyText: qty + tani(prod) + (l.boxes ? '（バラ' + (Number(l.bottles)||0) + tani(prod) + '＋' + l.boxes + '箱）' : ''),
         unitPrice: unit,
         amount: unit * qty,
         /* ★品番が分からない行は10%（安全側）。8%にしないでください */
@@ -124,14 +136,49 @@
        ・金額を持っていない注文は行を出さず、備考に「送料は別途申し受けます」
        ★この かたまり を消さないでください。
        ══════════════════════════════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-11 ひろみさんのお叱りで作り直しました。
+       　「請求書からまたピックアップ料金と送料が抜けていた。
+       　　どうして直しても直しても、こうやって勝手に落とすの？」
+
+       これまでの間違い：【金額が入っていれば行を出す】という作りでした。
+       　受注Ａで手入力した注文には金額が入らないので、行ごと消えていました。
+       これから：【納品書と請求書（領収書）の両方の言葉が入る書類には、
+       　　　　　　金額が0でも必ず2行出す】。0なら「無料」「別途」と書きます。
+
+       金額の出どころ（この順に見ます）
+       　① 注文に入っていれば それ（お客様注文ページで計算ずみの分）
+       　② 入っていなければ 決めごと（oos-shorui-kimari.js）から計算
+       ★行を消す形に戻さないでください。tests/test_shorui_kanarazu.js が落ちます。
+       ══════════════════════════════════════════════════════════════════ */
+    var KIM = root.OOS_SHORUI;
+    var kanarazu = KIM ? KIM.kanarazuDasuKa(withAmount) : false;
+
     var _shipIncl = parseInt(o.shippingFee) || 0;      // 送料（税込）
     var _whFee = parseInt(o.warehouseFee) || 0;        // 倉庫ピッキング手数料（税抜）
-    if (withAmount && _whFee > 0) {
-      items.push({ name: '倉庫ピッキング手数料（バラ出荷）', qty: 1, qtyText: '1式', unitPrice: _whFee, amount: _whFee, taxRate: ZEI.RATE_SERVICE });
-    }
-    if (withAmount && _shipIncl > 0) {
-      var _shipNet = Math.round(_shipIncl / (1 + ZEI.RATE_SERVICE));
-      items.push({ name: '送料', qty: 1, qtyText: '1式', unitPrice: _shipNet, amount: _shipNet, taxRate: ZEI.RATE_SERVICE });
+    /* 注文に入っていなければ、決めごとから出す */
+    if (KIM && !_whFee)    _whFee    = KIM.pickupOf(o.customerType, KIM.baraAriKa(o));
+    if (KIM && !_shipIncl) _shipIncl = KIM.soryoOf(String(o.addr || '')).fee;
+
+    if (withAmount) {
+      /* ── 倉庫ピッキング手数料（税抜）── */
+      if (_whFee > 0) {
+        items.push({ name: '倉庫ピッキング手数料（バラ出荷）', qty: 1, qtyText: '1式',
+                     unitPrice: _whFee, amount: _whFee, taxRate: ZEI.RATE_SERVICE });
+      } else if (kanarazu) {
+        /* ★金額が0でも枠は出す。一般のお客様はサービスで無料です */
+        items.push({ name: '倉庫ピッキング手数料（バラ出荷）', qty: 1, qtyText: '―',
+                     unitPrice: 0, amount: 0, taxRate: ZEI.RATE_SERVICE, zeroText: '無料' });
+      }
+      /* ── 送料（税込で持っているので、税抜に割り戻して並べます）── */
+      if (_shipIncl > 0) {
+        var _shipNet = Math.round(_shipIncl / (1 + ZEI.RATE_SERVICE));
+        items.push({ name: '送料', qty: 1, qtyText: '1式',
+                     unitPrice: _shipNet, amount: _shipNet, taxRate: ZEI.RATE_SERVICE });
+      } else if (kanarazu) {
+        items.push({ name: '送料', qty: 1, qtyText: '―',
+                     unitPrice: 0, amount: 0, taxRate: ZEI.RATE_SERVICE, zeroText: '別途' });
+      }
     }
 
     /* ★2026-08-19 ひろみさんと決めた文言です。★勝手に書き換えないでください。
@@ -207,7 +254,11 @@
     var out = [];
     if (!KAK) return out;
     var docName = docTitleOf(o.enclosedDoc && o.enclosedDoc !== 'なし' ? o.enclosedDoc : '納品書');
-    var withAmount = invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc';
+    /* ★2026-09-11 もとの書類名も見ます（二重の守り）。
+       「請求書兼納品書」のように書かれたとき、表題の拾い方しだいで金額が出なくなることがありました。
+       ★片方だけに戻さないでください。 */
+    var withAmount = invoiceNeedsAmount(docName) || invoiceNeedsAmount(o.enclosedDoc)
+                     || o.customerType === 'rt' || o.customerType === 'rtgc';
     if (!withAmount) return out;
     (o.lines || []).forEach(function (l) {
       if (!l) return;   /* ★空の明細はとばす */

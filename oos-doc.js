@@ -100,9 +100,11 @@
     items.forEach(function(it, i){
       var taxMark = (OOS_ZEI.isReduced(it.taxRate) ? ' ※' : '');
       h += '<tr><td style="text-align:center">'+(i+1)+'</td><td>'+esc(it.name)+taxMark+'</td>'
-         + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.unitPrice):'―')+'</td>' : '')
+         + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.unitPrice):(it.zeroText||'―'))+'</td>' : '')
          + '<td style="text-align:center"><b style="font-size:15px">'+esc(it.qtyText||((it.qty||0)+'本'))+'</b></td>'
-         + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.amount):'―')+'</td>' : '')
+         /* ★2026-09-11 0円のときに「無料」「別途」と書く。空欄だと入れ忘れに見えるため。
+            ひろみさん：「そこに書く書かないはある。一般の方にはピックアップ料金はサービスで無料」 */
+         + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.amount):(it.zeroText||'―'))+'</td>' : '')
          + '</tr>';
     });
     h += '</tbody></table>';
