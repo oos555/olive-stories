@@ -111,6 +111,64 @@ KNOWN_WATCHERS.forEach(function(w){
   }
 }
 
+/* ── ⑥ 見張りの砂場に【決めごとの親】が入っているか ──────────────────
+   ★2026-09-12 この項目が生まれた理由（実際に起きた事故）
+   tests/harness.js の makeSandbox に 書類の決めごとの親 oos-shorui-kimari.js を
+   入れていませんでした。そのため、書類の親（oos-nouhin.js）を動かす見張りが
+   【古い動きのまま通って】いました。実際に見つかった3件：
+   　・「納品書だけなら金額を出さない」（2026-09-11に変えた古い決めごと）
+   　・合計26,244円（ピックアップ料金・送料が入る前の数）
+   　・「送料が無い注文＝別途申し受けます」（別途はえらぶものに変わった）
+   全部PASSなのに、本物とちがうものを測っていた。これがいちばん怖い壊れ方です。
+   ★この項目を消さないでください。消すと、また静かに古い決めごとで通ります。
+   ──────────────────────────────────────────────────────────── */
+{
+  /* 砂場に必ず入っていないといけない親。親を増やしたら、ここにも足すこと */
+  var OYA_HISSU = [
+    [ "oos-zei.js",           "消費税" ],
+    [ "oos-kakaku.js",        "単価" ],
+    [ "oos-shorui-kimari.js", "書類の決めごと（数字が載る書類・必ず載る枠・単位・送料）" ],
+    [ "oos-doc.js",           "書類の体裁" ],
+    [ "oos-nouhin.js",        "納品書の中身" ]
+  ];
+  /* ★コメントを落としてから見る（自分の注記に当たって誤判定しないため）。
+     　2026-09-12 に、コメントで親の名前に触れているだけの見張りを
+     　「入れ忘れ」と誤って名指しする失敗を3回しました。 */
+  var COMMENT_BLOCK = new RegExp("/\\*[\\s\\S]*?\\*/", "g");
+  var COMMENT_LINE  = new RegExp("//[^" + String.fromCharCode(10) + "]*", "g");
+  function komentoNashi(s){ return String(s).replace(COMMENT_BLOCK, "").replace(COMMENT_LINE, ""); }
+
+  var hNaka = komentoNashi(H.read("tests/harness.js"));
+  var mkI = hNaka.indexOf("function makeSandbox");
+  ok("⑥harness.js に makeSandbox がある", mkI >= 0);
+  OYA_HISSU.forEach(function (x) {
+    var f = x[0], na = x[1];
+    ok("⑥砂場に親 " + f + "（" + na + "）を入れている",
+       mkI >= 0 && hNaka.indexOf(f, mkI) > mkI);
+  });
+
+  /* 親を入れずに、自分で砂場を作って書類の親を動かしている見張りがないか。
+     makeSandbox を使っていれば親は自動で入るので、それは合格とみなす。 */
+  var tDir = path.join(H.LIVE, "tests");
+  var tFiles = fs.readdirSync(tDir).filter(function (f) { return /^test_/.test(f) && /[.]js$/.test(f); });
+  var warui = [];
+  tFiles.forEach(function (f) {
+    var naka = komentoNashi(fs.readFileSync(path.join(tDir, f), "utf8"));
+    if (naka.indexOf("makeSandbox") >= 0) return;        /* 親は自動で入る＝合格 */
+    if (naka.indexOf("createContext") < 0) return;       /* 砂場を作っていない＝関係ない */
+    /* 書類の親を本当に動かしているか（名前を書いているだけでは数えない） */
+    var ugokasu = /OOS_NOUHIN|OOS_DOC|buildInvoiceHtml|shoruiList|needsNouhin/.test(naka);
+    if (!ugokasu) return;
+    /* ★自分で5つの親を全部名指しで読み込んでいるなら合格。
+       　（例：test_shorui_kanarazu.js は makeSandbox を使わず、自分で全部入れています。
+       　　それは正しいやり方なので、名指しするだけで落とさないこと） */
+    var zenbuAru = OYA_HISSU.every(function (x) { return naka.indexOf(x[0]) >= 0; });
+    if (!zenbuAru) warui.push(f);
+  });
+  ok("⑥自分で砂場を作って書類の親を動かす見張りに、親の入れ忘れが無い（見つかった：" +
+     warui.join("、") + "）", warui.length === 0);
+}
+
 console.log('===== 見張りの見張り（総点検） =====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fail){ fails.forEach(function(f){ console.log('  ★ ' + f); }); process.exit(1); }
