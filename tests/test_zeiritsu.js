@@ -242,6 +242,63 @@ FILES.concat(['tests/harness.js']).forEach(function(f){
       g1.length > 0 && g1.length === g2.length && g1.every(function(x){ return g2.indexOf(x) >= 0; }));
 }
 
+/* ══ ⑩ お客様の注文ページ（order.html）の写しが、親とズレていないか ══
+   ★2026-09-12 ここを足した理由
+   ──────────────────────────────────────────────────────────────
+   order.html は親（oos-zei.js / oos-shorui-kimari.js）を【1つも読んでいません】。
+   代わりに自分の中に写しを持っています：
+   　・CATALOG_META … 商品ごとに tax:0.08 を手で書いている
+   　・SHIP … 送料 北海道1100／沖縄1100／その他880 を手で書いている
+   2026-09-12 に調べた時点では、どちらも親と同じ値でした（ズレていません）。
+   でも【誰も見張っていなかった】ので、親を直しても気づけません。
+
+   ★order.html を親を読む形に作り替えるのは、お客様が見るページを変える
+   　ことになるので、ひろみさんの承認をもらってからにします。
+   　soryo.html にも「order.html も、いずれこのページを読みに来る形にできます」
+   　と、やっていない改善として書いてあります。
+   　それまでは、この⑩がズレを見張ります。
+   ★この項目を消さないでください。
+   ──────────────────────────────────────────────────────────── */
+{
+  const oSrc = fs.readFileSync(R + "order.html", "utf8");
+
+  /* ── 税率：CATALOG_META の tax が、親の答えと同じか ── */
+  const oCtx = vm.createContext({});
+  vm.runInContext(H.cutVar(oSrc, "CATALOG_META"), oCtx);
+  const META = oCtx.CATALOG_META || {};
+  t("⑩order.html の CATALOG_META が読める（行数）", Object.keys(META).length > 0, true);
+  const mita = {};
+  Object.keys(META).forEach(function (k) {
+    const m = META[k];
+    if (!m || !m.sku || mita[m.sku]) return;
+    mita[m.sku] = true;
+    /* ★親に聞いた答えと、order.html が手で書いた答えを突き合わせる */
+    t("⑩order.html の税率が親と同じ（" + m.sku + "）",
+      m.tax, Z.rateForSku(m.sku, PRODUCTS));
+  });
+
+  /* ── 送料：SHIP が、親の表と同じか ── */
+  const sCtx = vm.createContext({});
+  try {
+    /* SHIP は CONFIG の中の1行なので、行ごと切り出せない。文字で読み取る */
+    const m2 = /SHIP:\s*\{([^}]*)\}/.exec(oSrc);
+    t("⑩order.html の SHIP が読める", !!m2, true);
+    if (m2) {
+      const naka = m2[1];
+      function hiku(key) {
+        const mm = new RegExp(key + "\\s*:\\s*(\\d+)").exec(naka);
+        return mm ? Number(mm[1]) : null;
+      }
+      const KIM10 = H.makeSandbox({}).box.OOS_SHORUI;
+      t("⑩order.html の送料 北海道が親と同じ", hiku("hokkaido"), KIM10.SORYO_ZEIKOMI["北海道"]);
+      t("⑩order.html の送料 沖縄が親と同じ",   hiku("okinawa"),  KIM10.SORYO_ZEIKOMI["沖縄県"]);
+      t("⑩order.html の送料 その他が親と同じ", hiku("other"),    KIM10.SORYO_ZEIKOMI["その他"]);
+    }
+  } catch (e) {
+    t("⑩order.html の送料を読み取れる", "読めました", "エラー: " + e.message);
+  }
+}
+
 console.log('\n===== 消費税の税率 =====');
 console.log('PASS ' + ok + ' / FAIL ' + ng);
 if(ng){ console.log('--- FAIL の中身 ---'); bad.forEach(b => console.log('  ' + b)); process.exit(1); }
