@@ -169,6 +169,63 @@ KNOWN_WATCHERS.forEach(function(w){
      warui.join("、") + "）", warui.length === 0);
 }
 
+/* ── ⑤-B アプリ（HTML）と親ファイルにも、同じ名前の関数の重なりが無いか ──
+   ★2026-09-12 ⑤の守備範囲を広げました（新しい見張りは作っていません）。
+   ──────────────────────────────────────────────────────────────
+   ⑤はGASだけを見ていました。でも同じ事故はHTMLアプリでも起きます。
+   JavaScript は同じ名前の関数が2つあると【あとに書いたほう】だけを使うので、
+   前のほうは一生呼ばれません。＝「直したのに直らない」の正体です。
+
+   2026-09-12 に実際に見つかったもの：
+   　・mitsumori.html の v3RegisterQuote が2つ。前のほうは
+   　　「この機能はまだ準備中です」の殻で、死んでいた（片づけました）。
+   　・master.html の4つ（renderCatSummary / renderCatOptions /
+   　　renderDefectGroups / renderDefectHistory）は【わざと】空にしたもの。
+   　　削除した5タブの描画を止めるための意図的な上書きで、理由もコードに
+   　　書いてあります。だから下の「わざとの上書き」に載せて許しています。
+
+   ★許す一覧に足すときは、コード側に「なぜわざと2つにしたか」の注記が
+   　あることを人が見てから足すこと。注記の無い重なりは事故です。
+   ──────────────────────────────────────────────────────────── */
+{
+  /* わざと2つにしてあるもの（ファイル名 → 関数名） */
+  var WAZATO = {
+    "master.html": ["renderCatSummary", "renderCatOptions",
+                    "renderDefectGroups", "renderDefectHistory"]
+  };
+  var CB2 = new RegExp("/\\*[\\s\\S]*?\\*/", "g");
+  var CL2 = new RegExp("//[^" + String.fromCharCode(10) + "]*", "g");
+  var FN2 = /function\s+([A-Za-z0-9_$]+)\s*\(/g;
+
+  /* インデントの無い（行頭の）関数だけを見る。
+     　他の関数の中だけで使う入れ子のヘルパー（同じ名前でも別のもの）は対象外。
+     　例：master.html の withPN / bucketOf / arrow は入れ子なので問題ありません。 */
+  function gyoutouDake(src) {
+    var naka = String(src).replace(CB2, "").replace(CL2, "");
+    /* ★async function も数える。これを入れ忘れて、実際に mitsumori.html の
+       　async function v3RegisterQuote を見落としました（2026-09-12）。
+       ★"(?:async\\\\s+)?" を外さないでください。 */
+    var re = new RegExp("(?:^|" + String.fromCharCode(10) + ")(?:async\\s+)?function\\s+([A-Za-z0-9_$]+)\\s*\\(", "g");
+    var seen = {}, m;
+    while ((m = re.exec(naka))) { seen[m[1]] = (seen[m[1]] || 0) + 1; }
+    return seen;
+  }
+
+  var mitaFile = fs.readdirSync(H.LIVE).filter(function (f) {
+    if (/^mock_/.test(f)) return false;            /* モックは対象外 */
+    return /[.]html$/.test(f) || /^oos-.*[.]js$/.test(f);
+  });
+  mitaFile.forEach(function (f) {
+    var seen = gyoutouDake(fs.readFileSync(path.join(H.LIVE, f), "utf8"));
+    var yurusu = WAZATO[f] || [];
+    var dup = Object.keys(seen).filter(function (k) {
+      return seen[k] > 1 && yurusu.indexOf(k) < 0;
+    });
+    ok("⑤-B " + f + " に想定外の関数の重なりが無い（見つかった：" + dup.join("、") + "）",
+       dup.length === 0);
+  });
+}
+
 console.log('===== 見張りの見張り（総点検） =====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fail){ fails.forEach(function(f){ console.log('  ★ ' + f); }); process.exit(1); }
