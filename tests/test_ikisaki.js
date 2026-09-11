@@ -420,7 +420,11 @@ function hacchuushoGyou(payload){
     const h = idx.slice(idx.indexOf('<div class="order-line-header">'), idx.indexOf('<div data-role="lines">'));
     /* ★2026-09-12 ひろみさん：「種別」→「1商品ごとの扱い種別」。
        上の「この顧客の価格区分」と混ざらないように、どちらに付くものかを名前に入れました。 */
-    ['商品','1箱入り数','単価','1商品ごとの','扱い種別','バラ','箱','合計本数','金額','状態'].forEach(function(w){
+    /* ★2026-09-12（夜）ひろみさん：「単価と金額の読み込みが長すぎる。
+       　ここの表示、いらない。PDFで確認できるから」
+       　単価と金額の列は【外しました】。金額は書類（PDF）で確かめます。
+       ★この2つを見出しに戻さないでください。 */
+    ['商品','1箱入り数','1商品ごとの','扱い種別','バラ','箱','合計本数','状態'].forEach(function(w){
       ok('⑪-1 入力の見出しに「' + w + '」がある', h.indexOf(w) >= 0);
     });
     ok('⑪-1b お客様の区分の名前が「この顧客の価格区分」', idx.indexOf('>この顧客の価格区分<') >= 0);
@@ -436,39 +440,37 @@ function hacchuushoGyou(payload){
     const kotoba = (h.replace(/\/\*[\s\S]*?\*\//g, '').match(/>([^<>]+)</g) || [])
       .map(function(s){ return s.slice(1, -1).replace(/['"+\s]/g, ''); })
       .filter(function(s){ return s && s !== '（参考）' && s !== '（税抜）'; });
-    const jun = ['商品','1箱入り数','単価','1商品ごとの','扱い種別','バラ','箱','合計本数','金額','状態'];
+    const jun = ['商品','1箱入り数','1商品ごとの','扱い種別','バラ','箱','合計本数','状態'];
     eq('⑪-5 入力の見出しの並びが書類と同じ順', kotoba.join('／'), jun.join('／'));
 
     /* 読むだけの4つ（入力欄ではなく div） */
     const gyou = H.cut(idx, 'addRecipientLine');
-    ['hakoIri','tanka','goukei','kingaku'].forEach(function(r){
+    /* ★単価（tanka）と金額（kingaku）は外しました。読むだけの欄はこの2つです */
+    ['hakoIri','goukei'].forEach(function(r){
       ok('⑪-6 ' + r + ' は読むだけ（div）', new RegExp('<div class="ol-[^"]*" data-role="' + r + '"').test(gyou));
     });
     ok('⑪-7 メモの入力欄（text）は出していない', !/type="text"[^>]*data-role="memo"/.test(gyou));
     ok('⑪-8 古い注文のメモを消さないように、見えない入れものは残している',
        /type="hidden" data-role="memo"/.test(gyou));
 
-    /* 単価は親を呼ぶだけ（写しを作っていないか） */
+    /* ★2026-09-12（夜）単価・金額を外したので、⑪-9〜⑪-13（単価の出し方）は
+       【捨てました】。金額は書類（PDF）で確かめます（⑱・㉒ が見ています）。 */
     const yomi = H.cut(idx, 'refreshLineYomi');
-    ok('⑪-9 単価は親（OOS_KAKAKU）を呼んでいる', /OOS_KAKAKU\.unitPriceForLine/.test(yomi));
+    ok('⑪-9 入力行に単価の計算を残していない', !/OOS_KAKAKU\.unitPriceForLine/.test(yomi));
     ok('⑪-10 単価の判定を画面に書き写していない',
        !/priceWholesale1|priceGeneral|priceRT/.test(yomi));
     ok('⑪-11 単位は親を通して取っている（lineUnit）', /lineUnit\s*\(/.test(yomi));
-    /* ★「未登録」という文字があるかだけでは弱すぎます（お知らせ文にも出てくるため。
-       　2026-09-12 の破壊テストで分かりました）。単価の欄に入れているかを見ます。 */
-    ok('⑪-12 単価が無いときは、単価の欄に「未登録」と入れる',
-       /tk\.textContent\s*=\s*'未登録'/.test(yomi));
-    ok('⑪-12b そのとき赤い見た目にする', /tk\.className\s*=\s*'ol-tanka mi'/.test(yomi));
-    ok('⑪-12c そのとき ¥0 と出していない', !/tk\.textContent\s*=\s*'¥0'/.test(yomi));
-    ok('⑪-13 金額の欄に「出せません」と入れる',
-       /kg\.textContent\s*=\s*'出せません'/.test(yomi));
+    /* ★2026-09-12（夜）単価の欄そのものが無くなったので、ここは【捨てました】。
+       　単価が未登録のときは、書類（PDF）を見るときに出ます（⑱-8／㉒-11）。 */
+    ok('⑪-12 入力行に「未登録」の文字を残していない', !/未登録/.test(yomi));
+    ok('⑪-13 入力行に「出せません」の文字を残していない', !/出せません/.test(yomi));
     ok('⑪-14 区分を変えたら書き直す', /refreshLineYomi/.test(H.cut(idx, 'onCtypeChange')));
     ok('⑪-15 種別を変えたら書き直す', /updateCardGiftSummary/.test(H.cut(idx, 'onRecipientLineGiftChange')));
     ok('⑪-16 数や箱を入れたら書き直す', /refreshLineYomi\s*\(\s*cardId\s*\)/.test(H.cut(idx, 'updateCardGiftSummary')));
 
     /* 列の数（CSS）が10列になっているか */
     const css = (idx.match(/\.order-line\{display:grid;grid-template-columns:([^;]+);/) || [])[1] || '';
-    eq('⑪-17 入力行は10列', css.trim().split(/\s+/).length, 10);
+    eq('⑪-17 入力行は8列（単価・金額を外した）', css.trim().split(/\s+/).length, 8);
     const cssH = (idx.match(/\.order-line-header\{display:grid;grid-template-columns:([^;]+);/) || [])[1] || '';
     eq('⑪-18 見出しも10列（行とそろっている）', cssH.trim(), css.trim());
 
@@ -685,27 +687,26 @@ function hacchuushoGyou(payload){
      ★「読込中…」の見分けと、届いたあとの計算し直しを消さないでください。
      ══════════════════════════════════════════════════════════════════ */
   (function(){
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12（夜）ひろみさん決定で【単価と金額の列そのものを外しました】。
+       　「単価と金額の読み込みが長すぎる。ここの表示、いらない。PDFで確認できるから」
+       　これに合わせて、ここにあった ⑮-1〜⑮-5h（読込中・未登録・待つ仕組み）は
+       　【捨てました】。見張る物がもう画面にありません。
+       　金額は書類（PDF）で確かめます（⑱・㉒ が見ています）。
+       ★単価・金額の列を戻すなら、まずひろみさんに相談してからです。
+       ══════════════════════════════════════════════════════════════ */
     const yomi = H.cut(idx, 'refreshLineYomi');
-    ok('⑮-1 価格マスタが届いていないかを見ている', /priceMaster\s*&&\s*priceMaster\.length/.test(yomi));
-    ok('⑮-2 そのときは「読込中…」と出す', /読込中…/.test(yomi));
-    ok('⑮-3 そのときに「未登録」と出していない',
-       /読込中…[\s\S]{0,200}?\}\s*else if\s*\(muryou\)/.test(yomi));
-    /* 届いたあとに計算し直しているか（2か所：まとめ読みのあと・名簿が届いたあと） */
-    ok('⑮-4 データが届いたら入力行を計算し直す（まとめ読み）',
-       /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'loadInitialData')));
-    ok('⑮-5 名簿が届いたら入力行を計算し直す',
-       /refreshLineYomi\(c\.id\)/.test(H.cut(idx, 'applyLoadedProducts')));
-    /* ★2026-09-12 ひろみさん：「単価と合計金額がいつまでも計算中」
-       　1回だけ呼ぶ形では取りこぼすので、届くまで自分で見にいくようにしました。
-       ★この自分で直る仕組みを消さないでください。 */
-    ok('⑮-5b 届くまで自分で待って計算し直す', /function yomiMachiStart\s*\(/.test(idx));
-    ok('⑮-5c 読込中のときに その待ちを始める', /yomiMachiStart\(cardId\)/.test(yomi));
-    const ym = H.cut(idx, 'yomiMachiStart');
-    ok('⑮-5d 届いたら止まる',           /clearInterval\(__yomiMachi\[cardId\]\)/.test(ym));
-    ok('⑮-5e 届いたら計算し直す',       /refreshLineYomi\(cardId\)/.test(ym));
-    ok('⑮-5f 待ちすぎたら正直に出す',   /読めません/.test(ym));
-    ok('⑮-5g カードが消えたらやめる',   /document\.getElementById\(cardId\)/.test(ym));
-    ok('⑮-5h 二重に待たない',           /if\(!cardId \|\| __yomiMachi\[cardId\]\) return;/.test(ym));
+    ok('⑮-1 入力行に単価を出していない',   !/data-role=tanka/.test(yomi));
+    ok('⑮-2 入力行に金額を出していない',   !/data-role=kingaku/.test(yomi));
+    ok('⑮-3 価格データを待っていない',     !/priceMaster/.test(yomi));
+    ok('⑮-3b 待つ仕組みも残っていない',    !/yomiMachiStart/.test(idx));
+    ok('⑮-3c 見出しに「単価」を出していない',
+       idx.slice(idx.indexOf('<div class="order-line-header">'), idx.indexOf('<div data-role="lines">')).indexOf('単価') < 0);
+    ok('⑮-3d 見出しに「金額」を出していない',
+       idx.slice(idx.indexOf('<div class="order-line-header">'), idx.indexOf('<div data-role="lines">')).indexOf('金額') < 0);
+    /* 残した2つ（1箱入り数・合計本数）は、名簿だけで出せます */
+    ok('⑮-4 （参考）1箱入り数は出す', /data-role=hakoIri/.test(yomi));
+    ok('⑮-5 合計本数は出す',          /data-role=goukei/.test(yomi));
 
     /* ══════════════════════════════════════════════════════════════
        ⑮-6 「状態」のえらび一覧も、在庫が届いたら作り直す
@@ -720,8 +721,8 @@ function hacchuushoGyou(payload){
     ok('⑮-6 在庫が届いたら「状態」も作り直す', /refreshLineCondition\(row\)/.test(yomi));
     ok('⑮-6b 届いていないうちは作り直さない',
        /typeof lots !== 'undefined' && lots && lots\.length[\s\S]{0,120}refreshLineCondition\(row\)/.test(yomi));
-    ok('⑮-6c 待つときは 価格と在庫の両方を見る',
-       /priceMaster\.length\)[\s\S]{0,120}lots && lots\.length\)/.test(ym));
+    /* ★2026-09-12（夜）⑮-6c「待つときは価格と在庫の両方を見る」は【捨てました】。
+       　単価の列を外したので、待つ仕組みごと無くなりました。 */
     /* 本物の関数で、在庫の有無で答えが変わることを確かめる */
     (function(){
       const zc = H.makeSandbox({});
