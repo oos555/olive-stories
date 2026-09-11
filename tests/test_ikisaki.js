@@ -461,7 +461,7 @@ function hacchuushoGyou(payload){
        !/priceWholesale1|priceGeneral|priceRT/.test(yomi));
     ok('⑪-11 単位は親を通して取っている（lineUnit）', /lineUnit\s*\(/.test(yomi));
     /* ★2026-09-12（夜）単価の欄そのものが無くなったので、ここは【捨てました】。
-       　単価が未登録のときは、書類（PDF）を見るときに出ます（⑱-8／㉒-11）。 */
+       　単価が未登録のときは、書類（PDF）を見るときに出ます（⑱-8／⑱-31）。 */
     ok('⑪-12 入力行に「未登録」の文字を残していない', !/未登録/.test(yomi));
     ok('⑪-13 入力行に「出せません」の文字を残していない', !/出せません/.test(yomi));
     ok('⑪-14 区分を変えたら書き直す', /refreshLineYomi/.test(H.cut(idx, 'onCtypeChange')));
@@ -857,13 +857,22 @@ function hacchuushoGyou(payload){
   })();
 
   /* ══════════════════════════════════════════════════════════════════
-     ⑱ 書類は【見てから貼る】／貼れていないとカードに出る
+     ⑱ 書類は【見てから貼る】（登録前・登録後・あとから）／貼れていないとカードに出る
      ──────────────────────────────────────────────────────────────────
      ★2026-09-12 ひろみさん：
      　「自動でスプシに貼られる前に、アプリ上でチェックしたい。
      　　じゃないと、データーを何度もキャンセルすることも起きる」
      　「届いていなくても気が付けない」
+     　「どこでPDF開いてチェックできるの？？？？？」
+     　「RTの取り込みからのオーダーも…PDFの納品書も確認できたり…」
+
+     見る機会は3回（全部ここで見張ります。別の番号に分けないでください）
+     　① 登録する前　… 確認画面の［📄 書類（PDF）を見て確かめる］（貼らない）
+     　② 登録したあと… 書類が出る →［この内容で発注書に貼る］／［直す］
+     　③ あとから　　… 受注一覧のカードの［PDFをスプシに貼る前に確認する］
+     RTの伝票取込だけは、書類の作り方がちがいます（rtDeliveryNoteHtml）。
      ★自動で貼る形に戻さないでください。
+     ★同じ決めごとを、別の番号でもう一度書かないでください（2026-09-12 ひろみさん指摘）。
      ══════════════════════════════════════════════════════════════════ */
   (function(){
     /* 登録したときに、その場では貼らない */
@@ -887,7 +896,10 @@ function hacchuushoGyou(payload){
     /* どの注文を出すか（バサラとRT伝票取込は出さない） */
     const ts = H.cut(idx, 'docCheckTaisho');
     ok('⑱-11 バサラは出さない',            /source === 'basara'/.test(ts));
-    ok('⑱-12 RTの伝票取込は出さない',      /RT伝票取込/.test(ts));
+    /* ★2026-09-12（夜）RTも【見てから貼る】に入れました（ひろみさん指示）。
+       　それまでは登録した瞬間に自動で貼られ、見る機会がありませんでした。
+       ★RTを対象から外す形に戻さないでください。 */
+    ok('⑱-12 RTの伝票取込も出す（外していない）', !/RT伝票取込/.test(ts));
     ok('⑱-13 もう貼ってあるものは出さない', /o\.nouhinDocUrl/.test(ts));
     ok('⑱-14 金額の載らない書類は出さない', /needsNouhin/.test(ts));
 
@@ -912,6 +924,38 @@ function hacchuushoGyou(payload){
        (at.match(/o\.nouhinDocNg\s*=\s*'[^']/g) || []).length
        + (at.match(/o\.nouhinDocNg\s*=\s*String/g) || []).length, 3);
     ok('⑱-23 貼れたら理由を消す', /o\.nouhinDocNg\s*=\s*''/.test(at));
+
+    /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
+    ok('⑱-24 確認画面に［書類（PDF）を見て確かめる］がある', /書類（PDF）を見て確かめる/.test(idx));
+    ok('⑱-25 押すと docMaeMiru が動く', /onclick="docMaeMiru\(\)"/.test(idx));
+    ok('⑱-26 出す枠がある',             /id="doc-check-mae"/.test(idx));
+    const mm = H.cut(idx, 'docMaeMiru');
+    const ms = H.cut(idx, 'docMaeShow');
+    ok('⑱-27 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
+    ok('⑱-28 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
+    ok('⑱-29 何枚目かを出す',           /枚目／全/.test(ms));
+    ok('⑱-30 次の書類へ進める・前へ戻れる', /次の書類/.test(ms) && /前の書類/.test(ms));
+    ok('⑱-31 登録前なので貼らない',
+       !/nouhinAttachToOrder/.test(mm) && !/nouhinAttachToOrder/.test(ms));
+    ok('⑱-32 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
+
+    /* ── RTの伝票取込だけ、書類の作り方がちがう ── */
+    ok('⑱-33 RTかどうかを見分ける所がある', /function rtDenpyoOrderKa\s*\(/.test(idx));
+    const rk = H.cut(idx, 'rtDenpyoOrderKa');
+    ok('⑱-34 RT・RTGCと伝票取込の印を見ている',
+       /customerType === 'rt' \|\| o\.customerType === 'rtgc'/.test(rk) && /RT伝票取込/.test(rk));
+    const rn = H.cut(idx, 'rtNouhinHtml');
+    ok('⑱-35 RTは rtDeliveryNoteHtml から作る', /rtDeliveryNoteHtml\(\)/.test(rn));
+    ok('⑱-36 RTで親（OOS_NOUHIN）を使っていない', !/OOS_NOUHIN/.test(rn));
+    ok('⑱-37 登録前の確認でRTを見せ分けている',
+       /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(ms));
+    ok('⑱-38 登録後の画面でもRTを見せ分けている',
+       /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(nx));
+    ok('⑱-39 RTは rtAttachDocsToOrder で貼る', /rtAttachDocsToOrder\(q\.o\)/.test(H.cut(idx, 'docCheckOk')));
+    ok('⑱-40 登録の瞬間にRTを自動で貼っていない', !/rtAttachDocsToOrder/.test(reg));
+    const arf = H.cut(idx, 'applyRtToOrderForm');
+    ok('⑱-41 RTも同じ受注フォームを使う（日付・状態・種別が同じに効く）',
+       /addRecipient\(\)/.test(arf) && /recipient-card/.test(arf));
   })();
 
   /* ══════════════════════════════════════════════════════════════════
@@ -991,31 +1035,6 @@ function hacchuushoGyou(payload){
       ok('㉑-11 空のURLなら そのマスを触らない', /if\(!String\(url\|\|''\)\.trim\(\)\) return '';/.test(sl));
     }
 
-    /* ══════════════════════════════════════════════════════════════
-       ㉒ 登録する【前】に、確認画面で書類を見られる
-       ──────────────────────────────────────────────────────────────
-       ★2026-09-12 ひろみさん：「どこでPDF開いてチェックできるの？？？？？」
-       　それまでは【登録したあと】にしか出ませんでした。
-       ★このボタンを消さないでください。
-       ══════════════════════════════════════════════════════════════ */
-    ok('㉒-1 確認画面に［書類（PDF）を見て確かめる］がある',
-       /書類（PDF）を見て確かめる/.test(idx));
-    ok('㉒-2 押すと docMaeMiru が動く', /onclick="docMaeMiru\(\)"/.test(idx));
-    ok('㉒-3 出す枠がある',             /id="doc-check-mae"/.test(idx));
-    const mm = H.cut(idx, 'docMaeMiru');
-    ok('㉒-4 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
-    ok('㉒-5 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
-    ok('㉒-6 書類が無いときはそう言う', /金額の載る書類はありません/.test(mm));
-    const ms = H.cut(idx, 'docMaeShow');
-    ok('㉒-7 その書類名で組み立てる',   /OOS_NOUHIN\.build\(o, nouhinDeps\(\), mei\)/.test(ms));
-    ok('㉒-8 何枚目かを出す',           /枚目／全/.test(ms));
-    ok('㉒-9 次の書類へ進める',         /次の書類/.test(ms));
-    ok('㉒-10 前の書類へ戻れる',        /前の書類/.test(ms));
-    ok('㉒-11 単価が無ければ そう言う', /単価が登録されていない商品があるので/.test(ms));
-    /* ★ここでは【貼りません】（まだ登録していないため） */
-    ok('㉒-12 登録前なので貼らない',
-       !/nouhinAttachToOrder/.test(mm) && !/nouhinAttachToOrder/.test(ms));
-    ok('㉒-13 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
   })();
 
   /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */

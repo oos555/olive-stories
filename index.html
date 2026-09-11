@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-17">
+<meta name="oos-version" content="2026-09-12-18">
 <script src="oos-version.js"></script>
 </head>
 <body>
@@ -4800,7 +4800,9 @@ function registerOrder(){
            順番が逆だと、貼る先の行が見つかりません。★消さないでください */
         try{
           Promise.resolve(yukaImportOne(o.id)).then(function(){
-            if(typeof rtAttachDocsToOrder === 'function') return rtAttachDocsToOrder(o);
+            /* ★2026-09-12 RTも【見てから貼る】にしたので、ここでは貼りません。
+               　下の docCheckStart が書類を画面に出し、押したときに貼ります。
+               ★ここで rtAttachDocsToOrder を呼ぶ形に戻さないでください。 */
           }).then(function(){
             /* ★2026-09-10 一般・卸の納品書も、発注書のV列から倉庫が開けるように。
                RTは上の rtAttachDocsToOrder が貼るので、こちらは何もしません。
@@ -8351,8 +8353,9 @@ function docCheckTaisho(o){
   if(!nokori.length) return false;
   /* 2026-09-12より前の注文（書類ごとの控えが無い）は、昔の1本で済みとみなします */
   if(o.nouhinDocUrl && OOS_NOUHIN.shoruiList(o).length === 1) return false;
-  var isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
-  if(isRt && /RT伝票取込/.test(String(o.note || ''))) return false;  /* 伝票と一緒に貼ります */
+  /* ★2026-09-12 RTの伝票取込も【見てから貼る】に入れます（ひろみさん指示）。
+     　それまでは、登録した瞬間に自動で貼られていて、見る機会がありませんでした。
+     ★RTを外す形に戻さないでください。 */
   return true;
 }
 
@@ -8370,6 +8373,33 @@ function docCheckTaisho(o){
    ★このボタンと関数を消さないでください。
    見張り：tests/test_ikisaki.js の ㉒
    ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   ★2026-09-12 ひろみさん：「RTの取り込みからのオーダーも、お届け日を制限なく
+   　選べたり、同じように対応して。PDFの納品書も確認できたり…」
+   ──────────────────────────────────────────────────────────────────
+   ・お届け日・状態・扱い種別は【同じ受注フォーム】なので、もう効いています。
+   ・書類だけは作り方がちがいます。
+   　　一般・卸 … OOS_NOUHIN.build（親）
+   　　RTの伝票取込 … rtDeliveryNoteHtml（伝票から作る別の作り）
+   　ですので、RTのときは【RTの納品書】を見せます。
+   ★ここで OOS_NOUHIN.build を使わないでください。
+   　使うと、画面に出る書類と、実際に貼られる書類が【ちがうもの】になります。
+   見張り：tests/test_ikisaki.js の ㉓
+   ══════════════════════════════════════════════════════════════════ */
+function rtDenpyoOrderKa(o){
+  if(!o) return false;
+  var isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
+  return isRt && /RT伝票取込/.test(String(o.note || ''));
+}
+/* RTの納品書のHTML（伝票から作る本物）。作れないときは空を返します */
+function rtNouhinHtml(){
+  try{
+    if(typeof rtDeliveryNoteHtml !== 'function') return '';
+    if(typeof rtParsed === 'undefined' || !rtParsed) return '';
+    return '<style>' + (typeof rtDeliveryNoteCss==='function' ? rtDeliveryNoteCss() : '') + '</style>' + rtDeliveryNoteHtml();
+  }catch(e){ return ''; }
+}
+
 var docMaeList = [];   /* 見る順番（注文＋書類名） */
 var docMaeIdx  = 0;
 
@@ -8407,7 +8437,13 @@ function docMaeShow(){
   var miss = [];
   try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
   var html = '';
-  try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }catch(e){ html = ''; }
+  /* ★RTの伝票取込は、RTの納品書（伝票から作る別の作り）を見せます。
+     　ここで親を使うと、見た書類と貼られる書類がちがってしまいます。 */
+  if(rtDenpyoOrderKa(o)){
+    html = rtNouhinHtml();
+  } else {
+    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }catch(e){ html = ''; }
+  }
 
   var atama = '<div style="font-size:14px;font-weight:800;color:#185fa5;margin-bottom:8px">'
             + '📄 登録する前の確認　'
@@ -8486,7 +8522,12 @@ function docCheckNext(){
   var miss = [];
   try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
   var html = '';
-  try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }catch(e){ html = ''; }
+  /* ★RTの伝票取込は、RTの納品書（伝票から作る別の作り）を見せます。★親に変えないでください */
+  if(rtDenpyoOrderKa(o)){
+    html = rtNouhinHtml();
+  } else {
+    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }catch(e){ html = ''; }
+  }
   var nokori = (docCheckQueue.length > 1) ? ('　（あと' + (docCheckQueue.length - 1) + '件）') : '';
   /* ★2026-09-12 どちらの列に入るかを、押す前に出します（ひろみさん：「2つ書類を乗せるところはある」）
      　0枚目＝V列「同梱書類 納品書」／1枚目以降＝W列「同梱書類 他あれば」
@@ -8533,7 +8574,15 @@ function docCheckNext(){
 async function docCheckOk(){
   var q = docCheckQueue.shift();
   if(q){
-    try{ await nouhinAttachToOrder(q.o, q.mei); }catch(e){}
+    /* ★RTの伝票取込は、伝票と納品書をいっしょに貼ります（RTの貼り方）。
+       　一般・卸は親から作った書類を貼ります。★取り違えないでください。 */
+    try{
+      if(rtDenpyoOrderKa(q.o) && typeof rtAttachDocsToOrder === 'function'){
+        await rtAttachDocsToOrder(q.o);
+      } else {
+        await nouhinAttachToOrder(q.o, q.mei);
+      }
+    }catch(e){}
   }
   if(typeof renderList === 'function') renderList();
   docCheckNext();
