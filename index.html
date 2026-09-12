@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-29">
+<meta name="oos-version" content="2026-09-12-30">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -4796,11 +4796,31 @@ function rtSlipAutoCut(list){
     if(changed.length && typeof syncOrdersToGAS==='function') syncOrdersToGAS(changed);   // 減らした🔒側を保存（この注文自体はこのあと登録時に保存される）
   });
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ⚠ 失敗を黙って捨てないための小さな入口　★2026-09-12
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「押してもリンクは出来なかった」「何もおきない」
+   catch(e){} と書くと、失敗しても画面に何も出ず、記録も残りません。
+   押した人には「何も起きない」としか分からず、原因も追えません。
+   → これからは、失敗したら かならず この入口を通してください。
+   ★catch(e){} の空っぽを新しく書かないでください。
+   　見張り：tests/test_haribote.js の ⑤
+   ══════════════════════════════════════════════════════════════════════ */
+function oosShippai(doko, e){
+  var r = (e && e.message) ? e.message : String(e || '');
+  try{ console.warn('[つまずき] ' + doko, e); }catch(_){}
+  try{
+    if(typeof showSyncStatus === 'function'){
+      showSyncStatus('⚠ ' + doko + 'でつまずきました：' + r, true);
+    }
+  }catch(_){}
+  return r;
+}
 function registerOrder(){
   const list = window._pendingOrders;
   if(!list || !list.length) return;
   /* ★RTの伝票取込の注文は、先にその施設の🔒残高から自動で切り出す（2026-09-04・上の関数） */
-  try{ rtSlipAutoCut(list); }catch(eRt){}
+  try{ rtSlipAutoCut(list); }catch(eRt){ oosShippai('RTの残高の切り出し', eRt); }
   // ⑤ 在庫超過の警告（必須）：通常出荷・取り置きで正規在庫が足りない時は、必ず確認をはさむ。
   // 予約（reserved＝入荷前）は在庫を超えて当然なので対象外。
   const _recType = list[0].status;
@@ -4858,7 +4878,7 @@ function registerOrder(){
   /* ★2026-09-10 取り置き・予約は【発注前リスト】へ1行。登録したその場で残します */
   if(recordType==='held' || recordType==='reserved'){
     list.forEach(function(o){
-      if(typeof yoyakuListAddOne==='function'){ try{ yoyakuListAddOne(o); }catch(eL){} }
+      if(typeof yoyakuListAddOne==='function'){ try{ yoyakuListAddOne(o); }catch(eL){ oosShippai('取り置き・予約の送信', eL); } }
     });
   }
   if(recordType==='pending'){
@@ -4881,7 +4901,7 @@ function registerOrder(){
                ［この内容で発注書に貼る］を押したときに貼ります。
                ★nouhinAttachToOrder をここで呼ぶ形に戻さないでください。 */
           }).catch(function(){});
-        }catch(eY){}
+        }catch(eY){ oosShippai('発注書への転記', eY); }
       }
     });
   }
@@ -4891,7 +4911,7 @@ function registerOrder(){
   try{
     var _docList = list.slice();
     setTimeout(function(){ if(typeof docCheckStart === "function") docCheckStart(_docList); }, 2500);
-  }catch(_ed){}
+  }catch(_ed){ oosShippai('書類の確認画面を出すところ', _ed); }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
