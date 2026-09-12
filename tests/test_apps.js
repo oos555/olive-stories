@@ -457,14 +457,49 @@ try{
      中身が約733pxで、余りが23pxしかなく、はみ出した右側がPDFで切り落とされていた。
      左右の余白を1.85cm(4.4rem=70px)にして、約88pxの余りを作った。
      ★padding:2rem（左右も2rem）に戻さないでください。また端が切れます。 */
-  eq('⑤ 書類の左右の余白は1.85cm（端が切れないため）',
-     H.read('oos-doc.js').indexOf('.invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem 4.4rem;') >= 0, true);
-  /* ★左の枠が「伸びない」こと。伸びると右の内訳を押し出して、また切れる */
-  eq('⑤ 左の枠は伸びない（flex:0 1 auto）',
-     H.read('oos-doc.js').indexOf('.doc2-hidari{flex:0 1 auto;') >= 0, true);
-  /* ★万一入らないときは、切れずに下へ折り返す */
-  eq('⑤ 入らないときは折り返す（flex-wrap:wrap）',
-     H.read('oos-doc.js').indexOf('.doc2-2retsu{display:flex;align-items:flex-start;gap:14px;justify-content:space-between;flex-wrap:wrap}') >= 0, true);
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん：「すこしだけ中身を細くする。両端1ｃｍずつくらい」
+     　　　　　　　　　　　　「これは印刷したものだから、はじまで情報が書き過ぎていた」
+     ──────────────────────────────────────────────────────────────────
+     紙の両端に1cmずつ余白を取ると、中が使える幅は166mmになります。
+     そのままでは入りきらず、内訳（8%対象…合計）が枠の【下に落ちて】
+     ひろみさんが決めた並び（左に料金・右に内訳）が崩れました。
+     絵で見ながら段階をためし、【すきまを詰めるだけ】で足りると分かりました。
+     文字の大きさは変えていません。
+     
+     4つの場合で、実際の絵で確かめました（2026-09-12）：
+     　① 印刷・ふつうの注文　　　… ✅ 端の内側に18.6mmの余裕
+     　② 印刷・金額が100万円台　 … ✅（内訳の左を6pxにして入りました）
+     　③ PDF・ふつうの注文　　　 … ✅
+     　④ PDF・金額が100万円台　　… ✅
+     ★下の数字を元に戻さないでください。戻すと内訳が下に落ちるか、端が切れます。
+     ══════════════════════════════════════════════════════════════════ */
+  {
+    var _doc = H.read('oos-doc.js');
+    /* 紙の余白を、ブラウザの印刷設定まかせにしない（余白なし設定でも切れないように） */
+    eq('⑤ 紙の余白を10mmと決めている（@page）',
+       _doc.indexOf('@page{size:A4 portrait;margin:10mm}') >= 0, true);
+    /* 画面とPDFの左右の余白 1.85cm */
+    eq('⑤ 画面とPDFの左右の余白は1.85cm',
+       _doc.indexOf('border-radius:8px;padding:2rem 4.4rem;') >= 0, true);
+    /* 印刷の左右の余白 12mm（22mmにすると内訳が下に落ちます） */
+    eq('⑤ 印刷の左右の余白は12mm（22mmにすると並びが崩れる）',
+       _doc.indexOf('padding:11mm 12mm!important') >= 0, true);
+    /* 中身を細くした4か所。ここが元に戻ると、内訳が下に落ちます */
+    eq('⑤ 枠と内訳のあいだは8px（もと14px）',
+       _doc.indexOf('.doc2-2retsu{display:flex;align-items:flex-start;gap:8px;') >= 0, true);
+    eq('⑤ 枠の内側は5px 8px（もと7px 10px）',
+       _doc.indexOf('.doc2-waku{border:1px solid #c9c5b8;border-radius:5px;padding:5px 8px;') >= 0, true);
+    eq('⑤ 枠の金額の左は10px（もと18px）',
+       _doc.indexOf('.doc2-waku td.wn{text-align:right;white-space:nowrap;font-weight:700;padding-left:10px}') >= 0, true);
+    eq('⑤ 内訳の左は6px（もと18px。100万円台でも入るため）',
+       _doc.indexOf('.doc2-breakdown td{padding:3px 0 3px 6px;') >= 0, true);
+    /* 左の枠は伸びない・入らないときは折り返す */
+    eq('⑤ 左の枠は伸びない（flex:0 1 auto）',
+       _doc.indexOf('.doc2-hidari{flex:0 1 auto;') >= 0, true);
+    eq('⑤ 入らないときは切れずに折り返す（flex-wrap:wrap）',
+       _doc.indexOf('justify-content:space-between;flex-wrap:wrap}') >= 0, true);
+  }
   ord.enclosedDoc = '納品書';
   const h2 = D.box.buildInvoiceHtml(ord);
   eq('⑤ 「納品書」のときは表題も納品書', /class="doc2-title">納品書</.test(h2), true);

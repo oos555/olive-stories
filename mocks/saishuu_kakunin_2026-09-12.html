@@ -1,0 +1,106 @@
+<meta charset="utf-8">
+<title>最終確認：印刷とPDFで端が切れないか</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="../oos-zei.js"></script>
+<script src="../oos-kakaku.js"></script>
+<script src="../oos-shorui-kimari.js"></script>
+<script src="../oos-doc.js"></script>
+<script src="../oos-nouhin.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;
+       margin:0;padding:10px;color:#2b2a26;font-size:14px;background:#e7e3dc}
+  h2{font-size:13px;margin:10px 0 4px}
+  .memo{font-size:11.5px;color:#5a5348;margin:0 0 5px}
+  .kami{width:210mm;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+  .ryoiki{margin:10mm;outline:2px solid #d23;overflow:hidden}
+  .pdfire{width:820px;background:#fff;outline:2px solid #d23;overflow:hidden}
+  .hantei{font-size:12px;font-weight:800;margin:3px 0 12px}
+  .ng{color:#b3261e}.ok{color:#1d6b2a}
+  /* 上半分は見なくていいので、金額まわりだけが見えるように上をずらす */
+  .mado{height:300px;overflow:hidden;position:relative}
+  .mado>div{position:absolute;left:0;right:0;top:-470px}
+</style>
+<div id="waku"></div>
+<script>
+var INSATSU_CSS = '';
+(function(){
+  Array.prototype.forEach.call(document.styleSheets, function(ss){
+    try{
+      Array.prototype.forEach.call(ss.cssRules, function(r){
+        var med = (r.media && r.media.mediaText) || r.conditionText || '';
+        if(r.cssRules && /print/.test(med)){
+          Array.prototype.forEach.call(r.cssRules, function(rr){
+            if(rr.cssText.indexOf('@page') < 0) INSATSU_CSS += rr.cssText + '\n';
+          });
+        }
+      });
+    }catch(e){}
+  });
+})();
+
+var PRODUCTS = [
+  { id:1, sku:'ORG500', name:'オルガニック 500ml', boxQty:12, group:'オルガニック' },
+  { id:2, sku:'PRI500', name:'プリモフルット 500ml', boxQty:12, group:'プリモフルット' },
+  { id:3, sku:'MEM250', name:'メメジック 250ml', boxQty:20, group:'メメジック' }
+];
+var PRICE_MASTER = [
+  { sku:'ORG500', priceGeneral:2125 },
+  { sku:'PRI500', priceGeneral:2125 },
+  { sku:'MEM250', priceGeneral:1300 }
+];
+function chumon(nedan){
+  return {
+    id:'x', num:'TK-20260912-5577', client:'中村先生', customerType:'general',
+    recipientName:'中村先生', zip:'650-0022', addr:'兵庫県神戸市中央区元町通4丁目', tel:'078-000-0000',
+    enclosedDoc:'納品書兼請求書', shippingFee:880, warehouseFee:0,
+    lines:[
+      { productId:1, productName:'オルガニック 500ml', sku:'ORG500', bottles:(nedan?480:12), boxes:0, boxQty:12 },
+      { productId:2, productName:'プリモフルット 500ml', sku:'PRI500', bottles:1, boxes:0, boxQty:12 },
+      { productId:3, productName:'メメジック 250ml',   sku:'MEM250', bottles:1, boxes:0, boxQty:20 }
+    ]
+  };
+}
+function tsukuru(o){ return OOS_NOUHIN.build(o, { products:PRODUCTS, priceMaster:PRICE_MASTER, defaults:{} }, '納品書兼請求書'); }
+
+var mm = 96/25.4;
+var waku = document.getElementById('waku');
+
+function miru(midashi, memo, html, mode){
+  var h2 = document.createElement('h2'); h2.textContent = midashi; waku.appendChild(h2);
+  var p = document.createElement('p'); p.className='memo'; p.textContent = memo; waku.appendChild(p);
+
+  var mado = document.createElement('div'); mado.className = 'mado';
+  var naka = document.createElement('div');
+  var hako;
+  if(mode === 'insatsu'){
+    var kami = document.createElement('div'); kami.className='kami';
+    hako = document.createElement('div'); hako.className='ryoiki'; hako.innerHTML = html;
+    kami.appendChild(hako); naka.appendChild(kami);
+  }else{
+    hako = document.createElement('div'); hako.className='pdfire'; hako.innerHTML = html;
+    naka.appendChild(hako);
+  }
+  mado.appendChild(naka); waku.appendChild(mado);
+
+  var hi2 = document.createElement('p'); hi2.className='hantei'; waku.appendChild(hi2);
+  var bd = hako.querySelector('.doc2-breakdown');
+  var hi = hako.querySelector('.doc2-hidari');
+  var ochita = (hi && bd) ? (Math.abs(hi.getBoundingClientRect().top - bd.getBoundingClientRect().top) > 4) : false;
+  var r = hako.getBoundingClientRect();
+  var deta = bd ? Math.round((bd.getBoundingClientRect().right - r.right)/mm*10)/10 : 0;
+  if(ochita){ hi2.className='hantei ng'; hi2.textContent = '★ 内訳が下に落ちています'; }
+  else if(deta > 0){ hi2.className='hantei ng'; hi2.textContent = '★ 右へ ' + deta + 'mm はみ出しています（切れます）'; }
+  else { hi2.className='hantei ok'; hi2.textContent = '✅ 左に料金・右に内訳。端の内側に ' + (-deta) + 'mm の余裕'; }
+}
+
+/* 印刷のとき（印刷用CSSを効かせる） */
+var st = document.createElement('style'); st.textContent = INSATSU_CSS; document.head.appendChild(st);
+miru('① 印刷したとき（紙の両端1cm）', '赤い線が、プリンタが刷れる範囲の端です。', tsukuru(chumon(false)), 'insatsu');
+miru('② 印刷したとき・金額が100万円台', '内訳の桁が増えても入るか。', tsukuru(chumon(true)), 'insatsu');
+st.remove();
+
+/* PDFのとき（印刷用CSSは効かない） */
+miru('③ PDFにするとき（入れ物820px・左右1.85cm）', '赤い線がPDFの入れ物の端です。', tsukuru(chumon(false)), 'pdf');
+miru('④ PDFにするとき・金額が100万円台', '', tsukuru(chumon(true)), 'pdf');
+</script>
