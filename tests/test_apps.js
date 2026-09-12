@@ -549,6 +549,53 @@ try{
       eq('⑤ 文言も親に聞いている（ryokinKotoba）',
          _idx.indexOf('K.ryokinKotoba(v, zeikomi)') >= 0, true);
     }
+    /* ══════════════════════════════════════════════════════════════════
+       📅 お届け日が「NaN月NaN日」にならないか　★2026-09-12
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん報告：受注一覧が「NaN月NaN日までに出荷」になっていた。
+       原因：お届け日（leadDate）が、スプシを通ると時刻つきに化ける。
+       　　　入れたとき … "2026-09-14"
+       　　　読み戻すと … "2026-09-13T15:00:00.000Z"（日本時間の9月14日 0時）
+       
+       ★先頭10文字を切るのは【まちがい】です。
+       　"2026-09-13T15:00:00.000Z" の先頭は9月13日ですが、日本時間では9月14日。
+       　1日ずれると、倉庫への出荷指示が1日早まります。
+       ★かならず Date にしてから、日本時間の年月日を取り出すこと。
+       ══════════════════════════════════════════════════════════════════ */
+    {
+      var _i2 = H.read('index.html');
+      var _S = H.makeSandbox({});
+      var _ok = true;
+      ['hizukeDake', 'computeDueDateISO', 'formatDateJp', 'leadLabelWithDate', 'addBusinessDays'].forEach(function (n) {
+        try { vm.runInContext(H.cut(_i2, n), _S.ctx); } catch (e) { _ok = false; }
+      });
+      eq('⑤ お届け日をそろえる hizukeDake がある', typeof _S.box.hizukeDake, 'function');
+      if (typeof _S.box.hizukeDake === 'function') {
+        var _ISO = '2026-09-13T15:00:00.000Z';   /* 日本時間の 2026-09-14 0時 */
+        /* ★紙と鉛筆で決めた答え。実装に合わせて書き換えないでください */
+        eq('⑤ 時刻つきを日付だけにすると 2026-09-14（1日ずらさない）',
+           _S.box.hizukeDake(_ISO), '2026-09-14');
+        eq('⑤ 先頭10文字を切る作りになっていない（切ると9月13日になる）',
+           _S.box.hizukeDake(_ISO) === '2026-09-13', false);
+        eq('⑤ もともと日付だけなら、そのまま', _S.box.hizukeDake('2026-09-14'), '2026-09-14');
+        eq('⑤ 空なら空', _S.box.hizukeDake(''), '');
+        eq('⑤ 読めない値なら空', _S.box.hizukeDake('あいうえお'), '');
+      }
+      if (typeof _S.box.leadLabelWithDate === 'function') {
+        var _lab = _S.box.leadLabelWithDate({ leadType: 'scheduled', leadDate: '2026-09-13T15:00:00.000Z' });
+        eq('⑤ カードに「NaN」と出ない', String(_lab).indexOf('NaN') >= 0, false);
+        eq('⑤ カードに 9月14日までに出荷 と出る', String(_lab).indexOf('9月14日までに出荷') >= 0, true);
+      }
+      /* ★倉庫へ送るところと、編集画面が hizukeDake を通しているか。
+         　通さないと、発注書に時刻つきが入り、編集画面ではお届け日が消えます。 */
+      eq('⑤ 倉庫へ送るお届け日が hizukeDake を通っている（2か所）',
+         (_i2.match(/day: \(o\.leadType===.scheduled. \? hizukeDake\(o\.leadDate\)/g) || []).length, 2);
+      eq('⑤ 修正のため差し戻すの画面が hizukeDake を通っている',
+         _i2.indexOf('_ld.value = hizukeDake(o.leadDate)') >= 0, true);
+      eq('⑤ RTの編集画面が hizukeDake を通っている',
+         _i2.indexOf("rtSetVal(card,'leadDate', hizukeDake(o.leadDate))") >= 0, true);
+    }
+
     /* 決めごとの親の窓口そのもの */
     var _K = H.makeSandbox({}).box.OOS_SHORUI;
     eq('⑤ 親に料金の窓口がある（ryokinJotai）', typeof (_K && _K.ryokinJotai), 'function');

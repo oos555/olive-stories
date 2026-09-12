@@ -121,7 +121,12 @@ async function okuruNakami(order){
   code += H.cutVar(idx, 'PRODUCTS') + '\n';
   code += 'var GAS_URL = "x";\n';
   code += 'var orders = [];\n';
-  ['findProduct','findProductBySku','unitOfProduct','lineTotal','lineUnit','pdfNiSuruKa','pkgDocsIn','pkgOf','pkgOneLine','yukaImportOne']
+  /* ★2026-09-12 hizukeDake を足しました。
+     　お届け日（leadDate）はスプシを通ると時刻つきに化けるので、
+     　倉庫へ送る前に日付だけにそろえます。yukaImportOne がこれを呼びます。
+     ★入れ忘れると『受注Ａが発注書へ送る中身を取り出せた』が落ちます
+     　（実際に2026-09-12に落ちて、この見張りが止めてくれました）。 */
+  ['hizukeDake','findProduct','findProductBySku','unitOfProduct','lineTotal','lineUnit','pdfNiSuruKa','pkgDocsIn','pkgOf','pkgOneLine','yukaImportOne']
     .forEach(function(n){ code += H.cut(idx, n) + '\n'; });
   /* 画面まわりの身代わり（送る中身には関係しません） */
   code += 'function fetchOrderFresh(){ return Promise.resolve(null); }\n';
