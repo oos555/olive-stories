@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-27">
+<meta name="oos-version" content="2026-09-12-28">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -3042,7 +3042,7 @@ function pkgDocsIn(o){
   var _isB = (typeof isBasaraOrder==='function') ? isBasaraOrder(o) : false;
   var enc = (o && o.enclosedDoc) || (_isB ? 'なし' : '納品書兼請求書');
   if(enc && enc !== 'なし') enc.split(' ＋ ').forEach(function(x){ if(x) a.push(x); });
-  var _isRt = !!(o && (o.customerType==='rt' || o.customerType==='rtgc'));
+  var _isRt = !!(o && (OOS_KAKAKU.isRt(o.customerType)));
   if(o && o.includePamphlet !== false && !_isRt) a.push('パンフレット');
   return a;
 }
@@ -6632,7 +6632,7 @@ function rtbFacilities(){
     var cid = rtbCidOf(o);
     var rel = (o.status==='held' || o.status==='reserved' || (o.rtCut && o.rtCut.fac));
     if(!rel) return;
-    if(cid && o.customerType==='rt' && !map[cid]) map[cid] = rtmFacName(cid);
+    if(cid && OOS_KAKAKU.isType(o.customerType, 'rt') && !map[cid]) map[cid] = rtmFacName(cid);
     if(o.rtCut && o.rtCut.fac && !map[String(o.rtCut.fac)]) map[String(o.rtCut.fac)] = rtmFacName(o.rtCut.fac);
   });
   return map;
@@ -8484,7 +8484,7 @@ function docCheckTaisho(o){
 /* ══════════════════════════════════════════════════════════════════════
    ★2026-09-12 区分は【日本語】で保存されています（実データで確かめました）。
    　　"RT" 49件／"定価" 18件／"卸バサラスター" 11件／"卸②" 1件
-   　ところがここは o.customerType === 'rt' と英語で比べていたので、
+   　ところがここは OOS_KAKAKU.isType(o.customerType, 'rt') と英語で比べていたので、
    　RTの注文でも【いつも false】でした。
    　→ 決めごとの親（oos-kakaku.js の normalizeType）に直してもらいます。
    ★=== 'rt' の直接比べに戻さないでください。日本語の「RT」を取りこぼします。
@@ -9000,7 +9000,7 @@ async function yoyakuListAddOne(o){
   try{
     if(!o) return;
     if(o.status !== 'held' && o.status !== 'reserved') return;          // 待つものだけ
-    if(o.customerType === 'rt' || o.customerType === 'rtgc') return;    // RTは別タブ
+    if(OOS_KAKAKU.isRt(o.customerType)) return;    // RTは別タブ
     if(o.rtmOwned) return;
     if(o.yoyakuList && o.yoyakuList.at) return;                          // もう送ってある
     var items = (o.lines||[]).map(function(l){
@@ -9638,8 +9638,8 @@ function buildSlipHtml(o){
   // No.15 賞味期限：カップオイルを含む注文のときだけ表示（RT=8ヶ月／他=5ヶ月）
   var _hasCup = (o.lines||[]).some(function(l){ return (l.productName||'').indexOf('カップ')>=0; });
   if(_hasCup){
-    var _expM = (o.customerType==='rt') ? 8 : 5;
-    html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">🗓 賞味期限</span><div style="font-size:15px;color:#2b2a26;margin-top:3px;font-weight:700">'+_expM+'ヶ月'+(o.customerType==='rt'?'（RT）':'')+'</div></div>';
+    var _expM = (OOS_KAKAKU.isType(o.customerType, 'rt')) ? 8 : 5;
+    html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">🗓 賞味期限</span><div style="font-size:15px;color:#2b2a26;margin-top:3px;font-weight:700">'+_expM+'ヶ月'+(OOS_KAKAKU.isType(o.customerType, 'rt')?'（RT）':'')+'</div></div>';
   }
   // ⑦ ギフト包装用の紙袋：ふだんは倉庫で合うサイズを選択（確認不要）／赤シールは常に貼る／スタッフ指定があればそれを出す
   /* ★2026-08-25 ひろみさん指摘：ここは「ラッピング用に紙袋を使うか」の欄なのに、ただ「紙袋：なし」と出ると、
@@ -9665,7 +9665,7 @@ function buildSlipHtml(o){
   const encDoc = o.enclosedDoc || (_isBasara ? 'なし' : '納品書兼請求書');
   const pamph = (o.includePamphlet !== false);   // 人が編集で外したときは、その通り外す
   var _isGiftSlip = hasGift || (o.buyerName && _recip && o.buyerName !== _recip);
-  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(o.customerType==='rt'
+  html += '<div style="background:#eef2e3;border:1px solid #c9d3ad;border-radius:8px;padding:9px 13px;margin:10px 0"><span style="font-size:12px;font-weight:700;color:#4a5a24">📄 同梱書類</span><div style="font-size:14px;color:#2b2a26;margin-top:3px;font-weight:700">'+esc(encDoc)+(pamph?'　＋　パンフレット':'')+'</div>'+(OOS_KAKAKU.isType(o.customerType, 'rt')
     ? '<div style="margin-top:6px;background:#eef4f9;border:2px solid #1f4a6d;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#1f4a6d">🏨 RTのため、ギフトでも金額の入った書類（'+esc(encDoc)+'）を必ず入れてください</div>'
     : (_isGiftSlip?'<div style="margin-top:6px;background:#fcebeb;border:2px solid #dc2626;border-radius:6px;padding:6px 10px;font-size:13px;font-weight:700;color:#a32d2d">🎁 ギフトのため、金額の入った書類は入れないでください</div>':''))+'</div>';
   /* ★2026-08-19 ひろみさん指示：パンフレット以外の書類を入れるときは、

@@ -121,7 +121,7 @@
          表題（docName）も見ると、パンフレットだけのときに既定の「納品書」に化けて
          数字が出てしまいます（2026-09-11に気づきました）。★足さないでください */
       ? KIM.sujiGaNoruKa(_mei || o.enclosedDoc)
-      : (invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc');
+      : (invoiceNeedsAmount(docName) || KAK.isRt(o.customerType));
     /* ★2026-08-19 区分（定価・卸・バサラ等）のバッジは【書類に出さない】と決めました。
        ★この badge を title に足さないでください（社内の言葉がお客様の書類に出てしまいます）。
        ※変数だけ残っているのは、決めごとの目印としてです。 */
@@ -378,7 +378,7 @@
          表題（docName）も見ると、パンフレットだけのときに既定の「納品書」に化けて
          数字が出てしまいます（2026-09-11に気づきました）。★足さないでください */
       ? KIM.sujiGaNoruKa(o.enclosedDoc)
-      : (invoiceNeedsAmount(docName) || o.customerType === 'rt' || o.customerType === 'rtgc');
+      : (invoiceNeedsAmount(docName) || KAK.isRt(o.customerType));
     if (!withAmount) return out;
     (o.lines || []).forEach(function (l) {
       if (!l) return;   /* ★空の明細はとばす */

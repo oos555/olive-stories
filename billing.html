@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-07">
+<meta name="oos-version" content="2026-09-12-08">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -1075,7 +1075,7 @@ function priceForSku(sku, customerType){
 // 対象なら売上一覧では入金チェックせず「月次まとめ予定」と表示。入金チェックはまとめタブの発行済み一覧で1枚ごとに行う。
 function isMonthlyConsolidated(o){
   if(!o) return false;
-  if(o.customerType==='rt' || o.customerType==='rtgc') return true;
+  if(OOS_KAKAKU.isRt(o.customerType)) return true;
   if(typeof monthlyClients!=='undefined' && monthlyClients && monthlyClients.some(function(c){ return c && c.company && (o.client||'').indexOf(c.company) >= 0; })) return true;
   return false;
 }
@@ -1185,7 +1185,7 @@ function isSalesListTarget(o){ return salesExcludeReason(o) === ''; }
 //   受注Ａ → GASの「特別指示」列 → 売上Ｃ の o.note と渡ってくる。
 //   ★番号が読み取れないRTは、判定しない（まちがったお知らせを出さない側に倒す）。
 function isRtOrder(o){
-  return !!(o && (o.customerType === 'rt' || o.customerType === 'rtgc'
+  return !!(o && (OOS_KAKAKU.isRt(o.customerType)
     || /^RTG?-/.test(String(o.num || ''))));
 }
 function rtSlipNoOf(o){
@@ -1566,7 +1566,7 @@ function generateInvoiceDoc(orderId){
     const unitPrice = priceForSku(sku, effType);
     const openPrice = priceForSku(sku, 'general');
     const tax = taxRateForSku(sku);
-    const upgraded = (o.customerType==='wholesale1' && effType!==o.customerType); // 数量割引は卸①→卸②の箱数昇格だけ
+    const upgraded = (OOS_KAKAKU.isType(o.customerType, 'wholesale1') && effType!==o.customerType); // 数量割引は卸①→卸②の箱数昇格だけ
     return { name: l.productName+(upgraded?'（数量割引適用）':''), qty: totalQty, openPrice: openPrice, unitPrice: unitPrice, amount: unitPrice*totalQty, taxRate: tax };
   });
   const doc = buildInvoiceDocHtml({
@@ -3615,11 +3615,11 @@ function runRtMonthly(){
     return String(o.registeredAt||'').slice(0,7)===ym;
   });
   // RT（ホテル）＝全部まとめて1枚
-  var rtOrders = inMonth.filter(function(o){ return o.customerType==='rt'; })
+  var rtOrders = inMonth.filter(function(o){ return OOS_KAKAKU.isType(o.customerType, 'rt'); })
     .sort(function(a,b){ return String(a.registeredAt||'').localeCompare(String(b.registeredAt||'')); });
   // RTGC（ゴルフ）＝施設ごと
   var gcMap={}, gcOrder=[];
-  inMonth.filter(function(o){ return o.customerType==='rtgc'; })
+  inMonth.filter(function(o){ return OOS_KAKAKU.isType(o.customerType, 'rtgc'); })
     .sort(function(a,b){ return String(a.registeredAt||'').localeCompare(String(b.registeredAt||'')); })
     .forEach(function(o){ var fac=(o.recipientName||o.client||'（施設名なし）').trim(); if(!gcMap[fac]){ gcMap[fac]=[]; gcOrder.push(fac); } gcMap[fac].push(o); });
   var invoices=[];
@@ -3652,7 +3652,7 @@ function runRtMonthly(){
   });
   _rtMonthlyCtx = { ym:ym, invoices:invoices, rtCount:(rtOrders.length?1:0), gcCount:gcOrder.length,
                     loaded:_loaded, ymRtCount:_ymRt.length, machi:_machi,
-                    nosaiCount:(rtOrders.length + inMonth.filter(function(o){ return o.customerType==='rtgc'; }).length) };
+                    nosaiCount:(rtOrders.length + inMonth.filter(function(o){ return OOS_KAKAKU.isType(o.customerType, 'rtgc'); }).length) };
   renderRtMonthlyPreview();
   var pv=document.getElementById('rtmonthly-preview'); if(pv) pv.scrollIntoView({behavior:'smooth'});
 }

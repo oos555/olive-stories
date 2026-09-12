@@ -394,8 +394,17 @@ ok('⑩受注Ａ側も通常受注に変える（売上に出すため）',
 ok('⑩送った行はもう選べない（二重に送れない）',
   bodyOf(GAS, 'oosYoyakuListGo_').indexOf('cell.setDataValidation(null)') >= 0 &&
   bodyOf(GAS, 'oosYoyakuListGo_').indexOf('この行はもう送ってあります') >= 0);
-ok('⑩受注ＡからRTは送らない（RTは別タブ）',
-  bodyOf(IDX, 'yoyakuListAddOne').indexOf("o.customerType === 'rt' || o.customerType === 'rtgc'") >= 0);
+/* ★2026-09-12 ここも【まちがった書き方を固定していた見張り】でした。
+   前は「o.customerType === 'rt' || === 'rtgc' と書いてあること」を求めていました。
+   区分は日本語で保存されているので（"RT" 49件）、英語で直接くらべると
+   いつも false になり、RTの注文が止まりません。
+   → 決めごとの親（OOS_KAKAKU.isRt）に聞いているかを見ます。
+   　 親が日本語のRTを見分けることは tests/test_apps.js の⑤で確かめています。
+   ★文字さがしで書き方を固定しないでください。 */
+ok('⑩受注ＡからRTは送らない（RTは別タブ）・親に聞いている',
+  bodyOf(IDX, 'yoyakuListAddOne').indexOf('OOS_KAKAKU.isRt(o.customerType)') >= 0);
+ok('⑩英語で直接くらべる書き方に戻っていない',
+  bodyOf(IDX, 'yoyakuListAddOne').indexOf("o.customerType === 'rt'") < 0);
 ok('⑩取り置き・予約を登録したら、その場で送る',
   IDX.indexOf("if(recordType==='held' || recordType==='reserved'){") >= 0 &&
   IDX.indexOf('yoyakuListAddOne(o)') >= 0);

@@ -64,6 +64,31 @@
   };
   function normalizeType(v) { return CODE_OF[v] || v || 'general'; }
 
+  /* ══════════════════════════════════════════════════════════════════
+     🏷 区分の見分けは、かならずここを通す　★2026-09-12
+     ──────────────────────────────────────────────────────────────────
+     ひろみさん：「なぜ次から次に残っているもの、消えるものが出てくるの？
+     　　　　　　　張りぼてすぎないか？」
+
+     注文に入っている区分は【日本語】です（2026-09-12 実データで確認）。
+     　"RT" 49件／"定価" 18件／"卸バサラスター" 11件／"卸②" 1件
+     ところがアプリの中では o.customerType === 'rt' と【英語】でくらべている
+     ところが34か所あり、どれも いつも false になっていました。
+     そのせいで、RTの書類が正しい道を通らない・賞味期限が変わる、などが
+     起きていました。
+
+     ★これからは、区分を見分けるときは かならず この窓口を通してください。
+     　・isType(値, 'rt')　… その区分か
+     　・isRt(値)　　　　… RT か RTGC か（この2つはよく一緒に扱います）
+     ★=== 'rt' の直接くらべを新しく書かないでください。
+     見張り：tests/test_apps.js の ⑤
+     ══════════════════════════════════════════════════════════════════ */
+  function isType(v, code) { return normalizeType(v) === String(code); }
+  function isRt(v) {
+    var t = normalizeType(v);
+    return (t === 'rt' || t === 'rtgc');
+  }
+
   /* 卸①が6箱以上なら卸②へ */
   function effectiveCustomerType(customerType, boxes) {
     var t = normalizeType(customerType);
@@ -121,6 +146,8 @@
     BULK_UPGRADE_BOXES: BULK_UPGRADE_BOXES,
     PRICE_KEY: PRICE_KEY,
     normalizeType: normalizeType,
+    isType: isType,
+    isRt: isRt,
     effectiveCustomerType: effectiveCustomerType,
     lineTierType: lineTierType,
     priceForSku: priceForSku,

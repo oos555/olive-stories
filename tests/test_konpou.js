@@ -78,6 +78,12 @@ has('④倉庫Ｄも同じ文言', H.cut(pick,'pkgTableHtmlPD'), 'ふつうの�
 function box(){
   const b = { JSON, String, Number, Array, Object, esc:function(s){ return String(s==null?'':s); } };
   const ctx = vm.createContext(b);
+  /* ★2026-09-12 単価の親（oos-kakaku.js）を砂場にも入れます。
+     　区分（定価・卸・RT…）は日本語で保存されているので、
+     　見分けるときは親の isRt / isType を通します。
+     　入れないと「OOS_KAKAKU is not defined」で止まります。
+     ★この行を消さないでください。 */
+  vm.runInContext(H.read('oos-kakaku.js'), ctx);
   ['pkgDocsIn','pkgDocsOut','pkgOf','pkgOneLine','pkgTableHtml'].forEach(function(n){ vm.runInContext(H.cut(idx, n), ctx); });
   vm.runInContext("var PKG_ALLDOCS = ['納品書','請求書','領収書','納品書兼請求書','納品書兼領収書','RT発注伝票＋納品書','パンフレット'];", ctx);
   return b;

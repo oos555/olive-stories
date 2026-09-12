@@ -69,6 +69,12 @@ function makeBox(){
   /* ★2026-09-04 集約：rtbFacRev（金額）・rtbSetDerived（緑の内訳メモ）・rtmPrice（統合マスタNの単価）も本物のまま動かす */
   box.rtPriceOf = function(p){ return ({ORG500:3800, MEM250:3800, CHF100:3200, YS100:8000})[p&&p.sku] || 0; };
   const ctx = vm.createContext(box);
+  /* ★2026-09-12 単価の親（oos-kakaku.js）を砂場にも入れます。
+     　区分（定価・卸・RT…）は日本語で保存されているので、
+     　見分けるときは親の isRt / isType を通します。
+     　入れないと「OOS_KAKAKU is not defined」で止まります。
+     ★この行を消さないでください。 */
+  vm.runInContext(H.read('oos-kakaku.js'), ctx);
   ['lineTotal','unitOfProduct','lineUnit','rtbCidOf','rtbSkuOf','rtbUnit','rtbProdName','rtbFacilities','rtbData','rtbFacSkus','rtbTotals','rtbFacDone','rtbFacRev','rtbSetDerived','rtmPrice','rtbLedgerCut','rtbLedgerAdd','rtSlipAutoCut']
     .forEach(function(name){ vm.runInContext(H.cut(idx, name), ctx); });
   return box;

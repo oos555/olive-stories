@@ -381,7 +381,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-12-14">
+<meta name="oos-version" content="2026-09-12-15">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -494,7 +494,7 @@ function pkgTableHtmlPD(o){
   var _isB = (typeof isBasaraOrder==='function') ? isBasaraOrder(o) : false;
   var enc = (o && o.enclosedDoc) || (_isB ? 'なし' : '納品書兼請求書');
   if(enc && enc !== 'なし') String(enc).split(' ＋ ').forEach(function(x){ if(x) ins.push(x); });
-  var _isRt = !!(o && (o.customerType==='rt' || o.customerType==='rtgc'));
+  var _isRt = !!(o && (OOS_KAKAKU.isRt(o.customerType)));
   if(o && o.includePamphlet !== false && !_isRt) ins.push('パンフレット');
   var out = PKG_ALLDOCS_PD.filter(function(d){ return ins.indexOf(d) < 0; });
   var docHtml = ins.length
@@ -1712,7 +1712,7 @@ function renderAlreadyShipped(){
 }
 
 function leadBandHtml(o){
-  const isRt = (o.customerType === 'rt' || o.customerType === 'rtgc'); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
+  const isRt = (OOS_KAKAKU.isRt(o.customerType)); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
   const amNote = isRt ? '<div class="lb-sub" style="font-weight:600;margin-top:6px;font-size:13px;line-height:1.5">🕐 できるだけ午前中着でお願いします<br><span style="font-size:12px">（難しい時は午後着でもOKです）</span></div>' : '';
   if(o.leadType==='urgent'){
     return '<div class="lead-band lb-urgent"><div class="lb-title">⚡ 急ぎ</div><div class="lb-sub">翌営業日までに発送してください</div>'+amNote+'</div>';
@@ -1730,18 +1730,18 @@ function leadBandHtml(o){
   return '<div class="lead-band lb-normal"><div class="lb-title">📦 通常</div><div class="lb-sub">出荷依頼書が届いた日を1日目として数え、1週間以内にお客様のお手元に届くように発送してください</div>'+amNote+'</div>';
 }
 function customerTypePillHtml(o){
-  if(o.customerType==='rt') return '<span class="ctype-pill ctype-rt">🏨 卸（ホテル・RT）</span>';
-  if(o.customerType==='rtgc') return '<span class="ctype-pill ctype-rtgc">⛳ 卸（ゴルフ・RTGC）</span>';
-  if(o.customerType==='wholesale1') return '<span class="ctype-pill ctype-w1">🏪 卸①（販売店）</span>';
-  if(o.customerType==='wholesale2') return '<span class="ctype-pill ctype-w2">🏪 卸②（販売店）</span>';
-  if(o.customerType==='basara') return '<span class="ctype-pill ctype-w2">🏪 卸バサラスター</span>';
-  if(o.customerType==='special') return '<span class="ctype-pill ctype-w2">💠 特別提供価格</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'rt')) return '<span class="ctype-pill ctype-rt">🏨 卸（ホテル・RT）</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'rtgc')) return '<span class="ctype-pill ctype-rtgc">⛳ 卸（ゴルフ・RTGC）</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'wholesale1')) return '<span class="ctype-pill ctype-w1">🏪 卸①（販売店）</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'wholesale2')) return '<span class="ctype-pill ctype-w2">🏪 卸②（販売店）</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'basara')) return '<span class="ctype-pill ctype-w2">🏪 卸バサラスター</span>';
+  if(OOS_KAKAKU.isType(o.customerType, 'special')) return '<span class="ctype-pill ctype-w2">💠 特別提供価格</span>';
   return '';
 }
 function renderOrder(){
   if(isDocPreviewMode()){ renderDocPreview(); return; }
   const o = currentOrder;
-  const isRt = (o.customerType === 'rt' || o.customerType === 'rtgc'); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
+  const isRt = (OOS_KAKAKU.isRt(o.customerType)); // RTとRTGC(ゴルフ)は倉庫の扱い完全に同じ（2026-07-28 中村様指示：伝票＋納品書必須・できる範囲で午前着）
   const hasGift = (o.lines||[]).some(l=>l.giftType==='gift');
   const orderHasNoshi = hasNoshi(o);
   let html = '';
