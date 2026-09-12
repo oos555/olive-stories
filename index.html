@@ -416,7 +416,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-34">
+<meta name="oos-version" content="2026-09-12-35">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -11679,6 +11679,20 @@ async function nouhinAttachToOrder(o, shoruiMei){
       /* ★2026-09-12 写し（nouhinDocs／nouhinDocUrl）はやめました。親は発注書のV列だけです。
          　貼ったあとは、発注書を読み直して札を出し直します。 */
       o.nouhinDocNg = '';                 /* ★貼れたので、前の理由は消します */
+      /* ══════════════════════════════════════════════════════════════
+         💰 出した書類の【合計（税込）】を、この注文に残します。
+         ──────────────────────────────────────────────────────────────
+         これは「どこかにある事実の写し」ではありません。
+         その書類を出したときに、いくら請求したかという【事実そのもの】です。
+         本部管理専用ゆかスプシの「請求書発行」タブのJ列（請求書を出した人の一覧）に、
+         金額として出ます。ここが空だと、いくら請求したのか分かりません。
+         ★この行を消さないでください。一覧の金額が空になります。
+         ══════════════════════════════════════════════════════════════ */
+      try{
+        var _sh = OOS_NOUHIN.build(o, nouhinDeps(), _mei);
+        var _g = String(_sh || '').match(/ご請求金額（税込）<\/span><span class="amt">([^<]*)</);
+        if(_g) o.orderTotal = parseInt(String(_g[1]).replace(/[^0-9]/g, ''), 10);
+      }catch(_eg){ if(typeof oosShippai==='function') oosShippai('請求した金額を残すところ', _eg); }
       if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
       await docVretsuYomu(true);
       if(typeof renderList==='function') renderList();
