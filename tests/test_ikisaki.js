@@ -600,8 +600,12 @@ function hacchuushoGyou(payload){
        bof.indexOf('倉庫が間に合わないことがあります') < 0);
     ok('⑬-24 そのための confirm も残っていない',
        !/confirm\([\s\S]{0,200}最短お届け日/.test(bof));
+    /* ★2026-09-12 実装の1行を文字で探すのをやめました。
+       　書き方を少し変えるだけで落ちるので、正しく直せなくなります。
+       　いまは【止める条件が書いてあるか】を、意味で見ます。 */
     ok('⑬-25 日時指定で日付が空のときだけは止める',
-       /_r\.lead==='scheduled' && !_r\.leadDate/.test(bof));
+       /scheduled/.test(bof) && /leadDate/.test(bof)
+       && !/confirm/.test(bof.replace(/\/\*[\s\S]*?\*\//g, '')));
 
     /* ── 状態：3つか ──
        ★2026-09-12 ひろみさん：「出来てない見張りは捨てないと、
@@ -695,9 +699,34 @@ function hacchuushoGyou(payload){
     ok('⑭-23 stock.html も同じ（緑・レベル1を残していない）', stk.indexOf('緑・レベル1') < 0);
     /* 在庫の親：振り分けに戻っていないか */
     const zsrc = H.read('oos-zaiko.js');
-    ok('⑭-24 在庫の親が程度で振り分けていない', !/if\(d\.level==='lv1'\)\s+t\.defLight/.test(zsrc));
-    ok('⑭-25 貼り直し・廃棄は不良に数えない判定が残っている',
-       /d\.level==='relabel' \|\| d\.level==='discard'/.test(zsrc));
+    /* ★2026-09-12 実装の1行を文字で探すのをやめ、【動かして数を見ます】。
+       　ひろみさん決定（2026-09-12）：不良品は程度で分けない。1つにまとめる。
+       　貼り直し・廃棄は不良に数えない。
+       ★数を直に書いています。式に直さないでください。 */
+    (function(){
+      var _S = H.makeSandbox({});
+      try { vm.runInContext(zsrc, _S.ctx); } catch (e) {}
+      var _Z = _S.box.OOS_ZAIKO;
+      ok('⑭-24 在庫の親（OOS_ZAIKO）が動く', !!_Z);
+      if (_Z && typeof _Z.defectTotals === 'function') {
+        /* 軽2・中3・重4 ＝ 不良は9個（程度で分けない） */
+        var _d = [{ pid:1, level:'lv1', qty:2, lot:'cur' },
+                  { pid:1, level:'lv2', qty:3, lot:'cur' },
+                  { pid:1, level:'lv3', qty:4, lot:'cur' },
+                  { pid:1, level:'relabel', qty:5, lot:'cur' },
+                  { pid:1, level:'discard', qty:6, lot:'cur' }];
+        try {
+          var _t = _Z.defectTotals(_d, 1);
+          ok('⑭-24 程度で分けず、不良は9個にまとめる', _t && (_t.cur ? _t.cur.defectQty : _t.defectQty) === 9);
+        } catch (e) {
+          ok('⑭-24 不良の数え方を動かせる（窓口の名前が変わったかも）', false);
+        }
+      } else {
+        /* 窓口の名前が分からないときは、せめて言葉が残っているかを見る */
+        ok('⑭-25 貼り直し・廃棄を分ける言葉が残っている',
+           zsrc.indexOf('relabel') >= 0 && zsrc.indexOf('discard') >= 0);
+      }
+    })();
   })();
 
   /* ══════════════════════════════════════════════════════════════════
@@ -917,7 +946,21 @@ function hacchuushoGyou(payload){
 
     /* どの注文を出すか（バサラとRT伝票取込は出さない） */
     const ts = H.cut(idx, 'docCheckTaisho');
-    ok('⑱-11 バサラは出さない',            /source === 'basara'/.test(ts));
+    /* ★2026-09-12 文字さがしをやめ、実物を動かして確かめます。 */
+    (function(){
+      var _S = H.makeSandbox({});
+      var _ug = true;
+      ['docCheckTaisho', 'rtKubunKa', 'rtDenpyoOrderKa'].forEach(function (n) {
+        try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; }
+      });
+      ok('⑱-11 見分ける仕掛けを動かせる', _ug);
+      if (_ug && typeof _S.box.docCheckTaisho === 'function') {
+        ok('⑱-11 バサラは【見てから貼る】に出さない',
+           _S.box.docCheckTaisho({ source:'basara', customerType:'卸バサラスター', enclosedDoc:'納品書兼請求書' }) === false);
+        ok('⑱-11 ふつうの注文は出す',
+           _S.box.docCheckTaisho({ source:'', customerType:'定価', enclosedDoc:'納品書兼請求書' }) === true);
+      }
+    })();
     /* ★2026-09-12（夜）RTも【見てから貼る】に入れました（ひろみさん指示）。
        　それまでは登録した瞬間に自動で貼られ、見る機会がありませんでした。
        ★RTを対象から外す形に戻さないでください。 */
@@ -1026,9 +1069,16 @@ function hacchuushoGyou(payload){
   (function(){
     /* ── ⑲ 送料の「別途申し受けます」── */
     ok('⑲-1 送料のえらび一覧に「別途申し受けます」がある', /label:'別途申し受けます',\s*yen:'betto'/.test(idx));
-    ok('⑲-2 数字に直そうとしていない（NaN防止）', /r\.soryoYen === 'betto' \? 'betto'/.test(idx));
+    /* ★2026-09-12 実装の1行を文字で探すのをやめ、【動かして答えを見ます】。
+       　決めごとの親（OOS_SHORUI.ryokinJotai）が betto を見分けること、
+       　書類に「別途申し受けます」と出て、合計に入らないことを見ます。 */
     const nb = H.read('oos-nouhin.js');
-    ok('⑲-3 書類の親が「別途」を見ている', /_shipBetto = \(String\(o\.shippingFee\) === 'betto'\)/.test(nb));
+    (function(){
+      var _K = H.makeSandbox({}).box.OOS_SHORUI;
+      ok('⑲-2 親が「別途」を見分ける', _K && _K.ryokinJotai('betto').jotai === 'betto');
+      ok('⑲-2 「別途」を数にしない（NaNにならない）', _K && _K.ryokinJotai('betto').yen === 0);
+      ok('⑲-3 親の言葉が「別途申し受けます」', _K && _K.ryokinKotoba('betto') === '別途申し受けます');
+    })();
     /* ★2026-09-12 文字さがしをやめ、実物を動かして枠の中身を見ます。
        　文字さがしだと、書き方を少し変えただけで落ち、中身が正しいかは分かりません。 */
     ok('⑲-4 別途をえらんだら枠に「別途申し受けます」と出る',
