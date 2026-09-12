@@ -487,8 +487,12 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-12-01">
+<meta name="oos-version" content="2026-09-12-02">
 <script src="oos-version.js"></script>
+<!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
+     名簿を読めなかったとき、前は黙って古い名簿で動いていました。
+     このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
+<script src="oos-meibo.js?v=20260912a"></script>
 <!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと輸入・原価Ｅが同じ並びになるように、
      ここ1か所だけに書いています。★消さないでください（消すと並びがバラバラに戻ります） -->
 <script src="oos-kubun.js"></script>
@@ -1457,16 +1461,31 @@ function applyLoadedProducts(products, extraFields){
 async function initializeProducts(){
   const cached = loadProductsFromCache();
   if(cached) applyLoadedProducts(cached.products, cached.extraFields);
+  /* ══════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん：「0になったり、抜けてますとか言ってくるやつ」
+     　　　　　　　　　　　　「徹底的に調べて　修正ゲームはやめたい」
+     名簿が読めなかったとき、前は console に書くだけで【黙って】いました。
+     アプリの中の古い名簿（受注Ａは43件／GASの本物は55件）で動き続け、
+     あとから「単価が登録されていない商品があります」と言われる原因でした。
+     → どこから読んだかを、決めごとの親（oos-meibo.js）に知らせます。
+     　 親が、必要なときだけ画面に赤い帯を出します。
+     ★この知らせ（OOS_MEIBO.shirase）を消さないでください。また黙ります。 */
+  var _meiboDede = (cached) ? 'cache' : 'naka';
+  var _meiboRiyu = '';
   try{
     const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
     const data = await res.json();
-    if(data && data.status==='ok' && Array.isArray(data.products) && data.products.length){
+    if(data && data.status === 'ok' && Array.isArray(data.products) && data.products.length){
       saveProductsToCache(data.products, data.extraFields);
       applyLoadedProducts(data.products, data.extraFields);
+      _meiboDede = 'gas';
+    } else {
+      _meiboRiyu = 'サーバーが名簿を返しませんでした';
     }
   }catch(e){
-    // 通信失敗時はキャッシュ、またはハードコードの初期値のまま動作を続ける
+    _meiboRiyu = '通信できませんでした';
   }
+  try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
 }
 
 function productGroups(){

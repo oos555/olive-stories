@@ -410,8 +410,12 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-21">
+<meta name="oos-version" content="2026-09-12-22">
 <script src="oos-version.js"></script>
+<!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
+     名簿を読めなかったとき、前は黙って古い名簿で動いていました。
+     このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
+<script src="oos-meibo.js?v=20260912a"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -2492,16 +2496,31 @@ async function initializeProducts(){
   if(cache && cache.products && cache.products.length){
     applyLoadedProducts(cache.products, cache.extraFields);
   }
+  /* ══════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん：「0になったり、抜けてますとか言ってくるやつ」
+     　　　　　　　　　　　　「徹底的に調べて　修正ゲームはやめたい」
+     名簿が読めなかったとき、前は console に書くだけで【黙って】いました。
+     アプリの中の古い名簿（受注Ａは43件／GASの本物は55件）で動き続け、
+     あとから「単価が登録されていない商品があります」と言われる原因でした。
+     → どこから読んだかを、決めごとの親（oos-meibo.js）に知らせます。
+     　 親が、必要なときだけ画面に赤い帯を出します。
+     ★この知らせ（OOS_MEIBO.shirase）を消さないでください。また黙ります。 */
+  var _meiboDede = (cache && cache.products && cache.products.length) ? 'cache' : 'naka';
+  var _meiboRiyu = '';
   try{
     const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
     const data = await res.json();
     if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
       saveProductsToCache(data.products, data.extraFields);
       applyLoadedProducts(data.products, data.extraFields);
+      _meiboDede = 'gas';
+    } else {
+      _meiboRiyu = 'サーバーが名簿を返しませんでした';
     }
   }catch(e){
-    console.warn('商品マスタの取得に失敗、フォールバックで継続', e);
+    _meiboRiyu = '通信できませんでした';
   }
+  try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
 }
 
 // ── 状態 ────────────────────────────────────────────

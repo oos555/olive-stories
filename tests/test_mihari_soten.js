@@ -71,10 +71,52 @@ const KNOWN_WATCHERS = [
   { file: 'hiromi.html', needle: 'bdVerify',                label: 'ひろみメモ：伝言板の送信後の保存照合' },
   { file: 'yuka.html',   needle: 'bdVerify',                label: 'ゆかメモ：伝言板の送信後の保存照合' },
   { file: 'oos-version.js', needle: 'reloadFresh',          label: '版の見張り：古い版を自動で読み直す仕組み' },
+  /* ★2026-09-12 ひろみさん：「0になったり、抜けてますとか言ってくるやつ」
+     　　　　　　　　　　　　「徹底的に調べて　修正ゲームはやめたい」
+     商品名簿は GAS の【loadProducts】という窓口だけが返します（2026-09-12実測55件）。
+     各アプリの中には古い名簿が焼き付いていて（受注Ａは43件）、
+     読めなかったときは【黙って】その古い名簿で動き続けていました。
+     足りない12件（紙袋・オーガンジー・注ぎ口・ギフトボックス2種・
+     モンテ物産オイル・ザクロソース・セット4種）は単価が引けず、
+     あとから「単価が登録されていない商品があります」と言われる原因でした。
+     ★7つのアプリすべてが、出どころを親に知らせること。消すとまた黙ります。 */
+  { file: 'oos-meibo.js',   needle: 'function shirase',    label: '名簿の見張り：出どころを知らせる親' },
+  { file: 'index.html',     needle: 'OOS_MEIBO.shirase',   label: '受注Ａ：名簿の出どころを親に知らせる' },
+  { file: 'billing.html',   needle: 'OOS_MEIBO.shirase',   label: '請求Ｃ：名簿の出どころを親に知らせる' },
+  { file: 'mitsumori.html', needle: 'OOS_MEIBO.shirase',   label: '見積М：名簿の出どころを親に知らせる' },
+  { file: 'master.html',    needle: 'OOS_MEIBO.shirase',   label: '統合マスタＮ：名簿の出どころを親に知らせる' },
+  { file: 'pickup.html',    needle: 'OOS_MEIBO.shirase',   label: '倉庫Ｄ：名簿の出どころを親に知らせる' },
+  { file: 'stock.html',     needle: 'OOS_MEIBO.shirase',   label: '在庫Ｂ：名簿の出どころを親に知らせる' },
+  { file: 'import.html',    needle: 'OOS_MEIBO.shirase',   label: '輸入Ｅ：名簿の出どころを親に知らせる' },
 ];
+/* ★2026-09-12 ここを強くしました。ひろみさん：
+   「見張りを入れる前に見張りを更新するか、古い見張りを捨てて！！また同じことが起きる」
+   ──────────────────────────────────────────────────────────────
+   前は、ファイルの中に文字があるかだけを見ていました。
+   そのため【注記（コメント）に関数名を書いただけ】で通ってしまい、
+   本体を外しても落ちませんでした（2026-09-12 に実際に起きました）。
+   → コメントを落としてから見ます。これで、本物のコードだけを見ます。
+   ★komentoNashi3 を外さないでください。外すと、また注記で通ります。 */
+var SOTEN_CB = new RegExp("/" + "\\*[\\s\\S]*?\\*" + "/", "g");   /* かたまりのコメント */
+var SOTEN_CL = new RegExp("//[^" + String.fromCharCode(10) + "]*", "g");                 /* // のコメント */
+var SOTEN_HC = new RegExp("<!--[\\s\\S]*?-->", "g");                        /* HTMLのコメント */
+function komentoNashi3(s){
+  return String(s).replace(SOTEN_CB, "").replace(SOTEN_HC, "").replace(SOTEN_CL, "");
+}
+/* 名前が「そこで終わっているか」を見る。後ろに英数字や _ が続いていたら別ものです。
+   （要素id のように - を含む名前も、そのまま探せます） */
+function tangoDeAruKa(src, needle){
+  var esc = String(needle).replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+  return new RegExp(esc + "(?![A-Za-z0-9_])").test(String(src));
+}
 KNOWN_WATCHERS.forEach(function(w){
-  const src = H.read(w.file);
-  ok('③' + w.label + '（' + w.file + ' 内 ' + w.needle + '）が存在する', src.indexOf(w.needle) >= 0);
+  const src = komentoNashi3(H.read(w.file));
+  /* ★2026-09-12 ただの indexOf をやめました。
+     　名前の後ろに文字が続いていたら【別もの】とみなします。
+     　例：oosGenkanSelfCheck を oosGenkanSelfCheck_KESHITA に変えても、
+     　　　前は部分一致で通ってしまい、見張りが落ちませんでした。
+     ★この tangoDeAruKa を外さないでください。 */
+  ok('③' + w.label + '（' + w.file + ' 内 ' + w.needle + '）が存在する', tangoDeAruKa(src, w.needle));
 });
 
 /* ── ④ 「もう使わない」と決めた危険な画面が生き返っていないか ──
@@ -223,6 +265,19 @@ KNOWN_WATCHERS.forEach(function(w){
     });
     ok("⑤-B " + f + " に想定外の関数の重なりが無い（見つかった：" + dup.join("、") + "）",
        dup.length === 0);
+  });
+}
+
+/* ── ③-B 7つのアプリが、名簿の親（oos-meibo.js）を読み込んでいるか ──
+   ★知らせる1行を書いても、親を読み込んでいなければ何も起きません。
+   　2026-09-12 に実際、コメントの中の「oos-meibo.js」に引っかかって
+   　script タグを入れ忘れかけました。両方そろって初めて動きます。 */
+{
+  ['index.html','billing.html','mitsumori.html','master.html',
+   'pickup.html','stock.html','import.html'].forEach(function(f){
+    var src = komentoNashi3(H.read(f));
+    ok('③-B ' + f + ' が名簿の親 oos-meibo.js を読み込んでいる',
+       src.indexOf('<script src="oos-meibo.js') >= 0);
   });
 }
 
