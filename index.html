@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-25">
+<meta name="oos-version" content="2026-09-12-26">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -1447,6 +1447,15 @@ body{background:#fff}
 
 <!-- 受注一覧 -->
 <div id="panel-list" class="panel">
+  <!-- ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「何もおきない」
+       「PDFをスプシに貼る前に確認する」を受注一覧で押しても、何も出ませんでした。
+       書類を見る枠（doc-check）が【新規受注登録タブの中だけ】にあったためです。
+       押した人は受注一覧タブにいるので、別のタブの中に書き込んでいて見えませんでした。
+       → 受注一覧タブにも枠を置きます。開いているタブのほうに出します。
+       ★この枠を消さないでください。消すと、また「何も起きない」に戻ります。
+       見張り：tests/test_apps.js の ⑤ -->
+  <div id="doc-check-list" style="display:none;margin-bottom:10px"></div>
   <div id="overdue-alert-area"></div>
   <div style="margin-bottom:1rem">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -8599,8 +8608,27 @@ function docCheckStart(list){
   });
   docCheckNext();
 }
+/* ★2026-09-12 書類を見る枠は【2つ】あります。
+   　・新規受注登録タブ … doc-check
+   　・受注一覧タブ　　 … doc-check-list
+   押した人が見ているタブのほうに出さないと、何も起きないように見えます。
+   ★片方だけに戻さないでください（2026-09-12に実際そうなっていました）。 */
+function docCheckBako(){
+  var list = document.getElementById('panel-list');
+  var hiraiteru = !!(list && list.className && list.className.indexOf('active') >= 0);
+  if(hiraiteru){
+    var b2 = document.getElementById('doc-check-list');
+    if(b2) return b2;
+  }
+  return document.getElementById('doc-check');
+}
 function docCheckNext(){
-  var box = document.getElementById('doc-check');
+  var box = docCheckBako();
+  /* ★前に開いていたほうの枠が残っていたら、消しておきます（2つ出ないように） */
+  ['doc-check','doc-check-list'].forEach(function(id){
+    var e = document.getElementById(id);
+    if(e && e !== box){ e.style.display = 'none'; e.innerHTML = ''; }
+  });
   if(!box) return;
   if(!docCheckQueue.length){ box.style.display = 'none'; box.innerHTML = ''; return; }
   var _q = docCheckQueue[0];

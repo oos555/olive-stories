@@ -596,6 +596,52 @@ try{
          _i2.indexOf("rtSetVal(card,'leadDate', hizukeDake(o.leadDate))") >= 0, true);
     }
 
+    /* ══════════════════════════════════════════════════════════════════
+       📄 「PDFをスプシに貼る前に確認する」が受注一覧でも効くか　★2026-09-12
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん：「ここで書類をひらくこともできない」「何もおきない」
+       原因：書類を見る枠が【新規受注登録タブの中だけ】にあり、
+       　　　受注一覧タブから押すと、別のタブの中に書き込んでいて見えなかった。
+       → 枠を2つにして、開いているタブのほうに出します。
+       ★片方だけに戻さないでください。また「何も起きない」に戻ります。
+       ══════════════════════════════════════════════════════════════════ */
+    {
+      var _i3 = H.read('index.html');
+      eq('⑤ 受注一覧タブにも書類を見る枠がある',
+         _i3.indexOf('id="doc-check-list"') >= 0, true);
+      eq('⑤ 新規受注登録タブにも書類を見る枠がある',
+         _i3.indexOf('id="doc-check"') >= 0, true);
+      eq('⑤ 開いているタブの枠をえらぶ仕掛けがある',
+         _i3.indexOf('function docCheckBako') >= 0, true);
+      /* ★本物を動かして、えらばれる枠を見ます（文字さがしだけにしない） */
+      var _mkDoc = function (listActive) {
+        var el = { 'panel-list': { className: listActive ? 'panel active' : 'panel' },
+                   'doc-check': { id: 'doc-check', style: {}, innerHTML: '' },
+                   'doc-check-list': { id: 'doc-check-list', style: {}, innerHTML: '' } };
+        return { getElementById: function (id) { return el[id] || null; } };
+      };
+      var _erabu = function (listActive) {
+        var _b = { document: _mkDoc(listActive), console: console };
+        _b.window = _b; _b.globalThis = _b;
+        var _c = vm.createContext(_b);
+        vm.runInContext(H.cut(_i3, 'docCheckBako'), _c);
+        var r = _b.docCheckBako();
+        return r ? r.id : '';
+      };
+      eq('⑤ 受注一覧タブを開いていたら doc-check-list に出す', _erabu(true),  'doc-check-list');
+      eq('⑤ 新規受注登録タブを開いていたら doc-check に出す',  _erabu(false), 'doc-check');
+      /* ★仕掛けがあるだけでは足りません。docCheckNext が本当にそれを
+         　使っているかを見ます（2026-09-12：ここを見ていなかったので、
+         　わざと元に戻しても落ちませんでした）。 */
+      var _dcn = '';
+      try { _dcn = H.cut(_i3, 'docCheckNext'); } catch (e) { _dcn = ''; }
+      eq('⑤ docCheckNext を切り出せる', _dcn.length > 0, true);
+      eq('⑤ docCheckNext が開いているタブの枠を使っている',
+         _dcn.indexOf('docCheckBako()') >= 0, true);
+      eq('⑤ docCheckNext が登録タブの枠を直に見ていない',
+         _dcn.indexOf("getElementById('doc-check')") >= 0, false);
+    }
+
     /* 決めごとの親の窓口そのもの */
     var _K = H.makeSandbox({}).box.OOS_SHORUI;
     eq('⑤ 親に料金の窓口がある（ryokinJotai）', typeof (_K && _K.ryokinJotai), 'function');
