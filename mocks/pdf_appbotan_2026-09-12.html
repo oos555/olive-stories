@@ -1,0 +1,78 @@
+<meta charset="utf-8">
+<title>アプリのボタンで作るPDF（受注Ａと同じ手順）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="../oos-zei.js"></script>
+<script src="../oos-kakaku.js"></script>
+<script src="../oos-shorui-kimari.js"></script>
+<script src="../oos-doc.js"></script>
+<script src="../oos-nouhin.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;
+       margin:0;padding:10px;color:#2b2a26;font-size:14px;background:#fff}
+  #log{font-size:12.5px;line-height:1.8;white-space:pre-wrap}
+</style>
+<div id="log">作っています…</div>
+<div id="b64" style="display:none"></div>
+<script>
+var PRODUCTS = [
+  { id:1, sku:'ORG500', name:'オルガニック 500ml', boxQty:12, group:'オルガニック' },
+  { id:2, sku:'PRI500', name:'プリモフルット 500ml', boxQty:12, group:'プリモフルット' },
+  { id:3, sku:'MEM250', name:'メメジック 250ml', boxQty:20, group:'メメジック' }
+];
+var PRICE_MASTER = [
+  { sku:'ORG500', priceGeneral:2125 },
+  { sku:'PRI500', priceGeneral:2125 },
+  { sku:'MEM250', priceGeneral:1300 }
+];
+var o = {
+  id:'x', num:'TK-20260912-5577', client:'中村先生', customerType:'general',
+  recipientName:'中村先生', zip:'650-0022', addr:'兵庫県神戸市中央区元町通4丁目', tel:'078-000-0000',
+  enclosedDoc:'納品書兼請求書', shippingFee:880, warehouseFee:0,
+  lines:[
+    { productId:1, productName:'オルガニック 500ml', sku:'ORG500', bottles:12, boxes:0, boxQty:12 },
+    { productId:2, productName:'プリモフルット 500ml', sku:'PRI500', bottles:1, boxes:0, boxQty:12 },
+    { productId:3, productName:'メメジック 250ml',   sku:'MEM250', bottles:1, boxes:0, boxQty:20 }
+  ]
+};
+
+function log(s){ document.getElementById('log').textContent += '\n' + s; }
+
+/* ★ここから下は、受注Ａ（index.html）の nouhinBuildPdfB64 とまったく同じ手順です。 */
+(async function(){
+  document.getElementById('log').textContent = '道具： html2canvas=' + (!!window.html2canvas) + ' ／ jspdf=' + (!!window.jspdf);
+  if(!(window.html2canvas && window.jspdf)){ log('★ 道具が読めませんでした'); return; }
+
+  var html = OOS_NOUHIN.build(o, { products:PRODUCTS, priceMaster:PRICE_MASTER, defaults:{} }, '納品書兼請求書');
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:820px';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  try{
+    var target = holder.querySelector('.invoice-doc') || holder;
+    log('書類の幅 … ' + Math.round(target.getBoundingClientRect().width) + ' px');
+    var canvas = await html2canvas(target, { scale:2, backgroundColor:'#ffffff',
+      windowWidth: target.scrollWidth, windowHeight: target.scrollHeight });
+    log('描いた絵 … 横 ' + canvas.width + ' × 縦 ' + canvas.height + '（実寸の2倍）');
+    var img = canvas.toDataURL('image/jpeg', 0.92);
+    var png = document.createElement('div'); png.id='png'; png.style.display='none';
+    png.textContent = canvas.toDataURL('image/png').split(',')[1]; document.body.appendChild(png);
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF('p','mm','a4');
+    var pw = 210, ph = 297;
+    var iw = pw, ih = canvas.height * pw / canvas.width;
+    if(ih > ph){ ih = ph; iw = canvas.width * ph / canvas.height; }
+    pdf.addImage(img, 'JPEG', (pw-iw)/2, 0, iw, ih);
+    var b64 = pdf.output('datauristring').split(',')[1];
+    document.getElementById('b64').textContent = b64;
+    log('できたPDF … ' + b64.length + ' 文字（base64）');
+    log('OK');
+  }catch(e){
+    log('★ つまずきました: ' + e.message);
+  }finally{
+    try{ document.body.removeChild(holder); }catch(e){}
+  }
+})();
+</script>

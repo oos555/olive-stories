@@ -362,7 +362,7 @@ body{background:#fff}
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
 <script src="oos-kakaku.js?v=20260912"></script>
-<script src="oos-shorui-kimari.js?v=20260911"></script>
+<script src="oos-shorui-kimari.js?v=20260912i"></script>
 <script src="oos-doc.js?v=20260912h"></script>
 <script src="oos-nouhin.js?v=20260912g"></script>
 <script>
@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-23">
+<meta name="oos-version" content="2026-09-12-24">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -7618,6 +7618,39 @@ function renderOrderCard(o, sentGroup){
         + (o.trackingNo ? '<span style="color:#16a34a;font-weight:700;font-size:12px">✓ 保存済み</span>' : '')
         + '</div>'
       : '';
+    /* ══════════════════════════════════════════════════════════════
+       💰 料金の1行（承認済みモック mock_受注一覧に料金を出す_2026-09-12）
+       ──────────────────────────────────────────────────────────────
+       ひろみさん：「私がみれない　見れるようにしてこれも確認したいから」
+       倉庫ピックアップ料金と送料は【書類にだけ出るもの】で、発注書スプシには
+       載りません。そのため、書類（PDF）を開くまで、いくらで登録されているのか
+       分かりませんでした。ここに1行だけ出します。
+       
+       ★新しい保存項目は作っていません。いまある warehouseFee / shippingFee を
+       　見せるだけです。
+       ★判定と文言は決めごとの親（oos-shorui-kimari.js の ryokinJotai /
+       　ryokinKotoba）に聞きます。ここに書き写さないでください。
+       ★送料は【税込】で保存されているので、親に true を渡して税抜に直します。
+       　（受注Ａのボタンが「800円」なので、そちらと同じ言い方にそろえます）
+       見張り：tests/test_apps.js の ⑤
+       ══════════════════════════════════════════════════════════════ */
+    var _ryokinGyou = (function(){
+      var K = window.OOS_SHORUI;
+      if(!K || !K.ryokinJotai) return '';   /* 親が読めていないときは何も出さない */
+      var IRO = { muryou:'#1d6b2a', kingaku:'#b3261e', mitei:'#b45309', betto:'#1f4a6d' };
+      function hito(v, zeikomi){
+        var j = K.ryokinJotai(v);
+        return '<b style="color:'+(IRO[j.jotai]||'#4a4438')+'">'+esc(K.ryokinKotoba(v, zeikomi))+'</b>';
+      }
+      var w = K.ryokinJotai(o.warehouseFee), s = K.ryokinJotai(o.shippingFee);
+      var soe = (!w.eranda && !s.eranda)
+        ? '　<span style="color:#8a7f6d">（書類には「別途申し受けます」と出ます。合計には入りません）</span>'
+        : '';
+      return '<div class="oc-ryokin" style="font-size:12px;line-height:1.6;margin:4px 0 0;color:#4a4438">'
+           + '💰 倉庫ピックアップ料金 ' + hito(o.warehouseFee, false)
+           + '　／　送料 ' + hito(o.shippingFee, true)
+           + soe + '</div>';
+    })();
     return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified && whSkipStateOf(o)!=='skip')?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start">'+
@@ -7625,6 +7658,7 @@ function renderOrderCard(o, sentGroup){
         '<span class="order-status '+statusCls+'">'+statusLabel+'</span>'+
       '</div>'+
       '<div class="oc-lines">'+(o.lines||[]).map(l=>l.productName+' × '+lineTotal(l)+lineUnit(l)).join('　')+'</div>'+
+      _ryokinGyou+
       (o.note ? '<div style="font-size:12px;color:#dc2626;font-weight:700;background:#fef2f2;border:1px solid #fecaca;padding:3px 8px;border-radius:6px;margin-top:2px">'+(hasNoshiKeyword(o.note)?'🎀':'📝')+' '+noteForDisplay(o.note)+'</div>' : '')+
       payMsg+
       /* ★2026-08-18 在庫が足りないときの青いお知らせ（承認済みモック第2版）。★消さないでください */

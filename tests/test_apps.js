@@ -497,6 +497,67 @@ try{
     /* 左の枠は伸びない・入らないときは折り返す */
     eq('⑤ 左の枠は伸びない（flex:0 1 auto）',
        _doc.indexOf('.doc2-hidari{flex:0 1 auto;') >= 0, true);
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-12 受注一覧の「料金の1行」（承認済みモック
+     　mock_受注一覧に料金を出す_2026-09-12.html のとおり）
+     ──────────────────────────────────────────────────────────────────
+     ひろみさん：「私がみれない　見れるようにしてこれも確認したいから」
+     倉庫ピックアップ料金と送料は書類にだけ出るもので、発注書スプシには
+     載りません。受注一覧に1行だけ出して、いつでも見られるようにしました。
+     
+     ★4つはまったく別ものです。取り違えるとお客様への請求が変わります。
+     　・無料サービス　　　　… 人が押した0円。合計に入れない
+     　・◯◯円（＋税）　　　… 人が金額を押した。合計に入れる
+     　・まだ押していません　… 未定。合計に入れない（勝手に足さない）
+     　・別途申し受けます　　… 人が別途を押した。合計に入れない
+     ★送料は【税込】で保存されているので、税抜に直して出します
+     　（880 → 「800円（＋税）」。受注Ａのボタンと同じ言い方）。
+     ★文字さがしではなく、本物のコードを動かして、出た言葉を見ています。
+     ══════════════════════════════════════════════════════════════════ */
+  {
+    var _idx = H.read('index.html');
+    var _i = _idx.indexOf('var _ryokinGyou = (function(){');
+    var _j = _idx.indexOf('})();', _i) + 5;
+    eq('⑤ 受注一覧に「料金の1行」がある', _i >= 0, true);
+    if (_i >= 0) {
+      var _kire = _idx.slice(_i, _j);
+      var _R = H.makeSandbox({});
+      _R.box.esc = function (s) { return String(s == null ? '' : s); };
+      var _dasu = function (wh, ship) {
+        _R.box.o = { warehouseFee: wh, shippingFee: ship };
+        vm.runInContext(_kire, _R.ctx);
+        return String(_R.box._ryokinGyou || '').replace(/<[^>]*>/g, '');
+      };
+      /* ★紙と鉛筆で決めた答え。実装に合わせて書き換えないでください */
+      eq('⑤ 無料をえらんだら「無料サービス」',        _dasu(0, 0).indexOf('無料サービス') >= 0, true);
+      eq('⑤ 押していないなら「まだ押していません」',  _dasu('', '').indexOf('まだ押していません') >= 0, true);
+      eq('⑤ 押していないときは合計に入らないと添える', _dasu('', '').indexOf('合計には入りません') >= 0, true);
+      eq('⑤ 別途をえらんだら「別途申し受けます」',    _dasu(0, 'betto').indexOf('別途申し受けます') >= 0, true);
+      /* ★送料880（税込）は「800円（＋税）」と出る。880と出たら税の二重言い */
+      eq('⑤ 送料880（税込）は「800円（＋税）」と出る', _dasu(0, 880).indexOf('800円（＋税）') >= 0, true);
+      eq('⑤ 送料に「880円」とは出さない（税の二重言い）', _dasu(0, 880).indexOf('880円') >= 0, false);
+      eq('⑤ 送料1100（税込）は「1,000円（＋税）」と出る', _dasu(0, 1100).indexOf('1,000円（＋税）') >= 0, true);
+      /* ★ピックアップ料金は税抜のまま。700はそのまま700円 */
+      eq('⑤ ピックアップ700（税抜）はそのまま「700円（＋税）」', _dasu(700, 0).indexOf('700円（＋税）') >= 0, true);
+      eq('⑤ ピックアップ250（税抜）はそのまま「250円（＋税）」', _dasu(250, 0).indexOf('250円（＋税）') >= 0, true);
+      /* ★判定を受注Ａに書き写していないこと（親に聞くこと） */
+      /* ★受注一覧が、自分で判定せず親に聞いていること。
+         　ここが false になったら、受注Ａの中に判定を書き写した合図です。 */
+      eq('⑤ 判定を書き写さず、決めごとの親に聞いている',
+         _idx.indexOf('K.ryokinJotai(o.warehouseFee)') >= 0
+         && _idx.indexOf('K.ryokinJotai(o.shippingFee)') >= 0, true);
+      eq('⑤ 文言も親に聞いている（ryokinKotoba）',
+         _idx.indexOf('K.ryokinKotoba(v, zeikomi)') >= 0, true);
+    }
+    /* 決めごとの親の窓口そのもの */
+    var _K = H.makeSandbox({}).box.OOS_SHORUI;
+    eq('⑤ 親に料金の窓口がある（ryokinJotai）', typeof (_K && _K.ryokinJotai), 'function');
+    eq('⑤ 親の判定：何も押していない', _K.ryokinJotai('').jotai,      'mitei');
+    eq('⑤ 親の判定：無料をえらんだ',   _K.ryokinJotai(0).jotai,       'muryou');
+    eq('⑤ 親の判定：金額を押した',     _K.ryokinJotai(880).jotai,     'kingaku');
+    eq('⑤ 親の判定：別途をえらんだ',   _K.ryokinJotai('betto').jotai, 'betto');
+  }
+
     eq('⑤ 入らないときは切れずに折り返す（flex-wrap:wrap）',
        _doc.indexOf('justify-content:space-between;flex-wrap:wrap}') >= 0, true);
   }

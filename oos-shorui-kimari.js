@@ -190,6 +190,63 @@
     return sujiGaNoruKa(shoruiMei);
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+     ⑤ 料金（倉庫ピックアップ料金・送料）の【状態】を読む　★2026-09-12
+     ──────────────────────────────────────────────────────────────────
+     ひろみさん：「無料の意味はわかってる？800円は有料だよ。全然違うんだよ」
+     　　　　　　「私がみれない　見れるようにしてこれも確認したいから」
+     
+     4つはまったく別ものです。取り違えるとお客様への請求が変わります。
+     　muryou　… 人が「無料サービス」を押した　　→ 0円。合計に入れない
+     　kingaku … 人が金額を押した　　　　　　　　→ その金額を合計に入れる
+     　betto　 … 人が「別途申し受けます」を押した → 合計に入れない。備考に一言
+     　mitei　 … まだ何も押していない　　　　　　→ 合計に入れない（勝手に足さない）
+     
+     ★この窓口を、受注Ａの一覧も、書類の親（oos-nouhin.js）も呼びます。
+     　判定を2か所に書くと、片方だけ直して食い違います（何度もやりました）。
+     ★ここに金額の表を書かないでください。ここは「押されたか」を読むだけです。
+     ══════════════════════════════════════════════════════════════════ */
+  function ryokinJotai(v) {
+    if (v === '' || v === null || v === undefined) {
+      return { jotai: 'mitei',   yen: 0, eranda: false, betto: false };
+    }
+    if (String(v) === 'betto') {
+      return { jotai: 'betto',   yen: 0, eranda: true,  betto: true  };
+    }
+    var n = parseInt(v, 10);
+    if (isNaN(n)) {
+      return { jotai: 'mitei',   yen: 0, eranda: false, betto: false };
+    }
+    if (n === 0) {
+      return { jotai: 'muryou',  yen: 0, eranda: true,  betto: false };
+    }
+    return   { jotai: 'kingaku', yen: n, eranda: true,  betto: false };
+  }
+
+  /* 画面に出すときの言葉。★文言を変えるときはここだけ直します */
+  var RYOKIN_KOTOBA = {
+    muryou:  '無料サービス',
+    betto:   '別途申し受けます',
+    mitei:   'まだ押していません'
+  };
+  /* ★送料は【税込】で保存されています（受注Ａのボタン「800円」＋税＝880）。
+     　ピックアップ料金は【税抜】のまま保存されています（決めごとＳ）。
+     　そのまま出すと送料が「880円（＋税）」になり、税を二重に言うことになります。
+     　zeikomiKa に true を渡すと、税抜に直してから言葉にします。
+     ★受注Ａの一覧では、送料だけ true を渡してください。 */
+  function ryokinKotoba(v, zeikomiKa) {
+    var j = ryokinJotai(v);
+    if (j.jotai === 'kingaku') {
+      var en = j.yen;
+      if (zeikomiKa) {
+        var r = (root.OOS_ZEI && root.OOS_ZEI.RATE_SERVICE != null) ? root.OOS_ZEI.RATE_SERVICE : 0.1;
+        en = Math.round(en / (1 + r));
+      }
+      return en.toLocaleString() + '円（＋税）';
+    }
+    return RYOKIN_KOTOBA[j.jotai] || '';
+  }
+
   root.OOS_SHORUI = {
     KANARAZU: KANARAZU,
     SORYO_ZEIKOMI: SORYO_ZEIKOMI,
@@ -203,7 +260,10 @@
     TANI_BY_ML: TANI_BY_ML,
     mlOf: mlOf,
     taniOf: taniOf,
-    kanarazuDasuKa: kanarazuDasuKa
+    kanarazuDasuKa: kanarazuDasuKa,
+    ryokinJotai: ryokinJotai,
+    ryokinKotoba: ryokinKotoba,
+    RYOKIN_KOTOBA: RYOKIN_KOTOBA
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
