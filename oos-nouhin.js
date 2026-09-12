@@ -127,7 +127,12 @@
        ※変数だけ残っているのは、決めごとの目印としてです。 */
     var badge = CTYPE_BADGE[o.customerType] ? '<span class="badge-ctype badge-' + o.customerType + '">' + CTYPE_BADGE[o.customerType] + '</span>' : '';
 
-    var items = [], unknown = false;
+    /* ★2026-09-12 ひろみさん：「これ、いらないでしょ？」「メメジック100mlも金額ちゃんとでてる！！」
+       前は「単価が登録されていない商品があります」とだけ出していたので、
+       どの商品のことか分からず、ぜんぶ金額が出ているように見えて、
+       ただの邪魔な警告になっていました。名前を出すようにしました。
+       ★naiMono を消さないでください。消すと、また「どれ？」に戻ります。 */
+    var items = [], unknown = false, naiMono = [];
     (o.lines || []).forEach(function (l) {
       /* ★2026-09-10 中身が空の明細が混ざっていても落ちないように（斜めからの試験で見つけました） */
       if (!l) return;
@@ -140,7 +145,11 @@
          　通常の単価が載ります（2026-09-12まで、実際にそうなっていました）。 */
       var unit = (withAmount && sku) ? KAK.unitPriceForLine(o, l, sku, PM, DEF) : 0;
       /* 無料サンプルの0円は「単価が登録されていない」ではないので、警告にしません */
-      if (withAmount && !unit && !KAK.muryouSampleKa(l)) unknown = true;
+      if (withAmount && !unit && !KAK.muryouSampleKa(l)) {
+        unknown = true;
+        var _nm = l.productName || (prod && prod.name) || '（名前のない行）';
+        if (naiMono.indexOf(_nm) < 0) naiMono.push(_nm);
+      }
       items.push({
         name: l.productName || (prod && prod.name) || '',
         qty: qty,
@@ -332,7 +341,10 @@
       notes: notes
     });
     if (unknown) {
-      html += '<div class="no-print" style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:6px">⚠ 単価が登録されていない商品があります（統合マスタＮの価格マスタをご確認ください）。金額は「―」で出しています。</div>';
+      /* ★どの商品かを必ず出します。名前が無いと、人は探しようがありません。 */
+      html += '<div class="no-print" style="color:#b91c1c;font-size:12px;font-weight:700;margin-top:6px">'
+            + '⚠ 単価が入っていない商品があります：' + esc(naiMono.join('、'))
+            + '<br>統合マスタＮの価格マスタで、この商品の単価を入れてください。いまは金額を「―」で出しています。</div>';
     }
     /* ★2026-08-19 区分バッジ（卸●など）は【社内の印】なので、書類には出しません。
        no-print にしていてもPDFには写ってしまうため、そもそも入れません。★戻さないでください */
