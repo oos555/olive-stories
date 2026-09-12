@@ -81,7 +81,71 @@ eq('⑥ Math.min に戻すなの注意書きが残っている',       src.index
 eq('⑥ 販売可能数を引くのをやめるなの注意書きが残っている', src.indexOf('販売可能数を引くのをやめない') >= 0, true);
 eq('⑥ ひろみさんの検算が注意書きに残っている',        src.indexOf('予定12／予約24／販売可能12') >= 0, true);
 
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 ここまでは【文字さがし】だけでした。
+   　式が書いてあることは見ていましたが、答えが合っているかは見ていません。
+   　→ 画面の式を本物から取り出して、実際に計算させ、答えを確かめます。
+
+   ★ひろみさんの検算（原文・2026-08-19）
+   　「オルガニック750ml：予定12／予約24／販売可能12 → フリー 0」
+   ★この数を実装に合わせて書き換えないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+(function(){
+  /* 本物の式をそのまま取り出して、同じ計算をします（式を書き写しません） */
+  var m = src.match(/preInc = Math\.max\(0, yoyaku - availNow\)/);
+  var m2 = src.match(/freeInc = incNum - preInc/);
+  eq('★本物に必須数の式がある', !!m, true);
+  eq('★本物にフリーの式がある', !!m2, true);
+  if (!m || !m2) return;
+
+  /* ★2026-09-12 式を書き写すのをやめました。
+     　写しを作ると、本物とズレても気づけません。
+     　本物（master.html）から式を【そのまま取り出して】動かします。
+     ★ここに式を書き写さないでください。 */
+  var shikiA = src.match(/preInc\s*=\s*Math\.max\([^;]*\);/);
+  var shikiB = src.match(/freeInc\s*=\s*incNum\s*-\s*preInc\s*;/);
+  eq('★本物から必須数の式を取り出せた', !!shikiA, true);
+  eq('★本物からフリーの式を取り出せた', !!shikiB, true);
+  if (!shikiA || !shikiB) return;
+  var keisan;
+  try {
+    /* 本物の2行を、そのまま動かします（yoyaku・availNow・incNum を渡します） */
+    keisan = new Function('yotei', 'yoyaku', 'hanbaiKanou',
+      'var incNum = yotei, availNow = hanbaiKanou, preInc, freeInc;' +
+      shikiA[0] + ' ' + shikiB[0] +
+      ' return { hissu: preInc, free: freeInc };');
+  } catch (e) {
+    eq('★本物の式を動かせる', '動きました', 'つまずきました：' + e.message);
+    return;
+  }
+  eq('★本物の式を動かせる', typeof keisan, 'function');
+
+  /* ★ひろみさんの検算 */
+  var a = keisan(12, 24, 12);
+  eq('★ひろみさんの検算：予定12／予約24／販売可能12 → 必須12', a.hissu, 12);
+  eq('★ひろみさんの検算：そのときフリーは0', a.free, 0);
+
+  /* ★販売可能数でぜんぶまかなえるとき、輸入を待たなくてよい */
+  var b = keisan(12, 10, 20);
+  eq('★予約10・販売可能20 → 必須0', b.hissu, 0);
+  eq('★そのときフリーは予定ぜんぶ（12）', b.free, 12);
+
+  /* ★足りないときは、マイナスをマイナスのまま出す（0で止めない） */
+  var c = keisan(5, 30, 10);
+  eq('★予約30・販売可能10 → 必須20', c.hissu, 20);
+  eq('★予定5しかないので、フリーは −15（0で止めない）', c.free, -15);
+
+  /* ★切り詰めに戻っていたら、この答えになってしまう（戻り検知） */
+  eq('★Math.min の切り詰めなら 予定12・予約24 で必須は12のまま（＝戻っていない）',
+     Math.min(24, 12), 12);
+  var d = keisan(12, 24, 0);
+  eq('★販売可能0のときは 必須24・フリー −12', d.hissu + '／' + d.free, '24／-12');
+})();
+
 console.log('===== 輸入の「フリー」 =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
+
+
+
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
 process.exit(fail ? 1 : 0);
