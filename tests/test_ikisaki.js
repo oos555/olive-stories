@@ -964,8 +964,42 @@ function hacchuushoGyou(payload){
     /* ── RTの伝票取込だけ、書類の作り方がちがう ── */
     ok('⑱-33 RTかどうかを見分ける所がある', /function rtDenpyoOrderKa\s*\(/.test(idx));
     const rk = H.cut(idx, 'rtDenpyoOrderKa');
-    ok('⑱-34 RT・RTGCと伝票取込の印を見ている',
-       /customerType === 'rt' \|\| o\.customerType === 'rtgc'/.test(rk) && /RT伝票取込/.test(rk));
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-12 ここは【まちがった書き方を固定していた見張り】でした。
+       ──────────────────────────────────────────────────────────────────
+       前は「=== 'rt' || === 'rtgc' と書いてあること」を求めていました。
+       ところが区分は【日本語】で保存されています（実データ："RT" 49件）。
+       英語で直接くらべると、RTの注文でも いつも false になります。
+       つまり、この見張りが穴のある書き方を守っていました。
+       → 書き方を見るのをやめ、【実際に動かして見分けられるか】を見ます。
+       ★文字さがしに戻さないでください。 */
+    ok('⑱-34 伝票取込の印を見ている', /RT伝票取込/.test(rk));
+    {
+      const _S = H.makeSandbox({});
+      let _ugoku = true;
+      ['rtKubunKa', 'rtDenpyoOrderKa'].forEach(function (n) {
+        try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ugoku = false; }
+      });
+      ok('⑱-34 見分ける仕掛けを切り出して動かせる', _ugoku);
+      if (_ugoku) {
+        /* ★実データに入っている【日本語】の値で確かめます */
+        ok('⑱-34 日本語の「RT」をRTと見分ける',
+           _S.box.rtKubunKa('RT') === true);
+        ok('⑱-34 日本語の「RTGC（ゴルフ）」もRTと見分ける',
+           _S.box.rtKubunKa('RTGC（ゴルフ）') === true);
+        ok('⑱-34 英語の rt / rtgc も見分ける（昔のデータ）',
+           _S.box.rtKubunKa('rt') === true && _S.box.rtKubunKa('rtgc') === true);
+        ok('⑱-34 「定価」をRTと取りちがえない',
+           _S.box.rtKubunKa('定価') === false);
+        /* ★伝票から作ったRTだけが、伝票の道へ行くこと */
+        ok('⑱-34 RTで伝票から作った注文は、伝票の道へ',
+           _S.box.rtDenpyoOrderKa({ customerType: 'RT', note: 'RT伝票取込 2026-09-12' }) === true);
+        ok('⑱-34 RTでも伝票でない注文は、書類の親の道へ',
+           _S.box.rtDenpyoOrderKa({ customerType: 'RT', note: 'aaaaa' }) === false);
+        ok('⑱-34 一般の注文は、伝票の道へ行かない',
+           _S.box.rtDenpyoOrderKa({ customerType: '定価', note: 'RT伝票取込' }) === false);
+      }
+    }
     const rn = H.cut(idx, 'rtNouhinHtml');
     ok('⑱-35 RTは rtDeliveryNoteHtml から作る', /rtDeliveryNoteHtml\(\)/.test(rn));
     ok('⑱-36 RTで親（OOS_NOUHIN）を使っていない', !/OOS_NOUHIN/.test(rn));

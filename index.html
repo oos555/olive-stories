@@ -410,7 +410,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-26">
+<meta name="oos-version" content="2026-09-12-27">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
@@ -8481,10 +8481,22 @@ function docCheckTaisho(o){
    　使うと、画面に出る書類と、実際に貼られる書類が【ちがうもの】になります。
    見張り：tests/test_ikisaki.js の ㉓
    ══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 区分は【日本語】で保存されています（実データで確かめました）。
+   　　"RT" 49件／"定価" 18件／"卸バサラスター" 11件／"卸②" 1件
+   　ところがここは o.customerType === 'rt' と英語で比べていたので、
+   　RTの注文でも【いつも false】でした。
+   　→ 決めごとの親（oos-kakaku.js の normalizeType）に直してもらいます。
+   ★=== 'rt' の直接比べに戻さないでください。日本語の「RT」を取りこぼします。
+   ══════════════════════════════════════════════════════════════════════ */
+function rtKubunKa(v){
+  var t = (window.OOS_KAKAKU && OOS_KAKAKU.normalizeType)
+        ? OOS_KAKAKU.normalizeType(v) : v;
+  return (t === 'rt' || t === 'rtgc');
+}
 function rtDenpyoOrderKa(o){
   if(!o) return false;
-  var isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
-  return isRt && /RT伝票取込/.test(String(o.note || ''));
+  return rtKubunKa(o.customerType) && /RT伝票取込/.test(String(o.note || ''));
 }
 /* RTの納品書のHTML（伝票から作る本物）。作れないときは空を返します */
 function rtNouhinHtml(){
@@ -8690,13 +8702,32 @@ async function docCheckOk(){
   if(q){
     /* ★RTの伝票取込は、伝票と納品書をいっしょに貼ります（RTの貼り方）。
        　一般・卸は親から作った書類を貼ります。★取り違えないでください。 */
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「でも押してもリンクは出来なかった」
+       ここは前 catch(e){} で【失敗を握りつぶして】いました。
+       だから押しても何も出ず、注文にも記録が残らず、
+       「押したのに何も起きない」としか分かりませんでした。
+       → 失敗したら、画面に出して、注文にも理由を残します。
+       ★catch(e){} の空っぽに戻さないでください。また原因が分からなくなります。
+       ══════════════════════════════════════════════════════════════ */
     try{
       if(rtDenpyoOrderKa(q.o) && typeof rtAttachDocsToOrder === 'function'){
         await rtAttachDocsToOrder(q.o);
       } else {
         await nouhinAttachToOrder(q.o, q.mei);
       }
-    }catch(e){}
+      /* ★貼れたかどうかを、ここでも確かめます（黙って終わらせない） */
+      if(!(q.o.nouhinDocs && q.o.nouhinDocs[q.mei]) && !q.o.nouhinDocNg){
+        q.o.nouhinDocNg = '貼る処理が最後まで進みませんでした（もう一度お試しください）';
+        if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + q.mei + ' を貼れませんでした。もう一度お試しください。', true);
+        if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([q.o]);
+      }
+    }catch(e){
+      var _r = (e && e.message) ? e.message : String(e);
+      q.o.nouhinDocNg = '貼るときにつまずきました：' + _r;
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + q.mei + ' を貼れませんでした：' + _r, true);
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([q.o]);
+    }
   }
   if(typeof renderList === 'function') renderList();
   docCheckNext();
@@ -11380,7 +11411,9 @@ async function nouhinAttachToOrder(o, shoruiMei){
        　いまは【伝票から作ったRTだけ】をおことわりします（そちらは伝票と一緒に貼るため）。
        ★どちらの道でも、入る場所は同じ【RT書類：社内・倉庫用】です。
        ══════════════════════════════════════════════════════════════════ */
-    var _isRt = (o.customerType === 'rt' || o.customerType === 'rtgc');
+    /* ★2026-09-12 区分は日本語で保存されているので、親に直してもらいます。
+       　=== 'rt' の直接比べだと、日本語の「RT」を取りこぼします。 */
+    var _isRt = rtKubunKa(o.customerType);
     if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;   /* 伝票から作ったRTは、伝票と一緒に貼ります */
     if(!OOS_NOUHIN.needsNouhin(o)) return;                   /* 同梱書類に納品書が無ければ作りません（バサラ等） */
     var _mei = String(shoruiMei || "").trim()
