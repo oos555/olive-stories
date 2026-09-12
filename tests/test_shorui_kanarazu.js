@@ -122,28 +122,66 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
 
 /* ══ ③ 金額が0でも、行は消さず「無料」「別途」と書く ══════ */
 {
-  const h = nouhin(mkOrder({ customerType:'general' }));   /* 一般＝ピッキングは無料 */
+  /* ★2026-09-12 「無料」と「まだえらんでいない」は別ものになりました（ひろみさん）。
+     　人が「無料サービス」を押した注文でないと「無料」とは書きません。
+     　押していない注文は「別途申し受けます」です。 */
+  const h = nouhin(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:0 }));  /* 両方「無料サービス」を押した */
   const rows = gyou(h);
   ok('③一般でもピッキングの行は出る', rows.some(function(r){ return r.indexOf('倉庫ピックアップ料金') >= 0; }));
-  inc('③0円のところは「無料」と書く', h, '無料', true);
+  inc('③「無料サービス」を押した0円には「無料」と書く', h, '無料', true);
   ok('③送料の行も出る', rows.some(function(r){ return r.indexOf('送料') >= 0; }));
+  /* ★押していない注文には「無料」と書かない（無料と未定を取り違えないため） */
+  const hMi = nouhin(mkOrder({ customerType:'general' }));   /* 何も押していない */
+  inc('③押していない注文に「無料」とは書かない', hMi, '無料', false);
+  inc('③押していない注文は「別途申し受けます」',  hMi, '別途申し受けます', true);
 }
 
 /* ══ ④ 金額が、決めごとのとおりに入る ══════════════════════
    ★紙と鉛筆で出した数字です。実装に合わせて書き換えないでください。
      ORG250 定価4750×3本＝14250（8%→1140）
      送料 東京＝880円（税込）→ 税抜800＋税80
-     ピッキング 一般＝0／卸①②＝250＋税25／RT＝700＋税70 */
+     ピッキング 一般＝0／卸①②＝250＋税25／RT＝700＋税70
+   ──────────────────────────────────────────────────────────
+   ★2026-09-12 ひろみさん：「無料にしてる送料、なんで金額足してるんだよ」
+   　　　　　　　　　　　　「800円は有料だよ。全然違うんだよ」
+   前：料金を押していない注文にも、決めごとから勝手に金額が入っていました。
+   　　この④はそれを前提に組んでいたので、そのままでは古い決めごとを守ります。
+   今：【人が押した金額】を渡して、同じ紙と鉛筆の答えを確かめます。
+   　　押していない注文に足さないことは ⑤-B で見ます。
+   ★mkOrder に料金を渡さない形に戻さないでください。戻すと
+   　「勝手に足す」が復活しても気づけません。 */
 {
-  eq('④一般・東京　14250+1140+800+80',            goukei(nouhin(mkOrder({ customerType:'general' }))), 16270);
-  eq('④卸①・東京　11400+912+800+80+250+25',       goukei(nouhin(mkOrder({ customerType:'wholesale1' }))), 13467);
-  eq('④卸②・東京　8550+684+800+80+250+25',        goukei(nouhin(mkOrder({ customerType:'wholesale2' }))), 10389);
-  eq('④RT・東京　11400+912+800+80+700+70',        goukei(nouhin(mkOrder({ customerType:'rt' }))), 13962);
-  eq('④一般・北海道　送料1100（税抜1000＋税100）', goukei(nouhin(mkOrder({ addr:'北海道札幌市1-1' }))), 16490);
-  eq('④一般・沖縄　送料1100',                     goukei(nouhin(mkOrder({ addr:'沖縄県那覇市1-1' }))), 16490);
+  /* 東京の送料880（税込）と、区分ごとのピックアップ料金を【人が押した】形で渡します */
+  eq('④一般・東京　14250+1140+800+80',            goukei(nouhin(mkOrder({ customerType:'general',    warehouseFee:0,   shippingFee:880 }))), 16270);
+  eq('④卸①・東京　11400+912+800+80+250+25',       goukei(nouhin(mkOrder({ customerType:'wholesale1', warehouseFee:250, shippingFee:880 }))), 13467);
+  eq('④卸②・東京　8550+684+800+80+250+25',        goukei(nouhin(mkOrder({ customerType:'wholesale2', warehouseFee:250, shippingFee:880 }))), 10389);
+  eq('④RT・東京　11400+912+800+80+700+70',        goukei(nouhin(mkOrder({ customerType:'rt',         warehouseFee:700, shippingFee:880 }))), 13962);
+  eq('④一般・北海道　送料1100（税抜1000＋税100）', goukei(nouhin(mkOrder({ addr:'北海道札幌市1-1', warehouseFee:0, shippingFee:1100 }))), 16490);
+  eq('④一般・沖縄　送料1100',                     goukei(nouhin(mkOrder({ addr:'沖縄県那覇市1-1', warehouseFee:0, shippingFee:1100 }))), 16490);
   /* 注文が金額を持っているときは、そちらが優先 */
   eq('④注文が持っている送料が優先される（¥1,500税込）',
-     goukei(nouhin(mkOrder({ shippingFee:1500 }))), 16270 - 880 + 1500);
+     goukei(nouhin(mkOrder({ warehouseFee:0, shippingFee:1500 }))), 16270 - 880 + 1500);
+}
+
+/* ══ ⑤-B 押していない料金を、勝手に足さない ════════════════
+   ★2026-09-12 ひろみさんのお叱りそのものです。
+   　「無料の意味はわかってる？800円は有料だよ。全然違うんだよ」
+   3つはまったく別もの：
+   　・「無料サービス」を押した → 0円。枠に「無料サービス」。足さない。
+   　・何も押していない　　　　 → 未定。枠に「別途申し受けます」。足さない。
+   　・「800円」を押した　　　　→ 800円＋税。枠に金額。足す。
+   ★紙と鉛筆：商品14250＋8%1140＝15390円（料金は1円も足さない） */
+{
+  eq('⑤-B 押していない注文の合計は商品だけ（15390）',
+     goukei(nouhin(mkOrder({ customerType:'general' }))), 15390);
+  eq('⑤-B 押していない注文の合計は、卸①でも商品だけ（12312）',
+     goukei(nouhin(mkOrder({ customerType:'wholesale1' }))), 12312);
+  eq('⑤-B 押していない注文の合計は、RTでも商品だけ（12312）',
+     goukei(nouhin(mkOrder({ customerType:'rt' }))), 12312);
+  eq('⑤-B 両方「無料サービス」を押した注文も商品だけ（15390）',
+     goukei(nouhin(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:0 }))), 15390);
+  eq('⑤-B 「別途申し受けます」を押した注文も商品だけ（15390）',
+     goukei(nouhin(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:'betto' }))), 15390);
 }
 
 /* ══ ⑤ 単位（本・個・箱）══════════════════════════════════
