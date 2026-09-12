@@ -375,8 +375,18 @@ inc('⑧「納品書」で固定しない',           OYA, '「納品書」で�
 inc('⑧RTは金額を必ず出す',               OYA, 'ギフトでも【金額の入った書類】を必ず入れる', true);
 inc('⑧品番が分からない行は10%',          OYA, '8%にしないでください', true);
 inc('⑧送料は税込を割り戻す',             OYA, '1.1 で割り戻して税抜にし', true);
-inc('⑧isCompanyだけで決めない',          OYA, 'isCompany だけ」で決める形に戻さないでください', true);
-inc('⑧卸には社印',                       OYA, '卸のお客様には社印', true);
+/* ★2026-09-12 この2つは【親のファイルに、その文が書いてあるか】を見ていました。
+   　文を書き直しただけで落ちるので、動かして確かめる形に変えました。
+   ★文字さがしに戻さないでください。 */
+ok('⑧お振込先は区分で決まる（一般＝三菱UFJ／卸＝三井住友）',
+   nouhin(mkOrder({ customerType:'定価', enclosedDoc:'納品書兼請求書' })).indexOf('三菱UFJ') >= 0 &&
+   nouhin(mkOrder({ customerType:'卸①', enclosedDoc:'納品書兼請求書' })).indexOf('三井住友') >= 0,
+   '（区分を英語でくらべると「定価」が法人口座になります）');
+ok('⑧社印はどの区分でも押す（2026-09-12 ひろみさん確定）',
+   nouhin(mkOrder({ customerType:'定価' })).indexOf('alt="社判"') >= 0 &&
+   nouhin(mkOrder({ customerType:'卸①' })).indexOf('alt="社判"') >= 0 &&
+   nouhin(mkOrder({ customerType:''   })).indexOf('alt="社判"') >= 0,
+   '（区分が空の注文で抜けていたのが、ひろみさんの「社印が抜けてる」でした）');
 inc('⑧区分バッジは書類に出さない',        OYA, '社内の言葉がお客様の書類に出てしまいます', true);
 inc('⑧単価は親（oos-kakaku）に聞く',      OYA, 'KAK.priceForSku(', true);
 inc('⑧消費税は親（oos-zei）に聞く',       OYA, 'ZEI.rateForSku(', true);

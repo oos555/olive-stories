@@ -329,6 +329,12 @@ tr:last-child td{border-bottom:none}
 .search-row{display:flex;gap:8px;margin-bottom:1rem}
 .search-row input{flex:1;padding:7px 12px;border:1px solid #d5cfc3;border-radius:8px;font-size:13px}
 #sync-status{position:fixed;bottom:16px;right:16px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;transition:opacity .5s;opacity:0}
+/* ★2026-09-12 Ｃ案：貼っているあいだ、ボタンの中で回る印 */
+.doc-hari-kuru{display:inline-block;width:13px;height:13px;border:3px solid rgba(255,255,255,.35);
+  border-top-color:#fff;border-radius:50%;margin-right:8px;vertical-align:-2px;
+  animation:docHariMawaru .8s linear infinite}
+@keyframes docHariMawaru{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.doc-hari-kuru{animation:none}}
 @media print{
 body{background:#fff}
 .app{padding:0}
@@ -410,7 +416,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-30">
+<meta name="oos-version" content="2026-09-12-32">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2608,7 +2614,17 @@ document.addEventListener('DOMContentLoaded', function(){
   }catch(e){}
 });
 
-function showSyncStatus(msg,isError){
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 ひろみさん：「そこで押しても何も反応がないから、貼れてないと
+   　思ってしまう。発注書にただいま貼っていますっていう文字が浮き出てくるように」
+   ──────────────────────────────────────────────────────────────────────
+   この帯は 3秒で消えます。「ただいま貼っています」は、貼り終わるまで
+   消えてはいけないので、3つめの keep を true にすると消えなくなります。
+   　showSyncStatus('…', false, true)  … 出しっぱなし（次の帯が来たら入れ替わる）
+   ★keep を消さないでください。消すと、貼っている途中で文字が消えて、
+   　また「押しても何も起きない」に戻ります。
+   ══════════════════════════════════════════════════════════════════════ */
+function showSyncStatus(msg,isError,keep){
   let el = document.getElementById('sync-status');
   if(!el){ el=document.createElement('div'); el.id='sync-status'; document.body.appendChild(el); }
   el.textContent = msg;
@@ -2616,6 +2632,7 @@ function showSyncStatus(msg,isError){
   el.style.color = isError ? '#7f1d1d' : '#14532d';
   el.style.opacity = '1';
   clearTimeout(el._t);
+  if(keep) return;                       /* 出しっぱなし（貼り終わったら次の帯で入れ替わる） */
   el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3000);
 }
 
@@ -8718,7 +8735,10 @@ function docCheckNext(){
   } else {
     naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'
          + html + '</div>';
-    botan = '<button class="btn btn-green" onclick="docCheckOk()">この内容で発注書に貼る</button>'
+    /* ★2026-09-12 id を付けました。押したあと、このボタンそのものを
+       　「発注書にただいま貼っています…」に変えるためです（ひろみさん「Cで！」）。
+       ★この id を消さないでください。 */
+    botan = '<button id="doc-hari-btn" class="btn btn-green" onclick="docCheckOk()">この内容で発注書に貼る</button>'
           + '<button class="btn btn-gray" onclick="docCheckSkip()">直す（貼らない）</button>';
   }
   box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
@@ -8731,9 +8751,54 @@ function docCheckNext(){
   box.style.display = 'block';
   try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
 }
+/* 「ただいま貼っています」の文字。1か所にまとめて、あとで見分けに使います */
+var DOC_HARI_CHU = '📄 発注書にただいま貼っています…';
+
+/* ★2026-09-12 Ｃ案（ひろみさん承認）：押したボタンそのものを変える。
+   ★この2つを消さないでください。押しても何も起きないように見えます。 */
+function docHariBtnChu(){
+  try{
+    var b = document.getElementById('doc-hari-btn');
+    if(!b) return;
+    b.disabled = true;
+    b.style.background = '#166534';
+    b.style.cursor = 'default';
+    b.innerHTML = '<span class="doc-hari-kuru"></span>発注書にただいま貼っています…';
+  }catch(e){ if(typeof oosShippai==='function') oosShippai('貼るボタンを変えるところ', e); }
+}
+function docHariBtnModosu(){
+  try{
+    var b = document.getElementById('doc-hari-btn');
+    if(!b) return;
+    b.disabled = false;
+    b.style.background = '';
+    b.style.cursor = '';
+    b.textContent = 'この内容で発注書に貼る';
+  }catch(e){ if(typeof oosShippai==='function') oosShippai('貼るボタンをもどすところ', e); }
+}
+
 async function docCheckOk(){
   var q = docCheckQueue.shift();
   if(q){
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「アプリ側に発注書に貼るっていうボタンが
+       　最後出るでしょ？受注一覧のところで。そこで押しても何も反応がないから、
+       　貼れてないと思ってしまう。発注書にただいま貼っていますっていう文字が
+       　浮き出てくるようにしてほしいの」
+       　→ 3つの見え方をモックで出して、ひろみさんが【Ｃ案】をえらびました。
+       　　（mocks/mock_hatteimasu_2026-09-12.html）
+       ──────────────────────────────────────────────────────────────
+       Ｃ案＝【押したボタンそのもの】が「発注書にただいま貼っています…」に変わる。
+       　・押した指のすぐ先で変わるので、見逃しません
+       　・押せなくなるので、二度押しも防げます
+       このボタンは、PDFを作って→ドライブに保存して→発注書に貼る、と
+       3つのことをします。数秒かかるのに、それまで何も出ていませんでした。
+       ★ボタンを変えずに、右下の小さな帯だけに戻さないでください。
+       　それが「押しても何も起きない」と言われていた状態です。
+       　（帯のほうも出します。貼り終わったあとの知らせは帯に出ます）
+       ══════════════════════════════════════════════════════════════ */
+    docHariBtnChu();
+    if(typeof showSyncStatus==='function') showSyncStatus(DOC_HARI_CHU, false, true);
     /* ★RTの伝票取込は、伝票と納品書をいっしょに貼ります（RTの貼り方）。
        　一般・卸は親から作った書類を貼ります。★取り違えないでください。 */
     /* ══════════════════════════════════════════════════════════════
@@ -8763,6 +8828,16 @@ async function docCheckOk(){
       if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([q.o]);
     }
   }
+  /* ★終わったらボタンをもどします（次の書類でまた押せるように）。
+     　枠は描き直されることが多いですが、描き直されなかったときのためです。 */
+  docHariBtnModosu();
+  /* ★「ただいま貼っています」が出たままにならないように。
+     　貼れた／貼れなかったの帯に入れ替わっていれば、そのままにします。
+     　入れ替わっていないときだけ、ふつうどおり3秒で消えるようにします。 */
+  try{
+    var _band = document.getElementById('sync-status');
+    if(_band && _band.textContent === DOC_HARI_CHU) showSyncStatus(DOC_HARI_CHU);
+  }catch(_eb){ if(typeof oosShippai==='function') oosShippai('「貼っています」の文字を消すところ', _eb); }
   if(typeof renderList === 'function') renderList();
   docCheckNext();
 }

@@ -22,7 +22,7 @@
   { label: '三井住友銀行 立川支店', bank:'三井住友銀行', branch:'立川支店（支店番号742）', type:'普通', number:'4723882', holder:'カ）オリーブオイルストーリーズ' },
   { label: '三菱UFJ銀行 新座志木支店', bank:'三菱UFJ銀行', branch:'新座志木支店（支店番号296）', type:'普通', number:'1300801', holder:'ナカムラヒロミ' }
 ];
-  const CSS = ".invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem 4.4rem;margin:1rem auto 0;max-width:820px;box-sizing:border-box}\n.invoice-doc.pricelist-doc{max-width:none}\n.invoice-doc-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.15em}\n.invoice-doc-top{display:flex;justify-content:space-between;margin-bottom:1.5rem;font-size:14.5px}\n.invoice-doc-summary{border:2px solid #1a1a18;border-radius:6px;margin-bottom:1rem}\n.invoice-doc-summary table{width:100%;border-collapse:collapse}\n.invoice-doc-summary th{background:#f9f8f5;padding:8px;font-size:13.5px;color:#2b2a26;border-right:1px solid #e8e2d8}\n.invoice-doc-summary td{padding:10px 8px;text-align:center}\n.invoice-doc-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:15px}\n.invoice-doc-table th{background:#f9f8f5;padding:8px 10px;border:1px solid #d5cfc3;font-size:13px;color:#2b2a26}\n.invoice-doc-table td{padding:9px 10px;border:1px solid #d5cfc3}\n.invoice-doc-note{font-size:12.5px;color:#2b2a26;line-height:1.8;border:1px solid #e8e2d8;border-radius:6px;padding:12px 14px;margin-top:1rem}\n/* ★2026-09-12 ひろみさん：「キレるということは、横幅ぎりぎりまで文字が\n   入ってるから。もう少し余白を左右1cmずつくらい増やせばいいのでは」\n   → .invoice-doc の左右の余白を 0.85cm(32px) → 1.85cm(70px) にしました。\n   PDFの入れ物は820px。前は中が使える幅756pxに対して中身が約733pxで、\n   余りが23pxしかなく、文字の出かたが少し変わるだけではみ出して切れていました。\n   いまは680pxに対して約592pxで、約88pxの余りがあります。\n   ★padding:2rem に戻さないでください。また端が切れます。 */\n/* ── 2026-07 新帳票デザイン（お見積書・ご請求書・お見積兼ご請求書） ── */\n.doc2-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:0;margin-bottom:1.2rem}\n.doc2-grand{display:inline-block;min-width:62%;border-bottom:3px double #1a1a18;padding:0 14px 6px 6px;margin-bottom:1.2rem}\n.doc2-grand .lbl{font-size:13.5px;font-weight:700}\n.doc2-grand .amt{font-size:28px;font-weight:700;float:right;letter-spacing:.02em}\n.doc2-grand::after{content:\"\";display:block;clear:both}\n.doc2-items{width:100%;border-collapse:collapse;font-size:14px;margin:1rem 0}\n.doc2-items th{border-top:2px solid #1a1a18;border-bottom:1px solid #1a1a18;padding:7px 8px;font-size:12px;font-weight:700;background:#fff;color:#1a1a18}\n.doc2-items td{border-bottom:1px solid #cfc9bd;padding:8px}\n.doc2-items tr:last-child td{border-bottom:2px solid #1a1a18}\n.doc2-items th+th,.doc2-items td+td{border-left:1px solid #d9d3c7}\n.doc2-eq{white-space:nowrap}\n.doc2-eq b{font-size:15px}\n.doc2-breakdown{display:flex;justify-content:flex-end;margin:0 0 1rem}\n.doc2-breakdown table{border-collapse:collapse;font-size:13px}\n.doc2-breakdown td{padding:3px 0 3px 6px;text-align:right;white-space:nowrap}\n.doc2-breakdown tr.doc2-total td{border-top:2px solid #1a1a18;font-weight:700;font-size:15px;padding-top:6px}\n/* ── 2026-09-11 承認済みモック（mock_書類の金額まわり_第6版）のとおり ── */\n/* ★（税抜価格）は表の右上に1回だけ。見出しには書かない */\n.doc2-zeinuki{text-align:right;font-size:11px;color:#54564d;margin:0 0 2px}\n/* ★数量は2段見出し（バラ／箱／合計本数） */\n.doc2-items th.doc2-sub{font-size:10.5px;font-weight:700;padding:2px 4px}\n/* ★ピックアップ料金と送料は、内訳（右）の左の空きに置く。線は灰色・背景色はつけない */\n/* ★2026-09-12 ゆかさん報告：「切れてしまいます。印刷画面で縮小しても切れたままになります」\n   PDFの入れ物は820px、中身が使えるのは756px。前は左の枠が flex:1 1 auto で\n   【伸びて】最大58%(438px)まで広がり、右の内訳(約300px)と合わせて756pxギリギリだった。\n   文字のにじみ方が少し変わるだけではみ出し、はみ出した右側がPDFで切り落とされていた。\n   → 左の枠は【伸びない・縮んでよい】(flex:0 1 auto)にして、130px以上の余裕を作った。\n   → 万一それでも入らないときは、切れずに下へ折り返す(flex-wrap:wrap)。\n   ★flex:1 1 auto に戻さないでください。また切れます。 */\n/* ★2026-09-12 ひろみさん：「すこしだけ中身を細くする。両端1ｃｍずつくらい」\n   紙の両端に1cmずつ余白を取ると、中が使える幅は166mmになります。\n   そのままだと入りきらず、内訳（8%対象…合計）が枠の【下に落ちて】\n   ひろみさんが決めた並び（左に料金・右に内訳）が崩れました。\n   絵で見ながら段階をためし、【すきまを詰めるだけ】で足りることを確かめました。\n   　・枠と内訳のあいだ　14px → 8px\n   　・枠の内側　　　　　7px 10px → 5px 8px\n   　・枠の金額の左　　　18px → 10px\n   　・内訳の左　　　　　18px → 10px\n   文字の大きさは変えていません（見た目をできるだけ変えないため）。\n   これで刷れる範囲の内側に 18.6mm の余裕ができました。\n   ★もとの数字に戻さないでください。戻すと内訳が下に落ちます。 */\n.doc2-2retsu{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;flex-wrap:wrap}\n.doc2-hidari{flex:0 1 auto;max-width:58%;min-width:0;padding-top:2px}\n.doc2-waku{border:1px solid #c9c5b8;border-radius:5px;padding:5px 8px;background:transparent}\n.doc2-waku table{width:100%;border-collapse:collapse}\n.doc2-waku td{padding:2px 0;font-size:12.5px;border:none}\n/* ★2026-09-12 左の枠を「縮んでよい」にしたら、名前と金額がくっついた\n   （倉庫ピックアップ料金（バラ出荷）無料サービス と続けて読めてしまう）。\n   ★この padding-left を消さないでください。名前と金額が読み分けられなくなります。 */\n.doc2-waku td.wn{text-align:right;white-space:nowrap;font-weight:700;padding-left:10px}\n.doc2-2retsu .doc2-breakdown{flex:0 0 auto;margin-bottom:0}";
+  const CSS = ".invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem 4.4rem;margin:1rem auto 0;max-width:820px;box-sizing:border-box}\n.invoice-doc.pricelist-doc{max-width:none}\n.invoice-doc-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:1.5rem;letter-spacing:.15em}\n.invoice-doc-top{display:flex;justify-content:space-between;margin-bottom:1.5rem;font-size:14.5px}\n.invoice-doc-summary{border:2px solid #1a1a18;border-radius:6px;margin-bottom:1rem}\n.invoice-doc-summary table{width:100%;border-collapse:collapse}\n.invoice-doc-summary th{background:#f9f8f5;padding:8px;font-size:13.5px;color:#2b2a26;border-right:1px solid #e8e2d8}\n.invoice-doc-summary td{padding:10px 8px;text-align:center}\n.invoice-doc-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:15px}\n.invoice-doc-table th{background:#f9f8f5;padding:8px 10px;border:1px solid #d5cfc3;font-size:13px;color:#2b2a26}\n.invoice-doc-table td{padding:9px 10px;border:1px solid #d5cfc3}\n.invoice-doc-note{font-size:12.5px;color:#2b2a26;line-height:1.8;border:1px solid #e8e2d8;border-radius:6px;padding:12px 14px;margin-top:1rem}\n/* ★2026-09-12 ひろみさん：「キレるということは、横幅ぎりぎりまで文字が\n   入ってるから。もう少し余白を左右1cmずつくらい増やせばいいのでは」\n   → .invoice-doc の左右の余白を 0.85cm(32px) → 1.85cm(70px) にしました。\n   PDFの入れ物は820px。前は中が使える幅756pxに対して中身が約733pxで、\n   余りが23pxしかなく、文字の出かたが少し変わるだけではみ出して切れていました。\n   いまは680pxに対して約592pxで、約88pxの余りがあります。\n   ★padding:2rem に戻さないでください。また端が切れます。 */\n/* ── 2026-07 新帳票デザイン（お見積書・ご請求書・お見積兼ご請求書） ── */\n.doc2-title{font-size:24px;font-weight:700;text-align:center;letter-spacing:0;margin-bottom:1.2rem}\n.doc2-grand{display:inline-block;min-width:62%;border-bottom:3px double #1a1a18;padding:0 14px 6px 6px;margin-bottom:1.2rem}\n.doc2-grand .lbl{font-size:13.5px;font-weight:700}\n.doc2-grand .amt{font-size:28px;font-weight:700;float:right;letter-spacing:.02em}\n.doc2-grand::after{content:\"\";display:block;clear:both}\n.doc2-items{width:100%;border-collapse:collapse;font-size:14px;margin:1rem 0}\n.doc2-items th{border-top:2px solid #1a1a18;border-bottom:1px solid #1a1a18;padding:7px 8px;font-size:12px;font-weight:700;background:#fff;color:#1a1a18}\n.doc2-items td{border-bottom:1px solid #cfc9bd;padding:8px}\n.doc2-items tr:last-child td{border-bottom:2px solid #1a1a18}\n.doc2-items th+th,.doc2-items td+td{border-left:1px solid #d9d3c7}\n.doc2-eq{white-space:nowrap}\n.doc2-eq b{font-size:15px}\n.doc2-breakdown{display:flex;justify-content:flex-end;margin:0 0 1rem}\n.doc2-breakdown table{border-collapse:collapse;font-size:13px}\n.doc2-breakdown td{padding:3px 0 3px 6px;text-align:right;white-space:nowrap}\n.doc2-breakdown tr.doc2-total td{border-top:2px solid #1a1a18;font-weight:700;font-size:15px;padding-top:6px}\n/* ── 2026-09-11 承認済みモック（mock_書類の金額まわり_第6版）のとおり ── */\n/* ★（税抜価格）は表の右上に1回だけ。見出しには書かない */\n.doc2-zeinuki{text-align:right;font-size:11px;color:#54564d;margin:0 0 2px}\n/* ★数量は2段見出し（バラ／箱／合計本数） */\n.doc2-items th.doc2-sub{font-size:10.5px;font-weight:700;padding:2px 4px}\n/* ★ピックアップ料金と送料は、内訳（右）の左の空きに置く。線は灰色・背景色はつけない */\n/* ★2026-09-12 ゆかさん報告：「切れてしまいます。印刷画面で縮小しても切れたままになります」\n   PDFの入れ物は820px、中身が使えるのは756px。前は左の枠が flex:1 1 auto で\n   【伸びて】最大58%(438px)まで広がり、右の内訳(約300px)と合わせて756pxギリギリだった。\n   文字のにじみ方が少し変わるだけではみ出し、はみ出した右側がPDFで切り落とされていた。\n   → 左の枠は【伸びない・縮んでよい】(flex:0 1 auto)にして、130px以上の余裕を作った。\n   → 万一それでも入らないときは、切れずに下へ折り返す(flex-wrap:wrap)。\n   ★flex:1 1 auto に戻さないでください。また切れます。 */\n/* ★2026-09-12 ひろみさん：「すこしだけ中身を細くする。両端1ｃｍずつくらい」\n   紙の両端に1cmずつ余白を取ると、中が使える幅は166mmになります。\n   そのままだと入りきらず、内訳（8%対象…合計）が枠の【下に落ちて】\n   ひろみさんが決めた並び（左に料金・右に内訳）が崩れました。\n   絵で見ながら段階をためし、【すきまを詰めるだけ】で足りることを確かめました。\n   　・枠と内訳のあいだ　14px → 8px\n   　・枠の内側　　　　　7px 10px → 5px 8px\n   　・枠の金額の左　　　18px → 10px\n   　・内訳の左　　　　　18px → 10px\n   文字の大きさは変えていません（見た目をできるだけ変えないため）。\n   これで刷れる範囲の内側に 18.6mm の余裕ができました。\n   ★もとの数字に戻さないでください。戻すと内訳が下に落ちます。 */\n.doc2-2retsu{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;flex-wrap:wrap}\n.doc2-hidari{flex:0 1 auto;max-width:58%;min-width:0;padding-top:2px}\n.doc2-waku{border:1px solid #c9c5b8;border-radius:5px;padding:5px 8px;background:transparent}\n.doc2-waku table{width:100%;border-collapse:collapse}\n.doc2-waku td{padding:2px 0;font-size:12.5px;border:none}\n/* ★2026-09-12 左の枠を「縮んでよい」にしたら、名前と金額がくっついた\n   （倉庫ピックアップ料金（バラ出荷）無料サービス と続けて読めてしまう）。\n   ★この padding-left を消さないでください。名前と金額が読み分けられなくなります。 */\n.doc2-waku td.wn{text-align:right;white-space:nowrap;font-weight:700;padding-left:10px}\n.doc2-2retsu .doc2-breakdown{flex:0 0 auto;margin-bottom:0}\n/* ★2026-09-12 ひろみさん：「8行をつくるためには、全体的にスペースのある行を\n   詰めないとダメだと思うよ」→ 文字の大きさは変えず、すきまだけ詰めました。\n   ★もとの数字に戻さないでください。8行が1枚に入らなくなります。 */\n.doc2-items td{padding:4px 8px}\n.doc2-items th{padding:4px 8px}\n.doc2-items{margin:.5rem 0}\n.doc2-title{margin-bottom:.7rem}\n.invoice-doc-top{margin-bottom:.8rem}\n.doc2-grand{margin-bottom:.7rem}\n.invoice-doc{padding:1.2rem 4.4rem}\n/* 空の行は、枠だけ（何も書かない） */\n.doc2-kara td{height:1.9em}\n/* まとめた税の行は右に寄せる。数字は太字 */\n.doc2-zei td{text-align:right;white-space:nowrap}\n.doc2-2retsu{justify-content:flex-end}";
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function yen(n){ return '¥' + Math.round(n||0).toLocaleString('ja-JP'); }
@@ -32,11 +32,20 @@
     /* ★2026-08-19 ひろみさん指示：一般のお客様あての納品書に印鑑（社判）は入れない。
        必要な書類だけ {seal:true} で出す。★勝手に常時表示に戻さないでください */
     opt = opt || {};
-    var h = '<div style="margin-top:8px;font-weight:700;position:relative">'+esc(COMPANY_INFO.name);
-    if(opt.seal) h += '<img src="data:image/png;base64,'+SEAL_B64+'" alt="社判" style="position:absolute;right:4px;top:-8px;width:62px;height:62px;opacity:.95">';
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 社印が会社名・住所・【インボイス登録番号】の真上に乗って、
+       　文字が読めなくなっていました（卸・RTの書類は、ずっとこうでした）。
+       　登録番号はインボイスの大事な番号なので、隠してはいけません。
+       　→ 社印は文字の【右の外】に置き、文字のほうを社印のぶんだけ左に寄せます。
+       ★重ねる形（right:4px;top:-8px）に戻さないでください。
+       ══════════════════════════════════════════════════════════════ */
+    var sealHaba = opt.seal ? 56 : 0;
+    var yoseru = sealHaba ? ' style="padding-right:' + sealHaba + 'px"' : '';
+    var h = '<div style="margin-top:8px;font-weight:700;position:relative;padding-right:'+sealHaba+'px">'+esc(COMPANY_INFO.name);
+    if(opt.seal) h += '<img src="data:image/png;base64,'+SEAL_B64+'" alt="社判" style="position:absolute;right:0;top:-2px;width:50px;height:50px;opacity:.95">';
     h += '</div>';
-    h += '<div>〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
-    h += '<div>登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
+    h += '<div'+yoseru+'>〒'+esc(COMPANY_INFO.zip)+' '+esc(COMPANY_INFO.addr)+'</div>';
+    h += '<div'+yoseru+'>登録番号：'+esc(COMPANY_INFO.invoiceRegNo)+'</div>';
     h += '<div style="margin-top:8px;text-align:right"><img src="data:image/png;base64,'+LOGO_B64+'" alt="oliveoil stories" style="width:150px;height:auto"></div>';
     return h;
   }
@@ -137,6 +146,20 @@
          + (opt.showAmount ? '<td style="text-align:right">'+(it.unitPrice?yen(it.amount):(it.zeroText||'―'))+'</td>' : '')
          + '</tr>';
     });
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-12 ひろみさん：「商品の枠を最初から8行つくっておいて。
+       　2行で入力がおわっていたら、残りは何も書かず枠だけがある、状態でOK」
+       ──────────────────────────────────────────────────────────────
+       いつも同じ大きさの表になるので、書類の見た目がそろいます。
+       ★8行を減らさないでください。★空の行に文字を入れないでください。
+       ══════════════════════════════════════════════════════════════ */
+    var HAKO_GYOU = 8;
+    var retsu = 3 + (opt.showAmount ? 2 : 0) + 3;   /* No.／商品／1箱入り数／単価／バラ／箱／合計本数／金額 */
+    for(var _k = items.length; _k < HAKO_GYOU; _k++){
+      h += '<tr class="doc2-kara">';
+      for(var _c = 0; _c < retsu; _c++) h += '<td>&nbsp;</td>';
+      h += '</tr>';
+    }
     h += '</tbody></table>';
 
     if(opt.showAmount){
@@ -150,19 +173,30 @@
          ★この2行を明細の表の中に戻さないでください（行が増えて1枚に収まりません）。
          ★消費税の行をここに足さないでください（右の内訳にまとまっています）。
          ══════════════════════════════════════════════════════════════ */
+      /* ══════════════════════════════════════════════════════════════
+         ★2026-09-12 ひろみさん（8行の枠を作るために、行を2つ浮かせる）
+         ──────────────────────────────────────────────────────────────
+         　「倉庫ピックアップ料金（バラ出荷）／送料　この2つを
+         　　その後の記載と同じ並びにして」
+         　　→ 左の枠をやめて、内訳（右）の中にいっしょに並べます。
+         　「8%対象（軽減税率※・税抜）￥27,742　消費税（8%）￥2,219
+         　　…これを1行にして。10%も同様」
+         　　→ 2行を1行に。8%と10%で【2行浮きます】。
+         ★左の枠（doc2-hidari／doc2-waku）に戻さないでください。
+         　戻すと2行ぶん場所を取って、商品の枠が8行に入りません。
+         ★税の2行を分けないでください。同じ理由です。
+         ══════════════════════════════════════════════════════════════ */
       var waku = opt.wakuRows || [];
       h += '<div class="doc2-2retsu">';
-      if(waku.length){
-        h += '<div class="doc2-hidari"><div class="doc2-waku"><table>';
-        waku.forEach(function(w){
-          h += '<tr><td>'+esc(w.name)+'</td><td class="wn">'
-             + (w.amount ? yen(w.amount) : esc(w.zeroText || '―')) + '</td></tr>';
-        });
-        h += '</table></div></div>';
-      }
       h += '<div class="doc2-breakdown"><table>';
-      if(sub8){  h += '<tr><td>8%対象（軽減税率※・税抜）</td><td>'+yen(sub8)+'</td></tr><tr><td>消費税（8%）</td><td>'+yen(tax8)+'</td></tr>'; }
-      if(sub10){ h += '<tr><td>10%対象（税抜）</td><td>'+yen(sub10)+'</td></tr><tr><td>消費税（10%）</td><td>'+yen(tax10)+'</td></tr>'; }
+      waku.forEach(function(w){
+        h += '<tr><td>'+esc(w.name)+'</td><td>'
+           + (w.amount ? yen(w.amount) : esc(w.zeroText || '―')) + '</td></tr>';
+      });
+      if(sub8){  h += '<tr class="doc2-zei"><td colspan="2">8%対象（軽減税率※・税抜）<b>'+yen(sub8)+'</b>'
+                    + '　　消費税（8%）<b>'+yen(tax8)+'</b></td></tr>'; }
+      if(sub10){ h += '<tr class="doc2-zei"><td colspan="2">10%対象（税抜）<b>'+yen(sub10)+'</b>'
+                    + '　　消費税（10%）<b>'+yen(tax10)+'</b></td></tr>'; }
       h += '<tr class="doc2-total"><td>合計（税込）</td><td>'+yen(total)+'</td></tr>';
       h += '</table></div></div>';
       /* ★2026-08-19 ひろみさん指示：※印の断り書きは、合計（税込）のすぐ下に置く。

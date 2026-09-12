@@ -61,8 +61,25 @@ function nouhin(o){ box.__o = o; return vm.runInContext('OOS_NOUHIN.build(__o, _
 function gyou(html){
   var s = String(html);
   var meisai = [...s.matchAll(/<tr><td style="text-align:center">\d+<\/td><td>([^<]*)<\/td>/g)].map(function(m){ return m[1]; });
-  var waku   = [...s.matchAll(/<tr><td>([^<]*)<\/td><td class="wn">/g)].map(function(m){ return m[1]; });
+  /* ★2026-09-12 ひろみさん指示で、倉庫ピックアップ料金・送料は
+     　【左の枠】から【内訳（右）の中】へ移りました（8行の枠を作るため）。
+     　ここは class="wn" という書き方を文字で探していたので、落ちました。
+     　→ 内訳の中の「名前／金額」の行を読む形にしました。
+     　（合計の行は <tr class="doc2-total">、税の行は <tr class="doc2-zei"> なので
+     　　この形には当たりません） */
+  var waku   = [...s.matchAll(/<tr><td>([^<]*)<\/td><td>/g)].map(function(m){ return m[1]; });
   return meisai.concat(waku);
+}
+/* ★2026-09-12 明細の表が【いつも8行】あるかを数える道具。
+   　ひろみさん：「商品の枠を最初から8行つくっておいて。2行で入力が
+   　おわっていたら、残りは何も書かず枠だけがある、状態でOK」 */
+function meisaiGyouSuu(html){
+  var s = String(html);
+  var a = s.indexOf('<table class="doc2-items">');
+  if(a < 0) return -1;
+  var b = s.indexOf('</tbody>', a);
+  var t = s.slice(s.indexOf('<tbody>', a), b);
+  return (t.match(/<tr/g) || []).length;
 }
 function goukei(html){
   var m = String(html).match(/ご請求金額（税込）<\/span><span class="amt">([^<]*)</);
@@ -197,7 +214,18 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
   inc('⑤見出しが二段になっている（バラ）',   h2, '>バラ<', true);
   inc('⑤見出しが二段になっている（箱）',     h2, '>箱<', true);
   inc('⑤見出しが二段になっている（合計本数）', h2, '>合計本数<', true);
-  inc('⑤1列の古い書き方は使わない',          h2, '（バラ5本＋2箱）', false);
+  /* ══════════════════════════════════════════════════════════════
+     ★2026-09-12 ひろみさん：「商品の枠を最初から8行つくっておいて。
+     　2行で入力がおわっていたら、残りは何も書かず枠だけがある、状態でOK」
+     ──────────────────────────────────────────────────────────────
+     いつも同じ大きさの表になるので、書類の見た目がそろいます。
+     ★8行を減らさないでください。★空の行に文字を入れないでください。
+     （この見張りは、古い1列の書き方が戻っていないことも一緒に見ています）
+     ══════════════════════════════════════════════════════════════ */
+  ok('⑤明細の表はいつも8行。古い1列の書き方も使わない',
+     h2.indexOf('（バラ5本＋2箱）') < 0 && meisaiGyouSuu(h1) === 8 && meisaiGyouSuu(h2) === 8,
+     '（商品1つでも2つでも、枠は8行そろっていないといけません。いまは h1=' 
+     + meisaiGyouSuu(h1) + '行 h2=' + meisaiGyouSuu(h2) + '行）');
   const h3 = nouhin(mkOrder({ lines:[{productId:2,sku:'GFT001',productName:'カップオイル3個ギフトセット',bottles:4,boxes:0,boxQty:10}] }));
   inc('⑤単位が「個」の商品は「個」', h3, '4個', true);
   inc('⑤「個」の商品を「本」と書かない', h3, '4本', false);

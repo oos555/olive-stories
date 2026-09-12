@@ -1,0 +1,109 @@
+<meta charset="utf-8">
+<title>実際にスプシへ貼ってみる（RT-20260912-6137）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="../oos-zei.js"></script>
+<script src="../oos-kakaku.js"></script>
+<script src="../oos-shorui-kimari.js"></script>
+<script src="../oos-doc.js"></script>
+<script src="../oos-nouhin.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;
+       margin:0;padding:12px;color:#2b2a26;font-size:14px;background:#fff}
+  #log{font-size:12.5px;line-height:1.9;white-space:pre-wrap}
+</style>
+<div id="log">はじめます…</div>
+<div id="kekka" style="display:none"></div>
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+function log(s){ document.getElementById('log').textContent += '\n' + s; }
+
+/* ★実データ（GASから読んだ RT-20260912-6137 の中身） */
+var o = {
+  id:'x', num:'RT-20260912-6137', client:'東京ベイコート倶楽部', customerType:'RT',
+  recipientName:'東京ベイコート倶楽部', zip:'', addr:'東京都江東区有明3-7-11', tel:'',
+  enclosedDoc:'領収書 ＋ RT発注伝票＋納品書 ＋  ＋ ',
+  shippingFee:'betto', warehouseFee:700,
+  yukaKey:'K1789190845381-3502',
+  leadType:'scheduled', leadDate:'2026-09-13T15:00:00.000Z',
+  lines:[{ productId:4, productName:'メメジック 500ml', sku:'MEM500', bottles:1, boxes:0, boxQty:12 }]
+};
+var PRODUCTS = [{ id:4, sku:'MEM500', name:'メメジック 500ml', boxQty:12, group:'メメジック' }];
+var PRICE_MASTER = [{ sku:'MEM500', priceGeneral:4750, priceRT:3560 }];
+
+async function pdfB64(mei){
+  var html = OOS_NOUHIN.build(o, { products:PRODUCTS, priceMaster:PRICE_MASTER, defaults:{} }, mei);
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:820px';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  try{
+    var target = holder.querySelector('.invoice-doc') || holder;
+    var canvas = await html2canvas(target, { scale:2, backgroundColor:'#ffffff',
+      windowWidth: target.scrollWidth, windowHeight: target.scrollHeight });
+    var img = canvas.toDataURL('image/jpeg', 0.92);
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF('p','mm','a4');
+    var pw = 210, ph = 297;
+    var iw = pw, ih = canvas.height * pw / canvas.width;
+    if(ih > ph){ ih = ph; iw = canvas.width * ph / canvas.height; }
+    pdf.addImage(img, 'JPEG', (pw-iw)/2, 0, iw, ih);
+    return pdf.output('datauristring').split(',')[1];
+  } finally { try{ document.body.removeChild(holder); }catch(e){} }
+}
+
+async function post(body){
+  var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body) });
+  var t = await r.text();
+  try{ return JSON.parse(t); }catch(e){ return { status:'?', nama:t.slice(0,120) }; }
+}
+
+(async function(){
+  document.getElementById('log').textContent = '道具： html2canvas=' + (!!window.html2canvas) + ' ／ jspdf=' + (!!window.jspdf);
+  var meiList = OOS_NOUHIN.shoruiList(o);
+  log('この注文で作る書類 … ' + JSON.stringify(meiList));
+  var kekka = [];
+  for (var i = 0; i < meiList.length; i++){
+    var mei = meiList[i];
+    log('');
+    log('── ' + (i+1) + '枚目：' + mei);
+    var b64;
+    try{ b64 = await pdfB64(mei); }
+    catch(e){ log('  ★ PDFを作れませんでした: ' + e.message); continue; }
+    log('  PDFを作りました（' + b64.length + ' 文字）');
+
+    var nm = (o.recipientName + '_' + o.num + '_' + mei + '.pdf').replace(/[\\\/:*?"<>|]/g, '_');
+    var d = await post({ action:'saveExtraDoc', base64:b64, filename:nm });
+    if(!d || d.status !== 'ok' || !d.url){
+      log('  ★ ドライブに保存できませんでした: ' + JSON.stringify(d).slice(0,200));
+      continue;
+    }
+    log('  ドライブに保存しました');
+    log('  URL … ' + d.url);
+    kekka.push({ mei: mei, url: d.url, name: d.name || nm });
+  }
+
+  if(!kekka.length){ log(''); log('★ 貼るものがありません'); return; }
+
+  log('');
+  log('── 発注書スプシ（V列・W列）にリンクを貼ります');
+  var r2 = await post({ action:'yukaSetDocLinks', payload:{
+    key: o.yukaKey,
+    nouhinUrl: kekka[0] ? kekka[0].url : '',
+    nouhinName: kekka[0] ? ('📄 ' + OOS_NOUHIN.docTitleOf(kekka[0].mei) + '（ひらく）') : '',
+    hokaUrl:   kekka[1] ? kekka[1].url : '',
+    hokaName:  kekka[1] ? ('📄 ' + OOS_NOUHIN.docTitleOf(kekka[1].mei) + '（ひらく）') : ''
+  }});
+  log('  返事 … ' + JSON.stringify(r2).slice(0, 300));
+  if(r2 && r2.status === 'ok'){
+    log('');
+    log('✅ 貼れました。発注書の ' + r2.row + ' 行目です。');
+    log('   V列（納品書）… ' + r2['納品書']);
+    log('   W列（他あれば）… ' + r2['発注伝票']);
+  }
+  document.getElementById('kekka').textContent = JSON.stringify({ kekka: kekka, sheet: r2 });
+})();
+</script>
