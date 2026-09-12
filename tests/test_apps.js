@@ -450,6 +450,21 @@ try{
   const hK = D.box.buildInvoiceHtml(Object.assign({}, ord, {isCompany:true, companyName:'テスト株式会社', enclosedDoc:'納品書兼請求書'}));
   eq('⑤ 会社のお客様の振込先は三井住友', hK.indexOf('三井住友銀行') >= 0, true);
   eq('⑤ 内訳（消費税・合計）は右に寄せる', H.read('oos-doc.js').indexOf('.doc2-breakdown{display:flex;justify-content:flex-end') >= 0, true);
+  /* ★2026-09-12 ひろみさん：「キレるということは、横幅ぎりぎりまで文字が入ってるから。
+     　もう少し余白を左右1cmずつくらい増やせばいいのでは」
+     ゆかさん：「切れてしまいます。印刷画面で縮小しても切れたままになります」
+     PDFの入れ物は820px。左右の余白が0.85cm(32px)のとき、中が使える幅756pxに対して
+     中身が約733pxで、余りが23pxしかなく、はみ出した右側がPDFで切り落とされていた。
+     左右の余白を1.85cm(4.4rem=70px)にして、約88pxの余りを作った。
+     ★padding:2rem（左右も2rem）に戻さないでください。また端が切れます。 */
+  eq('⑤ 書類の左右の余白は1.85cm（端が切れないため）',
+     H.read('oos-doc.js').indexOf('.invoice-doc{background:#fff;border:1px solid #e8e2d8;border-radius:8px;padding:2rem 4.4rem;') >= 0, true);
+  /* ★左の枠が「伸びない」こと。伸びると右の内訳を押し出して、また切れる */
+  eq('⑤ 左の枠は伸びない（flex:0 1 auto）',
+     H.read('oos-doc.js').indexOf('.doc2-hidari{flex:0 1 auto;') >= 0, true);
+  /* ★万一入らないときは、切れずに下へ折り返す */
+  eq('⑤ 入らないときは折り返す（flex-wrap:wrap）',
+     H.read('oos-doc.js').indexOf('.doc2-2retsu{display:flex;align-items:flex-start;gap:14px;justify-content:space-between;flex-wrap:wrap}') >= 0, true);
   ord.enclosedDoc = '納品書';
   const h2 = D.box.buildInvoiceHtml(ord);
   eq('⑤ 「納品書」のときは表題も納品書', /class="doc2-title">納品書</.test(h2), true);
