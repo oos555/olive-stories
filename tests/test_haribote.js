@@ -106,15 +106,39 @@ testFiles().forEach(function (f) {
 
 /* ── ② 砂場に決めごとの親を入れていない見張り ── */
 var OYA = ['oos-zei.js', 'oos-kakaku.js', 'oos-shorui-kimari.js', 'oos-doc.js', 'oos-nouhin.js', 'oos-zaiko.js'];
+/* ★2026-09-12 数え方を精密にしました。
+   前は「親を1つも入れずに、何かを動かしている」だけで数えていたので、
+   GASの関数や、親を使わない処理を動かしているだけのものまで数えていました。
+   いまは【動かしている関数の中で親（OOS_◯◯）を使っているのに、
+   砂場に入れていない】ものだけを数えます。
+   ★ここを緩めないでください。緩めると、本物とちがう動きで通る見張りを見逃します。 */
 var n2 = 0;
 testFiles().forEach(function (f) {
   if (f === 'test_haribote.js') return;
   var s = naka(path.join(T, f));
-  if (s.indexOf('makeSandbox') >= 0) return;
-  if (s.indexOf('createContext') < 0) return;
-  if (!/H\.cut\(|runInContext/.test(s)) return;
-  var hitotsumo = OYA.some(function (o) { return s.indexOf(o) >= 0; });
-  if (!hitotsumo) n2++;
+  if (s.indexOf('makeSandbox') >= 0) return;   /* 親は自動で入る */
+  if (s.indexOf('createContext') < 0) return;  /* 砂場を作っていない */
+  var haitteru = OYA.some(function (o) { return s.indexOf(o) >= 0; });
+  if (haitteru) return;                        /* 自分で入れている */
+
+  /* 変数名 → その変数が読んでいるファイル */
+  var dokokara = {};
+  var reR = /(?:const|var|let)\s+([A-Za-z_$][\w$]*)\s*=\s*H\.read\(\s*['"]([^'"]+)['"]/g;
+  var mr;
+  while ((mr = reR.exec(s))) { dokokara[mr[1]] = mr[2]; }
+
+  /* 切り出している関数の中で、親を使っているものがあるか */
+  var iru = false;
+  var reC = /H\.cut\(\s*([A-Za-z_$][\w$]*)\s*,\s*['"]([^'"]+)['"]/g;
+  var mc;
+  while ((mc = reC.exec(s))) {
+    var moto = dokokara[mc[1]];
+    if (!moto) continue;
+    var chu = '';
+    try { chu = H.cut(H.read(moto), mc[2]); } catch (e) { continue; }
+    if (/OOS_[A-Z_]+/.test(chu)) { iru = true; break; }
+  }
+  if (iru) n2++;
 });
 
 /* ── ③ ぜんぶ文字さがしだけの見張り ── */
@@ -124,7 +148,9 @@ testFiles().forEach(function (f) {
   var s = naka(path.join(T, f));
   var zenbu = (s.match(/\b(ok|eq|inc|t|has|no)\s*\(/g) || []).length;
   if (zenbu < 20) return;
-  if ((s.match(/runInContext|H\.cut\(/g) || []).length === 0) n3++;
+  /* ★2026-09-12 makeSandbox も「動かしている」に入れます。
+     　決めごとの親を動かして答えを見るのも、りっぱな「動かす見張り」です。 */
+  if ((s.match(/runInContext|H\.cut\(|makeSandbox/g) || []).length === 0) n3++;
 });
 
 /* ── ④ 注文の区分を英語で直接くらべているところ ── */
@@ -164,8 +190,14 @@ appFiles().forEach(function (f) {
    　ほとんどを見落としていました（わざと増やす破壊テストで見つけました）。
    　＝この点検そのものが張りぼてでした。数えられる形に直して、本当の数を書きます。 */
 kazu('①実装の書き方を文字で求めている見張り', n1, 147);
-kazu('②砂場に決めごとの親を入れていない見張り', n2, 5);
-kazu('③ぜんぶ文字さがしだけの見張り', n3, 6);
+/* ★2026-09-12 精密に数え直したら 0 でした（5本とも、親を使わない処理を
+   　動かしているだけでした）。これ以上増やさないでください。
+   　増えたら「本物とちがう動きで通る見張り」を作ったということです。 */
+kazu('②砂場に決めごとの親を入れていない見張り', n2, 0);
+/* ★2026-09-12 区分の翻訳の見張りに【動かして答えを見る】項目を30ほど足しました。
+   　文字を残したまま中身だけ壊す（'RT': 'general' にする）と落ちることを確かめました。
+   　文字さがしだけでは、絶対に捕まえられない壊し方です。 */
+kazu('③ぜんぶ文字さがしだけの見張り', n3, 5);
 kazu('④区分を英語で直接くらべているところ', n4, 0);
 /* ★2026-09-12 受注登録ボタンの中の4か所を、失敗を知らせる入口（oosShippai）に
    　通しました。285 → 283。ここから減らしていきます。

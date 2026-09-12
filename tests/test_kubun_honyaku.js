@@ -104,6 +104,62 @@ has('⑤親：バサラの価格表',  KAK, "basara:      'priceBasara'");
 has('⑤親：6箱で卸②へ',      KAK, 'BULK_UPGRADE_BOXES = 6');
 has('⑤親：日本語の区分も受ける', KAK, "'RT': 'rt'");
 
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 ここまでは【文字さがし】だけでした。
+   　表があることは見ていましたが、表の中身が正しいかは見ていませんでした。
+   　2026-09-12 に、まさに同じ穴（日本語の「RT」を英語の rt と比べて取りこぼす）が
+   　書類の道を決めるところで見つかりました。
+   　→ 決めごとの親を【実際に動かして】、答えそのものを確かめます。
+   ★この段を消さないでください。文字さがしだけに戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+(function(){
+  var H2 = require('./harness');
+  var K = H2.makeSandbox({}).box.OOS_KAKAKU;
+  ok('★親（oos-kakaku.js）に翻訳がある', typeof (K && K.normalizeType) === 'function');
+  if (!K || !K.normalizeType) return;
+
+  /* ★実データに入っている【日本語】の値（2026-09-12 実測）
+     　"RT" 49件／"定価" 18件／"卸バサラスター" 11件／"卸②" 1件 */
+  var HYO = [
+    ['定価', 'general'], ['卸①', 'wholesale1'], ['卸②', 'wholesale2'],
+    ['RT', 'rt'], ['RTGC（ゴルフ）', 'rtgc'], ['RTGC', 'rtgc'],
+    ['卸バサラスター', 'basara'], ['特別提供価格', 'special'],
+    ['不良在庫特価', 'defectprice'], ['不良品用特価', 'defectprice']
+  ];
+  HYO.forEach(function (x) {
+    ok('★日本語「' + x[0] + '」を ' + x[1] + ' に翻訳する',
+       K.normalizeType(x[0]) === x[1],
+       '実際は ' + K.normalizeType(x[0]));
+  });
+  /* 英語で来ても、そのまま通ること（昔のデータ） */
+  ['general', 'wholesale1', 'wholesale2', 'rt', 'rtgc', 'basara', 'special', 'defectprice']
+    .forEach(function (c) {
+      ok('★英語の ' + c + ' はそのまま通る', K.normalizeType(c) === c);
+    });
+  /* 空・知らない値の扱い */
+  ok('★空のときは general（定価）になる', K.normalizeType('') === 'general');
+
+  /* ★RTを見分ける窓口（2026-09-12 に作りました） */
+  ok('★親に isRt がある', typeof K.isRt === 'function');
+  if (typeof K.isRt === 'function') {
+    ok('★日本語の「RT」をRTと見分ける', K.isRt('RT') === true);
+    ok('★日本語の「RTGC（ゴルフ）」もRTと見分ける', K.isRt('RTGC（ゴルフ）') === true);
+    ok('★英語の rt / rtgc も見分ける', K.isRt('rt') === true && K.isRt('rtgc') === true);
+    ok('★「定価」をRTと取りちがえない', K.isRt('定価') === false);
+    ok('★「卸バサラスター」をRTと取りちがえない', K.isRt('卸バサラスター') === false);
+  }
+
+  /* ★単価が定価に落ちないこと（2026-09-07の事故そのもの）
+     　RTの単価が引けないと priceGeneral に落ちて、定価で請求してしまいます。 */
+  if (typeof K.priceForSku === 'function') {
+    var PM = [{ sku: 'X1', priceGeneral: 1000, priceRT: 700, priceWholesale1: 800 }];
+    ok('★日本語「RT」でRT価格700を引ける', K.priceForSku('X1', K.normalizeType('RT'), PM, {}) === 700,
+       '実際は ' + K.priceForSku('X1', K.normalizeType('RT'), PM, {}));
+    ok('★日本語「卸①」で卸価格800を引ける', K.priceForSku('X1', K.normalizeType('卸①'), PM, {}) === 800);
+    ok('★日本語「定価」で1000を引ける', K.priceForSku('X1', K.normalizeType('定価'), PM, {}) === 1000);
+  }
+})();
+
 /* ── 結果 ───────────────────────────────────────────────── */
 const title = '区分の翻訳（RT・卸が定価で計算される事故の見張り／2026-09-07）';
 if (fail) {
@@ -111,5 +167,8 @@ if (fail) {
   fails.forEach(x => console.log(x));
   process.exitCode = 1;
 } else {
+
+
+
   console.log('  ✅ ' + title + ' PASS ' + pass + ' / FAIL 0');
 }
