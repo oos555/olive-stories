@@ -110,8 +110,15 @@ ok('⑤RTだけでなく、登録した注文は全部が自動で発注書へ',
   bodyOf(IDX, 'registerOrder').indexOf("if(typeof yukaImportOne==='function'){") >= 0 &&
   bodyOf(IDX, 'registerOrder').indexOf("o.customerType==='rt' && /RT伝票取込/") < 0,
   '（RTだけにすると、一般・卸が倉庫に流れなくなります）');
+/* ★2026-09-12 ここは索引のソースを【改行ごと文字でコピー】して探していました。
+   　そのため、ファイルの改行が CRLF になっただけで、何も壊れていないのに落ちました。
+   　（2026-09-12 に実際に落ちて、原因さがしに時間を使いました）
+   今：間の空白や改行がどうであっても、
+   　　【pending のときだけ発注書へ流している】ことを見ます。
+   ★書き方を文字でコピーする形に戻さないでください。 */
 ok('⑤取り置き・予約は流れない（pendingのときだけ）',
-  IDX.indexOf("if(recordType==='pending'){\n    list.forEach(function(o){\n      if(typeof yukaImportOne==='function')") >= 0);
+  /if\(recordType==='pending'\)\{\s*list\.forEach\(function\(o\)\{\s*if\(typeof yukaImportOne==='function'\)/.test(IDX),
+  '（pending の外に出すと、取り置き・予約まで倉庫に流れます）');
 ok('⑤📥が返した【ふだ】を、受注Ａ側に控えている',
   IDX.indexOf('if(d.key) o.yukaKey = String(d.key);') >= 0,
   '（控えないと、在庫が引けず、送り状NO.も戻ってきません）');
