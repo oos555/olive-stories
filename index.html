@@ -416,7 +416,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-32">
+<meta name="oos-version" content="2026-09-12-33">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -7690,13 +7690,36 @@ function renderOrderCard(o, sentGroup){
     const displayName = o.recipientName || o.client;
     const subLabel = (o.recipientName && o.recipientName!==o.client) ? '（ご注文者：'+o.client+'）' : '';
     const whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
-    /* ★2026-08-25 ゆかさん提案：倉庫には送らない「記録だけ」の注文は、赤い「未送信」ではなく
-       落ち着いた色の「記録のみ」にする（未対応に見えて誤って倉庫へ送ってしまう事故を防ぐ）。 */
-    const whBadge = o.status==='pending' ? (o.notified
-      ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
-      : (whSkipStateOf(o)==='skip'
-          ? '<span class="pill" style="background:#e5e2da;color:#57534e;border:1px solid #cfc9ba">🚫 記録のみ（倉庫には送らない）</span>'
-          : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>')) : '';
+    /* ══════════════════════════════════════════════════════════════════
+       🔴 未送信／送信済 の札
+       ──────────────────────────────────────────────────────────────────
+       ★2026-09-12 ひろみさん：「スプシの発注書にデーターが送られたら、
+       　ここは未送信から送信済に変更して」
+
+       前：o.notified（＝倉庫へLINEを送ったか）だけを見ていました。
+       　　でも倉庫への直接LINEは 2026-09-10 に廃止したので、この印はもう付きません。
+       　　そのため、発注書にちゃんと送った注文まで、赤い「未送信」のままでした。
+       　　（カードの中には「✅ 発注書に送りました」と出ているのに、上は「未送信」）
+       今：【発注書（スプシ）に入ったか】＝ o.yukaImport.at を見ます。
+       　　入っていれば「送信済」。これがいまの本当の送信です。
+
+       ★o.notified だけを見る形に戻さないでください。ずっと「未送信」のままになります。
+       ★4つの出し分け：
+       　・記録のみ（ストアーズなど）　→ 🚫 記録のみ（倉庫には送らない）
+       　・発注書に入った　　　　　　 → 送信済
+       　・古い流れで倉庫へ送った分　 → 📮 倉庫へ送信 ①（そのまま残します）
+       　・まだどこにも行っていない　 → 未送信（赤）
+       ══════════════════════════════════════════════════════════════════ */
+    const okuraretaKa = !!(o.yukaImport && o.yukaImport.at);   /* 発注書に入ったか */
+    const whBadge = o.status==='pending' ? (
+      whSkipStateOf(o)==='skip'
+        ? '<span class="pill" style="background:#e5e2da;color:#57534e;border:1px solid #cfc9ba">🚫 記録のみ（倉庫には送らない）</span>'
+      : okuraretaKa
+        ? '<span class="pill" style="background:#3b6d11;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">送信済</span>'
+      : o.notified
+        ? '<span class="pill" style="background:#eaf3de;color:#3b6d11;border:1px solid #97c459">📮 倉庫へ送信 '+(whMarks[(o.notifyCount||1)-1]||('×'+o.notifyCount))+'</span>'
+        : '<span class="pill" style="background:#e24b4a;color:#fff;font-weight:800;font-size:16px;padding:3px 13px;border-radius:8px;letter-spacing:.04em">未送信</span>'
+    ) : '';
     /* ★2026-08-17 ひろみさん指示：ここに入る時刻は倉庫さんが梱包を終えて押した時刻なので、
        「発送」ではなく「梱包完了」と正直に書く。お客様から問い合わせがあったときに、
        この時刻を出荷時刻として答えてしまうと嘘になるため。 */
@@ -7742,7 +7765,7 @@ function renderOrderCard(o, sentGroup){
            + '　／　送料 ' + hito(o.shippingFee, true)
            + soe + '</div>';
     })();
-    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified && whSkipStateOf(o)!=='skip')?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
+    return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified && !(o.yukaImport && o.yukaImport.at) && whSkipStateOf(o)!=='skip')?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start">'+
         '<div><span class="oc-name">'+displayName+'</span>'+(subLabel?'<span style="font-size:11px;color:#2b2a26">'+subLabel+'</span>':'')+' '+badge+urgentBadge+overdueBadge+unpaidBadge+zaikoBadge+recycleBadge+basaraBadge+storesBadge+whBadge+'<div class="oc-num">'+o.num+'　'+(o.registeredAt||'').slice(0,16).replace('T',' ')+'　'+leadLabelWithDate(o)+shippedInfo+'</div></div></div>'+

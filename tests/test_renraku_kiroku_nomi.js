@@ -23,7 +23,38 @@ ok('②STORESバッジがある', src.indexOf('🛒STORES') >= 0);
 ok('②storesBadgeが判定に使われている', src.indexOf("o.source==='stores' ?") >= 0);
 ok('②whSkipStateOfがある', src.indexOf('function whSkipStateOf') >= 0);
 ok('②「倉庫には送らない」ボタンがある', src.indexOf('倉庫には送らない（記録のみ') >= 0);
-ok('②未送信の赤バッジに記録のみの分岐がある', src.indexOf('🚫 記録のみ（倉庫には送らない）') >= 0);
+/* ══════════════════════════════════════════════════════════════════
+   🔴 未送信／送信済 の札　★2026-09-12 ひろみさん
+   ──────────────────────────────────────────────────────────────────
+   「スプシの発注書にデーターが送られたら、ここは未送信から送信済に変更して」
+
+   前：o.notified（倉庫へLINEしたか）だけを見ていた。倉庫への直接LINEは
+   　　2026-09-10 に廃止したので、発注書に送った注文まで赤い「未送信」のままだった。
+   今：o.yukaImport.at（発注書に入ったか）を見る。
+
+   ここは文字さがしではなく、本物の式を【動かして】4つの場合を確かめます。
+   ★o.notified だけを見る形に戻さないでください。 */
+{
+  const vm2 = require('vm');
+  const a2 = src.indexOf('    const okuraretaKa =');
+  const b2 = src.indexOf(") : '';", a2) + ") : '';".length;
+  const shiki = (a2 >= 0 && b2 > 6) ? src.slice(a2, b2) : '';
+  const bako = { console, String, Number, Boolean, Object, Array };
+  bako.window = bako;
+  const ct = vm2.createContext(bako);
+  vm2.runInContext(H.cut(src, 'whSkipStateOf'), ct);
+  vm2.runInContext("var whMarks = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];", ct);
+  const tsukuru = shiki ? vm2.runInContext('(function(o){' + shiki + ' return whBadge; })', ct) : null;
+  function fuda(o){ const m = String((tsukuru ? tsukuru(o) : '') || '').match(/>([^<]+)</); return m ? m[1] : ''; }
+  const IMA = '2026-09-12T01:14:00.000Z';
+  ok('②札は4つに出し分かれる（未送信／送信済／記録のみ／倉庫へ送信）'
+     + '　いま出る札：登録だけ=' + (fuda({ status:'pending' }) || '（なし）')
+     + '／発注書に入った=' + (fuda({ status:'pending', yukaImport:{ at:IMA } }) || '（なし）'),
+     fuda({ status:'pending' }) === '未送信' &&
+     fuda({ status:'pending', yukaImport:{ at:IMA } }) === '送信済' &&
+     fuda({ status:'pending', whSkip:{ state:'skip', at:IMA } }).indexOf('記録のみ') >= 0 &&
+     fuda({ status:'pending', notified:true, notifyCount:1 }).indexOf('倉庫へ送信') >= 0);
+}
 ok('②元に戻すボタンがある', src.indexOf('やっぱり倉庫へ送れるようにする') >= 0);
 
 /* ── ②実際に動かして確認（whSkip状態の遷移） ── */
