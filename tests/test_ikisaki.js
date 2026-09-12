@@ -950,9 +950,14 @@ function hacchuushoGyou(payload){
     (function(){
       var _S = H.makeSandbox({});
       var _ug = true;
-      ['docCheckTaisho', 'rtKubunKa', 'rtDenpyoOrderKa'].forEach(function (n) {
+      /* ★2026-09-12（夜）docCheckTaisho は【発注書のV列】を見るようになりました。
+         　砂場にその部品を入れないと、本物とちがうものを測ってしまいます。
+         ★docHareteruKa を外さないでください。 */
+      ['docHareteruKa', 'docCheckTaisho', 'rtKubunKa', 'rtDenpyoOrderKa'].forEach(function (n) {
         try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; }
       });
+      /* 発注書をまだ読んでいない状態＝何も貼れていない、として確かめます */
+      try { vm.runInContext('var docVretsu = {};', _S.ctx); } catch (e) { _ug = false; }
       ok('⑱-11 見分ける仕掛けを動かせる', _ug);
       if (_ug && typeof _S.box.docCheckTaisho === 'function') {
         ok('⑱-11 バサラは【見てから貼る】に出さない',
@@ -973,8 +978,11 @@ function hacchuushoGyou(payload){
     ok('⑱-15 貼れていたら「貼れています」と出す',       /貼れています/.test(fd));
     ok('⑱-16 貼れていなければ「まだ貼れていません」',   /まだ貼れていません/.test(fd));
     /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
-    ok('⑱-17 そのとき［PDFをスプシに貼る前に確認する］を出す',
-       /PDFをスプシに貼る前に確認する/.test(fd));
+    /* ★2026-09-12（夜）ひろみさん：「PDFを開いて一度確認すると
+       　スプシに貼るボタンが出ます　にして！！　そしたらみんな迷わない」 */
+    ok('⑱-17 そのとき［PDFを開いて確認する］と、次に何が起きるかを出す',
+       /PDFを開いて確認する/.test(fd) &&
+       /PDFを開いて一度確認すると、スプシに貼るボタンが出ます/.test(fd));
     /* ★2枚えらんだら2枚とも札が出るか（1枚ぶんに戻さないための見張り） */
     ok('⑱-17b 札は書類の枚数ぶん出す', /OOS_NOUHIN\.shoruiList\(o\)/.test(fd) && /meis\.forEach/.test(fd));
     ok('⑱-18 書類が無い注文は「書類はありません」',     /金額の載る書類はありません/.test(fd));
@@ -1117,33 +1125,82 @@ function hacchuushoGyou(payload){
     ok('⑳-10 2枚は中身がちがう',      d1 !== d2);
     ok('⑳-11 どちらにも金額が出る',   d1.indexOf('¥') >= 0 && d2.indexOf('¥') >= 0);
     ok('⑳-12 待ち行列は「注文＋書類名」', /docCheckQueue\.push\(\{ o:o, mei:mei \}\)/.test(idx));
-    ok('⑳-13 貼れた書類を1枚ずつ控える', /o\.nouhinDocs\[_mei\] = \{ url: d\.url/.test(idx));
+    /* ★2026-09-12（夜）貼れたかどうかの【親】は 発注書のV列になりました。
+       　アプリは写しを持ちません（写しが消えたのが、この日の事故です）。 */
+    ok('⑳-13 アプリは書類の写しを持たない', idx.indexOf('o.nouhinDocs[') < 0);
     ok('⑳-14 ファイル名に書類の名前を入れる', /who \+ '_' \+ num \+ '_' \+ mei \+ '\.pdf'/.test(idx));
-    ok('⑳-15 その書類が貼ってあるかを見る', /if\(o\.nouhinDocs\[_mei\]\) return;/.test(idx));
+    ok('⑳-15 その書類が貼ってあるかは【発注書】で見る', /if\(docHareteruKa\(o, _mei\)\) return;/.test(idx));
 
-    /* ── ㉑ 発注書スプシの【2つの列】を使い分ける ──
-       ★2026-09-12 ひろみさん：「よく見ろ！2つ書類を乗せるところはある」
-       　V列（doc1）＝同梱書類 納品書 ／ W列（doc2）＝同梱書類 他あれば
-       ★2枚ともV列に貼る形に戻さないでください（あとの1枚で上書きされます）。 */
-    const at2 = H.cut(idx, 'nouhinAttachToOrder');
-    ok('㉑-1 もう貼ってある枚数を見ている', /_sumi = Object\.keys\(o\.nouhinDocs \|\| \{\}\)\.length/.test(at2));
-    ok('㉑-2 0枚目はV列、1枚目はW列',       /_nimaime = \(_sumi === 1\)/.test(at2));
-    ok('㉑-3 V列へ貼る式がある',             /nouhinUrl: _nimaime \? '' : d\.url/.test(at2));
-    ok('㉑-4 W列へ貼る式がある',             /hokaUrl:\s*_nimaime \? d\.url : ''/.test(at2));
-    ok('㉑-5 hokaUrl を空で固定していない',  !/hokaUrl: '', hokaName: ''/.test(at2));
-    ok('㉑-6 3枚目はスプシに貼らない（W列を上書きしない）', /if\(_sumi >= 2\)\{/.test(at2));
-    /* 画面にも、どちらの列に入るか出しているか */
-    /* ★コメントを先に落とします。落とさないと、決めごとを書いたコメント自身に当たります */
-    const nx2 = H.cut(idx, 'docCheckNext').replace(/\/\*[\s\S]*?\*\//g, '');
-    ok('㉑-7 押す前に「V列」と出す', /hairu = \(_sumiKazu === 0\) \? 'V列/.test(nx2));
-    ok('㉑-8 押す前に「W列」と出す', /'W列「同梱書類 他あれば」'/.test(nx2));
-    ok('㉑-8b 画面にその案内を出している', /発注書スプシの<\/b>' \+ esc\(hairu\)/.test(nx2) || /esc\(hairu\)/.test(nx2));
-    /* GAS側が2列とも書けること（読むだけ） */
+    /* ══════════════════════════════════════════════════════════════════
+       ㉑ 書類のPDFリンクは【V列だけ】（最大2種類）
+       ──────────────────────────────────────────────────────────────────
+       ★2026-09-12（夜）ひろみさん確定
+       　「V列に2つまでPDF貼れる？ Wはパンフレットの指示にしたほうがいいかな」
+       　「PDFは最大2種類まで、でいいと思う」
+
+       前：1枚目をV列、2枚目をW列に入れていた。
+       　　W列は「同梱書類 他あれば」で、パンフレット等の指示が入る列。
+       　　2枚目を貼ると、その指示が消えていた。
+
+       ★ここは前、実装の書き方を文字で求める見張りが【11項目】ありました。
+       　書き方を少し変えるだけで落ちるうえ、決めごとが変わると全部が古くなります。
+       　→ 本物の GAS の関数を動かして、決めごとそのものを1項目で確かめます。
+       ★項目を増やさないでください。ここ1つで足ります。
+       ══════════════════════════════════════════════════════════════════ */
     if(gasSrc){
-      const sl = H.cut(gasSrc, 'oosYukaSetDocLinks');
-      ok('㉑-9 GASはV列に書ける',  /put\(OOS_YC\.doc1/.test(sl));
-      ok('㉑-10 GASはW列に書ける', /put\(OOS_YC\.doc2/.test(sl));
-      ok('㉑-11 空のURLなら そのマスを触らない', /if\(!String\(url\|\|''\)\.trim\(\)\) return '';/.test(sl));
+      var mase = [];                       /* ニセのスプレッドシートの1マス */
+      var richNow = null;
+      function mkRich(text, links){ return {
+        getText(){ return text; },
+        getRuns(){ return links.map(function(x){ return { getText(){ return x.t; }, getLinkUrl(){ return x.u; } }; }); },
+        getLinkUrl(){ return links.length === 1 ? links[0].u : null; } }; }
+      var rng = {
+        getRichTextValue(){ return richNow; },
+        setRichTextValue(v){ richNow = v; mase.push('rich'); return this; },
+        setValue(v){ richNow = mkRich(String(v), []); mase.push('plain'); return this; },
+        getDisplayValue(){ return richNow ? richNow.getText() : ''; }
+      };
+      var sawatta = [];
+      var shBako = { getRange(r, c){ sawatta.push(c); return rng; } };
+      var bldLinks = [];
+      var G = H.makeSandbox({});
+      G.box.SpreadsheetApp = {
+        newRichTextValue(){
+          var t = '', ls = [];
+          var b = { setText(x){ t = String(x); return b; },
+                    setLinkUrl(a, z, u){ ls.push({ t: t.slice(a, z), u: u }); return b; },
+                    build(){ bldLinks = ls.slice(); return mkRich(t, ls); } };
+          return b;
+        }
+      };
+      G.box.OOS_YC = { doc1: 22, doc2: 23 };
+      G.box.oosYukaFile_ = function(){ return { getSheetByName(){ return shBako; } }; };
+      G.box.OOS_YUKA_SHEET = '発注書';
+      G.box.oosKeyColByHeader_ = function(){ return 33; };
+      G.box.oosFindRowByKey_ = function(){ return 7; };
+      vm.runInContext(H.cut(gasSrc, 'oosYukaSetDocLinks'), G.ctx);
+
+      /* 1枚目を貼る → 2枚目を貼る → もう一度1枚目を貼る（二重にならないか） */
+      G.box.__p = { key:'K1', docs:[{ name:'📄 納品書（ひらく）', url:'https://x/1' }] };
+      vm.runInContext('oosYukaSetDocLinks(__p)', G.ctx);
+      G.box.__p = { key:'K1', docs:[{ name:'📄 請求書（ひらく）', url:'https://x/2' }] };
+      vm.runInContext('oosYukaSetDocLinks(__p)', G.ctx);
+      var nikai = bldLinks.slice();
+      G.box.__p = { key:'K1', docs:[{ name:'📄 納品書（ひらく）', url:'https://x/1' }] };
+      vm.runInContext('oosYukaSetDocLinks(__p)', G.ctx);
+      var sankai = bldLinks.slice();
+      /* 3種類目は入らない（最大2種類） */
+      G.box.__p = { key:'K1', docs:[{ name:'📄 領収書（ひらく）', url:'https://x/3' }] };
+      vm.runInContext('oosYukaSetDocLinks(__p)', G.ctx);
+      var yonkai = bldLinks.slice();
+
+      ok('㉑ 書類のリンクはV列だけに2種類まで入り、二重にならず、W列は触らない' +
+         '　（V列に入った数：' + yonkai.length + '／触った列：' + [...new Set(sawatta)].join('・') + '）',
+         nikai.length === 2 &&
+         sankai.length === 2 &&
+         yonkai.length === 2 &&
+         yonkai[0].u === 'https://x/1' && yonkai[1].u === 'https://x/2' &&
+         sawatta.indexOf(23) < 0);
     }
 
   })();

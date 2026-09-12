@@ -50,6 +50,31 @@ allHtml.forEach(function(file){
   ok('①' + file + ' が version.json に登録されている（新アプリの登録漏れ防止）', Object.prototype.hasOwnProperty.call(pages, file));
 });
 
+/* ══════════════════════════════════════════════════════════════════════
+   🔑 親ファイル（oos-◯◯.js）の合言葉 ?v= も、上げ忘れを見つける
+   ──────────────────────────────────────────────────────────────────────
+   ★2026-09-12 ひろみさん：「PDFは、さっきからおねがいしてるけど一切直ってない」
+
+   起きていたこと：oos-doc.js の中身は直したのに、読み込む側の ?v= を上げ忘れた。
+   ブラウザは古いファイルを使いつづけるので、直したものが画面に届かない。
+   さらに oos-shorui-kimari.js は アプリによって ?v= が違っていて、
+   【アプリごとに決めごとが違う】状態になっていた（実際に見つかった）。
+
+   直し方：合言葉を【親ファイルの中身から計算】する（scripts/oya-version.js）。
+   中身が1文字でも変われば合言葉が変わるので、上げ忘れが起きない。
+
+   ★ここは版の見張り（①）の一部です。別の見張りを新しく作らないでください。
+   　ずれていたら  node scripts/oya-version.js --naosu  でそろえます。
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  const OYA = require(path.join(H.LIVE, 'scripts', 'oya-version.js'));
+  const r = OYA.shirabe();
+  ok('①親ファイルの合言葉(?v=)が全部そろっている' +
+     (r.zure.length ? '　ずれ：' + r.zure.slice(0,3).map(function(x){ return x.file + ' ' + x.tag; }).join(' / ') +
+        (r.zure.length > 3 ? ' ほか' + (r.zure.length - 3) + 'か所' : '') : '（合言葉 ' + r.ima + '）'),
+     r.zure.length === 0);
+}
+
 /* ── ② 在庫の親 oos-zaiko.js を読み込んでいるべき4アプリ ── */
 const ZAIKO_APPS = ['master.html', 'index.html', 'pickup.html', 'billing.html'];
 ZAIKO_APPS.forEach(function(file){

@@ -344,10 +344,13 @@ function mkOrder(x){
       "if(_isRt && /RT伝票取込/.test(String(o.note||''))) return;", true);
   ok('⑥RTを丸ごとおことわりしていない',
      IDX.indexOf("if(o.customerType === 'rt' || o.customerType === 'rtgc') return;   /* RTは伝票と一緒に別で貼ります */") < 0);
-  /* ★2026-09-12 「もう貼ってあるか」は【書類ごと】に見るようになりました。
-     　2枚えらべるので、1枚目を貼ったからといって2枚目まで済んだことにはなりません。
-     ★o.nouhinDocUrl だけで見る形に戻さないでください。 */
-  inc('⑥その書類がもう貼ってあれば作り直さない', IDX, 'if(o.nouhinDocs[_mei]) return;', true);
+  /* ★2026-09-12（夜）「もう貼ってあるか」の【親】は 発注書のV列になりました。
+     　アプリは写し（o.nouhinDocs）を持ちません。写しが消えて
+     　「まだ貼れていません」と出つづけたのが、この日の事故です。
+     ★o.nouhinDocs / o.nouhinDocUrl で見る形に戻さないでください。 */
+  inc('⑥その書類がもう貼ってあれば作り直さない（発注書のV列で見る）',
+      IDX, 'if(docHareteruKa(o, _mei)) return;', true);
+  inc('⑥アプリは書類の写しを持たない', IDX, 'o.nouhinDocs[', false);
   inc('⑥ふだが無ければ貼らない',         IDX, 'if(!o.yukaKey) return;', true);
 }
 

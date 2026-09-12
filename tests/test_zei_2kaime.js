@@ -176,35 +176,24 @@ t('説明 業務の流れ', fs.readFileSync(R + 'gyomu_flow.html','utf8').indexO
 t('説明 業務の流れが親（oos-zei.js）を指している',
   fs.readFileSync(R + 'gyomu_flow.html','utf8').indexOf('oos-zei.js') >= 0, true);
 
-/* ── 親を直したときに「古い式が使われ続ける」のを防ぐ ──
-   2026-08-24 の見回りで見つかった穴。
-   アプリは <script src="oos-zei.js?v=20260824"> のように ?v= を付けて読んでいます。
-   oos-zei.js を直したのに ?v= を上げ忘れると、ブラウザは前に取っておいた
-   【古い式】を使い続けます。画面は普通に動くので誰も気づけません。
-   （ひろみさんが何度も遭った「直したのに古いまま」「戻ったように見える」の正体）
-   ★そこで「oos-zei.js が名乗っている版」と「?v=」が同じかを毎回見張ります。
-   ★親を直したら、oos-zei.js の VERSION と、4アプリの ?v= の両方を同じ日付にしてください。 */
-console.log('\n■ 親を直したとき、古い式が残らないか（?v= の見張り）');
-{
-  const zei = fs.readFileSync(R + 'oos-zei.js', 'utf8');
-  const m = /VERSION = '([^']+)'/.exec(zei);
-  t('親が版を名乗っている', !!m, true);
-  const nanoru = m ? m[1].replace(/-/g, '') : '';   // 2026-08-24 → 20260824
-  const APPS = ['index.html','billing.html','mitsumori.html','pickup.html'];
-  const tsuketa = [];
-  APPS.forEach(function(f){
-    const s = fs.readFileSync(R + f, 'utf8');
-    const mm = /src="oos-zei\.js\?v=([0-9]+)"/.exec(s);
-    t(f + ' が ?v= を付けて親を読んでいる', !!mm, true);
-    if(mm) tsuketa.push(mm[1]);
-    t(f + ' の ?v= が親の版と同じ（' + nanoru + '）', mm ? mm[1] : '(なし)', nanoru);
-  });
-  t('4アプリの ?v= が全部そろっている',
-    tsuketa.length === APPS.length && tsuketa.every(function(v){ return v === tsuketa[0]; }), true);
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-12 ここにあった「?v= の見張り（10項目）」は【消しました】。
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「見張りは少なく、見張り同士がバッティングしないようにして。
+   　古い見張りは削除か最新にして活かすならほかの見張りをつけないとか、整理整頓もして」
 
-  /* 共通書類（oos-doc.js）も同じ考え方。倉庫Ｄだけが読んでいます */
+   消した理由：同じことを test_mihari_soten.js の ① が【1項目】で見ています。
+   しかも、ここにあったのは「oos-zei.js の VERSION を手で合わせる」作りで、
+   書き忘れが起きる形でした（2026-09-12 に実際に起きて、直したPDFが
+   ひろみさんの画面に届いていませんでした）。
+   いまは合言葉を【親ファイルの中身から計算】するので、書き忘れが起きません。
+
+   ★ここに ?v= の見張りを作り直さないでください。2本になって、また食い違います。
+   　ずれていたら  node scripts/oya-version.js --naosu  でそろえます。
+   ══════════════════════════════════════════════════════════════════════ */
+console.log('\n■ 親の読み込みの順番');
+{
   const pk = fs.readFileSync(R + 'pickup.html', 'utf8');
-  t('倉庫Ｄが oos-doc.js を ?v= 付きで読んでいる', /src="oos-doc\.js\?v=[0-9a-z]+"/.test(pk), true);
   t('倉庫Ｄは 親（oos-zei.js）を 書類（oos-doc.js）より先に読んでいる',
     pk.indexOf('src="oos-zei.js') < pk.indexOf('src="oos-doc.js'), true);
 }

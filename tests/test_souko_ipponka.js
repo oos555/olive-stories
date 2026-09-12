@@ -216,16 +216,19 @@ ok('⑥書類の画面（?id=）では今までどおり読んでいる',
      「RT同梱書類　取り込んだ伝票と、伝票から作った納品書のリンクが入ったら最高です。
      　それを倉庫が見て印刷します」
      「ご提案どおり（メール・LINEをやめて、発注書にリンクを貼る）にしたい」
-   ・V列（22＝同梱書類 納品書）　… 伝票から作った納品書PDF
-   ・W列（23＝同梱書類 他あれば）… 取り込んだ発注伝票PDF　★見出しはそのまま（ひろみさん決定）
+   ★2026-09-12 ひろみさん確定でここが変わりました。
+   ・V列（22＝同梱書類 納品書）… 書類のPDFは【全部ここ】。最大2種類まで。
+   　　1つのセルの中に2つ並べて、それぞれにリンクを付けます。
+   ・W列（23＝同梱書類 他あれば）… パンフレット等の【指示】。もう触りません。
+   　　前は2枚目をW列に入れていて、パンフレットの指示が消えていました。
    ・PDFの置き場所は Drive の「OOS_同梱追加PDF」。リンクを知っている人は開ける設定。 */
 ok('⑦リンクを貼る窓口がある（oosYukaSetDocLinks）',
   GAS.indexOf('function oosYukaSetDocLinks') >= 0 &&
   GAS.indexOf("if(action === 'yukaSetDocLinks')") >= 0);
-ok('⑦V列（doc1）＝納品書、W列（doc2）＝発注伝票',
-  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('put(OOS_YC.doc1, String(p.nouhinName') >= 0 &&
-  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('put(OOS_YC.doc2, String(p.hokaName') >= 0,
-  '（入れかえると、倉庫が見出しと中身のちがう書類を印刷します）');
+ok('⑦書類のリンクはV列だけ。W列には書き込まない',
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('OOS_YC.doc1') >= 0 &&
+  bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('OOS_YC.doc2') < 0,
+  '（W列に書くと、パンフレットの指示が消えます）');
 ok('⑦ふだ（転記キー）で行を探す（まちがった行に貼らない）',
   bodyOf(GAS, 'oosYukaSetDocLinks').indexOf('oosFindRowByKey_(sh, oosKeyColByHeader_(sh), key)') >= 0);
 ok('⑦ふだが無いときは何もしない',
