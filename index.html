@@ -72,6 +72,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rk-sk{background:#fff;border:1.5px solid #d5cfc3;color:#8a8578;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer}
 .rk-wh{background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #04913f}
 .rk-wh:disabled{background:#d5d1c8;color:#8a8578;box-shadow:none;cursor:not-allowed}
+/* ★2026-09-13 承認モック：発注書にPDFを貼る大きいボタン（幅いっぱい・紺） */
+.doc-hari-big{display:block;width:100%;background:#0c447c;color:#fff;border:none;border-radius:9px;
+  font-size:16px;font-weight:800;padding:15px 16px;margin-top:9px;cursor:pointer;
+  box-shadow:0 3px 0 #072c52;font-family:inherit;text-align:center}
+.doc-hari-big:disabled{cursor:default;box-shadow:none}
 .rk-yk{background:#0c447c;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #072c52;margin-top:7px} /* ★2026-09-03 スプシ一本化第3弾（ボタンは青＝家ルール） */
 .rk-yk.done{background:#e5e2da;color:#57534e;box-shadow:none;cursor:default} /* 取込済＝グレー（モックの btn grey） */
 /* ★2026-09-04 第4弾：🏛 RT予約の残高一覧（モックの見た目・ボタンだけ青＝家ルール） */
@@ -416,7 +421,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-04">
+<meta name="oos-version" content="2026-09-13-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -7788,6 +7793,8 @@ function renderOrderCard(o, sentGroup){
            + '　／　送料 ' + hito(o.shippingFee, true)
            + soe + '</div>';
     })();
+    /* ★2026-09-13 発注書へ送りおわったか（下のボタンの出し分けに使います） */
+    var _okuriSumi2 = !!(o.yukaImport && o.yukaImport.at);
     return '<div class="order-card'+basaraCls+((o.status==='pending' && !o.notified && !(o.yukaImport && o.yukaImport.at) && whSkipStateOf(o)!=='skip')?' oc-unsent':'')+(sentGroup?' oc-sent':'')+'">'+
       '<div class="oc-top">'+
         '<div style="display:flex;gap:8px;align-items:flex-start">'+
@@ -7820,15 +7827,22 @@ function renderOrderCard(o, sentGroup){
            LINEが先だと、出荷依頼書を作る前に送ってしまい、流れが分からなくなる。 */
         /* ★2026-09-10 ひろみさん指示：出荷依頼書はもう通りません。（使いません）でグレーに。
            消さずに残しているのは、古い注文を見直すときに開けるようにするためです。 */
-        twoTop: (!locked && o.status!=='deleted' ? '<button class="rk-sub" onclick="gotoSlip(\''+o.id+'\')" style="opacity:.55">📄 （使いません）出荷依頼書を確認・編集する</button>' : ''),
+        /* ★2026-09-13 ひろみさん指示：発注書へ送ったあとは出しません（送信済の画面はスッキリ） */
+        twoTop: (!locked && o.status!=='deleted' && !_okuriSumi2 ? '<button class="rk-sub" onclick="gotoSlip(\''+o.id+'\')" style="opacity:.55">📄 （使いません）出荷依頼書を確認・編集する</button>' : ''),
         /* ②の枠に入れるもの（倉庫・出荷まわり。ひろみさん指示でここへ集約）
            ★2026-08-17 廃止：「出荷済みにする」（倉庫Ｄで倉庫さんが梱包完了を押せば終わるため）
            ★2026-08-17 廃止：「キャンセル」（残すのは「発注を取り消す（受注無し）」だけ） */
+        /* ★2026-09-13 ひろみさん：「発注書を作成した後の取り消しは、スプシ上でできるから、
+           アプリを通すと、また在庫が戻されてないとか問題が起きやすいから、やりたくない」
+           → 発注書へ送ったあとは【✏️修正のため差し戻す】【🗑発注を取り消す】【🔄もう一度送る】を出しません。
+           　 直す・取り消すは、発注書スプシの【❌ キャンセル☑】から（在庫もそちらで戻ります）。
+           ★この止めを外さないでください。在庫の戻し忘れが起きます。
+           ※【📉 在庫を引く】と【✅ 入金を確認しました】は、出さないと困るので残します。 */
         two: (isSentButNotDeducted(o) ? '<button class="rk-sub" style="background:#b91c1c;border-color:#b91c1c;color:#fff" onclick="deductNowForOrder(\''+o.id+'\')">📉 在庫を引く</button>' : '')
-             + (sentGroup ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
+             + (sentGroup && !_okuriSumi2 ? '<button class="rk-sub blue" onclick="resendToWarehouse(\''+o.id+'\')">🔄 もう一度送る</button>' : '')
              + (o.status==='pending' && locked && !appPre ? '<button class="rk-sub green" onclick="confirmPayment(\''+o.id+'\')">✅ 入金を確認しました</button>' : '')
-             + (o.status==='pending' && !o.notified && !isBasaraOrder(o) ? '<button class="rk-sub orange" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')
-             + (o.status!=='deleted' ? '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注を取り消す（受注無し）</button>' : '')
+             + (o.status==='pending' && !o.notified && !isBasaraOrder(o) && !_okuriSumi2 ? '<button class="rk-sub orange" onclick="reopenOrderForEdit(\''+o.id+'\')">✏️ 修正のため差し戻す</button>' : '')
+             + (o.status!=='deleted' && !_okuriSumi2 ? '<button class="rk-sub red" onclick="deleteOrderSoft(\''+o.id+'\')">🗑 発注を取り消す（受注無し）</button>' : '')
       })+
       trackRow+
     '</div>';
@@ -8535,65 +8549,90 @@ function docHareteruKa(o, mei){
   return null;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   📄 書類（PDF）の札　★2026-09-13 承認モック mocks/mock_shorui_susu_2026-09-13.html
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「PDFのリンクを貼るところ、いくつもボタンがあって分かりにくい。
+   　すすす・・・とスムーズにいくようにしたい。添付書類を作ったら、必ずPDFを開いて確認させて」
+
+   札は【3つの形】だけです。
+   　① まだ確認していない … ［📄 PDFを開いて確認する］
+   　② 確認した・まだ貼っていない … 大きい［📌 倉庫共有スプシの発注書に PDF を貼る］
+   　③ 貼り終わった … 📎 添付PDF① 書類名（押すと開く）
+   ★ボタンを増やさないでください。押す場所は、1つの書類につき2回だけです。
+   ══════════════════════════════════════════════════════════════════════ */
+/* 「PDFを見た」かどうかは、この画面の中だけで覚えます（保存しません）。
+   ★開き直したら、もう一度見ていただきます。「必ず見てから貼る」ためです。 */
+var docKakuninMap = {};
+function docKakuninKa(o, mei){ var m = docKakuninMap[o && o.id]; return !!(m && m[mei]); }
+function docKakuninSuru(o, mei){ if(!o) return; (docKakuninMap[o.id] = docKakuninMap[o.id] || {})[mei] = true; }
+var DOC_MARU = ['①','②','③','④','⑤'];
+/* この注文の書類が、全部 発注書に貼れているか（書類が無い注文も true） */
+function docZenbuHattaKa(o){
+  if(!o || typeof OOS_NOUHIN === 'undefined') return true;
+  if(o.source === 'basara') return true;
+  if(!docVretsu) return false;                       /* 発注書をまだ読めていない＝決めつけない */
+  var meis = OOS_NOUHIN.shoruiList(o) || [];
+  if(!meis.length) return true;
+  return meis.every(function(m){ return !!docHareteruKa(o, m); });
+}
 function docFudaHtml(o, torikeshi){
   if(!o || typeof OOS_NOUHIN === 'undefined') return '';
   if(o.source === 'basara') return '';            /* バサラは書類を作りません */
-  /* ★2026-09-12 ひろみさん：「2枚作った場合は2枚ともチェックできるように」
-     書類は1枚とはかぎりません。えらんだ枚数ぶん、札を出します。
-     ★1枚ぶんに戻さないでください。2枚目が貼れていなくても気づけなくなります。 */
   var meis = OOS_NOUHIN.shoruiList(o);
   if(!meis.length){
     return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;color:#7a6a45;background:#f6f4ee;'
          + 'border:1px solid #d9c48a;border-radius:7px;padding:5px 10px">'
          + '📄 金額の載る書類はありません（' + esc(String(o.enclosedDoc || 'なし')) + '）</div>';
   }
+  /* ★発注書をまだ読めていないときは、決めつけずに「確かめ中」と出します */
+  if(!docVretsu){
+    return meis.map(function(nm){
+      return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#f6f5f1;'
+           + 'border:1px solid #cfc9ba;border-radius:7px;padding:5px 10px;color:#57534e">'
+           + '⏳ 📄 ' + esc(nm) + '　発注書を確かめています…</div>';
+    }).join('');
+  }
   var riyuu = o.nouhinDocNg
     ? '<div style="font-weight:400;font-size:12px;margin-top:3px">理由：' + esc(o.nouhinDocNg) + '</div>' : '';
-  var h = '';
-  /* ★発注書をまだ読めていないときは、決めつけずに「確かめ中」と出します。
-     　（読めていないのに「まだ貼れていません」と出すと、また嘘になります） */
-  if(!docVretsu){
-    meis.forEach(function(nm){
-      h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#f6f5f1;'
-         + 'border:1px solid #cfc9ba;border-radius:7px;padding:5px 10px;color:#57534e">'
-         + '⏳ 📄 ' + esc(nm) + '　発注書を確かめています…</div>';
-    });
-    return h;
-  }
-  meis.forEach(function(nm){
+  var hatta = [], h = '';
+  meis.forEach(function(nm, i){
+    var maru = DOC_MARU[i] || ('（' + (i+1) + '）');
     var url = docHareteruKa(o, nm);
+    /* ③ 貼り終わった */
     if(url){
-      var hit = { url: url };
-      h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#eef7ea;'
-         + 'border:1.5px solid #86c096;border-radius:7px;padding:5px 10px;color:#166534;font-weight:700">'
-         + '✅ 📄 ' + esc(nm) + '　貼れています　'
-         + '<a href="' + esc(hit.url) + '" target="_blank" style="color:#0c447c">ひらく</a></div>';
-    } else {
-      /* ★2026-09-12 ひろみさん：「PDFを開いて一度確認するとスプシに貼るボタンが
-         　出ます　にして！！　そしたらみんな迷わない」
-         ★この文言を短くしないでください。次に何が起きるかが分からなくなります。 */
-      /* ★2026-09-13 ひろみさん：「そういう場合の押すボタンとか？」
-         　［📄 いま作って貼る］＝見る画面を出さずに、作って・保存して・貼るまで一気にやります。
-         　（発注書に行ができていなければ、できるまで待ってから貼ります）
-         ★2つのボタンを1つに減らさないでください。「見てから貼る」も残します。 */
-      var b = torikeshi ? ''
-        : '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
-          + 'style="margin-left:8px;background:#0c447c;color:#fff;border:none">'
-          + '📄 PDFを開いて確認する</button>'
-          + '<button class="btn-sm" onclick="docIma(\'' + o.id + '\')" '
-          + 'style="margin-left:6px;background:#166534;color:#fff;border:none">'
-          + '📄 いま作って貼る</button>'
-          + '<div style="font-weight:400;font-size:11.5px;margin-top:3px;color:#7a746a">'
-          + '（PDFを開いて一度確認すると、スプシに貼るボタンが出ます。'
-          + '急ぐときは［📄 いま作って貼る］で、確認なしに貼れます）</div>';
-      h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#fff4f2;'
-         + 'border:1.5px solid #e24b4a;border-radius:7px;padding:5px 10px;color:#a32d2d;font-weight:700">'
-         + '⚠ 📄 ' + esc(nm) + '　まだ貼れていません' + b + riyuu + '</div>';
+      hatta.push('<a href="' + esc(url) + '" target="_blank" style="color:#0c447c;text-decoration:none">'
+              + '📎 添付PDF' + maru + '　' + esc(nm) + '</a>');
+      return;
     }
+    if(torikeshi) return;
+    /* ② 確認ずみ・まだ貼っていない → 大きいボタン1つ */
+    if(docKakuninKa(o, nm)){
+      var bid = 'doc-hari-' + o.id + '-' + i;
+      h += '<div style="margin-top:7px;background:#eef7ea;border:1.5px solid #86c096;border-radius:9px;padding:9px 11px">'
+        + '<div style="font-size:12.5px;font-weight:800;color:#166534">✅ 添付PDF' + maru
+        + '　' + esc(nm) + '　確認しました　'
+        + '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
+        + 'style="background:#f3f0e8;color:#57534e;border:1px solid #ddd8cc">もう一度見る</button></div>'
+        + '<button id="' + bid + '" class="doc-hari-big" onclick="docHari(\'' + o.id + '\', \'' + esc(nm) + '\', \'' + bid + '\')">'
+        + '📌 倉庫共有スプシの発注書に PDF を貼る</button>'
+        + riyuu + '</div>';
+      return;
+    }
+    /* ① まだ確認していない */
+    h += '<div style="margin-top:7px;background:#fff4f2;border:1.5px solid #e24b4a;border-radius:9px;padding:9px 11px">'
+      + '<div style="font-size:12.5px;font-weight:800;color:#a32d2d">📄 添付PDF' + maru
+      + '　' + esc(nm) + '　まだ確認していません</div>'
+      + '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
+      + 'style="margin-top:6px;background:#0c447c;color:#fff;border:none;font-size:13px;padding:8px 13px">'
+      + '📄 PDFを開いて確認する</button>'
+      + riyuu + '</div>';
   });
-  return h;
+  var sumiGyou = hatta.length
+    ? '<div style="margin-top:4px;font-size:12.5px">' + hatta.join('　') + '</div>'
+    : '';
+  return sumiGyou + h;
 }
-
 /* この注文は「見てから貼る」の対象か（バサラとRTの伝票取込は除く） */
 function docCheckTaisho(o){
   if(!o || typeof OOS_NOUHIN === 'undefined') return false;
@@ -8843,15 +8882,20 @@ function docCheckNext(){
     /* ★2026-09-12 id を付けました。押したあと、このボタンそのものを
        　「発注書にただいま貼っています…」に変えるためです（ひろみさん「Cで！」）。
        ★この id を消さないでください。 */
-    botan = '<button id="doc-hari-btn" class="btn btn-green" onclick="docCheckOk()">この内容で発注書に貼る</button>'
-          + '<button class="btn btn-gray" onclick="docCheckSkip()">直す（貼らない）</button>';
+    /* ★2026-09-13 承認モック：ボタンは【2つだけ】。ここでは貼りません。
+       　「この内容でOK」＝見たという印だけ。貼るのは、カードの大きいボタンです。
+       ★ボタンを増やさないでください。 */
+    botan = '<button class="btn btn-gray" onclick="docCheckModoru()" '
+          + 'style="font-size:15px;font-weight:800;padding:12px 22px">◀ 戻って直す</button>'
+          + '<button class="btn btn-green" onclick="docCheckOk()" '
+          + 'style="font-size:16px;font-weight:800;padding:12px 26px">この内容でOK ▶</button>';
   }
   box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
-    + '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">' + botan + '</div>'
-    + '<div style="font-size:12px;color:#83857a;margin-top:8px;line-height:1.8">'
+    + '<div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;justify-content:center">' + botan + '</div>'
+    + '<div style="font-size:12px;color:#83857a;margin-top:9px;line-height:1.8;text-align:center">'
+    + '★「この内容でOK」を押すと、受注一覧のカードに<b>［📌 発注書に PDF を貼る］</b>が出ます。<br>'
     + '★この書類は、発注書スプシの<b>' + esc(hairu) + '</b>に入ります。<br>'
-    + '★受注一覧と発注書スプシには<b>もう入っています</b>。貼っていないのは<b>書類のリンクだけ</b>です。<br>'
-    + '★「直す」を押しても消えません。あとから受注一覧のカードで貼れます。</div>'
+    + '★受注一覧と発注書スプシには<b>もう入っています</b>。まだなのは<b>書類のリンクだけ</b>です。</div>'
     + '</div>';
   box.style.display = 'block';
   try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
@@ -8859,95 +8903,68 @@ function docCheckNext(){
 /* 「ただいま貼っています」の文字。1か所にまとめて、あとで見分けに使います */
 var DOC_HARI_CHU = '📄 発注書にただいま貼っています…';
 
-/* ★2026-09-12 Ｃ案（ひろみさん承認）：押したボタンそのものを変える。
-   ★この2つを消さないでください。押しても何も起きないように見えます。 */
-function docHariBtnChu(){
-  try{
-    var b = document.getElementById('doc-hari-btn');
-    if(!b) return;
-    b.disabled = true;
-    b.style.background = '#166534';
-    b.style.cursor = 'default';
-    b.innerHTML = '<span class="doc-hari-kuru"></span>発注書にただいま貼っています…';
-  }catch(e){ if(typeof oosShippai==='function') oosShippai('貼るボタンを変えるところ', e); }
-}
-function docHariBtnModosu(){
-  try{
-    var b = document.getElementById('doc-hari-btn');
-    if(!b) return;
-    b.disabled = false;
-    b.style.background = '';
-    b.style.cursor = '';
-    b.textContent = 'この内容で発注書に貼る';
-  }catch(e){ if(typeof oosShippai==='function') oosShippai('貼るボタンをもどすところ', e); }
-}
-
-async function docCheckOk(){
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-13 承認モックのとおりに変えました（ひろみさん）。
+   　・PDFの画面では【貼りません】。「この内容でOK」は“見た”という印だけ。
+   　・貼るのは、受注一覧のカードの大きいボタン（docHari）。押す場所を1つにしました。
+   ★「この内容で発注書に貼る」をこの画面に戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function docCheckOk(){
   var q = docCheckQueue.shift();
-  if(q){
-    /* ══════════════════════════════════════════════════════════════
-       ★2026-09-12 ひろみさん：「アプリ側に発注書に貼るっていうボタンが
-       　最後出るでしょ？受注一覧のところで。そこで押しても何も反応がないから、
-       　貼れてないと思ってしまう。発注書にただいま貼っていますっていう文字が
-       　浮き出てくるようにしてほしいの」
-       　→ 3つの見え方をモックで出して、ひろみさんが【Ｃ案】をえらびました。
-       　　（mocks/mock_hatteimasu_2026-09-12.html）
-       ──────────────────────────────────────────────────────────────
-       Ｃ案＝【押したボタンそのもの】が「発注書にただいま貼っています…」に変わる。
-       　・押した指のすぐ先で変わるので、見逃しません
-       　・押せなくなるので、二度押しも防げます
-       このボタンは、PDFを作って→ドライブに保存して→発注書に貼る、と
-       3つのことをします。数秒かかるのに、それまで何も出ていませんでした。
-       ★ボタンを変えずに、右下の小さな帯だけに戻さないでください。
-       　それが「押しても何も起きない」と言われていた状態です。
-       　（帯のほうも出します。貼り終わったあとの知らせは帯に出ます）
-       ══════════════════════════════════════════════════════════════ */
-    docHariBtnChu();
-    if(typeof showSyncStatus==='function') showSyncStatus(DOC_HARI_CHU, false, true);
-    /* ★RTの伝票取込は、伝票と納品書をいっしょに貼ります（RTの貼り方）。
-       　一般・卸は親から作った書類を貼ります。★取り違えないでください。 */
-    /* ══════════════════════════════════════════════════════════════
-       ★2026-09-12 ひろみさん：「でも押してもリンクは出来なかった」
-       ここは前 catch(e){} で【失敗を握りつぶして】いました。
-       だから押しても何も出ず、注文にも記録が残らず、
-       「押したのに何も起きない」としか分かりませんでした。
-       → 失敗したら、画面に出して、注文にも理由を残します。
-       ★catch(e){} の空っぽに戻さないでください。また原因が分からなくなります。
-       ══════════════════════════════════════════════════════════════ */
-    try{
-      if(rtDenpyoOrderKa(q.o) && typeof rtAttachDocsToOrder === 'function'){
-        await rtAttachDocsToOrder(q.o);
-      } else {
-        await nouhinAttachToOrder(q.o, q.mei);
-      }
-      /* ★貼れたかどうかを、ここでも確かめます（黙って終わらせない） */
-      /* ★2026-09-13 決めつける前に、発注書をもう一度読み直します。
-         　読み直さずに「貼れていません」と出すと、実は貼れているのに嘘になります。 */
-      if(!docHareteruKa(q.o, q.mei)){ try{ await docVretsuYomu(true); }catch(_ey){ if(typeof oosShippai==='function') oosShippai('発注書を読み直すところ', _ey); } }
-      if(!docHareteruKa(q.o, q.mei) && !q.o.nouhinDocNg){
-        q.o.nouhinDocNg = '貼る処理が最後まで進みませんでした（もう一度お試しください）';
-        if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + q.mei + ' を貼れませんでした。もう一度お試しください。', true);
-        if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([q.o]);
-      }
-    }catch(e){
-      var _r = (e && e.message) ? e.message : String(e);
-      q.o.nouhinDocNg = '貼るときにつまずきました：' + _r;
-      if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + q.mei + ' を貼れませんでした：' + _r, true);
-      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([q.o]);
-    }
-  }
-  /* ★終わったらボタンをもどします（次の書類でまた押せるように）。
-     　枠は描き直されることが多いですが、描き直されなかったときのためです。 */
-  docHariBtnModosu();
-  /* ★「ただいま貼っています」が出たままにならないように。
-     　貼れた／貼れなかったの帯に入れ替わっていれば、そのままにします。
-     　入れ替わっていないときだけ、ふつうどおり3秒で消えるようにします。 */
-  try{
-    var _band = document.getElementById('sync-status');
-    if(_band && _band.textContent === DOC_HARI_CHU) showSyncStatus(DOC_HARI_CHU);
-  }catch(_eb){ if(typeof oosShippai==='function') oosShippai('「貼っています」の文字を消すところ', _eb); }
+  if(q) docKakuninSuru(q.o, q.mei);          /* 見たという印（この画面の中だけ） */
   if(typeof renderList === 'function') renderList();
   docCheckNext();
+}
+/* ◀ 戻って直す：この書類は貼りません。
+   ★2026-09-13 ひろみさん：「発注書を作成した後の取り消しは、スプシ上でできるから、
+   　アプリを通すと、また在庫が戻されてないとか問題が起きやすいから、やりたくない」
+   → ここでは注文に手を触れません（取り消しません）。次にすることだけお伝えします。 */
+function docCheckModoru(){
+  alert('この書類は貼りません。\n\n'
+    + '中身がちがうときは、発注書スプシの【❌ キャンセル☑】でこの注文を取り消してから、\n'
+    + '受注Ａでもう一度登録してください。\n\n'
+    + '（アプリから取り消すと、在庫の戻し忘れが起きやすいので、やめました）');
+  docCheckQueue.shift();
+  if(typeof renderList === 'function') renderList();
+  docCheckNext();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   📌 発注書に PDF を貼る（カードの大きいボタン）　★2026-09-13
+   ──────────────────────────────────────────────────────────────────────
+   ここが【貼る】の1か所です。PDFを作って → ドライブに保存して → 発注書のV列に貼ります。
+   　・押している間、ボタンそのものが「発注書にただいま貼っています…」に変わります
+   　・失敗したら、理由をカードに残します（黙って終わりません）
+   　・何回押しても二重にはなりません（発注書側で同じ書類は1つにまとまります）
+   ★このボタンを増やさないでください。押す場所は、1つの書類につき2回だけです。
+   ══════════════════════════════════════════════════════════════════════ */
+async function docHari(id, mei, btnId){
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
+  if(!o) return;
+  var b = btnId ? document.getElementById(btnId) : null;
+  if(b){ b.disabled = true; b.style.opacity = '.75'; b.textContent = DOC_HARI_CHU; }
+  if(typeof showSyncStatus === 'function') showSyncStatus(DOC_HARI_CHU, false, true);
+  try{
+    if(rtDenpyoOrderKa(o) && typeof rtAttachDocsToOrder === 'function') await rtAttachDocsToOrder(o);
+    else await nouhinAttachToOrder(o, mei);
+  }catch(e){
+    o.nouhinDocNg = '貼るときにつまずきました：' + ((e && e.message) || e);
+    if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+  }
+  /* ★決めつける前に、発注書を読み直します（読み直さずに「貼れていません」は嘘になります） */
+  if(!docHareteruKa(o, mei)){
+    try{ await docVretsuYomu(true); }catch(e){ if(typeof oosShippai === 'function') oosShippai('発注書を読み直すところ', e); }
+  }
+  if(!docHareteruKa(o, mei) && !o.nouhinDocNg){
+    o.nouhinDocNg = '貼る処理が最後まで進みませんでした（もう一度お試しください）';
+    if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+  }
+  if(typeof renderList === 'function') renderList();
+  if(docHareteruKa(o, mei)){
+    if(typeof showSyncStatus === 'function') showSyncStatus('📌 発注書に貼りました（' + mei + '）');
+  } else {
+    if(typeof showSyncStatus === 'function') showSyncStatus('⚠ 貼れませんでした（' + mei + '）。カードに理由が出ています。', true);
+  }
 }
 function docCheckSkip(){
   docCheckQueue.shift();
@@ -8982,6 +8999,8 @@ function renrakuBox(o, acts){
      取り消したはずの注文が倉庫へ流れます。
      ★取り消したものには、送るボタンを出さないでください。 */
   var _torikeshi = (o.status === 'deleted' || o.status === 'cancelled');
+  /* ★2026-09-13 発注書へ送りおわったか（送信済のカードを最小限にするために使います） */
+  var _okuriSumi = !!(o.yukaImport && o.yukaImport.at);
   var okuri, btn = '';
   if(whSkipStateOf(o) === 'skip'){
     /* ストアーズなど、倉庫へは別経路ですでに届いているもの */
@@ -8989,9 +9008,9 @@ function renrakuBox(o, acts){
           + esc(String((o.whSkip&&o.whSkip.at)||'').slice(0,16).replace('T',' '))
           + '　<span onclick="whSkipUndo(\''+o.id+'\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">↩️ やっぱり倉庫へ送れるようにする</span></span>';
   } else if(o.yukaImport && o.yukaImport.at){
-    okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 発注書に送りました　'
-          + esc(String(o.yukaImport.at||'').slice(0,16).replace('T',' ')) + '</span>';
-    if(!_torikeshi) btn = '<button class="rk-yk done" onclick="yukaImportOne(\''+o.id+'\')">📥 もう一度 発注書に送る（二重にはなりません）</button>';
+    okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 発注書に送りました</span>';
+    /* ★2026-09-13 ひろみさん：「もう一度発注書を貼る以下、全部いらない。消して」
+       　→ 📥 もう一度 発注書に送る は出しません。二重に送る道もふさがります。 */
   } else if(o.notified){
     /* 古い流れ（出荷依頼書）で倉庫へ渡していた分。発注書は通っていません */
     okuri = '<span style="display:inline-block;background:#eaf3de;color:#3b6d11;border:1px solid #97c459;border-radius:8px;padding:3px 11px;font-weight:800">✅ 倉庫へ送りました　'
@@ -9022,11 +9041,26 @@ function renrakuBox(o, acts){
   var shorui = docFudaHtml(o, _torikeshi);
 
   if(o.status !== 'pending' && !other && !btn && !shorui) return '';
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-13 承認モック（mocks/mock_shorui_susu_2026-09-13.html の③）
+     ひろみさん：「送信済の画面は、発注書に送りました。だけでいい。
+     　もう一度発注書を貼る以下、全部いらない。消して」
+     → 発注書に送りおわり、書類も全部貼れたら、出すのはこの2行だけにします。
+     　（📥もう一度送る・出荷依頼書・案内文・差し戻す・取り消すは出しません）
+     ★ここに枠やボタンを戻さないでください。 */
+  if(_okuriSumi && docZenbuHattaKa(o)){
+    return '<div style="margin-top:8px">'
+      + '<div style="font-size:13px;font-weight:800;color:#3b6d11">✅ 発注書に送りました</div>'
+      + shorui
+      + (other ? '<div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:6px">' + other + '</div>' : '')
+      + zk
+      + '</div>';
+  }
   return '<div class="rk" style="padding:9px 11px">'
     + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">' + okuri + btn + other + '</div>'
     + shorui
     + zk
-    + '<div class="rk-hint" style="margin-top:5px">倉庫へのご連絡は、<b>発注書のA列を【🔵 発送してください】</b>にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>'
+    + (_okuriSumi ? '' : '<div class="rk-hint" style="margin-top:5px">倉庫へのご連絡は、<b>発注書のA列を【🔵 発送してください】</b>にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>')
     + '</div>';
 }
 
@@ -11663,33 +11697,10 @@ async function docFudaMachi(o, kai){
   }
   return !!(o && o.yukaKey);
 }
-/* ★2026-09-13 ひろみさん：「解決法はないのか？人間側で何かない？そういう場合の押すボタンとか？」
-   → これがそのボタンです。確認の画面を出さずに【作って・保存して・発注書に貼る】まで一気にやります。
-   　 ・ふだが無ければ、付くまで待ちます
-   　 ・貼れなければ、理由をカードに残します（黙って終わりません）
-   　 ・何回押しても二重にはなりません（同じ書類は発注書側で1つにまとまります）
-   ★このボタンと関数を消さないでください。 */
-async function docIma(id){
-  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
-  if(!o) return;
-  var meis = OOS_NOUHIN.shoruiList(o).filter(function(m){ return !docHareteruKa(o, m); });
-  if(!meis.length){ showSyncStatus('📄 この注文の書類は、もう発注書に貼れています'); return; }
-  showSyncStatus(DOC_HARI_CHU, false, true);
-  for(var i = 0; i < meis.length; i++){
-    try{
-      if(rtDenpyoOrderKa(o) && typeof rtAttachDocsToOrder === 'function') await rtAttachDocsToOrder(o);
-      else await nouhinAttachToOrder(o, meis[i]);
-    }catch(e){
-      o.nouhinDocNg = '貼るときにつまずきました：' + ((e && e.message) || e);
-      if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
-    }
-  }
-  try{ await docVretsuYomu(true); }catch(e){ if(typeof oosShippai==='function') oosShippai('発注書を読み直すところ', e); }
-  if(typeof renderList === 'function') renderList();
-  var nokori = OOS_NOUHIN.shoruiList(o).filter(function(m){ return !docHareteruKa(o, m); });
-  if(nokori.length) showSyncStatus('⚠ まだ貼れていません：' + nokori.join('・') + '（カードに理由が出ています）', true);
-  else showSyncStatus('📄 発注書に貼りました');
-}
+/* ★2026-09-13 ［📄 いま作って貼る］（docIma）は廃止しました。
+   　承認モック（mocks/mock_shorui_susu_2026-09-13.html）で、貼る場所を
+   　【カードの大きいボタン docHari】1つにまとめたためです。
+   ★同じはたらきのボタンを2つに増やさないでください。 */
 async function nouhinAttachToOrder(o, shoruiMei){
   try{
     if(!o) return;

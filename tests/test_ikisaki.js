@@ -937,12 +937,19 @@ function hacchuushoGyou(payload){
     const nx = H.cut(idx, 'docCheckNext');
     ok('⑱-5 本物の書類を、その書類名で組み立てて見せている',
        /OOS_NOUHIN\.build\(o, nouhinDeps\(\), _mei\)/.test(nx));
-    ok('⑱-6 ［この内容で発注書に貼る］がある', /この内容で発注書に貼る/.test(nx));
-    ok('⑱-7 ［直す（貼らない）］がある',       /直す（貼らない）/.test(nx));
+    /* ★2026-09-13 承認モック mocks/mock_shorui_susu_2026-09-13.html
+       　ひろみさん：「PDFの画面のボタンは、戻って直す／この内容でOK の２つにして」
+       　この画面では【貼りません】。貼るのはカードの大きいボタン（docHari）です。 */
+    ok('⑱-6 ［この内容でOK］がある',   /この内容でOK ▶/.test(nx));
+    ok('⑱-7 ［戻って直す］がある',     /◀ 戻って直す/.test(nx));
+    ok('⑱-7b ボタンは2つだけ（ここでは貼らない）', !/発注書に貼る<\/button>/.test(nx));
     ok('⑱-8 単価が未登録なら、そう出して貼らせない', /単価が登録されていない商品があるので/.test(nx));
-    ok('⑱-9 押したときだけ、その書類名で貼る',
-       /nouhinAttachToOrder\(q\.o, q\.mei\)/.test(H.cut(idx, 'docCheckOk')));
-    ok('⑱-10 「直す」では貼らない', !/nouhinAttachToOrder/.test(H.cut(idx, 'docCheckSkip')));
+    ok('⑱-9 貼るのはカードのボタンだけ（その書類名で貼る）',
+       /nouhinAttachToOrder\(o, mei\)/.test(H.cut(idx, 'docHari')));
+    ok('⑱-9b「この内容でOK」は見た印だけ（貼らない）',
+       !/nouhinAttachToOrder/.test(H.cut(idx, 'docCheckOk')) && /docKakuninSuru/.test(H.cut(idx, 'docCheckOk')));
+    ok('⑱-10 「戻って直す」では貼らない・注文にも触らない',
+       !/nouhinAttachToOrder|reopenOrderForEdit|deleteOrderSoft/.test(H.cut(idx, 'docCheckModoru')));
 
     /* どの注文を出すか（バサラとRT伝票取込は出さない） */
     const ts = H.cut(idx, 'docCheckTaisho');
@@ -975,18 +982,21 @@ function hacchuushoGyou(payload){
 
     /* カードの札 */
     const fd = H.cut(idx, 'docFudaHtml');
-    ok('⑱-15 貼れていたら「貼れています」と出す',       /貼れています/.test(fd));
-    ok('⑱-16 貼れていなければ「まだ貼れていません」',   /まだ貼れていません/.test(fd));
+    /* ★2026-09-13 承認モック：札は3つの形だけ
+       　① まだ確認していません ② 確認しました＋大きい貼るボタン ③ 📎 添付PDF①（押すと開く） */
+    ok('⑱-15 貼れたら「📎 添付PDF①」で出す',        /📎 添付PDF/.test(fd));
+    ok('⑱-16 見ていなければ「まだ確認していません」', /まだ確認していません/.test(fd));
+    ok('⑱-16b 見たあとは大きい貼るボタンを出す',
+       /倉庫共有スプシの発注書に PDF を貼る/.test(fd) && /docHari\(/.test(fd));
     /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
     /* ★2026-09-12（夜）ひろみさん：「PDFを開いて一度確認すると
        　スプシに貼るボタンが出ます　にして！！　そしたらみんな迷わない」 */
-    ok('⑱-17 そのとき［PDFを開いて確認する］と、次に何が起きるかを出す',
-       /PDFを開いて確認する/.test(fd) &&
-       /PDFを開いて一度確認すると、スプシに貼るボタンが出ます/.test(fd));
+    ok('⑱-17 まだ見ていない書類には［📄 PDFを開いて確認する］を出す',
+       /📄 PDFを開いて確認する/.test(fd) && /docCheckOne\(/.test(fd));
     /* ★2枚えらんだら2枚とも札が出るか（1枚ぶんに戻さないための見張り） */
     ok('⑱-17b 札は書類の枚数ぶん出す', /OOS_NOUHIN\.shoruiList\(o\)/.test(fd) && /meis\.forEach/.test(fd));
     ok('⑱-18 書類が無い注文は「書類はありません」',     /金額の載る書類はありません/.test(fd));
-    ok('⑱-19 貼れていたら「ひらく」が押せる',           /ひらく<\/a>/.test(fd));
+    ok('⑱-19 貼れていたら押すと開く',                   /target="_blank"/.test(fd));
     ok('⑱-20 理由も出す',                               /o\.nouhinDocNg/.test(fd));
     ok('⑱-21 カードに札を出している', /docFudaHtml\(o, _torikeshi\)/.test(H.cut(idx, 'renrakuBox')));
 
@@ -1008,8 +1018,9 @@ function hacchuushoGyou(payload){
        ★この3つを外さないでください。外すと、また「押したのに何も起きない」に戻ります。 */
     ok('⑱-24 ふだが無ければ、付くまで待つ', /await docFudaMachi\(o\)/.test(at));
     ok('⑱-25 待つ係がいる', /async function docFudaMachi/.test(idx));
-    ok('⑱-26 人が押せる逃げ道［いま作って貼る］がある', /async function docIma/.test(idx));
-    ok('⑱-27 カードにそのボタンを出している', /docIma\(/.test(fd));
+    /* ★2026-09-13 ［いま作って貼る］は廃止。貼る場所は【カードの大きいボタン】1つだけ */
+    ok('⑱-26 貼る係は docHari の1つだけ', /async function docHari/.test(idx) && !/async function docIma/.test(idx));
+    ok('⑱-27 カードにその大きいボタンを出している', /doc-hari-big/.test(fd));
     ok('⑱-28 行が見つからないときは、次にすることを書く', /行が見つかりません/.test(at));
 
     /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
@@ -1072,7 +1083,7 @@ function hacchuushoGyou(payload){
        /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(ms));
     ok('⑱-38 登録後の画面でもRTを見せ分けている',
        /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(nx));
-    ok('⑱-39 RTは rtAttachDocsToOrder で貼る', /rtAttachDocsToOrder\(q\.o\)/.test(H.cut(idx, 'docCheckOk')));
+    ok('⑱-39 RTは rtAttachDocsToOrder で貼る', /rtAttachDocsToOrder\(o\)/.test(H.cut(idx, 'docHari')));
     ok('⑱-40 登録の瞬間にRTを自動で貼っていない', !/rtAttachDocsToOrder/.test(reg));
     const arf = H.cut(idx, 'applyRtToOrderForm');
     ok('⑱-41 RTも同じ受注フォームを使う（日付・状態・種別が同じに効く）',
