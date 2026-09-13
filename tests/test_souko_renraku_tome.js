@@ -272,10 +272,36 @@ ok('⑨受注Ａ：📮を押したときの案内も新しい言い方',
    IDX.indexOf('2026-09-13〜 倉庫へのLINE・メールは送っていません。') >= 0);
 ok('⑨受注Ａ：書類の下書き確認の案内から「LINEで倉庫へ送る前に」が消えている',
    IDX.indexOf('LINEで倉庫へ送る前に') < 0);
+/* ★2026-09-13 ひろみさん指示：受注一覧の上の帯を、待ち時間の案内に入れかえました */
+ok('⑨受注Ａ：受注一覧の帯から「倉庫への連絡は…」が消えている',
+   IDX.indexOf('📮 倉庫への連絡は、<b>受注1件ずつ</b>') < 0);
+ok('⑨受注Ａ：かわりに待ち時間の案内が出ている',
+   IDX.indexOf('１つ１つの動作に10秒ほど時間がかかる場合があります。') >= 0);
 ok('⑨請求М：画面から「（倉庫へLINEが行きます）」が消えている',
    BIL.indexOf('発注書のA列を🔵にしたとき（倉庫へLINEが行きます）') < 0);
 ok('⑨請求М：新しい言い方になっている',
    BIL.indexOf('倉庫さんは発注書を見て発送されます') >= 0);
+
+/* ★2026-09-13 ひろみさん「そこも変えて」。流れの図も直しました。
+   ★「倉庫にLINE 1通」「本部にLINE 1通」に戻さないでください。 */
+const ZEN = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_全発注の流れ_2026-09-10.html', 'utf8');
+const TOR = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_取り置き予約の流れ_2026-09-10.html', 'utf8');
+const SEI = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_請求の流れ_2026-09-10.html', 'utf8');
+
+ok('⑨図（全発注）：止めたことが先頭に書いてある',
+   ZEN.indexOf('倉庫へのLINE・メールを全部止めました') >= 0);
+ok('⑨図（全発注）：「倉庫へLINEが1通」がもう書かれていない',
+   ZEN.indexOf('この瞬間にはじめて倉庫へLINEが1通') < 0);
+/* ★数えるのは【画面に出る札】だけ（コメントの中の注意書きは数えません） */
+ok('⑨図（全発注）：画面に「💬 本部にLINE 1通」の札がもう出ない',
+   ZEN.indexOf('<span class="sig s-l">💬 本部にLINE 1通</span>') < 0);
+ok('⑨図（取り置き・予約）：「💬 倉庫にLINE 1通」がもう書かれていない',
+   TOR.indexOf('💬 倉庫にLINE 1通') < 0);
+ok('⑨図（取り置き・予約）：止めたと書いてある',
+   TOR.indexOf('倉庫へのLINEは止めました（2026-09-13）') >= 0);
+ok('⑨図（請求）：のこした1本だと書いてある',
+   SEI.indexOf('のこした唯一のLINE') >= 0,
+   '（ひろみさん「請求書はのこし」）');
 
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
