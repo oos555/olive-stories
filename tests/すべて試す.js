@@ -27,6 +27,7 @@ const FILES = [
   ['test_kokyaku_memo.js','お客様からのメモ（備考欄U列）と受付後・発送後の行ロック（2026-09-09）'],
   ['test_souko_ipponka.js','倉庫への連絡を一本化（🔵にしたときだけ・2026-09-10）'],
   ['test_souko_renraku_tome.js','🛑 倉庫への自動連絡を止めている（止め木の作り・2026-09-13）'],
+  ['test_hacchusho_retsu.js','🧾 発注書の列（B列＝伝票番号・商品は3行）と ↩️ 差し戻し（2026-09-13）'],
   ['test_basara_nagare_kakutei.js','🔒 バサラ発注の流れ 確定（一切変えない・2026-09-10）'],
   ['test_master.js',       'マスターＮ 在庫の決めごと'],
   ['test_apps.js',         '4アプリの突き合わせ／不良の出荷／注文番号'],

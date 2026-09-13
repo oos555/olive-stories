@@ -76,7 +76,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
    🧭 流れバー（承認モック mocks/mock_nagare_botan_2026-09-13.html）
    ひろみさん：「今どこなのか、このあと何をするのか、を見えるかしながら、
    　これ自体がボタンになっていく」
-   ★色の決まり：いまここ＝紺（登録は緑）／済み＝うすい緑に✅／まだ＝白／押せない＝グレー
+   ★色の決まり（2026-09-13 ひろみさん指示でそろえました）
+     いまここ ＝ 青（★①〜⑤ぜんぶ同じ青。登録だけ緑にしない）
+     済み　　 ＝ 灰色に✅（★うすい緑は使わない。「まだ何かあるのかな」と思わせるため）
+     まだ　　 ＝ 白
+     押せない ＝ もっとうすい灰色
+   ★「登録だけ緑」「済みはうすい緑」に戻さないでください。
    ══════════════════════════════════════════════════════════════════ */
 .nagare{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
 .ncol{flex:1;min-width:250px;border-radius:12px;padding:9px 10px 11px}
@@ -90,16 +95,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .st:last-child{margin-bottom:0}
 .st .no{display:inline-block;min-width:22px}
 .st .sub{display:block;font-weight:600;font-size:11.5px;margin-top:2px;opacity:.85}
-.st-now{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}
-.st-now-g{background:#166534;color:#fff;box-shadow:0 3px 0 #0d4523}
-.st-now-b{background:#1f4a6d;color:#fff;box-shadow:0 3px 0 #143a5a}
-.st-done{background:#eef7ea;color:#166534;border-color:#86c096;cursor:pointer}
+/* ★いまここは、①〜⑤ぜんぶ同じ青。st-now-g / st-now-b も同じ色にしてあります
+   （名前は残していますが、色は分けません。緑に戻さないでください） */
+.st-now,
+.st-now-g,
+.st-now-b{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}
+/* ★済み＝灰色。うすい緑にしないでください（まだ作業が残っているように見えるため） */
+.st-done{background:#e9e7e2;color:#5f5d57;border-color:#d3cfc6;cursor:pointer}
+.st-done .no{color:#7a786f}
 .st-yet{background:#fff;color:#57534e;border-color:#ddd8cc;cursor:default}
-.st-lock{background:#f3f0e8;color:#a9a49a;border-color:#e5e0d6;cursor:not-allowed}
+.st-lock{background:#f6f5f1;color:#b5b1a8;border-color:#e8e5dd;cursor:not-allowed}
 .st .ima{display:inline-block;background:#fff;color:#0c447c;border-radius:99px;font-size:10.5px;
   font-weight:800;padding:1px 8px;margin-left:6px;vertical-align:middle}
-.st-now-g .ima{color:#166534}
-.st-now-b .ima{color:#1f4a6d}
+.st-now-g .ima,
+.st-now-b .ima{color:#0c447c}
+/* ★いま何が残っているか（あと◯つ）。流れの一番上に出します */
+.nokori{font-size:12.5px;font-weight:800;color:#0c447c;background:#eaf1f9;border:1.5px solid #b9cfe6;
+  border-radius:8px;padding:6px 11px;margin:0 0 8px;line-height:1.6}
+.nokori.owari{color:#5f5d57;background:#efede8;border-color:#d9d5cc}
 /* ★2026-09-13 承認モック：発注書にPDFを貼る大きいボタン（幅いっぱい・紺） */
 .doc-hari-big{display:block;width:100%;background:#0c447c;color:#fff;border:none;border-radius:9px;
   font-size:16px;font-weight:800;padding:15px 16px;margin-top:9px;cursor:pointer;
@@ -469,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-16">
+<meta name="oos-version" content="2026-09-13-17">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -9003,9 +9016,26 @@ function nagareSt(cls, no, midashi, sub, onclick){
        + '<span class="no">' + no + '</span>' + midashi + ima
        + '<span class="sub">' + sub + '</span></button>';
 }
+/* ★2026-09-13 ひろみさん指示：「あとはどれなのか、が分かるようにして」
+   ＝ 流れの一番上に【あと◯つ・次にやること】を出します。
+   　 やってきたボタン（灰色の✅）は消さずに、そのまま下に残します。 */
+function nagareNokori(html){
+  var zenbu  = (html.match(/class="st st-/g) || []).length;
+  var sunda  = (html.match(/class="st st-done"/g) || []).length;
+  var nokori = zenbu - sunda;
+  if(nokori <= 0){
+    return '<div class="nokori owari">✅ この注文は、やることが全部おわりました（下は、やってきたことの記録です）</div>';
+  }
+  var m = html.match(/class="st st-now[^"]*"[^>]*><span class="no">([^<]*)<\/span>([^<]*)/);
+  var tsugi = m ? (m[1] + ' ' + m[2]).replace(/\s+/g, ' ').trim() : '';
+  return '<div class="nokori">⏳ あと ' + nokori + ' つ'
+       + (tsugi ? ('　／　つぎは <b>' + tsugi + '</b>') : '')
+       + '　<span style="font-weight:600;color:#4a6a88">（灰色は、もう終わったことです）</span></div>';
+}
 function nagareWaku(app, sheet){
-  return '<div class="nagare"><div class="ncol app"><div class="nhead">アプリ内</div>' + app + '</div>'
-       + '<div class="ncol sheet"><div class="nhead">スプシで対応</div>' + sheet + '</div></div>';
+  return '<div>' + nagareNokori(app + sheet)
+       + '<div class="nagare"><div class="ncol app"><div class="nhead">アプリ内</div>' + app + '</div>'
+       + '<div class="ncol sheet"><div class="nhead">スプシで対応</div>' + sheet + '</div></div></div>';
 }
 /* ── 登録する前（受注内容の確認）の流れバー ── */
 function nagareMaeRender(){
@@ -9607,7 +9637,17 @@ function renrakuBox(o, acts){
           + esc(String(o.notifiedAt||'').slice(0,16).replace('T',' ')) + '</span>';
     if(!_torikeshi) btn = '<button class="rk-yk" onclick="yukaImportOne(\''+o.id+'\')">📥 倉庫＆OOS発送連絡スプシの『発注書』に送る</button>';
   } else {
-    okuri = '<span style="display:inline-block;background:#fdeaea;color:#a32d2d;border:1px solid #e0a3a1;border-radius:8px;padding:3px 11px;font-weight:800">🔴 まだ発注書に送っていません</span>'
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-13 ひろみさん指示：発注書スプシのA列【↩️ アプリに差し戻す】で
+       戻ってきた注文は、ひと目で分かるようにします。
+       　・在庫はスプシ側で戻してあります（二重に戻さないでください）
+       　・直したら、もう一度［📥 発注書に送る］を押すと新しい行が入ります
+       ★この帯を消さないでください。 */
+    okuri = (o.sashimodoshi && o.sashimodoshi.at
+      ? '<span style="display:inline-block;background:#fff3cd;color:#9a3412;border:2px solid #c2410c;border-radius:8px;padding:3px 11px;font-weight:800;margin-right:6px">↩️ 発注書から差し戻されました（'
+        + esc(String(o.sashimodoshi.at||'').slice(0,16).replace('T',' ')) + '）　内容を直して、もう一度送ってください</span>'
+      : '')
+      + '<span style="display:inline-block;background:#fdeaea;color:#a32d2d;border:1px solid #e0a3a1;border-radius:8px;padding:3px 11px;font-weight:800">🔴 まだ発注書に送っていません</span>'
       /* ★2026-08-25 ゆかさん提案：STORESなど、倉庫へは別経路ですでに届いている注文は
          「記録のみ」にできる（未対応に見えて、誤ってもう一度送る事故を防ぐ）。★消さないでください */
       + '<span onclick="whSkip(\'' + o.id + '\')" style="font-size:12px;color:#8a857c;text-decoration:underline;cursor:pointer">🚫 倉庫には送らない（記録のみ・すでに別経路で届いている等）</span>';
@@ -9869,7 +9909,10 @@ async function yoyakuListAddOne(o){
          それまでは「本」だけ省いていたので、倉庫は「3」と「3缶」が混ざって見えていました。
          ★「本」を省く形に戻さないでください。見張り：tests/test_ikisaki.js の ⑨ */
       var qty = String((typeof lineTotal==='function' ? lineTotal(l) : (l.bottles||0))) + _u;
-      return { name: (_fuda + (p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
+      /* ★2026-09-13 ひろみさん指摘：商品コードは【品番＋バーコード下4桁】。下4桁が落ちていました。
+         ★品番だけに戻さないでください（発注書と同じ番号にそろえるためです）。 */
+      var _code = (typeof dispCodeOf==='function' ? dispCodeOf(p) : '') || String(p.sku||'');
+      return { name: (_fuda + (_code ? _code+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
     });
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yoyakuListAdd', order:{
@@ -9956,12 +9999,47 @@ async function yukaImportOne(id){
        それまでは「本」だけ省いていたので、発注書の「数」の列に「3」と「2缶」が混ざっていました。
        ★「本」を省く形に戻さないでください。見張り：tests/test_ikisaki.js の ⑨ */
     var qty = String(lineTotal(l)) + _u + ((Number(l.boxes)||0) ? '（'+l.boxes+'箱）' : '');
-    return { name: ((p.sku ? p.sku+' ' : '') + (l.productName || p.name || '')).trim(), qty: qty };
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-13 ひろみさん指示：発注書の「商品コード品名」は【3行】で書く。
+       　　1行目　商品管理番号　　ORG500-5354（品番＋バーコード下4桁）
+       　　2行目　商品名　　　　　オルガニック500ml
+       　　3行目　賞味期限　　　　賞味期限 2027.11.11
+       ・番号は dispCodeOf（品番＋バーコード下4桁）を使います。
+       　★品番だけ（下4桁が落ちた形）に戻さないでください。ひろみさん指摘の穴です。
+       ・賞味期限は名簿のロットから、実際に引かれる順（早い順）で出します。
+       　名簿に無いときは3行目を出しません（勝手な日付を書かない）。
+       ★1行にまとめ直さないでください。見張り：tests/test_ikisaki.js
+       ══════════════════════════════════════════════════════════════ */
+    var _code = (typeof dispCodeOf==='function' ? dispCodeOf(p) : '') || String(p.sku||'');
+    var _exp  = (typeof expiryTextForLine==='function' ? expiryTextForLine(l) : '');
+    var _pn   = String(l.productName || p.name || '').trim();
+    var _lines = [];
+    if(_code) _lines.push(_code);
+    if(_pn)   _lines.push(_pn);
+    if(_exp)  _lines.push('賞味期限 ' + _exp);
+    return { name: _lines.join('\n'), qty: qty };
   });
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-13 ひろみさん指示：備考欄があれこれ入って見づらい。
+     　「備考欄に納品予定日が入っている。納品予定日はお届け日（O）の行に入れて」
+     　「B列の賞味期限の列は、伝票番号にして。伝票番号も備考欄に入ってる」
+     ＝ 伝票番号 → B列（2列目）／納品予定日 → O列（お届け日指定）。
+     　 どちらも備考欄からは外します。
+     ★備考欄に書き戻さないでください（倉庫さんが読みづらくなります）。
+     ══════════════════════════════════════════════════════════════════ */
+  var _note0 = String(o.note || '').trim();
+  var _slip  = (_note0.match(/伝票番号\s*([0-9A-Za-z\-]+)/) || [])[1] || '';
+  var _nouki = (_note0.match(/納品予定日\s*([0-9]{4}[\/\-.][0-9]{1,2}[\/\-.][0-9]{1,2})/) || [])[1] || '';
+  var _noteOut = _note0
+    .replace(/\s*[／\/]?\s*伝票番号\s*[0-9A-Za-z\-]+/g, '')
+    .replace(/\s*[／\/]?\s*納品予定日\s*[0-9]{4}[\/\-.][0-9]{1,2}[\/\-.][0-9]{1,2}/g, '')
+    .replace(/^\s*[／\/]\s*/, '').replace(/\s*[／\/]\s*$/, '').trim();
   try{
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yukaImportOrder', order:{
-        num: o.num, src: srcLabel, exp: '', items: items,
+        /* ★2026-09-13 exp（旧・B列の賞味期限）は、B列が【伝票番号】になったので送りません。
+           かわりに slipNo を送ります。★exp を復活させないでください */
+        num: o.num, src: srcLabel, slipNo: _slip, items: items,
         /* ★2026-09-10 分類（この注文の呼び名）。発注書の備考の先頭に【　】で入ります */
         bunrui: (o.bunrui || ''),
         name: (o.recipientName || o.client || ''),
@@ -9971,7 +10049,10 @@ async function yukaImportOne(id){
         addr: (o.addr || ''),
         tel: (o.tel || ''),
         /* ★2026-09-12 hizukeDake を通します（上と同じ理由）。★外さないでください */
-        day: (o.leadType==='scheduled' ? hizukeDake(o.leadDate) : ''),
+        /* ★2026-09-13 RTの伝票から拾った【納品予定日】も、ここ（お届け日指定＝O列）に入れます。
+           それまでは備考欄の中に文字で入っていて、倉庫さんが見つけにくい形でした。
+           ★日付の指定がある注文は、そちらを優先します（上書きしません）。 */
+        day: (o.leadType==='scheduled' ? hizukeDake(o.leadDate) : (_nouki ? hizukeDake(_nouki) : '')),
         /* ★2026-09-12 ここは長いあいだ time:'' と【空】で送っていました（ゆくえ表の見張りで見つけました）。
            発注書の「時間指定」列（16列目）がいつも空で、倉庫は時間指定を知りませんでした。
            ★空に戻さないでください。見張り：tests/test_ikisaki.js の ②-2 */
@@ -9991,7 +10072,10 @@ async function yukaImportOne(id){
            ★「納品書という字が入っているか」に戻さないでください。 */
         docNouhin: (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(pdfNiSuruKa).join('・') || '入れない') : ''),
         docHoka:   (typeof pkgDocsIn==='function' ? (pkgDocsIn(o).filter(function(d){ return d.indexOf('納品書')<0;  }).join('・') || '入れない') : ''),
-        note: String(o.note || '').trim()
+        /* ★2026-09-13 伝票番号・納品予定日は、上の専用の列（B列・O列）へ移しました。
+           備考欄には残しません（ひろみさん「備考欄にあれこれあって、とても見づらい」）。
+           ★書き戻さないでください。 */
+        note: _noteOut
       }})});
     var d = await res.json();
     if(d && (d.status==='ok' || d.status==='dup')){

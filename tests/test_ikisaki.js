@@ -178,7 +178,9 @@ function hacchuushoGyou(payload){
   box.globalThis = box;
   const ctx = vm.createContext(box);
   let code = '';
-  ['OOS_YUKA_SHEET','OOS_YC','OOS_YUKA_BTN_STOP','OOS_YUKA_BTN_GO'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
+  /* ★2026-09-13 A列の3つ目【↩️ アプリに差し戻す】も砂場に入れます。
+     入れ忘れると本物の関数が動かせず、見張りが空回りします（見張りの砂場に親を入れる決まり）。 */
+  ['OOS_YUKA_SHEET','OOS_YC','OOS_YUKA_BTN_STOP','OOS_YUKA_BTN_GO','OOS_YUKA_BTN_BACK'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
   ['oosLastDataRow_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   vm.runInContext(code, ctx);
   const res = box.oosYukaImportOrder(payload);
