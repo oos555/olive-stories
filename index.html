@@ -449,7 +449,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-11">
+<meta name="oos-version" content="2026-09-13-12">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2592,8 +2592,12 @@ async function initializeProducts(){
   var _meiboDede = (cache && cache.products && cache.products.length) ? 'cache' : 'naka';
   var _meiboRiyu = '';
   try{
-    const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
-    const data = await res.json();
+    /* ★2026-09-13 検証で見つけた穴：GASは【通信の途中でHTMLの画面】を返すことがあります。
+       　そのとき res.json() が落ちて、名簿が読めたのに【赤い帯】が出ていました。
+       　（ひろみさん：「0になったり、抜けてますとか言ってくるやつ」の正体の1つ）
+       　→ 文字で受け取り、JSONでなければ もう2回ためします。
+       ★res.json() に戻さないでください。また嘘の赤い帯が出ます。 */
+    const data = await oosGetJson(GAS_URL + '?action=loadProducts&t=' + Date.now());
     if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
       saveProductsToCache(data.products, data.extraFields);
       applyLoadedProducts(data.products, data.extraFields);
@@ -2605,6 +2609,28 @@ async function initializeProducts(){
     _meiboRiyu = '通信できませんでした';
   }
   try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   📡 GASから【読むだけ】のときの、確かな受け取り方　★2026-09-13
+   ──────────────────────────────────────────────────────────────────────
+   GASは、混んでいるときなどに【HTMLの画面】を返すことがあります。
+   そのまま res.json() を呼ぶと落ちて、「読めなかった」ことになります。
+   ここでは文字で受け取り、JSONでなければ もう2回ためします。
+   ★黙ってごまかしません。3回だめなら、そのまま失敗として返します。
+   ══════════════════════════════════════════════════════════════════════ */
+async function oosGetJson(url, kai){
+  kai = (kai == null) ? 2 : kai;
+  var riyuu = '';
+  for(var i = 0; i <= kai; i++){
+    try{
+      var r = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_r=' + i, {cache:'no-store'});
+      var t = await r.text();
+      if(t && t.charAt(0) === '{') return JSON.parse(t);
+      riyuu = '通信の途中でHTMLの画面が返りました';
+    }catch(e){ riyuu = (e && e.message) || String(e); }
+  }
+  throw new Error(riyuu || '読めませんでした');
 }
 
 // ── 状態 ────────────────────────────────────────────

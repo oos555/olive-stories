@@ -306,6 +306,38 @@ KNOWN_WATCHERS.forEach(function(w){
   });
 }
 
+/* ── ④ 名簿を読むとき、HTMLの画面が返っても嘘の赤い帯を出さない（2026-09-13）──
+   ★検証で見つけた穴：GASは混んでいるとき【HTMLの画面】を返すことがあり、
+   　res.json() が落ちて「商品名簿を読み込めていません」の赤い帯が出ていました。
+   　（名簿は読めているのに出る＝嘘の警告。ひろみさん「0になったり、抜けてますとか言ってくるやつ」）
+   ★文字で受け取って、JSONでなければ もう2回ためす形に戻しておくこと。 */
+{
+  const idx = H.read('index.html');
+  ok('④名簿は確かな受け取り方で読む', idx.indexOf("oosGetJson(GAS_URL + '?action=loadProducts") >= 0);
+  ok('④その受け取り方がある（3回までためす）',
+     /async function oosGetJson/.test(idx) && idx.indexOf('kai = (kai == null) ? 2') >= 0);
+  ok('④JSONでなければ、そうと分かる理由を残す', /通信の途中でHTMLの画面が返りました/.test(idx));
+}
+
+/* ── ⑤ 振込先（口座）が3つのファイルでズレていないか（2026-09-13）──
+   ★口座は oos-doc.js／mitsumori.html／billing.html の【3か所】に書いてあります。
+   　ひとつだけ直すと、書類ごとに違う口座が出ます（お金の事故）。
+   　いまは3つとも同じであることを、ここで毎回たしかめます。
+   ★本当は1か所（親）にまとめたいところです。まとめるまでは、この見張りを消さないでください。 */
+{
+  function kouza(f){
+    var t = H.read(f);
+    var i = t.indexOf('BANK_ACCOUNTS = [');
+    if(i < 0) return '（無い）';
+    var j = t.indexOf('];', i);
+    return t.slice(i, j).replace(/s+/g, ' ').trim();
+  }
+  var a1 = kouza('oos-doc.js'), a2 = kouza('mitsumori.html'), a3 = kouza('billing.html');
+  ok('⑤口座：書類の親と 見積М が同じ', a1 === a2, '（ちがっています。どちらかだけ直した可能性）');
+  ok('⑤口座：書類の親と 売上Ｃ が同じ', a1 === a3, '（ちがっています。どちらかだけ直した可能性）');
+  ok('⑤口座は2つだけ（三井住友・三菱UFJ）', (a1.match(/label:/g) || []).length === 2);
+}
+
 console.log('===== 見張りの見張り（総点検） =====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fail){ fails.forEach(function(f){ console.log('  ★ ' + f); }); process.exit(1); }
