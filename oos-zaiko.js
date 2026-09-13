@@ -213,9 +213,16 @@
        ここで【自分の注文の分だけ】を取り置きから外して数える。
        他の注文の取り置きはこれまで通り守る。棚の良品に本当に足りないときはこれまで通り止まる。
        ★このただし書きを消さないでください。 */
-    if(o && o.status === 'held' && data && data.holds && data.holds.length){
+    /* ★2026-09-13 ここは held だけを見ていました。取り置きと予約が【混ざった注文】は
+       　status が reserved になるので、自分の≪取置分≫が外れず、
+       　「自分で押さえた分が足りない」という嘘の不足が出ていました。
+       　→ 待っている注文（取り置き・予約）なら、どちらでも外します。
+       　　外すのは【≪取置分≫の行だけ】です（予約分は押さえていないので、外すものがありません）。
+       ★held だけに戻さないでください。 */
+    if(machiKa(o) && data && data.holds && data.holds.length){
       var own = {};
       ((o.lines) || []).forEach(function(l){
+        if(!holdLineKa(o, l)) return;
         var p = findById(products, l.productId); if(!p) return;
         var q = lineQty(l, p); if(q <= 0) return;
         if(p.isSet && p.components){
@@ -264,11 +271,45 @@
     return shortages(o, data, products).length > 0;
   }
   /* 商品ID → 予約の本数（セットは中身に展開する） */
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-13 ひろみさん指示：取り置きと予約を【商品ごと】に選べるようにしました。
+     　「一人の人が、アグルミを取り置き、オルガニックを予約という場合がある」
+     　→ 注文の行（lines）ごとに kind を持ちます。
+     　　　kind:"hold"    ＝ ≪取置分≫　いま在庫があるもの。【在庫を押さえます】
+     　　　kind:"reserve" ＝ ≪予約分≫　まだ入荷していないもの。【在庫は減りません】
+     
+     ★kind が無い【古い注文】は、注文の状態で読みます（held＝全部が取置分／reserved＝全部が予約分）。
+     　だから、いままでの注文はひとつも動きません。
+     ★この2つの窓口を、受注Ａ（index.html）と統合マスタＮ（master.html）の両方が呼びます。
+     　同じ判定を各アプリに書き写さないでください（片方だけ直されて食い違います）。
+     ══════════════════════════════════════════════════════════════════ */
+  /* 待っている注文か（取り置き・予約） */
+  function machiKa(o){
+    return !!(o && (o.status === 'held' || o.status === 'reserved'));
+  }
+  /* この行は在庫を押さえるか（＝≪取置分≫か） */
+  function holdLineKa(o, l){
+    if(!machiKa(o)) return false;
+    var k = l && l.kind;
+    if(k === 'hold')    return true;
+    if(k === 'reserve') return false;
+    return o.status === 'held';          /* 印のない古い注文は、注文の状態で読む */
+  }
+  /* この行はまだ入荷していないか（＝≪予約分≫か） */
+  function reserveLineKa(o, l){
+    return machiKa(o) && !holdLineKa(o, l);
+  }
+
   function reservedByPid(orders, data, products){
     products = products || [];
     var m = {};
-    function add(o){
+    /* ★2026-09-13 yoyakuBunDake＝true のときは【≪予約分≫の行だけ】数えます。
+       　混ざった注文（取置分＋予約分）で全部数えると、取置分を
+       　「在庫から引く」と「予約に出す」で二重に数えてしまいます。
+       ★true を外さないでください。 */
+    function add(o, yoyakuBunDake){
       (o.lines || []).forEach(function(l){
+        if(yoyakuBunDake && !reserveLineKa(o, l)) return;
         var p = findById(products, l.productId); if(!p) return;
         var q = lineQty(l, p); if(q <= 0) return;
         if(p.isSet && p.components){
@@ -281,7 +322,7 @@
     }
     (orders || []).forEach(function(o){
       if(!o) return;
-      if(o.status === 'reserved'){ add(o); return; }       // ① ふつうの予約（RTの分も含む）
+      if(o.status === 'reserved'){ add(o, true); return; }  // ① 予約（RTの分も含む）★予約分の行だけ
       if(isWaitingForStock(o, data, products)) add(o);      // ② 在庫が足りなくて待っている注文
     });
     return m;
@@ -351,6 +392,9 @@
     availableForSku: availableForSku,
     shortages: shortages,
     isWaitingForStock: isWaitingForStock,
-    reservedByPid: reservedByPid
+    reservedByPid: reservedByPid,
+    machiKa: machiKa,
+    holdLineKa: holdLineKa,
+    reserveLineKa: reserveLineKa
   };
 })(window);

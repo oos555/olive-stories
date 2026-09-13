@@ -12,6 +12,9 @@ const H = require('./harness');
 const src = H.read('master.html');
 const idx = H.read('index.html');
 
+/* ★2026-09-13 ⑪で使う商品（アグルミ＝取置分／オルガニック＝予約分） */
+const A_SKU = 'AGR250', A_NAME = 'アグルミ 250ml';
+const O_SKU = 'ORG250', O_NAME = 'オルガニック 250ml';
 let pass = 0, fail = 0; const fails = [];
 function eq(l, got, want){ if(String(got) === String(want)) pass++; else { fail++; fails.push(`${l}  期待:${want}  実際:${got}`); } }
 function ok(l, cond){ if(cond) pass++; else { fail++; fails.push(l); } }
@@ -348,6 +351,92 @@ if(fs.existsSync(gasPath)){
   ok('⑩★公開ファイルにパスワードを書かせない形', body.indexOf('COST_DATA_PASSWORD') < 0);
 } else {
   console.log('（GASのファイルが手元にないので ⑩ は飛ばしました）');
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⑪ 取り置きと予約は【商品ごと】（2026-09-13 ひろみさん指示）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「一人の人が、アグルミを取り置き、オルガニックを予約という場合がある。
+   　　なので、商品ごとに予約と取り置きと選べたらいいかも。
+   　　一緒に発送してほしいということであれば、これは可能だよね？
+   　　別々に発送して、といういらいなら、取り置きと予約を別々に登録すれば、発送も別々になる」
+   　　「別々でできるなら、登録の種類は、通常発送　取り置き・予約　の2種類になる」
+   　　「予約の入荷に取り置き商品も発送を合わせる。つまり取り置きの期限は特になし」
+   　　「取り置きや予約を記号にすると見づらい。その記号の説明も必要になるから、
+   　　　≪取置分≫≪予約分≫のほうがいい。3文字にあわせたらなお見やすい」
+
+   ★決めごとの親は oos-zaiko.js の holdLineKa / reserveLineKa / machiKa です。
+   　受注Ａにも統合マスタＮにも書き写さないでください（片方だけ直されて食い違います）。
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  const Z = (function(){ const r = H.makeSandbox({}); H.runZaiko(r.ctx); return r.box.OOS_ZAIKO; })();
+
+  /* ── 印のない【古い注文】は、いままでどおり（注文の状態で読む） ── */
+  {
+    const furuiHold = { status:'held',     lines:[{productId:1,bottles:3}] };
+    const furuiYoy  = { status:'reserved', lines:[{productId:1,bottles:3}] };
+    ok('⑪ 古い取り置きは、行に印がなくても在庫を押さえる',
+       Z.holdLineKa(furuiHold, furuiHold.lines[0]) === true);
+    ok('⑪ 古い予約は、行に印がなくても在庫を押さえない',
+       Z.holdLineKa(furuiYoy, furuiYoy.lines[0]) === false);
+    ok('⑪ 通常受注は押さえない（待っている注文ではない）',
+       Z.holdLineKa({status:'pending',lines:[{productId:1,bottles:3}]}, {productId:1,bottles:3}) === false);
+  }
+
+  /* ── 混ざった注文（アグルミ＝取置分／オルガニック＝予約分） ── */
+  const mazari = {
+    id:'m1', status:'reserved',            /* ★予約分があるので reserved。入荷を待つため */
+    expectedDate:'2026-11-01',
+    lines:[
+      { productId:1, bottles:6,  kind:'hold'    },   /* ≪取置分≫ アグルミ */
+      { productId:2, bottles:12, kind:'reserve' }    /* ≪予約分≫ オルガニック */
+    ]
+  };
+  ok('⑪ 混ざった注文：≪取置分≫の行は在庫を押さえる', Z.holdLineKa(mazari, mazari.lines[0]) === true);
+  ok('⑪ 混ざった注文：≪予約分≫の行は在庫を押さえない', Z.holdLineKa(mazari, mazari.lines[1]) === false);
+  ok('⑪ ≪予約分≫の見分けも合っている', Z.reserveLineKa(mazari, mazari.lines[1]) === true);
+
+  /* ── 予約の数え方：≪予約分≫の行だけ。取置分を二重に数えない ── */
+  {
+    const PR = [{id:1,sku:A_SKU,name:A_NAME,boxQty:1},{id:2,sku:O_SKU,name:O_NAME,boxQty:1}];
+    const m = Z.reservedByPid([mazari], { lots:[], defects:[], holds:[] }, PR);
+    eq('⑪ 予約に出るのは≪予約分≫だけ（オルガニック12本）', m[2], 12);
+    ok('⑪ ≪取置分≫は予約に出さない（在庫から引き済み・二重に数えない）', !m[1]);
+  }
+
+  /* ── 自分で押さえた分を「足りない」と言わない（混ざった注文でも） ── */
+  {
+    const PR = [{id:1,sku:A_SKU,name:A_NAME,boxQty:1},{id:2,sku:O_SKU,name:O_NAME,boxQty:1}];
+    const lots = [{id:'L1',pid:1,status:'new',stock:6}];      /* 棚にアグルミ6本 */
+    const holds = [{pid:1, qty:6}];                            /* その6本は、この注文が押さえている */
+    const dake = { id:'m1', status:'reserved', lines:[{productId:1,bottles:6,kind:'hold'}] };
+    const sh = Z.shortages(dake, { lots:lots, defects:[], holds:holds }, PR) || [];
+    eq('⑪ 自分の≪取置分≫を「足りない」と言わない', sh.length, 0);
+  }
+
+  /* ── 受注Ａ・統合マスタＮが、親に聞いているか（書き写していないか） ── */
+  ok('⑪ 受注Ａは親の holdLineKa に聞いている', idx.indexOf('OOS_ZAIKO.holdLineKa(o, l)') >= 0);
+  ok('⑪ 統合マスタＮも親の holdLineKa に聞いている', src.indexOf('OOS_ZAIKO.holdLineKa(o, l)') >= 0);
+  ok('⑪ 受注Ａは在庫の押さえを自分で書いていない（status===held で決めない）',
+     H.cut(idx,'buildHoldsForZaiko').indexOf("o.status!=='held'") < 0);
+  ok('⑪ 統合マスタＮも自分で書いていない',
+     H.cut(src,'buildHoldsFromOrders').indexOf("o.status!=='held'") < 0);
+
+  /* ── 登録の種類は2つ ── */
+  ok('⑪ 登録の種類は「通常発送」', idx.indexOf('>通常発送（いますぐ倉庫へ）<') >= 0);
+  ok('⑪ 登録の種類は「取り置き・予約」', idx.indexOf('>取り置き・予約（待つもの）<') >= 0);
+  ok('⑪ 3つに戻していない（「予約（まだ入荷していない）」は消えている）',
+     idx.indexOf('>予約（まだ入荷していない）<') < 0);
+
+  /* ── 記号（絵文字）ではなく3文字 ── */
+  ok('⑪ 受注Ａの名札は ≪取置分≫≪予約分≫', idx.indexOf('≪取置分≫') >= 0 && idx.indexOf('≪予約分≫') >= 0);
+  ok('⑪ 統合マスタＮの名札も同じ', src.indexOf('≪取置分≫') >= 0 && src.indexOf('≪予約分≫') >= 0);
+
+  /* ── 入荷したら、行の印も ≪取置分≫ に変える ── */
+  ok('⑪ 入荷のとき、行の印も hold に変える', H.cut(src,'impApplyConvert').indexOf("l.kind = 'hold'") >= 0);
+  ok('⑪ 取り消しのとき、行の印も戻す', H.cut(src,'impApplyConvert').indexOf('lines:(g.o.lines||[])') >= 0);
+  ok('⑪ 「ぜんぶ取り置きになったら」も行の印を hold にして数える',
+     H.cut(src,'impHoldsWith').indexOf("d.kind = 'hold'") >= 0);
 }
 
 /* ── 結果 ─────────────────────────────────────── */

@@ -26,7 +26,7 @@ const NAMES=['findProduct','findProductBySku','isActiveDefect','buildHoldsForZai
   'shortagesNow','orderShortages','isZaikoMachi','zaikoMachiQty','lineTotal','unitOfProduct','lineUnit',
   'yoyakuArrivedList','renderYoyakuArrivedBar',
   'daysUntil','isHeldOverdue','isHeldDueSoon','isReservedOverdue','isReservedDueSoon',
-  'updateHoldSelected','renderHoldPreLists'];
+  'updateHoldSelected','renderHoldPreLists','machiFuda'];   /* ★2026-09-13 名札（≪取置分≫≪予約分≫） */
 let code=''; NAMES.forEach(n=>{ try{ code += H.cut(src,n)+'\n'; }catch(e){ code += '/* '+n+' なし */\n'; } });
 
 function build(loaded, orders){

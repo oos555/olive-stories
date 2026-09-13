@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>モック｜登録の種類は2つ／取置分・予約分は商品ごとに選ぶ（2026-09-13 第2版）</title>
+<style>
+  :root{ --ink:#2b2a26; --line:#e8e2d8; --bg:#faf8f3; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans','Yu Gothic',sans-serif;
+       font-size:14px;line-height:1.75;padding:18px 14px 70px}
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 8px}
+  .lead{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:18px}
+  .kotoba{background:#f6f5f1;border-left:5px solid #b9c48a;border-radius:6px;padding:9px 12px;margin:8px 0;font-size:13px}
+  .step{margin:28px 0 10px;font-size:15px;font-weight:800;color:#33421f;border-bottom:2px solid #cfd8b4;padding-bottom:5px}
+  .step small{font-weight:600;color:#6b665c;font-size:12.5px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:10px}
+  .memo{font-size:12px;color:#6b665c}
+  b.hi{background:#fdf3cf;padding:0 3px;border-radius:3px}
+
+  /* ≪取置分≫ ≪予約分≫ ── どちらも3文字。色だけで見分けます */
+  .fuda{display:inline-block;font-weight:800;font-size:12.5px;border-radius:6px;padding:2px 7px;
+        white-space:nowrap;letter-spacing:.02em}
+  .f-t{background:#e7f0da;color:#33421f;border:1.5px solid #a8bd7c}   /* 取置分 */
+  .f-y{background:#e4ecf6;color:#1f4a6d;border:1.5px solid #8fb0d4}   /* 予約分 */
+
+  /* 入力のまね */
+  .lab{font-size:12px;font-weight:800;color:#57534e;display:block;margin-bottom:3px}
+  .sel{border:1.5px solid #cfc9bd;border-radius:8px;background:#fff;padding:9px 11px;font-weight:800;font-size:15px;
+       font-family:inherit;display:inline-block;min-width:250px}
+  .sel.big{border-color:#0c447c;color:#0c447c}
+  .gyo{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;border:1px solid #e2ddd2;border-radius:9px;
+       padding:9px 10px;margin-bottom:7px;background:#fff}
+  .gyo .nm{flex:1;min-width:210px;font-weight:700;font-size:13px;padding-top:6px}
+  .kazu{border:1.5px solid #cfc9bd;border-radius:7px;padding:6px 8px;width:64px;font-family:inherit;font-size:13px;background:#fff;display:inline-block}
+  .toggle{display:inline-flex;border:1.5px solid #cfc9bd;border-radius:8px;overflow:hidden}
+  .toggle span{padding:7px 12px;font-size:13px;font-weight:800;background:#fff;color:#a09a90}
+  .toggle span.on-h{background:#3f5a1c;color:#fff}
+  .toggle span.on-y{background:#1f4a6d;color:#fff}
+  .hint{font-size:11.5px;color:#8a857c;width:100%}
+
+  .kime{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .kbox{flex:1;min-width:250px;border-radius:12px;padding:12px 13px;border:2px solid}
+  .k-h{background:#f2f6ea;border-color:#c3d3a3}
+  .k-y{background:#eef2f8;border-color:#a9c0dd}
+  .k-x{background:#fff7ec;border-color:#e3b768}
+  .kbox h3{margin:0 0 6px;font-size:14px}
+  .k-h h3{color:#33421f} .k-y h3{color:#1f4a6d} .k-x h3{color:#8a5a12}
+  .kbox p{margin:4px 0;font-size:12.5px}
+
+  .nagare{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .ncol{flex:1;min-width:280px;border-radius:12px;padding:9px 10px 11px}
+  .ncol.app{background:#f2f6ea;border:1.5px solid #c3d3a3}
+  .ncol.sheet{background:#eef2f8;border:1.5px solid #a9c0dd;flex:0 1 300px}
+  .nhead{font-size:12px;font-weight:800;letter-spacing:.08em;margin-bottom:7px}
+  .ncol.app .nhead{color:#4a5a1f} .ncol.sheet .nhead{color:#1f4a6d}
+  .st{display:block;width:100%;text-align:left;border-radius:9px;padding:11px 12px;margin-bottom:7px;
+      font-size:13.5px;font-weight:800;font-family:inherit;border:1.5px solid transparent;line-height:1.5}
+  .st:last-child{margin-bottom:0}
+  .st .no{display:inline-block;min-width:22px}
+  .st .sub{display:block;font-weight:600;font-size:11.5px;margin-top:2px;opacity:.85}
+  .st-now{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}
+  .st-done{background:#eef7ea;color:#166534;border-color:#86c096}
+  .st-lock{background:#f3f0e8;color:#a9a49a;border-color:#e5e0d6}
+  .ima{display:inline-block;background:#fff;color:#0c447c;border-radius:99px;font-size:10.5px;
+       font-weight:800;padding:1px 8px;margin-left:6px;vertical-align:middle}
+
+  table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}
+  th,td{border:1px solid #d8d3c7;padding:6px 8px;text-align:left;vertical-align:top}
+  th{background:#f0ede5;font-weight:800;font-size:11.5px;white-space:nowrap}
+  .sc{background:#fffdf5}
+  .tsutsumi{overflow-x:auto}
+
+  .toi{background:#fff7ec;border:2px solid #e3b768;border-radius:12px;padding:14px 16px;margin-top:26px}
+  .toi h3{margin:0 0 8px;font-size:15px;color:#8a5a12}
+  .maru{display:inline-block;background:#33421f;color:#fff;border-radius:99px;width:20px;height:20px;
+        text-align:center;line-height:20px;font-size:12px;font-weight:800;margin-right:5px}
+  .batsu{color:#c0392b;font-weight:800}
+  .maru2{color:#2f6d3b;font-weight:800}
+  .naoshi{background:#eef7ea;border:2px solid #86c096;border-radius:10px;padding:10px 13px;margin:10px 0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>登録の種類は<u>2つ</u>／<span class="fuda f-t">≪取置分≫</span> <span class="fuda f-y">≪予約分≫</span> は商品ごとに ― モック 第2版</h1>
+
+<div class="naoshi">
+  <b>第1版から直したところ（ひろみさんのご指摘・2026-09-13）</b>
+  <ul style="margin:6px 0 0;padding-left:20px">
+    <li><b>記号（絵文字）をやめました。</b>「取り置きや予約を記号にすると見づらい。その記号の説明も必要になる」<br>
+      　→ <span class="fuda f-t">≪取置分≫</span> <span class="fuda f-y">≪予約分≫</span>　<b>どちらも3文字</b>。字の幅がそろうので、並ぶと読みやすくなります。</li>
+    <li><b>日付を1つにしました。</b>「予約の入荷に取り置き商品も発送を合わせる。<b>取り置きの期限は特になし。</b>入荷にあわせるかんじ」<br>
+      　→ 予約分が入っている注文は、<b>日付は「入荷予定」ひとつだけ</b>。取置分もその日に合わせて出します。</li>
+  </ul>
+</div>
+
+<div class="lead">
+  <div class="kotoba">
+    ひろみさん（2026-09-13）：<br>
+    「<b>一人の人が、アグルミを取り置き、オルガニックを予約という場合がある。</b>
+    　なので、<b>商品ごとに予約と取り置きと選べたらいいかも。</b>」<br>
+    「別々でできるなら、<b>登録の種類は、通常発送／取り置き・予約　の2種類になる。</b>
+    　取り置き・予約を選択した時だけ、上記が発動」<br>
+    「<b>予約の入荷に取り置き商品も発送を合わせる</b>かな。つまり<b>取り置きの期限は特になし。</b>入荷にあわせるかんじ」
+  </div>
+  <b>できます。このほうが良いと思います。</b>いまは注文ぜんぶで1つしか選べないので、
+  <b>混ざった注文が登録できません</b>（アグルミだけ先に出すか、2件に分けるしかない）。<br>
+  種類が3つ→2つに減って、日付の欄も1つに減ります。<b>画面は2つ簡単になります。</b>
+</div>
+
+<!-- ══════════ ① ══════════ -->
+<div class="step">① 登録の種類　<small>3つ　→　2つ</small></div>
+
+<div class="kime">
+  <div class="kbox" style="background:#f6f5f1;border-color:#ddd8cc">
+    <h3>いままで（3つ）</h3>
+    <p>通常受注</p><p>取り置き</p><p>予約</p>
+    <p class="memo" style="margin-top:8px"><span class="batsu">✕</span> 取り置きと予約が混ざった注文が作れない</p>
+  </div>
+  <div class="kbox k-h">
+    <h3>これから（2つ）</h3>
+    <p><b>通常発送</b>　― いますぐ倉庫へ</p>
+    <p><b>取り置き・予約</b>　― 待つもの</p>
+    <p class="memo" style="margin-top:8px"><span class="maru2">○</span> 待つものは、<b>商品ごとに</b>取置分／予約分を選びます</p>
+  </div>
+</div>
+
+<div class="card">
+  <span class="lab">登録の種類</span>
+  <span class="sel big">取り置き・予約（待つもの）　▾</span>
+  <div class="memo" style="margin-top:6px">★<b>これを選んだときだけ</b>、下の「商品ごとの取置分／予約分」と日付の欄が出ます。<br>
+  　通常発送のときは、いままでとまったく同じ画面です（何も増えません）。</div>
+</div>
+
+<!-- ══════════ ② ══════════ -->
+<div class="step">② 商品ごとに選ぶ　<small>アグルミは取置分、オルガニックは予約分</small></div>
+
+<div class="card">
+  <div class="gyo">
+    <div class="nm">AGR250　アグルミ 250ml</div>
+    <span class="kazu">6</span><span style="padding-top:7px;font-size:12px">本</span>
+    <span class="toggle"><span class="on-h">取置分</span><span>予約分</span></span>
+    <div class="hint">いま在庫があります　→　<b>登録した時点で6本を押さえます</b>（ほかの人に売れません）</div>
+  </div>
+  <div class="gyo">
+    <div class="nm">ORG250　オルガニック 250ml</div>
+    <span class="kazu">12</span><span style="padding-top:7px;font-size:12px">本</span>
+    <span class="toggle"><span>取置分</span><span class="on-y">予約分</span></span>
+    <div class="hint">まだ入荷していません　→　<b>在庫は減りません</b>（入荷したら取置分に変わります）</div>
+  </div>
+
+  <div style="margin-top:14px">
+    <span class="lab">入荷予定（この日に合わせて、ぜんぶ一緒に発送します）</span>
+    <span class="sel" style="min-width:200px">2026-11 上旬</span>
+    <div class="memo" style="margin-top:5px">
+      ★日付は<b>1つだけ</b>です。<br>
+      　<b>予約分が1つでも入っていたら</b>　→　欄は「<b>入荷予定</b>」ひとつ。<b>取り置きの期限はありません</b>（入荷に合わせるため）。<br>
+      　<b>取置分だけの注文</b>　→　欄は「<b>取り置き期限</b>」ひとつ（いままでどおり。玄関の期限ぎれアラートもそのまま働きます）。
+    </div>
+  </div>
+</div>
+
+<div class="kime">
+  <div class="kbox k-h">
+    <h3><span class="fuda f-t">≪取置分≫</span>　在庫を押さえます</h3>
+    <p><b>登録した時点で販売可能数が減ります。</b>同時にスプシにも1行入ります。</p>
+    <p class="memo">★スプシへの書き込みが失敗しても、押さえは残します。
+    　逆にすると「押さえたつもりで二重に売る」事故になるからです。</p>
+  </div>
+  <div class="kbox k-y">
+    <h3><span class="fuda f-y">≪予約分≫</span>　まだありません</h3>
+    <p><b>在庫は減りません。</b>統合マスタＮの「予約」列に出るだけです。</p>
+    <p class="memo">入荷して「📦 一気に在庫へ入れる」を押すと、この行が取置分に変わります。</p>
+  </div>
+  <div class="kbox k-x">
+    <h3>混ざった注文は、そろうまで出ません</h3>
+    <p>予約分が1つでも残っていたら、<b>【発注書へ送る】は押せません</b>（グレー）。</p>
+    <p class="memo">「一緒に発送してほしい」というご依頼だからです。<br>
+    <b>別々に発送</b>したいときは、<b>別々に登録</b>してください（それぞれ別の管理番号・別の発送になります）。</p>
+  </div>
+</div>
+
+<!-- ══════════ ③ ══════════ -->
+<div class="step">③ スプシの🗂 リストは、どう見えるか　<small>1行＝1回の発送。ここは変えません</small></div>
+
+<div class="tsutsumi">
+<table>
+  <tr>
+    <th>状態</th><th>分類</th><th>在庫</th><th>予定日</th>
+    <th>商品①</th><th>数①</th><th>商品②</th><th>数②</th><th>お名前</th>
+  </tr>
+  <tr class="sc">
+    <td>待ち</td><td>取り置き</td>
+    <td><b>取置＋予約</b></td>
+    <td>2026-11 上旬<br><span class="memo">入荷に合わせて発送</span></td>
+    <td><span class="fuda f-t">≪取置分≫</span><br>AGR250 アグルミ 250ml</td><td>6本</td>
+    <td><span class="fuda f-y">≪予約分≫</span><br>ORG250 オルガニック 250ml</td><td>12本</td>
+    <td>中村 様</td>
+  </tr>
+  <tr>
+    <td>待ち</td><td>取り置き</td><td><b>取置分</b></td>
+    <td>2026-09-20<br><span class="memo">取り置き期限</span></td>
+    <td><span class="fuda f-t">≪取置分≫</span><br>MEM250 メメジック 250ml</td><td>3本</td><td></td><td></td>
+    <td>SS 様</td>
+  </tr>
+</table>
+</div>
+<div class="memo" style="margin-top:6px">
+  ★「在庫」列は<b>1行に1つ</b>しか書けないので、<b>取置分 ／ 予約分 ／ 取置＋予約</b> の3通りにします。<br>
+  ★商品名の頭に <span class="fuda f-t">≪取置分≫</span> <span class="fuda f-y">≪予約分≫</span> を付けます。
+  <b>記号を使いません</b>ので、凡例（この記号は何、という説明）が要りません。<br>
+  ★<b>1行＝1回の発送</b>という今の形は壊しません（2行に分けると「一緒に発送」が見えなくなります）。
+</div>
+
+<!-- ══════════ ④ ══════════ -->
+<div class="step">④ 入荷したあと　<small>流れが、そのままボタン</small></div>
+
+<div class="card">
+  <div style="font-weight:800;font-size:13px">待ち　中村 様　／ TK-20260913-6104　／ 入荷予定 2026-11 上旬</div>
+  <div style="font-size:12px;margin:5px 0">
+    <span class="fuda f-t">≪取置分≫</span> アグルミ 250ml 6本（押さえ済み）　＋
+    <span class="fuda f-y">≪予約分≫</span> オルガニック 250ml 12本（入荷待ち）
+  </div>
+
+  <div class="nagare">
+    <div class="ncol app">
+      <div class="nhead">アプリ内</div>
+      <button class="st st-done"><span class="no">①</span>登録した　― 取置分の6本を押さえた
+        <span class="sub">済み（9/13 10:20）　予約分の12本は在庫を減らしていません</span></button>
+      <button class="st st-done"><span class="no">②</span>🗂 リストに1行入った
+        <span class="sub">済み　在庫の列＝「取置＋予約」／予定日＝入荷予定</span></button>
+      <button class="st st-now"><span class="no">③</span>入荷した　→　予約分を取置分に変える<span class="ima">いまここ</span>
+        <span class="sub">統合マスタＮの「📦 一気に在庫へ入れる」を押すと変わります</span></button>
+    </div>
+    <div class="ncol sheet">
+      <div class="nhead">スプシで対応</div>
+      <button class="st st-lock"><span class="no">④</span>A列を【📦 発注書へ送る】にする
+        <span class="sub">予約分が残っているあいだは押せません</span></button>
+      <button class="st st-lock"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）
+        <span class="sub">ここではじめて倉庫へ連絡が行きます</span></button>
+    </div>
+  </div>
+  <div class="memo">★③が終わると、この行は「取置分」だけになり、④が押せるようになります。</div>
+</div>
+
+<!-- ══════════ 作るもの ══════════ -->
+<div class="step">作るものは、これだけ　<small>新しいアプリもタブも作りません</small></div>
+<div class="card">
+  <p><span class="maru">1</span> 受注Ａの「登録の種類」を<b>2つに</b>する（通常発送／取り置き・予約）</p>
+  <p><span class="maru">2</span> 取り置き・予約を選んだときだけ、<b>商品の行に［取置分］［予約分］の切りかえ</b>を出す</p>
+  <p><span class="maru">3</span> 日付の欄は<b>1つだけ</b>。予約分があれば「入荷予定」、取置分だけなら「取り置き期限」</p>
+  <p><span class="maru">4</span> 在庫を押さえるのは<b>取置分の行だけ</b>にする（いまは注文ぜんぶ）</p>
+  <p><span class="maru">5</span> スプシへ送るとき、<b>商品名の頭に ≪取置分≫ ／ ≪予約分≫</b>、在庫列は<b>取置分／予約分／取置＋予約</b></p>
+  <p><span class="maru">6</span> 予約分が残っているあいだは<b>📦を押せなくする</b></p>
+  <p class="memo" style="margin-top:10px">
+  ★いまある注文は壊れません。<b>取り置きの注文＝全部の行が取置分／予約の注文＝全部の行が予約分</b> と読みます。
+  </p>
+</div>
+
+<!-- ══════════ 正直に ══════════ -->
+<div class="toi">
+  <h3>先に申し上げておくこと（3つ）</h3>
+  <p><b>あ）「状態は3つ」は、9月12日に<span class="batsu">🔒 一切変えない</span>と決めた決めごとです。</b><br>
+  　今回はひろみさんご本人が変えるご指示なので、<b>決めごとのほうを書きかえます</b>（見張りも直します）。<br>
+  　<span class="memo">黙って変えると、次に開いたとき「勝手に変わっている」になるので、ここに残します。</span></p>
+
+  <p style="margin-top:10px"><b>い）混ざった注文には、取り置き期限がありません。</b><br>
+  　入荷に合わせるからです。すると<b>玄関の「取り置き期限が過ぎている」アラートには出ません</b>。<br>
+  　<span class="memo">そのかわり、入荷予定が過ぎても入荷していない注文は、<b>予約のほうで見えます</b>。
+  　　混ざった注文だけ見えなくなる、ということはありません。</span></p>
+
+  <p style="margin-top:10px"><b>う）「スプシに流した段階で在庫が減る」について</b><br>
+  　<b>いますでに、そうなっています。</b>登録したその場で押さえ、<b>すぐに</b>スプシへ1行入ります。<br>
+  　ただし<b>順番は「押さえる　→　スプシへ書く」</b>です。<br>
+  　<span class="memo">スプシの書き込みは、混んでいると失敗することがあります。
+  　そのとき押さえが無いと<b>二重に売れてしまう</b>ので、先に押さえます。ここは変えないほうが安全です。</span></p>
+</div>
+
+</div>
+</body>
+</html>

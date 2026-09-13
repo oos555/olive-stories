@@ -416,7 +416,7 @@ ok('⑩受注ＡからRTは送らない（RTは別タブ）・親に聞いてい
 ok('⑩英語で直接くらべる書き方に戻っていない',
   bodyOf(IDX, 'yoyakuListAddOne').indexOf("o.customerType === 'rt'") < 0);
 ok('⑩取り置き・予約を登録したら、その場で送る',
-  IDX.indexOf("if(recordType==='held' || recordType==='reserved'){") >= 0 &&
+  IDX.indexOf("if(recordType==='wait'){") >= 0 &&   /* ★2026-09-13 取り置き・予約は1つの種類に（中は商品ごと） */
   IDX.indexOf('yoyakuListAddOne(o)') >= 0);
 ok('⑩入れた印を受注データにも控える（二重に入らない）',
   GAS.indexOf('yoyakuList: o.yoyakuList||null') >= 0);

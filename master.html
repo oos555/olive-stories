@@ -487,15 +487,15 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-13-04">
+<meta name="oos-version" content="2026-09-13-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=p017fa811cc"></script>
+<script src="oos-hizuke.js?v=p715530b4a2"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-meibo.js?v=p017fa811cc"></script>
+<script src="oos-meibo.js?v=p715530b4a2"></script>
 <!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと輸入・原価Ｅが同じ並びになるように、
      ここ1か所だけに書いています。★消さないでください（消すと並びがバラバラに戻ります） -->
 <script src="oos-kubun.js"></script>
@@ -1140,7 +1140,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 </div><!-- /.app -->
 
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=p017fa811cc"></script>
+<script src="oos-zaiko.js?v=p715530b4a2"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -2079,17 +2079,26 @@ function doBulkReplace(skipConfirm){
 
 // ── 取り置き（holds）はアプリAの「取り置き中の注文」から組み立てる ──────────
 // アプリAの computeHeldQtyBySku と同じ考え方。GASのholdsに頼らず、注文から直接。
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-13 取り置きと予約は【商品ごと】になりました（ひろみさん指示）。
+   　在庫を押さえるのは ≪取置分≫ の行だけです。
+   　混ざった注文（取置分＋予約分）は status が reserved ですが、
+   　その中の ≪取置分≫ の行は、ちゃんと在庫を押さえます。
+   ★判定は【親＝oos-zaiko.js の holdLineKa】に聞きます。ここに書き写さないでください。
+   　（受注Ａの buildHoldsForZaiko と、ここと、2か所あります。片方だけ直すと在庫が食い違います）
+   ══════════════════════════════════════════════════════════════════════ */
 function buildHoldsFromOrders(){
   const result = [];
   orders.forEach(function(o){
-    if(o.status!=='held') return;
+    if(!OOS_ZAIKO.machiKa(o)) return;
     (o.lines||[]).forEach(function(l){
+      if(!OOS_ZAIKO.holdLineKa(o, l)) return;
       const p = findProduct(l.productId);
       if(!p) return;
       const totalQty = (l.bottles||0) + (l.boxes||0)*(l.boxQty||p.boxQty||1);
       if(totalQty<=0) return;
       const client = o.client || o.recipientName || '';
-      const date = o.holdUntilDate || '';
+      const date = o.holdUntilDate || o.expectedDate || '';   /* ★2026-09-13 混ざりは入荷予定に合わせます */
       if(p.isSet && p.components){
         p.components.forEach(function(c){
           const cp = findProductBySku(c.sku);
@@ -3255,7 +3264,13 @@ function impHoldsWith(heldIds){
   try{
     orders = (orders||[]).map(function(o){
       if(!o || heldIds.indexOf(o.id) < 0) return o;
-      var c = {}; for(var k in o) c[k] = o[k]; c.status = 'held'; return c;
+      var c = {}; for(var k in o) c[k] = o[k];
+      c.status = 'held';
+      /* ★2026-09-13 行ごとに ≪取置分／予約分≫ を持つようになったので、
+         　「この注文がぜんぶ取り置きになったら」を作るときは、行の印も取置分に変えます。
+         ★ここを忘れると、予約分が在庫として数えられず、入荷しても取り置きに変わりません。 */
+      c.lines = (o.lines||[]).map(function(l){ var d = {}; for(var k2 in l) d[k2] = l[k2]; d.kind = 'hold'; return d; });
+      return c;
     });
     return buildHoldsFromOrders();
   } finally { orders = snap; }
@@ -3289,12 +3304,14 @@ function impConvertPlan(){
   return out;
 }
 function impOrderWho(o){ return esc(o.recipientName || o.client || ''); }
+/* ★2026-09-13 ≪取置分≫ ≪予約分≫ を出します（記号は使いません） */
 function impOrderLines(o){
   return ((o.lines)||[]).map(function(l){
+    var fuda = OOS_ZAIKO.machiKa(o) ? (OOS_ZAIKO.holdLineKa(o, l) ? '≪取置分≫ ' : '≪予約分≫ ') : '';
     var p = PRODUCTS.filter(function(x){ return x.id == l.productId; })[0];
     var bq = l.boxQty || (p && p.boxQty) || 1;
     var q = (l.bottles||0) + (l.boxes||0)*bq;
-    return esc(l.productName||'') + ' × ' + q + '本';
+    return esc(fuda) + esc(l.productName||'') + ' × ' + q + '本';
   }).join('<br>');
 }
 function renderImportConvPanel(){
@@ -3331,11 +3348,20 @@ function impApplyConvert(conv){
       bucketAdjustLots(m.pid, lotStatusFor('cur','hold'),  -m.qty, '予約→取り置き（よけた箱から）');
       bucketAdjustLots(m.pid, lotStatusFor('cur','avail'),  m.qty, '予約→取り置き（棚の良品へ）');
     });
-    undo.push({ id:g.o.id, status:g.o.status, holdUntilDate:(g.o.holdUntilDate||''), moves:g.moves });
-    var d = g.o.expectedDate || '';
+    /* ★2026-09-13 行ごとの ≪取置分／予約分≫ も控えます。
+       　控えないと、取り消したときに「状態は予約なのに行は取置分」になり、
+       　予約に戻したはずの分まで在庫を押さえたままになります。
+       ★lines を控えるのをやめないでください。 */
+    undo.push({ id:g.o.id, status:g.o.status, holdUntilDate:(g.o.holdUntilDate||''),
+                lines:(g.o.lines||[]).map(function(l){ var d={}; for(var k in l) d[k]=l[k]; return d; }),
+                moves:g.moves });
+    var d = g.o.expectedDate || g.o.holdUntilDate || '';
     g.o.status = 'held';
     g.o.holdUntilDate = d;
-    items.push({ id:g.o.id, status:'held', holdUntilDate:d });
+    /* ★2026-09-13 行ごとの ≪予約分≫ も ≪取置分≫ に変えます（入荷したので）。
+       ★ここを忘れると、画面は「取り置き」なのに行は「予約分」のままで、在庫が押さえられません。 */
+    g.o.lines = (g.o.lines||[]).map(function(l){ l.kind = 'hold'; return l; });
+    items.push({ id:g.o.id, status:'held', holdUntilDate:d, lines:g.o.lines });
     addLog('予約→取り置き', impOrderWho(g.o)+'　'+(g.o.num||'')+'（入荷したため）');
   });
   holds = buildHoldsFromOrders();
@@ -3477,8 +3503,12 @@ function undoImportConv(){
         bucketAdjustLots(m.pid, lotStatusFor('cur','hold'),   m.qty, '予約→取り置き を取り消し');
       });
       var o = (orders||[]).filter(function(x){ return x && x.id === u.id; })[0];
-      if(o){ o.status = u.status; o.holdUntilDate = u.holdUntilDate; }
-      back.push({ id:u.id, status:u.status, holdUntilDate:u.holdUntilDate });
+      if(o){
+        o.status = u.status; o.holdUntilDate = u.holdUntilDate;
+        /* ★2026-09-13 行ごとの ≪取置分／予約分≫ も戻します */
+        if(u.lines && u.lines.length) o.lines = u.lines;
+      }
+      back.push({ id:u.id, status:u.status, holdUntilDate:u.holdUntilDate, lines:u.lines });
     });
     holds = buildHoldsFromOrders();
     impSaveOrderStatus(back);
