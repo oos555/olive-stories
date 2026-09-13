@@ -416,7 +416,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-02">
+<meta name="oos-version" content="2026-09-13-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -8572,12 +8572,20 @@ function docFudaHtml(o, torikeshi){
       /* ★2026-09-12 ひろみさん：「PDFを開いて一度確認するとスプシに貼るボタンが
          　出ます　にして！！　そしたらみんな迷わない」
          ★この文言を短くしないでください。次に何が起きるかが分からなくなります。 */
+      /* ★2026-09-13 ひろみさん：「そういう場合の押すボタンとか？」
+         　［📄 いま作って貼る］＝見る画面を出さずに、作って・保存して・貼るまで一気にやります。
+         　（発注書に行ができていなければ、できるまで待ってから貼ります）
+         ★2つのボタンを1つに減らさないでください。「見てから貼る」も残します。 */
       var b = torikeshi ? ''
         : '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
           + 'style="margin-left:8px;background:#0c447c;color:#fff;border:none">'
           + '📄 PDFを開いて確認する</button>'
+          + '<button class="btn-sm" onclick="docIma(\'' + o.id + '\')" '
+          + 'style="margin-left:6px;background:#166534;color:#fff;border:none">'
+          + '📄 いま作って貼る</button>'
           + '<div style="font-weight:400;font-size:11.5px;margin-top:3px;color:#7a746a">'
-          + '（PDFを開いて一度確認すると、スプシに貼るボタンが出ます）</div>';
+          + '（PDFを開いて一度確認すると、スプシに貼るボタンが出ます。'
+          + '急ぐときは［📄 いま作って貼る］で、確認なしに貼れます）</div>';
       h += '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#fff4f2;'
          + 'border:1.5px solid #e24b4a;border-radius:7px;padding:5px 10px;color:#a32d2d;font-weight:700">'
          + '⚠ 📄 ' + esc(nm) + '　まだ貼れていません' + b + riyuu + '</div>';
@@ -8913,6 +8921,9 @@ async function docCheckOk(){
         await nouhinAttachToOrder(q.o, q.mei);
       }
       /* ★貼れたかどうかを、ここでも確かめます（黙って終わらせない） */
+      /* ★2026-09-13 決めつける前に、発注書をもう一度読み直します。
+         　読み直さずに「貼れていません」と出すと、実は貼れているのに嘘になります。 */
+      if(!docHareteruKa(q.o, q.mei)){ try{ await docVretsuYomu(true); }catch(_ey){ if(typeof oosShippai==='function') oosShippai('発注書を読み直すところ', _ey); } }
       if(!docHareteruKa(q.o, q.mei) && !q.o.nouhinDocNg){
         q.o.nouhinDocNg = '貼る処理が最後まで進みませんでした（もう一度お試しください）';
         if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + q.mei + ' を貼れませんでした。もう一度お試しください。', true);
@@ -11609,11 +11620,94 @@ async function nouhinBuildPdfB64(o, shoruiMei){
    　貼れたかどうかは【発注書のV列】が親です（アプリは写しを持ちません）。
    ★書類名の引数を消さないでください。2枚目が作られなくなります。
    ★o.nouhinDocs（写し）を復活させないでください。2026-09-12 の事故の原因です。 */
+/* ══════════════════════════════════════════════════════════════════════
+   📄 「発注書にPDFのリンクが飛ばない」の正体　★2026-09-13（実測して直しました）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「受注Aで登録しても、このスプシにまたPDFのリンクが飛ばない！！！
+   　昨日は飛んだのに、なんで毎日こうやって修正しないといけなくなるの？」
+
+   ── 何が起きていたか（2026-09-13 に本番のデータで実測）────────────
+   登録すると、2つのことが【同時に】走ります。
+     ① 発注書（ゆかスプシ）へ1行送る … yukaImportOne。GASで【10秒前後】かかります
+     ② 書類の確認画面を出す　　　　 … 登録の2.5秒後に出ます
+   ②のほうが先に出るので、［この内容で発注書に貼る］を押したとき、まだ
+   【ふだ（転記キー）】が付いていない＝発注書に行が無いことがあります。
+   そのとき、ここは `if(!o.yukaKey) return;` で【黙って帰って】いました。
+   GASが「その注文の行が見つかりません」と返したときも、1秒の帯が出るだけで
+   理由がどこにも残りませんでした。だから「押したのに飛ばない」になります。
+
+   実測した証拠：TK-20260913-4211（s商事株式会社test）
+     ・登録 05:22:43 → 発注書に入ったのは 05:32:36（10分後）
+     ・注文に残っていた理由＝「貼る処理が最後まで進みませんでした」
+     ・発注書のV列＝「納品書兼請求書」という【文字だけ】でリンク無し
+
+   ── 直したこと ────────────────────────────────────────────────
+   ・ふだが無いときは【黙って帰らない】。付くまで待ってから貼ります（下の docFudaMachi）
+   ・それでも付かなければ、理由をカードに【ずっと】残します（何をすればよいかも書く）
+   ・GASが not-ok を返したときも、理由を注文に残します
+   ・人が押せる逃げ道［📄 いま作って貼る］を、カードに常に出します（docIma）
+   ★この4つを外さないでください。外すと、また「押したのに何も起きない」に戻ります。
+   ══════════════════════════════════════════════════════════════════════ */
+/* ふだ（転記キー）が付くのを待ちます。付いたら true。最大で4回・約40秒。
+   発注書に行ができると、その行の「ふだ」が注文に書き戻されます。 */
+async function docFudaMachi(o, kai){
+  kai = kai || 4;
+  for(var i = 0; i < kai && !(o && o.yukaKey); i++){
+    await new Promise(function(r){ setTimeout(r, 2500); });
+    var f = null;
+    try{ f = await fetchOrderFresh(o.id); }catch(e){ f = null; }
+    if(f && f.yukaKey){
+      o.yukaKey = String(f.yukaKey);
+      if(f.yukaImport) o.yukaImport = f.yukaImport;
+    }
+  }
+  return !!(o && o.yukaKey);
+}
+/* ★2026-09-13 ひろみさん：「解決法はないのか？人間側で何かない？そういう場合の押すボタンとか？」
+   → これがそのボタンです。確認の画面を出さずに【作って・保存して・発注書に貼る】まで一気にやります。
+   　 ・ふだが無ければ、付くまで待ちます
+   　 ・貼れなければ、理由をカードに残します（黙って終わりません）
+   　 ・何回押しても二重にはなりません（同じ書類は発注書側で1つにまとまります）
+   ★このボタンと関数を消さないでください。 */
+async function docIma(id){
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
+  if(!o) return;
+  var meis = OOS_NOUHIN.shoruiList(o).filter(function(m){ return !docHareteruKa(o, m); });
+  if(!meis.length){ showSyncStatus('📄 この注文の書類は、もう発注書に貼れています'); return; }
+  showSyncStatus(DOC_HARI_CHU, false, true);
+  for(var i = 0; i < meis.length; i++){
+    try{
+      if(rtDenpyoOrderKa(o) && typeof rtAttachDocsToOrder === 'function') await rtAttachDocsToOrder(o);
+      else await nouhinAttachToOrder(o, meis[i]);
+    }catch(e){
+      o.nouhinDocNg = '貼るときにつまずきました：' + ((e && e.message) || e);
+      if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+    }
+  }
+  try{ await docVretsuYomu(true); }catch(e){ if(typeof oosShippai==='function') oosShippai('発注書を読み直すところ', e); }
+  if(typeof renderList === 'function') renderList();
+  var nokori = OOS_NOUHIN.shoruiList(o).filter(function(m){ return !docHareteruKa(o, m); });
+  if(nokori.length) showSyncStatus('⚠ まだ貼れていません：' + nokori.join('・') + '（カードに理由が出ています）', true);
+  else showSyncStatus('📄 発注書に貼りました');
+}
 async function nouhinAttachToOrder(o, shoruiMei){
   try{
     if(!o) return;
     if(typeof OOS_NOUHIN === 'undefined') return;
-    if(!o.yukaKey) return;                                   /* ふだが無ければ貼る先が分からない */
+    /* ★2026-09-13 ふだ（転記キー）が無いときは【黙って帰らない】。
+       　発注書に行ができるのを待ってから貼ります（上の説明を読んでください）。 */
+    if(!o.yukaKey){
+      if(typeof showSyncStatus === 'function') showSyncStatus('📄 発注書に行ができるのを待っています…', false, true);
+      await docFudaMachi(o);
+    }
+    if(!o.yukaKey){
+      o.nouhinDocNg = 'まだ発注書に行ができていません。カードの［📥 …『発注書』に送る］を押して、'
+        + '「発注書に入りました」と出てから、もう一度［📄 いま作って貼る］を押してください。';
+      if(typeof showSyncStatus === 'function') showSyncStatus('⚠ ' + o.nouhinDocNg, true);
+      if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+      if(typeof renderList === 'function') renderList();
+      return;
+    }
     /* ══════════════════════════════════════════════════════════════════
        ★2026-09-10 ひろみさん指示：
        　「ゆかちゃんが自分で手で作った納品書が、RTのドライブの中に入ってくるように
@@ -11714,7 +11808,15 @@ async function nouhinAttachToOrder(o, shoruiMei){
       if(typeof renderList==='function') renderList();
       if(typeof showSyncStatus==='function') showSyncStatus('📄 発注書に納品書のリンクを貼りました（' + (d.name||nm) + '）');
     } else {
-      if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注書に納品書のリンクを貼れませんでした：'+((d2&&d2.message)||'不明'), true);
+      /* ★2026-09-13 ここは前、1秒の帯を出すだけで【理由がどこにも残りません】でした。
+         　よく出るのは「その注文の行が見つかりません（ふだ ◯◯）」＝まだ発注書に行が無いときです。
+         ★理由を注文に残してください。カードにずっと出ます。 */
+      var _riyuu = (d2 && d2.message) || '不明';
+      o.nouhinDocNg = '発注書に貼れませんでした：' + _riyuu
+        + (/行が見つかりません/.test(_riyuu) ? '（カードの［📥 …『発注書』に送る］を押してから、もう一度お試しください）' : '');
+      if(typeof showSyncStatus==="function") showSyncStatus('⚠ 発注書に納品書のリンクを貼れませんでした：' + _riyuu, true);
+      if(typeof syncOrdersToGAS==="function") syncOrdersToGAS([o]);
+      if(typeof renderList==="function") renderList();
     }
   }catch(e){
     if(typeof showSyncStatus==='function') showSyncStatus('⚠ 納品書を作れませんでした：'+(e&&e.message||e), true);
