@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>モック｜流れがそのままボタン（2026-09-13）</title>
+<style>
+  :root{ --ink:#2b2a26; --line:#e8e2d8; --bg:#faf8f3; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans','Yu Gothic',sans-serif;
+       font-size:14px;line-height:1.7;padding:18px 14px 60px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 6px}
+  .lead{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:18px}
+  .kotoba{background:#f6f5f1;border-left:5px solid #b9c48a;border-radius:6px;padding:9px 12px;margin:8px 0;font-size:13px}
+  .step{margin:26px 0 10px;font-size:15px;font-weight:800;color:#33421f;border-bottom:2px solid #cfd8b4;padding-bottom:5px}
+  .step small{font-weight:600;color:#6b665c;font-size:12.5px}
+  .yaji{text-align:center;color:#8a857c;font-size:20px;margin:6px 0}
+
+  /* ── 流れバー（これ自体がボタン） ── */
+  .nagare{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .ncol{flex:1;min-width:270px;border-radius:12px;padding:9px 10px 11px}
+  .ncol.app{background:#f2f6ea;border:1.5px solid #c3d3a3}
+  .ncol.sheet{background:#eef2f8;border:1.5px solid #a9c0dd;flex:0 1 270px}
+  .nhead{font-size:12px;font-weight:800;letter-spacing:.08em;margin-bottom:7px}
+  .ncol.app .nhead{color:#4a5a1f}
+  .ncol.sheet .nhead{color:#1f4a6d}
+  .st{display:block;width:100%;text-align:left;border-radius:9px;padding:11px 12px;margin-bottom:7px;
+      font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;border:1.5px solid transparent;line-height:1.5}
+  .st:last-child{margin-bottom:0}
+  .st .no{display:inline-block;min-width:22px}
+  .st .sub{display:block;font-weight:600;font-size:11.5px;margin-top:2px;opacity:.85}
+  .st-now{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}          /* いまここ */
+  .st-now-g{background:#166534;color:#fff;box-shadow:0 3px 0 #0d4523}        /* いまここ（登録） */
+  .st-done{background:#eef7ea;color:#166534;border-color:#86c096;cursor:default}
+  .st-yet{background:#fff;color:#57534e;border-color:#ddd8cc;cursor:default}
+  .st-lock{background:#f3f0e8;color:#a9a49a;border-color:#e5e0d6;cursor:not-allowed}
+  .ima{display:inline-block;background:#fff;color:#0c447c;border-radius:99px;font-size:10.5px;
+       font-weight:800;padding:1px 8px;margin-left:6px;vertical-align:middle}
+  .ima-g{background:#fff;color:#166534}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin-bottom:10px}
+  .oc-name{font-size:14px;font-weight:700}
+  .oc-num{font-size:11px}
+  .oc-lines{font-size:12px;margin:6px 0}
+  .ryokin{font-size:12px;color:#8a6d3f}
+  .badge{font-size:11px;font-weight:800;border-radius:99px;padding:2px 10px}
+  .b-sent{background:#3b6d11;color:#fff}
+  .b-wait{background:#f3f0e8;color:#6b665c;border:1px solid #ddd8cc}
+
+  .pdfpane{background:#fff;border:2px solid #185fa5;border-radius:12px;padding:14px 16px}
+  .pdfhead{font-size:14.5px;font-weight:800;color:#185fa5;margin-bottom:9px}
+  .pdfbody{border:1px solid #c9c5b8;border-radius:6px;background:#fff;padding:14px 16px}
+  .pdfrow{display:flex;justify-content:space-between;border-bottom:1px dashed #ddd8cc;padding:5px 0;font-size:12.5px}
+  .pdfbtns{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;justify-content:center}
+  .btn{border:none;border-radius:9px;font-weight:800;cursor:pointer;font-family:inherit}
+  .btn-ok{background:#166534;color:#fff;box-shadow:0 3px 0 #0d4523;font-size:16px;padding:13px 26px}
+  .btn-modoru{background:#efece5;color:#57534e;border:1px solid #cfc9bd;font-size:15px;padding:13px 22px}
+  .toi{background:#fff7ec;border:2px solid #e3b768;border-radius:12px;padding:14px 16px;margin-top:22px}
+  .toi h3{margin:0 0 8px;font-size:15px;color:#8a5a12}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>🧭 流れが、そのままボタン　― モック</h1>
+  <div class="lead">
+    <div class="kotoba">
+      ひろみさん（2026-09-13）：「受注内容の確認では、<b>受注一覧に送る前にPDFを必ず目視で確認させたい。</b><br>
+      　アプリ内 … 添付書類①を見て確認／添付書類②を見て確認　→　受注一覧に登録ボタンを押す　→　PDFをスプシに貼るボタンを押す<br>
+      　スプシで対応 … 倉庫に発送許可を出す（セルA）<br>
+      　という感じに<b>流れが見えるように</b>して、<b>今どこなのか、このあと何をするのか</b>を見えるかしながら、<b>これ自体がボタンになっていく</b>」
+    </div>
+    <b>いちばん大きな変わりめ：PDFを見るのが「登録より前」になります。</b><br>
+    違っていたら<b>［修正する］で直すだけ</b>。まだ登録していないので、<b>取り消しは要りません</b>（在庫も動いていません）。
+  </div>
+
+  <!-- ══ ① ══ -->
+  <div class="step">① 受注内容の確認（登録する前）　<small>いまは「添付書類①を見て確認」から</small></div>
+
+  <div class="card">
+    <div style="font-weight:800;font-size:13px;margin-bottom:2px">受注内容の確認</div>
+    <div class="oc-num">お客様（発注元）：SS　（定価）　通常受注　1件の届け先へ発送します　／　TK-20260913-5232</div>
+    <div class="oc-lines">トルコ 250ml × 3本セット × バラ1＋箱0　→ 合計1本　［ギフト］</div>
+
+    <div class="nagare">
+      <div class="ncol app">
+        <div class="nhead">アプリ内</div>
+        <button class="st st-now"><span class="no">①</span>添付書類① 納品書兼請求書 を見て確認<span class="ima">いまここ</span>
+          <span class="sub">押すとPDFが開きます</span></button>
+        <button class="st st-yet"><span class="no">②</span>添付書類② 納品書兼領収書 を見て確認
+          <span class="sub">①のつぎに開きます</span></button>
+        <button class="st st-lock"><span class="no">③</span>受注一覧に登録する
+          <span class="sub">①②を見てからでないと押せません</span></button>
+        <button class="st st-lock"><span class="no">④</span>PDFをスプシに貼る
+          <span class="sub">登録したあとに押せます</span></button>
+      </div>
+      <div class="ncol sheet">
+        <div class="nhead">スプシで対応</div>
+        <button class="st st-lock"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）
+          <span class="sub">ここではじめて倉庫へ連絡が行きます</span></button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#83857a">★①②を見終わるまで、③は押せません（必ず目で見ていただくため）。</div>
+  </div>
+
+  <div class="yaji">▼　①を押した</div>
+
+  <!-- ══ ② ══ -->
+  <div class="step">② PDFが開く　<small>ボタンは2つだけ</small></div>
+
+  <div class="pdfpane">
+    <div class="pdfhead">📄 添付書類①　納品書兼請求書　（1枚目／全2枚）　SS 様　TK-20260913-5232</div>
+    <div class="pdfbody">
+      <div style="text-align:center;letter-spacing:5px;font-size:17px;font-weight:800;margin-bottom:12px">納 品 書 兼 請 求 書</div>
+      <div class="pdfrow"><span>トルコ 250ml</span><span>1本　¥4,750</span></div>
+      <div class="pdfrow"><span>倉庫ピックアップ料金</span><span>無料サービス</span></div>
+      <div class="pdfrow" style="font-weight:800;border-bottom:none"><span>ご請求金額（税込）</span><span>¥5,130</span></div>
+    </div>
+    <div class="pdfbtns">
+      <button class="btn btn-modoru">◀ 戻って直す</button>
+      <button class="btn btn-ok">この内容でOK ▶</button>
+    </div>
+    <div style="font-size:12px;color:#83857a;margin-top:9px;text-align:center">
+      ★まだ登録していません。<b>「戻って直す」＝入力に戻るだけ</b>（取り消しも在庫の戻しも要りません）。<br>
+      ★「この内容でOK」＝流れの①が✅になり、②が開きます。
+    </div>
+  </div>
+
+  <div class="yaji">▼　①②とも「この内容でOK」を押した</div>
+
+  <!-- ══ ③ ══ -->
+  <div class="step">③ ③が押せるようになる　<small>いまここ＝受注一覧に登録する</small></div>
+
+  <div class="card">
+    <div class="nagare">
+      <div class="ncol app">
+        <div class="nhead">アプリ内</div>
+        <button class="st st-done"><span class="no">✅</span>添付書類① 納品書兼請求書 を見て確認
+          <span class="sub">確認しました（もう一度見る）</span></button>
+        <button class="st st-done"><span class="no">✅</span>添付書類② 納品書兼領収書 を見て確認
+          <span class="sub">確認しました（もう一度見る）</span></button>
+        <button class="st st-now-g"><span class="no">③</span>受注一覧に登録する<span class="ima ima-g">いまここ</span>
+          <span class="sub">押すと受注一覧と発注書スプシに入ります（倉庫へはまだ行きません）</span></button>
+        <button class="st st-lock"><span class="no">④</span>PDFをスプシに貼る
+          <span class="sub">登録したあとに押せます</span></button>
+      </div>
+      <div class="ncol sheet">
+        <div class="nhead">スプシで対応</div>
+        <button class="st st-lock"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）
+          <span class="sub">ここではじめて倉庫へ連絡が行きます</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="yaji">▼　③を押した（受注一覧のカードに変わります）</div>
+
+  <!-- ══ ④ ══ -->
+  <div class="step">④ 受注一覧のカード　<small>いまここ＝PDFをスプシに貼る</small></div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="oc-name">SS</div>
+        <div class="oc-num">TK-20260913-5232　2026-09-13 07:20　通常（9月16日までに出荷）</div>
+      </div>
+      <span class="badge b-wait">出荷待ち</span>
+    </div>
+    <div class="oc-lines">トルコ 250ml × 1本</div>
+    <div class="ryokin">🪙 倉庫ピックアップ料金 <b>無料サービス</b>　／　送料 <b>無料サービス</b></div>
+
+    <div class="nagare">
+      <div class="ncol app">
+        <div class="nhead">アプリ内</div>
+        <button class="st st-done"><span class="no">✅</span>添付書類①②を見て確認
+          <span class="sub">2枚とも確認ずみ</span></button>
+        <button class="st st-done"><span class="no">✅</span>受注一覧に登録する
+          <span class="sub">受注一覧と発注書スプシに入りました</span></button>
+        <button class="st st-now"><span class="no">④</span>PDFをスプシに貼る<span class="ima">いまここ</span>
+          <span class="sub">添付PDF① 納品書兼請求書／添付PDF② 納品書兼領収書 を発注書のV列へ</span></button>
+      </div>
+      <div class="ncol sheet">
+        <div class="nhead">スプシで対応</div>
+        <button class="st st-lock"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）
+          <span class="sub">④が終わってから</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="yaji">▼　④を押して、2枚とも貼れた</div>
+
+  <!-- ══ ⑤ ══ -->
+  <div class="step">⑤ 送信済　<small>いまここ＝スプシで A列を🔵に</small></div>
+
+  <div class="card" style="background:#f7f6f2">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="oc-name">SS　<span class="badge b-sent">送信済</span></div>
+        <div class="oc-num">TK-20260913-5232　2026-09-13 07:20　通常（9月16日までに出荷）</div>
+      </div>
+      <span class="badge b-wait">出荷待ち</span>
+    </div>
+    <div class="oc-lines">トルコ 250ml × 1本</div>
+    <div class="ryokin">🪙 倉庫ピックアップ料金 <b>無料サービス</b>　／　送料 <b>無料サービス</b></div>
+    <div style="margin-top:8px;font-size:13px;font-weight:800;color:#3b6d11">✅ 発注書に送りました</div>
+    <div style="margin-top:4px;font-size:12.5px">📎 添付PDF①　納品書兼請求書　　📎 添付PDF②　納品書兼領収書</div>
+
+    <div class="nagare" style="margin-top:10px">
+      <div class="ncol app">
+        <div class="nhead">アプリ内</div>
+        <button class="st st-done"><span class="no">✅</span>①②を見て確認 ／ ③登録 ／ ④PDFを貼る
+          <span class="sub">アプリでやることは終わりました</span></button>
+      </div>
+      <div class="ncol sheet">
+        <div class="nhead">スプシで対応</div>
+        <button class="st st-now" style="background:#1f4a6d;box-shadow:0 3px 0 #143a5a"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）<span class="ima">いまここ</span>
+          <span class="sub">押すと発注書スプシが開きます（この行のA列を【🔵 発送してください】に）</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 決めていただくこと ══ -->
+  <div class="toi">
+    <h3>決めていただきたいこと（3つ）</h3>
+    <b>１）③「受注一覧に登録する」は、①②を見るまで押せない形でよいですか？</b><br>
+    　→ 必ず目視、というご指示のとおりです。急ぐときも見ないと進めません。<br><br>
+    <b>２）④「PDFをスプシに貼る」は、2枚あっても<u>ボタン1つ</u>にして、まとめて貼ってよいですか？</b><br>
+    　→ 前のモックは書類ごとに1つでした。流れバーにすると、1つのほうがスッキリします。<br><br>
+    <b>３）⑤の「倉庫に発送許可を出す（A列を🔵）」は、押すと<u>発注書スプシが開く</u>だけにします。</b><br>
+    　→ アプリから🔵にはしません（倉庫へ行く合図は、人がスプシで押す＝今までどおり）。
+  </div>
+
+  <div style="margin-top:22px;font-size:12px;color:#8a857c">
+    モック：mocks/mock_nagare_botan_2026-09-13.html（見本です。まだ本番は変えていません）
+  </div>
+</div>
+</body>
+</html>
