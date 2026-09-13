@@ -2,12 +2,25 @@
 
    ひろみさんのご質問：「A4縦サイズはOK？」「RTという名前が納品書に書かれないこともOK？」
 
-   ★決めごと（2026-08-19 確定・変更禁止）
-   ・書類は【A4縦】。品数が多いときは印刷のときだけ3段階で詰めて1枚に収める
-   ・書類に【社内の暗号（TK/BA/RT/RTG/OS1/OS2/IT/FT）】と【区分（定価・卸・バサラ等）】を出さない
-   ・伝票番号がある注文（RT取込）は【納品日＋伝票番号】、無い注文は【発行日＋注文番号（暗号なし）】
+   ★決めごと
+   ・書類は【A4縦】。品数が多いときは印刷のときだけ3段階で詰めて1枚に収める（2026-08-19）
+   ・書類に【区分の言葉（定価・卸①・卸②・バサラ・RT など）】を出さない（2026-08-19）
+   ・伝票番号がある注文（RT取込）は【納品日＋伝票番号】、無い注文は【発行日＋注文番号】
 
-   ここでは、本物の関数で【5種類の書類 × 8種類の暗号＝40通り】を実際に組み立てて、
+   ★2026-09-13 ひろみさん指示で、注文番号の出し方が変わりました。
+   　「定価購入の人はTKが頭に着くとか、ルール決めたよね？
+   　　約束事アプリを確認してルールに沿って動くように直して」
+   　→ 決めごとの親＝【送料・約束ごとＳ（soryo.html）の案件管理番号】。
+   　　TK・OS1・OS2・FT・IT・QR は【そのまま出す】（お客様にお見せする番号）。
+   　　RT・RTG・RTGC・BA だけ頭の記号を外す（約束ごとでも「RT・バサラには付かない」、
+   　　 かつ「RTという名前を納品書に書かない」2026-08-19 の決めごとがあるため）。
+   　★「どの暗号も外す」に戻さないでください。
+
+   ★2026-09-13 見張りの付け替え：ここは倉庫Ｄ（pickup.html）に残っている
+   　【もう使っていない写し】を測っていました（本物は親＝oos-nouhin.js）。
+   　写しを測っていたので、親を直しても気づけません。本物を測るように直しました。
+
+   ここでは、本物の関数で【5種類の書類 × 8種類の記号＝40通り】を実際に組み立てて、
    出てきた文字を総当たりで調べます。 */
 const fs = require('fs');
 const vm = require('vm');
@@ -48,22 +61,40 @@ if(typeof box.lineTierType !== 'function') box.lineTierType = function(){ return
 if(typeof box.taxRateForSku !== 'function') box.taxRateForSku = function(){ return 0.08; };
 box.priceMaster = []; box.PRICE_MASTER = [{sku:'ORG250', priceGeneral:4750, priceRT:3800, priceWholesale1:3800, priceWholesale2:2850, taxRate:0.08}];
 
-/* ── ① 暗号を外す（総当たり） ── */
-console.log('\n■ ① 注文番号から社内の暗号が外れるか（総当たり）');
+/* ★2026-09-13 ここから下は【本物の親（oos-nouhin.js）】を試します。
+   　倉庫Ｄに残っている写し（もう呼ばれていない）ではありません。
+   　親は harness が読み込んでいます（OOS_NOUHIN）。 */
+t('◎ 納品書の親（oos-nouhin.js）が読める', !!(box.OOS_NOUHIN && typeof box.OOS_NOUHIN.build === 'function'), true);
+box.docNumberOf = box.OOS_NOUHIN.docNumberOf;
+box.docTitleOf  = box.OOS_NOUHIN.docTitleOf;
+box.buildInvoiceHtml = function(o){
+  return box.OOS_NOUHIN.build(o, { products: box.PRODUCTS, priceMaster: box.PRICE_MASTER, defaults: null }, o.enclosedDoc);
+};
+
+/* ── ① 注文番号の出し方（約束ごとＳのルール・総当たり）── */
+console.log('\n■ ① 注文番号が約束ごとのルールどおりに出るか（総当たり）');
 const CODES = ['TK','BA','RT','RTG','OS1','OS2','IT','FT'];
+const KAKUSU = ['BA','RT','RTG'];                 /* この3つ（＋RTGC）だけ頭を外す */
 CODES.forEach(function(c){
   const num = c + '-20260819-3528';
   const outNum = box.docNumberOf(num);
-  t('① ' + c + '- が外れる（' + num + ' → ' + outNum + '）', /^[A-Za-z]/.test(outNum), false);
-  t('① ' + c + ' の日付と番号は残る', outNum, '20260819-3528');
+  if(KAKUSU.indexOf(c) >= 0){
+    t('① ' + c + '- は外す（' + num + ' → ' + outNum + '）', outNum, '20260819-3528');
+  } else {
+    t('① ' + c + '- はそのまま出す（' + num + ' → ' + outNum + '）', outNum, num);
+  }
 });
-t('① 暗号が無い番号はそのまま', box.docNumberOf('20260819-3528'), '20260819-3528');
+t('① RTGC も外す', box.docNumberOf('RTGC-20260819-3528'), '20260819-3528');
+t('① 記号が無い番号はそのまま', box.docNumberOf('20260819-3528'), '20260819-3528');
 t('① 空でも落ちない', box.docNumberOf(''), '');
-t('① 全角のハイフンでも外れる', box.docNumberOf('RT－20260819-3528'), '20260819-3528');
+t('① 全角のハイフンでも外れる（RT）', box.docNumberOf('RT－20260819-3528'), '20260819-3528');
+t('① 小文字で書いてあっても外れる（rt）', box.docNumberOf('rt-20260819-3528'), '20260819-3528');
 
 /* ── ② 書類ぜんぶを組み立てて、隠語が1文字も無いか ── */
 console.log('\n■ ② できあがった書類の中に、社内の言葉が出ていないか');
-const NG_WORDS = ['TK-','BA-','RT-','RTG-','OS1-','OS2-','IT-','FT-',
+/* ★2026-09-13 TK- / OS1- / OS2- / IT- / FT- は【出してよい】番号になりました（約束ごとＳ）。
+   　出してはいけないのは、RT・バサラの記号と、区分そのものの言葉です。 */
+const NG_WORDS = ['BA-','RT-','RTG-',
                   '定価','卸①','卸②','バサラ','不良在庫特価','特別提供価格','RT','RTGC','wholesale','defectprice','general'];
 const DOCS = ['納品書','納品書兼請求書','納品書兼請求書兼領収書','請求書','領収書'];
 let built = 0;
@@ -107,8 +138,8 @@ t('③ 伝票番号がある注文は、注文番号を出さない', txt2.index
 t('③ かわりに伝票番号を出す', txt2.indexOf('伝票番号：904211') >= 0, true);
 const o3 = Object.assign({}, o2, { note:'' });
 const txt3 = String(box.buildInvoiceHtml(o3)||'').replace(/<[^>]*>/g,' ');
-t('③ 伝票番号が無い注文は、注文番号を暗号なしで出す', txt3.indexOf('20260819-3528') >= 0, true);
-t('③ そのとき暗号のRT-は出ない', txt3.indexOf('RT-') >= 0, false);
+t('③ 伝票番号が無い注文は、注文番号を出す', txt3.indexOf('20260819-3528') >= 0, true);
+t('③ RTの注文なので、頭のRT-は出ない', txt3.indexOf('RT-') >= 0, false);
 t('③ そのとき発行日を出す', txt3.indexOf('発行日') >= 0, true);
 t('③ お届け先が出る', txt2.indexOf('東京ベイコート倶楽部') >= 0, true);
 t('③ 商品名が出る', txt2.indexOf('オルガニック') >= 0, true);
