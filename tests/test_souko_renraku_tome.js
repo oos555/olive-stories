@@ -8,6 +8,10 @@
    ＝ 倉庫さんが見るのは【倉庫⇔OOS　発送＆連絡用】スプレッドシートだけ。
      倉庫グループへのLINEと、倉庫アドレス宛のメールは1通も出さない。
 
+   ★あわせて（同じ日・ひろみさん指示）
+     「受注Ａで操作した時に本部のラインに飛ばすのも、とめて」
+     ＝ 受注Ａのボタンから【本部グループ】へのLINEも出さない。
+
    ★この見張りは「止め木の作りがあるか」を見ます。true/false の今の値では落ちません。
      （いつ再開しても、この見張りはそのまま使えます）
    ★このファイルを消さないでください。
@@ -159,6 +163,68 @@ ok('⑧【動かす】本部（office@）へは今までどおり届く',
 const M2 = ugokasuMail(false);
 ok('⑧【動かす】再開（false）にすれば、倉庫のアドレスにも戻る',
    M2.atesaki.join(',').indexOf('reimaria.oliosanto@gmail.com') >= 0);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⑩ 受注Ａの操作から【本部グループ】へLINEを飛ばさない
+      ひろみさん「受注Ａで操作した時に本部のラインに飛ばすのも、とめて」（2026-09-13）
+   ══════════════════════════════════════════════════════════════════════ */
+ok('⑩本部への止め木の1行がある（OOS_JUCHUA_HONBU_LINE_OFF）',
+   /var OOS_JUCHUA_HONBU_LINE_OFF = (true|false);/.test(GAS));
+ok('⑩止め木を決めている場所は1か所だけ',
+   (GAS.match(/var OOS_JUCHUA_HONBU_LINE_OFF = /g) || []).length === 1);
+
+const zn = bodyOf(GAS, 'oosZaikoNashiSend');
+ok('⑩「在庫がありません」の事後報告に止め木がある（if で本当に分かれている）',
+   /if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/.test(zn));
+ok('⑩止め木は oosLineToHonbu_ より【先】にある',
+   zn.search(/if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/) < zn.indexOf('oosLineToHonbu_'));
+ok('⑩お客様へのメールは止めていない（在庫のご連絡は今までどおり出る）',
+   zn.indexOf('MailApp.sendEmail') >= 0 &&
+   zn.indexOf('MailApp.sendEmail') < zn.search(/if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/),
+   '（止めるのは本部への事後報告LINEだけです）');
+
+/* 受注Ａから呼ばれる窓口のうち、本部LINEを出すのはここだけ（増えたら気づけるように数える） */
+/* いまの7か所：①🔔要対応（notifyPendingAction・2026-07-27から呼び出しはコメントアウト済み）
+   ②入荷のお知らせを送った（統合マスタＮ）③在庫がありません（受注Ａ・★ここを止めた）
+   ④臨時入庫の自動反映 ⑤発注書でキャンセル ⑥バサラから発注 ⑦バサラ請求書ができた */
+ok('⑩本部LINEを出す場所は7か所のまま（増えたら新しい抜け道）',
+   (GAS.match(/oosLineToHonbu_\(/g) || []).length - 1 === 7,
+   '（いまは ' + ((GAS.match(/oosLineToHonbu_\(/g) || []).length - 1) + ' か所）');
+
+function ugokasuHonbu(off){
+  const honbu = [], nokoshi = [], mail = [];
+  const box = {
+    console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean,
+    Logger: { log(){} },
+    NOTIFY_EMAIL: 'office@oliveoilstories.net',
+    BASARA_STOCK_MAIL_NAME: '（株）オリーブオイル・ストーリーズ',
+    Utilities: { formatDate(){ return '2026/09/13 23:00'; } },
+    MailApp: { sendEmail(o){ mail.push(String(o.to)); } },
+    oosZaikoNashiTo_(){ return { to:'hara@example.com', name:'バサラスター 原様' }; },
+    oosZaikoNashiSent_(){ return false; },
+    oosZaikoNashiBody_(){ return '本文'; },
+    oosZaikoNashiLog_(){},
+    oosLineToHonbu_(t){ honbu.push(String(t)); },
+    oosSoukoTomeLog_(kind, text){ nokoshi.push([String(kind), String(text)]); }
+  };
+  box.globalThis = box;
+  const ctx = vm.createContext(box);
+  vm.runInContext('var OOS_JUCHUA_HONBU_LINE_OFF = ' + (off ? 'true' : 'false') + ';\n'
+    + H.cut(GAS, 'oosZaikoNashiSend') + '\n'
+    + 'var __kotae = oosZaikoNashiSend({orderNum:"TK-20260913-1234", source:"basara", items:["オルガニック 250ml"], recipient:"ためし様"});', ctx);
+  return { honbu, nokoshi, mail, kotae: box.__kotae };
+}
+
+const H1 = ugokasuHonbu(true);
+ok('⑩【動かす】止めているとき、本部LINEは1通も出ない', H1.honbu.length === 0,
+   '（' + H1.honbu.length + '通 出てしまいました）');
+ok('⑩【動かす】止めたことは記録に残る', H1.nokoshi.length === 1);
+ok('⑩【動かす】お客様への「在庫がありません」メールはちゃんと出る', H1.mail.length === 1);
+ok('⑩【動かす】画面には ok が返る（ボタンがエラーにならない）',
+   !!(H1.kotae && H1.kotae.status === 'ok'));
+
+const H2 = ugokasuHonbu(false);
+ok('⑩【動かす】再開（false）にすれば、本部LINEはちゃんと飛ぶ', H2.honbu.length === 1);
 
 /* ══════════════════════════════════════════════════════════════════════
    ⑨ 画面の文言（2026-09-13 ひろみさん指示「変えてください」）
