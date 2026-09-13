@@ -395,15 +395,15 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=p87749e51d9"></script>
+<script src="oos-zaiko.js?v=p017fa811cc"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
-<script src="oos-zei.js?v=p87749e51d9"></script>
+<script src="oos-zei.js?v=p017fa811cc"></script>
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
-<script src="oos-kakaku.js?v=p87749e51d9"></script>
-<script src="oos-shorui-kimari.js?v=p87749e51d9"></script>
-<script src="oos-doc.js?v=p87749e51d9"></script>
-<script src="oos-nouhin.js?v=p87749e51d9"></script>
+<script src="oos-kakaku.js?v=p017fa811cc"></script>
+<script src="oos-shorui-kimari.js?v=p017fa811cc"></script>
+<script src="oos-doc.js?v=p017fa811cc"></script>
+<script src="oos-nouhin.js?v=p017fa811cc"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -449,15 +449,15 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-12">
+<meta name="oos-version" content="2026-09-13-13">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=p87749e51d9"></script>
+<script src="oos-hizuke.js?v=p017fa811cc"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-meibo.js?v=p87749e51d9"></script>
+<script src="oos-meibo.js?v=p017fa811cc"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -2738,8 +2738,10 @@ function showSyncStatus(msg,isError,keep){
 async function loadInitialDataFast(){
   if(!gasSyncEnabled){ ordersLoaded = true; return; }
   try{
-    var res = await fetch(bust(GAS_URL + '?action=loadBundleForOrders'), {cache:'no-store'});
-    var b = await res.json();
+    /* ★2026-09-13 GASは混んでいるとき【HTMLの画面】を返すことがあります。
+       　そのまま res.json() だと落ちて、在庫も注文も読めないまま進んでいました。
+       　（在庫が読めていないと「販売可能 0本」の嘘の警告が出ます） */
+    var b = await oosGetJson(bust(GAS_URL + '?action=loadBundleForOrders'));
     if(b && b.status==='ok' && b.data && Array.isArray(b.orders)){
       // お休みカレンダー（親は送料・約束ごとS。ここは読むだけ）
       if(Array.isArray(b.holidays) && b.holidays.length){
@@ -5031,7 +5033,20 @@ function logGiftIfApplicable(o){
 // ⑤ 在庫超過チェック：この注文バッチが「正規在庫（販売可能数）」を超えていないか調べる。
 // 旧ロット・不良特価（condition が old/defect）はイレギュラー枠なので通常在庫の警告対象にしない。
 // セット商品は構成品それぞれの必要本数に展開して判定する。
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-13 ひろみさんの実地テストで見つけた穴：
+   　在庫があるのに「販売可能 0本（1本たりません）」と出ました。
+   　原因は【在庫データをまだ読めていない】のに 0本 と言っていたこと。
+   　（読めていないと、どの商品も 0 に見えます）
+   　→ 在庫データが1件も無いときは、在庫の確認をしません（嘘の警告を出さない）。
+   ★「読めていない＝0」と数える形に戻さないでください。
+   　ひろみさん：「0になったり、抜けてますとか言ってくるやつ」と同じ形の穴です。
+   ══════════════════════════════════════════════════════════════════════ */
+function zaikoYometeruKa(){
+  return (typeof lots !== 'undefined') && Array.isArray(lots) && lots.length > 0;
+}
 function checkStockShortage(list){
+  if(!zaikoYometeruKa()) return [];      /* ★まだ読めていないので、在庫の確認はしません */
   const demand = {}; // sku -> 必要本数（正規のみ）
   (list||[]).forEach(function(o){
     (o.lines||[]).forEach(function(l){
@@ -5136,6 +5151,12 @@ function registerOrder(){
   // 予約（reserved＝入荷前）は在庫を超えて当然なので対象外。
   const _recType = list[0].status;
   if(_recType==='pending' || _recType==='held'){
+    /* ★2026-09-13 在庫をまだ読めていないときは、確認できなかったことを伝えます（黙らない） */
+    if(!zaikoYometeruKa()){
+      alert('📦 在庫データをまだ読み込めていないので、在庫の確認ができませんでした。\n\n'
+        + 'このまま登録できますが、在庫が足りているかは確かめられていません。\n'
+        + '心配なときは、画面を開き直してから、もう一度お願いします。');
+    }
     const short = checkStockShortage(list);
     if(short.length){
       const msg = '⚠️ 在庫が足りない商品があります。\n\n'
@@ -6920,7 +6941,8 @@ function addGeneralHold(){
     var box=parseInt(row.querySelector('.gh-l-box').value)||0;
     var btl=parseInt(row.querySelector('.gh-l-btl').value)||0;
     var total=box*bq+btl; if(total<=0) return;
-    if(kind==='held'){ var avail=computeAvailable(sku)||0; if(total>avail) over.push((p?p.name:sku)+'（在庫'+avail+'／取置'+total+'）'); }
+    /* ★2026-09-13 在庫データをまだ読めていないときは、在庫超過の判定をしません（0と言わない） */
+    if(kind==='held' && zaikoYometeruKa()){ var avail=computeAvailable(sku)||0; if(total>avail) over.push((p?p.name:sku)+'（在庫'+avail+'／取置'+total+'）'); }
     lines.push({ productId:p?p.id:null, productName:p?p.name:sku, bottles:btl, boxes:box, boxQty:bq, giftType:'none' });
   });
   if(!lines.length) return err('商品と数量（箱か本）を入れてください');
@@ -7287,7 +7309,8 @@ function rtbAddItems(){
     var q=parseInt(el.value,10)||0; if(q<=0) return;
     var sku=el.dataset.sku;
     var w=document.getElementById(el.id.replace('-q-','-w-')).value;
-    if(w==='hold' && q>computeAvailable(sku)) over.push(rtbProdName(sku)+'（在庫は'+computeAvailable(sku)+rtbUnit(sku)+'しかありません）');
+    /* ★2026-09-13 在庫データをまだ読めていないときは、在庫の判定をしません（0と言わない） */
+    if(w==='hold' && zaikoYometeruKa() && q>computeAvailable(sku)) over.push(rtbProdName(sku)+'（在庫は'+computeAvailable(sku)+rtbUnit(sku)+'しかありません）');
     else items.push({sku:sku, q:q, w:w});
   });
   return {items:items, over:over};
@@ -7418,7 +7441,8 @@ function rtbMoveItems(){
     var u=rtbUnit(sku);
     if(el.value==='rel' && q>r.held) over.push(rtbProdName(sku)+'（🔒は'+r.held+u+'しかありません）');
     else if(el.value==='lock' && q>r.wait) over.push(rtbProdName(sku)+'（✈️は'+r.wait+u+'しかありません）');
-    else if(el.value==='lock' && q>computeAvailable(sku)) over.push(rtbProdName(sku)+'（在庫は'+computeAvailable(sku)+u+'しかありません）');
+    /* ★2026-09-13 在庫データをまだ読めていないときは、在庫の判定をしません（0と言わない） */
+    else if(el.value==='lock' && zaikoYometeruKa() && q>computeAvailable(sku)) over.push(rtbProdName(sku)+'（在庫は'+computeAvailable(sku)+u+'しかありません）');
     else items.push({sku:sku, q:q, d:el.value});
   });
   return {items:items, over:over};

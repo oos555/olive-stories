@@ -152,20 +152,30 @@
     var te = String(ex['単位表示'] || ex['単位'] || '').trim();
     if (te) return te;                      /* ★① 人が書いたものを優先 */
 
-    /* ② 商品の名前でわかるもの */
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-13 ひろみさんの実地テストで見つけた穴：
+       　「your story 250ml×2本セット A（…）**+ギフト箱+紙袋黒大**」が【1枚】と出ました。
+       　名前に「紙袋」が入っているだけで、袋あつかいにしていたためです。
+       　→ **区分を先に見ます。** 名前で決めるのは、区分で決まらないものだけ。
+       ★名前を先に見る形に戻さないでください。セットやギフトが「枚」になります。
+       ══════════════════════════════════════════════════════════════ */
+    var ku = String((p && (p.group || ex['区分'])) || '').trim();
+    if (ku && ku !== '備品-その他' && TANI_BY_KUBUN[ku]) return TANI_BY_KUBUN[ku];
+
+    /* ③ 名前でわかるもの（区分で決まらなかったときだけ）
+       　備品-その他 の中は、名前でしか見分けられません（空瓶・注ぎ口・レシピ本など） */
     var na = String((p && (p.name || p.sku)) || '');
     var karabin  = na.indexOf('空瓶') >= 0;
     var tsugiguchi = (na.indexOf('注ぎ口') >= 0 || na.indexOf('注口') >= 0);
     if (karabin && tsugiguchi) return 'セット';   /* トルコ500ml用 空瓶（要後付け注ぎ口1個） */
-    if (karabin)  return '瓶';                    /* ★2026-09-13 ひろみさん「→瓶に変更」（500mlに合わせる） */
+    if (karabin)  return '瓶';                    /* ★2026-09-13 ひろみさん「→瓶に変更」 */
     if (tsugiguchi) return '個';                  /* 注ぎ口だけの単体 */
     if (na.indexOf('レシピ') >= 0) return '冊';
-    if (na.indexOf('オーガンジー入') >= 0) return '個';   /* オーガンジー入りの場合は個 */
+    if (na.indexOf('オーガンジー入') >= 0) return '個';
     if (na.indexOf('オーガンジー') >= 0) return '枚';
     if (na.indexOf('紙袋') >= 0) return '枚';
 
-    /* ③ 区分 */
-    var ku = String((p && (p.group || ex['区分'])) || '').trim();
+    /* ④ 区分（備品-その他 は、名前で決まらなければ「個」） */
     if (TANI_BY_KUBUN[ku]) return TANI_BY_KUBUN[ku];
 
     /* ④ 容量 */
