@@ -129,7 +129,9 @@ function sandbox(opt){
 
   /* ── 本物のコードを入れる ── */
   let code = '';
-  ['OOS_YUKA_SHEET', 'OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_DONE',
+  /* ★2026-09-13 倉庫への自動連絡の止め木（OOS_SOUKO_RENRAKU_OFF）も、本物を砂場に入れます。
+     入れ忘れると「全部PASSなのに、古い決めごとを測っている」状態になります。 */
+  ['OOS_SOUKO_RENRAKU_OFF', 'OOS_YUKA_SHEET', 'OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_DONE',
    'OOS_YL_SHEET', 'OOS_YL_STAY', 'OOS_YL_GO', 'OOS_YL'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
   ['oosLastDataRow_', 'oosYukaShipGo_', 'oosYoyakuListSummary_', 'oosYoyakuListGo_'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   /* 合計行の作り直しは、この見張りでは本題ではないので、シートを探しに行かせない */
