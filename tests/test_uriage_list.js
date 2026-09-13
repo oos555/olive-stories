@@ -155,6 +155,39 @@ eq('⑦ 古い「キャンセル以外ぜんぶ」が売上一覧まわりに残
 eq('⑦ 判定 isSalesListTarget は1回だけ定義',
    (src.match(/function isSalesListTarget/g) || []).length, 1);
 
+/* ══ ⑧ 読み込みが終わる前に「該当する受注がありません」と出さない ═══════════
+   ★2026-09-13 ひろみさん指示。ひろみさんの言葉：
+   「該当する受注がありませんって表示になっているので、そうじゃなくて、
+   　読み込み中とか、そういう言葉に直してください。じゃないと、
+   　全部消えてるってどうしても人は思ってしまうので、それを避けるためです」
+   親は受注Ａ（index.html）の同じ文言。★「0件」「ありません」を先に出さないこと。 */
+(function(){
+  const vm = require('vm');
+  const { box, ctx } = H.makeSandbox({});
+  vm.runInContext('var salesLoadState = "loading";', ctx);
+  vm.runInContext(H.cut(src, 'salesEmptyRow'), ctx);
+  const f = box.salesEmptyRow;
+  inc('⑧ 読み込み中は「読み込み中です」と出す', f(), '読み込み中です', true);
+  inc('⑧ 読み込み中に「該当する受注がありません」と出さない', f(), '該当する受注がありません', false);
+  inc('⑧ 「消えたわけではありません」と添える', f(), '消えたわけではありません', true);
+  vm.runInContext('salesLoadState = "error";', ctx);
+  inc('⑧ 読めなかったときは「読み込めませんでした」', f(), '読み込めませんでした', true);
+  inc('⑧ 読めなかったときも「該当する受注がありません」と言わない', f(), '該当する受注がありません', false);
+  vm.runInContext('salesLoadState = "ok";', ctx);
+  inc('⑧ 読み終わって本当に0件のときだけ「該当する受注がありません」', f(), '該当する受注がありません', true);
+  /* 画面を開いた直後の表（まっさらや0件を先に見せない） */
+  const tbody = src.match(/<tbody id="invoice-tbl-body">([\s\S]*?)<\/tbody>/);
+  eq('⑧ 画面を開いた直後の表にも「読み込み中です」と書いてある',
+     !!(tbody && tbody[1].indexOf('読み込み中です') >= 0), true);
+  /* 空っぽのときの1行は、この1か所だけで決める（同じ文言をあちこちに書き写さない） */
+  eq('⑧ 空っぽの行は salesEmptyRow() の1か所から', (src.match(/\|\| salesEmptyRow\(\);/g)||[]).length, 1);
+  eq('⑧ 画面に出す「該当する受注がありません」は1か所だけ（説明の文はのぞく）',
+     (src.match(/>該当する受注がありません</g)||[]).length, 1);
+  inc('⑧ 読めたときだけ数字を出す', src, "const _loadingNow = (salesLoadState !== 'ok');", true);
+  inc('⑧ 読み込み中は「今月の購入」も「…」', src, "_setTxt('s-month-count', _loadingNow ? '…' : mCount+'件');", true);
+  inc('⑧ 読み込み中は「未入金」も「…」', src, "_setTxt('s-unpaid-all', _loadingNow ? '…' : unpaidAllCount+'件');", true);
+})();
+
 console.log('===== 売上一覧に載せるタイミング =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

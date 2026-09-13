@@ -83,52 +83,15 @@ const rowKigou = box.rowHtml({ purchaser:'<b>あ</b>', shipped:false });
 eq('⑤ 名前の記号がそのまま出ない（<>を逃がす）', rowKigou.indexOf('<b>あ</b>') >= 0, false);
 eq('⑤ 逃がした形で出る', rowKigou.indexOf('&lt;b&gt;あ&lt;/b&gt; 様') >= 0, true);
 
-/* ══ ⑥ 玄関のアラート：梱包完了の【翌日】から ══════════════════ */
-const hbox = H.makeSandbox({});
-['oosTrackingIsBasara', 'oosTrackingDay', 'oosTrackingMissing'].forEach(n => vm.runInContext(H.cut(home, n), hbox.ctx));
-const TODAY = new Date(2026, 7, 20);            // 2026-08-20
-const M = hbox.box.oosTrackingMissing;
-
-eq('⑥ 昨日 梱包完了・番号なし → 出す',
-   M({ source:'basara', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'' }, TODAY), true);
-eq('⑥ 今日 梱包完了・番号なし → 出さない（倉庫さんを急かさない）',
-   M({ source:'basara', status:'shipped', shippedAt:'2026/8/20 9:00:00', trackingNo:'' }, TODAY), false);
-eq('⑥ 番号が入っている → 出さない',
-   M({ source:'basara', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'4712-3390-8845' }, TODAY), false);
-eq('⑥ まだ梱包完了していない → 出さない',
-   M({ source:'basara', status:'pending', shippedAt:'', trackingNo:'' }, TODAY), false);
-eq('⑥ バサラ以外の注文は数えない',
-   M({ source:'manual', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'' }, TODAY), false);
-eq('⑥ お客様名が「バサラ」でも拾う',
-   M({ client:'バサラ', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'' }, TODAY), true);
-eq('⑥ キャンセルは数えない',
-   M({ source:'basara', status:'cancelled', shippedAt:'2026/8/19 18:00:00', trackingNo:'' }, TODAY), false);
-eq('⑥ 発注から消した注文は数えない',
-   M({ source:'basara', status:'deleted', shippedAt:'2026/8/19 18:00:00', trackingNo:'' }, TODAY), false);
-eq('⑥ ISO形式の日時でも読める',
-   M({ source:'basara', status:'shipped', shippedAt:'2026-08-19T09:00:00.000Z', trackingNo:'' }, TODAY), true);
-eq('⑥ 空白だけの番号は「入っていない」とみなす',
-   M({ source:'basara', status:'shipped', shippedAt:'2026/8/19 18:00:00', trackingNo:'   ' }, TODAY), true);
-
-/* 見張り一覧に名乗っているか（ここに無いものは「見張っている」と言えない） */
-const mihari = H.cutVar(home, 'OOS_MIHARI');
-eq('⑥ 見張り一覧に載っている', mihari.indexOf("key:'trackNone'") >= 0, true);
-eq('⑥ 見張り一覧の文言がモックと同じ', mihari.indexOf('発送したのに送り状No.が入っていない') >= 0, true);
-eq('⑥ お庭に混ぜている', home.indexOf('.concat(window.__oosTrackingNow||[])') >= 0, true);
-eq('⑥ 数を数えている', home.indexOf('window.__oosMihariCount.trackNone = trackNone;') >= 0, true);
-eq('⑥ 見本（?demo=1）にも載せた', home.indexOf("{href:'basara.html',  label:'📮 発送したのに送り状No.が入っていない'") >= 0, true);
-eq('⑥ 自己点検が この見張りも試している', home.indexOf('送り状No.の見張り（発送したのに入っていない）が消えています') >= 0, true);
-
-/* わざと壊して、自己点検が気づくか */
-const sbox = H.makeSandbox({ document:{ getElementById(){ return null; }, createElement(){ return { style:{}, appendChild(){} }; }, body:{ appendChild(){}, style:{} } } });
-H.runZaiko(sbox.ctx);
-vm.runInContext(H.cutVar(home, 'OOS_MIHARI'), sbox.ctx);
-['oosTrackingIsBasara', 'oosTrackingDay', 'oosGenkanSelfCheck'].forEach(n => vm.runInContext(H.cut(home, n), sbox.ctx));
-vm.runInContext('function renderMihari(){} function renderAlerts(){} function oosGenkanAlarm(){}', sbox.ctx);
-vm.runInContext('function oosTrackingMissing(){ return false; }', sbox.ctx);   // ★わざと壊す
-const found = sbox.box.oosGenkanSelfCheck();
-eq('⑥ わざと壊すと自己点検が気づく',
-   found.some(x => x.indexOf('送り状No.') >= 0), true);
+/* ══ ⑥ 玄関のアラート：★2026-09-13 ひろみさん指示で【外しました】══════════
+   ひろみさんの言葉：「ここのアラートが多すぎて、これを更新するのにとても時間が
+   かかっていて、待てなくて他のアプリの方に移動してしまうので、これを消してください」
+   → 玄関の見張りは【🗄 取り置き期限ぎれ】と【💰 支払期限ごえ・未入金】の2つだけ。
+   送り状No.は、倉庫スプレッドシートの発注書（S列）と、このページ（basara.html）で見ます。
+   ★玄関に戻すときは、ひろみさんに聞いてから。見張りは tests/test_genkan.js の⑧にあります。 */
+eq('⑥ 玄関から送り状No.の見張りを外したまま（勝手に戻っていない）', home.indexOf("key:'trackNone'") < 0, true);
+eq('⑥ 玄関に受け口も残っていない（説明の文だけは残す）', home.indexOf('window.__oosTrackingNow') < 0, true);
+eq('⑥ このページ（バサラ）では今までどおり見られる', basara.indexOf('送り状No.') >= 0, true);
 
 /* ══ ⑦ 倉庫Ｄ：送り状No.の欄は【もうありません】═════════════════
    ★2026-09-10 ひろみさんの判断で、この欄を消しました。

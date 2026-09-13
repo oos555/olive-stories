@@ -147,12 +147,14 @@ eq('⑧ 読み直せなかったときは声かけを促す', master.indexOf('�
 eq('⑧ 統合マスタＮに無い bust() を使っていない', master.indexOf('bust(') >= 0, false);
 eq('⑧ 読み直しは統合マスタＮのやり方（&t=）', master.indexOf("action=loadProducts&t=") >= 0, true);
 
-/* ── ⑧ 玄関のアラート（50枚を切ったら出す） ── */
+/* ── ⑧ 玄関のアラート：★2026-09-13 ひろみさん指示で【外しました】──
+   ひろみさん：「アラートが多すぎて、これを更新するのにとても時間がかかっていて、待てない」
+   50枚を切ったら【統合マスタＮの裏ラベル欄が赤くなる】のは今までどおりです。
+   ★玄関に戻すときは、ひろみさんに聞いてから。見張りは tests/test_genkan.js の⑧にあります。 */
 const genkan = fs.readFileSync(P_('home.html'), 'utf8');
-eq('⑧ 玄関に受け口がある',       genkan.indexOf('window.__oosLabelLow') >= 0, true);
-eq('⑧ 玄関が親を呼んでいる',     genkan.indexOf('OOS_ZAIKO.LABEL.lowList(PRODUCTS)') >= 0, true);
-eq('⑧ 見張り一覧に出る',         genkan.indexOf("key:'labelLow'") >= 0, true);
-eq('⑧ アラートに混ぜている',     genkan.indexOf('.concat(window.__oosLabelLow||[])') >= 0, true);
+eq('⑧ 玄関から裏ラベルの見張りを外したまま', genkan.indexOf("key:'labelLow'") < 0, true);
+eq('⑧ 玄関に受け口も残っていない（説明の文だけは残す）', genkan.indexOf('window.__oosLabelLow') < 0, true);
+eq('⑧ 統合マスタＮでは今までどおり赤くなる', master.indexOf('50枚を切ると赤') >= 0, true);
 eq('⑧ 玄関が式を書き写していない', /LABEL_WARN|< 50/.test(genkan), false);
 
 /* ── ⑧ 在庫データ(lots)を汚していないか（いちばん大事） ── */

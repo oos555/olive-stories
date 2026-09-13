@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-12-10">
+<meta name="oos-version" content="2026-09-13-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -246,7 +246,9 @@ tr:last-child td{border-bottom:none}
 <nav class="oos-nav no-print">
     <a href="home.html">🏠 玄関</a>
     <a href="index.html">🫒 受注・出荷 A</a>
+    <!-- ★2026-09-13 ひろみさん指示：在庫Ｂはもう使わないので、ならびから隠しました（ファイルは残しています）
     <a href="stock.html">📦 在庫 B</a>
+    -->
     <a class="current" href="billing.html">🧾 売上 C</a>
     <a href="mitsumori.html">📝 見積・請求書 M</a>
     <a href="soryo.html">💴 送料・約束ごと S</a>
@@ -391,7 +393,8 @@ tr:last-child td{border-bottom:none}
   <div class="tbl-wrap">
     <table>
       <thead><tr><th>注文番号</th><th>お客様</th><th>受注日</th><th>区分</th><th>支払方法</th><th>金額（税込）</th><th>入金</th><th>対応状況</th><th style="text-align:center">入金済み<br>チェック</th></tr></thead>
-      <tbody id="invoice-tbl-body"></tbody>
+      <!-- ★2026-09-13 ひろみさん指示：まっさら・「ありません」を先に出さない（下の salesEmptyRow と同じ文言） -->
+      <tbody id="invoice-tbl-body"><tr><td colspan="9" style="text-align:center;color:#5a5346;padding:20px">⏳ <b>読み込み中です…</b>　少しお待ちください。<br><span style="font-size:11.5px;color:#8a857c">（まだ数えていません。消えたわけではありません）</span></td></tr></tbody>
     </table>
   </div>
 
@@ -937,6 +940,13 @@ const PRICELIST_INFO = {
 };
 
 // ── 状態 ────────────────────────────────────────────
+/* ★2026-09-13 ひろみさん指示：読み込みが終わる前に「該当する受注がありません」と出ると
+   「全部消えた」と思ってしまう。いまどの状態かを覚えておき、文言を変える。
+   ひろみさん：「該当する受注がありませんって表示になっているので、そうじゃなくて
+   　　　　　　　読み込み中とか、そういう言葉に直してください。じゃないと、
+   　　　　　　　全部消えてるってどうしても人は思ってしまうので」
+   ★親は受注Ａ（index.html）の同じ文言です。★「0件」「ありません」を先に出さないでください。 */
+var salesLoadState = 'loading';   // 'loading'（読み込み中）／'ok'（読めた）／'error'（読めなかった）
 let orders = [];
 let customers = [];
 /* ── お客様リストの上書き事故ふせぎ（2026-07-28）──
@@ -1039,6 +1049,8 @@ function loadAllBilling(){
     if(ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)){
       orders = normOrdersCtype(ordersRes.data.orders);   // ★区分を英語コードへ翻訳（上の説明を読んでください）
     }
+    /* ★2026-09-13 受注が読めたかどうかを覚える（読めていないのに「ありません」と言わないため） */
+    salesLoadState = (ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)) ? 'ok' : 'error';
     renderInvoiceList();
     renderPriceTable();
     renderMonthlyList();
@@ -1047,6 +1059,10 @@ function loadAllBilling(){
     renderRtIssuedList();
     showSyncStatus('✅ データを読み込みました');
   }).catch(function(){
+    /* ★2026-09-13 受注がまだ1度も読めていないときだけ『読み込めませんでした』にする。
+       （読んだあとで、別の表を描くところで転んだ場合まで『読めていない』と言わないため） */
+    if(salesLoadState === 'loading') salesLoadState = 'error';
+    renderInvoiceList();
     showSyncStatus('⚠️ 接続エラー（オフライン？）', true);
   });
 }
@@ -1120,7 +1136,13 @@ function qiSetInvoicePaid(id, checked){
 function renderQiInvoices(){
   var wrap=document.getElementById('qi-invoice-wrap'); if(!wrap) return;
   var list=qiInvList().slice().sort(function(a,b){ return String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')); });
-  if(!list.length){ wrap.innerHTML='<div class="sec" style="margin-top:0">📝 M（見積・請求書）で作った個別請求書</div><div style="color:#8a8578;font-size:13px;padding:6px 2px">まだありません。「見積・請求書 M」で請求書を作ると、ここに支払期限つきで載ります。</div>'; return; }
+  if(!list.length){
+    /* ★2026-09-13 ひろみさん指示：読み終わる前に「まだありません」と出さない（消えたと思わせないため） */
+    var _mada = (typeof salesLoadState !== 'undefined' && salesLoadState !== 'ok')
+      ? '<div style="color:#5a5346;font-size:13px;padding:6px 2px">⏳ <b>読み込み中です…</b>　少しお待ちください。（まだ数えていません。消えたわけではありません）</div>'
+      : '<div style="color:#8a8578;font-size:13px;padding:6px 2px">まだありません。「見積・請求書 M」で請求書を作ると、ここに支払期限つきで載ります。</div>';
+    wrap.innerHTML = '<div class="sec" style="margin-top:0">📝 M（見積・請求書）で作った個別請求書</div>' + _mada; return;
+  }
   var overdue=list.filter(qiInvIsOverdue);
   var alertHtml = overdue.length
     ? '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d;font-weight:700">🚨 支払期限が過ぎても入金が確認できていない請求書が'+overdue.length+'件あります：'+overdue.map(function(r){ return (r.customerName||'')+'（'+(r.invoiceNo||r.estimateNo||'')+'／期限 '+(r.paymentDue||'')+'）'; }).join('、')+'</div>'
@@ -1303,6 +1325,21 @@ function renderSalesHiddenList(){
     + '</tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
 }
 
+/* ★2026-09-13 一覧が空のときに出す1行。読み込み中・読めなかった・本当に0件の3つを言い分ける。
+   ★「該当する受注がありません」は、本当に読み終えたときだけ出します。 */
+function salesEmptyRow(){
+  if(salesLoadState === 'loading'){
+    return '<tr><td colspan="9" style="text-align:center;color:#5a5346;padding:20px">'
+      + '⏳ <b>読み込み中です…</b>　少しお待ちください。<br>'
+      + '<span style="font-size:11.5px;color:#8a857c">（まだ数えていません。消えたわけではありません）</span></td></tr>';
+  }
+  if(salesLoadState === 'error'){
+    return '<tr><td colspan="9" style="text-align:center;color:#7f1d1d;padding:20px">'
+      + '⚠ <b>読み込めませんでした。</b>　電波の届くところで、画面を開き直してください。<br>'
+      + '<span style="font-size:11.5px;color:#8a857c">（消えたわけではありません。まだ読めていないだけです）</span></td></tr>';
+  }
+  return '<tr><td colspan="9" style="text-align:center;color:#2b2a26;padding:20px">該当する受注がありません</td></tr>';
+}
 function renderInvoiceList(){
   const search = (document.getElementById('list-search').value||'').toLowerCase();
   const filter = document.getElementById('list-payment-filter').value;
@@ -1347,7 +1384,7 @@ function renderInvoiceList(){
       '<td><input type="text" class="billing-note-input" data-id="'+o.id+'" value="'+esc(o.billingNote||'')+'" placeholder="対応状況メモ" style="width:140px;padding:4px 6px;border:1px solid #d5cfc3;border-radius:4px;font-size:11px" onblur="saveBillingFields(\''+o.id+'\')"></td>'+
       (mm ? '<td style="text-align:center"><span style="font-size:10px;color:#8a8578;white-space:nowrap" title="入金チェックは「卸月次まとめ→請求書作成」または「RT月次まとめ→請求書作成」タブの発行済み一覧で、請求書1枚ごとに行います">まとめ側で確認</span></td></tr>' : ('<td style="text-align:center"><input type="checkbox" '+(effPaid?'checked':'')+' onchange="setOrderPaid(\''+o.id+'\', this)" title="入金が済んだらチェック" style="width:26px;height:26px;accent-color:#6b7a3a;cursor:pointer;vertical-align:middle"></td></tr>'))+
       '<tr class="order-detail-row" data-id="'+o.id+'" style="display:none"><td colspan="9" style="padding:0 6px 8px">'+buildOrderDetailHtml(o)+'</td></tr>';
-  }).join('') || '<tr><td colspan="9" style="text-align:center;color:#2b2a26;padding:20px">該当する受注がありません</td></tr>';
+  }).join('') || salesEmptyRow();
 
   renderSalesDupAlert();
   renderSalesHiddenList();
@@ -1366,12 +1403,14 @@ function renderInvoiceList(){
     else mOther++;
   });
   const _setTxt = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  _setTxt('s-month-count', mCount+'件');
-  _setTxt('s-m-general', mGeneral);
-  _setTxt('s-m-rt', mRT);
-  _setTxt('s-m-who', mWho);
-  _setTxt('s-m-other', mOther);
-  _setTxt('s-unpaid-all', unpaidAllCount+'件');
+  /* ★2026-09-13 読み込み中に「0件」を見せない（消えたと思わせないため）。受注Ａと同じやり方 */
+  const _loadingNow = (salesLoadState !== 'ok');   /* 読み込み中も、読めなかったときも「…」 */
+  _setTxt('s-month-count', _loadingNow ? '…' : mCount+'件');
+  _setTxt('s-m-general', _loadingNow ? '…' : mGeneral);
+  _setTxt('s-m-rt',      _loadingNow ? '…' : mRT);
+  _setTxt('s-m-who',     _loadingNow ? '…' : mWho);
+  _setTxt('s-m-other',   _loadingNow ? '…' : mOther);
+  _setTxt('s-unpaid-all', _loadingNow ? '…' : unpaidAllCount+'件');
   try{ renderQiInvoices(); }catch(e){}
 }
 // 注文番号タップで、その行のすぐ下に「注文の中身」を開く／閉じる（画面内のデータだけで表示。GAS通信なし＝軽い）
