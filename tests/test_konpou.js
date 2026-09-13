@@ -172,6 +172,34 @@ function box(){
   has('⑦札を押したら見直す', H.cut(idx,'encTog'), 'pkgSyncWarn(card);');
   has('⑦名前を打ち直しても見直す', H.cut(idx,'addRecipient'), "_el.addEventListener('input', function(){ if(typeof pkgSyncWarn==='function') pkgSyncWarn(card); });");
 }
+/* ══ ⑧ ギフトなのに金額の載る書類を同梱していないか（2026-09-13 ひろみさん指示）══
+   ひろみさん：「梱包の指示のところ。ギフトを選んだときに同梱する書類を何か選んでいたら、
+   　【ギフトですが、本当に同梱しますか？】と聞いて」
+   ★聞くのは【金額の載る書類】のときだけ（パンフレットだけなら聞きません）。
+   ★この確認を外さないでください。 */
+{
+  const g = H.makeSandbox({});
+  vm.runInContext(H.cut(idx, 'giftDocKakunin'), g.ctx);
+  vm.runInContext('function pkgOf(o){ return o.pkg || {kind:"normal"}; }', g.ctx);
+  g.box.OOS_NOUHIN.shoruiList = function(o){
+    return String((o && o.enclosedDoc) || '').split(' ＋ ').filter(function(x){ return x && x !== 'なし'; });
+  };
+  const gift    = { pkg:{kind:'gift'},   recipientName:'田中 花子', enclosedDoc:'納品書兼請求書' };
+  const giftNo  = { pkg:{kind:'gift'},   recipientName:'鈴木',      enclosedDoc:'' };
+  const futsuu  = { pkg:{kind:'normal'}, recipientName:'佐藤',      enclosedDoc:'納品書兼請求書' };
+  const bun = g.box.giftDocKakunin([gift]);
+  has('⑧ギフト＋金額の載る書類なら聞く', bun, 'ギフトですが、本当に同梱しますか？');
+  has('⑧どの書類かを出す',               bun, '納品書兼請求書');
+  has('⑧お届け先の名前も出す',           bun, '田中 花子');
+  has('⑧なぜ聞くのかを書く',             bun, 'お値段が見えてしまいます');
+  eq('⑧ギフトでも書類が無ければ聞かない', g.box.giftDocKakunin([giftNo]), '');
+  eq('⑧ふつうの発送なら聞かない',         g.box.giftDocKakunin([futsuu]), '');
+  eq('⑧2件あってもまとめて1回だけ聞く',
+     (g.box.giftDocKakunin([gift, { pkg:{kind:'gift'}, recipientName:'山本', enclosedDoc:'請求書' }])
+       .match(/ギフトですが/g) || []).length, 1);
+  has('⑧確認画面を出す前に聞いている', H.cut(idx, 'previewOrder'), 'giftDocKakunin(list)');
+  has('⑧「いいえ」なら進まない',        H.cut(idx, 'previewOrder'), 'if(_giftDoc && !confirm(_giftDoc)) return;');
+}
 console.log('===== 📦 梱包の指示（2026-09-05）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

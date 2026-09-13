@@ -449,7 +449,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-06">
+<meta name="oos-version" content="2026-09-13-07">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -4666,6 +4666,27 @@ function buildOrdersFromForm(){
   return list;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   🎁 ギフト＋金額の載る書類のときに出す、おたずねの文を作ります（2026-09-13）
+   ・入っていなければ空文字（＝聞きません）
+   ・届け先が何件あっても、まとめて1回だけ聞きます
+   ★文言はひろみさんの言葉です。短くしないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function giftDocKakunin(list){
+  if(typeof OOS_NOUHIN === 'undefined' || typeof pkgOf !== 'function') return '';
+  var atari = [];
+  (list || []).forEach(function(o){
+    if(!o || pkgOf(o).kind !== 'gift') return;
+    var meis = OOS_NOUHIN.shoruiList(o) || [];      /* 金額の載る書類だけ */
+    if(!meis.length) return;
+    atari.push('　・' + (o.recipientName || o.client || '') + ' 様　→　' + meis.join('・'));
+  });
+  if(!atari.length) return '';
+  return '🎁 ギフトですが、本当に同梱しますか？' + String.fromCharCode(10) + String.fromCharCode(10)
+    + atari.join(String.fromCharCode(10)) + String.fromCharCode(10) + String.fromCharCode(10)
+    + '金額の載る書類です。贈られた方に、お値段が見えてしまいます。' + String.fromCharCode(10) + String.fromCharCode(10)
+    + 'OK＝このまま進む　／　キャンセル＝梱包の指示で書類を外す';
+}
 function previewOrder(){
   try{
     document.getElementById('order-alerts').innerHTML = '';
@@ -4701,6 +4722,21 @@ function previewOrder(){
       document.getElementById('order-alerts').scrollIntoView({behavior:'smooth'});
       return;
     }
+    /* ══════════════════════════════════════════════════════════════
+       🎁 ギフトなのに書類を同梱していないか、一度おたずねする　★2026-09-13
+       ──────────────────────────────────────────────────────────────
+       ひろみさん：「梱包の指示のところ。ギフトを選んだときに同梱する書類を
+       　何か選んでいたら、【ギフトですが、本当に同梱しますか？】と聞いて」
+
+       ★聞くのは【金額の載る書類】（納品書・請求書・領収書・納品書兼〜）が
+       　入っているときだけです。贈られた方に値段が見えてしまうためです。
+       　パンフレットだけのときは聞きません（ギフトに入れてよいものなので）。
+       ★「キャンセル」を押したら、確認画面は出しません（梱包の指示で外してください）。
+       ★この確認を外さないでください。
+       見張り：tests/test_konpou.js
+       ══════════════════════════════════════════════════════════════ */
+    var _giftDoc = giftDocKakunin(list);
+    if(_giftDoc && !confirm(_giftDoc)) return;
     const rt0 = document.getElementById('o-record-type').value;
     /* ★2026-09-04 ゆかさん指摘のバグ修正：取り置きの「送る目安」が空だと登録できず先に進めなかった。
        ひろみさんが登録した取り置きは日付なしで成立しているのに、ここだけ必須で止めていた（不整合）。
