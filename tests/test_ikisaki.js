@@ -994,8 +994,9 @@ function hacchuushoGyou(payload){
        　「見る」「貼る」は流れバー（nagareCardHtml）が受け持ちます。 */
     const nb = H.cut(idx, 'nagareCardHtml');
     ok('⑱-16 まだ見ていない書類は「いまここ」で出す', /押すとPDFが開きます/.test(nb));
-    ok('⑱-16b 見たあとは④「PDFをスプシに貼る」が押せる',
-       /PDFをスプシに貼る/.test(nb) && /docHariZenbu\(/.test(nb));
+    /* ★2026-09-13 ひろみさん指示の言い方：「④PDFをスプシに貼り、発注書に情報を流す」 */
+    ok('⑱-16b 見たあとは④「PDFをスプシに貼り、発注書に情報を流す」が押せる',
+       /PDFをスプシに貼り、発注書に情報を流す/.test(nb) && /docHariZenbu\(/.test(nb));
     /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
     /* ★2026-09-12（夜）ひろみさん：「PDFを開いて一度確認すると
        　スプシに貼るボタンが出ます　にして！！　そしたらみんな迷わない」 */
@@ -1033,7 +1034,22 @@ function hacchuushoGyou(payload){
        /async function docHariZenbu/.test(idx) && /docHariZenbu\(/.test(H.cut(idx, 'nagareCardHtml')));
     ok('⑱-28 行が見つからないときは、次にすることを書く', /行が見つかりません/.test(at));
 
-    /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
+      /* ══ 2026-09-13 ひろみさん指示（3つ）══════════════════════════
+       ・添付書類の行に「※単価確認：統合マスタNの『価格リスト』」を入れる
+       ・「その他（自分で書く）」を選んだら、その書類のPDFを入れられるようにする
+       　（パンフレットを除いて、発注書のV列は最大2つまで＝GAS側の SAIDAI=2 が守る）
+       ★この3つを外さないでください。 */
+    ok('⑱-32 添付書類の行に単価確認の一言がある',
+       /※単価確認：統合マスタNの『価格リスト』/.test(H.cut(idx, 'nagareMaeRender')) &&
+       /※単価確認：統合マスタNの『価格リスト』/.test(H.cut(idx, 'nagareCardHtml')));
+    ok('⑱-33 その他のPDFを入れる口がある', /data-role=otherPdfFile/.test(idx) && /async function otherPdfHairu/.test(idx));
+    ok('⑱-34 入れたPDFはドライブに保存する', /action:'saveExtraDoc'/.test(H.cut(idx, 'otherPdfHairu')));
+    ok('⑱-35 注文にPDFを持たせる', /otherDocUrl:/.test(idx));
+    ok('⑱-36 ④でその他のPDFも貼る', /docHariOther\(o\)/.test(H.cut(idx, 'docHariZenbu')));
+    ok('⑱-37 その他のPDFも貼れたか見る', /function docOtherHattaKa/.test(idx) &&
+       /docOtherHattaKa\(o\)/.test(H.cut(idx, 'docZenbuHattaKa')));
+
+  /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
     const nm2 = H.cut(idx, 'nagareMaeRender');
     ok('⑱-24 確認画面に流れバーを出す', /id="nagare-mae"/.test(idx) && /nagareMaeRender\(\)/.test(idx));

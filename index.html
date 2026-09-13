@@ -395,15 +395,15 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=pac360b99af"></script>
+<script src="oos-zaiko.js?v=p87749e51d9"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
-<script src="oos-zei.js?v=pac360b99af"></script>
+<script src="oos-zei.js?v=p87749e51d9"></script>
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
-<script src="oos-kakaku.js?v=pac360b99af"></script>
-<script src="oos-shorui-kimari.js?v=pac360b99af"></script>
-<script src="oos-doc.js?v=pac360b99af"></script>
-<script src="oos-nouhin.js?v=pac360b99af"></script>
+<script src="oos-kakaku.js?v=p87749e51d9"></script>
+<script src="oos-shorui-kimari.js?v=p87749e51d9"></script>
+<script src="oos-doc.js?v=p87749e51d9"></script>
+<script src="oos-nouhin.js?v=p87749e51d9"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -449,15 +449,15 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-08">
+<meta name="oos-version" content="2026-09-13-09">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=pac360b99af"></script>
+<script src="oos-hizuke.js?v=p87749e51d9"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-meibo.js?v=pac360b99af"></script>
+<script src="oos-meibo.js?v=p87749e51d9"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -641,6 +641,20 @@ body{background:#fff}
             <option value="paid">入金済み</option>
           </select>
         </div>
+        <!-- ══════════════════════════════════════════════════════════════
+             🏦 振込先（★2026-09-13 ひろみさん指示）
+             ひろみさん：「ここで振込先も選ばせて。三井住友銀行（大口顧客、大口顧客関連者、法人）
+             　三菱UFJ銀行（個人は基本的にこっち）。振込先の詳細はここではださず、銀行名だけ出して
+             　選択させて。今まで自動だったけど間違ってることがあるから」
+             ★口座番号などの詳細はここには出しません（書類にだけ出ます）。
+             ★自動で決める形に戻さないでください。 -->
+        <div class="fg" style="margin-bottom:0"><label style="font-size:13.5px;font-weight:700;color:#2b2a26">振込先（書類に出ます）</label>
+          <select id="o-bank" style="font-weight:700;font-size:15.5px;padding:9px">
+            <option value="">（選んでください）</option>
+            <option value="0">三井住友銀行（大口顧客、大口顧客関連者、法人）</option>
+            <option value="1">三菱UFJ銀行（個人は基本的にこっち）</option>
+          </select>
+        </div>
       </div>
       <!-- ★2026-09-10 ひろみさん指示：分類（予約の名前）。どの注文にも付けられます。
            ひろみさんの言葉：「田中さんの発送ですが、と言われても、どの田中さん、いつのやつ、
@@ -750,27 +764,11 @@ body{background:#fff}
       <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
-      <!-- ══════════════════════════════════════════════════════════════
-           ★2026-09-10 ひろみさんの文言。登録したあと、どこへ入るかを2つに分けて書く。
-           　 ① ふつうの受注（通常受注）→ 受注一覧タブ ＋ 発注書タブ
-           　 ② 予約・取り置き        → 取り置き及び発注前予約リスト（ホテル以外）タブ
-           どちらも【この時点では倉庫にはまだ連絡が行っていません】。
-           倉庫へ行くのは、A列を変えたときだけ（2026-09-10 確定・例外なし）。
-           ★言い回しを変えないでください。ひろみさんが書いた文です。 -->
-      <div id="reg-yukisaki-futsuu" style="margin-top:12px;background:#fff4f2;border:2px solid #e24b4a;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#a32d2d;font-weight:700;line-height:1.75">
-        ⚠️ 登録すると、<br>
-        <span style="font-weight:500;color:#7a2a24">↓<br>
-        受注出荷アプリAの『受注一覧タブ』と【倉庫＆OOS発送連絡スプシ】の『発注書』タブに入ります。</span>
-        <span style="color:#791f1f">この時点では倉庫にはまだ連絡が行っていません。</span><br>
-        <span style="font-weight:500;color:#7a2a24">倉庫に出すには、スプシ『発注書』のA列を【🔵 発送してください】に変えてください。即倉庫Dアプリに情報が流れ、出荷依頼となります。</span><br>
-        <!-- ★2026-09-13 ひろみさん指示：「どこで在庫が引かれるか、も明記して」
-             実際の動き（この画面のコード）：registerOrder() の中で、通常受注（pending）だけ
-             applyStockDeductOnSend → persistStockDeduct を呼んでいます＝【登録した時点】。
-             発注書のA列を🔵にしたときは、GAS側が stockDeducted を見て【二重には引きません】。
-             ★実際の動きと違うことを書かないでください。 -->
-        <span style="display:inline-block;margin-top:6px;padding-top:6px;border-top:1px dashed #e8a9a4;color:#791f1f;font-weight:800">📉 在庫は、この【受注一覧に登録する】を押した時点で減ります。</span>
-        <span style="font-weight:500;color:#7a2a24">（倉庫へ連絡する前に減ります。そのあとA列を🔵にしても、二重には減りません。）</span>
-      </div>
+      <!-- ★2026-09-13 ひろみさん指示：「その下の赤枠の説明の枠を消して」
+           　流れバー（①②③④⑤）で、今どこ・次に何をするかが分かるようになったので、
+           　同じことを書いていた赤い枠（通常受注の説明）は消しました。
+           　在庫がいつ減るかは、流れバーの③の中に書いてあります。
+           ★赤い枠を戻さないでください。 -->
       <div id="reg-yukisaki-yoyaku" style="display:none;margin-top:12px;background:#f0f6ff;border:2px solid #2f6fbf;border-radius:9px;padding:10px 12px;font-size:13.5px;color:#123f76;font-weight:700;line-height:1.75">
         📦 予約や取り置きを選択していると、<br>
         <span style="font-weight:500;color:#1c4e8a">【倉庫＆OOS発送連絡スプシ】の『取り置き及び発注前予約リスト（ホテル以外）』タブに入ります。</span>
@@ -3023,7 +3021,24 @@ function pkgBlockHtml(id){
         '<span class="pkg-doc" data-doc="__other" onclick="encTog(this)">その他（自分で書く）</span>'+
         '<span class="pkg-doc on" data-doc="__pamph" onclick="encTog(this)">パンフレット</span>'+
       '</div>'+
-      '<div data-role="encOtherWrap" style="display:none;margin-top:6px"><input type="text" data-role="encOther" placeholder="例：お礼状を同封" style="padding:7px 9px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px;min-width:220px"></div>'+
+      '<div data-role="encOtherWrap" style="display:none;margin-top:6px"><input type="text" data-role="encOther" placeholder="例：お礼状を同封" style="padding:7px 9px;border:1.5px solid #9d957f;border-radius:8px;font-size:14px;min-width:220px">'+
+        /* ══════════════════════════════════════════════════════════════
+           📎 その他の書類（PDF）を入れる　★2026-09-13 ひろみさん指示
+           ひろみさん：「同梱する書類のなかで、その他自分で書くを選んだ場合、
+           　PDFを取り込む必要がある。どうやって取り込むの？
+           　その場合もそれを含めてパンフレットを除いて最大PDFリンクの貼り付けは2つまで」
+           ・ここに入れたPDFは、ドライブに保存して、④で発注書のV列に貼ります
+           ・V列は【2つまで】です（発注書側が守ります。パンフレットは数えません）
+           ★この口を消さないでください。倉庫が「その他の紙」を出せなくなります。
+           ══════════════════════════════════════════════════════════════ */
+        '<div style="margin-top:6px">'+
+          '<button type="button" class="btn-sm" data-role="otherPdfBtn" onclick="otherPdfErabu(this)" '+
+            'style="background:#0c447c;color:#fff;border:none;font-size:12.5px;padding:7px 12px">📎 この書類のPDFを入れる</button>'+
+          '<span data-role="otherPdfName" style="margin-left:8px;font-size:12.5px;font-weight:700;color:#166534"></span>'+
+          '<input type="file" accept=".pdf" data-role="otherPdfFile" style="display:none" onchange="otherPdfHairu(this)">'+
+          '<div style="font-size:11.5px;color:#8a857a;margin-top:3px">入れたPDFは、④で発注書のV列に貼ります（V列は2つまで）。</div>'+
+        '</div>'+
+      '</div>'+
       '<div class="pkg-hint" style="margin-top:5px">入れるものを押してください（いくつでもOK／1つも押さなければ「同梱書類なし」）</div>'+
     '</div></div>'+
     /* ★2026-09-05 ひろみさん指示：ギフトなのに金額の紙が選ばれていたら、受注Ａでも気づけるようにする。
@@ -3289,6 +3304,50 @@ function pkgSyncNoshi(card){
   box.style.display = (side==='なし') ? 'none' : '';
   cb.checked = (side!=='なし');
   if(typeof toggleNoshi==='function') toggleNoshi(card.id);
+}
+/* ══════════════════════════════════════════════════════════════════════
+   📎 その他の書類（PDF）を入れる　★2026-09-13 ひろみさん指示
+   ・押すとPDFをえらぶ窓が開きます
+   ・ドライブに保存して（saveExtraDoc）、その届け先カードに覚えます
+   ・登録すると注文に付き、④で発注書のV列に貼ります
+   ★黙って終わらせないでください。失敗したら、そのまま画面に出します。
+   ══════════════════════════════════════════════════════════════════════ */
+function otherPdfErabu(btn){
+  var card = btn.closest('.recipient-card'); if(!card) return;
+  var f = card.querySelector('[data-role=otherPdfFile]'); if(f) f.click();
+}
+async function otherPdfHairu(input){
+  var card = input.closest('.recipient-card'); if(!card) return;
+  var file = input.files && input.files[0]; if(!file) return;
+  if(!/pdf/i.test(file.type || '') && !/\.pdf$/i.test(file.name || '')){ alert('PDFファイルを入れてください。'); return; }
+  var na = card.querySelector('[data-role=otherPdfName]');
+  var bt = card.querySelector('[data-role=otherPdfBtn]');
+  if(bt){ bt.disabled = true; bt.textContent = '📤 保存しています…'; }
+  try{
+    var b64 = await new Promise(function(kanryo, shippai){
+      var r = new FileReader();
+      r.onload = function(ev){
+        try{
+          var b = new Uint8Array(ev.target.result), t = '';
+          for(var i = 0; i < b.length; i++) t += String.fromCharCode(b[i]);
+          kanryo(btoa(t));
+        }catch(e){ shippai(e); }
+      };
+      r.onerror = function(){ shippai(new Error('PDFを読めませんでした')); };
+      r.readAsArrayBuffer(file);
+    });
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:(file.name || 'その他の書類.pdf') }) });
+    var d = await res.json();
+    if(!d || d.status !== 'ok' || !d.url) throw new Error((d && d.message) || 'ドライブに保存できませんでした');
+    card.dataset.otherPdfUrl  = d.url;
+    card.dataset.otherPdfName = d.name || file.name || 'その他の書類.pdf';
+    if(na) na.textContent = '📄 ' + card.dataset.otherPdfName + '（入りました）';
+  }catch(e){
+    alert('PDFを入れられませんでした：' + ((e && e.message) || e));
+    if(na) na.textContent = '';
+  }
+  if(bt){ bt.disabled = false; bt.textContent = '📎 この書類のPDFを入れる'; }
 }
 function encTog(el){
   el.classList.toggle('on');
@@ -4410,6 +4469,9 @@ function collectRecipients(){
       recycle: (pkgKindOf(card)==='normal' && pkgValOf(card,'box','')!=='新しい箱で'),
       enclosedDoc: collectEnclosedDoc(card),
       includePamphlet: collectPamphlet(card),
+      /* ★2026-09-13 「その他（自分で書く）」で入れたPDF（ある時だけ） */
+      otherDocUrl: (card.dataset && card.dataset.otherPdfUrl) || '',
+      otherDocName: (card.dataset && card.dataset.otherPdfName) || '',
       senderNameOverride: card.querySelector('[data-role=senderName]').value,
       senderZipOverride: card.querySelector('[data-role=senderZipOv]').value,
       senderTelOverride: card.querySelector('[data-role=senderTelOv]').value,
@@ -4619,10 +4681,14 @@ function buildOrdersFromForm(){
     if(!r.name || !r.lines.length) return;
     list.push({
       enclosedDoc: r.enclosedDoc, includePamphlet: r.includePamphlet, pkg: r.pkg,
+      /* ★2026-09-13 「その他（自分で書く）」で入れたPDF（ある時だけ） */
+      otherDocUrl: r.otherDocUrl || '', otherDocName: r.otherDocName || '',
       id: generateOrderId(),
       num: nextOrderNum(list.length, ctype),
       client: client, custId: custId, customerType: ctype, saveCustomer: saveCustomer,
       paymentMode: paymentMode, paymentConfirmed: paymentMode==='paid',
+      /* ★2026-09-13 振込先は人が選びます（0＝三井住友／1＝三菱UFJ／空＝まだ選んでいない） */
+      bankIndex: (function(){ var v = (document.getElementById('o-bank')||{}).value; return (v === '0' || v === '1') ? parseInt(v, 10) : null; })(),
       recipientName: r.name, isCompany: r.isCompany, companyName: r.companyName, deptName: r.deptName,
       positionName: r.positionName, personName: r.personName,
       zip: r.zip, addr: r.addr, tel: r.tel, useRecycle: r.recycle,
@@ -4735,6 +4801,19 @@ function previewOrder(){
        ★この確認を外さないでください。
        見張り：tests/test_konpou.js
        ══════════════════════════════════════════════════════════════ */
+    /* ★2026-09-13 振込先が載る書類（請求書・領収書など）を選んでいるのに、
+       　振込先がえらばれていないときは、ここで止めます（ひろみさん指示で人が選ぶため）。 */
+    if(typeof OOS_NOUHIN !== 'undefined' && OOS_NOUHIN.invoiceNeedsAmount){
+      var _bankIru = list.some(function(o){
+        return (OOS_NOUHIN.shoruiList(o) || []).some(function(m){ return OOS_NOUHIN.invoiceNeedsAmount(m); });
+      });
+      var _bankEranda = list.every(function(o){ return o.bankIndex === 0 || o.bankIndex === 1; });
+      if(_bankIru && !_bankEranda){
+        alert('🏦 振込先をえらんでください。\n\n請求書・領収書には振込先が載ります。\n上の【振込先（書類に出ます）】でお選びください。');
+        var _b = document.getElementById('o-bank'); if(_b){ _b.focus(); _b.scrollIntoView({behavior:'smooth', block:'center'}); }
+        return;
+      }
+    }
     var _giftDoc = giftDocKakunin(list);
     if(_giftDoc && !confirm(_giftDoc)) return;
     const rt0 = document.getElementById('o-record-type').value;
@@ -4816,6 +4895,12 @@ function previewOrder(){
       html += '</div>';
     });
     html += '</div>';
+    /* ★2026-09-13 えらんだ振込先を、確認画面にも出します（銀行名だけ） */
+    try{
+      var _bk = (document.getElementById('o-bank')||{}).value;
+      var _bkNa = (_bk === '0') ? '三井住友銀行' : (_bk === '1') ? '三菱UFJ銀行' : '';
+      if(_bkNa) html += '<div style="margin-top:8px;font-size:13px;font-weight:800;color:#1f4a6d">🏦 振込先：' + _bkNa + '</div>';
+    }catch(_eb){ if(typeof oosShippai==='function') oosShippai('振込先を出すところ', _eb); }
     document.getElementById('confirm-content').innerHTML = html;
     document.getElementById('confirm-area').style.display = 'block';
     document.getElementById('confirm-area').scrollIntoView({behavior:'smooth'});
@@ -5075,6 +5160,7 @@ function clearForm(){
   document.getElementById('hold-date-wrap').style.display = 'none';
   document.getElementById('reserved-date-wrap').style.display = 'none';
   document.getElementById('o-payment-mode').value = 'postpay';
+  var _bkEl = document.getElementById('o-bank'); if(_bkEl) _bkEl.value = '';   /* ★2026-09-13 振込先も毎回えらびます */
   document.getElementById('prepay-warn').style.display = 'none';
   document.getElementById('o-zip').value = '';
   document.getElementById('o-addr').value = '';
@@ -8684,7 +8770,7 @@ function nagareMaeRender(){
     if(docKakuninKa(q.o, q.mei)){
       app += nagareSt('st-done', '✅', na, '確認しました（もう一度見る）', 'docMaeMiru(' + i + ')');
     } else if(i === tsugi){
-      app += nagareSt('st-now', no, na, '押すとPDFが開きます', 'docMaeMiru(' + i + ')');
+      app += nagareSt('st-now', no, na, '押すとPDFが開きます　※単価確認：統合マスタNの『価格リスト』', 'docMaeMiru(' + i + ')');
     } else {
       app += nagareSt('st-yet', no, na, '前の書類を見てから開きます', '');
     }
@@ -8692,9 +8778,9 @@ function nagareMaeRender(){
   var zenbu = (tsugi < 0);
   app += zenbu
     ? nagareSt('st-now-g', '③', '受注一覧に登録する',
-        '押すと受注一覧と発注書スプシに入ります（倉庫へはまだ行きません）', 'registerOrder()')
+        '押すと受注一覧と発注書スプシに入ります（ここで在庫が減ります／倉庫へはまだ行きません）', 'registerOrder()')
     : nagareSt('st-lock', '③', '受注一覧に登録する', '上の書類を見てからでないと押せません', '');
-  app += nagareSt('st-lock', '④', 'PDFをスプシに貼る', '登録したあとに押せます', '');
+  app += nagareSt('st-lock', '④', 'PDFをスプシに貼り、発注書に情報を流す', '登録したあとに押せます', '');
   var sheet = nagareSt('st-lock', '⑤', '倉庫に発送許可を出す（A列を🔵）', 'ここではじめて倉庫へ連絡が行きます', '');
   box.innerHTML = nagareWaku(app, sheet)
     + '<div style="font-size:12px;color:#83857a">★書類を見終わるまで、③は押せません（必ず目で見ていただくためです）。'
@@ -8716,21 +8802,31 @@ function nagareCardHtml(o){
     } else if(docKakuninKa(o, mei)){
       app += nagareSt('st-done', '✅', na + ' を見て確認', '確認しました（もう一度見る）', 'docCheckOne(\'' + o.id + '\')');
     } else if(i === tsugi){
-      app += nagareSt('st-now', no, na + ' を見て確認', '押すとPDFが開きます', 'docCheckOne(\'' + o.id + '\')');
+      app += nagareSt('st-now', no, na + ' を見て確認', '押すとPDFが開きます　※単価確認：統合マスタNの『価格リスト』', 'docCheckOne(\'' + o.id + '\')');
     } else {
       app += nagareSt('st-yet', no, na + ' を見て確認', '前の書類を見てから開きます', '');
     }
   });
+  /* ★2026-09-13 「その他（自分で書く）」で入れたPDF（ある時だけ） */
+  if(o.otherDocUrl){
+    app += docOtherHattaKa(o)
+      ? nagareSt('st-done', '✅', '添付書類（その他）　' + esc(o.otherDocName || 'その他の書類'), '発注書に貼りました', '')
+      : nagareSt('st-yet', '📎', '添付書類（その他）　' + esc(o.otherDocName || 'その他の書類'), '④でいっしょに貼ります', '');
+  }
   app += nagareSt('st-done', '✅', '受注一覧に登録する', '受注一覧と発注書スプシに入りました', '');
   var zenbuHatta = docZenbuHattaKa(o);
   var zenbuMita = meis.every(function(m){ return docHareteruKa(o, m) || docKakuninKa(o, m); });
+  /* ★2026-09-13 ひろみさん指示の言い方：「④PDFをスプシに貼り、発注書に情報を流す」
+     ★在庫が減るのは【③ 受注一覧に登録する】を押したときです（ここではありません）。
+     　実際の動きと違うことを書かないため、そのことを小さく添えています。 */
   if(!meis.length || zenbuHatta){
-    app += nagareSt('st-done', '✅', 'PDFをスプシに貼る', (meis.length ? '発注書のV列に貼りました' : '金額の載る書類はありません'), '');
+    app += nagareSt('st-done', '✅', 'PDFをスプシに貼り、発注書に情報を流す',
+      (meis.length ? '発注書のV列に貼りました' : '金額の載る書類はありません'), '');
   } else if(zenbuMita){
-    app += nagareSt('st-now', '④', 'PDFをスプシに貼る',
-      '押すと' + meis.length + '枚とも発注書のV列に貼ります', 'docHariZenbu(\'' + o.id + '\')');
+    app += nagareSt('st-now', '④', 'PDFをスプシに貼り、発注書に情報を流す',
+      '押すと' + meis.length + '枚とも発注書のV列に貼ります（在庫は③の登録で減っています）', 'docHariZenbu(\'' + o.id + '\')');
   } else {
-    app += nagareSt('st-lock', '④', 'PDFをスプシに貼る', '上の書類を見てからでないと押せません', '');
+    app += nagareSt('st-lock', '④', 'PDFをスプシに貼り、発注書に情報を流す', '上の書類を見てからでないと押せません', '');
   }
   var sheet = (zenbuHatta || !meis.length)
     ? nagareSt('st-now-b', '⑤', '倉庫に発送許可を出す（A列を🔵）',
@@ -8758,14 +8854,27 @@ var docKakuninMap = {};
 function docKakuninKa(o, mei){ var m = docKakuninMap[o && o.id]; return !!(m && m[mei]); }
 function docKakuninSuru(o, mei){ if(!o) return; (docKakuninMap[o.id] = docKakuninMap[o.id] || {})[mei] = true; }
 var DOC_MARU = ['①','②','③','④','⑤'];
+/* ★2026-09-13 「その他（自分で書く）」で入れたPDFが、発注書に貼れているか
+   ・入れていなければ true（貼るものが無いので、終わっているのと同じ）
+   ・リンクそのもので見ます（名前は人がつけるので変わることがあるため） */
+function docOtherHattaKa(o){
+  if(!o || !o.otherDocUrl) return true;
+  if(!docVretsu || !o.yukaKey) return false;
+  var list = docVretsu[String(o.yukaKey)] || [];
+  for(var i = 0; i < list.length; i++){
+    if(String(list[i]['リンク'] || '') === String(o.otherDocUrl)) return true;
+  }
+  return false;
+}
 /* この注文の書類が、全部 発注書に貼れているか（書類が無い注文も true） */
 function docZenbuHattaKa(o){
   if(!o || typeof OOS_NOUHIN === 'undefined') return true;
   if(o.source === 'basara') return true;
   if(!docVretsu) return false;                       /* 発注書をまだ読めていない＝決めつけない */
   var meis = OOS_NOUHIN.shoruiList(o) || [];
-  if(!meis.length) return true;
-  return meis.every(function(m){ return !!docHareteruKa(o, m); });
+  /* ★2026-09-13 「その他」のPDFも数に入れます（V列は2つまで） */
+  if(!meis.length) return docOtherHattaKa(o);
+  return meis.every(function(m){ return !!docHareteruKa(o, m); }) && docOtherHattaKa(o);
 }
 function docFudaHtml(o, torikeshi){
   if(!o || typeof OOS_NOUHIN === 'undefined') return '';
@@ -8797,6 +8906,11 @@ function docFudaHtml(o, torikeshi){
     hatta.push('<a href="' + esc(url) + '" target="_blank" style="color:#0c447c;text-decoration:none">'
             + '📎 添付PDF' + maru + '　' + esc(nm) + '</a>');
   });
+  /* ★2026-09-13 「その他（自分で書く）」で入れたPDFも、貼れていたら📎で出します */
+  if(o.otherDocUrl && docOtherHattaKa(o)){
+    hatta.push('<a href="' + esc(o.otherDocUrl) + '" target="_blank" style="color:#0c447c;text-decoration:none">'
+            + '📎 添付PDF（その他）　' + esc(o.otherDocName || 'その他の書類') + '</a>');
+  }
   var sumiGyou = hatta.length
     ? '<div style="margin-top:4px;font-size:12.5px">' + hatta.join('　') + '</div>'
     : '';
@@ -9136,8 +9250,29 @@ async function docHariZenbu(id){
   var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
   if(!o) return;
   var meis = (OOS_NOUHIN.shoruiList(o) || []).filter(function(m){ return !docHareteruKa(o, m); });
-  if(!meis.length){ if(typeof showSyncStatus === 'function') showSyncStatus('📌 もう貼れています'); return; }
+  var otherNokori = !docOtherHattaKa(o);
+  if(!meis.length && !otherNokori){ if(typeof showSyncStatus === 'function') showSyncStatus('📌 もう貼れています'); return; }
   for(var i = 0; i < meis.length; i++){ await docHari(id, meis[i]); }
+  /* ★2026-09-13 「その他（自分で書く）」で入れたPDFも、同じV列へ（2つまで／パンフレットは数えません） */
+  if(otherNokori) await docHariOther(o);
+}
+/* その他の書類のPDFを、発注書のV列に貼る（ひろみさん指示・2026-09-13） */
+async function docHariOther(o){
+  if(!o || !o.otherDocUrl || !o.yukaKey) return;
+  try{
+    var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'yukaSetDocLinks', payload:{ key: o.yukaKey,
+        docs: [{ name: '📄 ' + (o.otherDocName || 'その他の書類') + '（ひらく）', url: o.otherDocUrl }] }}) });
+    var d = await r.json();
+    if(!d || d.status !== 'ok'){
+      o.nouhinDocNg = 'その他の書類を貼れませんでした：' + ((d && d.message) || '不明');
+      if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+    }
+    try{ await docVretsuYomu(true); }catch(e){ if(typeof oosShippai === 'function') oosShippai('発注書を読み直すところ', e); }
+  }catch(e){
+    o.nouhinDocNg = 'その他の書類を貼るときにつまずきました：' + ((e && e.message) || e);
+    if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+  }
 }
 async function docHari(id, mei, btnId){
   var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
