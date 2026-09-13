@@ -487,15 +487,15 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-13-02">
+<meta name="oos-version" content="2026-09-13-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=p89c71bf00a"></script>
+<script src="oos-hizuke.js?v=pac360b99af"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-meibo.js?v=p89c71bf00a"></script>
+<script src="oos-meibo.js?v=pac360b99af"></script>
 <!-- ★2026-09-09 区分の並び順の【親】。統合マスタＮと輸入・原価Ｅが同じ並びになるように、
      ここ1か所だけに書いています。★消さないでください（消すと並びがバラバラに戻ります） -->
 <script src="oos-kubun.js"></script>
@@ -880,7 +880,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   <div id="meibo-topbar" class="hscroll-top" style="display:none"><div class="hscroll-top-inner"></div></div>
   <div id="meibo-scroll" class="price-scroll meibo-hscroll">
   <table class="tbl meibotbl"><thead><tr>
-    <th>商品</th><th style="background:#eef7e6;color:#3b6d11;text-align:center">倉庫<br>表示</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号<br><span style="font-size:11px;font-weight:600;color:#0b5a53">（＝STORES品番）</span></th><th style="background:#f7f4ec">出荷単位</th><th>品番</th><th class="num">箱入数</th>
+    <th>商品</th><th style="background:#eef7e6;color:#3b6d11;text-align:center">倉庫<br>表示</th><th style="background:#f6f0fb">構成（セットの中身）</th><th style="background:#eaf3ff">商品管理番号<br><span style="font-size:11px;font-weight:600;color:#0b5a53">（＝STORES品番）</span></th><th style="background:#f7f4ec">出荷単位</th><th style="background:#f7f4ec">単位表示<br><span style="font-size:11px;font-weight:600;color:#8a5a12">（本・瓶・缶・個・枚・冊・箱・セット）</span></th><th>品番</th><th class="num">箱入数</th>
     <th style="background:#f3f6ec">容器</th><th style="background:#f3f6ec">生産地</th><th style="background:#f3f6ec">農園名</th>
     <th style="background:#fdf9f0">ロット</th><th style="background:#fdf9f0">賞味期限</th>
     <th style="background:#eef4fb">バーコード</th><th style="background:#eef4fb">商品ページ</th>
@@ -1140,7 +1140,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 </div><!-- /.app -->
 
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=p89c71bf00a"></script>
+<script src="oos-zaiko.js?v=pac360b99af"></script>
 <script>
 /* ★在庫の数え方の【親】oos-zaiko.js が読めなかったときの見張り。
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
@@ -5019,6 +5019,20 @@ function farmOf(p){
 }
 /* ★2026-07-24 出荷単位（例：1箱／20本）。商品マスタの「出荷単位」列を読む。
    列がまだ無いときは空欄のまま（アプリは壊れない）。 */
+/* ══════════════════════════════════════════════════════════════════════
+   📏 単位表示（名簿の列）　★2026-09-13 ひろみさん指示
+   ・人が「単位表示」の欄に書いていれば、それを濃い字で出します（いちばん強い）
+   ・空のときは、親（oos-shorui-kimari.js の taniOf）が決めた単位をうすい字で出します
+   ★ここで単位を決めないでください。決めるのは親だけです（写しを作らない）。
+   ══════════════════════════════════════════════════════════════════════ */
+function meiboTaniCell(p){
+  var ex = (p && p.extras) || {};
+  var te = String(ex['単位表示'] || ex['単位'] || '').trim();
+  var oya = (typeof OOS_SHORUI !== 'undefined' && OOS_SHORUI.taniOf) ? OOS_SHORUI.taniOf(p) : '';
+  if(te) return '<span class="spec" style="font-weight:800;color:#8a5a12">' + esc(te) + '</span>';
+  if(oya) return '<span style="color:#9a9484">' + esc(oya) + '</span>';
+  return mDash();
+}
 function shipUnitOf(p){
   if(!p) return '';
   var ex = p.extras || {};
@@ -5686,6 +5700,7 @@ function meiboEditRowHtml(p, sp){
   var v = isNew ? { sku:meiboNewSkuPrefill, name:'', group:'', boxQty:'', origin:'', farm:'', container:'', shipUnit:'', lotCode:'', expiry:'', lotNote:'', barcode:'', pageUrl:'', storesHinban:'', noWholesale:false, active:true }
                 : { sku:p.sku, name:(p.name||''), group:(p.group||''), boxQty:(p.boxQty||''),
                     origin:sp.origin||'', farm:sp.farm||'', container:containerFor(p), shipUnit:shipUnitOf(p),
+                    tani:((p && p.extras && (p.extras['単位表示'] || p.extras['単位'])) || ''),
                     barcode:meiboFieldOf(p,'バーコード'), pageUrl:meiboFieldOf(p,'商品ページ'), storesHinban:meiboFieldOf(p,'STORES品番'),
                     lotCode:(_ml && _ml.lotCode && _ml.lotCode!=='-') ? _ml.lotCode : '',
                     expiry:(_ml && _ml.expiry) ? _ml.expiry : '',
@@ -5737,6 +5752,8 @@ function meiboEditRowHtml(p, sp){
       '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>'+
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
       fg('出荷単位（この形で出す）','mp-unit',v.shipUnit,'1箱／20本 など')+
+      /* ★2026-09-13 ひろみさん指示：単位表示（空なら、決めごとから自動で決まります） */
+      fg('単位表示（空でOK）','mp-tani',v.tani,'本・瓶・缶・個・枚・冊・箱・セット')+
       /* ★2026-07-24 ロットと賞味期限も、ここで直せるようにした（ロット管理に行かなくてよい） */
       '<div class="mp-fg"><label style="color:#8a5a12">ロット</label><input type="text" id="mp-lot" value="'+esc(v.lotCode)+'" placeholder="例：A5" style="border-color:#e0a020;background:#fffdf5"></div>'+
       '<div class="mp-fg"><label style="color:#8a5a12">賞味期限</label><input type="text" id="mp-exp" value="'+esc(v.expiry)+'" placeholder="例：2027.11.21" style="border-color:#e0a020;background:#fffdf5"></div>'+
@@ -5835,6 +5852,8 @@ async function meiboSaveRow(){
     origin: (document.getElementById('mp-origin').value||'').trim(),
     '農園': (document.getElementById('mp-farm').value||'').trim(),
     '出荷単位': (document.getElementById('mp-unit').value||'').trim(),
+    /* ★2026-09-13 単位表示（空なら、親の決めごとで自動に決まります） */
+    '単位表示': (document.getElementById('mp-tani') ? document.getElementById('mp-tani').value : '').trim(),
     'バーコード': (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '').trim(),
     'STORES品番': mbKanriFrom(sku, (document.getElementById('mp-barcode') ? document.getElementById('mp-barcode').value : '')),  /* ★2026-08-07 STORES品番＝商品管理番号に統一。ECにはこの番号を入れる */
     '商品ページ': (document.getElementById('mp-page') ? document.getElementById('mp-page').value : '').trim(),
@@ -5954,6 +5973,10 @@ function renderMeibo(){
         '<td style="background:#f7fbff"><span style="font-family:monospace;font-weight:800;font-size:13.5px;color:#0c447c;white-space:nowrap">'+esc(displaySkuCode(p.sku))+'</span></td>'+
         /* ★2026-07-24 出荷単位（例：1箱／20本）。名簿の編集画面で自由に書けます */
         '<td style="background:#fbf9f4">'+(shipUnitOf(p)?'<span class="spec">'+esc(shipUnitOf(p))+'</span>':mDash())+'</td>'+
+        /* ★2026-09-13 ひろみさん指示：単位表示の列。決め方の親は oos-shorui-kimari.js の taniOf。
+           　名簿の「単位表示」欄に書いてあれば、それがいちばん強い（人が直せます）。
+           　空のときは、名前・区分・容量から自動で決めた単位を、うすい字で出します。 */
+        '<td style="background:#fbf9f4;text-align:center">'+meiboTaniCell(p)+'</td>'+
         '<td><span class="sku">'+esc(p.sku||'—')+'</span></td>'+
         '<td class="num">'+(p.boxQty?esc(p.boxQty)+'本':mDash())+'</td>'+
         '<td>'+(containerFor(p)?'<span class="spec">'+esc(containerFor(p))+'</span>':mDash())+'</td>'+
