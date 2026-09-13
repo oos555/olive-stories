@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>モック｜取り置き・予約を「穴があいたまま」通して、発注書でそろえる（2026-09-13）</title>
+<style>
+  :root{ --ink:#2b2a26; --line:#e8e2d8; --bg:#faf8f3; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans','Yu Gothic',sans-serif;
+       font-size:14px;line-height:1.75;padding:18px 14px 70px}
+  .wrap{max-width:920px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 8px}
+  .lead{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:18px}
+  .kotoba{background:#f6f5f1;border-left:5px solid #b9c48a;border-radius:6px;padding:9px 12px;margin:8px 0;font-size:13px}
+  .step{margin:28px 0 10px;font-size:15px;font-weight:800;color:#33421f;border-bottom:2px solid #cfd8b4;padding-bottom:5px}
+  .step small{font-weight:600;color:#6b665c;font-size:12.5px}
+  .yaji{text-align:center;color:#8a857c;font-size:20px;margin:8px 0}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:10px}
+
+  /* 3つの決めごと */
+  .kime{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .kbox{flex:1;min-width:250px;border-radius:12px;padding:12px 13px;border:2px solid}
+  .k-moji{background:#fff7ec;border-color:#e3b768}
+  .k-zaiko{background:#fdecec;border-color:#d98c8c}
+  .k-shorui{background:#eef4fb;border-color:#a9c0dd}
+  .kbox h3{margin:0 0 6px;font-size:14px}
+  .k-moji h3{color:#8a5a12} .k-zaiko h3{color:#8c2b2b} .k-shorui h3{color:#1f4a6d}
+  .kbox p{margin:4px 0;font-size:12.5px}
+  .kekka{display:inline-block;font-weight:800;border-radius:99px;font-size:11.5px;padding:2px 10px;margin-top:5px}
+  .ke-oshikaesu{background:#e3b768;color:#4a3208}
+  .ke-okuranai{background:#c0392b;color:#fff}
+  .ke-tooru{background:#2f6d3b;color:#fff}
+
+  /* 流れバー */
+  .nagare{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .ncol{flex:1;min-width:280px;border-radius:12px;padding:9px 10px 11px}
+  .ncol.app{background:#f2f6ea;border:1.5px solid #c3d3a3}
+  .ncol.sheet{background:#eef2f8;border:1.5px solid #a9c0dd;flex:0 1 300px}
+  .nhead{font-size:12px;font-weight:800;letter-spacing:.08em;margin-bottom:7px}
+  .ncol.app .nhead{color:#4a5a1f} .ncol.sheet .nhead{color:#1f4a6d}
+  .st{display:block;width:100%;text-align:left;border-radius:9px;padding:11px 12px;margin-bottom:7px;
+      font-size:13.5px;font-weight:800;font-family:inherit;border:1.5px solid transparent;line-height:1.5}
+  .st:last-child{margin-bottom:0}
+  .st .no{display:inline-block;min-width:22px}
+  .st .sub{display:block;font-weight:600;font-size:11.5px;margin-top:2px;opacity:.85}
+  .st-now{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}
+  .st-done{background:#eef7ea;color:#166534;border-color:#86c096}
+  .st-yet{background:#fff;color:#57534e;border-color:#ddd8cc}
+  .st-lock{background:#f3f0e8;color:#a9a49a;border-color:#e5e0d6}
+  .st-warn{background:#fff7ec;color:#8a5a12;border-color:#e3b768}
+  .ima{display:inline-block;background:#fff;color:#0c447c;border-radius:99px;font-size:10.5px;
+       font-weight:800;padding:1px 8px;margin-left:6px;vertical-align:middle}
+
+  /* スプシの表 */
+  table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}
+  th,td{border:1px solid #d8d3c7;padding:5px 7px;text-align:left;vertical-align:top}
+  th{background:#f0ede5;font-weight:800;font-size:11.5px;white-space:nowrap}
+  .sc{background:#fffdf5}
+  .tsutsumi{overflow-x:auto}
+
+  /* 押し返しのお知らせ */
+  .osu{background:#fff;border:2px solid #e3b768;border-radius:12px;padding:0;max-width:560px;margin:0 auto;
+       box-shadow:0 6px 18px rgba(0,0,0,.08)}
+  .osu .bar{background:#f6efe1;border-bottom:1px solid #e3b768;border-radius:10px 10px 0 0;padding:9px 14px;
+            font-weight:800;font-size:13.5px;color:#8a5a12}
+  .osu .naka{padding:14px 16px;font-size:13px}
+  .osu ul{margin:8px 0 0;padding-left:20px}
+  .osu li{margin:3px 0}
+  .osu .btns{display:flex;gap:10px;justify-content:flex-end;padding:0 16px 14px;flex-wrap:wrap}
+  .btn{border:none;border-radius:9px;font-weight:800;font-family:inherit;font-size:13.5px;padding:10px 18px}
+  .btn-ok{background:#166534;color:#fff;box-shadow:0 3px 0 #0d4523}
+  .btn-gray{background:#efece5;color:#57534e;border:1px solid #cfc9bd}
+  .btn-red{background:#c0392b;color:#fff;box-shadow:0 3px 0 #8c2b1f}
+
+  .toi{background:#fff7ec;border:2px solid #e3b768;border-radius:12px;padding:14px 16px;margin-top:26px}
+  .toi h3{margin:0 0 8px;font-size:15px;color:#8a5a12}
+  .maru{display:inline-block;background:#33421f;color:#fff;border-radius:99px;width:20px;height:20px;
+        text-align:center;line-height:20px;font-size:12px;font-weight:800;margin-right:5px}
+  .memo{font-size:12px;color:#6b665c}
+  b.hi{background:#fdf3cf;padding:0 3px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🗄 取り置き・🗓 予約を「穴があいたまま」通して、<u>発注書に流すところ</u>でそろえる ― モック</h1>
+
+<div class="lead">
+  <div class="kotoba">
+    ひろみさん（2026-09-13）：<br>
+    「<b>スプシに情報を貯めておく必要がある。</b>アプリだけに置いておくと、また消えるから」<br>
+    「取り置きと予約に関しては、<b>添付ファイルがなくても、ほかにも情報が不足していてもスプシに情報がながれるように</b>しておきたい。<br>
+    　ただそうなると、<b>発送するときに発送できない状態</b>だから、そこからの<b>リカバリー</b>をどうしたらいいか考えてほしい。<br>
+    　<b>出来るだけシンプルに壊れないように</b>したい」<br>
+    「スプシの取り置き及び発注前予約リストに<b>情報は穴が開いていてもとおしておきたい。</b>
+    　でもそれを<b>発注書に流す時に必要情報をなんとかしたい。</b>」
+  </div>
+  <b>考え方はひとつだけです。</b><br>
+  　🗂 <b>リストに入れるとき＝止めない。</b>穴があいたまま、そのまま通します（消えないように貯めるのが目的）。<br>
+  　📦 <b>発注書に流すとき＝そこでそろえる。</b>足りないものを<b>その場で一覧にして押し返します</b>。<br>
+  <span class="memo">★新しいアプリも、新しいボタンも作りません。<b>いまある📦のボタンに「押し返し」を足すだけ</b>です。</span>
+</div>
+
+<!-- ══════════ 決めごと ══════════ -->
+<div class="step">決めごと　<small>穴の種類で、扱いを3つに分けます（ここがいちばん大事）</small></div>
+
+<div class="kime">
+  <div class="kbox k-moji">
+    <h3>① 文字の抜け</h3>
+    <p>お届け先・住所・お届け予定日・振込先 など</p>
+    <p><b>その場で入れられます。</b></p>
+    <span class="kekka ke-oshikaesu">押し返す（1回だけ）</span>
+    <p class="memo">足りない欄を並べて出します。入れたら📦をもう一度押すだけ。</p>
+  </div>
+  <div class="kbox k-zaiko">
+    <h3>② 在庫が足りない</h3>
+    <p>取り置きぶんが減っていた／予約がまだ入荷していない</p>
+    <p><b>その場では直せません。</b></p>
+    <span class="kekka ke-okuranai">送らない</span>
+    <p class="memo">ここだけは通しません。倉庫に「出せないもの」を送ってしまうからです。</p>
+  </div>
+  <div class="kbox k-shorui">
+    <h3>③ 書類（PDF）がまだ</h3>
+    <p>納品書・請求書・領収書の貼り付けがまだ</p>
+    <p><b>あとから貼れます。</b></p>
+    <span class="kekka ke-tooru">送ってよい（印を付ける）</span>
+    <p class="memo">発注書の<b>V列に「⚠ 書類はまだです」</b>と出します。倉庫にはまだ行きません。</p>
+  </div>
+</div>
+
+<div class="card" style="border-color:#c3d3a3;background:#f7faf1">
+  <b>なぜ③だけ通すのか</b><br>
+  書類は<b>荷物が出るまでに間に合えばよい</b>ものだからです。逆に②の在庫は、間に合わせようがありません。<br>
+  そして③を通しても、<b>倉庫にはまだ1通も連絡は行きません</b>（連絡が行くのは A列を🔵にしたときだけ・ここは変えません）。
+</div>
+
+<!-- ══════════ ① ══════════ -->
+<div class="step">① いまの取り置き・予約カード（受注Ａ）　<small>流れが、そのままボタン</small></div>
+
+<div class="card">
+  <div style="font-weight:800;font-size:13px">🗄 取り置き　中村 様　／ TK-20260913-6104　／ 期限 2026-09-30</div>
+  <div style="font-size:12px;margin:5px 0">オルガニック 250ml × 6本　（🔒 在庫を押さえています）</div>
+
+  <div class="nagare">
+    <div class="ncol app">
+      <div class="nhead">アプリ内</div>
+      <button class="st st-done"><span class="no">①</span>取り置きとして登録した
+        <span class="sub">済み（9/13 10:20）　📦 在庫を押さえました</span></button>
+      <button class="st st-done"><span class="no">②</span>🗂 リストに流した（穴があってもOK）
+        <span class="sub">済み　お届け先・書類はまだ空です</span></button>
+      <button class="st st-warn"><span class="no">③</span>足りないものを入れる
+        <span class="sub">お届け先／振込先／書類　が空です（あとで入れてもOK）</span></button>
+    </div>
+    <div class="ncol sheet">
+      <div class="nhead">スプシで対応</div>
+      <button class="st st-now"><span class="no">④</span>A列を【📦 発注書へ送る】にする<span class="ima">いまここ</span>
+        <span class="sub">ここで足りないものを押し返します</span></button>
+      <button class="st st-lock"><span class="no">⑤</span>倉庫に発送許可を出す（A列を🔵）
+        <span class="sub">ここではじめて倉庫へ連絡が行きます</span></button>
+    </div>
+  </div>
+  <div class="memo">★②で<b>止めません</b>。穴があいていても、スプシには必ず残ります（アプリだけに置かない）。</div>
+</div>
+
+<div class="yaji">▼　④【📦 発注書へ送る】を押した</div>
+
+<!-- ══════════ ② ══════════ -->
+<div class="step">② 押し返し　<small>足りないものを、ぜんぶ一度に並べます（1回だけ）</small></div>
+
+<div class="osu">
+  <div class="bar">📦 発注書へ送る前に、足りないものがあります</div>
+  <div class="naka">
+    <b>中村 様　TK-20260913-6104</b>（🗄 取り置き）<br>
+    <div style="margin-top:8px"><b style="color:#8a5a12">① 入れてください（3つ）</b>
+      <ul>
+        <li>お届け先の住所</li>
+        <li>お届け予定日</li>
+        <li>振込先の銀行（三井住友／三菱UFJ のどちらか）</li>
+      </ul>
+    </div>
+    <div style="margin-top:10px"><b style="color:#1f4a6d">② あとで貼ればよいもの（1つ）</b>
+      <ul>
+        <li>納品書兼請求書のPDF　→　<b class="hi">発注書のV列に「⚠ 書類はまだです」と出します</b></li>
+      </ul>
+    </div>
+    <div style="margin-top:10px;background:#f6f5f1;border-radius:8px;padding:8px 10px">
+      🔵 倉庫への発送許可は、<b>書類を貼ってから</b>にしてください。<br>
+      <span class="memo">貼らずに🔵を押すと、もう一度だけおたずねします（下の④）。</span>
+    </div>
+  </div>
+  <div class="btns">
+    <button class="btn btn-gray">入れに戻る</button>
+    <button class="btn btn-ok">書類はあとで貼る　― このまま発注書へ</button>
+  </div>
+</div>
+<div class="memo" style="text-align:center;margin-top:8px">
+  ★「入れに戻る」を押すと、<b>その3つだけが並んだ入力欄</b>が開きます（ほかの欄はさわりません）。
+</div>
+
+<div class="yaji">▼　在庫が足りないときは、この形になります</div>
+
+<div class="osu" style="border-color:#d98c8c">
+  <div class="bar" style="background:#fdecec;border-color:#d98c8c;color:#8c2b2b">📦 在庫が足りないので、発注書へは送れません</div>
+  <div class="naka">
+    <b>中村 様　TK-20260913-6104</b>（🗄 取り置き）
+    <ul>
+      <li>オルガニック 250ml　… 必要 6本 ／ 販売可能 <b>4本</b>（2本たりません）</li>
+    </ul>
+    <div style="margin-top:8px">
+      足りないぶんは <b>🗓 予約</b> に移すか、<b>数量を直して</b>ください。<br>
+      <span class="memo">★ここだけは「このまま送る」を出しません。出せない荷物を倉庫へ送らないためです。</span>
+    </div>
+  </div>
+  <div class="btns"><button class="btn btn-red">閉じる（直しに戻る）</button></div>
+</div>
+
+<div class="yaji">▼　「書類はあとで貼る」を押した</div>
+
+<!-- ══════════ ③ ══════════ -->
+<div class="step">③ 発注書に入った　<small>A列は🔴のまま。倉庫にはまだ行っていません</small></div>
+
+<div class="tsutsumi">
+<table>
+  <tr>
+    <th>A列（本部が押す）</th><th>管理番号</th><th>お届け先</th><th>商品</th>
+    <th>V列（書類）</th><th>S列 送り状NO.<br><span style="font-weight:400">倉庫が書く</span></th>
+  </tr>
+  <tr class="sc">
+    <td><b style="color:#c0392b">🔴 まだ送らないで</b><br><span class="memo">押すと🔵になります</span></td>
+    <td>TK-20260913-6104</td>
+    <td>中村 様<br>東京都…</td>
+    <td>オルガニック 250ml 6本</td>
+    <td><b style="color:#8a5a12">⚠ 書類はまだです</b><br><span class="memo">貼ると リンク①② に変わります</span></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>🔵 発送してください</td><td>TK-20260913-5232</td><td>SS 様<br>大阪府…</td>
+    <td>トルコ 250ml 1本</td>
+    <td>リンク① リンク②</td><td>1234-5678-9012</td>
+  </tr>
+</table>
+</div>
+<div class="memo" style="margin-top:6px">
+  ★<b>📦を押しても、A列は🔴のまま</b>です（いままでは自動で🔵になっていました）。<br>
+  　こうしておくと、<b>書類がまだの行が、倉庫へ勝手に飛ぶことがなくなります</b>。
+</div>
+
+<div class="yaji">▼　書類を貼らずに 🔵 を押した</div>
+
+<!-- ══════════ ④ ══════════ -->
+<div class="step">④ 最後の砦　<small>🔵にするときに、もう一度だけおたずねします</small></div>
+
+<div class="osu">
+  <div class="bar">🔵 倉庫へ発送許可を出します（この行は書類がまだです）</div>
+  <div class="naka">
+    <b>TK-20260913-6104　中村 様</b><br>
+    V列が「⚠ 書類はまだです」になっています。<br>
+    <div style="margin-top:8px;background:#f6f5f1;border-radius:8px;padding:8px 10px">
+      このまま🔵にすると、<b>倉庫は書類なしで荷造りを始めます</b>。<br>
+      書類は<b>あとから発注書のV列に貼ってください</b>。
+    </div>
+  </div>
+  <div class="btns">
+    <button class="btn btn-gray">やめる（先に貼る）</button>
+    <button class="btn btn-ok">承知しました　― このまま発送許可</button>
+  </div>
+</div>
+<div class="memo" style="text-align:center;margin-top:8px">
+  ★おたずねは<b>1回だけ</b>。「はい」を押したら、あとは今までどおり倉庫へ飛びます。
+</div>
+
+<!-- ══════════ 取り置きと予約のちがい ══════════ -->
+<div class="step">おまけ　<small>取り置きと予約で、ここだけ違います</small></div>
+
+<div class="kime">
+  <div class="kbox" style="background:#f7faf1;border-color:#c3d3a3">
+    <h3>🗄 取り置き　― 在庫を押さえます</h3>
+    <p>登録したその場で<b>販売可能数が減ります</b>（ほかの人に売れないように）。</p>
+    <p>📦のとき、<b>押さえたぶんが残っているかを見ます</b>。減っていたら「送らない」。</p>
+  </div>
+  <div class="kbox" style="background:#eef2f8;border-color:#a9c0dd">
+    <h3>🗓 予約　― まだ入荷していません</h3>
+    <p>在庫は<b>減りません</b>。リストには入りますが、<b>📦は押せません</b>（グレー）。</p>
+    <p>統合マスタＮの「<b>📦 輸入が届いた → 一気に在庫へ入れる</b>」を押すと 🗄 取り置き に変わり、そこで📦が押せるようになります。</p>
+  </div>
+</div>
+
+<!-- ══════════ 作るもの ══════════ -->
+<div class="step">この形にすると、作るものはこれだけ　<small>新しい部品は作りません</small></div>
+<div class="card">
+  <p><span class="maru">1</span> 🗂 リストに流すとき、<b>穴があっても止めない</b>（いまも止めていません。そのまま）</p>
+  <p><span class="maru">2</span> 📦【発注書へ送る】に<b>押し返しを足す</b>（足りないものを3つに分けて並べる）</p>
+  <p><span class="maru">3</span> 📦を押しても<b>A列は🔴のまま</b>にする（自動で🔵にしない）</p>
+  <p><span class="maru">4</span> 発注書の<b>V列に「⚠ 書類はまだです」</b>を書く</p>
+  <p><span class="maru">5</span> 🔵にするときに、V列が⚠なら<b>1回だけおたずね</b>する</p>
+  <p class="memo" style="margin-top:8px">★壊れにくい理由：情報は<b>いつもスプシにあります</b>。アプリが落ちても消えません。<br>
+  　そして<b>倉庫への連絡は、いままでどおり🔵の1本だけ</b>です（増やしていません）。</p>
+</div>
+
+<!-- ══════════ おたずね ══════════ -->
+<div class="toi">
+  <h3>おたずね（ここだけ決めてください）</h3>
+  <p><b>あ）在庫はどこで減らしますか？</b><br>
+  　いまは「📦を押したとき（発注書に入ったとき）」に減っています。<br>
+  　この形だと📦のあとA列は🔴で止まるので、<b>🔵（倉庫へ出す）まで減らさない</b>ほうが合っているかもしれません。<br>
+  　<span class="memo">…ただし取り置きは、登録した時点ですでに押さえてあるので、どちらでも二重には減りません。</span></p>
+  <p style="margin-top:10px"><b>い）押し返しの「文字の抜け」に、入れる欄はどれとどれですか？</b><br>
+  　いまのモックは　<b>お届け先の住所／お届け予定日／振込先の銀行</b>　の3つにしてあります。<br>
+  　<span class="memo">増やすと押し返しが多くなって進めなくなるので、<b>どうしても無いと発送できないものだけ</b>にしたいです。</span></p>
+</div>
+
+</div>
+</body>
+</html>
