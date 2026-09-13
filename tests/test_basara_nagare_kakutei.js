@@ -144,9 +144,16 @@ ok('④-2 発送連絡メールを自動で呼ぶ道が無い',
   '（止め木より前に置くと、また飛んでしまいます）');
 
 /* ── ⑤⑥ 請求書 ──────────────────────────────────────── */
+/* ★2026-09-13 ひろみさん：本部へのLINEは1つだけ【のこす】＝この請求書のお知らせ。
+   ほかの本部LINEは止め木（OOS_HONBU_LINE_OFF）で止めたので、ここだけ
+   止め木を通さない oosLineToHonbuAlways_ に付けかえました。
+   ★流れは変わっていません（月末に本部へ1通）。呼ぶ関数の名前だけが違います。 */
 ok('⑤月末に、本部にLINEで知らせる',
   daily.indexOf('請求書が自動で出来上がりました') >= 0 &&
-  daily.indexOf('oosLineToHonbu_') >= 0);
+  (daily.indexOf('oosLineToHonbuAlways_') >= 0 || daily.indexOf('oosLineToHonbu_') >= 0));
+ok('⑤その1通は止め木を通さない（ほかを止めても、請求書だけは飛ぶ）',
+  daily.indexOf('oosLineToHonbuAlways_') >= 0,
+  '（ひろみさん「請求書はのこし」2026-09-13）');
 ok('⑤月末のLINEは原さんにも倉庫にも行かない', daily.indexOf('oosLineToWarehouse_') < 0 && daily.indexOf('basaraTo_') < 0);
 ok('⑤自動作成が動くのは【月末の日】だけ',
   bodyOf(GAS, 'oosBasaraInvoiceDaily').indexOf("!== '01') return {status:'ok', skipped:'月末ではありません'}") >= 0 &&

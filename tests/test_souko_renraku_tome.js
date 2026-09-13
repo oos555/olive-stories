@@ -165,66 +165,92 @@ ok('⑧【動かす】再開（false）にすれば、倉庫のアドレスに�
    M2.atesaki.join(',').indexOf('reimaria.oliosanto@gmail.com') >= 0);
 
 /* ══════════════════════════════════════════════════════════════════════
-   ⑩ 受注Ａの操作から【本部グループ】へLINEを飛ばさない
-      ひろみさん「受注Ａで操作した時に本部のラインに飛ばすのも、とめて」（2026-09-13）
+   ⑩ 本部グループへのLINEを止める（2026-09-13 ひろみさん）
+      「受注Ａで操作した時に本部のラインに飛ばすのも、とめて」
+      → そのあと1つずつ決めていただきました。
+        とめる：バサラから発注／在庫がありません／入荷のお知らせ／臨時入庫／発注書キャンセル
+        のこす：🧾 バサラの請求書ができました（★これだけ止め木を通さない）
    ══════════════════════════════════════════════════════════════════════ */
-ok('⑩本部への止め木の1行がある（OOS_JUCHUA_HONBU_LINE_OFF）',
-   /var OOS_JUCHUA_HONBU_LINE_OFF = (true|false);/.test(GAS));
+ok('⑩本部への止め木の1行がある（OOS_HONBU_LINE_OFF）',
+   /var OOS_HONBU_LINE_OFF = (true|false);/.test(GAS));
 ok('⑩止め木を決めている場所は1か所だけ',
-   (GAS.match(/var OOS_JUCHUA_HONBU_LINE_OFF = /g) || []).length === 1);
+   (GAS.match(/var OOS_HONBU_LINE_OFF = /g) || []).length === 1);
 
-const zn = bodyOf(GAS, 'oosZaikoNashiSend');
-ok('⑩「在庫がありません」の事後報告に止め木がある（if で本当に分かれている）',
-   /if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/.test(zn));
-ok('⑩止め木は oosLineToHonbu_ より【先】にある',
-   zn.search(/if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/) < zn.indexOf('oosLineToHonbu_'));
-ok('⑩お客様へのメールは止めていない（在庫のご連絡は今までどおり出る）',
-   zn.indexOf('MailApp.sendEmail') >= 0 &&
-   zn.indexOf('MailApp.sendEmail') < zn.search(/if\s*\(\s*OOS_JUCHUA_HONBU_LINE_OFF\s*\)/),
-   '（止めるのは本部への事後報告LINEだけです）');
+const hb = bodyOf(GAS, 'oosLineToHonbu_');
+ok('⑩本部LINEの入口に止め木がある（if で本当に分かれている）',
+   /if\s*\(\s*OOS_HONBU_LINE_OFF\s*\)/.test(hb));
+ok('⑩止め木は sendLineGroupMessage より【先】にある',
+   hb.search(/if\s*\(\s*OOS_HONBU_LINE_OFF\s*\)/) < hb.indexOf('sendLineGroupMessage'));
 
-/* 受注Ａから呼ばれる窓口のうち、本部LINEを出すのはここだけ（増えたら気づけるように数える） */
+/* のこす1本＝バサラの請求書。抜け道は1本だけ・使う場所も1か所だけ */
+ok('⑩のこす道がある（oosLineToHonbuAlways_）',
+   GAS.indexOf('function oosLineToHonbuAlways_(') >= 0);
+ok('⑩のこす道を使っているのは1か所だけ',
+   (GAS.match(/oosLineToHonbuAlways_\(/g) || []).length - 1 === 1,
+   '（増えていたら、止めたはずのお知らせが抜けています）');
+ok('⑩のこす道を使っているのは【バサラの請求書】',
+   /oosLineToHonbuAlways_\('🧾 '\+ym\+'分のバサラスター請求書/.test(GAS));
+ok('⑩のこす道には止め木を入れていない（請求書は止めない）',
+   bodyOf(GAS, 'oosLineToHonbuAlways_').indexOf('OOS_HONBU_LINE_OFF') < 0);
+
+/* 出口の数え上げ。増えたら「新しい抜け道ができた」合図 */
 /* いまの7か所：①🔔要対応（notifyPendingAction・2026-07-27から呼び出しはコメントアウト済み）
-   ②入荷のお知らせを送った（統合マスタＮ）③在庫がありません（受注Ａ・★ここを止めた）
-   ④臨時入庫の自動反映 ⑤発注書でキャンセル ⑥バサラから発注 ⑦バサラ請求書ができた */
+   ②バサラ取込の社内案内 ③入荷のお知らせを送った（統合マスタＮ）④在庫がありません（受注Ａ）
+   ⑤臨時入庫の自動反映 ⑥発注書でキャンセル ⑦バサラから発注（発注シートの受付） */
 ok('⑩本部LINEを出す場所は7か所のまま（増えたら新しい抜け道）',
    (GAS.match(/oosLineToHonbu_\(/g) || []).length - 1 === 7,
    '（いまは ' + ((GAS.match(/oosLineToHonbu_\(/g) || []).length - 1) + ' か所）');
 
+const zn = bodyOf(GAS, 'oosZaikoNashiSend');
+ok('⑩お客様へのメールは止めていない（在庫のご連絡は今までどおり出る）',
+   zn.indexOf('MailApp.sendEmail') >= 0 && zn.indexOf('oosLineToHonbu_') >= 0,
+   '（止めるのは本部への事後報告LINEだけです）');
+
+/* 本物の oosLineToHonbu_ を通して、受注Ａの「在庫がありません」を動かす */
 function ugokasuHonbu(off){
-  const honbu = [], nokoshi = [], mail = [];
+  const okuri = [], nokoshi = [], mail = [];
   const box = {
     console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean,
     Logger: { log(){} },
     NOTIFY_EMAIL: 'office@oliveoilstories.net',
     BASARA_STOCK_MAIL_NAME: '（株）オリーブオイル・ストーリーズ',
+    LINE_INTERNAL_GROUP_ID: 'Cb9f05779ceb4af80b6a33c626bb8ea83',
     Utilities: { formatDate(){ return '2026/09/13 23:00'; } },
     MailApp: { sendEmail(o){ mail.push(String(o.to)); } },
+    sendLineGroupMessage(text, to){ okuri.push([String(text), String(to)]); return { status:'ok', code:200 }; },
     oosZaikoNashiTo_(){ return { to:'hara@example.com', name:'バサラスター 原様' }; },
     oosZaikoNashiSent_(){ return false; },
     oosZaikoNashiBody_(){ return '本文'; },
     oosZaikoNashiLog_(){},
-    oosLineToHonbu_(t){ honbu.push(String(t)); },
     oosSoukoTomeLog_(kind, text){ nokoshi.push([String(kind), String(text)]); }
   };
   box.globalThis = box;
   const ctx = vm.createContext(box);
-  vm.runInContext('var OOS_JUCHUA_HONBU_LINE_OFF = ' + (off ? 'true' : 'false') + ';\n'
+  vm.runInContext('var OOS_HONBU_LINE_OFF = ' + (off ? 'true' : 'false') + ';\n'
+    + H.cut(GAS, 'oosLineToHonbu_') + '\n'
+    + H.cut(GAS, 'oosLineToHonbuAlways_') + '\n'
     + H.cut(GAS, 'oosZaikoNashiSend') + '\n'
-    + 'var __kotae = oosZaikoNashiSend({orderNum:"TK-20260913-1234", source:"basara", items:["オルガニック 250ml"], recipient:"ためし様"});', ctx);
-  return { honbu, nokoshi, mail, kotae: box.__kotae };
+    + 'var __kotae = oosZaikoNashiSend({orderNum:"TK-20260913-1234", source:"basara", items:["オルガニック 250ml"], recipient:"ためし様"});\n'
+    + 'var __seikyu = oosLineToHonbuAlways_("🧾 ためしの請求書ができました");', ctx);
+  return { okuri, nokoshi, mail, kotae: box.__kotae };
 }
 
 const H1 = ugokasuHonbu(true);
-ok('⑩【動かす】止めているとき、本部LINEは1通も出ない', H1.honbu.length === 0,
-   '（' + H1.honbu.length + '通 出てしまいました）');
-ok('⑩【動かす】止めたことは記録に残る', H1.nokoshi.length === 1);
+ok('⑩【動かす】止めているとき、受注Ａからの本部LINEは1通も出ない',
+   H1.okuri.filter(function(x){ return x[0].indexOf('在庫がありません') >= 0; }).length === 0,
+   '（出てしまいました）');
+ok('⑩【動かす】止めたことは記録に残る', H1.nokoshi.length === 1 && H1.nokoshi[0][0] === '本部LINE');
 ok('⑩【動かす】お客様への「在庫がありません」メールはちゃんと出る', H1.mail.length === 1);
 ok('⑩【動かす】画面には ok が返る（ボタンがエラーにならない）',
    !!(H1.kotae && H1.kotae.status === 'ok'));
+ok('⑩【動かす】止めていても【請求書の知らせ】はちゃんと本部へ飛ぶ',
+   H1.okuri.filter(function(x){ return x[0].indexOf('請求書') >= 0 &&
+     x[1] === 'Cb9f05779ceb4af80b6a33c626bb8ea83'; }).length === 1,
+   '（ひろみさん「請求書はのこし」）');
 
 const H2 = ugokasuHonbu(false);
-ok('⑩【動かす】再開（false）にすれば、本部LINEはちゃんと飛ぶ', H2.honbu.length === 1);
+ok('⑩【動かす】再開（false）にすれば、本部LINEはちゃんと飛ぶ',
+   H2.okuri.filter(function(x){ return x[0].indexOf('在庫がありません') >= 0; }).length === 1);
 
 /* ══════════════════════════════════════════════════════════════════════
    ⑨ 画面の文言（2026-09-13 ひろみさん指示「変えてください」）
