@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-01">
+<meta name="oos-version" content="2026-09-13-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1051,13 +1051,22 @@ function loadAllBilling(){
     }
     /* ★2026-09-13 受注が読めたかどうかを覚える（読めていないのに「ありません」と言わないため） */
     salesLoadState = (ordersRes && ordersRes.status==='ok' && ordersRes.data && Array.isArray(ordersRes.data.orders)) ? 'ok' : 'error';
-    renderInvoiceList();
-    renderPriceTable();
-    renderMonthlyList();
-    renderMonthlyClients();
-    setDefaultMonth();
-    renderRtIssuedList();
-    showSyncStatus('✅ データを読み込みました');
+    /* ★2026-09-13 ここは1つずつ描きます。
+       前は、1つの表で転ぶと【そこから下が描かれないまま】「⚠️接続エラー（オフライン？）」と
+       出ていました（通信は成功しているのに）。実際、月次請求の記録に金額の無いものが1件あって
+       毎回そこで転び、RT月次まとめの発行済み一覧まで描かれていませんでした。
+       ★どこで転んだかを必ず名前で出します（黙って握りつぶさない）。 */
+    var _koronda = [];
+    [['売上一覧', renderInvoiceList], ['価格表', renderPriceTable], ['卸月次まとめ', renderMonthlyList],
+     ['卸のお客様', renderMonthlyClients], ['対象年月', setDefaultMonth], ['RT月次まとめ', renderRtIssuedList]
+    ].forEach(function(x){
+      try{ x[1](); }catch(e){ _koronda.push(x[0]); console.error('売上Ｃ：' + x[0] + ' でつまずきました', e); }
+    });
+    if(_koronda.length){
+      showSyncStatus('⚠️ ' + _koronda.join('・') + ' が出せませんでした（ほかは出ています）', true);
+    } else {
+      showSyncStatus('✅ データを読み込みました');
+    }
   }).catch(function(){
     /* ★2026-09-13 受注がまだ1度も読めていないときだけ『読み込めませんでした』にする。
        （読んだあとで、別の表を描くところで転んだ場合まで『読めていない』と言わないため） */
@@ -1092,9 +1101,24 @@ function priceForSku(sku, customerType){
 }
 // この受注は「月次まとめ」対象か（RT・RTGC、または月次まとめ請求の会社として登録済みの相手＝バサラ等）
 // 対象なら売上一覧では入金チェックせず「月次まとめ予定」と表示。入金チェックはまとめタブの発行済み一覧で1枚ごとに行う。
+/* ══════════════════════════════════════════════════════════════════
+   ★2026-09-13 ひろみさん指示：バサラは【バサラのスプレッドシートで完結】します。
+   ひろみさんの言葉：「バサラも、入金の列、未入金ではなく【月次まとめ予定】に変えて。
+   　バサラ案件は、入金済チェックも【バサラスプシで完結】の表示にして。野々山さんもそれに合わせて」
+   （野々山さんの注文は BA- ではじまるバサラの注文です）
+   → 売上Ｃでは、バサラの入金チェックをしません。1ヶ月超未入金の赤いお知らせにも出しません。
+   ★請求と入金の管理はバサラ発注スプレッドシート側です。ここで二重に管理しないでください。
+   ══════════════════════════════════════════════════════════════════ */
+function isBasaraOrder(o){
+  if(!o) return false;
+  if(OOS_KAKAKU.isType(o.customerType, 'basara')) return true;   // 区分＝卸バサラスター（判定は親＝oos-kakaku.js）
+  if(o.source === 'basara') return true;            // バサラ発注シートから入った注文
+  return /^BA-/.test(String(o.num || ''));          // 注文番号が BA- ではじまる
+}
 function isMonthlyConsolidated(o){
   if(!o) return false;
   if(OOS_KAKAKU.isRt(o.customerType)) return true;
+  if(isBasaraOrder(o)) return true;                 /* ★2026-09-13 バサラも月次まとめ（バサラスプシ側） */
   if(typeof monthlyClients!=='undefined' && monthlyClients && monthlyClients.some(function(c){ return c && c.company && (o.client||'').indexOf(c.company) >= 0; })) return true;
   return false;
 }
@@ -1113,6 +1137,9 @@ function orderAmount(o){
 
 // ── 請求一覧 ────────────────────────────────────────────
 function isPaymentOverdueOneMonth(o){
+  /* ★2026-09-13 バサラは入金管理がバサラスプシ側なので、ここでは未入金として騒ぎません
+     （ひろみさん指示。野々山さんの BA- の注文が赤いお知らせに出ていました） */
+  if(isBasaraOrder(o)) return false;
   if(o.paymentConfirmed || !o.registeredAt) return false;
   const registered = new Date(o.registeredAt);
   const oneMonthLater = new Date(registered); oneMonthLater.setMonth(oneMonthLater.getMonth()+1);
@@ -1369,6 +1396,7 @@ function renderInvoiceList(){
     const amount = orderAmount(o);
     total += amount;
     const mm = isMonthlyConsolidated(o);
+    const bs = isBasaraOrder(o);   /* ★2026-09-13 バサラは「バサラスプシで完結」と出す */
     const payBadge = o.paymentMode==='prepay' ? '<span class="badge badge-prepay">先払い</span>' : o.paymentMode==='paid' ? '<span class="badge badge-paid">入金済み</span>' : '<span class="badge badge-postpay">後払い</span>';
     const overdue = isPaymentOverdueOneMonth(o);
     const effPaid = orderEffectivePaid(o);
@@ -1382,7 +1410,13 @@ function renderInvoiceList(){
       '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
       '<td>'+(mm?'<span style="font-size:11px;font-weight:700;color:#1f4a6d;background:#eef4fb;border:1px solid #93b4e0;border-radius:6px;padding:2px 7px;white-space:nowrap">月次まとめ予定</span>':paidBadge)+'</td>'+
       '<td><input type="text" class="billing-note-input" data-id="'+o.id+'" value="'+esc(o.billingNote||'')+'" placeholder="対応状況メモ" style="width:140px;padding:4px 6px;border:1px solid #d5cfc3;border-radius:4px;font-size:11px" onblur="saveBillingFields(\''+o.id+'\')"></td>'+
-      (mm ? '<td style="text-align:center"><span style="font-size:10px;color:#8a8578;white-space:nowrap" title="入金チェックは「卸月次まとめ→請求書作成」または「RT月次まとめ→請求書作成」タブの発行済み一覧で、請求書1枚ごとに行います">まとめ側で確認</span></td></tr>' : ('<td style="text-align:center"><input type="checkbox" '+(effPaid?'checked':'')+' onchange="setOrderPaid(\''+o.id+'\', this)" title="入金が済んだらチェック" style="width:26px;height:26px;accent-color:#6b7a3a;cursor:pointer;vertical-align:middle"></td></tr>'))+
+      (mm ? ('<td style="text-align:center"><span style="font-size:10px;color:#8a8578;white-space:nowrap" title="'
+        + (bs
+            ? 'バサラの請求と入金は、バサラ発注スプレッドシートで行います（売上Ｃではチェックしません）'
+            : '入金チェックは「卸月次まとめ→請求書作成」または「RT月次まとめ→請求書作成」タブの発行済み一覧で、請求書1枚ごとに行います')
+        + '">'
+        + (bs ? 'バサラスプシで完結' : 'まとめ側で確認')
+        + '</span></td></tr>') : ('<td style="text-align:center"><input type="checkbox" '+(effPaid?'checked':'')+' onchange="setOrderPaid(\''+o.id+'\', this)" title="入金が済んだらチェック" style="width:26px;height:26px;accent-color:#6b7a3a;cursor:pointer;vertical-align:middle"></td></tr>'))+
       '<tr class="order-detail-row" data-id="'+o.id+'" style="display:none"><td colspan="9" style="padding:0 6px 8px">'+buildOrderDetailHtml(o)+'</td></tr>';
   }).join('') || salesEmptyRow();
 
@@ -3703,6 +3737,51 @@ function runRtMonthly(){
   renderRtMonthlyPreview();
   var pv=document.getElementById('rtmonthly-preview'); if(pv) pv.scrollIntoView({behavior:'smooth'});
 }
+/* ══════════════════════════════════════════════════════════════════
+   ★2026-09-13 ひろみさん指示：RTの月次まとめは【全施設まとめて1枚】（今までどおり）に加えて、
+   その明細として【施設ごとの月次まとめ】も出す。
+   ひろみさんの言葉：「その時に必要な項目は、最低限で良い。発注日、施設名、金額、伝票番号くらいかな？」
+   → 列はその4つだけ。金額の大きい施設から並べます。
+   ★施設ごとの合計を足したものは、上のご請求金額と必ず同じになります（同じ rows から作るため）。
+   ★請求書（PDF）は今までどおりです。ここは画面の内訳です。
+   ══════════════════════════════════════════════════════════════════ */
+function rtmByFacility(rows){
+  var map = {}, order = [];
+  (rows || []).forEach(function(r){
+    var fac = String((r && r.facility) || '').trim() || '（施設名なし）';
+    if(!map[fac]){ map[fac] = { facility: fac, rows: [], total: 0 }; order.push(fac); }
+    map[fac].rows.push(r);
+    map[fac].total += (r.amount || 0);
+  });
+  order.sort(function(a, b){ return map[b].total - map[a].total; });   // 金額の大きい施設から
+  return order.map(function(f){ return map[f]; });
+}
+function rtmFacilityHtml(inv){
+  var groups = rtmByFacility(inv && inv.rows);
+  if(!groups.length) return '';
+  var sum = groups.reduce(function(t, g){ return t + g.total; }, 0);
+  var body = groups.map(function(g){
+    var trs = g.rows.map(function(r){
+      return '<tr><td>' + esc(r.orderDate) + '</td><td>' + esc(r.facility) + '</td>'
+           + '<td style="text-align:right">¥' + (r.amount || 0).toLocaleString() + '</td>'
+           + '<td style="font-family:Consolas,monospace">' + esc(r.mgmtNo) + '</td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:12px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;background:#eef2e0;border-radius:7px;padding:5px 10px;font-size:13px;font-weight:800;color:#33421f">'
+      +   '<span>🏨 ' + esc(g.facility) + '</span>'
+      +   '<span>' + g.rows.length + '件　¥' + g.total.toLocaleString() + '</span>'
+      + '</div>'
+      + '<div class="tbl-wrap"><table style="font-size:12px"><thead><tr><th>発注日</th><th>施設名</th>'
+      + '<th style="text-align:right">金額（税込）</th><th>伝票番号</th></tr></thead><tbody>' + trs + '</tbody></table></div>'
+      + '</div>';
+  }).join('');
+  return '<div style="margin-top:16px;border-top:1px dashed #b7b1a5;padding-top:12px">'
+    + '<div style="font-size:13.5px;font-weight:800;color:#33421f;margin-bottom:4px">📋 施設ごとの月次まとめ（明細）</div>'
+    + '<div style="font-size:12px;color:#5f5e5a;margin-bottom:9px">ご請求は上のとおり<b>全施設まとめて1枚</b>です。こちらはその中身（施設ごと）です。</div>'
+    + body
+    + '<div style="text-align:right;font-size:13px;font-weight:800;color:#3b4a12">施設ごとの合計　¥' + sum.toLocaleString() + '（上のご請求金額と同じです）</div>'
+    + '</div>';
+}
 function renderRtMonthlyPreview(){
   var ctx=_rtMonthlyCtx, area=document.getElementById('rtmonthly-preview'); if(!area) return;
   if(!ctx){ area.innerHTML=''; return; }
@@ -3741,6 +3820,9 @@ function renderRtMonthlyPreview(){
       +'<div class="tbl-wrap"><table><thead><tr><th>管理番号（伝票番号）</th><th>受注日</th><th>施設</th><th style="text-align:right">金額（税込）</th></tr></thead><tbody>'+trs
         +'<tr style="background:#eef2e0"><td colspan="3" style="font-weight:800">合計</td><td style="text-align:right;font-weight:800">¥'+total.toLocaleString()+'</td></tr>'
       +'</tbody></table></div>'
+      /* ★2026-09-13 RT（ホテル）＝まとめて1枚のときだけ、施設ごとの明細を下に出す。
+         ゴルフ（RTGC）は、もともと1施設で1枚なので出しません（同じ表が2回出るため）。 */
+      +(inv.kind==='rt' ? rtmFacilityHtml(inv) : '')
       +'<div style="margin-top:14px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px">'+'<div style="flex:0 0 auto"><label style="display:block;font-size:12px;font-weight:700;color:#2b2a26;margin-bottom:4px">請求書番号（自動でRT番号が入ります。ここで書き直せます）</label>'+'<input id="rtm-num-'+idx+'" type="text" value="'+esc(inv.invoiceNumber)+'" style="font-size:16px;font-weight:700;color:#2b2a26;padding:8px 10px;border:2px solid #6b7a3a;border-radius:8px;width:230px"></div>'+'<button class="btn btn-primary" onclick="rtmMakePdf('+idx+')" style="font-size:15px;font-weight:800">\ud83d\udcc4 この番号で請求書をPDFにする（ダウンロード）</button>'+'<button class="btn" onclick="rtmIssueInvoice('+idx+')" style="font-size:14px;font-weight:800;background:#2f6d3a;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer">📌 発行済みに記録（入金チェック用）</button>'+'</div>'
     +'</div>';
   });
@@ -4093,8 +4175,13 @@ function renderMonthlyList(){
   const sorted = monthlyInvoices.filter(function(r){ return !(r&&(r.kind==='rt'||r.kind==='rtgc')); }).slice().sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
   listEl.innerHTML = sorted.map(function(r){
     const paidBadge = r.paid ? '<span class="badge badge-paid">入金済み</span>' : '<span class="badge badge-unpaid">未入金</span>';
+    /* ★2026-09-13 金額が入っていない記録が1件あると、ここで転んで【この表から下が全部】
+       描けなくなっていました（画面には「接続エラー」とだけ出ていました）。
+       金額が無いときは「—（金額なし）」と出して、先へ進みます。 */
+    var _amt = (r.billTotal != null ? r.billTotal : r.total);
+    var _amtTxt = (_amt == null || isNaN(Number(_amt))) ? '—（金額なし）' : ('¥' + Number(_amt).toLocaleString());
     return '<div class="card" style="padding:10px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-      + '<div><strong>'+esc(r.client)+'</strong>　'+esc(r.yearMonth)+' 月分　ご請求 ¥'+((r.billTotal!=null?r.billTotal:r.total)).toLocaleString()+'　'+paidBadge+(r.mgmtNo?'<span style="font-size:11px;color:#888;margin-left:6px">請求番号 '+esc(r.mgmtNo)+'</span>':'')+'</div>'
+      + '<div><strong>'+esc(r.client)+'</strong>　'+esc(r.yearMonth)+' 月分　ご請求 '+_amtTxt+'　'+paidBadge+(r.mgmtNo?'<span style="font-size:11px;color:#888;margin-left:6px">請求番号 '+esc(r.mgmtNo)+'</span>':'')+'</div>'
       + '<div><button class="btn-sm" onclick="toggleMonthlyPaid(\''+r.id+'\')">'+(r.paid?'未入金に戻す':'入金済みにする')+'</button></div>'
       + '</div></div>';
   }).join('');

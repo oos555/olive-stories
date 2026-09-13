@@ -31,9 +31,11 @@ function makeDom(){
              appendChild(){}, classList:{ add(){}, remove(){}, toggle(){} },
              parentNode:{ insertBefore(n){ made[n.id]=n; } }, nextSibling:null };
   }
-  const bar = el('alert-bar');
+  /* ★2026-09-13 アラートは #alert-garden（1つの箱）に描かれる。この2つは必ず在るものとして返す */
+  made['alert-bar'] = el('alert-bar');
+  made['alert-garden'] = el('alert-garden');
   return { made:made,
-    getElementById(id){ if(id==='alert-bar') return bar; return made[id] || null; },
+    getElementById(id){ return made[id] || null; },
     createElement(){ const n = el('');
       return new Proxy(n, { set(t,k,v){ t[k]=v; if(k==='id') made[v]=t; return true; } }); },
     querySelectorAll(){ return []; }, querySelector(){ return null; },
@@ -44,6 +46,10 @@ function build(){
   const dom = makeDom();
   const { box, ctx } = H.makeSandbox({ document: dom, GAS_URL:'x', location:{ search:'' } });
   vm.runInContext(H.cutVar(src, 'OOS_MIHARI'), ctx);
+  /* alertEsc は中に正規表現があり共通の切り出し器が使えないので、その1行を丸ごと取る（本物のまま） */
+  const escLine = src.match(/function alertEsc\(s\)\{[^\n]*/);
+  if(!escLine) throw new Error('関数が見つからない: alertEsc');
+  vm.runInContext(escLine[0], ctx);
   ['renderMihari','oosGenkanSelfCheck','oosGenkanAlarm'].forEach(n => vm.runInContext(H.cut(src, n), ctx));
   vm.runInContext('window.__oosMihariCount = {};', ctx);
   vm.runInContext('function renderAlerts(){}', ctx);
@@ -56,19 +62,20 @@ function build(){
 let { box, dom, ctx } = build();
 eq('① 見張っているものの数', box.OOS_MIHARI.length, 2);   /* ★2026-09-13 ひろみさん指示で2つ。勝手に増やさない・減らさない */
 box.renderMihari();
-const html = (dom.made['oos-mihari'] || {}).innerHTML || '';
+const html = (dom.made['alert-garden'] || {}).innerHTML || '';
 eq('① 一覧が画面に作られる', html.length > 0, true);
 eq('① 「取り置き期限が過ぎている」が載っている', html.indexOf('取り置き期限が過ぎている') >= 0, true);
 eq('① 「支払期限ごえ」が載っている', html.indexOf('支払期限ごえ') >= 0, true);
 eq('① まだ数えていないものは「確認中…」と出る', html.indexOf('確認中…') >= 0, true);
 eq('① 「ここに書いていないものは見張っていません」と断っている', html.indexOf('見張っていません') >= 0, true);
-eq('① 見出しの数もあっている', html.indexOf('いま見張っているもの（2個）') >= 0, true);
+eq('① 箱の名前が出ている', html.indexOf('🌿 アラートガーデン') >= 0, true);
+eq('① 見張っている数もそえてある', html.indexOf('いま 2個') >= 0, true);
 
 /* ── ② 0件でも「0件」と出す（＝安心の根拠になる）───────── */
 ({ box, dom, ctx } = build());
 box.window.__oosMihariCount = { holdOver:0, overdue:0 };
 box.renderMihari();
-const h2 = (dom.made['oos-mihari'] || {}).innerHTML || '';
+const h2 = (dom.made['alert-garden'] || {}).innerHTML || '';
 eq('② 0件のときも「0件」と数字が出る', (h2.match(/0件/g)||[]).length >= 2, true);
 eq('② 「確認中…」は消えている', h2.indexOf('確認中…') < 0, true);
 
@@ -76,9 +83,13 @@ eq('② 「確認中…」は消えている', h2.indexOf('確認中…') < 0, t
 ({ box, dom, ctx } = build());
 box.window.__oosMihariCount = { holdOver:2, overdue:0 };
 box.renderMihari();
-const h3 = (dom.made['oos-mihari'] || {}).innerHTML || '';
+const h3 = (dom.made['alert-garden'] || {}).innerHTML || '';
 eq('③ 2件と出る', h3.indexOf('2件') >= 0, true);
 eq('③ 赤で出る', h3.indexOf('#b91c1c') >= 0, true);
+eq('③ 件数があるときだけ「開く →」を出す', h3.indexOf('開く →') >= 0, true);
+eq('③ 上に「やること 2 件」と出る', h3.indexOf('やること 2 件') >= 0, true);
+/* 0件のときは「開く →」を出さない（押しても何も無い所へ飛ばさない） */
+eq('③ 0件の行には「開く →」を出さない', (h3.match(/開く →/g)||[]).length, 1);
 
 /* ── ④ 自己点検：正しいときは違反ゼロ ───────────────── */
 ({ box, dom, ctx } = build());
@@ -130,9 +141,17 @@ eq('⑦ 支払期限の係が消えても気づく', v.some(function(s){ return 
   eq('⑧ 見本に賞味期限が残っていない', src.indexOf("label:'⏳ 賞味期限まで残り8か月を切った商品'") < 0, true);
   eq('⑧ 見本に送り状No.が残っていない', src.indexOf("label:'📮 発送したのに送り状No.が入っていない'") < 0, true);
   /* 説明書（なぜ光るの？）も、本当のことだけ書いてある */
-  eq('⑧ 説明書が「2つ」になっている', src.indexOf('✅ もう見張っているアラート（2つ）') >= 0, true);
-  eq('⑧ 説明書に、外した理由（ひろみさんの言葉）が残っている',
-     src.indexOf('アラートが多すぎて、更新にとても時間がかかって待てない') >= 0, true);
+  /* ★2026-09-13 ひろみさん指示（第2弾）：説明書は枠ごと廃止／「アラートはありません」も廃止／
+     見張っているもの＝アラートで、1つの箱にまとめる。★元に戻さないでください。 */
+  eq('⑧ 説明書（なぜ光るの？）は枠ごと無い', src.indexOf('garden-guide') < 0, true);
+  eq('⑧ 「今のところ アラートはありません」は無い',
+     src.indexOf('今のところ アラートはありません') < 0, true);
+  eq('⑧ 「しずかなお庭」は無い', src.indexOf('garden-quiet') < 0, true);
+  eq('⑧ たたむボタン（やることの帯）は無い', src.indexOf('alert-bar-btn') < 0, true);
+  eq('⑧ 別の白い箱（見張り一覧）に分かれていない', src.indexOf("id = 'oos-mihari'") < 0, true);
+  eq('⑧ アラートは1つの箱（#alert-garden）に描く',
+     src.indexOf("var g = document.getElementById('alert-garden');") >= 0, true);
+  eq('⑧ 箱はいつも玄関に居る（消さない）', src.indexOf("bar.style.display = 'block'") >= 0, true);
 })();
 
 /* ══════ ⑨ 在庫Ｂ（stock.html）は、ならびから隠したまま ══════

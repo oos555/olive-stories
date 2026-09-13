@@ -24,7 +24,9 @@ const NAMES = ['findProduct', 'findProductBySku', 'defaultTaxRateForGroup', 'eff
   'lineTierType', 'priceForSku', 'taxRateForSku', 'orderAmount',
   'salesWasSentToWarehouse', 'salesExcludeReason', 'isSalesListTarget',
   'isRtOrder', 'rtSlipNoOf', 'salesDupKey', 'findSalesDuplicates', 'salesDupIds',
-  'renderSalesDupAlert', 'renderSalesHiddenList'];
+  'renderSalesDupAlert', 'renderSalesHiddenList',
+  /* ★2026-09-13 バサラの扱い（ひろみさん指示） */
+  'isBasaraOrder', 'isMonthlyConsolidated', 'isPaymentOverdueOneMonth'];
 let code = '';
 VARS.forEach(n => { code += H.cutVar(src, n) + '\n'; });
 NAMES.forEach(n => { code += H.cut(src, n) + '\n'; });
@@ -186,6 +188,31 @@ eq('⑦ 判定 isSalesListTarget は1回だけ定義',
   inc('⑧ 読めたときだけ数字を出す', src, "const _loadingNow = (salesLoadState !== 'ok');", true);
   inc('⑧ 読み込み中は「今月の購入」も「…」', src, "_setTxt('s-month-count', _loadingNow ? '…' : mCount+'件');", true);
   inc('⑧ 読み込み中は「未入金」も「…」', src, "_setTxt('s-unpaid-all', _loadingNow ? '…' : unpaidAllCount+'件');", true);
+})();
+
+/* ══ ⑨ バサラは【バサラスプシで完結】（2026-09-13 ひろみさん指示）═══════════
+   ひろみさんの言葉：「バサラも、入金の列、未入金ではなく【月次まとめ予定】に変えて。
+   　バサラ案件は、入金済チェックも【バサラスプシで完結】の表示にして。野々山さんもそれに合わせて」
+   ★売上Ｃでバサラの入金チェックをしない・1ヶ月超未入金の赤いお知らせにも出さない。 */
+(function(){
+  var B = box.isBasaraOrder, M = box.isMonthlyConsolidated, O = box.isPaymentOverdueOneMonth;
+  eq('⑨ 区分が卸バサラスターならバサラ', B({ customerType:'basara' }), true);
+  eq('⑨ 日本語の区分でもバサラ',         B({ customerType:'卸バサラスター' }), true);
+  eq('⑨ 注文番号が BA- でもバサラ',      B({ num:'BA-20260812-7735' }), true);
+  eq('⑨ バサラ発注シートから来た注文もバサラ', B({ source:'basara' }), true);
+  eq('⑨ RTはバサラではない',             B({ customerType:'rt', num:'RT-20260904-4150' }), false);
+  eq('⑨ 定価はバサラではない',           B({ customerType:'general', num:'TK-20260827-002' }), false);
+  eq('⑨ バサラは「月次まとめ予定」側',   M({ customerType:'basara' }), true);
+  eq('⑨ RTも今までどおり「月次まとめ予定」側', M({ customerType:'rt' }), true);
+  eq('⑨ 定価は今までどおりチェック側',   M({ customerType:'general' }), false);
+  /* 野々山さん（BA-）が、1ヶ月超未入金の赤いお知らせに出ない */
+  var nonoyama = { num:'BA-20260812-7735', registeredAt:'2026-08-12T10:00:00Z', paymentConfirmed:false };
+  eq('⑨ 野々山さん（BA-）は1ヶ月超未入金に出さない', O(nonoyama), false);
+  var ippan = { num:'TK-20260812-1111', registeredAt:'2026-08-12T10:00:00Z', paymentConfirmed:false };
+  eq('⑨ バサラ以外は今までどおり出す', O(ippan), true);
+  /* 画面の文言（入金済みチェックの列） */
+  inc('⑨ 「バサラスプシで完結」と出す', src, 'バサラスプシで完結', true);
+  inc('⑨ まとめ側で確認（RT・卸）も残っている', src, 'まとめ側で確認', true);
 })();
 
 console.log('===== 売上一覧に載せるタイミング =====');

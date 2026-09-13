@@ -45,7 +45,9 @@ const NAMES = ['findProduct', 'findProductBySku', 'defaultTaxRateForGroup', 'eff
   'lineTierType', 'priceForSku', 'taxRateForSku', 'orderAmount',
   'salesWasSentToWarehouse', 'salesExcludeReason', 'isSalesListTarget',
   'normCtype', 'normOrdersCtype',
-  'rtmSetDefaultMonth', 'rtmRow', 'makeRtInvoiceNumber', 'runRtMonthly', 'renderRtMonthlyPreview'];
+  'rtmSetDefaultMonth', 'rtmRow', 'makeRtInvoiceNumber', 'runRtMonthly', 'renderRtMonthlyPreview',
+  /* ★2026-09-13 施設ごとの明細（ひろみさん指示） */
+  'rtmByFacility', 'rtmFacilityHtml'];
 let code = 'var _rtMonthlyCtx = null;\n';
 VARS.forEach(function(n){ code += H.cutVar(src, n) + '\n'; });
 NAMES.forEach(function(n){ code += H.cut(src, n) + '\n'; });
@@ -146,6 +148,33 @@ eq('⑤ 「notified || shippedAt」を他所に書き写していない',
    (src.match(/o\.notified \|\| o\.shippedAt/g) || []).length, 1);
 inc('⑤ 古い絞り（キャンセル以外ぜんぶ）に戻っていない', src,
     "return o && o.status!=='cancelled' && String(o.registeredAt||'').slice(0,7)===ym;", false);
+
+/* ══ ⑥ 施設ごとの月次まとめ（明細）══════════════════════════
+   ★2026-09-13 ひろみさん指示：
+   「RTの月次とりまとめは、その月に購入があったRT全施設のとりまとめ（今のやりかた）に加え、
+   　それの明細として、各施設ごとの月次とりまとめも出してほしい。
+   　その時に必要な項目は、最低限で良い。発注日、施設名、金額、伝票番号くらいかな？」
+   ★4つの列を勝手に増やさないでください。 */
+const ROWS = [
+  { mgmtNo:'RT-A1', orderDate:'2026-09-01', facility:'エクシブ鳴門', amount:1000 },
+  { mgmtNo:'RT-B1', orderDate:'2026-09-02', facility:'エクシブ京都', amount:3000 },
+  { mgmtNo:'RT-A2', orderDate:'2026-09-05', facility:'エクシブ鳴門', amount:500 }
+];
+const G = box.rtmByFacility(ROWS);
+eq('⑥ 施設ごとにまとまる', G.length, 2);
+eq('⑥ 金額の大きい施設から並ぶ', G[0].facility, 'エクシブ京都');
+eq('⑥ 施設の合計が正しい', G[1].total, 1500);
+eq('⑥ 施設ごとの合計を足すと、まとめの合計と同じ', G.reduce(function(t,x){ return t+x.total; }, 0), 4500);
+const FH = box.rtmFacilityHtml({ kind:'rt', rows:ROWS });
+inc('⑥ 見出しが出る', FH, '施設ごとの月次まとめ（明細）', true);
+['発注日','施設名','金額（税込）','伝票番号'].forEach(function(col){
+  inc('⑥ 列「'+col+'」がある', FH, col, true);
+});
+inc('⑥ 伝票番号がそのまま出る', FH, 'RT-A2', true);
+inc('⑥ 施設ごとの合計が、上のご請求金額と同じだと書いてある', FH, '上のご請求金額と同じです', true);
+eq('⑥ 列は4つだけ（勝手に増やさない）', (FH.match(/<th[ >]/g)||[]).length, 8);   /* 2施設ぶん × 4列 */
+inc('⑥ RT（ホテル）のカードに明細が出る', out, '施設ごとの月次まとめ（明細）', true);
+eq('⑥ ゴルフ（もともと1施設1枚）には出さない', (out.match(/施設ごとの月次まとめ（明細）/g)||[]).length, 1);
 
 console.log('===== RT月次まとめ「この月の分を集計する」=====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
