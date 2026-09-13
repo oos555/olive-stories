@@ -72,6 +72,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .rk-sk{background:#fff;border:1.5px solid #d5cfc3;color:#8a8578;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer}
 .rk-wh{background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 0 #04913f}
 .rk-wh:disabled{background:#d5d1c8;color:#8a8578;box-shadow:none;cursor:not-allowed}
+/* ══════════════════════════════════════════════════════════════════
+   🧭 流れバー（承認モック mocks/mock_nagare_botan_2026-09-13.html）
+   ひろみさん：「今どこなのか、このあと何をするのか、を見えるかしながら、
+   　これ自体がボタンになっていく」
+   ★色の決まり：いまここ＝紺（登録は緑）／済み＝うすい緑に✅／まだ＝白／押せない＝グレー
+   ══════════════════════════════════════════════════════════════════ */
+.nagare{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.ncol{flex:1;min-width:250px;border-radius:12px;padding:9px 10px 11px}
+.ncol.app{background:#f2f6ea;border:1.5px solid #c3d3a3}
+.ncol.sheet{background:#eef2f8;border:1.5px solid #a9c0dd;flex:0 1 250px}
+.nhead{font-size:12px;font-weight:800;letter-spacing:.08em;margin-bottom:7px}
+.ncol.app .nhead{color:#4a5a1f}
+.ncol.sheet .nhead{color:#1f4a6d}
+.st{display:block;width:100%;text-align:left;border-radius:9px;padding:11px 12px;margin-bottom:7px;
+  font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;border:1.5px solid transparent;line-height:1.5}
+.st:last-child{margin-bottom:0}
+.st .no{display:inline-block;min-width:22px}
+.st .sub{display:block;font-weight:600;font-size:11.5px;margin-top:2px;opacity:.85}
+.st-now{background:#0c447c;color:#fff;box-shadow:0 3px 0 #072c52}
+.st-now-g{background:#166534;color:#fff;box-shadow:0 3px 0 #0d4523}
+.st-now-b{background:#1f4a6d;color:#fff;box-shadow:0 3px 0 #143a5a}
+.st-done{background:#eef7ea;color:#166534;border-color:#86c096;cursor:pointer}
+.st-yet{background:#fff;color:#57534e;border-color:#ddd8cc;cursor:default}
+.st-lock{background:#f3f0e8;color:#a9a49a;border-color:#e5e0d6;cursor:not-allowed}
+.st .ima{display:inline-block;background:#fff;color:#0c447c;border-radius:99px;font-size:10.5px;
+  font-weight:800;padding:1px 8px;margin-left:6px;vertical-align:middle}
+.st-now-g .ima{color:#166534}
+.st-now-b .ima{color:#1f4a6d}
 /* ★2026-09-13 承認モック：発注書にPDFを貼る大きいボタン（幅いっぱい・紺） */
 .doc-hari-big{display:block;width:100%;background:#0c447c;color:#fff;border:none;border-radius:9px;
   font-size:16px;font-weight:800;padding:15px 16px;margin-top:9px;cursor:pointer;
@@ -421,7 +449,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-05">
+<meta name="oos-version" content="2026-09-13-06">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -711,9 +739,15 @@ body{background:#fff}
            ★このボタンを消さないでください。
            見張り：tests/test_ikisaki.js の ㉒ -->
       <div id="doc-check-mae" style="display:none;margin-top:12px"></div>
-      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-        <button class="btn btn-green" onclick="registerOrder()">受注一覧に登録する</button>
-        <button class="btn" style="background:#0c447c;color:#fff;border:none" onclick="docMaeMiru()">📄 書類（PDF）を見て確かめる</button>
+      <!-- ══════════════════════════════════════════════════════════════
+           🧭 流れバー（承認モック mocks/mock_nagare_botan_2026-09-13.html）
+           ★2026-09-13 ひろみさん：「受注一覧に送る前にPDFを必ず目視で確認させたい」
+           　①②…書類を見て確認 → ③受注一覧に登録する → ④PDFをスプシに貼る
+           　⑤倉庫に発送許可を出す（A列を🔵）＝スプシで
+           ★［受注一覧に登録する］は、この中の③です。①②を見るまで押せません。
+           ★バラバラのボタンに戻さないでください。 -->
+      <div id="nagare-mae"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
       <!-- ══════════════════════════════════════════════════════════════
@@ -4749,6 +4783,10 @@ function previewOrder(){
     document.getElementById('confirm-content').innerHTML = html;
     document.getElementById('confirm-area').style.display = 'block';
     document.getElementById('confirm-area').scrollIntoView({behavior:'smooth'});
+    /* ★2026-09-13 流れバーを描く（承認モック）。window._pendingOrders は下で入れるので、
+       　ここでは list をそのまま渡します。 */
+    window._pendingOrders = list;
+    if(typeof nagareMaeRender === 'function') nagareMaeRender();
     if(window._rtExtraDoc && window._rtExtraDoc.url){ list.forEach(function(oo){ oo.extraDocUrl=window._rtExtraDoc.url; oo.extraDocName=window._rtExtraDoc.name||''; }); }
     window._pendingOrders = list;
   }catch(err){
@@ -4864,6 +4902,23 @@ function oosShippai(doko, e){
 function registerOrder(){
   const list = window._pendingOrders;
   if(!list || !list.length) return;
+  /* ★2026-09-13 ひろみさん：「受注一覧に送る前にPDFを必ず目視で確認させたい」
+     　流れバーの③はロックしていますが、ほかの道から呼ばれても止まるように、ここでも見ます。
+     ★この止めを外さないでください。 */
+  if(typeof OOS_NOUHIN !== 'undefined'){
+    var _mi = [];
+    list.forEach(function(o){
+      (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){
+        if(!docKakuninKa(o, mei)) _mi.push(mei);
+      });
+    });
+    if(_mi.length){
+      alert('📄 先に書類（PDF）を見て確かめてください。\n\nまだ見ていない書類：' + _mi.join('・')
+        + '\n\n上の流れの【添付書類◯ を見て確認】を押すと開きます。');
+      if(typeof nagareMaeRender === 'function') nagareMaeRender();
+      return;
+    }
+  }
   /* ★RTの伝票取込の注文は、先にその施設の🔒残高から自動で切り出す（2026-09-04・上の関数） */
   try{ rtSlipAutoCut(list); }catch(eRt){ oosShippai('RTの残高の切り出し', eRt); }
   // ⑤ 在庫超過の警告（必須）：通常出荷・取り置きで正規在庫が足りない時は、必ず確認をはさむ。
@@ -4953,10 +5008,9 @@ function registerOrder(){
   /* ★2026-09-12 登録したあと、書類を画面に出して見ていただきます（ひろみさん指示）。
      　発注書に行が出来てから（＝ふだが付いてから）でないと貼れないので、少し待ちます。
      ★この1かたまりを消さないでください。消すと、書類が貼られないまま気づけなくなります。 */
-  try{
-    var _docList = list.slice();
-    setTimeout(function(){ if(typeof docCheckStart === "function") docCheckStart(_docList); }, 2500);
-  }catch(_ed){ oosShippai('書類の確認画面を出すところ', _ed); }
+  /* ★2026-09-13 承認モック：書類を見るのは【登録の前】になりました。
+     　登録したあとに自動で出すのはやめます（同じものを2回見ることになるため）。
+     ★ここに docCheckStart を戻さないでください。 */
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
@@ -8550,6 +8604,107 @@ function docHareteruKa(o, mei){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   🧭 流れがそのままボタン　★2026-09-13 承認モック
+   　mocks/mock_nagare_botan_2026-09-13.html（ひろみさんOK）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「受注内容の確認では、受注一覧に送る前にPDFを必ず目視で確認させたい。
+   　… 今どこなのか、このあと何をするのか、を見えるかしながら、
+   　これ自体がボタンになっていく」
+
+   アプリ内 ： ①② 書類を見て確認 → ③ 受注一覧に登録する → ④ PDFをスプシに貼る
+   スプシで対応： ⑤ 倉庫に発送許可を出す（A列を🔵）
+
+   ★①②を見るまで③は押せません（ひろみさんOK）
+   ★④は書類が何枚でも【ボタン1つ】でまとめて貼ります（ひろみさんOK）
+   ★⑤は発注書スプシを開くだけ。アプリから🔵にはしません（ひろみさんOK）
+   ★バラバラのボタンに戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+var OOS_HACCHUSHO_URL = 'https://docs.google.com/spreadsheets/d/1Y3227lo1uMbQuxGVLD65lacqVRa7M5FVRjF9Gh_wL7k/edit?gid=322782705#gid=322782705';
+function nagareSt(cls, no, midashi, sub, onclick){
+  var ima = (cls.indexOf('st-now') === 0) ? '<span class="ima">いまここ</span>' : '';
+  var at  = onclick ? (' onclick="' + onclick + '"') : ' disabled';
+  return '<button type="button" class="st ' + cls + '"' + at + '>'
+       + '<span class="no">' + no + '</span>' + midashi + ima
+       + '<span class="sub">' + sub + '</span></button>';
+}
+function nagareWaku(app, sheet){
+  return '<div class="nagare"><div class="ncol app"><div class="nhead">アプリ内</div>' + app + '</div>'
+       + '<div class="ncol sheet"><div class="nhead">スプシで対応</div>' + sheet + '</div></div>';
+}
+/* ── 登録する前（受注内容の確認）の流れバー ── */
+function nagareMaeRender(){
+  var box = document.getElementById('nagare-mae'); if(!box) return;
+  var list = (window._pendingOrders || []);
+  var kumi = [];
+  list.forEach(function(o){
+    if(typeof OOS_NOUHIN === 'undefined') return;
+    (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){ kumi.push({ o:o, mei:mei }); });
+  });
+  var app = '', tsugi = -1;
+  kumi.forEach(function(q, i){ if(tsugi < 0 && !docKakuninKa(q.o, q.mei)) tsugi = i; });
+  kumi.forEach(function(q, i){
+    var no = DOC_MARU[i] || ('（' + (i+1) + '）');
+    var na = '添付書類' + no + '　' + esc(q.mei) + ' を見て確認';
+    if(docKakuninKa(q.o, q.mei)){
+      app += nagareSt('st-done', '✅', na, '確認しました（もう一度見る）', 'docMaeMiru(' + i + ')');
+    } else if(i === tsugi){
+      app += nagareSt('st-now', no, na, '押すとPDFが開きます', 'docMaeMiru(' + i + ')');
+    } else {
+      app += nagareSt('st-yet', no, na, '前の書類を見てから開きます', '');
+    }
+  });
+  var zenbu = (tsugi < 0);
+  app += zenbu
+    ? nagareSt('st-now-g', '③', '受注一覧に登録する',
+        '押すと受注一覧と発注書スプシに入ります（倉庫へはまだ行きません）', 'registerOrder()')
+    : nagareSt('st-lock', '③', '受注一覧に登録する', '上の書類を見てからでないと押せません', '');
+  app += nagareSt('st-lock', '④', 'PDFをスプシに貼る', '登録したあとに押せます', '');
+  var sheet = nagareSt('st-lock', '⑤', '倉庫に発送許可を出す（A列を🔵）', 'ここではじめて倉庫へ連絡が行きます', '');
+  box.innerHTML = nagareWaku(app, sheet)
+    + '<div style="font-size:12px;color:#83857a">★書類を見終わるまで、③は押せません（必ず目で見ていただくためです）。'
+    + '<br>★中身がちがっていたら［修正する］で直してください。まだ登録していないので、取り消しは要りません。</div>';
+}
+/* ── 受注一覧のカードの流れバー ── */
+function nagareCardHtml(o){
+  if(!o || typeof OOS_NOUHIN === 'undefined') return '';
+  var meis = OOS_NOUHIN.shoruiList(o) || [];
+  var app = '', tsugi = -1;
+  meis.forEach(function(mei, i){
+    if(tsugi < 0 && !docHareteruKa(o, mei) && !docKakuninKa(o, mei)) tsugi = i;
+  });
+  meis.forEach(function(mei, i){
+    var no = DOC_MARU[i] || ('（' + (i+1) + '）');
+    var na = '添付書類' + no + '　' + esc(mei);
+    if(docHareteruKa(o, mei)){
+      app += nagareSt('st-done', '✅', na + ' を見て確認', '発注書に貼りました', 'docCheckOne(\'' + o.id + '\')');
+    } else if(docKakuninKa(o, mei)){
+      app += nagareSt('st-done', '✅', na + ' を見て確認', '確認しました（もう一度見る）', 'docCheckOne(\'' + o.id + '\')');
+    } else if(i === tsugi){
+      app += nagareSt('st-now', no, na + ' を見て確認', '押すとPDFが開きます', 'docCheckOne(\'' + o.id + '\')');
+    } else {
+      app += nagareSt('st-yet', no, na + ' を見て確認', '前の書類を見てから開きます', '');
+    }
+  });
+  app += nagareSt('st-done', '✅', '受注一覧に登録する', '受注一覧と発注書スプシに入りました', '');
+  var zenbuHatta = docZenbuHattaKa(o);
+  var zenbuMita = meis.every(function(m){ return docHareteruKa(o, m) || docKakuninKa(o, m); });
+  if(!meis.length || zenbuHatta){
+    app += nagareSt('st-done', '✅', 'PDFをスプシに貼る', (meis.length ? '発注書のV列に貼りました' : '金額の載る書類はありません'), '');
+  } else if(zenbuMita){
+    app += nagareSt('st-now', '④', 'PDFをスプシに貼る',
+      '押すと' + meis.length + '枚とも発注書のV列に貼ります', 'docHariZenbu(\'' + o.id + '\')');
+  } else {
+    app += nagareSt('st-lock', '④', 'PDFをスプシに貼る', '上の書類を見てからでないと押せません', '');
+  }
+  var sheet = (zenbuHatta || !meis.length)
+    ? nagareSt('st-now-b', '⑤', '倉庫に発送許可を出す（A列を🔵）',
+        '押すと発注書スプシが開きます（この行のA列を【🔵 発送してください】に）',
+        'window.open(OOS_HACCHUSHO_URL, "_blank")')
+    : nagareSt('st-lock', '⑤', '倉庫に発送許可を出す（A列を🔵）', '④が終わってから', '');
+  return nagareWaku(app, sheet);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    📄 書類（PDF）の札　★2026-09-13 承認モック mocks/mock_shorui_susu_2026-09-13.html
    ──────────────────────────────────────────────────────────────────────
    ひろみさん：「PDFのリンクを貼るところ、いくつもボタンがあって分かりにくい。
@@ -8594,44 +8749,22 @@ function docFudaHtml(o, torikeshi){
     }).join('');
   }
   var riyuu = o.nouhinDocNg
-    ? '<div style="font-weight:400;font-size:12px;margin-top:3px">理由：' + esc(o.nouhinDocNg) + '</div>' : '';
-  var hatta = [], h = '';
+    ? '<div style="font-size:12px;color:#a32d2d;font-weight:700;margin-top:4px">⚠ 理由：' + esc(o.nouhinDocNg) + '</div>' : '';
+  /* ★2026-09-13 承認モック：札は【貼れた書類の📎の行】だけ。
+     　「見る」「貼る」のボタンは、流れバー（nagareCardHtml）が受け持ちます。
+     ★ここにボタンを戻さないでください。同じはたらきのボタンが2つになります。 */
+  var hatta = [];
   meis.forEach(function(nm, i){
-    var maru = DOC_MARU[i] || ('（' + (i+1) + '）');
     var url = docHareteruKa(o, nm);
-    /* ③ 貼り終わった */
-    if(url){
-      hatta.push('<a href="' + esc(url) + '" target="_blank" style="color:#0c447c;text-decoration:none">'
-              + '📎 添付PDF' + maru + '　' + esc(nm) + '</a>');
-      return;
-    }
-    if(torikeshi) return;
-    /* ② 確認ずみ・まだ貼っていない → 大きいボタン1つ */
-    if(docKakuninKa(o, nm)){
-      var bid = 'doc-hari-' + o.id + '-' + i;
-      h += '<div style="margin-top:7px;background:#eef7ea;border:1.5px solid #86c096;border-radius:9px;padding:9px 11px">'
-        + '<div style="font-size:12.5px;font-weight:800;color:#166534">✅ 添付PDF' + maru
-        + '　' + esc(nm) + '　確認しました　'
-        + '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
-        + 'style="background:#f3f0e8;color:#57534e;border:1px solid #ddd8cc">もう一度見る</button></div>'
-        + '<button id="' + bid + '" class="doc-hari-big" onclick="docHari(\'' + o.id + '\', \'' + esc(nm) + '\', \'' + bid + '\')">'
-        + '📌 倉庫共有スプシの発注書に PDF を貼る</button>'
-        + riyuu + '</div>';
-      return;
-    }
-    /* ① まだ確認していない */
-    h += '<div style="margin-top:7px;background:#fff4f2;border:1.5px solid #e24b4a;border-radius:9px;padding:9px 11px">'
-      + '<div style="font-size:12.5px;font-weight:800;color:#a32d2d">📄 添付PDF' + maru
-      + '　' + esc(nm) + '　まだ確認していません</div>'
-      + '<button class="btn-sm" onclick="docCheckOne(\'' + o.id + '\')" '
-      + 'style="margin-top:6px;background:#0c447c;color:#fff;border:none;font-size:13px;padding:8px 13px">'
-      + '📄 PDFを開いて確認する</button>'
-      + riyuu + '</div>';
+    if(!url) return;
+    var maru = DOC_MARU[i] || ('（' + (i+1) + '）');
+    hatta.push('<a href="' + esc(url) + '" target="_blank" style="color:#0c447c;text-decoration:none">'
+            + '📎 添付PDF' + maru + '　' + esc(nm) + '</a>');
   });
   var sumiGyou = hatta.length
     ? '<div style="margin-top:4px;font-size:12.5px">' + hatta.join('　') + '</div>'
     : '';
-  return sumiGyou + h;
+  return sumiGyou + riyuu;
 }
 /* この注文は「見てから貼る」の対象か（バサラとRTの伝票取込は除く） */
 function docCheckTaisho(o){
@@ -8705,7 +8838,7 @@ function rtNouhinHtml(){
 var docMaeList = [];   /* 見る順番（注文＋書類名） */
 var docMaeIdx  = 0;
 
-function docMaeMiru(){
+function docMaeMiru(idx){
   var box = document.getElementById('doc-check-mae');
   if(!box) return;
   var list = (window._pendingOrders || []);
@@ -8715,6 +8848,8 @@ function docMaeMiru(){
     (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){ docMaeList.push({ o:o, mei:mei }); });
   });
   docMaeIdx = 0;
+  /* ★2026-09-13 流れバーの①②から「この書類を開いて」と言われたら、そこを開きます */
+  if(typeof idx === 'number' && idx >= 0 && idx < docMaeList.length) docMaeIdx = idx;
   if(!docMaeList.length){
     box.style.display = 'block';
     box.innerHTML = '<div class="card" style="border:2px solid #d9c48a;background:#f6f4ee">'
@@ -8767,17 +8902,21 @@ function docMaeShow(){
     naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'
          + html + '</div>';
   }
-  botan = (docMaeIdx > 0 ? '<button class="btn btn-gray" onclick="docMaeSusumu(-1)">← 前の書類</button>' : '')
-        + (docMaeIdx < docMaeList.length - 1 ? '<button class="btn" style="background:#0c447c;color:#fff;border:none" onclick="docMaeSusumu(1)">次の書類 →</button>' : '')
-        + '<button class="btn btn-gray" onclick="docMaeTojiru()">閉じる</button>';
+  /* ★2026-09-13 承認モック：ボタンは【2つだけ】
+     　「◀ 戻って直す」＝入力に戻るだけ（まだ登録していないので、取り消しは要りません）
+     　「この内容でOK ▶」＝見たという印。流れバーの①が✅になり、次の書類が開きます。
+     ★ボタンを増やさないでください。 */
+  botan = '<button class="btn btn-gray" onclick="docMaeModoru()" '
+        + 'style="font-size:15px;font-weight:800;padding:12px 22px">◀ 戻って直す</button>'
+        + '<button class="btn btn-green" onclick="docMaeOk()" '
+        + 'style="font-size:16px;font-weight:800;padding:12px 26px">この内容でOK ▶</button>';
 
   box.innerHTML = '<div class="card" style="border:2px solid #185fa5">' + atama + naka
-    + '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">' + botan + '</div>'
-    + '<div style="font-size:12px;color:#83857a;margin-top:8px;line-height:1.8">'
-    + '★これは<b>登録する前</b>の下見です。まだ受注一覧にも発注書にも入っていません。<br>'
-    + '★中身がちがっていたら［修正する］で直して、もう一度この ボタン を押してください。<br>'
-    + '★これでよければ［受注一覧に登録する］を押してください。登録のあと、'
-    + '発注書に貼るかどうかを もう一度たしかめます。</div>'
+    + '<div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;justify-content:center">' + botan + '</div>'
+    + '<div style="font-size:12px;color:#83857a;margin-top:9px;line-height:1.8;text-align:center">'
+    + '★これは<b>登録する前</b>の確認です。まだ受注一覧にも発注書にも入っていません。<br>'
+    + '★「戻って直す」＝入力に戻るだけです（取り消しも、在庫の戻しも要りません）。<br>'
+    + '★全部の書類に「この内容でOK」を押すと、③［受注一覧に登録する］が押せるようになります。</div>'
     + '</div>';
   box.style.display = 'block';
   try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
@@ -8786,6 +8925,24 @@ function docMaeShow(){
 function docMaeSusumu(d){
   docMaeIdx = Math.max(0, Math.min(docMaeList.length - 1, docMaeIdx + d));
   docMaeShow();
+}
+/* ★2026-09-13 承認モック：この内容でOK＝見たという印。次のまだ見ていない書類を開きます。 */
+function docMaeOk(){
+  var q = docMaeList[docMaeIdx];
+  if(q) docKakuninSuru(q.o, q.mei);
+  var tsugi = -1;
+  docMaeList.forEach(function(x, i){ if(tsugi < 0 && !docKakuninKa(x.o, x.mei)) tsugi = i; });
+  if(typeof nagareMaeRender === 'function') nagareMaeRender();
+  if(tsugi < 0){ docMaeTojiru(); return; }
+  docMaeIdx = tsugi;
+  docMaeShow();
+}
+/* ★2026-09-13 戻って直す：まだ登録していないので、注文には何も起きません。
+   　確認の枠を閉じて、入力に戻ります（受注内容の確認も閉じます）。 */
+function docMaeModoru(){
+  docMaeTojiru();
+  var ca = document.getElementById('confirm-area'); if(ca) ca.style.display = 'none';
+  if(typeof showSyncStatus === 'function') showSyncStatus('✏️ 直してから、もう一度［内容を確認する］を押してください');
 }
 function docMaeTojiru(){
   var box = document.getElementById('doc-check-mae');
@@ -8938,6 +9095,14 @@ function docCheckModoru(){
    　・何回押しても二重にはなりません（発注書側で同じ書類は1つにまとまります）
    ★このボタンを増やさないでください。押す場所は、1つの書類につき2回だけです。
    ══════════════════════════════════════════════════════════════════════ */
+/* ★2026-09-13 承認モック：④は【ボタン1つ】。書類が何枚でも、まとめて貼ります（ひろみさんOK） */
+async function docHariZenbu(id){
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
+  if(!o) return;
+  var meis = (OOS_NOUHIN.shoruiList(o) || []).filter(function(m){ return !docHareteruKa(o, m); });
+  if(!meis.length){ if(typeof showSyncStatus === 'function') showSyncStatus('📌 もう貼れています'); return; }
+  for(var i = 0; i < meis.length; i++){ await docHari(id, meis[i]); }
+}
 async function docHari(id, mei, btnId){
   var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
   if(!o) return;
@@ -9052,6 +9217,7 @@ function renrakuBox(o, acts){
     return '<div style="margin-top:8px">'
       + '<div style="font-size:13px;font-weight:800;color:#3b6d11">✅ 発注書に送りました</div>'
       + shorui
+      + nagareCardHtml(o)
       + (other ? '<div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:6px">' + other + '</div>' : '')
       + zk
       + '</div>';
@@ -9059,6 +9225,7 @@ function renrakuBox(o, acts){
   return '<div class="rk" style="padding:9px 11px">'
     + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">' + okuri + btn + other + '</div>'
     + shorui
+    + (_okuriSumi ? nagareCardHtml(o) : '')
     + zk
     + (_okuriSumi ? '' : '<div class="rk-hint" style="margin-top:5px">倉庫へのご連絡は、<b>発注書のA列を【🔵 発送してください】</b>にしたときに行きます。バサラ・RT・一般・卸、すべて同じ流れです。</div>')
     + '</div>';

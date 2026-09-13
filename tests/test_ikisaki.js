@@ -929,7 +929,11 @@ function hacchuushoGyou(payload){
     /* 登録したときに、その場では貼らない */
     const reg = H.cut(idx, 'registerOrder').replace(/\/\*[\s\S]*?\*\//g, '');
     ok('⑱-1 登録のときに自動で貼っていない', !/nouhinAttachToOrder\s*\(/.test(reg));
-    ok('⑱-2 登録のあとに書類を画面に出す',   /docCheckStart\s*\(/.test(reg));
+    /* ★2026-09-13 承認モック（流れがそのままボタン）：書類を見るのは【登録の前】。
+       　登録したあとに自動で出すのはやめました（同じものを2回見ることになるため）。
+       　かわりに、見ていない書類があれば登録を止めます。 */
+    ok('⑱-2 見ていない書類があると登録を止める', /先に書類（PDF）を見て確かめてください/.test(reg));
+    ok('⑱-2b 登録のあとに自動では出さない', !/docCheckStart\s*\(/.test(reg));
 
     /* 見てから貼る画面がある */
     ok('⑱-3 書類を出す枠が画面にある', /id="doc-check"/.test(idx));
@@ -985,14 +989,18 @@ function hacchuushoGyou(payload){
     /* ★2026-09-13 承認モック：札は3つの形だけ
        　① まだ確認していません ② 確認しました＋大きい貼るボタン ③ 📎 添付PDF①（押すと開く） */
     ok('⑱-15 貼れたら「📎 添付PDF①」で出す',        /📎 添付PDF/.test(fd));
-    ok('⑱-16 見ていなければ「まだ確認していません」', /まだ確認していません/.test(fd));
-    ok('⑱-16b 見たあとは大きい貼るボタンを出す',
-       /倉庫共有スプシの発注書に PDF を貼る/.test(fd) && /docHari\(/.test(fd));
+    /* ★2026-09-13 承認モック：札は【貼れた書類の📎の行】だけ。
+       　「見る」「貼る」は流れバー（nagareCardHtml）が受け持ちます。 */
+    const nb = H.cut(idx, 'nagareCardHtml');
+    ok('⑱-16 まだ見ていない書類は「いまここ」で出す', /押すとPDFが開きます/.test(nb));
+    ok('⑱-16b 見たあとは④「PDFをスプシに貼る」が押せる',
+       /PDFをスプシに貼る/.test(nb) && /docHariZenbu\(/.test(nb));
     /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
     /* ★2026-09-12（夜）ひろみさん：「PDFを開いて一度確認すると
        　スプシに貼るボタンが出ます　にして！！　そしたらみんな迷わない」 */
-    ok('⑱-17 まだ見ていない書類には［📄 PDFを開いて確認する］を出す',
-       /📄 PDFを開いて確認する/.test(fd) && /docCheckOne\(/.test(fd));
+    ok('⑱-17 カードからも書類を開ける', /docCheckOne\(/.test(nb));
+    ok('⑱-17c ⑤は発注書スプシを開くだけ（アプリから🔵にしない）',
+       /OOS_HACCHUSHO_URL/.test(nb) && /window\.open/.test(nb));
     /* ★2枚えらんだら2枚とも札が出るか（1枚ぶんに戻さないための見張り） */
     ok('⑱-17b 札は書類の枚数ぶん出す', /OOS_NOUHIN\.shoruiList\(o\)/.test(fd) && /meis\.forEach/.test(fd));
     ok('⑱-18 書類が無い注文は「書類はありません」',     /金額の載る書類はありません/.test(fd));
@@ -1020,19 +1028,26 @@ function hacchuushoGyou(payload){
     ok('⑱-25 待つ係がいる', /async function docFudaMachi/.test(idx));
     /* ★2026-09-13 ［いま作って貼る］は廃止。貼る場所は【カードの大きいボタン】1つだけ */
     ok('⑱-26 貼る係は docHari の1つだけ', /async function docHari/.test(idx) && !/async function docIma/.test(idx));
-    ok('⑱-27 カードにその大きいボタンを出している', /doc-hari-big/.test(fd));
+    ok('⑱-27 貼るのは④のボタン1つにまとめてある',
+       /async function docHariZenbu/.test(idx) && /docHariZenbu\(/.test(H.cut(idx, 'nagareCardHtml')));
     ok('⑱-28 行が見つからないときは、次にすることを書く', /行が見つかりません/.test(at));
 
     /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
-    ok('⑱-24 確認画面に［書類（PDF）を見て確かめる］がある', /書類（PDF）を見て確かめる/.test(idx));
-    ok('⑱-25 押すと docMaeMiru が動く', /onclick="docMaeMiru\(\)"/.test(idx));
+    /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
+    const nm2 = H.cut(idx, 'nagareMaeRender');
+    ok('⑱-24 確認画面に流れバーを出す', /id="nagare-mae"/.test(idx) && /nagareMaeRender\(\)/.test(idx));
+    ok('⑱-25 流れバーの①②から docMaeMiru が動く', /docMaeMiru\(/.test(nm2));
+    ok('⑱-25b 見終わるまで③［受注一覧に登録する］は押せない',
+       /st-lock', '③', '受注一覧に登録する/.test(nm2) && /registerOrder\(\)/.test(nm2));
     ok('⑱-26 出す枠がある',             /id="doc-check-mae"/.test(idx));
     const mm = H.cut(idx, 'docMaeMiru');
     const ms = H.cut(idx, 'docMaeShow');
     ok('⑱-27 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
     ok('⑱-28 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
     ok('⑱-29 何枚目かを出す',           /枚目／全/.test(ms));
-    ok('⑱-30 次の書類へ進める・前へ戻れる', /次の書類/.test(ms) && /前の書類/.test(ms));
+    /* ★2026-09-13 承認モック：ボタンは2つだけ。次の書類は「この内容でOK」で自動で開きます */
+    ok('⑱-30 ボタンは2つだけ（戻って直す／この内容でOK）',
+       /◀ 戻って直す/.test(ms) && /この内容でOK ▶/.test(ms) && ms.indexOf('docMaeSusumu(') < 0);
     ok('⑱-31 登録前なので貼らない',
        !/nouhinAttachToOrder/.test(mm) && !/nouhinAttachToOrder/.test(ms));
     ok('⑱-32 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
