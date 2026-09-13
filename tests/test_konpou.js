@@ -200,6 +200,20 @@ function box(){
   has('⑧確認画面を出す前に聞いている', H.cut(idx, 'previewOrder'), 'giftDocKakunin(list)');
   has('⑧「いいえ」なら進まない',        H.cut(idx, 'previewOrder'), 'if(_giftDoc && !confirm(_giftDoc)) return;');
 }
+/* ══ ⑨ 2026-09-13 ひろみさん指示（4つ）══════════════════════════════
+   ・分類は【取り置き・予約のときだけ】打てる（通常受注では打てない）
+   ・分類の横に振込先（1つだけえらぶプルダウン）
+   ・発送区分の急ぎに「※できるだけ選ばない」
+   ・熨斗をえらんだら「その他（自分で書く）」を自動でON／PDFが無くてもアラート1回で進める */
+{
+  has('⑨分類は取り置き・予約だけ打てる', H.cut(idx,'onRecordTypeChange'), "_tsukaeru = (type === 'held' || type === 'reserved')");
+  has('⑨打てないときは知らせる', idx, '※取り置き・予約のときだけ打てます');
+  has('⑨振込先は分類の横（1つだけ）', idx, '🏦 振込先（書類に出ます・1つだけ）');
+  has('⑨急ぎは できるだけ選ばない', idx, '急ぎ（明日発送希望）　※できるだけ選ばない');
+  has('⑨熨斗をえらんだら その他 を自動でON', H.cut(idx,'pkgPick'), "_other.classList.add('on')");
+  has('⑨その他のPDFが無くてもアラート1回で進める', H.cut(idx,'previewOrder'), 'あとで発注書スプシに貼り付けてください');
+}
+
 console.log('===== 📦 梱包の指示（2026-09-05）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
