@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-05">
+<meta name="oos-version" content="2026-09-14-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1652,7 +1652,8 @@ async function loadProvisionalCostsFromGAS(){
 //   取得して反映することで解消する。
 async function loadStockAndPriceRef(){
   try{
-    const res = await fetch(GAS_URL + '?action=loadAllData');
+    /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：priceMaster（価格マスタ）と lots（在庫データ）の2枚 */
+    const res = await fetch(GAS_URL + '?action=loadAllData&only=priceMaster,lots');
     const data = await res.json();
     if(data && data.status==='ok' && data.data){
       priceMaster = data.data.priceMaster || [];
@@ -2498,7 +2499,8 @@ async function applyRateToTier(sku, tier, price){
 async function applyRateToTierNow(sku, T, price){
   try{
     // 保存直前に最新の価格マスタを取り直す（請求Cなど他アプリでの更新を上書きしないため）
-    const freshRes = await fetch(GAS_URL + '?action=loadAllData');
+    /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：価格マスタ1枚だけ。★この「取り直し」自体は守りのコードです。外さないこと */
+    const freshRes = await fetch(GAS_URL + '?action=loadAllData&only=priceMaster');
     const freshData = await freshRes.json();
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
@@ -2516,7 +2518,8 @@ async function applyRateToTierNow(sku, T, price){
       renderRateSimulation();
       // ── 自己点検：サーバーから読み直して、本当に残ったか確かめる ──
       try{
-        const chkRes = await fetch(GAS_URL + '?action=loadAllData');
+        /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：価格マスタ1枚だけ。★この「自己点検」自体は守りのコードです。外さないこと */
+        const chkRes = await fetch(GAS_URL + '?action=loadAllData&only=priceMaster');
         const chk = await chkRes.json();
         const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
         const kept = !!(back && Math.round(parseFloat(back[T.field])||0) === Math.round(price));
@@ -2569,7 +2572,8 @@ function clearSelectedTier(){
 async function clearTierPriceNow(sku, T){
   try{
     // 保存直前に最新の価格マスタを取り直す（他アプリの更新を上書きしないため）＝既存の反映と同じ作法
-    const freshRes = await fetch(GAS_URL + '?action=loadAllData');
+    /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：価格マスタ1枚だけ。★この「取り直し」自体は守りのコードです。外さないこと */
+    const freshRes = await fetch(GAS_URL + '?action=loadAllData&only=priceMaster');
     const freshData = await freshRes.json();
     if(freshData.status!=='ok' || !freshData.data){ showSyncStatus('⚠️ 最新データの取得に失敗しました', true); return; }
     const freshMaster = freshData.data.priceMaster || [];
@@ -2593,7 +2597,8 @@ async function clearTierPriceNow(sku, T){
       //   applyRateToTierNow（金額を入れる方）には元々あった見張りが、消す方には無かった。
       //   これがあれば、今回のバグは「消したはずが実は戻っています」とその場でわかったはず。
       try{
-        const chkRes = await fetch(GAS_URL + '?action=loadAllData');
+        /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：価格マスタ1枚だけ。★この「自己点検」自体は守りのコードです。外さないこと */
+        const chkRes = await fetch(GAS_URL + '?action=loadAllData&only=priceMaster');
         const chk = await chkRes.json();
         const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
         const cleared = !(back && (parseFloat(back[T.field])||0) > 0);
@@ -4250,7 +4255,8 @@ function prepIncomingList(){
 /* いまの「輸入予定」を読みに行く（読むだけ・1文字も書かない） */
 function prepFetchIncoming(){
   prepIncNow = {};                                 /* 二重に読みに行かないよう先に置く */
-  fetch(GAS_URL + '?action=loadAllData')
+  /* ★2026-09-14 16枚ぜんぶ読んでいました。要るのは下の分だけです（1枚≒0.6秒）：lots（在庫データ）1枚だけ */
+  fetch(GAS_URL + '?action=loadAllData&only=lots')
     .then(function(r){ return r.json(); })
     .then(function(d){
       var by = {};
