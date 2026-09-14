@@ -99,6 +99,34 @@ ok('⑤注文そのものは消さない（status を触らない）', sk.indexO
 ok('⑤いまある行にも足す窓口がある', /oosYukaSashimodoshiSetup\s*\(/.test(GAS));
 ok('⑤受注Ａに差し戻しの帯が出る', IDX.indexOf('↩️ 発注書から差し戻されました') >= 0);
 
+/* ══════════════════════════════════════════════════════════════════════
+   ⑦ 倉庫さんが【いつでも送り状NO.を書ける】こと（2026-09-13夜）
+      れい子さん「スプレッドシートには送り状No.を入力できなくなっています」
+      ひろみさん「発送済を押してから番号を入れようとしたと思う。
+      　　　　　　そういう場合でも書き込めるようにして」
+   ══════════════════════════════════════════════════════════════════════ */
+const sc = bodyOf(GAS, 'oosYukaShipCheck_');
+/* ★注意書きのコメントには「戻さないでください」と書いてあるので、
+   　中身を数えるときはコメントを外してから見ます（コメントで落ちないように）。 */
+const scNaka = sc.replace(/\/\*[\s\S]*?\*\//g, '');
+ok('⑦発送済☑を先に押しても、☑を外さない',
+   scNaka.indexOf('cell.setValue(false)') < 0,
+   '（外すと「書けなくなった」と思われます。実際にご連絡がありました）');
+ok('⑦番号がまだのときは、ふせんで案内する',
+   sc.indexOf('このまま「送り状NO.」に番号を書いてください') >= 0);
+const te = bodyOf(GAS, 'oosYukaTrackEdit_');
+ok('⑦番号が入ったら、☑が先でも発送完了まで進める',
+   te.indexOf('OOS_YC.shipped') >= 0 && te.indexOf('oosBasaraMeisaiShipped_') >= 0,
+   '（これが無いと、☑を先に押した注文が請求に載りません）');
+ok('⑦書ける範囲をそろえる道具がある', /oosYukaHogoNaosu_\s*\(/.test(GAS));
+ok('⑦行が増えたら、書ける範囲もそろえる',
+   bodyOf(GAS, 'oosYukaImportOrder').indexOf('oosYukaHogoNaosu_(sh)') >= 0,
+   '（そろえないと、増えた行だけ倉庫さんが書けません）');
+ok('⑦列は見出しでさがす（列を動かしても付いていける）',
+   bodyOf(GAS, 'oosYukaSoukoRetsu_').indexOf("sagasu('送り状'") >= 0);
+ok('⑦読むだけの点検もある（保護の中身を目で見られる）',
+   /oosYukaHogoCheck\s*\(/.test(GAS));
+
 /* ── ⑥ 【動かす】本物の差し戻しを動かして確かめる ───────── */
 function ugokasu(opts){
   opts = opts || {};

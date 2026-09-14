@@ -441,8 +441,14 @@ has('⑯Aに「発送済」と入れられたら青に戻して案内', H.cut(ga
 has('⑯送り状NO.を書いてもAは触らない', trkSrc.indexOf('OOS_YUKA_BTN_DONE')<0 ? 'ok':'ng', 'ok');
 const chkSrc = H.cut(gasSrc, 'oosYukaShipCheck_');
 has('⑯発送済みボタンはT列の☑', H.cut(gasSrc,'oosYukaOnEdit'), 'oosYukaShipCheck_(e, sh, row)');
-/* ★2026-09-07 列が増えて送り状NO.はX列になったので、文面から列名を外した */
-has('⑯番号なしでT☑は押せない', chkSrc, '先に「送り状NO.」に番号を書いてから');
+/* ★2026-09-07 列が増えて送り状NO.はX列になったので、文面から列名を外した
+   ★2026-09-13夜 ひろみさん指示で決めごとが変わりました。
+   　倉庫のれい子さんから「送り状No.を入力できなくなっています」とご連絡があり、
+   　【☑を先に押しても外さない】形に直しました（外すと書けなくなったと思われるため）。
+   　番号がまだのときは、ふせんで「このまま番号を書いてください」と案内します。
+   ★「番号なしでT☑は押せない（☑を外す）」に戻さないでください。
+   　くわしい見張り：tests/test_hacchusho_retsu.js の ⑦ */
+has('⑯番号がまだでも☑は外さず、ふせんで案内する', chkSrc, 'このまま「送り状NO.」に番号を書いてください');
 has('⑯T☑でも配りは同じ部品', chkSrc, 'oosTrackFanout_(key, track)');
 has('⑯見出しは「状態を選択してください」', H.cut(gasSrc,'oosYukaShipBtnSetup'), '状態を選択してください');
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
