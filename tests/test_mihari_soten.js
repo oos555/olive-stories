@@ -94,7 +94,9 @@ const KNOWN_WATCHERS = [
   { file: 'home.html',   needle: 'OOS_MIHARI',              label: '玄関：「いま見張っているもの」一覧の常時表示' },
   { file: 'master.html', needle: 'oosCheckStale',           label: '統合マスタN：3分おきの在庫の指紋照合（古い画面検知）' },
   { file: 'master.html', needle: 'oosSaveFailShow',         label: '統合マスタN：画面が隠れる瞬間の保存失敗バナー' },
-  { file: 'labels.html', needle: 'setLabelBanner',          label: 'ラベル：読み込み0件・失敗の警告バナー' },
+  /* ★2026-09-14 labels.html（ラベル図鑑）はやめました。
+     ★失った見張り：ラベルの『読み込み0件・失敗の警告バナー』。
+       ラベル図鑑を作り直すときは、この1行も戻してください。 */
   { file: 'import.html', needle: 'showPriceGasBanner',      label: '輸入・原価E：価格保存後の反映照合バナー' },
   { file: 'hiromi.html', needle: 'bdVerify',                label: 'ひろみメモ：伝言板の送信後の保存照合' },
   { file: 'yuka.html',   needle: 'bdVerify',                label: 'ゆかメモ：伝言板の送信後の保存照合' },

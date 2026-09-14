@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-04">
+<meta name="oos-version" content="2026-09-14-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1844,9 +1844,12 @@ function loadAllBilling(){
       if(!RT_FAC_MASTER_LOADED) loadRtFacilityMaster();  // 初回だけ台帳のRT施設マスタを取得→再適用
       quoteHistory = dataRes.data.quoteHistory || [];
       specialPrices = dataRes.data.specialPrices || [];
-      /* 2026-07-23 ラベル図鑑（labels.html）のデータ。写真・一言メモ・バーコード。 */
+      /* ★2026-09-14 ひろみさん「ラベル図鑑やめる」。写真は読み込みません。
+         window.QLabels は空のままにします。v3Label が null を返し、
+         buildPhotoPagesHtml が「写真が1枚も無ければページを作らない」で
+         そのまま何も出しません（見積書は写真ページ抜きで作られます）。
+         ★戻すときは、この2行を生かすだけです。 */
       window.QLabels = {};
-      (dataRes.data.productLabels||[]).forEach(function(r){ if(r && r.sku) window.QLabels[r.sku] = r; });
       defects = dataRes.data.defects || [];
       lots = dataRes.data.lots || [];
       if(priceMaster.length && priceMaster[0].taxRate) taxRate = parseFloat(priceMaster[0].taxRate)||0.08;
@@ -6621,7 +6624,6 @@ function v3ShowLabel(sku){
   if(r.externalLink) html += '<div class="v3-lbrow"><b>🔗 リンク</b><a href="' + esc(r.externalLink) + '" target="_blank" rel="noopener" style="color:#2c5578;word-break:break-all">' + esc(r.externalLink) + '</a></div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
     + '<button type="button" class="btn btn-primary" style="flex:1;padding:11px" onclick="v3CloseLabel()">✕ とじる</button>'
-    + '<a href="labels.html" target="_blank" rel="noopener" class="v3-minibtn" style="text-decoration:none;display:inline-flex;align-items:center">📖 ラベル図鑑をひらく</a>'
     + '</div></div>';
   var ov = document.createElement('div');
   ov.id = 'v3-label-overlay';

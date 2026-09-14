@@ -10,7 +10,8 @@ const H = require('./harness');
 let pass = 0, fail = 0; const fails = [];
 function ok(l, cond){ if(cond) pass++; else { fail++; fails.push(l); } }
 
-const FILES = ['index.html', 'master.html', 'pickup.html', 'billing.html', 'mitsumori.html', 'labels.html', 'stock.html'];
+/* ★2026-09-14 labels.html（ラベル図鑑）は、ひろみさんの指示でやめました。 */
+const FILES = ['index.html', 'master.html', 'pickup.html', 'billing.html', 'mitsumori.html', 'stock.html'];
 FILES.forEach(function(f){
   const src = H.read(f);
   ok(f+'：BAG001のフォールバックがある', src.indexOf("sku:'BAG001'") >= 0);
