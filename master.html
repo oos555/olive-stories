@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-13-06">
+<meta name="oos-version" content="2026-09-13-07">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1704,10 +1704,30 @@ function loadAllDataFromGAS(saki){
   if(!gasSyncEnabled){ invLoading = false; renderInvTable(); return; }
   /* ★2026-08-18「🔄 最新の在庫数にする」が、読み終わりを待てるように return を足した（動きは同じ） */
   var _only = saki ? ('&only=' + ZAIKO_NI_IRU) : '';
-  return Promise.all([
-    fetch(GAS_URL + '?action=loadAllData' + _only).then(r=>r.json()).catch(()=>null),
-    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
-  ]).then(function(res){
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-13夜 ひろみさん「統合アプリも表示されるのが遅い」
+     実測：画面が出るまで【42秒】。GASへの通信が5本ありました。
+     　loadAllData(在庫)18.6秒／basaraRestockList15.7秒／loadAll12.3秒／
+     　loadAllData(残り)10.2秒／loadProducts2.2秒
+     Apps Script は【同じ人の呼び出しを1本ずつ順番にしか処理しません】。
+     だから Promise.all で同時に投げても、待ち時間はそのまま足し算になります。
+     ＝ 効くのは「1回で返す量を減らす」ことではなく【往復の数を減らす】ことだけ。
+     1回目の3つ（在庫・受注・入荷連絡ボタン）を1往復にまとめました。
+     ★1本ずつに戻さないでください。1本増えるたびに10秒以上おそくなります。
+     ══════════════════════════════════════════════════════════════════ */
+  var _yomu = saki
+    ? fetch(GAS_URL + '?action=oosMasterLoad1&only=' + ZAIKO_NI_IRU).then(function(r){ return r.json(); })
+        .then(function(d){
+          var k = (d && d.data) || {};
+          /* 入荷連絡ボタンのぶんも、ここで受け取って覚えます（もう一度GASに聞かない） */
+          window.__restockPrefetch = k.restock || [];
+          return [ {status:'ok', data:(k.zaiko || {})}, {orders:(k.orders || [])} ];
+        }).catch(function(){ return [null, null]; })
+    : Promise.all([
+        fetch(GAS_URL + '?action=loadAllData' + _only).then(r=>r.json()).catch(()=>null),
+        fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
+      ]);
+  return _yomu.then(function(res){
     const d = res[0], ord = res[1];
     if(d && d.status==='ok' && d.data){
       const data = d.data;
@@ -3602,11 +3622,20 @@ async function refreshRestockBtn(){
   var b = document.getElementById('rst-btn');
   if(!b) return;
   if(!gasSyncEnabled){ b.disabled = true; b.textContent = '📧 バサラに入荷の連絡をする'; return; }
-  try{
-    var res = await fetch(GAS_URL + '?action=basaraRestockList');
-    var d = await res.json();
-    restockList = (d && d.status === 'ok' && d.data && d.data.list) ? d.data.list : [];
-  }catch(e){ restockList = []; }
+  /* ★2026-09-13夜 画面を開いたときは、1回目の読み込みでもう受け取っています。
+     　ここでもう一度GASに聞くと、それだけで15秒ほど待たされます（実測）。
+     　押したあとの読み直し（await refreshRestockBtn()）のときだけ、聞きに行きます。
+     ★この分岐を消さないでください。 */
+  if(Array.isArray(window.__restockPrefetch)){
+    restockList = window.__restockPrefetch;
+    window.__restockPrefetch = null;   /* 使ったら捨てる（次からは新しく聞く） */
+  } else {
+    try{
+      var res = await fetch(GAS_URL + '?action=basaraRestockList');
+      var d = await res.json();
+      restockList = (d && d.status === 'ok' && d.data && d.data.list) ? d.data.list : [];
+    }catch(e){ restockList = []; }
+  }
   b.disabled = (restockList.length === 0);
   /* ★2026-08-18 ひろみさん指摘：「（対象なし）」では何が対象なのか分からない。
      「対象」＝ 原様へ欠品のお知らせを送った商品で、いま在庫が戻っているもの。
