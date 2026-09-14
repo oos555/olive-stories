@@ -284,7 +284,21 @@ has('⑩セットアップでもボタンを用意する', H.cut(gasSrc, 'oosSet
 
 /* ── ⑪ ❌キャンセルの印（提案A・2026-09-04 ひろみさん承認）───────── */
 const cancelGas = H.cut(gasSrc, 'oosYukaCancelOrder');
-has('⑪運用コピーと倉庫ファイルの両方に印', cancelGas, "getSheetByName('オーダー表')");
+/* ★2026-09-15 「⑪運用コピーと倉庫ファイルの両方に印」を【運用コピーだけ】に直しました。
+   理由：ひろみさん指示「③やって」（旧ファイル④の片づけ）。
+   　　　旧ファイル④【（旧・使いません）倉庫⇔OOS 発送＆連絡用】は 2026-09-07 に役目を終え、
+   　　　2026-09-15 の実測（oosFileIchiran）で【誰とも共有されていない】ことを確認しました。
+   　　　毎日の運用で旧ファイルを開いていたのは、この❌キャンセル1か所だけでした。
+   失ったもの：旧ファイル④のオーダー表にも❌の印が付く、という見張り。
+   　　　　　　旧ファイルは誰も開かないので、印が付かなくても誰も困りません。
+   残したもの：運用コピー（倉庫さんが見ているファイル）に❌が付くこと＝下の2行。
+   　　　　　　印の文言・二重よけ・赤＋取り消し線・在庫を触らないことは、今までどおり見張っています。
+   戻すとき：GASの oosYukaCancelOrder に旧ファイルへ印を付けるブロックを戻してから、
+   　　　　　この行を has('⑪運用コピーと倉庫ファイルの両方に印', cancelGas, "getSheetByName…") に戻す。 */
+has('⑪運用コピーの発注書に印を付ける', cancelGas, 'oosCancelMarkRows_(ysh, num)');
+has('⑪運用コピーに赤＋取り消し線のきまりを足す', cancelGas, 'oosCancelRuleAdd_(ysh, OOS_YC.honbuMemo)');
+eq('⑪旧ファイル④はもう開かない（2026-09-15）', /oosSoukoFile_\(\)/.test(cancelGas), false);
+eq('⑪返す形は変えていない（souko:0 のまま）', /souko:\s*0/.test(cancelGas), true);
 const cancelMark = H.cut(gasSrc, 'oosCancelMarkRows_');
 has('⑪印の文言', cancelMark, '❌ キャンセルされました');
 has('⑪二重よけ（すでに❌の行は触らない）', cancelMark, "indexOf('❌ キャンセル') >= 0) continue");

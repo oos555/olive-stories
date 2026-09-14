@@ -448,7 +448,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-14-02">
+<meta name="oos-version" content="2026-09-15-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1294,6 +1294,31 @@ function applyLoadedProducts(products, extraFields){
   renderPreList();
   if(typeof renderNewProductAlert==='function') renderNewProductAlert();
 }
+/* ══════════════════════════════════════════════════════════════════════
+   🚌 商品名簿の【相乗り便】　★2026-09-15（ひろみさん指示「②やって」）
+   ──────────────────────────────────────────────────────────────────────
+   いままで、この画面を開くとGASへ【3回】行っていました。
+     ① loadProducts（商品名簿だけ）
+     ② oosMasterLoad1（在庫・受注・入荷連絡）
+     ③ のこり（価格・取引先・ラベル）
+   GASは【1回行くだけで2.4〜2.7秒】かかります（2026-09-15 朝いちばんに実測）。
+   ①の中身は②に相乗りできるので、①をやめました。＝3往復 → 2往復。
+
+   ★②が名簿を持って帰れなかったとき（古いGAS・混雑・通信エラー）は、
+   　今までどおり①を自分で取りに行きます。速さのために正しさを捨てません。
+   ★OOS_MEIBO.shirase（名簿の出どころを親に知らせる）は、今までどおり必ず1回呼びます。
+   　ここを消すと、また黙って古い名簿で動き、2026-09-12の「43件 vs 55件」が再発します。
+   ══════════════════════════════════════════════════════════════════════ */
+var OOS_MEIBO_BIN = (function(){
+  var todokeru = null, sunda = false;
+  var machi = new Promise(function(r){ todokeru = r; });
+  return {
+    machi: machi,
+    /* 相乗り便の到着を知らせる。中身が無ければ null を渡す（＝自分で取りに行く合図） */
+    todoke: function(v){ if(sunda) return; sunda = true; try{ todokeru(v || null); }catch(e){} }
+  };
+})();
+
 async function initializeProducts(){
   const cached = loadProductsFromCache();
   if(cached) applyLoadedProducts(cached.products, cached.extraFields);
@@ -1308,18 +1333,34 @@ async function initializeProducts(){
      ★この知らせ（OOS_MEIBO.shirase）を消さないでください。また黙ります。 */
   var _meiboDede = (cached) ? 'cache' : 'naka';
   var _meiboRiyu = '';
+  /* ★2026-09-15 まず【相乗り便】を待ちます（上の説明を読んでください）。
+     　20秒たっても来なければ、今までどおり自分で取りに行きます。 */
+  var _norimono = null;
   try{
-    const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
-    const data = await res.json();
-    if(data && data.status === 'ok' && Array.isArray(data.products) && data.products.length){
-      saveProductsToCache(data.products, data.extraFields);
-      applyLoadedProducts(data.products, data.extraFields);
-      _meiboDede = 'gas';
-    } else {
-      _meiboRiyu = 'サーバーが名簿を返しませんでした';
+    _norimono = await Promise.race([
+      OOS_MEIBO_BIN.machi,
+      new Promise(function(ok){ setTimeout(function(){ ok('machikirenai'); }, 20000); })
+    ]);
+  }catch(e){ _norimono = null; }
+  if(_norimono && _norimono !== 'machikirenai'
+     && Array.isArray(_norimono.products) && _norimono.products.length){
+    saveProductsToCache(_norimono.products, _norimono.extraFields);
+    applyLoadedProducts(_norimono.products, _norimono.extraFields);
+    _meiboDede = 'gas';
+  } else {
+    try{
+      const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
+      const data = await res.json();
+      if(data && data.status === 'ok' && Array.isArray(data.products) && data.products.length){
+        saveProductsToCache(data.products, data.extraFields);
+        applyLoadedProducts(data.products, data.extraFields);
+        _meiboDede = 'gas';
+      } else {
+        _meiboRiyu = 'サーバーが名簿を返しませんでした';
+      }
+    }catch(e){
+      _meiboRiyu = '通信できませんでした';
     }
-  }catch(e){
-    _meiboRiyu = '通信できませんでした';
   }
   try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
 }
@@ -1638,7 +1679,8 @@ var ATODE_II_MONO = 'priceMaster,salesPartners,partnerPrices';
 /* saki=true … 1回目（在庫だけ先に）。付けなければ今までどおり全部読みます
    （🔄「最新の在庫数にする」など、ほかから呼ばれるときは全部読みます） */
 function loadAllDataFromGAS(saki){
-  if(!gasSyncEnabled){ invLoading = false; renderInvTable(); return; }
+  /* ★2026-09-15 GASを使わない設定のときも、名簿の待ち人を起こします（20秒待たせないため） */
+  if(!gasSyncEnabled){ try{ OOS_MEIBO_BIN.todoke(null); }catch(e){} invLoading = false; renderInvTable(); return; }
   /* ★2026-08-18「🔄 最新の在庫数にする」が、読み終わりを待てるように return を足した（動きは同じ） */
   var _only = saki ? ('&only=' + ZAIKO_NI_IRU) : '';
   /* ══════════════════════════════════════════════════════════════════
@@ -1673,6 +1715,11 @@ function loadAllDataFromGAS(saki){
     ? yomuJson(GAS_URL + '?action=oosMasterLoad1&only=' + ZAIKO_NI_IRU, 3)
         .then(function(d){
           var k = (d && d.data) || {};
+          /* ★2026-09-15 商品名簿の【相乗り便】を先に降ろします（3往復→2往復）。
+             　在庫が入っていなくて下で止まるときも、名簿だけは渡したいので、
+             　throw より【前】に置いています。中身が無ければ null が渡り、
+             　initializeProducts が今までどおり自分で取りに行きます。 */
+          try{ OOS_MEIBO_BIN.todoke(k.meibo || null); }catch(e){}
           if(!Array.isArray(k.lots) && !(k.zaiko && Array.isArray(k.zaiko.lots))){
             throw new Error('在庫（lots）が入っていませんでした');
           }
@@ -1684,6 +1731,10 @@ function loadAllDataFromGAS(saki){
         yomuJson(GAS_URL + '?action=loadAllData' + _only, 3),
         yomuJson(GAS_URL + '?action=loadAll', 3)
       ]);
+  /* ★2026-09-15 相乗り便が来ない道（まとめ読みを使わない／通信そのものが失敗）でも、
+     　名簿の待ち人を必ず起こします。起こさないと、名簿が20秒待たされます。 */
+  if(!saki){ try{ OOS_MEIBO_BIN.todoke(null); }catch(e){} }
+  _yomu.catch(function(){ try{ OOS_MEIBO_BIN.todoke(null); }catch(e){} });
   return _yomu.then(function(res){
     const d = res[0], ord = res[1];
     if(d && d.status==='ok' && d.data){

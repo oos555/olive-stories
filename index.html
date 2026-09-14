@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-14-03">
+<meta name="oos-version" content="2026-09-15-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2589,6 +2589,31 @@ function applyLoadedProducts(products, extraFields){
     });
   }catch(_ep){}
 }
+/* ══════════════════════════════════════════════════════════════════════
+   🚌 商品名簿の【相乗り便】　★2026-09-15（ひろみさん指示「②やって」）
+   ──────────────────────────────────────────────────────────────────────
+   いままで、この画面を開くとGASへ【3回】行っていました。
+     ① loadProducts（商品名簿だけ）
+     ② loadBundleForOrders（在庫・注文・お客様・価格・施設・お休み）
+     ③ のこり
+   GASは【1回行くだけで2.4〜2.7秒】かかります（2026-09-15 朝いちばんに実測）。
+   ①の中身は②に相乗りできるので、①をやめました。＝3往復 → 2往復。
+
+   ★②が名簿を持って帰れなかったとき（古いGAS・混雑・通信エラー）は、
+   　今までどおり①を自分で取りに行きます。速さのために正しさを捨てません。
+   ★OOS_MEIBO.shirase（名簿の出どころを親に知らせる）は、今までどおり必ず1回呼びます。
+   　ここを消すと、また黙って古い名簿（43件）で動き、2026-09-12の事故が再発します。
+   ══════════════════════════════════════════════════════════════════════ */
+var OOS_MEIBO_BIN = (function(){
+  var todokeru = null, sunda = false;
+  var machi = new Promise(function(r){ todokeru = r; });
+  return {
+    machi: machi,
+    /* 相乗り便の到着を知らせる。中身が無ければ null を渡す（＝自分で取りに行く合図） */
+    todoke: function(v){ if(sunda) return; sunda = true; try{ todokeru(v || null); }catch(e){} }
+  };
+})();
+
 async function initializeProducts(){
   const cache = loadProductsFromCache();
   if(cache && cache.products && cache.products.length){
@@ -2605,22 +2630,38 @@ async function initializeProducts(){
      ★この知らせ（OOS_MEIBO.shirase）を消さないでください。また黙ります。 */
   var _meiboDede = (cache && cache.products && cache.products.length) ? 'cache' : 'naka';
   var _meiboRiyu = '';
+  /* ★2026-09-15 まず【相乗り便】を待ちます（上の説明を読んでください）。
+     　20秒たっても来なければ、今までどおり自分で取りに行きます。 */
+  var _norimono = null;
   try{
-    /* ★2026-09-13 検証で見つけた穴：GASは【通信の途中でHTMLの画面】を返すことがあります。
-       　そのとき res.json() が落ちて、名簿が読めたのに【赤い帯】が出ていました。
-       　（ひろみさん：「0になったり、抜けてますとか言ってくるやつ」の正体の1つ）
-       　→ 文字で受け取り、JSONでなければ もう2回ためします。
-       ★res.json() に戻さないでください。また嘘の赤い帯が出ます。 */
-    const data = await oosGetJson(GAS_URL + '?action=loadProducts&t=' + Date.now());
-    if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
-      saveProductsToCache(data.products, data.extraFields);
-      applyLoadedProducts(data.products, data.extraFields);
-      _meiboDede = 'gas';
-    } else {
-      _meiboRiyu = 'サーバーが名簿を返しませんでした';
+    _norimono = await Promise.race([
+      OOS_MEIBO_BIN.machi,
+      new Promise(function(ok){ setTimeout(function(){ ok('machikirenai'); }, 20000); })
+    ]);
+  }catch(e){ _norimono = null; }
+  if(_norimono && _norimono !== 'machikirenai'
+     && Array.isArray(_norimono.products) && _norimono.products.length){
+    saveProductsToCache(_norimono.products, _norimono.extraFields);
+    applyLoadedProducts(_norimono.products, _norimono.extraFields);
+    _meiboDede = 'gas';
+  } else {
+    try{
+      /* ★2026-09-13 検証で見つけた穴：GASは【通信の途中でHTMLの画面】を返すことがあります。
+         　そのとき res.json() が落ちて、名簿が読めたのに【赤い帯】が出ていました。
+         　（ひろみさん：「0になったり、抜けてますとか言ってくるやつ」の正体の1つ）
+         　→ 文字で受け取り、JSONでなければ もう2回ためします。
+         ★res.json() に戻さないでください。また嘘の赤い帯が出ます。 */
+      const data = await oosGetJson(GAS_URL + '?action=loadProducts&t=' + Date.now());
+      if(data.status === 'ok' && Array.isArray(data.products) && data.products.length){
+        saveProductsToCache(data.products, data.extraFields);
+        applyLoadedProducts(data.products, data.extraFields);
+        _meiboDede = 'gas';
+      } else {
+        _meiboRiyu = 'サーバーが名簿を返しませんでした';
+      }
+    }catch(e){
+      _meiboRiyu = '通信できませんでした';
     }
-  }catch(e){
-    _meiboRiyu = '通信できませんでした';
   }
   try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
 }
@@ -2750,12 +2791,16 @@ function showSyncStatus(msg,isError,keep){
      ＝速さのために正しさを捨てない。
    ★この関数を消すときは、DOMContentLoaded の呼び出しも元に戻すこと。 */
 async function loadInitialDataFast(){
-  if(!gasSyncEnabled){ ordersLoaded = true; return; }
+  /* ★2026-09-15 GASを使わない設定のときも、名簿の待ち人を起こします（20秒待たせないため） */
+  if(!gasSyncEnabled){ try{ OOS_MEIBO_BIN.todoke(null); }catch(e){} ordersLoaded = true; return; }
   try{
     /* ★2026-09-13 GASは混んでいるとき【HTMLの画面】を返すことがあります。
        　そのまま res.json() だと落ちて、在庫も注文も読めないまま進んでいました。
        　（在庫が読めていないと「販売可能 0本」の嘘の警告が出ます） */
     var b = await oosGetJson(bust(GAS_URL + '?action=loadBundleForOrders&only=lots,defects,holds,preorders,customers,facilities,priceMaster'));
+    /* ★2026-09-15 商品名簿の【相乗り便】をここで降ろします（3往復→2往復）。
+       　中身が無ければ null が渡り、initializeProducts が今までどおり自分で取りに行きます。 */
+    try{ OOS_MEIBO_BIN.todoke((b && b.meibo) || null); }catch(e){}
     if(b && b.status==='ok' && b.data && Array.isArray(b.orders)){
       // お休みカレンダー（親は送料・約束ごとS。ここは読むだけ）
       if(Array.isArray(b.holidays) && b.holidays.length){
@@ -2774,6 +2819,8 @@ async function loadInitialDataFast(){
       return;
     }
   }catch(e){ console.warn('まとめ読みに失敗したので、今までの方法で読み込みます', e); }
+  /* ★2026-09-15 まとめ読みがダメだった道。名簿の待ち人を起こして、自分で取りに行かせます。 */
+  try{ OOS_MEIBO_BIN.todoke(null); }catch(e){}
   loadInitialData();
   loadHolidays();
 }
