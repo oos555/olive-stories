@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-18">
+<meta name="oos-version" content="2026-09-13-19">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -9308,13 +9308,21 @@ function docMaeShow(){
   var miss = [];
   try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
   var html = '';
+  /* ★2026-09-13夜 ゆかちゃん「内容確認するボタンを押したら、書類を組み立てられないとなります」。
+     　それまでは【なぜ作れなかったか】をどこにも出していませんでした（catch の中が空）。
+     　理由をそのまま画面に出します。★空の catch に戻さないでください。 */
+  var docErr = '';
   /* ★RTの伝票取込は、RTの納品書（伝票から作る別の作り）を見せます。
      　ここで親を使うと、見た書類と貼られる書類がちがってしまいます。 */
   if(rtDenpyoOrderKa(o)){
-    html = rtNouhinHtml();
+    try{ html = rtNouhinHtml() || ''; }catch(e){ html = ''; docErr = String((e && e.message) || e); }
+    if(!html && !docErr) docErr = 'RTの発注伝票から作る納品書が、いまこの画面にありません（②RT伝票取込からやり直すと出ます）';
   } else {
-    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }catch(e){ html = ''; }
+    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }
+    catch(e){ html = ''; docErr = String((e && e.message) || e); }
+    if(!html && !docErr) docErr = '中身が空で返ってきました（書類の種類：' + String(mei || '') + '）';
   }
+  try{ if(docErr) console.error('書類が作れません：', docErr, o); }catch(_ec){}
 
   var atama = '<div style="font-size:14px;font-weight:800;color:#185fa5;margin-bottom:8px">'
             + '📄 登録する前の確認　'
@@ -9329,9 +9337,15 @@ function docMaeShow(){
          + esc(miss.join('・'))
          + '<div style="font-weight:400;margin-top:4px">統合マスタＮ（輸入・原価Ｅ）で単価を入れてください。</div></div>';
   } else if(!html){
+    /* ★2026-09-13夜 理由をそのまま出します（前は「価格データが…かもしれません」だけでした）。
+       ★この docErr を消さないでください。出さないと、何を直せばよいか分かりません。 */
     naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
          + 'color:#a32d2d;font-weight:700">⚠ 書類を組み立てられませんでした。'
-         + '<div style="font-weight:400;margin-top:4px">価格データがまだ届いていないかもしれません。少し待ってからもう一度押してください。</div></div>';
+         + (docErr ? ('<div style="font-weight:800;margin-top:6px;background:#fff;border:1px solid #e0a3a1;'
+                    + 'border-radius:6px;padding:7px 10px;font-size:12.5px;word-break:break-all">理由：'
+                    + esc(docErr) + '</div>') : '')
+         + '<div style="font-weight:400;margin-top:6px">価格データがまだ届いていないだけのこともあります。'
+         + '少し待ってからもう一度押してみてください。それでも同じときは、この赤い字をそのまま知らせてください。</div></div>';
   } else {
     naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'
          + html + '</div>';
@@ -9434,12 +9448,18 @@ function docCheckNext(){
   var miss = [];
   try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
   var html = '';
+  /* ★2026-09-13夜 なぜ作れなかったかを出します（★空の catch に戻さないでください） */
+  var docErr = '';
   /* ★RTの伝票取込は、RTの納品書（伝票から作る別の作り）を見せます。★親に変えないでください */
   if(rtDenpyoOrderKa(o)){
-    html = rtNouhinHtml();
+    try{ html = rtNouhinHtml() || ''; }catch(e){ html = ''; docErr = String((e && e.message) || e); }
+    if(!html && !docErr) docErr = 'RTの発注伝票から作る納品書が、いまこの画面にありません（②RT伝票取込からやり直すと出ます）';
   } else {
-    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }catch(e){ html = ''; }
+    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), _mei) || ''; }
+    catch(e){ html = ''; docErr = String((e && e.message) || e); }
+    if(!html && !docErr) docErr = '中身が空で返ってきました（書類の種類：' + String(_mei || '') + '）';
   }
+  try{ if(docErr) console.error('書類が作れません：', docErr, o); }catch(_ec){}
   var nokori = (docCheckQueue.length > 1) ? ('　（あと' + (docCheckQueue.length - 1) + '件）') : '';
   /* ★2026-09-12 どちらの列に入るかを、押す前に出します（ひろみさん：「2つ書類を乗せるところはある」）
      　0枚目＝V列「同梱書類 納品書」／1枚目以降＝W列「同梱書類 他あれば」
@@ -9462,10 +9482,15 @@ function docCheckNext(){
          + '受注一覧のカードの［📄 いま作って貼る］を押してください。</div></div>';
     botan = '<button class="btn btn-gray" onclick="docCheckSkip()">閉じる</button>';
   } else if(!html){
+    /* ★2026-09-13夜 理由をそのまま出します。★この docErr を消さないでください */
     naka = '<div style="background:#fff4f2;border:1.5px solid #e24b4a;border-radius:8px;padding:10px 13px;'
          + 'color:#a32d2d;font-weight:700">⚠ 書類を組み立てられませんでした。'
-         + '<div style="font-weight:400;margin-top:4px">読み込みが終わっていないかもしれません。'
-         + '少し待ってから、カードの［📄 いま作って貼る］を押してください。</div></div>';
+         + (docErr ? ('<div style="font-weight:800;margin-top:6px;background:#fff;border:1px solid #e0a3a1;'
+                    + 'border-radius:6px;padding:7px 10px;font-size:12.5px;word-break:break-all">理由：'
+                    + esc(docErr) + '</div>') : '')
+         + '<div style="font-weight:400;margin-top:6px">読み込みが終わっていないだけのこともあります。'
+         + '少し待ってから、カードの［📄 いま作って貼る］を押してください。'
+         + 'それでも同じときは、この赤い字をそのまま知らせてください。</div></div>';
     botan = '<button class="btn btn-gray" onclick="docCheckSkip()">閉じる</button>';
   } else {
     naka = '<div style="max-height:60vh;overflow:auto;border:1px solid #c9c5b8;border-radius:6px;background:#fff">'

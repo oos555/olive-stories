@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-25-01">
+<meta name="oos-version" content="2026-09-13-01">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -336,6 +336,18 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
 </div>
 
 <div id="unlocked-view" style="display:none">
+<!-- ★2026-09-13夜 読み込み中／読めなかったときの帯（ひろみさん「出てきていないことが多い」）
+     ・読み込み中は「読み込み中です…」と出す（0件を先に見せない）
+     ・読めなかったものは赤で出して、［🔄 もう一度読む］を付ける
+     ★この帯を消さないでください。黙って空になると、消えたのかどうか分かりません。 -->
+<style>
+#hm-yomikomi{display:none;margin:0 0 12px;padding:10px 14px;border-radius:10px;font-size:13.5px;font-weight:700;
+  background:#fff4e5;border:2px solid #d98324;color:#8a4b0b;line-height:1.7}
+.hm-spin{display:inline-block;width:13px;height:13px;border:2.5px solid #e0c39a;border-top-color:#8a4b0b;
+  border-radius:50%;animation:hmspin .8s linear infinite;vertical-align:-2px;margin-right:5px}
+@keyframes hmspin{to{transform:rotate(360deg)}}
+</style>
+<div id="hm-yomikomi"></div>
 <!-- === アプリ説明パネル（開閉式・図と表）追加:2026-07-21 === -->
 <style>
 #oos-whatis{--owg-acc:#8d6a66;--owg-accbg:#f3e9e8;--owg-accink:#4a3532;--owg-arrow:#c39c98;--owg-step:#faf3f2;--owg-stepbd:#ead9d7;background:#fff;border:1px solid #e8e2d8;border-radius:12px;overflow:hidden;margin:0 0 1.15rem}
@@ -785,7 +797,9 @@ async function loadBoardFromGAS(){
   try{
     const data = await post({ action:'loadBoard', password: password });
     if(data.status==='ok'){ boardItems = (data.data && data.data.items) || []; renderBoard(); }
-  }catch(err){}
+    else hmYomenakatta(['伝言板']);
+  /* ★2026-09-13夜 黙って終わらないこと。読めなかったら帯で知らせます（空＝消えた、と思わせない） */
+  }catch(err){ hmYomenakatta(['伝言板']); }
 }
 function bdGenId(){ return 'b'+Date.now()+Math.floor(Math.random()*1000); }
 function bdNowLabel(){ const d=new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
@@ -1018,23 +1032,64 @@ function bdShowTab(which){
    ・正しい鍵（status:ok）→ 中身を表示してメモを描画
    ・古い/違う鍵 → 中身（ガワ）も見せずロック画面に戻し、その端末の鍵を消す
    ・通信の一瞬の不調 → 押し戻さない（ループ防止。中身は開いて再試行できるように） */
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-13夜 ひろみさん「ひろみメモが反応悪い。伝言板の内容や
+   　やることリストが出てきていないことが多い」
+
+   原因は2つありました。
+   　① 画面を開くとGASへ【5回】別々に読みに行っていた（メモ／大切／やること／
+   　　 フリースペース／伝言板）。GASは1回で2秒ちょっとかかるので、それだけで10秒以上。
+   　② 1つでも失敗すると、その枠は【黙って空のまま】だった（catch の中が空）。
+   　　 ＝「出てこない」のに、何も言わない。
+
+   直しました。
+   　・1回の往復でぜんぶ読む（GASの hiromiLoadAll）
+   　・読み込み中は「読み込み中…」と出す（0件を先に見せない）
+   　・読めなかったものは【赤い帯で、もう一度読むボタン付き】で出す
+   ★また5回に分けないでください。★catch を空に戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+function hmYomikomiChu(on){
+  const el = document.getElementById('hm-yomikomi');
+  if(!el) return;
+  el.style.display = on ? 'block' : 'none';
+  if(on) el.innerHTML = '<span class="hm-spin"></span> 読み込み中です… （初回は10秒ほどかかることがあります）';
+}
+function hmYomenakatta(list){
+  const el = document.getElementById('hm-yomikomi');
+  if(!el) return;
+  if(!list || !list.length){ el.style.display='none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '⚠️ <b>' + esc(list.join('・')) + '</b> が読めませんでした（空に見えているだけで、消えてはいません）'
+    + ' <button onclick="autoUnlock(password)" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800;cursor:pointer">🔄 もう一度読む</button>';
+}
 async function autoUnlock(pw){
   password = pw;
   try{
-    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: pw });
+    hmYomikomiChu(true);
+    /* ★1回の往復でぜんぶ読みます（5回に分けると遅くなります） */
+    const data = await post({ action:'hiromiLoadAll', password: pw,
+      sheets: { memo: SHEET_NAME, important: SHEET_IMPORTANT, todo: SHEET_TODO, free: SHEET_FREE } });
     if(data.status==='ok'){
       document.getElementById('locked-view').style.display = 'none';
       document.getElementById('unlocked-view').style.display = 'block';
-      memos = data.data.memos || [];
+      const d = data.data || {};
+      /* 大切なメモ・やること・フリースペース・伝言板も、この1回ぶんで描きます。
+         ★メモと大切なメモは、両方そろえてから renderMemoList を1回だけ呼びます
+         　（別々に呼ぶと、片方が空のまま一瞬見えてしまいます） */
+      memos = d.memos || [];
+      importantMemos = d.important || [];
       renderMemoList();
       renderAlerts();
-      loadImportantMemos();
-      loadTodos();
-      loadFreeSpace();
-      loadBoardFromGAS();
-      showSyncStatus('✅ 読み込みました');
+      todos = (d.todos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
+      if(typeof renderTodos==='function') renderTodos();
+      hmApplyFree(d.free || []);
+      boardItems = d.board || [];
+      if(typeof renderBoard==='function') renderBoard();
+      hmYomenakatta(data.yomenakatta);
+      if(!(data.yomenakatta||[]).length) showSyncStatus('✅ 読み込みました');
     } else {
       // パスワードが違う（古い/誤った鍵）→ ガワも見せずロック画面へ戻し、鍵を消す
+      hmYomikomiChu(false);
       oosClearUnlock('secret');
       password = '';
       document.getElementById('unlocked-view').style.display = 'none';
@@ -1045,7 +1100,9 @@ async function autoUnlock(pw){
     // 通信の一瞬の不調では鍵を消さず、ロックにも戻さない（ループ防止）
     document.getElementById('locked-view').style.display = 'none';
     document.getElementById('unlocked-view').style.display = 'block';
-    showSyncStatus('⚠️ 通信エラーが発生しました。少し待って画面を開き直してください', true);
+    /* ★2026-09-13夜 黙って空にしないこと。何が起きたか出して、押し直せるようにします */
+    hmYomenakatta(['伝言板・やること・メモ（通信できませんでした）']);
+    showSyncStatus('⚠️ 通信エラーが発生しました。［🔄 もう一度読む］を押してください', true);
   }
 }
 
@@ -1060,6 +1117,19 @@ const FREE_CACHE_KEY = 'oos_hiromi_freespace_cache';
 let freeSpaceSaveTimer = null;
 let freeSpaceCreatedAt = null;
 
+/* ★2026-09-13夜 1回でまとめて読んだぶんを、フリースペースの枠に入れる部品。
+   （読みに行く処理と、枠に入れる処理を分けました。★loadFreeSpace と同じ中身にしてください） */
+function hmApplyFree(memosArr){
+  const ta = document.getElementById('free-space-text');
+  if(!ta) return;
+  try{ const cached = localStorage.getItem(FREE_CACHE_KEY); if(cached!=null && !ta.value) ta.value = cached; }catch(e){}
+  const m = (memosArr||[]).find(function(x){ return x.id===FREE_NOTE_ID; });
+  if(m){
+    ta.value = m.text||'';
+    freeSpaceCreatedAt = m.createdAt || null;
+    try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+  }
+}
 async function loadFreeSpace(){
   const ta = document.getElementById('free-space-text');
   if(!ta) return;
@@ -1254,7 +1324,9 @@ async function loadImportantMemos(){
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_IMPORTANT, password: password });
     if(data.status==='ok'){ importantMemos = data.data.memos || []; renderMemoList(); renderAlerts(); }
-  }catch(err){}
+    else hmYomenakatta(['大切なメモ']);
+  /* ★2026-09-13夜 黙って終わらないこと（★catch を空に戻さないでください） */
+  }catch(err){ hmYomenakatta(['大切なメモ']); }
 }
 
 /* ============================================================
@@ -1287,7 +1359,9 @@ async function loadTodos(){
       todos = (data.data.memos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
       renderTodos();
     }
-  }catch(err){}
+    else hmYomenakatta(['やること']);
+  /* ★2026-09-13夜 黙って終わらないこと（★catch を空に戻さないでください） */
+  }catch(err){ hmYomenakatta(['やること']); }
 }
 
 const TODO_BUCKETS = [
