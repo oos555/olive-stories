@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-03">
+<meta name="oos-version" content="2026-09-13-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1797,23 +1797,65 @@ async function editConfirmedCost(sku){
   if(!confirm('原価を ¥'+cur.toLocaleString()+' → ¥'+v.toLocaleString()+' に本当に変更しますか？')){ renderProfitHeatmap(); return; }
   var prevMemo = (costData[sku] && costData[sku].memo) ? costData[sku].memo
                  : ((typeof provisionalCosts!=='undefined' && provisionalCosts[sku] && provisionalCosts[sku].memo) ? provisionalCosts[sku].memo : '');
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-13夜 ひろみさん「原価の金額変更、どれだけ待てば変わるの？時間かかりすぎ」
+     ──────────────────────────────────────────────────────────────────
+     それまでは【サーバーの保存が終わるまで、画面を描き直していませんでした】。
+     GASは1回の呼び出しに固定2秒＋書き込み。しかも同じ人の呼び出しは1本ずつ順番。
+     さらに直前に「仮原価の片づけ」も投げていたので、その順番待ちも足されていました。
+     ＝ 押してから数字が変わるまで、5〜15秒かかっていました。
+
+     直し方（★守りのコードは1つも外していません）
+     　① 画面は【すぐ】書き直す（数字はもう手元にあります）
+     　② 保存は、そのうしろで進める
+     　③ 保存できたら ✅、だめなら【元の数字に戻して】赤で知らせる
+     　　 ＝ 画面とサーバーが食い違ったままには、しません
+     　④ GASがJSONを返さないとき（混んでいるとき）は3回までやり直す
+     　⑤ 仮原価の片づけは、原価の保存が終わってから（順番待ちを増やさない）
+     ★costLoadedOk のゲート・EMPTY_GUARD・マージ方式には、いっさい触っていません。
+     ══════════════════════════════════════════════════════════════════ */
+  var _mae = costData[sku] ? { cost: costData[sku].cost, memo: costData[sku].memo } : null;
   costData[sku] = { cost: v, memo: prevMemo };
-  /* ★2026-08-07 本物の原価にしたので、残っていた仮原価(⏳)は片づける（重複表示を防ぐ） */
-  if(typeof provisionalCosts!=='undefined' && provisionalCosts[sku]){
-    delete provisionalCosts[sku];
-    try{ fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }), headers:{'Content-Type':'text/plain;charset=utf-8'} }); }catch(e){}
-    try{ if(typeof saveProvisionalCostsLocal==='function') saveProvisionalCostsLocal(); }catch(e){}
-  }
-  if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています...');
-  try{
-    var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveCostData', password: password, costData: costData, novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
-    var data = await res.json();
-    if(data && data.status==='ok'){ if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました'); }
-    else { if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 保存できませんでした：'+((data&&data.message)||'もう一度お試しください'), true); }
-  }catch(e){ if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 通信エラーで保存できませんでした。もう一度お試しください', true); }
+  /* ① 先に画面を書き直す（待たせない） */
   if(typeof renderCostProductTable==='function') renderCostProductTable();
   renderProfitHeatmap();
   if(typeof renderRateSimulation==='function') renderRateSimulation();
+  if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています…（画面はもう新しい数字です）');
+  /* ② うしろで保存する */
+  (async function(){
+    async function okuru(nokori){
+      var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'saveCostData', password: password, costData: costData,
+                               novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }) });
+      var t = await res.text();
+      if(String(t||'').trim().charAt(0) === '{') return JSON.parse(t);
+      if(nokori > 0){
+        await new Promise(function(ok){ setTimeout(ok, 1200); });
+        return okuru(nokori - 1);
+      }
+      throw new Error('GASがJSONを返しませんでした（混み合っています）');
+    }
+    try{
+      var data = await okuru(3);
+      if(!data || data.status!=='ok') throw new Error((data && data.message) || '保存できませんでした');
+      if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました');
+      /* ⑤ 本物の原価になったので、残っていた仮原価(⏳)を片づける（保存が終わってから） */
+      if(typeof provisionalCosts!=='undefined' && provisionalCosts[sku]){
+        delete provisionalCosts[sku];
+        if(typeof saveProvisionalCostsLocal==='function') saveProvisionalCostsLocal();
+        fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }) })
+          .catch(function(e){ if(typeof console!=='undefined') console.warn('仮原価の片づけ', e); });
+      }
+    }catch(e){
+      /* ③ だめなら、画面をサーバーと同じ（元の数字）に戻す。食い違いを残さない */
+      if(_mae) costData[sku] = _mae; else delete costData[sku];
+      if(typeof renderCostProductTable==='function') renderCostProductTable();
+      renderProfitHeatmap();
+      if(typeof renderRateSimulation==='function') renderRateSimulation();
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 保存できなかったので、元の原価に戻しました（' + e.message + '）。もう一度お試しください', true);
+    }
+  })();
 }
 function getCostForSku(sku){
   const rec = costData[sku];
