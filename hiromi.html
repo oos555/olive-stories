@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-01">
+<meta name="oos-version" content="2026-09-13-02">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1062,10 +1062,90 @@ function hmYomenakatta(list){
   el.innerHTML = '⚠️ <b>' + esc(list.join('・')) + '</b> が読めませんでした（空に見えているだけで、消えてはいません）'
     + ' <button onclick="autoUnlock(password)" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800;cursor:pointer">🔄 もう一度読む</button>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ⚡ ひろみメモＩも、開いた瞬間に前回の内容を出す（2026-09-13夜）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「裕美メモも相変わらず遅いんだけど」
+
+   ★なぜ遅いか（実測）
+   　GASは【何もしない呼び出しでも2.0秒】、シート1枚ごとに +0.7秒かかります。
+   　ひろみメモは5枚（メモ・大切・やること・フリー・伝言板）読むので、
+   　1回にまとめても【5〜7秒】が限界です。これはGoogle側の仕組みで縮められません。
+
+   ★だから、待たない形にします（統合マスタＮと同じやり方）
+   　① 前回の内容を手元(localStorage)に控えて、開いた瞬間に出す
+   　② 最新が届いたら、静かに差し替える
+   　③ 届かなかったときは【空にしない】。前回のまま、赤い帯で知らせる
+   ★この3つを外さないでください。外すと、また「出てこない」に戻ります。
+   ══════════════════════════════════════════════════════════════════════ */
+var HM_CACHE_KEY = 'oos_hiromi_cache_v1';
+
+function hmCacheSave(d){
+  try{
+    localStorage.setItem(HM_CACHE_KEY, JSON.stringify({
+      at: new Date().toISOString(),
+      memos: d.memos || [], important: d.important || [],
+      todos: d.todos || [], free: d.free || [], board: d.board || []
+    }));
+  }catch(e){ if(typeof console!=='undefined') console.warn('ひろみメモを手元に控えられませんでした', e); }
+}
+function hmCacheLoad(){
+  try{
+    var s = localStorage.getItem(HM_CACHE_KEY);
+    if(!s) return null;
+    var o = JSON.parse(s);
+    return (o && Array.isArray(o.memos)) ? o : null;
+  }catch(e){ return null; }
+}
+function hmItsuno(at){
+  try{
+    var m = Math.floor((Date.now() - new Date(at).getTime()) / 60000);
+    if(m < 1)  return 'たったいま';
+    if(m < 60) return m + '分前';
+    var h = Math.floor(m/60);
+    if(h < 24) return h + '時間前';
+    return Math.floor(h/24) + '日前';
+  }catch(e){ return '前回'; }
+}
+/* 受け取った中身を画面に入れる（1回目の表示でも、最新の差し替えでも、同じ道を通ります） */
+function hmApplyAll(d){
+  memos = d.memos || [];
+  importantMemos = d.important || [];
+  renderMemoList();
+  renderAlerts();
+  todos = (d.todos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
+  if(typeof renderTodos==='function') renderTodos();
+  hmApplyFree(d.free || []);
+  boardItems = d.board || [];
+  if(typeof renderBoard==='function') renderBoard();
+}
+/* 開いた瞬間に、前回の内容で描く */
+function hmCacheHayaMise(){
+  var c = hmCacheLoad();
+  if(!c) return false;
+  try{
+    document.getElementById('locked-view').style.display = 'none';
+    document.getElementById('unlocked-view').style.display = 'block';
+    hmApplyAll(c);
+    var el = document.getElementById('hm-yomikomi');
+    if(el){
+      el.style.display = 'block';
+      el.style.background = '#fff4e5'; el.style.borderColor = '#d98324'; el.style.color = '#8a4b0b';
+      el.innerHTML = '<span class="hm-spin"></span> いま出ているのは <b>' + hmItsuno(c.at)
+        + 'の内容</b>です。最新を取りに行っています…';
+    }
+    return true;
+  }catch(e){ if(typeof console!=='undefined') console.warn('前回の内容を出せませんでした', e); return false; }
+}
+
 async function autoUnlock(pw){
   password = pw;
   try{
-    hmYomikomiChu(true);
+    /* ★2026-09-13夜 まず【前回の内容】を出します（開いた瞬間に出る）。
+       　そのあと最新を取りに行き、届いたら静かに差し替えます。
+       ★この1行を消さないでください。消すと、また5〜7秒まっしろになります。 */
+    var _hayaMise = hmCacheHayaMise();
+    if(!_hayaMise) hmYomikomiChu(true);
     /* ★1回の往復でぜんぶ読みます（5回に分けると遅くなります） */
     const data = await post({ action:'hiromiLoadAll', password: pw,
       sheets: { memo: SHEET_NAME, important: SHEET_IMPORTANT, todo: SHEET_TODO, free: SHEET_FREE } });
@@ -1076,15 +1156,8 @@ async function autoUnlock(pw){
       /* 大切なメモ・やること・フリースペース・伝言板も、この1回ぶんで描きます。
          ★メモと大切なメモは、両方そろえてから renderMemoList を1回だけ呼びます
          　（別々に呼ぶと、片方が空のまま一瞬見えてしまいます） */
-      memos = d.memos || [];
-      importantMemos = d.important || [];
-      renderMemoList();
-      renderAlerts();
-      todos = (d.todos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
-      if(typeof renderTodos==='function') renderTodos();
-      hmApplyFree(d.free || []);
-      boardItems = d.board || [];
-      if(typeof renderBoard==='function') renderBoard();
+      hmApplyAll(d);
+      hmCacheSave(d);   /* ★次に開いたとき、瞬間に出すために控えます */
       hmYomenakatta(data.yomenakatta);
       if(!(data.yomenakatta||[]).length) showSyncStatus('✅ 読み込みました');
     } else {
@@ -1100,8 +1173,12 @@ async function autoUnlock(pw){
     // 通信の一瞬の不調では鍵を消さず、ロックにも戻さない（ループ防止）
     document.getElementById('locked-view').style.display = 'none';
     document.getElementById('unlocked-view').style.display = 'block';
-    /* ★2026-09-13夜 黙って空にしないこと。何が起きたか出して、押し直せるようにします */
-    hmYomenakatta(['伝言板・やること・メモ（通信できませんでした）']);
+    /* ★2026-09-13夜 黙って空にしないこと。何が起きたか出して、押し直せるようにします。
+       　前回の内容が出ているときは、それを消さずに残します（空にしない）。 */
+    var _c = hmCacheLoad();
+    hmYomenakatta([ _c
+      ? ('いまの内容を取れませんでした。出ているのは ' + hmItsuno(_c.at) + 'の内容です（消えていません）')
+      : '伝言板・やること・メモ（通信できませんでした）' ]);
     showSyncStatus('⚠️ 通信エラーが発生しました。［🔄 もう一度読む］を押してください', true);
   }
 }
