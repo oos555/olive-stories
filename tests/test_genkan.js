@@ -159,7 +159,9 @@ eq('⑦ 支払期限の係が消えても気づく', v.some(function(s){ return 
    ★ファイルは消していません。戻すときはコメントの囲みを外すだけです。 */
 (function(){
   ['home.html','index.html','billing.html','master.html','mitsumori.html',
-   'labels.html','soryo.html','yuka.html','sales.html','nakamura.html',
+   /* ★2026-09-14 sales.html（お便り作戦室F）は、ひろみさんの指示でやめました
+      （_backup/2026-09-14_やめたアプリ/ に控えあり）。だから一覧から外しています。 */
+   'labels.html','soryo.html','yuka.html','nakamura.html',
    'rt_chef_daicho.html','genkan.html'].forEach(function(f){
     const s = H.read(f);
     /* コメント（<!-- --> の中）を外してから、リンクが生きていないかを見る */
