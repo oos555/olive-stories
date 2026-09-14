@@ -38,7 +38,10 @@ Object.keys(pages).forEach(function(file){
   if(m){
     ok('①' + file + ' の meta 版(' + m[1] + ') と version.json の版(' + expect + ') が一致', m[1] === expect);
   }
-  ok('①' + file + ' が oos-version.js を読み込んでいる', src.indexOf('src="oos-version.js"') >= 0);
+  /* ★2026-09-14 下の階（eigyo/ など）に置いたページは ../oos-version.js になります。
+     読み込んでいること自体は変わらないので、どちらの書き方も通します。 */
+  ok('①' + file + ' が oos-version.js を読み込んでいる',
+    src.indexOf('src="oos-version.js"') >= 0 || src.indexOf('src="../oos-version.js"') >= 0);
 });
 
 /* version.jsonに載っていない .html ファイルが無いか（新しいアプリを作って登録し忘れる事故の防止）。

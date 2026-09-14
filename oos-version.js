@@ -28,9 +28,27 @@
 (function(){
   'use strict';
 
+  /* このJS自身の置き場（末尾に / つき）。version.json はここから読みます */
+  var OOS_BASE = (function(){
+    try{
+      var sc = document.currentScript || (function(){ var a=document.getElementsByTagName('script'); return a[a.length-1]; })();
+      var src = sc ? String(sc.src||'') : '';
+      return src ? src.replace(/[^/]*$/, '') : '';
+    }catch(e){ return ''; }
+  })();
+
+  /* ★2026-09-14 下の階（eigyo/ など）に置いたページも見分けられるようにしました。
+     　それまではファイル名だけ（'index.html'）だったので、eigyo/index.html と
+     　受注Ａの index.html が【同じ版】として扱われてしまいました。
+     　いまは oos-version.js の置き場からの道のり（'eigyo/index.html'）を返します。
+     ★version.json のキーも、下の階のものは 'eigyo/index.html' の形で書いてください。 */
   function pageName(){
-    var p = location.pathname.split('/').pop();
-    return p ? p : 'index.html';
+    var koko = location.origin + location.pathname;
+    var rel = '';
+    if(OOS_BASE && koko.indexOf(OOS_BASE) === 0){ rel = koko.slice(OOS_BASE.length); }
+    else { rel = location.pathname.split('/').pop(); }
+    if(!rel || rel.charAt(rel.length-1) === '/') rel += 'index.html';
+    return rel;
   }
   function myVersion(){
     var m = document.querySelector('meta[name="oos-version"]');
@@ -77,7 +95,12 @@
     badge('版 ' + MY, false);
 
     // ── ② 最新の版を聞いて、古ければ1回だけ読み直す ──────────────
-    var url = 'version.json?cb=' + Date.now();
+    /* ★2026-09-14 version.json は【このJSと同じ場所】から読みます。
+       　それまでは 'version.json' と書いていたので、
+       　下の階（eigyo/ など）に置いたページからは eigyo/version.json を探して
+       　見つからず、版の見張りが黙って効かなくなっていました。
+       ★相対のまま（'version.json'）に戻さないでください。 */
+    var url = OOS_BASE + 'version.json?cb=' + Date.now();
     fetch(url, { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){

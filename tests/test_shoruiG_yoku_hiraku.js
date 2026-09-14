@@ -27,7 +27,7 @@ let ok = 0, ng = 0; const bad = [];
 function t(name, got, want){ if(String(got) === String(want)) ok++; else { ng++; bad.push(name + '　期待:' + want + '　実際:' + got); } }
 
 const MOCK = R + 'mocks/mock_書類G_よく開くところ_2026-08-24.html';
-const IMPL = R + 'documents.html';
+const IMPL = R + 'eigyo/documents.html';
 const mockSrc = fs.readFileSync(MOCK, 'utf8');
 const implSrc = fs.readFileSync(IMPL, 'utf8');
 
@@ -146,7 +146,7 @@ console.log('\n■ 検索で農園が今までどおり見つかるか');
 /* ── 版 ── */
 console.log('\n■ 版');
 {
-  const v = JSON.parse(fs.readFileSync(R + 'version.json', 'utf8')).pages['documents.html'];
+  const v = JSON.parse(fs.readFileSync(R + 'version.json', 'utf8')).pages['eigyo/documents.html'];
   const meta = (/name="oos-version" content="([^"]+)"/.exec(implSrc) || [])[1];
   t('version.json と documents.html の版が一致', meta, v);
 }
