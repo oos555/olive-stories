@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-20">
+<meta name="oos-version" content="2026-09-13-21">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5844,6 +5844,11 @@ function rtmAllFacilities(){
     .map(function(c){ return {id:String(c.id), name:c.name||'（無名）'}; });
 }
 function rtmFacName(id){
+  /* ★2026-09-13夜 「名前:◯◯」は、名簿に無くて捨てないために付けたキーです。
+     　そのまま出すと「名前:サンクチュアリコート高山」と見えてしまうので、頭を外します。
+     ★この3行を消さないでください（rtbCidOf とセットです）。 */
+  var _s = String(id||'');
+  if(typeof RTB_NAME_KEY === 'string' && _s.indexOf(RTB_NAME_KEY) === 0) return _s.slice(RTB_NAME_KEY.length);
   var c=(customers||[]).find(function(x){ return String(x.id)===String(id); });
   if(c && c.name) return c.name;                       // お客様マスタに名前があればそれ
   try{ var st=rtmS(); if(st.facNames && st.facNames[String(id)]) return st.facNames[String(id)]; }catch(e){} // 以前覚えた施設名
@@ -7136,13 +7141,29 @@ function addGeneralHold(){
 var RTB_VIEW = { mode:'list', fac:null };
 var RTB_LOG = null;   // 共有ログの手元キャッシュ（開いたとき一度だけ読む＋操作で足す）
 
-/* 昔の注文には custId の印が保存されていないことがある（2026-09-04に発覚した保存の載せ忘れ）。
-   その場合はお客様名から名簿を引いて取引先を特定する（救済） */
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-13夜 ひろみさん「本当にこれ、ない？沢山予約もらっていたはずなんだけど」
+   ──────────────────────────────────────────────────────────────────────
+   実データを読んで確かめました：RTの取り置きは【30件ちゃんとありました】。
+   　消えていたのではなく、この関数が【空（''）を返して捨てていた】のが原因です。
+   　31件とも custId が空で、お名前（サンクチュアリコート高山・芦屋ベイコート倶楽部・
+   　EC課 …）だけが入っていました。お客様マスタに同じ名前が無いと '' になり、
+   　残高一覧は「系列0施設・総合計0本」＝【予約はありません】と出していました。
+   ★拾えないものを黙って捨てないでください。
+   　お客様マスタ → 施設マスタ → それでも無ければ【お名前そのもの】をキーにします。
+   ══════════════════════════════════════════════════════════════════════ */
+/* 「お名前そのもの」をキーにするときの目印。★この文字を変えないでください */
+var RTB_NAME_KEY = '名前:';
 function rtbCidOf(o){
   if(o && o.custId) return String(o.custId);
   if(!o || !o.client) return '';
   var c = (customers||[]).find(function(x){ return x && x.name===o.client; });
-  return c ? String(c.id) : '';
+  if(c) return String(c.id);
+  try{
+    var f = (rtmAllFacilities()||[]).find(function(x){ return x && String(x.name)===String(o.client); });
+    if(f) return String(f.id);
+  }catch(e){}
+  return RTB_NAME_KEY + String(o.client);
 }
 function rtbFacilities(){
   var map = {};
@@ -7339,7 +7360,16 @@ function rtbRender(){
     h += '<div class="rtb-win"><div class="rtb-head">🏛 RTの在庫と予約のコントロール（残高一覧）</div>'
       + '<div class="rtb-sumline">系列'+facIds.length+'施設　総合計 <b>'+gHon+'本'+(gGifts?('＋ギフト'+gGifts+'個'):'')+'</b>　💰 予約金額（単価×本数・税抜）：<b>'+rtmYen(gRev)+'</b></div>'
       + RTB_LEGEND;
-    if(!facIds.length) h += '<div class="rtb-facrow"><span style="color:#8a8578;font-size:13px">RTの取り置き・予約は、いまはありません。</span></div>';
+    /* ★2026-09-13夜 ひろみさん「あるなら、この表示はダメだと言ったでしょ」
+       　読み込みが終わる前に「ありません」と出してはいけません（受注Ａの決まりと同じ）。
+       ★この分岐を「ありません」だけに戻さないでください。 */
+    if(!facIds.length){
+      var _yomichu = (typeof ordersLoaded !== 'undefined') && !ordersLoaded;
+      h += '<div class="rtb-facrow"><span style="color:#8a8578;font-size:13px">'
+         + (_yomichu ? '読み込み中です…　（数字が出るまで、少しお待ちください）'
+                     : 'RTの取り置き・予約は、いまはありません。')
+         + '</span></div>';
+    }
     facIds.forEach(function(id){
       var rows=d.data[id], tt=rtbTotals(rows), done=rtbFacDone(rows);
       var n=Object.keys(rows).filter(function(s){ var r=rows[s]; return r.sent+r.held+r.wait>0; }).length;
