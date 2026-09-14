@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-13-08">
+<meta name="oos-version" content="2026-09-13-09">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1148,108 +1148,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
    黙って間違った数字を出すのが一番あぶないので、その場で気づけるようにする。 */
 (function(){
   if(typeof OOS_ZAIKO === 'undefined'){
-    /* ══════════════════════════════════════════════════════════════════════
-   ⚡ 開いた瞬間に、前回の数字を出す（2026-09-13夜）
-   ──────────────────────────────────────────────────────────────────────
-   ひろみさん：「何が重たくてこんなにゼロばっかりになるのか教えてほしい。
-   　スタッフは在庫が消えた消えたって騒ぐ。待てばいいとかじゃないの。
-   　開いたらぱっと出てこないと、使えないんだよ」
-
-   ★分かったこと（実測）
-   　・Google Apps Script は、呼び出し1回に固定で2秒ちょっと、
-   　　スプレッドシートを1枚開くのに約0.6秒かかります。
-   　　しかも【同じ人の呼び出しは1本ずつ順番】。だから足し算で数十秒になります。
-   　・そして、通信が失敗したとき【0として描いていました】。
-   　　読めなかったのか、本当に0本なのかを区別していませんでした。
-   　　＝「在庫が消えた」の正体です。データは1本も消えていません。
-
-   ★直し方（この3つを外さないでください）
-   　① 前回の数字を手元(localStorage)に持っておき、開いた瞬間に出す
-   　② 最新が取れたときだけ、静かに差し替える
-   　③ 取れなかったときは【絶対に0にしない】。前回の数字のまま、赤い帯で知らせる
-   　　 （このときは「在庫をさわる（編集）」を押せなくします。古い数字で上書きしないため）
-   ══════════════════════════════════════════════════════════════════════ */
-var ZAIKO_CACHE_KEY = 'oos_master_zaiko_cache_v1';
-
-/* 手元に control するのは、在庫の表に要るものだけ（軽くするため） */
-function zaikoCacheSave(){
-  try{
-    var o = { at: new Date().toISOString(),
-      lots: lots || [], defects: defects || [], defectHolds: defectHolds || [],
-      preorders: preorders || [], orders: orders || [] };
-    localStorage.setItem(ZAIKO_CACHE_KEY, JSON.stringify(o));
-  }catch(e){ if(typeof console!=='undefined') console.warn('前回の在庫を手元に控えられませんでした（動きには影響しません）', e); }
-}
-function zaikoCacheLoad(){
-  try{
-    var s = localStorage.getItem(ZAIKO_CACHE_KEY);
-    if(!s) return null;
-    var o = JSON.parse(s);
-    return (o && Array.isArray(o.lots)) ? o : null;
-  }catch(e){ return null; }
-}
-function zaikoItsuno(at){
-  try{
-    var m = Math.floor((Date.now() - new Date(at).getTime()) / 60000);
-    if(m < 1)   return 'たったいま';
-    if(m < 60)  return m + '分前';
-    var h = Math.floor(m/60);
-    if(h < 24)  return h + '時間前';
-    return Math.floor(h/24) + '日前';
-  }catch(e){ return '前回'; }
-}
-/* 画面のいちばん上に出す帯（3つの状態しかありません） */
-function zaikoObi(jotai, itsu){
-  var el = document.getElementById('zaiko-obi');
-  if(!el) return;
-  if(jotai === 'furui'){
-    el.style.display = 'block';
-    el.style.background = '#fff8ea'; el.style.borderColor = '#ecc964'; el.style.color = '#7a5410';
-    el.innerHTML = '⏳ いま出ているのは <b>' + itsu + 'の数字</b>です。最新を取りに行っています…';
-  }else if(jotai === 'saishin'){
-    el.style.display = 'none';
-  }else{   /* とれなかった */
-    el.style.display = 'block';
-    el.style.background = '#fdeaea'; el.style.borderColor = '#e0a3a1'; el.style.color = '#a32d2d';
-    el.innerHTML = '⚠️ <b>いまの数字を取れませんでした。</b>出ているのは ' + (itsu || '前回') + 'の数字です'
-      + '（<b>在庫は消えていません</b>）。'
-      + '<button onclick="zaikoMouIchido()" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800;cursor:pointer">🔄 もう一度読む</button>';
-  }
-}
-function zaikoMouIchido(){
-  zaikoObi('furui', zaikoItsuno((zaikoCacheLoad()||{}).at));
-  loadAllDataFromGAS(true);
-}
-/* 最新が取れていないあいだは、在庫をさわれなくします（古い数字で上書きしないため） */
-function zaikoSawareruKa(ok){
-  try{
-    var b = document.getElementById('inv-edit-btn');
-    if(!b) return;
-    b.disabled = !ok;
-    b.style.opacity = ok ? '1' : '.45';
-    b.title = ok ? '' : '最新の在庫数がまだ届いていません。届いてから触れるようになります。';
-  }catch(e){ if(typeof console!=='undefined') console.warn('編集ボタンの出し分けができませんでした', e); }
-}
-/* 開いた瞬間に、前回の数字で描く */
-function zaikoCacheHayaMise(){
-  var c = zaikoCacheLoad();
-  if(!c) return false;
-  try{
-    lots        = c.lots        || [];
-    defects     = c.defects     || [];
-    defectHolds = c.defectHolds || [];
-    preorders   = c.preorders   || [];
-    orders      = c.orders      || [];
-    holds = (typeof buildHoldsFromOrders === 'function') ? buildHoldsFromOrders() : (holds || []);
-    invLoading = false;
-    renderInvTable();
-    zaikoObi('furui', zaikoItsuno(c.at));
-    zaikoSawareruKa(false);
-    return true;
-  }catch(e){ return false; }
-}
-
-document.addEventListener('DOMContentLoaded', function(){
+    document.addEventListener('DOMContentLoaded', function(){
       var b = document.createElement('div');
       b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b91c1c;color:#fff;'
         + 'padding:14px 16px;font-size:15px;font-weight:800;line-height:1.7;text-align:center';
@@ -1653,6 +1552,106 @@ function showHelp(key){
   alert(HELP_TEXTS[key] || '説明がありません');
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   ⚡ 開いた瞬間に、前回の数字を出す（2026-09-13夜）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「何が重たくてこんなにゼロばっかりになるのか教えてほしい。
+   　スタッフは在庫が消えた消えたって騒ぐ。待てばいいとかじゃないの。
+   　開いたらぱっと出てこないと、使えないんだよ」
+
+   ★分かったこと（実測）
+   　・Google Apps Script は、呼び出し1回に固定で2秒ちょっと、
+   　　スプレッドシートを1枚開くのに約0.6秒かかります。
+   　　しかも【同じ人の呼び出しは1本ずつ順番】。だから足し算で数十秒になります。
+   　・そして、通信が失敗したとき【0として描いていました】。
+   　　読めなかったのか、本当に0本なのかを区別していませんでした。
+   　　＝「在庫が消えた」の正体です。データは1本も消えていません。
+
+   ★直し方（この3つを外さないでください）
+   　① 前回の数字を手元(localStorage)に持っておき、開いた瞬間に出す
+   　② 最新が取れたときだけ、静かに差し替える
+   　③ 取れなかったときは【絶対に0にしない】。前回の数字のまま、赤い帯で知らせる
+   　　 （このときは「在庫をさわる（編集）」を押せなくします。古い数字で上書きしないため）
+   ══════════════════════════════════════════════════════════════════════ */
+var ZAIKO_CACHE_KEY = 'oos_master_zaiko_cache_v1';
+
+/* 手元に control するのは、在庫の表に要るものだけ（軽くするため） */
+function zaikoCacheSave(){
+  try{
+    var o = { at: new Date().toISOString(),
+      lots: lots || [], defects: defects || [], defectHolds: defectHolds || [],
+      preorders: preorders || [], orders: orders || [] };
+    localStorage.setItem(ZAIKO_CACHE_KEY, JSON.stringify(o));
+  }catch(e){ if(typeof console!=='undefined') console.warn('前回の在庫を手元に控えられませんでした（動きには影響しません）', e); }
+}
+function zaikoCacheLoad(){
+  try{
+    var s = localStorage.getItem(ZAIKO_CACHE_KEY);
+    if(!s) return null;
+    var o = JSON.parse(s);
+    return (o && Array.isArray(o.lots)) ? o : null;
+  }catch(e){ return null; }
+}
+function zaikoItsuno(at){
+  try{
+    var m = Math.floor((Date.now() - new Date(at).getTime()) / 60000);
+    if(m < 1)   return 'たったいま';
+    if(m < 60)  return m + '分前';
+    var h = Math.floor(m/60);
+    if(h < 24)  return h + '時間前';
+    return Math.floor(h/24) + '日前';
+  }catch(e){ return '前回'; }
+}
+/* 画面のいちばん上に出す帯（3つの状態しかありません） */
+function zaikoObi(jotai, itsu){
+  var el = document.getElementById('zaiko-obi');
+  if(!el) return;
+  if(jotai === 'furui'){
+    el.style.display = 'block';
+    el.style.background = '#fff8ea'; el.style.borderColor = '#ecc964'; el.style.color = '#7a5410';
+    el.innerHTML = '⏳ いま出ているのは <b>' + itsu + 'の数字</b>です。最新を取りに行っています…';
+  }else if(jotai === 'saishin'){
+    el.style.display = 'none';
+  }else{   /* とれなかった */
+    el.style.display = 'block';
+    el.style.background = '#fdeaea'; el.style.borderColor = '#e0a3a1'; el.style.color = '#a32d2d';
+    el.innerHTML = '⚠️ <b>いまの数字を取れませんでした。</b>出ているのは ' + (itsu || '前回') + 'の数字です'
+      + '（<b>在庫は消えていません</b>）。'
+      + '<button onclick="zaikoMouIchido()" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:2px solid #b91c1c;background:#fff;color:#b91c1c;font-weight:800;cursor:pointer">🔄 もう一度読む</button>';
+  }
+}
+function zaikoMouIchido(){
+  zaikoObi('furui', zaikoItsuno((zaikoCacheLoad()||{}).at));
+  loadAllDataFromGAS(true);
+}
+/* 最新が取れていないあいだは、在庫をさわれなくします（古い数字で上書きしないため） */
+function zaikoSawareruKa(ok){
+  try{
+    var b = document.getElementById('inv-edit-btn');
+    if(!b) return;
+    b.disabled = !ok;
+    b.style.opacity = ok ? '1' : '.45';
+    b.title = ok ? '' : '最新の在庫数がまだ届いていません。届いてから触れるようになります。';
+  }catch(e){ if(typeof console!=='undefined') console.warn('編集ボタンの出し分けができませんでした', e); }
+}
+/* 開いた瞬間に、前回の数字で描く */
+function zaikoCacheHayaMise(){
+  var c = zaikoCacheLoad();
+  if(!c) return false;
+  try{
+    lots        = c.lots        || [];
+    defects     = c.defects     || [];
+    defectHolds = c.defectHolds || [];
+    preorders   = c.preorders   || [];
+    orders      = c.orders      || [];
+    holds = (typeof buildHoldsFromOrders === 'function') ? buildHoldsFromOrders() : (holds || []);
+    invLoading = false;
+    renderInvTable();
+    zaikoObi('furui', zaikoItsuno(c.at));
+    zaikoSawareruKa(false);
+    return true;
+  }catch(e){ return false; }
+}
 document.addEventListener('DOMContentLoaded', function(){
   initializeProducts();
   fillProductSelects();
