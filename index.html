@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-14-02">
+<meta name="oos-version" content="2026-09-14-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2674,7 +2674,7 @@ function saveCustomersMerged(){
   return (async function(){
     var srv=null;
     try{
-      var r0 = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'}).then(function(x){ return x.json(); });
+      var r0 = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders,customers,facilities,priceMaster'), {cache:'no-store'}).then(function(x){ return x.json(); });
       if(r0 && r0.status==='ok' && r0.data && Array.isArray(r0.data.customers)) srv = r0.data.customers;
     }catch(e){ srv = null; }
     var payload;
@@ -2755,7 +2755,7 @@ async function loadInitialDataFast(){
     /* ★2026-09-13 GASは混んでいるとき【HTMLの画面】を返すことがあります。
        　そのまま res.json() だと落ちて、在庫も注文も読めないまま進んでいました。
        　（在庫が読めていないと「販売可能 0本」の嘘の警告が出ます） */
-    var b = await oosGetJson(bust(GAS_URL + '?action=loadBundleForOrders'));
+    var b = await oosGetJson(bust(GAS_URL + '?action=loadBundleForOrders&only=lots,defects,holds,preorders,customers,facilities,priceMaster'));
     if(b && b.status==='ok' && b.data && Array.isArray(b.orders)){
       // お休みカレンダー（親は送料・約束ごとS。ここは読むだけ）
       if(Array.isArray(b.holidays) && b.holidays.length){
@@ -2783,7 +2783,7 @@ function loadInitialData(retry, pre){
   /* ★2026-08-17 pre が渡されたときは、すでに1回でもらった中身をそのまま使う（通信しない）。
      渡されなければ今までどおり2本取りに行く。 */
   (pre ? Promise.resolve([pre.data, pre.orders]) : Promise.all([
-    fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+    fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders,customers,facilities,priceMaster'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null),
     fetch(bust(GAS_URL + '?action=loadAll'), {cache:'no-store'}).then(r=>r.json()).catch(()=>null)
   ])).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
@@ -8607,7 +8607,7 @@ function persistStockDeltas(deltas){
   if(!gasSyncEnabled) return;
   labPersistDirty();               /* ★2026-08-20 裏ラベルも同じタイミングで保存する */
   if(!deltas || !deltas.length) return;
-  fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(data){
+  fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders,customers,facilities,priceMaster'), {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(data){
     var freshLots, freshDefects, gotFresh = false;
     if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
       freshLots = data.data.lots;

@@ -381,7 +381,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-13-03">
+<meta name="oos-version" content="2026-09-14-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -685,7 +685,7 @@ var LOTS_BY_PID = {}; var LOTS_LOADED = false;
 async function ensureLotsLoaded(){
   if(LOTS_LOADED) return;
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     if(data && data.status==='ok' && data.data && Array.isArray(data.data.lots)){
       var map = {};
@@ -1131,7 +1131,7 @@ async function init(){
 
 async function fetchWarehouseNotes(){
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     if(data.status==='ok' && data.data){
       if(Array.isArray(data.data.warehouseNotes)) warehouseNotes = data.data.warehouseNotes;
@@ -1354,7 +1354,7 @@ function renderHistoryList(){
 async function loadStockScreen(){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     if(data.status!=='ok' || !data.data){
       document.getElementById('content').innerHTML = '<div class="alert-danger">在庫を読み込めませんでした。</div>'+stockBackBtn();
@@ -2044,7 +2044,7 @@ let warehouseMaterials = [];
 async function loadMaterialsScreen(){
   document.getElementById('content').innerHTML = '<div class="spinner">読み込み中...</div>';
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     if(data.status==='ok' && data.data && Array.isArray(data.data.warehouseMaterials)){
       warehouseMaterials = data.data.warehouseMaterials;
@@ -2237,7 +2237,7 @@ async function renderDefectForm(){
 var _lotInfo = {};   // { pid: {curExp:'…', oldExp:'…', hasOld:true} }
 async function loadDefectLots(){
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     var lots = (data.status==='ok' && data.data && Array.isArray(data.data.lots)) ? data.data.lots : [];
     var info = {};
@@ -2281,7 +2281,7 @@ function renderDefectLotPick(){
 var _defectHistory = [];
 async function loadDefectHistory(){
   try{
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     var defs = (data.status==='ok' && data.data && Array.isArray(data.data.defects)) ? data.data.defects : [];
     // 倉庫からの報告のみ・残数がある or 直近のものを新しい順に
@@ -2369,7 +2369,7 @@ async function submitDefectFix(id){
       appended = !!(apData && apData.status==='ok' && apData.appended===true);
     }catch(e){ appended = false; }
     if(!appended){
-      var res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+      var res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
       var data = await res.json();
       var defs = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
       defs.push(fixReport);
@@ -2500,7 +2500,7 @@ async function submitDefect(){
   // 【従来方式・フォールバック】全件読み→1件足す→全件保存。
   // GAS側にまだ appendDefect が無い場合や、追記に失敗した場合に使う。
   async function fallbackSaveWhole(){
-    const res = await fetch(bust(GAS_URL + '?action=loadAllData&skip=productLabels'), {cache:'no-store'});
+    const res = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,warehouseNotes,warehouseMaterials,priceMaster'), {cache:'no-store'});
     const data = await res.json();
     const defects = (data.status==='ok' && data.data && data.data.defects) ? data.data.defects : [];
     defects.push(newDefect);
