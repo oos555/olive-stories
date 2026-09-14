@@ -487,7 +487,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-13-09">
+<meta name="oos-version" content="2026-09-14-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -604,7 +604,6 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   <!-- ★2026-07-24 ロット管理タブは隠しました（ロット・賞味期限・メモは名簿で、本数と旧ロットは在庫リストでできるため）。
        戻したいときは style="display:none" を消してください。 -->
   <button class="tab" style="display:none" onclick="showPanel('lot',this)">🧊 ロット管理</button>
-  <button class="tab" onclick="showPanel('report',this)">📮 倉庫からの報告<span id="report-badge"></span></button>
   <!-- ★2026-08-13 ひろみさん指示：取り置き・予約タブは受注Aの二重窓のため非表示に。
        数字は在庫リストの取置列（うち自動◯）・予約列に出ています。戻したいときは style="display:none" を消してください。 -->
   <button class="tab" style="display:none" onclick="showPanel('hold',this)">👀 取り置き</button>
@@ -981,18 +980,12 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
   <button class="btn-sm" style="margin-top:8px" onclick="addSalesPartner()">＋ 新しい取引先を追加</button>
 </div>
 
-<!-- 倉庫からの報告（在庫Bから移設） -->
-<div id="panel-report" class="panel">
-  <div style="background:#f5f8ef;border:2px solid #6b7a3a;border-radius:10px;padding:12px 14px;margin-bottom:1rem">
-    <div style="font-size:14.5px;font-weight:900;color:#33421f;line-height:1.55;font-family:'Zen Maru Gothic','Hiragino Sans','Yu Gothic',sans-serif">📮 不良品のご報告は、倉庫のアプリからのみお願いします。</div>
-    <div style="font-size:13px;color:#2b2a26;line-height:1.8;margin-top:8px"><b>実在庫と管理表がずれてしまうのを避けるため</b>です。LINEやお電話でご報告をいただいたときは、その場で数字を直さずに「お手数ですが、倉庫のアプリからご報告いただけますか」とお伝えください。<br><b>お手数をおかけしますが、ご協力よろしくお願いします。</b></div>
-  </div>
-  <div class="info-box"><strong>このタブは何をする場所？</strong> 倉庫さんから上がってきた不良品の報告を、ここで確認して在庫に反映する場所です。<strong>倉庫さんは報告するだけ。数字を動かすのはスタッフ。</strong> 中身を確かめて「反映する」を押すと、シールの色にあわせて自動で正しい棚へ（🔵青＝通常のまま／🟢🟡🔴＝不良に＋／⚫黒＝廃棄に＋）。手で本数を打ち込む必要はありません。間違った報告は「却下」。数字は動かず、なかったことになります（却下済みとして小さく履歴に残ります）。<br><br>⏳ <strong>大事なポイント：</strong>倉庫さんが報告しても、その時点では在庫（販売可能数）は<strong>まだ減りません</strong>。このタブで確認して「反映する」を押して、<strong>はじめて在庫に反映されます</strong>。報告した直後に数字が変わっていなくても正常です。</div>
-  <div class="sec">未処理の報告</div>
-  <div id="report-list"></div>
-  <div class="sec" style="margin-top:1.5rem;color:#6b6a63">却下済み（小さく履歴に残る）</div>
-  <div id="report-rejected"></div>
-</div>
+<!-- ★2026-09-14 「📮 倉庫からの報告」タブは、ひろみさんの指示でやめました。
+     「もうラインもアプリも使わない、スプシでやり取りなのでここに何も入ってこない」
+     実データで確認：倉庫からの報告は【過去も未処理も0件】でした（1件も使われていない）。
+     倉庫Ｄの報告フォーム（?mode=defect）も、どこからもリンクされていません。
+     ★戻すときは git の履歴から。 -->
+
 
 <!-- 取り置き（在庫Bから移設・見るだけ） -->
 <div id="panel-hold" class="panel">
@@ -1736,7 +1729,7 @@ function showPanel(name, btn){
   if(name==='meibo') renderMeibo();
   if(name==='price') renderPrice();
   if(name==='partners'){ renderPartnerMatrix(); renderPartnerContacts(); }
-  if(name==='report') renderReportList();
+
   if(name==='ilog') renderInvLogs();
   if(name==='hold') renderHoldList();
   if(name==='pre') renderPreList();
@@ -1909,7 +1902,7 @@ function loadAllDataFromGAS(saki){
                  ['価格リスト',renderPrice],['小口卸取引先',renderPartnerMatrix],['取引先の連絡先',renderPartnerContacts],
                  ['新商品のお知らせ',renderNewProductAlert]]);
     try{ refreshRestockBtn(); }catch(e){}   // ★2026-08-17 入荷の連絡ボタンの出し分け
-    oosDrawAll_([['取り置き',renderHoldList],['予約',renderPreList],['倉庫からの報告',renderReportList],['ログ',renderInvLogs]]);
+    oosDrawAll_([['取り置き',renderHoldList],['予約',renderPreList],['ログ',renderInvLogs]]);
     /* ★2026-07-24 中村様のご指示で停止。
        ここで「棚卸しの数字に入れ替えますか？」を毎回出していた。
        OKを押すと在庫・ロット（＝賞味期限）が2026-07-19の数字に丸ごと戻るため、
