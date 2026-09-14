@@ -113,7 +113,7 @@ const KNOWN_WATCHERS = [
   { file: 'oos-meibo.js',   needle: 'function shirase',    label: '名簿の見張り：出どころを知らせる親' },
   { file: 'index.html',     needle: 'OOS_MEIBO.shirase',   label: '受注Ａ：名簿の出どころを親に知らせる' },
   { file: 'billing.html',   needle: 'OOS_MEIBO.shirase',   label: '請求Ｃ：名簿の出どころを親に知らせる' },
-  { file: 'mitsumori.html', needle: 'OOS_MEIBO.shirase',   label: '見積М：名簿の出どころを親に知らせる' },
+  /* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
   { file: 'master.html',    needle: 'OOS_MEIBO.shirase',   label: '統合マスタＮ：名簿の出どころを親に知らせる' },
   { file: 'pickup.html',    needle: 'OOS_MEIBO.shirase',   label: '倉庫Ｄ：名簿の出どころを親に知らせる' },
   { file: 'stock.html',     needle: 'OOS_MEIBO.shirase',   label: '在庫Ｂ：名簿の出どころを親に知らせる' },
@@ -303,7 +303,8 @@ KNOWN_WATCHERS.forEach(function(w){
    　2026-09-12 に実際、コメントの中の「oos-meibo.js」に引っかかって
    　script タグを入れ忘れかけました。両方そろって初めて動きます。 */
 {
-  ['index.html','billing.html','mitsumori.html','master.html',
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+  ['index.html','billing.html','master.html',
    'pickup.html','stock.html','import.html'].forEach(function(f){
     var src = komentoNashi3(H.read(f));
     ok('③-B ' + f + ' が名簿の親 oos-meibo.js を読み込んでいる',
@@ -338,7 +339,8 @@ KNOWN_WATCHERS.forEach(function(w){
     return t.slice(i, j).replace(/s+/g, ' ').trim();
   }
   var a1 = kouza('oos-doc.js'), a2 = kouza('mitsumori.html'), a3 = kouza('billing.html');
-  ok('⑤口座：書類の親と 見積М が同じ', a1 === a2, '（ちがっています。どちらかだけ直した可能性）');
+  /* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す
+     ok('⑤口座：書類の親と 見積М が同じ', a1 === a2, ...); */
   ok('⑤口座：書類の親と 売上Ｃ が同じ', a1 === a3, '（ちがっています。どちらかだけ直した可能性）');
   ok('⑤口座は2つだけ（三井住友・三菱UFJ）', (a1.match(/label:/g) || []).length === 2);
 }

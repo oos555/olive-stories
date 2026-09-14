@@ -41,7 +41,8 @@ function ok(name, cond, detail) {
 function has(name, src, needle) { ok(name, src.indexOf(needle) >= 0, '「' + needle + '」が見つかりません'); }
 
 /* ── ① 注文の区分を使うアプリには normCtype が要る ───────────────── */
-const APPS = ['index.html', 'billing.html', 'mitsumori.html', 'pickup.html'];
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+const APPS = ['index.html', 'billing.html', 'pickup.html'];
 const SRC = {};
 APPS.forEach(f => { SRC[f] = read(f); });
 
@@ -70,16 +71,19 @@ APPS.filter(f => f !== 'index.html').forEach(f => {
 /* ── ③ 注文を読み込むところで翻訳を通していること ─────────────────── */
 has('③受注Ａ：読み込み時に翻訳している', SRC['index.html'], 'o.customerType = normCtype(o.customerType)');
 has('③売上Ｃ：読み込み時に翻訳している', SRC['billing.html'], 'normOrdersCtype(ordersRes.data.orders)');
-has('③見積М：読み込み時に翻訳している', SRC['mitsumori.html'], 'normOrdersCtype(ordersRes.data.orders)');
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+/* ↓見積Мの見張り2つは、まっさらにしたので外しました（★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す）
+   has('③見積М：読み込み時に翻訳している', ... 'normOrdersCtype(ordersRes.data.orders)');
 has('③倉庫Ｄ：読み込み時に翻訳している', SRC['pickup.html'], 'normCtype(currentOrder.customerType)');
 
 /* 生のまま代入していないこと（翻訳を外す事故の見張り） */
 ok('③売上Ｃ：翻訳なしで注文を入れていない',
   SRC['billing.html'].indexOf('orders = ordersRes.data.orders;') < 0,
   '（normOrdersCtype を通さずに代入しています）');
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す
 ok('③見積М：翻訳なしで注文を入れていない',
   SRC['mitsumori.html'].indexOf('orders = ordersRes.data.orders;') < 0,
-  '（normOrdersCtype を通さずに代入しています）');
+  '（normOrdersCtype を通さずに代入しています）'); */
 
 /* ── ④ RT月次まとめは「倉庫へ送った注文だけ」（ひろみさん決定・案①）──── */
 has('④RT月次まとめは発送した注文だけ', SRC['billing.html'], 'if(!salesWasSentToWarehouse(o)) return false;');
@@ -91,7 +95,8 @@ ok('④RT月次まとめが「キャンセル以外ぜんぶ」に戻ってい�
 /* ★2026-09-10 単価の決め方は【親＝oos-kakaku.js】に移しました。
    売上Ｃ・見積М・倉庫Ｄ の3か所に同じ表が写されていて、直すときに片方だけ直る形でした。
    ★これからは、どのアプリも親を呼ぶだけです。表をHTMLに書き写さないでください。 */
-['billing.html', 'mitsumori.html', 'pickup.html'].forEach(f => {
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+['billing.html', 'pickup.html'].forEach(f => {
   has('⑤' + f + ' は親（oos-kakaku.js）を読んでいる', SRC[f], 'oos-kakaku.js?v=');
   has('⑤' + f + ' は単価を親に聞く', SRC[f], 'OOS_KAKAKU.priceForSku(');
   ok('⑤' + f + ' に価格表の写しが残っていない', SRC[f].indexOf("rt:'priceRT'") < 0);

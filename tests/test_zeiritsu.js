@@ -95,7 +95,8 @@ t('④ 8%かどうかの判定（8）', Z.isReduced(8), true);
 
 /* ── ⑤ 4つのアプリが、自分で判定せず親と同じ答えを出すか ── */
 console.log('\n■ ⑤ 売上Ｃ・見積請求書Ｍ・倉庫Ｄ が親と同じ答えを出すか');
-[['billing.html','売上Ｃ'],['mitsumori.html','見積・請求書Ｍ'],['pickup.html','倉庫Ｄ']].forEach(function(app){
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+[['billing.html','売上Ｃ'],['pickup.html','倉庫Ｄ']].forEach(function(app){
   const src = fs.readFileSync(R + app[0], 'utf8');
   const S = H.makeSandbox({ PRODUCTS: PRODUCTS, priceMaster: [], PRICE_MASTER: [] });
   vm.runInContext(H.cut(src, 'defaultTaxRateForGroup'), S.ctx);
@@ -172,7 +173,8 @@ if(fs.existsSync(GAS_PATH)){
 
 /* ── ⑧ 古い書き方が戻っていないか（先祖返りの見張り）── */
 console.log('\n■ ⑧ 古い書き方が戻っていないか');
-const FILES = ['billing.html','mitsumori.html','pickup.html','index.html','oos-doc.js'];
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+const FILES = ['billing.html','pickup.html','index.html','oos-doc.js'];
 FILES.forEach(function(f){
   const src = fs.readFileSync(R + f, 'utf8');
   t('⑧ ' + f + ' に古い「備品だけ10%」の判定が無い',
@@ -192,7 +194,8 @@ FILES.concat(['tests/harness.js']).forEach(function(f){
     /:\s*0\.08\s*[;,)]/.test(cleaned), false);
 });
 /* 親ファイルとその見張りが、アプリから読み込まれているか */
-['billing.html','mitsumori.html','pickup.html','index.html'].forEach(function(f){
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+['billing.html','pickup.html','index.html'].forEach(function(f){
   const src = fs.readFileSync(R + f, 'utf8');
   t('⑧ ' + f + ' が oos-zei.js を読み込んでいる', src.indexOf('src="oos-zei.js') >= 0, true);
   t('⑧ ' + f + ' に「読めなかったとき」の赤い見張りがある',

@@ -50,7 +50,8 @@ const M = read('master.html');
 /* ── ① String( ) を通さない .trim() が無いこと ────────────────────────── */
 /* シートの値は「数字」「日付」で返ってくることがあります。
    (x||'').trim() は数字が来た瞬間に落ちます。必ず String(x) にしてください。 */
-const HTMLS = ['master.html', 'index.html', 'billing.html', 'mitsumori.html', 'pickup.html', 'konpo.html'];
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+const HTMLS = ['master.html', 'index.html', 'billing.html', 'pickup.html', 'konpo.html'];
 HTMLS.forEach(f => {
   const src = read(f);
   const bad = [];

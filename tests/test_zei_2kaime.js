@@ -149,7 +149,10 @@ console.log('\n■ Ｅ 売上Ｃの請求書に ※印（軽減税率対象で�
 
 /* ── Ｆ 特別見積書を8%/10%に分ける ── */
 console.log('\n■ Ｆ 特別見積書の消費税を8%と10%に分ける');
-{
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す
+   ★失った見張り：特別見積書の「8%対象（軽減税率※・税抜）」「10%対象（税抜）」「※印の説明」。
+   　新しい見積Мを作ったら、この枠ごと戻してください。 */
+if(false){
   const m = fs.readFileSync(R + 'mitsumori.html', 'utf8');
   t('Ｆ 8%対象の行を出す', m.indexOf('8%対象（軽減税率※・税抜）') >= 0, true);
   t('Ｆ 10%対象の行を出す（3種類の書類ぶん）', m.split('10%対象（税抜）').length - 1 >= 3, true);
@@ -158,7 +161,8 @@ console.log('\n■ Ｆ 特別見積書の消費税を8%と10%に分ける');
 
 /* ── Ｇ 価格表に「税抜」 ── */
 console.log('\n■ Ｇ 価格表に「税抜」と書く');
-['billing.html','mitsumori.html'].forEach(function(f){
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+['billing.html'].forEach(function(f){
   const s = fs.readFileSync(R + f, 'utf8');
   t('Ｇ ' + f + ' 卸の価格表の見出しが（税抜）',
     s.indexOf('<th style="width:18%">上代（税抜）</th>') >= 0, true);

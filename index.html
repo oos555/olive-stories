@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-14-01">
+<meta name="oos-version" content="2026-09-14-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -609,7 +609,6 @@ body{background:#fff}
       <b>データ取込</b>　… ストアーズCSV・お客様リストPDF・RTの伝票を取り込みます<br>
       <b>受注一覧</b>　… <b>万が一のときのチェックリスト</b>。発注書に行っていないものが<b>🔴</b>で分かります<br>
       <b>取り置き・予約</b>　… 待っている注文の一覧（RTは別画面です）<br>
-      <b>🛒 顧客管理</b>　… お客様の名簿<br>
       <span style="color:#8a857c"><b>（使いません）</b>と付いているタブは、いまの流れでは通りません。古い注文を見返すために残してあります。</span>
     </div>
 
@@ -625,7 +624,6 @@ body{background:#fff}
        「使わない」「消す予定」「今は使ってない」とバラバラに書かないでください。
        出荷依頼書は、倉庫への連絡が【発注書のA列を🔵にしたとき】だけになったので、通りません。 -->
   <button class="tab" id="tab-slip" onclick="showPanel('slip',this)" style="opacity:.62">（使いません）出荷依頼書</button>
-  <button class="tab" id="tab-customers" onclick="showPanel('customers',this)">🛒 顧客管理</button>
 </div>
 
 <!-- 受注登録 -->
@@ -2104,41 +2102,10 @@ body{background:#fff}
   <div id="slip-area"></div>
 </div>
 
-<div id="panel-customers" class="panel">
-  <div class="card" style="margin-bottom:14px">
-    <div class="sec" style="margin:0 0 10px">🛒 顧客管理（お客様の住所録）</div>
-    <div style="font-size:12px;color:#2b2a26;margin-bottom:10px;line-height:1.6">お客様の<b>住所録</b>です。受注で自動でたまるお客様のほか、<b>まだ受注していない会社なども先に登録しておけます</b>。<b>受注したことのあるお客様には「✓ 受注あり」</b>が付くので、注文済みかどうかが分かります。直接やり取りするお客様（RT・電話/LINE・アプリ注文）は自動でたまります。メールアドレスも保存（将来のお便り用）。STORESのお客様はSTORES側で管理します。</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input type="text" id="cust-search" placeholder="お名前・メール・電話で検索..." oninput="renderCustomerList()" style="flex:1;padding:9px 12px;border:1px solid #d5cfc3;border-radius:8px;font-size:14px">
-      <button class="btn-sm" onclick="document.getElementById('cust-search').value='';renderCustomerList()">クリア</button>
-    </div>
-    <div id="cust-count" style="font-size:12px;color:#2b2a26;margin-bottom:8px"></div>
-    <div id="cust-list"></div>
-  </div>
-
-  <div class="card">
-    <div class="sec" id="nc-form-title">＋ お客様を手で追加</div>
-    <div class="g2" style="margin-bottom:8px">
-      <div class="fg" style="margin-bottom:0"><label>お名前</label><input type="text" id="nc-name"></div>
-      <div class="fg" style="margin-bottom:0"><label>区分</label><select id="nc-type"></select></div>
-    </div>
-    <div class="g2" style="margin-bottom:8px">
-      <div class="fg" style="margin-bottom:0"><label>郵便番号</label><input type="text" id="nc-zip"></div>
-      <div class="fg" style="margin-bottom:0"><label>電話</label><input type="text" id="nc-tel"></div>
-    </div>
-    <div class="fg" style="margin-bottom:8px"><label>住所</label><input type="text" id="nc-addr"></div>
-    <div class="fg" style="margin-bottom:8px"><label>メールアドレス <span style="color:#8a6d3f;font-size:11px">（将来のお便り・大切な連絡に使います）</span></label><input type="text" id="nc-email"></div>
-    <div class="fg" style="margin-bottom:8px"><label>系列（グループ） <span style="color:#8a6d3f;font-size:11px">（同じ系列でまとめて見るための欄。RTの施設は「RT全体」）</span></label><input type="text" id="nc-series" list="series-suggest" placeholder="例：RT全体"><datalist id="series-suggest"><option value="RT全体"></option></datalist></div>
-    <div class="fg" style="margin-bottom:8px"><label>🏷 RT呼称 <span style="color:#8a6d3f;font-size:11px">（RT本部が使う呼び名。編集は「RTシェフ台帳」の施設一覧で行います。ここは表示のみ）</span></label><input type="text" id="nc-rtalias" placeholder="RTシェフ台帳で登録" readonly style="background:#f2f0ea;color:#6b6558"></div>
-    <div class="fg" style="margin-bottom:10px"><label>メモ</label><input type="text" id="nc-note"></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-primary" id="nc-save-btn" onclick="saveCustomerForm()">お客様を追加</button>
-      <button class="btn btn-gray" id="nc-cancel-btn" style="display:none" onclick="cancelCustomerEdit()">編集をやめる</button>
-      <button class="btn-sm" id="rt-bulk-btn" onclick="importRtFacilitiesOnce()" style="margin-left:auto;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;background:#fff">📥 RT全施設をまとめて登録（初回だけ）</button>
-    </div>
-    <div style="font-size:12px;color:#5c6636;line-height:1.7;margin-top:8px;font-weight:600">💡 住所・電話の<b>大元はこのお客様マスタ</b>です。ここで直した住所・電話は<b>RTシェフ台帳にも自動で映ります</b>（RTシェフ台帳は開いたときにここを読みます）。</div>
-  </div>
-</div>
+<!-- ★2026-09-14 ひろみさん「Aの、顧客管理 いらない」。画面（タブとパネル）を外しました。
+     ★プログラム（saveCustomersToGAS など）は残してあります。タブの外からも呼ばれているためです
+     　（受注を登録すると、お客様は自動で名簿に入ります）。
+     ★戻すときは git の履歴から。 -->
 
 </div><!-- /.app -->
 

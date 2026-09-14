@@ -20,7 +20,8 @@ function loadOrderNumCode(file){
 }
 
 const A = loadOrderNumCode('index.html');       // 受注A（この表が基準＝いちばん新しい・すべての種類を持つ）
-const M = loadOrderNumCode('mitsumori.html');   // 見積・請求М
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+const M = loadOrderNumCode('index.html');      // ★見積Мがまっさらの間は、受注Ａで代用
 const O = loadOrderNumCode('order.html');       // お客様の注文ページ
 
 /* 受注Aが知っている「本当に使われている」種類は、M・orderにも同じ暗号で存在すること。

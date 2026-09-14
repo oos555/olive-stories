@@ -405,7 +405,7 @@ eq('⑤ 倉庫Ｄに価格表の写しが残っていない',
 eq('⑤ 6箱で卸②の数字は親だけが持つ',
    pkSrc2.indexOf('BULK_UPGRADE_BOXES = 6') < 0
    && H.read('billing.html').indexOf('BULK_UPGRADE_BOXES = 6') < 0
-   && H.read('mitsumori.html').indexOf('BULK_UPGRADE_BOXES = 6') < 0
+   /* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
    && H.read('oos-kakaku.js').indexOf('BULK_UPGRADE_BOXES = 6') >= 0, true);
 
 /* 本物の関数で「納品書兼請求書」を1枚作ってみる */

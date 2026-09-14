@@ -158,7 +158,8 @@ eq('⑦ 支払期限の係が消えても気づく', v.some(function(s){ return 
    ★2026-09-13 ひろみさん：「もう今使ってない。今後も使わないよね。いったん非表示に」
    ★ファイルは消していません。戻すときはコメントの囲みを外すだけです。 */
 (function(){
-  ['home.html','index.html','billing.html','master.html','mitsumori.html',
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+  ['home.html','index.html','billing.html','master.html',
    /* ★2026-09-14 sales.html（お便り作戦室F）は、ひろみさんの指示でやめました
       （_backup/2026-09-14_やめたアプリ/ に控えあり）。だから一覧から外しています。 */
    /* ★2026-09-14 labels.html（ラベル図鑑）はやめました */

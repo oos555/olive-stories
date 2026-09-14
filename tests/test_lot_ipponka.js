@@ -74,7 +74,8 @@ ok('③統合マスタＮ：ロット一覧のその場編集も残っている'
 }
 
 /* ── ④ ほかのアプリに入口が増えていないこと ───────────────────── */
-['index.html', 'billing.html', 'mitsumori.html', 'pickup.html', 'konpo.html', 'order.html'].forEach(f => {
+/* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す */
+['index.html', 'billing.html', 'pickup.html', 'konpo.html', 'order.html'].forEach(f => {
   const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
   const hasLotInput = /<input[^>]*id="[a-z-]*lot[a-z-]*"/i.test(src) || /<input[^>]*id="l-exp"/i.test(src);
   ok('④' + f + ' にロット・賞味期限の入力欄が無い', !hasLotInput,
