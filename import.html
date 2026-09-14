@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-04">
+<meta name="oos-version" content="2026-09-13-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1814,48 +1814,81 @@ async function editConfirmedCost(sku){
      　⑤ 仮原価の片づけは、原価の保存が終わってから（順番待ちを増やさない）
      ★costLoadedOk のゲート・EMPTY_GUARD・マージ方式には、いっさい触っていません。
      ══════════════════════════════════════════════════════════════════ */
-  var _mae = costData[sku] ? { cost: costData[sku].cost, memo: costData[sku].memo } : null;
+
   costData[sku] = { cost: v, memo: prevMemo };
   /* ① 先に画面を書き直す（待たせない） */
   if(typeof renderCostProductTable==='function') renderCostProductTable();
   renderProfitHeatmap();
   if(typeof renderRateSimulation==='function') renderRateSimulation();
   if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています…（画面はもう新しい数字です）');
-  /* ② うしろで保存する */
-  (async function(){
-    async function okuru(nokori){
-      var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'saveCostData', password: password, costData: costData,
-                               novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }) });
-      var t = await res.text();
-      if(String(t||'').trim().charAt(0) === '{') return JSON.parse(t);
-      if(nokori > 0){
-        await new Promise(function(ok){ setTimeout(ok, 1200); });
-        return okuru(nokori - 1);
-      }
-      throw new Error('GASがJSONを返しませんでした（混み合っています）');
+  /* ② うしろで保存する（★続けて何件も直したときのために、下の1本道を通します） */
+  if(typeof provisionalCosts!=='undefined' && provisionalCosts[sku]) _genkaProvMachi[sku] = 1;
+  genkaHozonYoyaku();
+}
+/* ══════════════════════════════════════════════════════════════════════
+   💾 原価の保存は【1本道】でまとめて送る（2026-09-13夜）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「原価の金額変更、遅すぎて事故る」
+   　続けて何件も直すと、1件ごとに保存を投げていました。
+   　GASは同じ人の呼び出しを1本ずつしか処理しないので、2件目・3件目は
+   　順番待ちで何十秒も後になり、しかも古い保存が失敗すると
+   　【あとから直した数字まで元に戻してしまう】おそれがありました。
+
+   ★いまの形
+   　・保存は【いつも1本だけ】。走っている間に直したら、終わったあとに【1回だけ】送り直す
+   　・送るのは costData まるごと（＝最新の全部）なので、まとめて直しても取りこぼしません
+   　・失敗したときは、画面を元に戻さず【赤で知らせて、もう一度押せる】ようにします
+   　　（ここで巻き戻すと、あとから直した数字まで消えるためです）
+   ★1件ごとに fetch する形に戻さないでください。
+   ══════════════════════════════════════════════════════════════════════ */
+var _genkaHozonChu = false;    /* いま保存が走っているか */
+var _genkaMataOkuru = false;   /* 走っている間に、また直されたか */
+var _genkaProvMachi = {};      /* 片づける仮原価のsku */
+function genkaHozonYoyaku(){
+  if(_genkaHozonChu){ _genkaMataOkuru = true;
+    if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています…（このぶんも続けて保存します）');
+    return; }
+  genkaHozonJikkou();
+}
+async function genkaHozonJikkou(){
+  _genkaHozonChu = true;
+  if(typeof showSyncStatus==='function') showSyncStatus('原価を保存しています…（画面はもう新しい数字です）');
+  async function okuru(nokori){
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'saveCostData', password: password, costData: costData,
+                             novelloNotes: (typeof novelloNotes!=='undefined'?novelloNotes:{}) }) });
+    var t = await res.text();
+    if(String(t||'').trim().charAt(0) === '{') return JSON.parse(t);
+    if(nokori > 0){
+      await new Promise(function(ok){ setTimeout(ok, 1200); });
+      return okuru(nokori - 1);
     }
-    try{
-      var data = await okuru(3);
-      if(!data || data.status!=='ok') throw new Error((data && data.message) || '保存できませんでした');
-      if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました');
-      /* ⑤ 本物の原価になったので、残っていた仮原価(⏳)を片づける（保存が終わってから） */
-      if(typeof provisionalCosts!=='undefined' && provisionalCosts[sku]){
-        delete provisionalCosts[sku];
-        if(typeof saveProvisionalCostsLocal==='function') saveProvisionalCostsLocal();
-        fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }) })
-          .catch(function(e){ if(typeof console!=='undefined') console.warn('仮原価の片づけ', e); });
-      }
-    }catch(e){
-      /* ③ だめなら、画面をサーバーと同じ（元の数字）に戻す。食い違いを残さない */
-      if(_mae) costData[sku] = _mae; else delete costData[sku];
-      if(typeof renderCostProductTable==='function') renderCostProductTable();
-      renderProfitHeatmap();
-      if(typeof renderRateSimulation==='function') renderRateSimulation();
-      if(typeof showSyncStatus==='function') showSyncStatus('⚠️ 保存できなかったので、元の原価に戻しました（' + e.message + '）。もう一度お試しください', true);
+    throw new Error('GASがJSONを返しませんでした（混み合っています）');
+  }
+  try{
+    var data = await okuru(3);
+    if(!data || data.status!=='ok') throw new Error((data && data.message) || '保存できませんでした');
+    if(typeof showSyncStatus==='function') showSyncStatus('✅ 原価を保存しました');
+    /* 本物の原価になったぶんだけ、残っていた仮原価(⏳)を片づける */
+    var machi = Object.keys(_genkaProvMachi);
+    if(machi.length && typeof provisionalCosts!=='undefined'){
+      machi.forEach(function(s){ delete provisionalCosts[s]; delete _genkaProvMachi[s]; });
+      if(typeof saveProvisionalCostsLocal==='function') saveProvisionalCostsLocal();
+      fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'saveProvisionalCosts', password: password, provisionalCosts: provisionalCosts }) })
+        .catch(function(e){ if(typeof console!=='undefined') console.warn('仮原価の片づけ', e); });
     }
-  })();
+  }catch(e){
+    /* ★巻き戻しません。あとから直した数字まで消えるためです。
+       　かわりに、赤で「まだ保存できていません」と出し、押せば送り直せるようにします。 */
+    if(typeof showSyncStatus==='function'){
+      showSyncStatus('⚠️ まだ保存できていません（' + e.message + '）。画面の数字はそのままです。'
+        + 'もう一度保存するには、原価のマスをもう一度直してください', true);
+    }
+    if(typeof console!=='undefined') console.error('原価の保存', e);
+  }
+  _genkaHozonChu = false;
+  if(_genkaMataOkuru){ _genkaMataOkuru = false; genkaHozonJikkou(); }
 }
 function getCostForSku(sku){
   const rec = costData[sku];
