@@ -145,8 +145,45 @@ eq('④受注Ａのまとめ読みが、名簿を置いていかない',
 eq('④名簿を載せる関数が2つに増えていない',
    (GAS.match(/function oosMeiboNoseru_/g) || []).length, 1);
 eq('④目次の作り直しは旧ファイル④を開かない', /oosSoukoFile_\(\)/.test(toc), false);
-eq('④旧ファイル④を呼ぶ場所がふえていない（2026-09-15＝21か所）',
-   (GAS.match(/oosSoukoFile_\(\)/g) || []).length <= 21, true);
+eq('④旧ファイル④を呼ぶ場所がふえていない（2026-09-15＝18か所）',
+   (GAS.match(/oosSoukoFile_\(\)/g) || []).length > 18, false);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ④-2 旧ファイル④へ【URLから書き込む道】を全部ふさいだ
+   　　 2026-09-15 ひろみさん「塞いで」
+   ★点検の窓口（読むだけ）はふさいでいません。
+   ══════════════════════════════════════════════════════════════════════ */
+function tojitaKa(action){
+  const box = { OOS_KYUU_FILE_TOJIRU: true,
+    OOS_KYUU_FILE_TOJITA: ['soukoStockSync','soukoRefreshButton','soukoHonbuCheckbox','soukoFixStray','soukoTrackDone'],
+    Array: Array, String: String };
+  const ctx = vm.createContext(box);
+  vm.runInContext(H.cut(GAS, 'oosKyuuFileTojita_'), ctx);
+  vm.runInContext('var _r = oosKyuuFileTojita_(' + JSON.stringify(action) + ');', ctx);
+  return ctx._r;
+}
+['soukoStockSync', 'soukoRefreshButton', 'soukoHonbuCheckbox', 'soukoFixStray', 'soukoTrackDone']
+  .forEach(function(a){
+    const r = tojitaKa(a);
+    eq('④-2 入口が閉じている：' + a, r && r.status, 'error');
+  });
+eq('④-2 関係ない道は今までどおり通す（konpoOrders）', tojitaKa('konpoOrders'), null);
+eq('④-2 閉じたのは5つだけ',
+   (function(){
+     const m = GAS.match(/var OOS_KYUU_FILE_TOJITA = \[([^\]]*)\]/);
+     return m ? m[1].split(',').length : -1;
+   })(), 5);
+eq('④-2 入口の見張りが、どの道より先に立っている',
+   H.cut(GAS, 'oosSpreadRoute_').indexOf('oosKyuuFileTojita_(action)')
+     > H.cut(GAS, 'oosSpreadRoute_').indexOf("if(action === 'yukaShipBtnSetup')"), false);
+eq('④-2 目次の作り直しで、旧ファイルの鏡を作らない',
+   /oosKagamiCopy_\(oosSoukoFile_\(\)/.test(GAS), false);
+eq('④-2 発注書のボタン用意で、旧ファイルのタブ名を書き替えない',
+   /oosSoukoFile_\(\)/.test(H.cut(GAS, 'oosYukaShipBtnSetup')), false);
+eq('④-2 見出しの直しで、旧ファイルを触らない',
+   /oosSoukoFile_/.test(H.cut(GAS, 'oosYukaMidashiNaosu')), false);
+eq('④-2 戻せるように、止め木の1行がある',
+   GAS.indexOf('var OOS_KYUU_FILE_TOJIRU = ') < 0, false);
 
 [['統合マスタＮ', MASTER], ['受注Ａ', INDEX]].forEach(function(pair){
   const nm = pair[0], src = pair[1];
