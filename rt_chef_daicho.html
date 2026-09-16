@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-01">
+<meta name="oos-version" content="2026-09-16-02">
 <script src="oos-version.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -1788,10 +1788,16 @@ function brandOf(name){
   if(!s) s = String(name||'');
   return s;
 }
-function aiBars(obj, color){
+/* junban に並び順（キーの配列）を渡すと、その順で出します。
+   ★年ごとのグラフは「大きい順」ではなく【年の順】で出すため（2026-09-16） */
+function aiBars(obj, color, junban){
   var arr=Object.keys(obj).map(function(k){return {k:k,n:obj[k]};})
-            .filter(function(x){return x.n>0;})
-            .sort(function(a,b){return b.n-a.n;});
+            .filter(function(x){return x.n>0;});
+  if(junban && junban.length){
+    arr.sort(function(a,b){ return junban.indexOf(a.k) - junban.indexOf(b.k); });
+  }else{
+    arr.sort(function(a,b){return b.n-a.n;});
+  }
   if(!arr.length) return '<div class="mini">データはまだありません。</div>';
   var mx=arr[0].n||1, tot=0; arr.forEach(function(x){tot+=x.n;});
   return '<div class="aibars">'+arr.map(function(x){
@@ -1804,49 +1810,185 @@ function aiBars(obj, color){
       +'</div>';
   }).join('')+'</div>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   📅 分析を【年で分ける】　★2026-09-15 ひろみさん指示・2026-09-16 納品
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさんの言葉
+     「合計が、入れた伝票全部を足してるんだけど、**年で分けてほしい**。
+     　シェフが変わると全然変わるので」
+     「**RT全体のトータルは1個あってほしい**」
+     「それぞれのホテルの施設の合計3年分合計4年分合計っていうのは
+     　**あんまり意味がない**」
+
+   実データでの裏づけ（2026-09-15）
+     ラグーナベイコート：2022年 745,327 → 2025年 297,600（減）
+     東京ベイコート　　：2022年 144,886 → 2025年 2,070,480（14倍）
+     足すと、この正反対の動きが消えてしまいます。
+
+   ★決めごと
+     ① RT全体のトータルは【1つだけ】
+     ② 施設は【年ごと】。施設の全期間合計の列は **わざと作りません**
+     ③ オイル別・商品別も、年を選んで見ます（銘柄が入れ替わるため）
+     ④ 画面に出る数字は **すべて台帳（SALES）から計算** します。
+        ★決め打ちの文章や数字を、ここに書き足さないでください。
+        　台帳に伝票を足しても変わらない数字は、必ず合わなくなります。
+     見張り：tests/test_rt_bunseki_nen.js
+   ══════════════════════════════════════════════════════════════════════ */
+/* 台帳を1回だけ数えて、年ごとにまとめる */
+function aiShukei(){
+  var zen = 0, kensu = 0, kingakuNashi = 0;
+  var yr = {}, facYr = {}, oilYr = {}, prodYr = {}, tsuki = {};
+  var yrNashi = {};   /* その年の「金額がまだ入っていない行」の数 */
+  var facZen = {};    /* 施設の全期間合計。★表には出しません。
+                         行の並び順を決めるためだけに使います
+                         （ひろみさん「3年分合計・4年分合計はあんまり意味がない」＝見せない） */
+  SALES.forEach(function(r){
+    var y = String(r[4]).slice(0,4), ym = String(r[4]).slice(0,7);
+    var a = Number(r[5]||0);
+    tsuki[ym] = (tsuki[ym]||0) + 1;
+    if(!a){ kingakuNashi++; yrNashi[y] = (yrNashi[y]||0) + 1; return; }
+    zen += a; kensu++;
+    facZen[r[0]] = (facZen[r[0]]||0) + a;
+    yr[y] = (yr[y]||0) + a;
+    if(!facYr[r[0]]) facYr[r[0]] = {};
+    facYr[r[0]][y] = (facYr[r[0]][y]||0) + a;
+    var b = brandOf(r[1]);
+    if(!oilYr[y]) oilYr[y] = {}; oilYr[y][b] = (oilYr[y][b]||0) + a;
+    if(!prodYr[y]) prodYr[y] = {}; prodYr[y][r[1]] = (prodYr[y][r[1]]||0) + a;
+  });
+  return { zen:zen, kensu:kensu, kingakuNashi:kingakuNashi, yrNashi:yrNashi, facZen:facZen,
+           yr:yr, facYr:facYr, oilYr:oilYr, prodYr:prodYr, tsuki:tsuki,
+           nen: Object.keys(yr).sort() };
+}
+/* その年だけの施設別を、棒グラフの形にして返す */
+function aiFacOfYear(facYr, y){
+  var o = {};
+  Object.keys(facYr).forEach(function(f){ if(facYr[f][y]) o[f] = facYr[f][y]; });
+  return o;
+}
+/* まだ台帳に入っていない年月（いちばん古い伝票〜今月のあいだで、1枚も無い月） */
+function aiNaiTsuki(tsuki){
+  var ks = Object.keys(tsuki).sort();
+  if(!ks.length) return [];
+  var ima = new Date();
+  var owari = ima.getFullYear() + '-' + ('0'+(ima.getMonth()+1)).slice(-2);
+  var cur = ks[0], nai = [];
+  while(cur <= owari){
+    if(!tsuki[cur]) nai.push(cur);
+    var y = Number(cur.slice(0,4)), mo = Number(cur.slice(5,7)) + 1;
+    if(mo > 12){ mo = 1; y++; }
+    cur = y + '-' + ('0'+mo).slice(-2);
+  }
+  return nai;
+}
+/* 「2023-01 2023-03 …」を「2023年 1月・3月〜12月」の形に読みやすくまとめる */
+function aiNaiTsukiBun(nai){
+  var byY = {};
+  nai.forEach(function(k){ var y=k.slice(0,4), m=Number(k.slice(5,7));
+    (byY[y] = byY[y] || []).push(m); });
+  return Object.keys(byY).sort().map(function(y){
+    var ms = byY[y].sort(function(a,b){return a-b;});
+    if(ms.length === 12) return y + '年（まるごと12か月）';
+    var kuk = [], st = ms[0], mae = ms[0];
+    for(var i=1;i<=ms.length;i++){
+      if(ms[i] === mae + 1){ mae = ms[i]; continue; }
+      kuk.push(st === mae ? (st+'月') : (st+'月〜'+mae+'月'));
+      st = ms[i]; mae = ms[i];
+    }
+    return y + '年 ' + kuk.join('・');
+  });
+}
+var AI_NEN = '';   /* いま選んでいる年（空なら最新の年） */
+function aiSetNen(y){ AI_NEN = String(y||''); renderAI(); }
 function renderAI(){
   var el=document.getElementById('ai-body'); if(!el) return;
-  var fac={}, brand={}, prod={}, yr={};
-  SALES.forEach(function(r){
-    var a=Number(r[5]||0); if(!a) return;
-    fac[r[0]]=(fac[r[0]]||0)+a;
-    brand[brandOf(r[1])]=(brand[brandOf(r[1])]||0)+a;
-    prod[r[1]]=(prod[r[1]]||0)+a;
-    var y=String(r[4]).slice(0,4); yr[y]=(yr[y]||0)+a;
-  });
+  var S = aiShukei();
+  if(!S.nen.length){ el.innerHTML = '<div class="card"><div class="mini">台帳にまだ金額のある伝票がありません。</div></div>'; return; }
+  var ima = (AI_NEN && S.yr[AI_NEN]) ? AI_NEN : S.nen[S.nen.length-1];
 
   var h='';
+  /* ── ① RT全体のトータル（1つだけ） ── */
   h+='<div class="card" style="background:#f3f6ec;border-color:#cfdcb4">';
-  h+='<div style="font-weight:800;font-size:15px;color:#4a5a2a">🤖 AIによる分析</div>';
-  h+='<div class="mini" style="margin-top:6px">最終更新：2026-07-25　／　このページは伝票を読み取るたびに書き替えます。</div>';
+  h+='<div class="h">🫒 RT全体のトータル（ここは1つだけ）</div>';
+  h+='<div style="font-size:26px;font-weight:800;color:#4a5a2a;letter-spacing:.5px">¥'+S.zen.toLocaleString('ja-JP')+'</div>';
+  h+='<div class="mini" style="margin-top:4px">いま台帳に入っている伝票 '+S.kensu+'行ぶん（税抜）'
+     +(S.kingakuNashi ? '　／　<b style="color:#a33">金額がまだ入っていない行が '+S.kingakuNashi+'行あります</b>（この合計には入っていません）' : '')+'</div>';
   h+='</div>';
 
-  /* --- 読み物 --- */
-  h+='<div class="card"><div class="h">📖 いま言えること</div>';
-  h+='<div style="font-size:13.5px;line-height:1.9;color:#2b2a26">';
-  h+='<b>① 5年でいちばん大きな出来事は「売る物が総入れ替わりした」こと。</b><br>';
-  h+='2022年の年商の<b>46%はアイバリック2Lの1銘柄</b>でした（943,719円）。八瀬離宮に一度に90缶納めた伝票もあります。そのアイバリックは今、1本も動いていません。<br>';
-  h+='同じことが2025年にも起きています。2024年に動いていた唐辛子オイル100ml・トゥリリエ・オルガニック750ml缶・ザイトゥーン・プリモフルットが、2025年以降ゼロ。<br>';
-  h+='<b>つまり数字の上下は「お客様が離れた」ではなく「銘柄が消えた」で説明がつく場面が多い。</b>打ち手は訪問回数ではなく、代わりの銘柄の提案です。';
-  h+='<hr style="border:0;border-top:1px solid #eee;margin:12px 0">';
-  h+='<b>② 消えた銘柄が別の施設で生き返ることがある。</b><br>';
-  h+='ザクロソースは2022年にラグーナへ納めていた商品です。それが2026年、横浜ベイコートの中華で伸びています。<b>「昔どこかで動いた商品」は死に筋ではなく、まだ相手を探している商品</b>と考えたほうがよさそうです。';
-  h+='<hr style="border:0;border-top:1px solid #eee;margin:12px 0">';
-  h+='<b>③ 施設の顔ぶれが入れ替わっている。</b><br>';
-  h+='2022年の主役は八瀬離宮とラグーナ。いまの主役は高山・東京ベイコート・日光です。長く付き合っている先ほど、担当シェフの交代が効いています。';
-  h+='</div></div>';
+  /* ── ② 年ごとの合計 ── */
+  h+='<div class="card"><div class="h">📅 年ごとの合計（台帳に入っている分・税抜）</div>'+aiBars(S.yr,'#6b7a3a',S.nen)+'</div>';
 
-  /* --- 年別 --- */
-  h+='<div class="card"><div class="h">📅 年ごと（台帳に入っている分・税抜）</div>'+aiBars(yr,'#6b7a3a')+'</div>';
-  /* --- 施設別 --- */
-  h+='<div class="card"><div class="h">🏨 施設別</div>'+aiBars(fac,'#4a6fa5')+'</div>';
-  /* --- オイル別 --- */
-  h+='<div class="card"><div class="h">🫒 オイル別（銘柄・サイズをまとめた形）</div>'+aiBars(brand,'#8a6d3b')+'</div>';
-  /* --- 商品別 --- */
-  h+='<div class="card"><div class="h">📦 商品別（サイズごと）</div>'+aiBars(prod,'#7a5a8a')+'</div>';
+  /* ── ③ 施設ごと × 年の表（施設の全期間合計は、わざと作りません） ── */
+  h+='<div class="card"><div class="h">🏨 施設ごと × 年</div>';
+  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap">';
+  h+='<tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #cfdcb4">施設</th>';
+  S.nen.forEach(function(y){ h+='<th style="text-align:right;padding:6px 8px;border-bottom:2px solid #cfdcb4">'+y+'年</th>'; });
+  h+='<th style="text-align:left;padding:6px 8px;border-bottom:2px solid #cfdcb4">むき</th></tr>';
+  /* 並びは、取引の大きい施設から順に（合計は【並べるためだけ】に使い、表には出しません） */
+  var facs = Object.keys(S.facYr).sort(function(a,b){
+    return (S.facZen[b]||0) - (S.facZen[a]||0);
+  });
+  facs.forEach(function(f){
+    var aru = S.nen.filter(function(y){ return S.facYr[f][y]; });
+    var hajime = aru.length ? S.facYr[f][aru[0]] : 0;
+    var owari  = aru.length ? S.facYr[f][aru[aru.length-1]] : 0;
+    var muki = '';
+    if(aru.length <= 1) muki = '<span style="color:#7a7a72">'+(aru.length?aru[0]+'年だけ':'—')+'</span>';
+    else if(owari > hajime*1.2) muki = '<span style="color:#2f7a3a;font-weight:800">▲ 増えている</span>';
+    else if(owari < hajime*0.8) muki = '<span style="color:#a33;font-weight:800">▼ 減っている</span>';
+    else muki = '<span style="color:#7a7a72">→ 横ばい</span>';
+    h+='<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(f)+'</td>';
+    S.nen.forEach(function(y){
+      var v = S.facYr[f][y]||0;
+      h+='<td style="text-align:right;padding:6px 8px;border-bottom:1px solid #eee;'
+        +(v?'color:#2b2a26':'color:#c9c6bd')+'">'+(v?('¥'+v.toLocaleString('ja-JP')):'—')+'</td>';
+    });
+    h+='<td style="padding:6px 8px;border-bottom:1px solid #eee">'+muki+'</td></tr>';
+  });
+  h+='</table></div>';
+  h+='<div class="mini" style="margin-top:8px;line-height:1.8">'
+    +'1行＝1施設。よこに年が並びます。<br>'
+    +'<b>施設の「全期間の合計」の列は、わざと作っていません。</b>'
+    +'（ひろみさん「3年分合計・4年分合計はあんまり意味がない」）<br>'
+    +'いちばん右の「むき」は、その施設のいちばん古い年といちばん新しい年をくらべた印です。</div>';
+  h+='</div>';
 
+  /* ── ④ 年を選んで、その年の中を見る ── */
+  h+='<div class="card"><div class="h">🔎 年を選んで見る</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px">';
+  S.nen.forEach(function(y){
+    var on = (y===ima);
+    h+='<button onclick="aiSetNen(\''+y+'\')" style="border-radius:999px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer;'
+      +(on?'background:#4a5a2a;color:#fff;border:1.5px solid #4a5a2a':'background:#fff;color:#4a5a2a;border:1.5px solid #cfdcb4')+'">'+y+'年</button>';
+  });
+  h+='</div>';
+  /* ★その年に「金額がまだ入っていない行」があるときは、必ず言います。
+     　黙っていると、その年だけ極端に小さく見えて、数字を読みちがえます。 */
+  if(S.yrNashi[ima]){
+    h+='<div style="background:#fff2f2;border:1.5px solid #e6b3b3;border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;color:#a33;font-weight:700">'
+      +'⚠️ '+ima+'年は、金額がまだ入っていない行が '+S.yrNashi[ima]+'行あります。下の数字はその分を<b>含んでいません</b>。</div>';
+  }
+  h+='<div style="font-weight:800;font-size:13.5px;color:#4a5a2a;margin:10px 0 4px">🏨 '+ima+'年の施設別</div>'
+    +aiBars(aiFacOfYear(S.facYr, ima),'#4a6fa5');
+  h+='<div style="font-weight:800;font-size:13.5px;color:#4a5a2a;margin:16px 0 4px">🫒 '+ima+'年のオイル別（銘柄・サイズをまとめた形）</div>'
+    +aiBars(S.oilYr[ima]||{},'#8a6d3b');
+  h+='<div style="font-weight:800;font-size:13.5px;color:#4a5a2a;margin:16px 0 4px">📦 '+ima+'年の商品別（サイズごと）</div>'
+    +aiBars(S.prodYr[ima]||{},'#7a5a8a');
+  h+='</div>';
+
+  /* ── ⑤ まだ台帳に入っていない年月（台帳から計算しています） ── */
+  var nai = aiNaiTsuki(S.tsuki);
   h+='<div class="card" style="background:#fff8e6;border-color:#f0e2b8">';
-  h+='<div class="mini" style="line-height:1.8">⚠️ 上のグラフは<b>いま台帳に入っている伝票だけ</b>の集計です。2023年（65枚）はまだ読み取っていないので、そのぶん空いています。2023年を入れたら、このページは書き替えます。</div>';
+  h+='<div class="h">⚠️ まだ台帳に入っていない年月</div>';
+  if(!nai.length){
+    h+='<div class="mini">抜けている月はありません。</div>';
+  }else{
+    h+='<div style="font-size:13px;line-height:2;color:#2b2a26">'
+      + aiNaiTsukiBun(nai).map(function(s){ return '・'+esc(s); }).join('<br>') + '</div>';
+    h+='<div class="mini" style="margin-top:8px">合計 '+nai.length+'か月ぶんの伝票が、まだ読み取られていません。'
+      +'上のグラフは<b>いま台帳に入っている伝票だけ</b>の集計です。</div>';
+  }
+  h+='<div class="mini" style="margin-top:6px">※ この一覧は台帳から計算しています（手で書いた数字ではありません）。</div>';
   h+='</div>';
 
   el.innerHTML=h;
