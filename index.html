@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-10">
+<meta name="oos-version" content="2026-09-16-11">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -11956,11 +11956,24 @@ function parseRtSlip(lines){
 
   // お届け先（御中）＝仕入先「オリーブオイル・ストーリーズ」の行の、もう片方が届け先名
   let recipientName = '';
+  /* ★2026-09-16 古い形の伝票（2023年ごろ）は、あて名が【1行上】に別で載っています。
+       芦屋ベイコート倶楽部（274553）：
+         芦屋ベイコート倶楽部              ← あて名はこの行
+         ㈱オリーブオイル・ストーリーズ(2926) | 御中 | 〒659-0035 | 兵庫県
+     これまでは同じ行の「御中」をあて名として拾い、消したあと【空っぽ】になっていました。
+     → 御中・〒・都道府県のます目はあて名ではないので、外します。
+       それでも残らなければ、1行上を見ます。 */
+  const RT_ATENA_JYOGAI = /^御中$|^〒|^\d{3}-?\d{4}$|^[^\s]{2,4}[都道府県]$|^T\d{10,}$/;
   for(let i=0;i<top.length;i++){
     if(/ストーリーズ/.test(top[i])){
       const other = top[i].split('|').map(function(s){return s.trim();})
-        .filter(function(s){ return s && !/オリーブオイル|ストーリーズ/.test(s); });
+        .filter(function(s){ return s && !/オリーブオイル|ストーリーズ/.test(s) && !RT_ATENA_JYOGAI.test(s); });
       if(other.length){ recipientName = other[0]; break; }
+      if(i>0){
+        const ue = top[i-1].split('|').map(function(s){return s.trim();})
+          .filter(function(s){ return s && !/オリーブオイル|ストーリーズ|発\s*注\s*伝\s*票|受\s*領\s*書/.test(s) && !RT_ATENA_JYOGAI.test(s); });
+        if(ue.length){ recipientName = ue[0]; break; }
+      }
     }
   }
   if(!recipientName){
@@ -11979,35 +11992,63 @@ function parseRtSlip(lines){
        ★2026-09-16 ひろみさん「伝票に乗っている住所が途中までしか入っていない。
        　　　　　　RTは住所が2〜3行にまたがっていることがある」
        ──────────────────────────────────────────────────────────────────
-       それまでは【市区町村が入った最初の1行】を見つけたら、そこで止めていました。
-       　伝票：〒506-0055 岐阜県 ／ 高山市上岡本町 ／ 1丁目124−1
-       　入っていた住所：「岐阜県 高山市上岡本町」← 1丁目124−1 が落ちていた
-       → 市区町村の行を見つけたあとも、【住所の続きに見える行】をつなげます。
-       　 TEL・FAX・伝票番号などが出てきたら、そこでやめます。
+       ★本物の伝票（380789／サンクチュアリコート高山）を読んで分かった、本当の形：
 
-       ★1行で止める形に戻さないでください。番地が落ちて、荷物が届きません。
-       見張り：tests/test_rt_juusho.js
+         御中 | 〒506-0055 | 岐阜県
+         T9012801020687
+         高山市上岡本町
+         《伝票番号: 380789》発注日:2026/09/13 納品予定日:2026/09/17 | １丁目１２４－１
+         納品先:ｲﾀﾘｱﾝﾚｽﾄﾗﾝ：商品(92033) | TEL:0577-40-0116 FAX:0577-40-0126
+
+       RTの伝票は【左右2段組】です。番地「１丁目１２４－１」は、
+       【伝票番号・発注日と"同じ行"の右側のます目】に入っています。
+       　→ 1回目の直し（2026-09-16）は「伝票番号が出てきたら住所はおしまい」としたため、
+       　　 番地の入った行を【行ごと捨てて】いました。ひろみさん「直ってない！」
+
+       ★直し方：1行を | で【ます目】に割り、ます目ひとつずつ見ます。
+       　伝票番号・TEL などのます目は【とばす】だけで、住所を打ち切りません。
+       　1行ぶん何も拾えなかったら、そこで住所はおしまい。多くても4ます分。
+       　（| は extractPdfPageLines が、横に離れた文字のあいだに入れています）
+
+       ★「1行ぜんぶを1つの文字として見る」形に戻さないでください。
+       　番地が落ちて、荷物が届きません。
+       見張り：tests/test_rt_juusho.js（本物の伝票5枚で確かめています）
        ══════════════════════════════════════════════════════════════════ */
-    /* ここが出てきたら、住所はおしまい */
-    const RT_ADDR_TOME = /T\d{10,}|TEL|FAX|電話|伝票番号|発注日|納品先|納品予定|コメント|御中|合\s*計|納品金額|株式会社|有限会社/;
-    /* 住所の続きに見える行（番地・丁目・建物名など） */
+    /* ここが出てきたら、その【ます目】は住所ではない */
+    const RT_ADDR_TOME = /T\d{10,}|TEL|FAX|電話|伝票番号|発注日|納品先|納品予定|コメント|御中|合\s*計|納品金額|株式会社|有限会社|㈱|担当/;
+    /* 住所の続きに見える文字（番地・丁目・建物名など） */
     const RT_ADDR_TSUZUKI = /[丁目番地号条]|[０-９0-9][－−‐ー―-][０-９0-9]|ビル|マンション|ハイツ|階|Ｆ|ﾋﾞﾙ|^[０-９0-9\s\-－−‐ー―]+$/;
     const _atsume = [];
-    for(let j=zi+1;j<top.length;j++){
-      const s = top[j].replace(/\|/g,' ').trim();
-      if(!s){ if(_atsume.length) break; else continue; }
-      if(RT_ADDR_TOME.test(s)){ if(_atsume.length) break; else continue; }
-      if(!_atsume.length){
-        if(/[市区町村郡]/.test(s)) _atsume.push(s);   /* まず市区町村の行を見つける */
-        continue;
+    for(let j=zi;j<top.length;j++){
+      const _masu = String(top[j]).split('|').map(function(t){ return t.trim(); }).filter(Boolean);
+      let _hirotta = false;
+      for(let k=0;k<_masu.length;k++){
+        let t = _masu[k];
+        /* 〒の行では、郵便番号と都道府県はもう取ってあるので、そこだけ取りのぞく */
+        if(j===zi){
+          t = t.replace(/〒/g,'').replace(/\d{3}-?\d{4}/,'').trim();
+          if(pref) t = t.split(pref).join(' ').trim();
+        }
+        if(!t) continue;
+        if(RT_ADDR_TOME.test(t)) continue;            /* 伝票番号やTELのます目は、とばす */
+        if(_atsume.length >= 4) break;
+        if(!_atsume.length){
+          if(/[市区町村郡]/.test(t)){ _atsume.push(t); _hirotta = true; }
+          continue;                                    /* まず市区町村のます目を見つける */
+        }
+        if(RT_ADDR_TSUZUKI.test(t)){ _atsume.push(t); _hirotta = true; }
       }
-      /* 見つけたあとは、住所の続きに見えるあいだだけ つなげる（多くても3行ぶん） */
-      if(_atsume.length < 4 && RT_ADDR_TSUZUKI.test(s)){ _atsume.push(s); continue; }
-      break;
+      /* 住所が始まったあと、1行ぶん何も拾えなかったら、そこでおしまい */
+      if(_atsume.length && !_hirotta) break;
+      if(_atsume.length >= 4) break;
     }
     addrRest = _atsume.join(' ');
   }
-  const addr = (pref + ' ' + addrRest).replace(/\s+/g,' ').trim();
+  /* ★2026-09-16 住所のます目のほうに都道府県まで入っている伝票があります
+     （横浜ベイコート倶楽部：「神奈川県横浜市西区みなとみらい1丁目1番4号」）。
+     そのまま前に足すと「神奈川県 神奈川県横浜市…」と二重になるので、足しません。 */
+  const addr = ((pref && addrRest.indexOf(pref) === 0) ? addrRest : (pref + ' ' + addrRest))
+                 .replace(/\s+/g,' ').trim();
 
   // 明細：表ヘッダ〜「納品金額（税抜）／合計」の間だけを見る
   let he = top.findIndex(function(l){ return /納品金額（税抜）|^合\s*計/.test(l.trim()); });
