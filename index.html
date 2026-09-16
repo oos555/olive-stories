@@ -428,15 +428,15 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=pd80620243c"></script>
+<script src="oos-zaiko.js?v=pfe7aeffa87"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
-<script src="oos-zei.js?v=pd80620243c"></script>
+<script src="oos-zei.js?v=pfe7aeffa87"></script>
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
-<script src="oos-kakaku.js?v=pd80620243c"></script>
-<script src="oos-shorui-kimari.js?v=pd80620243c"></script>
-<script src="oos-doc.js?v=pd80620243c"></script>
-<script src="oos-nouhin.js?v=pd80620243c"></script>
+<script src="oos-kakaku.js?v=pfe7aeffa87"></script>
+<script src="oos-shorui-kimari.js?v=pfe7aeffa87"></script>
+<script src="oos-doc.js?v=pfe7aeffa87"></script>
+<script src="oos-nouhin.js?v=pfe7aeffa87"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -482,16 +482,16 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-05">
+<meta name="oos-version" content="2026-09-16-06">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=pd80620243c"></script>
+<script src="oos-hizuke.js?v=pfe7aeffa87"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-kubun.js?v=pd80620243c"></script>
-<script src="oos-meibo.js?v=pd80620243c"></script>
+<script src="oos-kubun.js?v=pfe7aeffa87"></script>
+<script src="oos-meibo.js?v=pfe7aeffa87"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -12789,63 +12789,98 @@ async function rtDoSendDocs(){
 function rtResetMailerUrl(){
   alert('倉庫への送り先は、もうこの画面に固定されています。\n貼り直す必要はありません。\n\n送り先：RT出荷依頼メール（倉庫）\n\n※もしURLが変わったときは、直しますのでお知らせください。');
 }
-function rtMakeDeliveryNote(){
-  if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
-  var w = window.open('', '_blank');
-  if(!w){ alert('ポップアップがブロックされました。ブラウザのポップアップを許可してからもう一度押してください。'); return; }
-  var css = '*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;color:#1a1a18;background:#e9e6e0;padding:16px}'
-    +'.dn{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm 12mm;position:relative}'
-    +'.dn-title{text-align:center;font-size:26px;font-weight:700;letter-spacing:6px;margin-bottom:18px}'
-    +'.dn-head{display:flex;justify-content:space-between;gap:24px;margin-bottom:14px}'
-    +'.dn-to{flex:1;min-width:0}'
-    +'.dn-toname{font-size:19px;font-weight:700;border-bottom:1.5px solid #1a1a18;padding-bottom:5px;display:inline-block}'
-    +'.hon{font-size:14px;margin-left:6px}'
-    +'.dn-tosub{font-size:12px;color:#333;margin-top:3px}'
-    +'.dn-tosp{height:10px}'
-    +'.dn-right{width:80mm;flex:none}'
-    +'.dn-meta{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}'
-    +'.dn-meta .ml{color:#333;padding:2px 0}'
-    +'.dn-meta .mv{text-align:right;font-weight:700;padding:2px 0}'
-    +'.dn-from{position:relative;font-size:12px}'
-    +'.dn-fname{font-size:14px;font-weight:700;position:relative;white-space:nowrap}'
-    +'.dn-seal{position:absolute;right:0;top:22px;width:52px;height:52px;object-fit:contain}'
-    +'.dn-faddr{margin-top:8px;color:#333;line-height:1.55}'
-    +'.dn-logo{margin-top:12px;font-size:21px;font-weight:700;color:#5b7a2f;letter-spacing:.5px}'
-    +'.dn-logo .o{color:#d98a1f}'
-    +'.dn-logosub{font-size:9px;color:#5b7a2f;letter-spacing:2px;font-weight:400}'
-    +'.dn-lead{font-size:13px;margin:2px 0}'
-    +'.dn-kenmei{font-size:13px;margin-bottom:10px}'
-    +'.dn-sumbox{border-collapse:collapse;margin-bottom:18px;width:66%}'
-    +'.dn-sumbox th{border:1px solid #1a1a18;background:#f4f2ec;font-size:12px;font-weight:700;padding:5px 8px;text-align:center}'
-    +'.dn-sumbox td{border:1px solid #1a1a18;font-size:14px;padding:8px;text-align:right}'
-    +'.dn-sumbox td.big{font-size:21px;font-weight:800}'
-    +'.dn-detail{width:100%;border-collapse:collapse;font-size:12.5px}'
-    +'.dn-detail th{border:1px solid #7a756a;background:#f4f2ec;padding:6px;font-weight:700}'
-    +'.dn-detail td{border:1px solid #b7b1a5;padding:6px 8px;height:26px}'
-    +'.d-tekiyo{text-align:left}'
-    +'.d-qty{width:70px;text-align:center}'
-    +'.d-num{width:98px;text-align:right}'
-    +'.dn-detail thead .d-qty,.dn-detail thead .d-num{text-align:center}'
-    +'.dn-foot{display:flex;justify-content:space-between;align-items:flex-start;margin-top:8px;gap:20px}'
-    +'.dn-note{font-size:11px;color:#333;padding-top:6px}'
-    +'.dn-uchiwake{width:76mm;border:1px solid #1a1a18}'
-    +'.uw-h{font-size:11px;font-weight:700;padding:3px 8px;border-bottom:1px solid #b7b1a5;background:#f4f2ec}'
-    +'.uw-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 8px}'
-    +'.uw-row.uw-small{font-size:10px;color:#444;padding-top:0}'
-    +'.dn-biko{margin-top:16px;border:1px solid #1a1a18;padding:8px 10px;font-size:12px;min-height:54px;line-height:1.7}'
-    +'.biko-h{font-weight:700;margin-bottom:2px}'
-    +'.dn-pageno{text-align:center;font-size:11px;color:#555;margin-top:18px}'
-    +'.noprint{text-align:center;margin-top:20px}'
-    +'.noprint button{background:#2563eb;color:#fff;border:none;font-size:15px;font-weight:800;padding:11px 26px;border-radius:8px;cursor:pointer}'
-    +'@media print{body{background:#fff;padding:0}.dn{width:auto;min-height:auto;padding:0}.noprint{display:none!important}@page{size:A4;margin:12mm}}';
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>納品書 '+esc(rtParsed.nouhinNo||rtParsed.slipNo||'')+'</title><style>'+css+'</style></head><body>'
-    +rtDeliveryNoteHtml()
-    +'<div class="noprint"><button onclick="window.print()">🖨️ 印刷 / PDFで保存</button></div>'
-    +'</body></html>');
-  w.document.close();
-  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 500);
+/* ══════════════════════════════════════════════════════════════════════
+   📄 RTの納品書　★2026-09-16 ひろみさん「案A（親の形）」で作り直しました
+   ──────────────────────────────────────────────────────────────────────
+   それまで、この画面の中に【もう1つ別の納品書】が書かれていました。
+   そのため、2026-09-11にひろみさんが決めた
+   　「納品書には 倉庫ピッキング手数料と送料の枠を必ず入れる」
+   が、RTの納品書にだけ効いていませんでした（ゆかちゃんの納品書には送料が出て、
+   こちらには出ない、という食いちがいの正体です）。
+
+   → 書類の親（OOS_NOUHIN）で作るようにしました。これで
+   　・料金の枠が必ず出る　・商品の枠が8行でそろう
+   　・数量が【バラ／箱／合計本数】の3列になる（箱の入力がそのまま出ます）
+   　・ほかの納品書とまったく同じ形になる
+
+   ★PDFは【直接つくります】（印刷画面を通しません）。
+   　そのため、ブラウザが付けていた日付・about:blank・1/1 は、もう出ません。
+   ★この画面の中に納品書を書き戻さないでください。また食いちがいます。
+   ══════════════════════════════════════════════════════════════════════ */
+function rtOrderForDoc(){
+  var p = rtParsed || {};
+  var rate = (typeof OOS_ZEI !== 'undefined' && OOS_ZEI.RATE_SERVICE != null) ? OOS_ZEI.RATE_SERVICE : 0.1;
+  /* ★送料は画面では【税抜】で入れてもらい、親には【税込】で渡します。
+     　親は送料を税込で持つ決まりだからです（oos-nouhin.js の _shipIncl）。
+     ★ここで税抜のまま渡さないでください。消費税が足りなくなります。 */
+  var ship = (p.shipFee === '' || p.shipFee == null) ? '' : Math.round(Number(p.shipFee) * (1 + rate));
+  var memo = ['RT伝票取込',
+              p.slipNo ? ('伝票番号 ' + p.slipNo) : '',
+              p.deliveryDate ? ('納品予定日 ' + p.deliveryDate) : ''].filter(Boolean).join(' ／ ');
+  return {
+    id: 'rt-preview',
+    num: 'RT-' + (p.slipNo || ''),
+    customerType: 'rt',
+    client: p.recipientName || '',
+    recipientName: p.recipientName || '',
+    isCompany: !!p.dept,
+    companyName: p.recipientName || '',
+    deptName: p.dept || '',
+    personName: '',
+    positionName: '',
+    zip: p.zip || '', addr: p.addr || '', tel: p.tel || '',
+    note: memo,
+    enclosedDoc: '納品書',
+    shippingFee: ship,
+    /* ★何も押していないときは「なし」と同じ扱い（枠は出て「―」） */
+    warehouseFee: (p.pickFee === undefined ? 'nashi' : p.pickFee),
+    lines: (p.lines || []).filter(function(l){ return l && l.productId; }).map(function(l){
+      var pr = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).find(function(x){ return String(x.id) === String(l.productId); });
+      return {
+        productId: l.productId,
+        productName: (pr && pr.name) || '',
+        boxQty: (pr && parseInt(pr.boxQty)) || 1,
+        bottles: parseInt(l.bottles) || 0,
+        boxes: parseInt(l.boxes) || 0,
+        giftType: 'normal'
+        /* ══════════════════════════════════════════════════════════════
+           🔒 単価は、ここでは渡しません。★2026-09-16 ひろみさん確定
+           ──────────────────────────────────────────────────────────────
+           ひろみさん：「価格マスタから単価は使って！ 伝票は間違っていることが
+           　　　　　　あるから、今のやり方で合ってたの」
+
+           画面の「単価（直せます）」は、伝票の中身を目で確かめるための欄です。
+           **書類に出る単価は、いつでも価格マスタ**（oos-kakaku.js）から引きます。
+           ★ここに unitPrice / unitPriceFixed を足さないでください。
+           　伝票の間違いが、そのままお客様への請求になります。
+           ══════════════════════════════════════════════════════════════ */
+      };
+    })
+  };
 }
+
+async function rtMakeDeliveryNote(){
+  if(!rtParsed){ alert('先に発注伝票を取り込んでください。'); return; }
+  var o = rtOrderForDoc();
+  if(!o.lines.length){ alert('商品が1つも選ばれていません。商品をえらんでから、もう一度押してください。'); return; }
+  var html = '';
+  try{ html = OOS_NOUHIN.build(o, nouhinDeps(), '納品書') || ''; }
+  catch(e){ html = ''; }
+  if(!html){ alert('納品書を作れませんでした。商品と単価を確かめてから、もう一度押してください。'); return; }
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:820px';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  try{
+    var el = holder.querySelector('.invoice-doc') || holder;
+    var nm = ((rtParsed.recipientName || 'RT') + '_'
+            + (rtParsed.nouhinNo || rtParsed.slipNo || '') + '_納品書.pdf').replace(/[\\\/:*?"<>|]/g, '_');
+    await OOS_DOC.downloadPdf(el, nm);
+  } finally {
+    try{ document.body.removeChild(holder); }catch(e){}
+  }
+}
+
 function cancelRtImport(){
   rtParsed = null;
   if(typeof rtResetExtraDoc==='function') rtResetExtraDoc();
