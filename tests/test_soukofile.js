@@ -527,6 +527,41 @@ has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSr
   eq('⑮ひも付く注文が無ければ何もしない', s.run('KT'), null);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   ⑱ 在庫リスト（現ロット）＝ 7列　★2026-09-16 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   「写しなので、必要最低限が倉庫の人が閲覧できればいいだけ」
+   やめた：棚の良品／不良 軽中重（1つに）／輸入3列／臨時入庫2列／備考
+   変えた：管理番号（ORG100）→ 商品管理番号（ORG100-5149）
+   ★見出しは2行目の1段・中身は3行目から。
+   ★旧ロットのタブは「まだ何もしなくていい」とのご指示で、3段ヘッダーのままです。
+   ══════════════════════════════════════════════════════════════════════ */
+has('⑱見出しは7列・この並び', gasSrc,
+    "var OOS_ZAIKO_ATAMA = ['商品名','商品管理番号','販売可能数','実在庫','不良品','取置','廃棄'];");
+eq('⑱見出しを決めている場所は1か所だけ',
+   (gasSrc.match(/var OOS_ZAIKO_ATAMA = /g) || []).length, 1);
+
+const honbu = H.cut(gasSrc, 'oosHonbuSync');
+has('⑱中身は3行目から7列で書く', honbu, 'getRange(3,1,curRows.length,7).setValues(curRows)');
+has('⑱古い中身は3行目から16列ぶん消す', honbu, 'getRange(3,1,last-2,16).clearContent()');
+has('⑱見出しをそろえる処理を呼んでいる', honbu, 'oosZaikoListAtama_(sh)');
+has('⑱商品管理番号は親と同じ作り方（品番だけに戻していない）', honbu, 'oosKanriBangou_(p)');
+eq('⑱品番だけを書く古い形に戻っていない', /curRows\.push\(\[p\.name, p\.sku,/.test(honbu), false);
+has('⑱不良は1つにまとめている', honbu, 'var furyouCur = dd.cur.L + dd.cur.M + dd.cur.H;');
+
+/* 旧ロットは【まだ触らない】（ひろみさん 2026-09-16） */
+has('⑱旧ロットは今までどおり5行目から11列', honbu, 'getRange(5,1,oldRows.length,11).setValues(oldRows)');
+
+/* 🔄の☑は R11 のまま（倉庫さんが押せる唯一のもの） */
+has('⑱🔄の☑は11行目R列のまま', H.cut(gasSrc, 'oosHonbuOnEdit'),
+    'e.range.getRow()===11 && e.range.getColumn()===18');
+
+/* 用意し直しても古い3段ヘッダーに戻らないこと */
+const setupHonbu = H.cut(gasSrc, 'oosSetupHonbuSheet');
+eq('⑱用意し直しても現ロットが3段ヘッダーに戻らない', /threeTier\(sh, true\)/.test(setupHonbu), false);
+has('⑱用意し直しでも新しい見出しを使う', setupHonbu, 'oosZaikoListAtama_(sh)');
+has('⑱旧ロットは用意し直しでも3段のまま', setupHonbu, 'threeTier(so, false)');
+
 console.log('===== 倉庫ファイル（スプシ一本化・第1弾）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
