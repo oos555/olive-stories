@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-06">
+<meta name="oos-version" content="2026-09-16-07">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1185,8 +1185,11 @@ body{background:#fff}
       <div id="rt-preview" style="display:none"></div>
       <div id="rt-actions" style="margin-top:6px">
         <div id="rt-actions-hint" style="font-size:12.5px;color:#8a8578;background:#f7f4ee;border:1px dashed #d5cfc3;border-radius:8px;padding:9px 11px;margin-bottom:8px;line-height:1.7">↑ まず上の枠に<b>発注伝票のPDF</b>を入れると、下の<b>「納品書をPDFで取り出す」ボタン</b>が使えるようになります（今はまだ押せません）。</div>
-        <button id="rt-pdf-btn" disabled onclick="rtMakeDeliveryNote()" style="width:100%;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">🖨️ 納品書をPDFで取り出す（印刷・保存）</button>
-        <div style="font-size:12px;color:#8a8578;margin-top:5px;line-height:1.6">🖨️ 納品書がほしいときだけ押してください（印刷・PDF保存できます）。ここからは送信しません。</div>
+        <!-- ★2026-09-16 ひろみさん「取り出すを先にして、そのあと確認のチェック、その下に受注登録へ進む。
+             　順番が逆かな」→ このボタンは renderRtPreview で【確認の枠より上】へ移します（rt-actions-slot）。
+             ★「確認」も文字に入れました（作って中身を見る、が先だと分かるように）。 -->
+        <button id="rt-pdf-btn" disabled onclick="rtMakeDeliveryNote()" style="width:100%;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">🖨️ 納品書をPDFで取り出す（確認・印刷・保存）</button>
+        <div style="font-size:12px;color:#8a8578;margin-top:5px;line-height:1.6">🖨️ まずここで納品書を作って、中身を確かめてください（印刷・PDF保存できます）。ここからは送信しません。</div>
       </div>
       <div id="rt-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:16px">
         <div style="background:#fff;border-radius:14px;max-width:430px;width:100%;padding:18px 18px 16px;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
@@ -12120,9 +12123,14 @@ function rtLineRowHtml(ln, i){
        　私たちの番号ではなくてお客様のつけてる番号です」★「伝票コード」に戻さないでください */
     +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">RT側の商品コード</div>'+esc(ln.rawCode||'—')+'</div>'
     +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">商品（弊社の表示名）</div>'+sel+(ln.matched?'':'<div style="color:#dc2626;font-size:11px;font-weight:700;margin-top:3px">⚠️ 商品を選んでください</div>')+'</div>'
-    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="0" value="'+(ln.bottles||0)+'" oninput="rtParsed.lines['+i+'].bottles=parseInt(this.value)||0;renderRtPreview()" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
-    +'<div><div style="color:#3c4a20;font-size:11px;font-weight:700">箱</div><input type="number" min="0" value="'+(ln.boxes||0)+'" oninput="rtParsed.lines['+i+'].boxes=parseInt(this.value)||0;renderRtPreview()" style="width:100%;padding:6px;border:1.5px solid #6b8a3a;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26;background:#f5faec">'
-      +'<div style="font-size:10.5px;color:#6b6a63;margin-top:2px">'+(_iri?('1箱'+_iri+'本 → 計'+_goukei+'本'):'入数が名簿にありません')+'</div></div>'
+    /* ★2026-09-16 ひろみさん「数字が1個1個しか入っていかない。1個押したら画面が一番上に行っちゃう」
+       　原因：1文字打つたびに renderRtPreview() で画面を丸ごと作り直していたため、
+       　　　　打っている欄そのものが作り直されて、入力が切れていました（私が入れた不具合です）。
+       　→ 打っている間は【下の案内の文字だけ】書き替えます。画面は作り直しません。
+       ★oninput に renderRtPreview() を戻さないでください。また1文字ずつになります。 */
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="0" value="'+(ln.bottles||0)+'" oninput="rtParsed.lines['+i+'].bottles=parseInt(this.value)||0;rtLineQtyChanged('+i+')" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
+    +'<div><div style="color:#3c4a20;font-size:11px;font-weight:700">箱</div><input type="number" min="0" value="'+(ln.boxes||0)+'" oninput="rtParsed.lines['+i+'].boxes=parseInt(this.value)||0;rtLineQtyChanged('+i+')" style="width:100%;padding:6px;border:1.5px solid #6b8a3a;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26;background:#f5faec">'
+      +'<div id="rt-line-hint-'+i+'" style="font-size:10.5px;color:#6b6a63;margin-top:2px">'+(_iri?('1箱'+_iri+'本 → 計'+_goukei+'本'):'入数が名簿にありません')+'</div></div>'
     +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+_rtLineRate(ln)+'%</span></div></div>'
     +'<div>'+(i>0?'<button class="btn-sm" style="color:#991b1b;border-color:#e6a5a5" onclick="rtRemoveLine('+i+')" title="この商品を消す">✕</button>':'')+'</div>'
     +'</div>';
@@ -12145,16 +12153,53 @@ var RT_PICK_ERABI = [
   { v:0,       label:'無料サービス' },
   { v:700,     label:'700円（税抜）' }
 ];
+/* ★2026-09-16 ひろみさん「送料のところは、スムーズに数字が入るようにしてほしい。
+   　最大5桁まではスムーズに入るように」
+   　1文字ごとに画面を作り直していたので、打っている欄が消えていました。
+   　→ 打っている間は【案内の文字だけ】書き替えます。★作り直しに戻さないでください。 */
+function rtZeiRate(){
+  return (typeof OOS_ZEI !== 'undefined' && OOS_ZEI.RATE_SERVICE != null) ? OOS_ZEI.RATE_SERVICE : 0.1;
+}
+function rtLineQtyChanged(i){
+  if(!rtParsed || !rtParsed.lines || !rtParsed.lines[i]) return;
+  var l = rtParsed.lines[i];
+  var p = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).find(function(x){ return String(x.id) === String(l.productId); });
+  var iri = (p && parseInt(p.boxQty)) || 0;
+  var goukei = (parseInt(l.bottles)||0) + (parseInt(l.boxes)||0) * (iri || 1);
+  var el = document.getElementById('rt-line-hint-' + i);
+  if(el) el.textContent = iri ? ('1箱' + iri + '本 → 計' + goukei + '本') : '入数が名簿にありません';
+}
 function rtSetShipFee(v){
   if(!rtParsed) return;
   var s = String(v==null?'':v).trim();
+  /* ★5桁まで（99,999円）。それ以上は打ち間違いなので、はじめの5桁だけ受けます */
+  if(s.length > 5) s = s.slice(0, 5);
   rtParsed.shipFee = (s === '') ? '' : (parseInt(s,10) || 0);
-  renderRtPreview();
+  var el = document.getElementById('rt-ship-hint');
+  if(el){
+    var n = rtParsed.shipFee;
+    if(n === '' || n == null){ el.textContent = '円'; }
+    else {
+      var komi = Math.round(Number(n) * (1 + rtZeiRate()));
+      el.textContent = '円　→ 税込 ¥' + komi.toLocaleString()
+                     + '（消費税 ¥' + (komi - Number(n)).toLocaleString() + '）';
+    }
+  }
 }
 function rtSetPickFee(v){
   if(!rtParsed) return;
   rtParsed.pickFee = v;
-  renderRtPreview();
+  /* 画面は作り直さず、ボタンの色と案内だけ変えます */
+  RT_PICK_ERABI.forEach(function(x){
+    var b = document.getElementById('rt-pick-' + String(x.v));
+    if(!b) return;
+    var on = (String(x.v) === String(v));
+    b.style.background  = on ? '#4a5a2a' : '#fff';
+    b.style.color       = on ? '#fff' : '#4a5a2a';
+    b.style.borderColor = on ? '#4a5a2a' : '#cfd6bd';
+  });
+  var h = document.getElementById('rt-pick-hint');
+  if(h) h.textContent = (String(v) === '700') ? '税込 ¥770' : '';
 }
 function rtRyokinHtml(p){
   var ship = (p.shipFee === '' || p.shipFee == null) ? '' : p.shipFee;
@@ -12163,7 +12208,7 @@ function rtRyokinHtml(p){
   var now = (p.pickFee === undefined) ? 'nashi' : p.pickFee;
   var chips = RT_PICK_ERABI.map(function(x){
     var on = (String(x.v) === String(now));
-    return '<button class="btn-sm" onclick="rtSetPickFee('+(typeof x.v==='number'?x.v:"'"+x.v+"'")+')" '
+    return '<button class="btn-sm" id="rt-pick-'+String(x.v)+'" onclick="rtSetPickFee('+(typeof x.v==='number'?x.v:"'"+x.v+"'")+')" '
       + 'style="border:1.5px solid '+(on?'#4a5a2a':'#cfd6bd')+';background:'+(on?'#4a5a2a':'#fff')+';'
       + 'color:'+(on?'#fff':'#4a5a2a')+';font-weight:800;padding:6px 14px;border-radius:99px;font-size:13px">'
       + x.label + '</button>';
@@ -12171,16 +12216,16 @@ function rtRyokinHtml(p){
   return '<div style="background:#f6f4ee;border:1px solid #e2ddd2;border-radius:8px;padding:9px 11px;margin:2px 0 10px">'
     + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
       + '<span style="font-size:13.5px;font-weight:800;color:#2b2a26;min-width:150px">🚚 送料（税抜）</span>'
-      + '<input type="number" min="0" value="'+esc(String(ship))+'" placeholder="（空＝別途申し受けます）" '
+      + '<input type="number" min="0" max="99999" maxlength="5" value="'+esc(String(ship))+'" placeholder="（空＝別途申し受けます）" '
         + 'oninput="rtSetShipFee(this.value)" '
         + 'style="width:130px;padding:6px;border:1.5px solid #6b8a3a;border-radius:6px;font-size:16px;font-weight:700;background:#f5faec">'
-      + '<span style="font-size:12.5px;color:#6b6a63">円'
+      + '<span id="rt-ship-hint" style="font-size:12.5px;color:#6b6a63">円'
       + (zeikomi==null ? '' : ('　→ 税込 ¥'+zeikomi.toLocaleString()+'（消費税 ¥'+(zeikomi-Number(ship)).toLocaleString()+'）')) + '</span>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
       + '<span style="font-size:13.5px;font-weight:800;color:#2b2a26;min-width:150px">📦 倉庫ピッキング手数料</span>'
       + chips
-      + '<span style="font-size:12.5px;color:#6b6a63">'+(String(now)==='700'?'税込 ¥770':'')+'</span>'
+      + '<span id="rt-pick-hint" style="font-size:12.5px;color:#6b6a63">'+(String(now)==='700'?'税込 ¥770':'')+'</span>'
     + '</div>'
   + '</div>';
 }
@@ -12258,6 +12303,13 @@ function renderRtPreview(){
         +'<span style="background:#eef4f9;color:#1f4a6d;border:1px solid #b9d0e3;font-size:12px;font-weight:700;padding:4px 11px;border-radius:99px">同梱：RT発注伝票 ＋ 納品書（必ずセット）</span>'
       +'</div>'
     +'</div>'
+    /* ★2026-09-16 ひろみさん「取り出すを先にして、そのあと確認のチェック、その下に
+       　受注登録へ進む。順番が逆かな」
+       　→ 「🖨️ 納品書をPDFで取り出す」のかたまり（#rt-actions）を、ここへ移します。
+       　　 下の innerHTML のあとで、本物の要素をこの入れ物に移します
+       　　（作り直さないので、ボタンの効き目や押せる／押せないの状態はそのままです）。
+       ★この入れ物を消さないでください。消すとボタンが確認の枠の下に戻ります。 */
+    +'<div id="rt-actions-slot" style="margin-top:14px"></div>'
     +'<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
       +'<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">⚠️ 伝票と納品書を確認しましたか？</div>'
       +'<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="rt-confirm-chk" onchange="document.getElementById(\'rt-go-btn\').disabled=!this.checked" style="width:18px;height:18px"> 伝票の内容と、作られる納品書が合っていることを確認しました</label>'
@@ -12267,6 +12319,13 @@ function renderRtPreview(){
       +'</div>'
       +'<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">このボタンを押すと、自動で<b>受注登録画面</b>に進みます。そこで<b>足りない部分</b>を入力してください。</div>'
     +'</div>';
+  /* ★2026-09-16 「納品書をPDFで取り出す」のかたまりを、確認の枠の【上】へ移します。
+     　作り直さずに、本物の要素をそのまま動かします（ボタンの状態が消えません）。 */
+  try{
+    var _slot = document.getElementById('rt-actions-slot');
+    var _act  = document.getElementById('rt-actions');
+    if(_slot && _act) _slot.appendChild(_act);
+  }catch(e){}
   if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(true);
 }
 // ── RT納品書：取り込んだ発注伝票から、いつもの納品書と同じスタイルで作る（社内コード・検品欄・原価は載せない）──
