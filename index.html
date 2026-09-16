@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-07">
+<meta name="oos-version" content="2026-09-16-08">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -12242,11 +12242,50 @@ function rtRemoveLine(i){
   if(!rtParsed.lines.length) rtParsed.lines.push({ rawCode:'', productId:'', matched:false, bottles:0, boxes:0, unitPrice:0, taxRate:10 });
   renderRtPreview();
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-16 ボタンが消えた事故と、その直し方
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「納品書をPDFで～のボタンが消えた！！！」
+
+   原因：「🖨️ 納品書をPDFで取り出す」のかたまり（#rt-actions）を、
+   　　　確認の枠より上へ【移して】いました。移した先はこの画面の中です。
+   　　　そのあと画面を作り直す（el.innerHTML = …）と、
+   　　　**移したボタンごと消えて**しまい、二度と戻りませんでした。
+
+   直し方：作り直す【前に】いったん画面の外へ出して預かり、
+   　　　　作り直した【あと】に、また置き直します。
+   ★el.innerHTML の前に rtActionsHoldOut()、あとに rtActionsPutBack()。
+   　この2つを外さないでください。外すとまたボタンが消えます。
+   見張り：tests/test_rt_botan_junban.js
+   ══════════════════════════════════════════════════════════════════════ */
+var rtActionsEl = null, rtActionsHome = null;
+function rtActionsHoldOut(){
+  if(!rtActionsEl){
+    rtActionsEl = document.getElementById('rt-actions');
+    if(rtActionsEl) rtActionsHome = { parent: rtActionsEl.parentNode, next: rtActionsEl.nextSibling };
+  }
+  if(rtActionsEl && rtActionsEl.parentNode) rtActionsEl.parentNode.removeChild(rtActionsEl);
+}
+function rtActionsPutBack(){
+  if(!rtActionsEl) return;
+  var slot = document.getElementById('rt-actions-slot');
+  if(slot){ slot.appendChild(rtActionsEl); return; }
+  /* 置き場所が無いとき（取り込み前・キャンセルのあと）は、もとの場所へ戻す */
+  if(rtActionsHome && rtActionsHome.parent){
+    if(rtActionsHome.next && rtActionsHome.next.parentNode === rtActionsHome.parent){
+      rtActionsHome.parent.insertBefore(rtActionsEl, rtActionsHome.next);
+    } else {
+      rtActionsHome.parent.appendChild(rtActionsEl);
+    }
+  }
+}
+
 function renderRtPreview(){
   const p = rtParsed;
   const el = document.getElementById('rt-preview');
   el.style.display = 'block';
-  if(!p){ el.innerHTML=''; return; }
+  rtActionsHoldOut();                            /* ★作り直す前に、ボタンを預かる */
+  if(!p){ el.innerHTML=''; rtActionsPutBack(); return; }
   if(p.nouhinNo===undefined) p.nouhinNo = p.slipNo || '';
   /* ★2026-08-19 1品目だけを見る書き方（ln / prodSelect）はやめました。
      商品は rtLineRowHtml で1行ずつ作ります。★戻さないでください */
@@ -12319,13 +12358,9 @@ function renderRtPreview(){
       +'</div>'
       +'<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">このボタンを押すと、自動で<b>受注登録画面</b>に進みます。そこで<b>足りない部分</b>を入力してください。</div>'
     +'</div>';
-  /* ★2026-09-16 「納品書をPDFで取り出す」のかたまりを、確認の枠の【上】へ移します。
-     　作り直さずに、本物の要素をそのまま動かします（ボタンの状態が消えません）。 */
-  try{
-    var _slot = document.getElementById('rt-actions-slot');
-    var _act  = document.getElementById('rt-actions');
-    if(_slot && _act) _slot.appendChild(_act);
-  }catch(e){}
+  /* ★2026-09-16 作り直したあと、預かっていたボタンを置き直します（確認の枠の【上】）。
+     　★この1行を消さないでください。消すとボタンが消えたままになります。 */
+  rtActionsPutBack();
   if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(true);
 }
 // ── RT納品書：取り込んだ発注伝票から、いつもの納品書と同じスタイルで作る（社内コード・検品欄・原価は載せない）──
