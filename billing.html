@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-04">
+<meta name="oos-version" content="2026-09-16-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1037,9 +1037,18 @@ function showPanel(name, btn){
 function loadAllBilling(){
   Promise.all([
     fetch(GAS_URL + '?action=loadAllData&only=lots,defects,customers,priceMaster,monthlyInvoices,monthlyClients,quoteHistory,specialPrices').then(r=>r.json()).catch(()=>null),
-    fetch(GAS_URL + '?action=loadAll').then(r=>r.json()).catch(()=>null)
+    /* ★2026-09-16 ひろみさん「スプシに移した売上リストは、読み込まなくていいよね。
+       　2か月分はアプリだけが持っててもいいんじゃない」
+       　→ sumiNuki=1 … スプシへ移した注文は【運ばない】。画面を出すときの1回だけ。
+       ★保存の前に読むときは、ぜったいに sumiNuki を付けないでください。
+       　saveOrders は受注データをまるごと書き直すので、返さなかった注文が本当に消えます。
+       　（この下の setOrderPaid・uriageIkouGo などは、わざと sumiNuki 無しで読んでいます）
+       見張り：tests/test_uriage_ikou.js の ⑦ */
+    fetch(GAS_URL + '?action=loadAll&sumiNuki=1').then(r=>r.json()).catch(()=>null)
   ]).then(function(results){
     const dataRes = results[0], ordersRes = results[1];
+    /* スプシへ移して【運ばなかった】件数。画面の案内に出します */
+    if(ordersRes && typeof ordersRes.sumiNuita === 'number') URIAGE_SUMI_KENSU = ordersRes.sumiNuita;
     if(dataRes && dataRes.status==='ok' && dataRes.data){
       priceMaster = dataRes.data.priceMaster || [];
       monthlyInvoices = dataRes.data.monthlyInvoices || [];
@@ -1366,6 +1375,9 @@ function renderSalesDupAlert(){
    見張り：tests/test_uriage_ikou.js
    ══════════════════════════════════════════════════════════════════════ */
 var URIAGE_IKOU_TSUKI = 2;   /* まとめ請求ぶんを置いておく月数（ひろみさん：2か月） */
+/* スプシへ移したので【運ばなかった】注文の数（GASが数えて教えてくれます）。
+   この画面は、移した注文をもう読んでいません。中身はスプシにあります。 */
+var URIAGE_SUMI_KENSU = 0;
 
 /* 受注日から◯か月たったか */
 function uriageTsukiKeika(hizuke, tsuki){
@@ -1421,7 +1433,10 @@ function uriageIkouGyou(o){
 function renderUriageIkou(){
   var el = document.getElementById('uriage-ikou-box'); if(!el) return;
   var taishou = uriageIkouTaishou();
-  var sumi = (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && o.salesArchivedAt; }).length;
+  /* 移したものはもう運ばれてこないので、数はGASが教えてくれた数を使います。
+     （まだ運ばれてきているものがあれば、それも足します） */
+  var sumi = URIAGE_SUMI_KENSU
+    + (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && o.salesArchivedAt; }).length;
   var uchi = { nyukin:0, basara:0, rt:0, oroshi:0 };
   taishou.forEach(function(o){
     var b = uriageIkouBiko(o);
@@ -1448,7 +1463,8 @@ function renderUriageIkou(){
   }else{
     h += '<div style="font-size:12.5px;color:#7a7a72;margin-top:8px">いま移せるものはありません。</div>';
   }
-  h += '<div style="font-size:11.5px;color:#8a8578;margin-top:8px">これまでに移した件数：' + sumi + '件</div>'
+  h += '<div style="font-size:11.5px;color:#8a8578;margin-top:8px">これまでに移した件数：' + sumi + '件'
+    + '（この画面は、移したものをもう読み込んでいません。中身はスプシにあります）</div>'
     + '<div id="uriage-ikou-msg" style="margin-top:8px;font-size:12.5px"></div></div>';
   el.innerHTML = h;
 }

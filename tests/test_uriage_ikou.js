@@ -202,6 +202,37 @@ if (GASJS) {
   console.log('        （GASのコード.js が手元に無いので、⑥は飛ばしました）');
 }
 
+/* ══════════════════════════════════════════════════════════════
+   ⑦ ★★ いちばん危ないところ ★★
+      「移したものは運ばない（sumiNuki）」で読んだ注文を、そのまま保存しない。
+      saveOrders は受注データを【まるごと書き直す】ので、
+      運ばれてこなかった注文が【本当に消えます】。
+      → 画面を出すときの1回だけ sumiNuki を付ける。保存の前は必ず全部読む。
+   ══════════════════════════════════════════════════════════════ */
+{
+  const SRC0 = SRC.replace(/\/\*[\s\S]*?\*\//g, '');   /* 説明文は数えない */
+  const tsuki = (SRC0.match(/action=loadAll&sumiNuki=1/g) || []).length;
+  const zenbu = (SRC0.match(/action=loadAll(?!&)/g) || []).length;
+  eq('⑦sumiNuki を付けて読むのは、画面を出すときの1回だけ', tsuki, 1);
+  ok('⑦保存の前に読むところは、ぜんぶ sumiNuki 無し（全部読む）', zenbu >= 4,
+     '（いま ' + zenbu + ' か所。1か所でも sumiNuki が混ざると、受注データが消えます）');
+  /* 保存している関数のなかに、sumiNuki 付きの読み込みが1つも無いこと */
+  ['setOrderPaid','uriageIkouGo'].forEach(function(n){
+    const fn = H.cut(SRC, n).replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('⑦' + n + ' は、保存の前に【全部】読んでいる', fn.indexOf('sumiNuki') < 0,
+       '（ここで sumiNuki を使うと、運ばれてこなかった注文が消えます）');
+    ok('⑦' + n + ' は、読み直してから保存している',
+       fn.indexOf('action=loadAll') >= 0 && fn.indexOf('action=loadAll') < fn.indexOf("action:'saveOrders'"));
+  });
+  if (GASJS) {
+    ok('⑦GAS側は、合図があるときだけ抜く',
+       /function loadAll\(sumiNuki\)/.test(GASJS));
+    ok('⑦GAS側は、抜いた件数を教えてくれる', GASJS.indexOf('sumiNuita') >= 0);
+    ok('⑦合図が無ければ、今までどおり全部返す',
+       /if\(!sumiNuki\) return true;/.test(GASJS));
+  }
+}
+
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
   fails.forEach(x => console.log(x));
