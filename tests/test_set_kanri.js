@@ -140,6 +140,10 @@ if (dsp) {
     mbBarcodeOfSku: ctx.mbBarcodeOfSku
   };
   vm.createContext(ctx2);
+  /* ★2026-09-16 品番＋バーコード下4桁の計算は、親（oos-kubun.js）に一本化しました。
+     　砂場にも必ず親を入れます。入れ忘れると displaySkuCode が動かず、
+     　本物とちがう動きで測ってしまいます（2026-09-12の「砂場に親を入れ忘れる」と同じ穴）。 */
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'oos-kubun.js'), 'utf8'), ctx2);
   vm.runInContext(dsp, ctx2);
 
   /* 名簿に「ただのセット」と「ギフトセット」を置いて、2つの計算を突き合わせる */

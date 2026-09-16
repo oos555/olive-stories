@@ -41,9 +41,12 @@ ok('①親に区分の並び（ORDER）がある', !!(K && Array.isArray(K.ORDER
 ok('①親に商品を並べる部品（sortProducts）がある', !!(K && typeof K.sortProducts === 'function'));
 
 /* ── ② 両方のアプリが親を読み込んでいること ───────────────────── */
+/* ★2026-09-16 合言葉（?v=）を付けました。親を直したときに、
+   　ブラウザが古い控えを使わないようにするためです。
+   　★合言葉なしに戻さないでください（2026-09-16に見つけた穴）。 */
 ['master.html', 'import.html'].forEach(f => {
-  ok('②' + f + ' が oos-kubun.js を読み込んでいる',
-    read(f).indexOf('<script src="oos-kubun.js"></script>') >= 0,
+  ok('②' + f + ' が oos-kubun.js を合言葉つきで読み込んでいる',
+    /<script src="oos-kubun\.js\?v=[A-Za-z0-9._-]+"><\/script>/.test(read(f)),
     '（読み込みが消えると、そのアプリだけ並びが変わります）');
 });
 ok('②統合マスタＮは親から並びをもらっている',

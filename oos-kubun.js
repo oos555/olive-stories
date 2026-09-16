@@ -58,9 +58,64 @@
     });
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     🏷 商品管理番号（品番 ＋ バーコード下4桁）の【親】　★2026-09-16 ひろみさん指示
+     ──────────────────────────────────────────────────────────────────────
+     ひろみさん「3つ同じことをやっているのは、ちょっと事故が起きやすい」
+     　　　　　「とにかくアプリと揃えて。ずれてたり、壊れたりしないようにしたい」
+
+     2026-09-16 に実測したところ、この計算が【3つのアプリに書き写されて】いました。
+     　・統合マスタＮ（master.html）… displaySkuCode
+     　・受注Ａ（index.html）　　　　 … dispCodeOf ／ lineCodeHtmlA
+     　・倉庫Ｄ（pickup.html）　　　　… dispCodeOf ／ lineBarcode4
+     55商品で突き合わせたところ、そのときは【3つとも同じ答え・食いちがい0件】でしたが、
+     どれか1つを直したときに、ほかが古いまま残る危険がずっと残ります。
+     → この1か所だけに書きます。アプリは呼ぶだけにします。
+
+     ★決めごと（変えるときはひろみさんに確認してください）
+     　・番号 ＝ 品番 ＋ '-' ＋ バーコードの下4桁
+     　・バーコードが無い／4桁に足りないときは【品番だけ】。ハイフンは出さない
+     　　（2026-09-16 時点で55商品のうち24商品がこの形＝箱・紙袋・備品など）
+     　・バーコードは 名簿の「バーコード」欄 → jan → barcode の順に見る
+     　・数字と英字だけを見る（ハイフンや空白は取り除く）
+
+     ★セット商品の番号（SET-下4桁-下4桁）は、ここではなく統合マスタＮの
+     　mbSetKanriFrom が持っています（セットは在庫リストに出ないため）。
+
+     ★GASだけは、このファイルを読めません（Googleのサーバーで動くため）。
+     　GASには唯一のコピー（oosKanriBangou_）があり、
+     　tests/test_kanri_bangou.js が【親とGASが同じ答えを出すか】を毎回くらべます。
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* 商品からバーコードを取り出す（名簿の「バーコード」欄が正）。無ければ '' */
+  function barcodeOf(p) {
+    if (!p) return '';
+    var v = p['バーコード'];
+    if (!v && p.extras) v = p.extras['バーコード'];
+    if (!v) v = p.jan || p.barcode || '';
+    return String(v || '').trim();
+  }
+
+  /* バーコードの下4桁。取れなければ ''（商品でも、文字そのものでも渡せます） */
+  function shita4(x) {
+    var s = (x && typeof x === 'object') ? barcodeOf(x) : String(x || '');
+    var d = s.replace(/[^0-9A-Za-z]/g, '');
+    return d.length >= 4 ? d.slice(-4) : '';
+  }
+
+  /* 商品管理番号＝品番＋バーコード下4桁。バーコードが無ければ品番だけ */
+  function kanriBangou(p) {
+    if (!p || !p.sku) return '';
+    var t = shita4(p);
+    return t ? (String(p.sku) + '-' + t) : String(p.sku);
+  }
+
   glob.OOS_KUBUN = {
     ORDER: GROUP_ORDER,
-    sortProducts: sortProducts
+    sortProducts: sortProducts,
+    barcodeOf: barcodeOf,
+    shita4: shita4,
+    kanriBangou: kanriBangou
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);

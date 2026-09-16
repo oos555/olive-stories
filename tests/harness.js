@@ -99,6 +99,10 @@ function makeSandbox(extra){
      ★消さないでください */
   try{ vm.runInContext(read('oos-doc.js'), ctx); }catch(e){}
   try{ vm.runInContext(read('oos-nouhin.js'), ctx); }catch(e){}
+  /* ★2026-09-16 区分と【商品管理番号（品番＋バーコード下4桁）】の親 oos-kubun.js も、
+     どのテストでも入れておく。統合マスタＮ・受注Ａ・倉庫Ｄ は自分で番号を作らず
+     OOS_KUBUN.kanriBangou を呼ぶだけになったためです。★消さないでください */
+  try{ vm.runInContext(read('oos-kubun.js'), ctx); }catch(e){}
   return { box, ctx };
 }
 

@@ -105,7 +105,9 @@ testFiles().forEach(function (f) {
 });
 
 /* ── ② 砂場に決めごとの親を入れていない見張り ── */
-var OYA = ['oos-zei.js', 'oos-kakaku.js', 'oos-shorui-kimari.js', 'oos-doc.js', 'oos-nouhin.js', 'oos-zaiko.js'];
+/* ★2026-09-16 oos-kubun.js を足しました。区分の並びだけでなく
+   【商品管理番号（品番＋バーコード下4桁）】の計算もここに入ったためです。 */
+var OYA = ['oos-zei.js', 'oos-kakaku.js', 'oos-shorui-kimari.js', 'oos-doc.js', 'oos-nouhin.js', 'oos-zaiko.js', 'oos-kubun.js'];
 /* ★2026-09-12 数え方を精密にしました。
    前は「親を1つも入れずに、何かを動かしている」だけで数えていたので、
    GASの関数や、親を使わない処理を動かしているだけのものまで数えていました。
