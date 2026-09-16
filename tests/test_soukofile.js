@@ -543,7 +543,9 @@ eq('⑱見出しを決めている場所は1か所だけ',
 
 const honbu = H.cut(gasSrc, 'oosHonbuSync');
 has('⑱中身は3行目から7列で書く', honbu, 'getRange(3,1,curRows.length,7).setValues(curRows)');
-has('⑱古い中身は3行目から16列ぶん消す', honbu, 'getRange(3,1,last-2,16).clearContent()');
+/* ★2026-09-16 消すのはA〜G列だけ。16列に戻すと I10:K15 の青いボタンが毎時消える */
+has('⑱古い中身はA〜G列だけ消す（ボタンを消さない）', honbu, 'getRange(3,1,last-2,7).clearContent()');
+eq('⑱16列ぜんぶ消す形に戻っていない', /getRange\(3,1,last-2,16\)\.clearContent\(\)/.test(honbu), false);
 has('⑱見出しをそろえる処理を呼んでいる', honbu, 'oosZaikoListAtama_(sh)');
 has('⑱商品管理番号は親と同じ作り方（品番だけに戻していない）', honbu, 'oosKanriBangou_(p)');
 eq('⑱品番だけを書く古い形に戻っていない', /curRows\.push\(\[p\.name, p\.sku,/.test(honbu), false);
@@ -552,9 +554,30 @@ has('⑱不良は1つにまとめている', honbu, 'var furyouCur = dd.cur.L + 
 /* 旧ロットは【まだ触らない】（ひろみさん 2026-09-16） */
 has('⑱旧ロットは今までどおり5行目から11列', honbu, 'getRange(5,1,oldRows.length,11).setValues(oldRows)');
 
-/* 🔄の☑は R11 のまま（倉庫さんが押せる唯一のもの） */
-has('⑱🔄の☑は11行目R列のまま', H.cut(gasSrc, 'oosHonbuOnEdit'),
-    'e.range.getRow()===11 && e.range.getColumn()===18');
+/* ══════════════════════════════════════════════════════════════════════
+   ⑲ 🔵「最新の在庫に更新する」の大きな青いボタン　★2026-09-16 ひろみさん指示
+   　 置き場所＝I10:K15（I10:K13が文字・I14:K15が☑）。倉庫さんも押せる。
+   ══════════════════════════════════════════════════════════════════════ */
+has('⑲置き場所はI10:K15（1か所で決めている）', gasSrc,
+    'var OOS_ZAIKO_BTN = { row:10, col:9, rows:6, cols:3, cbRow:14 };');
+eq('⑲置き場所を決めている場所は1か所だけ',
+   (gasSrc.match(/var OOS_ZAIKO_BTN = /g) || []).length, 1);
+const aoi = H.cut(gasSrc, 'oosZaikoAoiButton_');
+has('⑲文言はひろみさんの言葉どおり', aoi, "'🔄 最新の在庫に更新する\\n随時押してください'");
+has('⑲青い色', aoi, "setBackground('#b3e5fc')");
+has('⑲ボタンっぽい太わく', aoi, 'SOLID_THICK');
+has('⑲☑を置く', aoi, 'cb.insertCheckboxes()');
+has('⑲倉庫さんも押せる（☑のマスだけ保護の外）', aoi, 'setUnprotectedRanges');
+has('⑲前のR列の置き場所は片づける', aoi, 'sh.getRange(2, 18,');
+has('⑲消えていたら作り直す', honbu, 'oosZaikoAoiButton_Nokoru_(sh)');
+has('⑲見出しを作り直すときも一緒に作る', H.cut(gasSrc, 'oosZaikoListAtama_'), 'oosZaikoAoiButton_(sh)');
+
+/* ☑を押したときに動くこと（新しいI14と、前からのR11の両方） */
+const onEd = H.cut(gasSrc, 'oosHonbuOnEdit');
+has('⑲新しい☑（I14）で動く', onEd, 'r===OOS_ZAIKO_BTN.cbRow && c===OOS_ZAIKO_BTN.col');
+has('⑲前のR11の☑でも今までどおり動く', onEd, 'r===11 && c===18');
+has('⑲押したら映し直す', onEd, 'oosHonbuSync()');
+has('⑲終わったら☑はひとりでに外れる', onEd, 'setValue(false)');
 
 /* 用意し直しても古い3段ヘッダーに戻らないこと */
 const setupHonbu = H.cut(gasSrc, 'oosSetupHonbuSheet');
