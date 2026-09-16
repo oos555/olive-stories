@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-09">
+<meta name="oos-version" content="2026-09-16-10">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -12144,7 +12144,7 @@ function rtLineRowHtml(ln, i){
   var _p = (PRODUCTS||[]).find(function(x){ return String(x.id)===String(ln.productId); });
   var _iri = (_p && parseInt(_p.boxQty)) || 0;
   var _goukei = (parseInt(ln.bottles)||0) + (parseInt(ln.boxes)||0) * (_iri || 1);
-  return '<div style="display:grid;grid-template-columns:96px 1.4fr 62px 62px 104px 44px;gap:8px;align-items:end;margin-bottom:9px">'
+  return '<div style="display:grid;grid-template-columns:96px 1.3fr 60px 60px 100px 66px 40px;gap:8px;align-items:end;margin-bottom:9px">'
     /* ★2026-09-16 ひろみさん「ここの伝票コードって名前ではなくて、RT側の商品コード。
        　私たちの番号ではなくてお客様のつけてる番号です」★「伝票コード」に戻さないでください */
     +'<div style="font-size:14px;font-weight:700;color:#2b2a26"><div style="color:#8a8578;font-size:11px;font-weight:700">RT側の商品コード</div>'+esc(ln.rawCode||'—')+'</div>'
@@ -12157,9 +12157,16 @@ function rtLineRowHtml(ln, i){
     +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">本数</div><input type="number" min="0" value="'+(ln.bottles||0)+'" oninput="rtParsed.lines['+i+'].bottles=parseInt(this.value)||0;rtLineQtyChanged('+i+')" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"></div>'
     +'<div><div style="color:#3c4a20;font-size:11px;font-weight:700">箱</div><input type="number" min="0" value="'+(ln.boxes||0)+'" oninput="rtParsed.lines['+i+'].boxes=parseInt(this.value)||0;rtLineQtyChanged('+i+')" style="width:100%;padding:6px;border:1.5px solid #6b8a3a;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26;background:#f5faec">'
       +'<div id="rt-line-hint-'+i+'" style="font-size:10.5px;color:#6b6a63;margin-top:2px">'+(_iri?('1箱'+_iri+'本 → 計'+_goukei+'本'):'入数が名簿にありません')+'</div></div>'
-    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+_rtLineRate(ln)+'%</span></div></div>'
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">単価（直せます）</div><input type="number" min="0" value="'+(ln.unitPrice||0)+'" oninput="rtParsed.lines['+i+'].unitPrice=parseInt(this.value)||0;rtTankaClear('+i+')" style="width:100%;padding:6px;border:1.5px solid #d5cfc3;border-radius:6px;font-size:16px;font-weight:700;color:#2b2a26"><div style="margin-top:3px"><span style="font-size:11px;font-weight:700;color:#3b6d11;background:#eaf3de;padding:1px 6px;border-radius:99px">'+_rtLineRate(ln)+'%</span></div></div>'
+    /* ★2026-09-16 ひろみさん「単価を念のため正しいものと照合するボタンを作って。
+       　押して、RTの単価とこの金額が違っていた場合に【金額が違います、修正してください】と出して」
+       ★このボタンを消さないでください。伝票の単価の間違いに気づける唯一の場所です。 */
+    +'<div><div style="color:#8a8578;font-size:11px;font-weight:700">&nbsp;</div>'
+      +'<button class="btn-sm" onclick="rtTankaCheck('+i+')" title="価格マスタの単価と見くらべます" '
+        +'style="background:#eef4f9;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:6px 8px;white-space:nowrap">🔍 照合</button></div>'
     +'<div>'+(i>0?'<button class="btn-sm" style="color:#991b1b;border-color:#e6a5a5" onclick="rtRemoveLine('+i+')" title="この商品を消す">✕</button>':'')+'</div>'
-    +'</div>';
+    +'</div>'
+    +'<div id="rt-tanka-msg-'+i+'" style="margin:-4px 0 10px;font-size:12.5px;line-height:1.7"></div>';
 }
 /* ══════════════════════════════════════════════════════════════════════
    💰 送料と 倉庫ピッキング手数料の入れ口　★2026-09-16 ひろみさん指示
@@ -12186,6 +12193,58 @@ var RT_PICK_ERABI = [
 function rtZeiRate(){
   return (typeof OOS_ZEI !== 'undefined' && OOS_ZEI.RATE_SERVICE != null) ? OOS_ZEI.RATE_SERVICE : 0.1;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   🔍 単価の照合　★2026-09-16 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「商品名を人が選んだあとに、単価のところにすでに数字が入っているけれども、
+   　その横に【単価を念のため正しいものと照合する】ボタンを作って。
+   　押して、RTの単価ともしこの金額が違っていた場合に
+   　【金額が違います、修正してください】と出るようにしてほしい」
+
+   ★くらべる相手は【価格マスタ】です。書類に出る単価とまったく同じ計算
+   　（OOS_KAKAKU.unitPriceForLine）で出しているので、
+   　「照合でOKなのに納品書はちがう金額」ということが起きません。
+   ★勝手に直しません。直すのは人です（ひろみさん「修正してください」と出す）。
+   見張り：tests/test_rt_tanka_shougou.js
+   ══════════════════════════════════════════════════════════════════════ */
+function rtTankaClear(i){
+  var el = document.getElementById('rt-tanka-msg-' + i);
+  if(el) el.innerHTML = '';
+}
+function rtTankaMaster(pid){
+  var p = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).find(function(x){ return String(x.id) === String(pid); });
+  if(!p || !p.sku) return null;
+  var pm = (typeof priceMaster !== 'undefined' ? priceMaster : []);
+  var n = OOS_KAKAKU.unitPriceForLine({ customerType: 'rt' }, { productId: pid }, p.sku, pm, null);
+  return (n && n > 0) ? n : null;
+}
+function rtTankaCheck(i){
+  var el = document.getElementById('rt-tanka-msg-' + i);
+  if(!el || !rtParsed || !rtParsed.lines || !rtParsed.lines[i]) return;
+  var l = rtParsed.lines[i];
+  function obi(iro, ji, moji){
+    el.innerHTML = '<div style="background:' + iro + ';border:1.5px solid ' + ji + ';color:' + ji
+      + ';border-radius:8px;padding:7px 11px;font-weight:800">' + moji + '</div>';
+  }
+  if(!l.productId){ obi('#fff7ed', '#8a4b0b', '先に商品をえらんでください。'); return; }
+  var master = rtTankaMaster(l.productId);
+  if(master == null){
+    obi('#fff7ed', '#8a4b0b', '⚠️ この商品は、価格マスタにRTの単価が入っていません。統合マスタＮで入れてください。');
+    return;
+  }
+  var ima = parseInt(l.unitPrice) || 0;
+  if(ima === master){
+    obi('#eef7ef', '#0f5a4a', '✅ 価格マスタと同じです（¥' + master.toLocaleString() + '）');
+    return;
+  }
+  obi('#fef2f2', '#b91c1c',
+      '⚠️ 金額が違います、修正してください。'
+    + '<div style="font-weight:700;margin-top:3px">伝票の単価 ¥' + ima.toLocaleString()
+    + '　／　価格マスタ（RT） <b>¥' + master.toLocaleString() + '</b></div>'
+    + '<div style="font-weight:600;font-size:11.5px;margin-top:3px">'
+    + '※ 納品書には<b>価格マスタの金額</b>が出ます。</div>');
+}
+
 function rtLineQtyChanged(i){
   if(!rtParsed || !rtParsed.lines || !rtParsed.lines[i]) return;
   var l = rtParsed.lines[i];
