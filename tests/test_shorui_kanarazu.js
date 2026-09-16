@@ -61,7 +61,7 @@ function nouhin(o){ box.__o = o; return vm.runInContext('OOS_NOUHIN.build(__o, _
 function gyou(html){
   var s = String(html);
   var meisai = [...s.matchAll(/<tr><td style="text-align:center">\d+<\/td><td>([^<]*)<\/td>/g)].map(function(m){ return m[1]; });
-  /* ★2026-09-12 ひろみさん指示で、倉庫ピックアップ料金・送料は
+  /* ★2026-09-12 ひろみさん指示で、倉庫ピッキング手数料・送料は
      　【左の枠】から【内訳（右）の中】へ移りました（8行の枠を作るため）。
      　ここは class="wn" という書き方を文字で探していたので、落ちました。
      　→ 内訳の中の「名前／金額」の行を読む形にしました。
@@ -144,7 +144,7 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
      　押していない注文は「別途申し受けます」です。 */
   const h = nouhin(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:0 }));  /* 両方「無料サービス」を押した */
   const rows = gyou(h);
-  ok('③一般でもピッキングの行は出る', rows.some(function(r){ return r.indexOf('倉庫ピックアップ料金') >= 0; }));
+  ok('③一般でもピッキングの行は出る', rows.some(function(r){ return r.indexOf('倉庫ピッキング手数料') >= 0; }));
   inc('③「無料サービス」を押した0円には「無料」と書く', h, '無料', true);
   ok('③送料の行も出る', rows.some(function(r){ return r.indexOf('送料') >= 0; }));
   /* ★押していない注文には「無料」と書かない（無料と未定を取り違えないため） */
@@ -242,7 +242,7 @@ ok('①表には2つ以上ある（ピッキング手数料・送料）', KIM.KA
   const h1 = nouhin(mkOrder({ enclosedDoc:'納品書', customerType:'general' }));
   const r1 = gyou(h1);
   ok('⑥納品書だけでも送料の行は出る',       r1.some(function(r){ return r.indexOf('送料') >= 0; }));
-  ok('⑥納品書だけでもピッキングの行は出る', r1.some(function(r){ return r.indexOf('倉庫ピックアップ') >= 0; }));
+  ok('⑥納品書だけでもピッキングの行は出る', r1.some(function(r){ return r.indexOf('倉庫ピッキング') >= 0; }));
   inc('⑥納品書だけでも金額は出る', h1, 'ご請求金額（税込）', true);
   ['パンフレット', 'その他', 'なし'].forEach(function(e){
     const h2 = nouhin(mkOrder({ enclosedDoc:e }));

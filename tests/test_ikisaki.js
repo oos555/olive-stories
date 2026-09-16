@@ -236,10 +236,10 @@ function hacchuushoGyou(payload){
   const html = vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx);
   ok('③-0 書類（納品書兼請求書）が作れた', html && html.length > 500);
 
-  /* 必ず枠が出ると書いたもの（倉庫ピックアップ料金・送料） */
+  /* 必ず枠が出ると書いたもの（倉庫ピッキング手数料・送料） */
   IK.kanarazuWaku().forEach(function(r){
     ok('③-1 書類に「' + r.na + '」の枠が必ず出る', String(html).indexOf(r.na) >= 0
-       || (r.na === '倉庫ピックアップ料金' && String(html).indexOf('倉庫ピックアップ料金') >= 0));
+       || (r.na === '倉庫ピッキング手数料' && String(html).indexOf('倉庫ピッキング手数料') >= 0));
   });
   /* Ａ表で「書類に出る」と書いた列のうち、値そのものが出るもの */
   ok('③-2 書類にお届け先の氏名が出る', String(html).indexOf('宮西 杏奈') >= 0);
@@ -905,7 +905,7 @@ function hacchuushoGyou(payload){
     const hSei = String(vm.runInContext('OOS_NOUHIN.build(__o, __d)', dctx));
     ok('⑰-5 「請求書」で書類が作れる', hSei.length > 500);
     ok('⑰-6 「請求書」に金額が載る',   hSei.indexOf('¥') >= 0);
-    ok('⑰-7 「請求書」に倉庫ピックアップ料金の枠が出る', hSei.indexOf('倉庫ピックアップ料金') >= 0);
+    ok('⑰-7 「請求書」に倉庫ピッキング手数料の枠が出る', hSei.indexOf('倉庫ピッキング手数料') >= 0);
     /* 発注書のリンク列（22列目）の振り分けも、決めごとに聞いているか */
     ok('⑰-8 発注書の列分けは決めごとの親に聞いている',
        /function pdfNiSuruKa/.test(idx) && /OOS_SHORUI\.sujiGaNoruKa/.test(H.cut(idx, 'pdfNiSuruKa')));
@@ -1272,7 +1272,14 @@ function hacchuushoGyou(payload){
 
   })();
 
-  /* ── ⑦ 封（この表が書き換わっていないか） ─────────────── */
+  /* ── ⑦ 封（この表が書き換わっていないか） ───────────────
+     ★2026-09-16 封を押し直しました。
+     　理由：ひろみさん指示「倉庫ピッキング手数料にして」で、ゆくえ表の言葉を
+     　　　　「倉庫ピックアップ料金」→「倉庫ピッキング手数料」に変えたためです。
+     　確かめたこと：**行数も文字数も変わっていません**（53行・5877文字のまま）。
+     　　　　　　　　＝ 同じ長さの言葉に置き換えただけで、項目は1つも増減していません。
+     ★封が合わないときは、勝手に押し直さないでください。
+     　まず「行数・文字数が変わっていないか」を見て、理由をここに書き残してから押し直します。 */
   const fuuPath = path.join(__dirname, 'data', 'ゆくえ表の封.json');
   const ima = IK.fuu();
   if(!fs.existsSync(fuuPath)){

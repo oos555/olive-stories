@@ -21,7 +21,7 @@
        ・倉庫Ｄの画面に出るもの       → pickup.html
      互いを指していないので、ズレても何も落ちませんでした。
      実際に次の穴が、気づかれないまま残っていました（2026-09-12に見つけました）。
-       ・えらんだ倉庫ピックアップ料金・送料が、どこにも保存されていなかった
+       ・えらんだ倉庫ピッキング手数料・送料が、どこにも保存されていなかった
        ・時間指定（16列目）が、ずっと空のまま倉庫へ送られていた
        ・商品1行ごとのメモが、どこへも行かないのに倉庫Ｄにだけ出ていた
 
@@ -147,7 +147,7 @@
       shorui:'出ません。その行だけ単価を変えます', oya:'oos-kakaku.js' },
     { na:'無料サンプル／有償サンプル', juchuA:'lines[].giftType = sample_free / sample_paid',
       shorui:'出ません。単価に効きます', oya:'oos-kakaku.js' },
-    { na:'倉庫ピックアップ料金', juchuA:'warehouseFee',
+    { na:'倉庫ピッキング手数料', juchuA:'warehouseFee',
       shorui:'枠（必ず・0円なら「無料サービス」）', oya:'oos-shorui-kimari.js', hissu:true },
     { na:'送料', juchuA:'shippingFee',
       shorui:'枠（必ず・0円なら「無料サービス」）', oya:'oos-shorui-kimari.js', hissu:true },
