@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-03">
+<meta name="oos-version" content="2026-09-16-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -402,6 +402,9 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div id="sales-hidden-list"></div>
+
+  <!-- ★2026-09-16 ひろみさん指示：入金チェックが済んだ売上を、本部管理専用ゆかスプシへ移す枠 -->
+  <div id="uriage-ikou-box"></div>
 
   <div id="qi-invoice-wrap" style="margin-top:1.6rem"></div>
 </div>
@@ -1212,7 +1215,9 @@ const SALES_HIDE_INFO = {
      　「倉庫へLINEが行きます」という古い言い方に戻さないでください。 */
   held     :{label:'📦 取り置き',               how:'発注書へ送って、A列を🔵にしたとき',               dim:false},
   reserved :{label:'🗓 予約（入荷まち）',        how:'入荷して発注書へ送り、A列を🔵にしたとき',         dim:false},
-  unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'発注書のA列を🔵にしたとき（倉庫さんは発注書を見て発送されます）', dim:false}
+  unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'発注書のA列を🔵にしたとき（倉庫さんは発注書を見て発送されます）', dim:false},
+  /* ★2026-09-16 ひろみさん指示：入金チェックが済んだものはスプシへ移す（下の「移す」を見てください） */
+  archived :{label:'📤 スプシへ移した',          how:'本部管理専用ゆかスプシの「入金チェック済み売上一覧表」にあります', dim:true}
 };
 function salesWasSentToWarehouse(o){
   return !!(o && (o.notified || o.shippedAt || o.status === 'shipped'));
@@ -1223,6 +1228,9 @@ function salesExcludeReason(o){
   if(o.status === 'deleted')   return 'deleted';
   if(o.status === 'held')      return 'held';
   if(o.status === 'reserved')  return 'reserved';
+  /* ★2026-09-16 スプシへ移したものは、売上一覧に出しません。
+     　★受注のデータは消えていません。印（salesArchivedAt）が付いているだけです。 */
+  if(o.salesArchivedAt)        return 'archived';
   if(salesWasSentToWarehouse(o)) return '';   // '' ＝ 売上一覧に載せる
   return 'unsent';
 }
@@ -1328,11 +1336,183 @@ function renderSalesDupAlert(){
     + '<a href="https://oos555.github.io/olive-stories/index.html" target="_blank" style="color:#185FA5;font-weight:700">受注Ａを開く ▶</a></div></div>';
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   📤 入金チェックが済んだ売上を、スプシへ移す　★2026-09-16 ひろみさん指示
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさんの言葉
+     「売上一覧は、今後どんどん増えていくから、ずっとここに載ってると
+     　どんどん重たいデータになっていくんじゃないかな。
+     　**入金済みでチェックが終わったものは、ここから消して、
+     　スプレッドシートに載っていってほしい**」
+     「**全部データが消えるのは困る**」
+     「置き場所は**本部管理専用ゆかスプシ**の『入金チェック済み売上一覧表』タブ」
+     「バサラとホテル（RT）は入金チェックをしないので、**2か月経ったら**移す。
+     　バサラは『バサラはスプシで完結』、RTは『RT管理はまとめ別で確認』と書いて」
+
+   ★移すもの（この2つだけ）
+     ① 入金チェックが済んだもの（✓が付いている）　→ 備考「入金確認済み」
+     ② まとめて請求するもの（バサラ・RT・卸まとめ先）で、受注日から2か月たったもの
+        ・バサラ　　　→「バサラはスプシで完結」
+        ・RT・ゴルフ　→「RT管理はまとめ別で確認」
+        ・卸まとめ先　→「卸まとめ別で確認」
+          ※卸まとめ先はひろみさんの指示に無かったので、バサラ・RTと同じ扱いにしています。
+            変えたいときは言ってください（ここだけ直します）。
+
+   ★絶対に守ること
+     ・**受注のデータは1件も消しません。** 消すのは売上一覧の【表示】だけです。
+     　注文に salesArchivedAt（移した日）の印が付くだけで、中身は残ります。
+     ・**スプシに書けたことを確かめてから**、印を付けます（順番を変えないでください）。
+     ・同じ注文番号は二度書きません（GAS側でも見ています）。
+   見張り：tests/test_uriage_ikou.js
+   ══════════════════════════════════════════════════════════════════════ */
+var URIAGE_IKOU_TSUKI = 2;   /* まとめ請求ぶんを置いておく月数（ひろみさん：2か月） */
+
+/* 受注日から◯か月たったか */
+function uriageTsukiKeika(hizuke, tsuki){
+  /* ★日付は【親＝oos-hizuke.js】にそろえてもらいます。
+     スプシを通ると "2026-09-13T15:00:00.000Z" のような時刻つきに化けます。
+     自分で先頭10文字を切ると【1日ずれ】ますし、形が合わずに
+     「いつまでたっても移らない」ということが起きます。
+     ★new Date(値 + 'T00:00:00') の書き方に戻さないでください。 */
+  var d = OOS_HIZUKE.asa(hizuke);
+  if(!d) return false;
+  d.setMonth(d.getMonth() + tsuki);
+  return d.getTime() <= Date.now();
+}
+
+/* この注文を移すか。移すなら備考の文字、移さないなら '' を返す */
+function uriageIkouBiko(o){
+  if(!o || o.salesArchivedAt) return '';
+  if(!isSalesListTarget(o)) return '';            /* いま一覧に出ていないものは触らない */
+  if(isMonthlyConsolidated(o)){
+    /* まとめて請求するもの＝この画面では入金✓を付けません。2か月たったら移します */
+    if(!uriageTsukiKeika(o.registeredAt, URIAGE_IKOU_TSUKI)) return '';
+    if(isBasaraOrder(o)) return 'バサラはスプシで完結';
+    if(OOS_KAKAKU.isRt(o.customerType)) return 'RT管理はまとめ別で確認';
+    return '卸まとめ別で確認';
+  }
+  /* ふつうの受注は、入金チェックが済んだら移します */
+  return orderEffectivePaid(o) ? '入金確認済み' : '';
+}
+
+/* 移す対象の注文をぜんぶ集める */
+function uriageIkouTaishou(){
+  return (typeof orders!=='undefined'?orders:[]).filter(function(o){ return !!uriageIkouBiko(o); });
+}
+
+/* スプシへ送る1行の形にする */
+function uriageIkouGyou(o){
+  var harai = o.paymentMode==='prepay' ? '先払い' : (o.paymentMode==='paid' ? '入金済み' : '後払い');
+  return {
+    num: o.num||'',
+    client: o.recipientName || o.client || '',
+    date: OOS_HIZUKE.dake(o.registeredAt),           /* ★親にそろえてもらう（1日ずれ防止） */
+    kubun: (typeof CUSTOMER_TYPE_LABEL!=='undefined' && CUSTOMER_TYPE_LABEL[o.customerType]) || o.customerType || '',
+    harai: harai,
+    kingaku: orderAmount(o),
+    nyukin: orderEffectivePaid(o) ? '済' : '',
+    nyukinDate: OOS_HIZUKE.dake(o.paidAt),           /* ★親にそろえてもらう（1日ずれ防止） */
+    memo: o.billingNote||'',
+    biko: uriageIkouBiko(o)
+  };
+}
+
+/* 画面の案内（何件移せるか） */
+function renderUriageIkou(){
+  var el = document.getElementById('uriage-ikou-box'); if(!el) return;
+  var taishou = uriageIkouTaishou();
+  var sumi = (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && o.salesArchivedAt; }).length;
+  var uchi = { nyukin:0, basara:0, rt:0, oroshi:0 };
+  taishou.forEach(function(o){
+    var b = uriageIkouBiko(o);
+    if(b === '入金確認済み') uchi.nyukin++;
+    else if(b === 'バサラはスプシで完結') uchi.basara++;
+    else if(b === 'RT管理はまとめ別で確認') uchi.rt++;
+    else uchi.oroshi++;
+  });
+  var h = '<div style="background:#f3f6ec;border:1.5px solid #cfdcb4;border-radius:10px;padding:12px 14px;margin:12px 0">'
+    + '<div style="font-weight:800;font-size:14px;color:#4a5a2a">📤 入金チェック済みを、スプシへ移す</div>'
+    + '<div style="font-size:12px;color:#5d5849;line-height:1.9;margin-top:6px">'
+    + '移すと、この一覧からは消えます。<b>データは消えません</b>。'
+    + '本部管理専用ゆかスプシの「<b>入金チェック済み売上一覧表</b>」に、1行ずつ積み上がっていきます。</div>';
+  if(taishou.length){
+    h += '<div style="font-size:12.5px;color:#2b2a26;line-height:1.9;margin-top:8px">'
+      + '<b>いま移せるもの：' + taishou.length + '件</b><br>'
+      + (uchi.nyukin ? '　・入金確認済み　' + uchi.nyukin + '件<br>' : '')
+      + (uchi.basara ? '　・バサラ（2か月たった）　' + uchi.basara + '件<br>' : '')
+      + (uchi.rt     ? '　・RT・ゴルフ（2か月たった）　' + uchi.rt + '件<br>' : '')
+      + (uchi.oroshi ? '　・卸まとめ先（2か月たった）　' + uchi.oroshi + '件<br>' : '')
+      + '</div>'
+      + '<button id="uriage-ikou-btn" onclick="uriageIkouGo()" style="margin-top:10px;background:#4a5a2a;color:#fff;border:0;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:800;cursor:pointer">'
+      + '📤 ' + taishou.length + '件をスプシへ移す</button>';
+  }else{
+    h += '<div style="font-size:12.5px;color:#7a7a72;margin-top:8px">いま移せるものはありません。</div>';
+  }
+  h += '<div style="font-size:11.5px;color:#8a8578;margin-top:8px">これまでに移した件数：' + sumi + '件</div>'
+    + '<div id="uriage-ikou-msg" style="margin-top:8px;font-size:12.5px"></div></div>';
+  el.innerHTML = h;
+}
+
+/* 移す：①スプシへ書く → ②書けたものだけに印を付けて保存 の順（順番を変えないでください） */
+var _uriageIkouChu = false;
+async function uriageIkouGo(){
+  if(_uriageIkouChu) return;
+  var taishou = uriageIkouTaishou();
+  if(!taishou.length) return;
+  if(!confirm(taishou.length + '件を「入金チェック済み売上一覧表」へ移します。\n\n'
+            + '売上一覧からは消えますが、データは消えません。\nよろしいですか？')) return;
+  _uriageIkouChu = true;
+  var btn = document.getElementById('uriage-ikou-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'スプシへ書いています…'; }
+  var msg = document.getElementById('uriage-ikou-msg');
+  function iu(t, waru){ if(msg) msg.innerHTML = '<span style="color:' + (waru?'#a33':'#2f7a3a') + ';font-weight:700">' + t + '</span>'; }
+  try{
+    iu('スプシへ書いています…');
+    var res = await fetch(GAS_URL, { method:'POST',
+      body: JSON.stringify({ action:'oosUriageIkou', rows: taishou.map(uriageIkouGyou) }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'} });
+    var d = await res.json();
+    if(d.status !== 'ok'){ iu('⚠️ スプシに書けませんでした（' + (d.message||'') + '）。何も移していません。', true); return; }
+    /* ★書けた注文番号だけに印を付けます（すでに入っていたものも、印は付けます） */
+    var kaketa = {};
+    (d.written||[]).forEach(function(n){ kaketa[String(n)] = true; });
+    (d.skipped||[]).forEach(function(n){ kaketa[String(n)] = true; });
+    iu('印を付けています…');
+    var freshRes = await fetch(GAS_URL + '?action=loadAll');
+    var fresh = await freshRes.json();
+    if(fresh.status!=='ok' || !fresh.data || !Array.isArray(fresh.data.orders)){
+      iu('⚠️ スプシには書けましたが、印が付けられませんでした。もう一度押してください（二重には書かれません）。', true); return;
+    }
+    var kyou = new Date().toISOString().slice(0,10);
+    var n = 0;
+    fresh.data.orders.forEach(function(o){ if(kaketa[String(o.num||'')] && !o.salesArchivedAt){ o.salesArchivedAt = kyou; n++; } });
+    var sres = await fetch(GAS_URL, { method:'POST',
+      body: JSON.stringify({ action:'saveOrders', orders: fresh.data.orders }),
+      headers: {'Content-Type':'text/plain;charset=utf-8'} });
+    var sd = await sres.json();
+    if(sd.status!=='ok'){
+      iu('⚠️ スプシには書けましたが、印が付けられませんでした。もう一度押してください（二重には書かれません）。', true); return;
+    }
+    orders = (typeof normOrdersCtype==='function') ? normOrdersCtype(fresh.data.orders) : fresh.data.orders;
+    iu('✅ ' + n + '件をスプシへ移しました。'
+       + (d.sheetUrl ? ' <a href="' + d.sheetUrl + '" target="_blank" style="color:#1f4a6d;font-weight:800">スプシを開く</a>' : ''));
+    renderInvoiceList();
+  }catch(err){
+    iu('⚠️ 通信でつまずきました。何も移せていないかもしれません。もう一度押してください（二重には書かれません）。', true);
+  }finally{
+    _uriageIkouChu = false;
+    var b2 = document.getElementById('uriage-ikou-btn');
+    if(b2){ b2.disabled = false; }
+  }
+}
 function renderSalesHiddenList(){
   const el = document.getElementById('sales-hidden-list');
   if(!el) return;
   const dup = salesDupIds();
-  const hidden = (typeof orders!=='undefined'?orders:[]).filter(function(o){ return o && !isSalesListTarget(o); })
+  /* ★2026-09-16 スプシへ移したものは、ここには並べません（年々たまって長くなるため）。
+     　件数だけ「移す」の枠に出しています。中身はスプシで見ます。 */
+  const hidden = (typeof orders!=='undefined'?orders:[])
+    .filter(function(o){ return o && !isSalesListTarget(o) && salesExcludeReason(o) !== 'archived'; })
     .sort(function(a,b){ return String(b.registeredAt||'').localeCompare(String(a.registeredAt||'')); });
   if(!hidden.length){ el.innerHTML = ''; return; }
   const rows = hidden.map(function(o){
@@ -1427,6 +1607,8 @@ function renderInvoiceList(){
 
   renderSalesDupAlert();
   renderSalesHiddenList();
+  /* ★2026-09-16 「スプシへ移す」の案内（何件移せるか）。★消さないでください */
+  try{ renderUriageIkou(); }catch(_ui){}
 
   // 今月（購入日＝受注日が当月）の件数と、区分の内訳（定価・RT・卸①②合算・その他）
   const _now = new Date();
