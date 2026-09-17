@@ -71,9 +71,9 @@ function sunaba(opt){
      　見張り：tests/test_mihari_soten.js の ⑥ */
   ['oos-zei.js', 'oos-kakaku.js', 'oos-shorui-kimari.js', 'oos-doc.js', 'oos-nouhin.js']
     .forEach(function(f){ vm.runInContext(fs.readFileSync(path.join(LIVE, f), 'utf8'), ctx); });
-  ['rtIkkiLog','rtIkkiClear','rtIkkiSay','rtIkkiNijuu','rtIkkiGo','rtIkkiHariNaosu']
+  ['rtIkkiLog','rtIkkiWaku','rtIkkiEgaku','rtIkkiClear','rtIkkiSay','rtIkkiIma','rtIkkiNijuu','rtIkkiGo','rtIkkiHariNaosu']
     .forEach(function(n){ vm.runInContext(H.cut(SRC, n), ctx); });
-  vm.runInContext('var rtIkkiChu = false;', ctx);
+  vm.runInContext('var rtIkkiChu = false; var _rtIkkiKekka = ""; var _rtIkkiIma = "";', ctx);
   return { ctx: ctx, log: log, btn: btn, ashiato: ashiato, chuumon: chuumon,
            run: function(){ return vm.runInContext('rtIkkiGo()', ctx); } };
 }
@@ -90,15 +90,20 @@ function chuumonTsukuru(x){
     const s = sunaba({ pending: [chuumonTsukuru({})] });
     await s.run();
     const h = s.log.innerHTML;
-    ok('①「登録しています…」が出る', h.indexOf('登録しています…') >= 0);
+    /* ★2026-09-17 ひろみさん「この工程がいろいろ書かれているのはなに？
+       　裏の作業はみせなくていい」→ 途中の工程は【ためない】。結果だけ出す。 */
     ok('①「登録しました」と注文番号が出る',
        h.indexOf('✅ 登録しました') >= 0 && h.indexOf('RT-20260917-0412') >= 0);
-    ok('①「発注書に送りました」が出る', h.indexOf('✅ 発注書に送りました') >= 0);
-    ok('①「書類のリンクを2つとも貼りました」が出る', h.indexOf('書類のリンクを2つとも貼りました') >= 0);
-    ok('①2つの書類の名前が出る',
-       h.indexOf('📄 納品書（ひらく）') >= 0 && h.indexOf('📄 発注伝票（ひらく）') >= 0);
-    ok('①「発注書を読み直して、2つとも入っていることを確かめました」が出る',
-       h.indexOf('発注書を読み直して、2つとも入っていることを確かめました') >= 0);
+    ok('①発注書に送ったことが、結果の中に書いてある', h.indexOf('発注書に送り、') >= 0);
+    ok('①2つの書類を貼ったことが出る',
+       h.indexOf('📄 納品書') >= 0 && h.indexOf('📄 発注伝票') >= 0
+       && h.indexOf('2つとも貼りました') >= 0);
+    ok('①読み直して確かめたことが出る', h.indexOf('発注書を読み直して確かめました') >= 0);
+    ok('①★途中の工程（⏳）が、1つものこっていない', h.indexOf('⏳') < 0,
+       '（出た画面：' + h.replace(/<[^>]*>/g, ' ').slice(0, 220) + '）');
+    ok('①★出る枠は2つだけ（結果＋倉庫への注意）',
+       (h.match(/border-radius:9px/g) || []).length === 2,
+       '（出た枠の数：' + (h.match(/border-radius:9px/g) || []).length + '）');
     ok('①「倉庫へは、まだ何も行きません」と書いてある',
        h.indexOf('倉庫へは、まだ何も行きません') >= 0);
     ok('①順番どおりに走っている（入れる→確認→在庫→登録→ふだ→貼る）',
@@ -160,7 +165,10 @@ function chuumonTsukuru(x){
     await s.run();
     const h = s.log.innerHTML;
     ok('⑤登録はできている', h.indexOf('✅ 登録しました') >= 0);
-    ok('⑤発注書にも送れている', h.indexOf('✅ 発注書に送りました') >= 0);
+    ok('⑤発注書に送ったあとで、貼りに行っている',
+       s.ashiato.indexOf('docFudaMachi') < s.ashiato.indexOf('rtAttachDocsToOrder'),
+       '（出た足あと：' + s.ashiato.join(' → ') + '）');
+    ok('⑤★ここでも途中の工程（⏳）はのこらない', h.indexOf('⏳') < 0);
     ok('⑤貼れていないことを、はっきり出す',
        h.indexOf('いま貼れていないのは：発注伝票') >= 0);
     ok('⑤「書類を貼り直す」ボタンが出る', h.indexOf('rtIkkiHariNaosu()') >= 0);
@@ -193,7 +201,7 @@ function chuumonTsukuru(x){
      ══════════════════════════════════════════════════════════════ */
   {
     const ren = H.cut(SRC, 'renderRtPreview');
-    ok('⑧緑のボタンの文字が、モックのまま',
+    ok('⑧ボタンの文字が、モックのまま',
        ren.indexOf('✅ この内容で登録して、発注書まで送る（書類2つも貼ります）') >= 0);
     ok('⑧はじめは押せない（灰色）', ren.indexOf('id="rt-ikki-btn" disabled') >= 0);
     ok('⑧白いボタン（今までどおり）も残っている',
@@ -206,6 +214,10 @@ function chuumonTsukuru(x){
        '（#rt-preview の中に置くと、作り直しで消えます）');
     const kak = H.cut(SRC, 'rtKakuninChk');
     ok('⑧☑を外すと、また押せなくなる', kak.indexOf('!on') >= 0);
+    /* ★2026-09-17 ひろみさん「ボタンは青色で統一」 */
+    ok('⑧押せるときのボタンは青（緑に戻っていない）',
+       kak.indexOf('#2563eb') >= 0 && kak.indexOf('#4a5a2a') < 0,
+       '（出た答え：' + kak.replace(/s+/g, ' ').slice(0, 200) + '）');
   }
 
   if (fail) {

@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-17-04">
+<meta name="oos-version" content="2026-09-17-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -11996,7 +11996,14 @@ function parseRtSlip(lines){
   const slipNo = m(/伝票番号[:：]\s*(\d+)/);
   const orderDate = m(/発注日[:：]\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
   const deliveryDate = m(/納品予定日[:：]\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
-  const dept = m(/納品先[:：]\s*([^\n|(（]+)/);
+  /* ★2026-09-17 ひろみさん「コロンの前までが納品先です」
+       伝票の書き方：　納品先:ｲﾀﾘｱﾝﾚｽﾄﾗﾝ：商品(92033)
+       　　　　　　　　　　　└ここまでが納品先┘ └発注した部門と番号┘
+     コロンのうしろ（商品／料理 など）は納品先ではないので、納品書の宛名に入れません。
+     　直す前：「サンクチュアリコート高山 ｲﾀﾘｱﾝﾚｽﾄﾗﾝ：商品 様」
+     　直した後：「サンクチュアリコート高山 ｲﾀﾘｱﾝﾚｽﾄﾗﾝ 様」
+     ★コロン（全角：・半角:）で切る形を外さないでください。見張り：tests/test_rt_juusho.js ⑧ */
+  const dept = m(/納品先[:：]\s*([^\n|(（:：]+)/);
   const tel = m(/TEL[:：]\s*([0-9\-]+)/);
 
   // お届け先（御中）＝仕入先「オリーブオイル・ストーリーズ」の行の、もう片方が届け先名
@@ -12252,7 +12259,13 @@ function rtLineRowHtml(ln, i){
         +'style="background:#eef4f9;border:1.5px solid #1f4a6d;color:#1f4a6d;font-weight:800;padding:6px 8px;white-space:nowrap">🔍 照合</button></div>'
     +'<div>'+(i>0?'<button class="btn-sm" style="color:#991b1b;border-color:#e6a5a5" onclick="rtRemoveLine('+i+')" title="この商品を消す">✕</button>':'')+'</div>'
     +'</div>'
-    +'<div id="rt-tanka-msg-'+i+'" style="margin:-4px 0 10px;font-size:12.5px;line-height:1.7"></div>';
+    /* ★2026-09-17 ひろみさん「この表示が大きすぎて、ボタンと同じに見えて、
+       　何かしなきゃいけないのかなと思ってしまう。照合結果は右端の照合の下に
+       　小さく出すだけで十分。もし金額が違っている場合は赤文字で出して。
+       　普段は今と同じ文字でOK」
+       → 枠（背景・線）をやめて、右端の［🔍 照合］の下に小さい文字で出します。
+       ★枠のある形（ボタンに見える形）に戻さないでください。 */
+    +'<div id="rt-tanka-msg-'+i+'" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.6;text-align:right"></div>';
 }
 /* ══════════════════════════════════════════════════════════════════════
    💰 送料と 倉庫ピッキング手数料の入れ口　★2026-09-16 ひろみさん指示
@@ -12308,27 +12321,27 @@ function rtTankaCheck(i){
   var el = document.getElementById('rt-tanka-msg-' + i);
   if(!el || !rtParsed || !rtParsed.lines || !rtParsed.lines[i]) return;
   var l = rtParsed.lines[i];
-  function obi(iro, ji, moji){
-    el.innerHTML = '<div style="background:' + iro + ';border:1.5px solid ' + ji + ';color:' + ji
-      + ';border-radius:8px;padding:7px 11px;font-weight:800">' + moji + '</div>';
+  /* ★2026-09-17 枠（背景・線）は付けません。ボタンに見えてしまうためです。
+     　ふだんは今までと同じ文字の色。ちがっているときだけ赤い文字にします。 */
+  function moji(ji, futoji, honbun){
+    el.innerHTML = '<span style="color:' + ji + ';font-weight:' + futoji + '">' + honbun + '</span>';
   }
-  if(!l.productId){ obi('#fff7ed', '#8a4b0b', '先に商品をえらんでください。'); return; }
+  if(!l.productId){ moji('#8a4b0b', '700', '先に商品をえらんでください。'); return; }
   var master = rtTankaMaster(l.productId);
   if(master == null){
-    obi('#fff7ed', '#8a4b0b', '⚠️ この商品は、価格マスタにRTの単価が入っていません。統合マスタＮで入れてください。');
+    moji('#b91c1c', '800', '⚠️ 価格マスタにRTの単価が入っていません（統合マスタＮで入れてください）');
     return;
   }
   var ima = parseInt(l.unitPrice) || 0;
   if(ima === master){
-    obi('#eef7ef', '#0f5a4a', '✅ 価格マスタと同じです（¥' + master.toLocaleString() + '）');
+    moji('#57534e', '600', '✅ 価格マスタと同じです（¥' + master.toLocaleString() + '）');
     return;
   }
-  obi('#fef2f2', '#b91c1c',
+  moji('#b91c1c', '800',
       '⚠️ 金額が違います、修正してください。'
-    + '<div style="font-weight:700;margin-top:3px">伝票の単価 ¥' + ima.toLocaleString()
-    + '　／　価格マスタ（RT） <b>¥' + master.toLocaleString() + '</b></div>'
-    + '<div style="font-weight:600;font-size:11.5px;margin-top:3px">'
-    + '※ 納品書には<b>価格マスタの金額</b>が出ます。</div>');
+    + '<br>伝票 ¥' + ima.toLocaleString()
+    + '　／　価格マスタ（RT） <b>¥' + master.toLocaleString() + '</b>'
+    + '<br>※ 納品書には<b>価格マスタの金額</b>が出ます。');
 }
 
 function rtLineQtyChanged(i){
@@ -12527,7 +12540,9 @@ function renderRtPreview(){
         +'<button class="btn btn-gray" onclick="cancelRtImport()">キャンセル</button>'
       +'</div>'
       /* ★2026-09-17 承認済みモック mock_RT登録まで一気に_2026-09-17.html のとおり。
-         　いちばん上が【緑の1ボタン】。今までの道（受注登録画面）は白いボタンで残します。
+         　いちばん上が【1つのボタン】。今までの道（受注登録画面）は白いボタンで残します。
+         ★2026-09-17 ひろみさん「ボタンは青色で統一」→ 押せるときの色は青（#2563eb）。
+         　この画面の［📄 書類を貼り直す］と同じ青です。緑に戻さないでください。
          ★どちらも ☑ を押すまで押せません。 */
       +'<button id="rt-ikki-btn" disabled onclick="rtIkkiGo()" style="width:100%;margin-top:10px;background:#d6d3cd;border:2px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:14px 16px;cursor:not-allowed">✅ この内容で登録して、発注書まで送る（書類2つも貼ります）</button>'
       +'<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">押すと、<b>登録 → 発注書へ送る → 書類2つのリンクを貼る → 貼れたか確かめる</b>まで進みます（10秒ほどかかります）。倉庫へは、まだ何も行きません。</div>'
@@ -13303,11 +13318,11 @@ function rtRyokinShirase(card, mieru){
    ══════════════════════════════════════════════════════════════════════ */
 /* ☑「確認しました」で、2つのボタンをいっしょに押せるようにする（2026-09-17 承認済みモック） */
 function rtKakuninChk(on){
-  var midori = document.getElementById('rt-ikki-btn');
+  var midori = document.getElementById('rt-ikki-btn');   /* 青いボタン（2026-09-17に緑からかえました） */
   if(midori){
     midori.disabled = !on;
-    midori.style.background = on ? '#4a5a2a' : '#d6d3cd';
-    midori.style.borderColor = on ? '#4a5a2a' : '#d6d3cd';
+    midori.style.background = on ? '#2563eb' : '#d6d3cd';
+    midori.style.borderColor = on ? '#2563eb' : '#d6d3cd';
     midori.style.color = on ? '#fff' : '#8a8578';
     midori.style.cursor = on ? 'pointer' : 'not-allowed';
   }
@@ -13321,18 +13336,50 @@ function rtKakuninChk(on){
 var rtIkkiChu = false;
 /* 結果を1行ずつ出す枠（#rt-preview の【外】にあります。作り直しで消えません） */
 function rtIkkiLog(){ return document.getElementById('rt-ikki-log'); }
-function rtIkkiClear(){ var el = rtIkkiLog(); if(el){ el.innerHTML = ''; el.style.display = 'none'; } }
-function rtIkkiSay(kind, html){
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-17 ひろみさん「この工程がいろいろ書かれているのはなに？
+   　ここにずらずらあっても、そのうえでボタンを押してしまうから見れないから、
+   　裏の作業はみせなくていい」
+   ──────────────────────────────────────────────────────────────────────
+   いままで、途中の作業（登録しています／発注書に送りました／リンクを貼っています…）を
+   1行ずつ【ためて】いました。終わるころには6行ならんでいて、結果が埋もれていました。
+
+   直し方：出すところを2つに分けます。
+   　・結果（_rtIkkiKekka）　… ためます。うまくいかなかった赤い文字も、ぜんぶここ。
+   　・いまの作業（_rtIkkiIma）… ためません。1つを書き替えるだけ。結果が出たら消します。
+   ★うまくいかなかったときの赤い文字は、今までどおり全部のこります（rtIkkiSay）。
+   ★ためる形（rtIkkiSay('wait', …)）に戻さないでください。また工程がならびます。
+   見張り：tests/test_rt_ikki.js ①⑤
+   ══════════════════════════════════════════════════════════════════════ */
+var _rtIkkiKekka = '';   /* ためる（結果・赤い文字） */
+var _rtIkkiIma   = '';   /* ためない（いまの作業・1つだけ） */
+function rtIkkiWaku(iro, waku, ji, html){
+  return '<div style="background:' + iro + ';border:1.5px solid ' + waku + ';color:' + ji
+    + ';border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85">'
+    + html + '</div>';
+}
+function rtIkkiEgaku(){
   var el = rtIkkiLog(); if(!el) return;
-  el.style.display = 'block';
+  var naka = _rtIkkiKekka + _rtIkkiIma;
+  el.innerHTML = naka;
+  el.style.display = naka ? 'block' : 'none';
+  if(naka && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function rtIkkiClear(){ _rtIkkiKekka = ''; _rtIkkiIma = ''; rtIkkiEgaku(); }
+/* いまの作業（ためない。次を書くと前のは消えます） */
+function rtIkkiIma(html){
+  _rtIkkiIma = rtIkkiWaku('#f4f6f8', '#9aa7b3', '#46525e', html);
+  rtIkkiEgaku();
+}
+/* 結果（ためる。出すときに「いまの作業」は消します） */
+function rtIkkiSay(kind, html){
   var iro = { wait:['#f4f6f8','#9aa7b3','#46525e'],
               ok  :['#eef7ef','#0f5a4a','#0f5a4a'],
               ng  :['#fef2f2','#b91c1c','#b91c1c'],
               chui:['#fff7ed','#8a4b0b','#8a4b0b'] }[kind] || ['#f4f6f8','#9aa7b3','#46525e'];
-  el.insertAdjacentHTML('beforeend',
-    '<div style="background:' + iro[0] + ';border:1.5px solid ' + iro[1] + ';color:' + iro[2]
-    + ';border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85">' + html + '</div>');
-  el.scrollIntoView({behavior:'smooth', block:'nearest'});
+  _rtIkkiIma = '';
+  _rtIkkiKekka += rtIkkiWaku(iro[0], iro[1], iro[2], html);
+  rtIkkiEgaku();
 }
 /* 同じ伝票番号が、もう登録されていないか */
 function rtIkkiNijuu(slipNo){
@@ -13372,7 +13419,7 @@ async function rtIkkiGo(){
     }
 
     /* ── ② 受注登録のフォームに入れる（画面は切り替えません） ── */
-    rtIkkiSay('wait', '⏳ 登録しています…');
+    rtIkkiIma('⏳ 登録しています…');
     applyRtToOrderForm(true);
 
     /* ── ③ いつもの確認を通す（足りないものは、いつもと同じ見張りが見ます） ── */
@@ -13413,28 +13460,33 @@ async function rtIkkiGo(){
       rtIkkiSay('ng', '⛔ <b>登録できませんでした。</b>下の白いボタンから受注登録画面をひらいて、お確かめください。');
       modoshi(); return;
     }
-    rtIkkiSay('ok', '✅ 登録しました　<b>' + esc(String(toroku[0].num||'')) + '</b>');
+    var _ikkiNum = esc(String(toroku[0].num||''));
+    rtIkkiIma('⏳ 発注書に送っています…');
 
     /* ── ⑦ 発注書に行ができるのを待つ ── */
     for(var i=0;i<toroku.length;i++){
       if(!toroku[i].yukaKey && typeof docFudaMachi === 'function'){ await docFudaMachi(toroku[i]); }
     }
     if(toroku.every(function(o){ return !!o.yukaKey; })){
-      rtIkkiSay('ok', '✅ 発注書に送りました');
+      /* 途中経過は出しません（上の説明を読んでください） */
     }else{
+      rtIkkiSay('ok', '✅ 登録しました　<b>' + _ikkiNum + '</b>');
       rtIkkiSay('ng', '⚠️ <b>発注書にまだ入っていません。</b>受注一覧のカードから［📥 …『発注書』に送る］を押してください。');
       modoshi(); return;
     }
 
     /* ── ⑧ 書類を2つ貼って、貼れたかを確かめる ── */
-    rtIkkiSay('wait', '⏳ 書類のリンクを貼っています…');
+    rtIkkiIma('⏳ 書類のリンクを貼っています…');
     for(var j=0;j<toroku.length;j++){ await rtAttachDocsToOrder(toroku[j]); }
     var dame = toroku.filter(function(o){ return !!o.nouhinDocNg; });
     if(!dame.length){
-      rtIkkiSay('ok', '✅ 書類のリンクを2つとも貼りました<br>　📄 納品書（ひらく）　／　📄 発注伝票（ひらく）');
-      rtIkkiSay('ok', '✅ <b>発注書を読み直して、2つとも入っていることを確かめました。</b>');
+      /* ★終わったら、結果だけを1つ出します（途中の工程はならべません） */
+      rtIkkiSay('ok', '✅ 登録しました　<b>' + _ikkiNum + '</b>'
+        + '<div style="font-weight:600;margin-top:3px">発注書に送り、📄 納品書 と 📄 発注伝票 を2つとも貼りました'
+        + '（発注書を読み直して確かめました）。</div>');
       rtIkkiSay('chui', '※ 倉庫へは、まだ何も行きません。発注書のA列を🔵にしたときだけです（今までどおり）。');
     }else{
+      rtIkkiSay('ok', '✅ 登録しました　<b>' + _ikkiNum + '</b>');
       dame.forEach(function(o){ rtIkkiSay('ng', '⚠️ ' + esc(String(o.nouhinDocNg))); });
       rtIkkiSay('ng', '<button onclick="rtIkkiHariNaosu()" '
         + 'style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:800;cursor:pointer">'
@@ -13453,7 +13505,7 @@ async function rtIkkiGo(){
 async function rtIkkiHariNaosu(){
   var list = window._rtIkkiOrders || [];
   if(!list.length) return;
-  rtIkkiSay('wait', '⏳ もう一度、書類のリンクを貼っています…');
+  rtIkkiIma('⏳ もう一度、書類のリンクを貼っています…');
   for(var i=0;i<list.length;i++){ await rtAttachDocsToOrder(list[i]); }
   var dame = list.filter(function(o){ return !!o.nouhinDocNg; });
   if(!dame.length){

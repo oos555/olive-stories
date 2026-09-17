@@ -198,6 +198,73 @@ eq('④-2 戻せるように、止め木の1行がある',
   eq('④' + nm + '：待ちきれないときの時間切れを消していない',
      src.indexOf('machikirenai') < 0, false);
 });
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-17 ひろみさん「通信がおかしいと出てるけど、ここは電波良好です」
+   　実測：GASは時間のかかる呼び出しのとき、Googleの「ページが見つかりません」
+   　　　　というHTMLを返してきます（loadAll 13秒／oosMasterLoad1 77秒で発生）。
+   　それを res.json() に渡すと落ち、「通信できませんでした」という嘘の帯が出ていました。
+   　2026-09-13 に受注Ａで直したのと【同じ穴】が、統合マスタＮに残っていました。
+   ══════════════════════════════════════════════════════════════════════ */
+eq('④統合マスタＮ：名簿のところに res.json() が残っていない',
+   H.cut(MASTER, 'initializeProducts').indexOf('await res.json()') >= 0, false);
+eq('④統合マスタＮ：読み方は1つだけ（2つに増やさない）',
+   MASTER.split('function yomuJson(url, nokori)').length - 1, 1);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-17 ここは【本物を動かして】確かめます（文字さがしにしません）。
+   　統合マスタＮの initializeProducts を、そのまま砂場で走らせ、
+   　GASがHTMLを返したときに何が起きるかを見ます。
+   ══════════════════════════════════════════════════════════════════════ */
+function meiboUgokasu(kaeru){
+  /* kaeru … fetch が順番に返す中身（文字）。HTMLを混ぜられます */
+  const machi = [];              /* setTimeout に頼まれた待ち時間 */
+  const shirase = [];            /* 親（OOS_MEIBO）に知らせた中身 */
+  let i = 0;
+  const box = {
+    console: console, Promise: Promise, Date: Date, JSON: JSON,
+    String: String, Number: Number, Array: Array, Object: Object, parseInt: parseInt,
+    Error: Error, GAS_URL: 'https://example.test/exec',
+    PRODUCTS: new Array(55),
+    setTimeout: function(fn, ms){ machi.push(ms); return Promise.resolve().then(fn); },
+    fetch: function(){
+      const t = kaeru[Math.min(i++, kaeru.length - 1)];
+      return Promise.resolve({ text: function(){ return Promise.resolve(t); } });
+    },
+    loadProductsFromCache: function(){ return { products: new Array(55), extraFields: [] }; },
+    applyLoadedProducts: function(){},
+    saveProductsToCache: function(){}
+  };
+  box.window = box; box.globalThis = box;
+  box.OOS_MEIBO = { shirase: function(dede, kensu, riyuu){ shirase.push({ dede: dede, riyuu: riyuu }); } };
+  const ctx = vm.createContext(box);
+  vm.runInContext(H.cut(MASTER, 'yomuJson'), ctx);
+  vm.runInContext(H.cutVar(MASTER, 'OOS_MEIBO_BIN'), ctx);
+  vm.runInContext(H.cut(MASTER, 'initializeProducts'), ctx);
+  /* 相乗り便は来なかったことにします（＝自分で取りに行く道を通します） */
+  vm.runInContext('OOS_MEIBO_BIN.todoke(null);', ctx);
+  return vm.runInContext('initializeProducts()', ctx)
+    .then(function(){ return { machi: machi, shirase: shirase[0] || {} }; });
+}
+const HTML404 = '<!DOCTYPE html><html lang="ja"><head><title>ページが見つかりません</title>';
+const MEIBO_OK = JSON.stringify({ status: 'ok', products: [{ id: 1, sku: 'ORG100' }], extraFields: [] });
+
+/* ★これが本番で起きていたことです（2026-09-17 実測：GASが77秒かけてHTMLを返した） */
+async function meiboHtmlTameshi(){
+  await meiboUgokasu([HTML404, HTML404, MEIBO_OK]).then(function(r){
+  eq('④統合マスタＮ：GASがHTMLを返しても、やり直して名簿を読める', r.shirase.dede, 'gas');
+  eq('④統合マスタＮ：読めたのに理由を書かない', r.shirase.riyuu, '');
+  });
+  await meiboUgokasu([HTML404, HTML404, HTML404, HTML404, HTML404]).then(function(r){
+  eq('④統合マスタＮ：どうしても読めなければ、控えで動いていると言う', r.shirase.dede, 'cache');
+  eq('④統合マスタＮ：★電波のせいにしない（嘘の「通信できませんでした」を出さない）',
+     String(r.shirase.riyuu).indexOf('通信できませんでした') >= 0, false);
+  eq('④統合マスタＮ：本当の理由（GASが混んでいる）を出す',
+     String(r.shirase.riyuu).indexOf('GASがJSONを返しませんでした') >= 0, true);
+  eq('④統合マスタＮ：相乗り便を90秒待つ（20秒に戻していない）',
+     r.machi.indexOf(90000) >= 0, true);
+  });
+}
 /* ★在庫が入っていなくて途中で止まるときも、名簿だけは先に降ろします。
    　（降ろす場所が、止まる場所より【前】にあること） */
 eq('④統合マスタＮ：在庫が無くて止まる前に名簿を降ろす（名簿だけは渡す）',
@@ -233,6 +300,7 @@ eq('⑥外した理由と戻し方が書いてある',
 (async function(){
   await binShiraberu('統合マスタＮ', MASTER);
   await binShiraberu('受注Ａ', INDEX);
+  await meiboHtmlTameshi();
 
   if (fail) {
     console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);

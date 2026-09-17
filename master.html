@@ -456,7 +456,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-17-02">
+<meta name="oos-version" content="2026-09-17-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1321,6 +1321,39 @@ function applyLoadedProducts(products, extraFields){
    ★OOS_MEIBO.shirase（名簿の出どころを親に知らせる）は、今までどおり必ず1回呼びます。
    　ここを消すと、また黙って古い名簿で動き、2026-09-12の「43件 vs 55件」が再発します。
    ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   📡 GASからJSONを受け取る【この画面で1つだけの読み方】　★2026-09-17
+   ──────────────────────────────────────────────────────────────────────
+   ★ひろみさん（2026-09-17）
+     「通信がおかしいと出てるけど、ここは電波良好です。何かが引っかかってる」
+
+   ★調べて分かったこと（この日の実測）
+     ・GASは、時間のかかる呼び出しのとき【Googleの「ページが見つかりません」
+     　というHTMLの画面】を返してくることがあります。
+     　　loadAll（受注）　　　　… 13秒でHTML／36秒・28秒で成功
+     　　oosMasterLoad1（まとめ）… 77秒でHTML／53秒で成功
+     ・そのHTMLを res.json() に渡すと落ちます。落ちたところで
+     　「通信できませんでした」と言っていたので、電波は良好なのに
+     　【通信のせいにする嘘の帯】が出ていました。
+
+     ＝ 2026-09-13 に受注Ａで直したのと【まったく同じ穴】が、
+     　 この画面の商品名簿のところに残っていました。
+
+   ★だから、この画面のGAS読み込みは全部この関数を通します。
+     JSONでなければ少し待って3回までやり直し、それでもだめなら throw します。
+     ★fetch(...).then(r=>r.json()) の形に戻さないでください。また嘘の帯が出ます。
+     見張り：tests/test_meibo_noriai.js
+   ══════════════════════════════════════════════════════════════════════ */
+function yomuJson(url, nokori){
+  return fetch(url, {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(t){
+    var s = String(t||'').trim();
+    if(s.charAt(0) === '{') return JSON.parse(s);
+    if(nokori > 0){
+      return new Promise(function(ok){ setTimeout(ok, 1200); }).then(function(){ return yomuJson(url, nokori-1); });
+    }
+    throw new Error('GASがJSONを返しませんでした（混み合っています）');
+  });
+}
 var OOS_MEIBO_BIN = (function(){
   var todokeru = null, sunda = false;
   var machi = new Promise(function(r){ todokeru = r; });
@@ -1346,12 +1379,19 @@ async function initializeProducts(){
   var _meiboDede = (cached) ? 'cache' : 'naka';
   var _meiboRiyu = '';
   /* ★2026-09-15 まず【相乗り便】を待ちます（上の説明を読んでください）。
-     　20秒たっても来なければ、今までどおり自分で取りに行きます。 */
+     ★2026-09-17 待つ時間を 20秒 → 90秒 にしました。
+     　理由（この日の実測）：相乗り便（oosMasterLoad1）は 53秒・77秒かかっていました。
+     　20秒で見切って自分で取りに行っても、Apps Script は
+     　【同じ人の呼び出しを1本ずつしか処理しません】。
+     　＝ まだ走っている相乗り便のうしろに並ぶだけで、早くはなりません。
+     　それどころか、並んで待たされた末に Googleの「ページが見つかりません」を
+     　もらい、「通信できませんでした」という嘘の帯が出ていました。
+     ★20秒に戻さないでください。また嘘の帯が出ます。 */
   var _norimono = null;
   try{
     _norimono = await Promise.race([
       OOS_MEIBO_BIN.machi,
-      new Promise(function(ok){ setTimeout(function(){ ok('machikirenai'); }, 20000); })
+      new Promise(function(ok){ setTimeout(function(){ ok('machikirenai'); }, 90000); })
     ]);
   }catch(e){ _norimono = null; }
   if(_norimono && _norimono !== 'machikirenai'
@@ -1361,8 +1401,9 @@ async function initializeProducts(){
     _meiboDede = 'gas';
   } else {
     try{
-      const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
-      const data = await res.json();
+      /* ★2026-09-17 res.json() をやめ、この画面で1つだけの読み方（yomuJson）に。
+         　GASがHTMLを返したときに「通信できませんでした」と嘘をつかないためです。 */
+      const data = await yomuJson(GAS_URL + '?action=loadProducts&t=' + Date.now(), 3);
       if(data && data.status === 'ok' && Array.isArray(data.products) && data.products.length){
         saveProductsToCache(data.products, data.extraFields);
         applyLoadedProducts(data.products, data.extraFields);
@@ -1371,7 +1412,10 @@ async function initializeProducts(){
         _meiboRiyu = 'サーバーが名簿を返しませんでした';
       }
     }catch(e){
-      _meiboRiyu = '通信できませんでした';
+      /* ★2026-09-17 理由を【そのまま】出します。
+         　何でも「通信できませんでした」と言っていたので、電波が良いのに
+         　電波のせいにされ、ひろみさんが原因を探せませんでした。 */
+      _meiboRiyu = (e && e.message) ? String(e.message) : '通信できませんでした';
     }
   }
   try{ if(window.OOS_MEIBO) OOS_MEIBO.shirase(_meiboDede, PRODUCTS.length, _meiboRiyu); }catch(e){}
@@ -1713,16 +1757,9 @@ function loadAllDataFromGAS(saki){
      ★JSONでなければ、少し待って【3回まで】やり直します。
      ★それでもだめなら、握りつぶさずに throw します（外の catch が前回の数字を守ります）。
      ★.catch(function(){ return [null,null]; }) に戻さないでください。 */
-  function yomuJson(url, nokori){
-    return fetch(url, {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(t){
-      var s = String(t||'').trim();
-      if(s.charAt(0) === '{') return JSON.parse(s);
-      if(nokori > 0){
-        return new Promise(function(ok){ setTimeout(ok, 1200); }).then(function(){ return yomuJson(url, nokori-1); });
-      }
-      throw new Error('GASがJSONを返しませんでした（混み合っています）');
-    });
-  }
+  /* ★2026-09-17 この読み方（yomuJson）は、この画面の【上の方】に移しました。
+     　商品名簿を取りに行くところでも、同じ読み方を使うためです（下の説明を読んでください）。
+     　ここに書き戻して2つに増やさないでください。 */
   var _yomu = saki
     ? yomuJson(GAS_URL + '?action=oosMasterLoad1&only=' + ZAIKO_NI_IRU, 3)
         .then(function(d){
@@ -2866,8 +2903,9 @@ function labSaveOne(pid, i, kind, val){
    ★この見張りを外さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 function labFetchFresh(sku){
-  return fetch(GAS_URL + '?action=loadProducts&t=' + Date.now(), {cache:'no-store'})
-    .then(function(r){ return r.json(); })
+  /* ★2026-09-17 GASがHTMLを返すと、ここが null になって【二重入力の守りが素通り】します。
+     　やり直してくれる読み方（yomuJson）に変えました。r.json() に戻さないでください。 */
+  return yomuJson(GAS_URL + '?action=loadProducts&t=' + Date.now(), 3)
     .then(function(d){
       var list = (d && (d.products || (d.data && d.data.products))) || null;
       if(!list) return null;
@@ -5957,8 +5995,8 @@ async function checkShipUnitSaved(sku, wantMap){
   var keys = Object.keys(wantMap).filter(function(k){ return String(wantMap[k]||'').trim() !== ''; });
   if(!keys.length) return;
   try{
-    const res = await fetch(GAS_URL + '?action=loadProducts&t=' + Date.now());
-    const data = await res.json();
+    /* ★2026-09-17 GASがHTMLを返すと確かめられずに黙って終わるので、やり直す読み方に */
+    const data = await yomuJson(GAS_URL + '?action=loadProducts&t=' + Date.now(), 3);
     if(!(data && data.status==='ok' && Array.isArray(data.products))) return;
     const back = data.products.find(function(x){ return x.sku === sku; });
     const ex = (back && back.extras) || {};
