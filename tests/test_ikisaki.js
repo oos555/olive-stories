@@ -1118,9 +1118,26 @@ function hacchuushoGyou(payload){
            _S.box.rtDenpyoOrderKa({ customerType: '定価', note: 'RT伝票取込' }) === false);
       }
     }
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-17 ひろみさん指示で、この2つを【反対に】書き直しました。
+       　もとは「RTは rtDeliveryNoteHtml（古い写し）から作る」「親を使っていない」
+       　という見張りでした。2026-09-10に「納品書は親に集約・写しを作らない」と
+       　決めたのに、RTの写しだけ消し残っていたためです。
+
+       　2026-09-17、本物のPDFを開いて分かったこと：
+       　　・🖨️ で取り出すPDF … 親　　会社の住所＝南青山2-2-15 ✅
+       　　・発注書に貼るPDF … 古い写し　会社の住所＝**立川市柴崎町** ❌
+       　同じ注文なのに、倉庫に渡る納品書だけ住所がちがっていました。
+
+       ひろみさん「古い写し（rtDeliveryNoteHtml）を捨てて、全部親の
+       　　　　　　oos-nouhin.js に一本化します。そうしてください」
+       ★消さずに、新しい決めごとに書き直しています（見張りは減らしません）。
+       くわしい見張りは tests/test_rt_nouhin_ippon.js にあります。
+       ══════════════════════════════════════════════════════════════════ */
     const rn = H.cut(idx, 'rtNouhinHtml');
-    ok('⑱-35 RTは rtDeliveryNoteHtml から作る', /rtDeliveryNoteHtml\(\)/.test(rn));
-    ok('⑱-36 RTで親（OOS_NOUHIN）を使っていない', !/OOS_NOUHIN/.test(rn));
+    ok('⑱-35 RTの納品書も【親＝OOS_NOUHIN】から作る', /OOS_NOUHIN\.build\(/.test(rn));
+    ok('⑱-36 RTで古い写し（rtDeliveryNoteHtml）を呼んでいない',
+       !/rtDeliveryNoteHtml\(\)/.test(rn.replace(/\/\*[\s\S]*?\*\//g, '')));
     ok('⑱-37 登録前の確認でRTを見せ分けている',
        /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(ms));
     ok('⑱-38 登録後の画面でもRTを見せ分けている',

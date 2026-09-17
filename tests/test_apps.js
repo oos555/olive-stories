@@ -308,8 +308,14 @@ eq("⑤ 増やす・減らすがある", idxSrc.indexOf("function rtAddLine()") 
 eq('⑥ ①の明細を②へ引き継ぐ道具がある', idxSrc.indexOf('function rtPullFromCalc(silent)') >= 0, true);
 eq('⑥ 送料も①と同じ調整をかけて引き継ぐ', idxSrc.indexOf('rtParsed.shipFee = rtCalcAdjustedShipFee();') >= 0, true);
 eq('⑥ 伝票を読んだら①の明細を自動で入れる', idxSrc.indexOf('if(_calc.length){ rtParsed.lines = _calc;') >= 0, true);
-eq('⑥ 納品書に送料の行を出す', idxSrc.indexOf("rows += '<tr><td class=\"d-tekiyo\">送料</td>") >= 0, true);
-eq('⑥ 送料は10%対象で数える', idxSrc.indexOf('rateSub[10] = (rateSub[10]||0) + _sf;') >= 0, true);
+/* ★2026-09-17 この2つは、RT専用の納品書（rtDeliveryNoteHtml）の書き方を
+   　文字で探していました。その写しは捨てたので、【親に渡しているか】を見る形に
+   　書き直しました。送料の行と10%の数え方は、いま親（oos-nouhin.js）の仕事です。
+   　実際に出るかどうかは、下の「⑥ 納品書に送料の行が出る」で本物を作って見ています。 */
+eq('⑥ 送料を親へ渡している（税抜→税込に直して）',
+   H.cut(idxSrc, 'rtOrderForDoc').indexOf('shippingFee: ship') >= 0, true);
+eq('⑥ 倉庫ピッキング手数料も親へ渡している',
+   H.cut(idxSrc, 'rtOrderForDoc').indexOf('warehouseFee:') >= 0, true);
 eq('⑥ ①から来たことを②の画面に出す', idxSrc.indexOf('①「まず計算する」の明細をそのまま入れています') >= 0, true);
 eq('⑥ 倉庫Ｄの伝票は1か所だけ（①と③に分けない）',
    (pkSrc2.match(/RT発注伝票（PDF）を開いて印刷する/g)||[]).length === 1, true);
@@ -334,12 +340,16 @@ try{
     querySelectorAll: function(sel){ return sel.indexOf('rtc-rows') >= 0 ? CALC : []; },
     querySelector: function(){ return null; },
     createElement: function(){ return { style:{}, innerHTML:'', appendChild:function(){}, querySelector:function(){ return null; } }; },
+    /* ★2026-09-17 親（oos-nouhin.js）は head に見た目を差し込むので、head も要ります */
+    head:{ appendChild:function(){} },
     body:{ appendChild:function(){}, removeChild:function(){}, style:{} }, addEventListener:function(){}
   };
   var R = H.makeSandbox({ document: dom, alert: function(){} });
   vm.runInContext(H.cutVar(idxSrc, 'PRODUCTS'), R.ctx);
   vm.runInContext('function esc(s){ return String(s==null?"":s); } function productOptionsHtml(){ return ""; } function showSyncStatus(){} function renderRtPreview(){} var rtParsed = null; var RT_SEAL_IMG = "";', R.ctx);
-  ['_rtLineRate','rtCalcLines','rtCalcShipFee','rtInvoiceTotal','rtFindTarget','rtDistribute','rtReverse','rtCalcAdjustedShipFee','rtPullFromCalc','rtDeliveryNoteHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
+  /* ★2026-09-17 RT専用の納品書（rtDeliveryNoteHtml）は捨てました。
+     　いまは rtNouhinHtml → rtOrderForDoc → 親（OOS_NOUHIN.build）の1本道です。 */
+  ['_rtLineRate','rtCalcLines','rtCalcShipFee','rtInvoiceTotal','rtFindTarget','rtDistribute','rtReverse','rtCalcAdjustedShipFee','rtPullFromCalc','rtOrderForDoc','nouhinDeps','rtNouhinHtml'].forEach(function(n){ vm.runInContext(H.cut(idxSrc, n), R.ctx); });
   var pr = R.box.PRODUCTS.filter(function(p){ return !p.isSet; });
   CALC = [ calcRow(pr[0].id, 20, 7110), calcRow(pr[1].id, 10, 2613) ];
   SHIP = 3906;
@@ -349,16 +359,21 @@ try{
   eq('⑥ 単価がそのまま入る', R.box.rtParsed.lines[0].unitPrice, 7110);
   eq('⑥ 送料がそのまま入る', R.box.rtParsed.shipFee, 3906);
   R.box.rtParsed.recipientName = 'テストホテル'; R.box.rtParsed.slipNo = '360774'; R.box.rtParsed.nouhinNo = '360774';
-  var note = R.box.rtDeliveryNoteHtml();
+  var note = R.box.rtNouhinHtml();
+  eq('⑥ 納品書が作れる', note.length > 0, true);
   eq('⑥ 納品書に1品目が載る', note.indexOf(pr[0].name) >= 0, true);
   eq('⑥ 納品書に2品目が載る', note.indexOf(pr[1].name) >= 0, true);
-  eq('⑥ 納品書に送料が載る', note.indexOf('>送料<') >= 0 && note.indexOf('3,906') >= 0, true);
+  eq('⑥ 納品書に送料の行が出る', note.indexOf('送料') >= 0, true);
   /* ★2026-08-24 ひろみさん確定：消費税の端数は【切り捨て】。
      ①「まず計算する」のアイポーター逆算と、納品書の合計を1円もずらさないため。
-     ★ここを Math.round に戻さないでください。 */
+     ★ここを Math.round に戻さないでください。
+     ★2026-09-17 納品書の合計そのものの計算は【親の見張り】が見ています
+     　（tests/test_nouhin_oya.js・98項目）。ここで同じことを二重に測りません。
+     　ここで見るのは「①の逆算の式」と「RTの流れが親まで通ること」です。 */
   var y8 = 20*7110 + 10*2613;
-  var total = y8 + Math.floor(y8*0.08) + 3906 + Math.floor(3906*0.10);
-  eq('⑥ 合計が 商品＋8% ＋ 送料＋10% になる', note.indexOf(total.toLocaleString()) >= 0, true);
+  eq('⑥ ①の逆算：商品＋8% ＋ 送料＋10%（切り捨て）',
+     R.box.rtInvoiceTotal(y8, 3906),
+     y8 + Math.floor(y8*0.08) + 3906 + Math.floor(3906*0.10));
   CALC = []; SHIP = 0;
   R.box.rtParsed.lines = [{ productId:pr[0].id, productName:pr[0].name, bottles:5, unitPrice:1000, matched:true, taxRate:8 }];
   eq('⑥ ①が空のときは②の中身をこわさない', R.box.rtPullFromCalc(true), false);
