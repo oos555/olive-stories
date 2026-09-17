@@ -33,7 +33,13 @@ function ok(name, cond, detail){
 /* ── 本物の rtIkkiGo を動かす砂場 ── */
 function sunaba(opt){
   opt = opt || {};
-  const log = { innerHTML: '', style: {}, insertAdjacentHTML(_, h){ this.innerHTML += h; }, scrollIntoView(){} };
+  /* mademita … 途中でいちど出た文も全部とっておく（消えても確かめられるように） */
+  const log = { mademita: [], style: {},
+    insertAdjacentHTML(_, h){ this.innerHTML += h; },
+    scrollIntoView(){} };
+  Object.defineProperty(log, 'innerHTML', {
+    get(){ return this._h || ''; },
+    set(v){ this._h = v; this.mademita.push(String(v)); } });
   const btn = { id: 'rt-ikki-btn', disabled: false, style: {}, textContent: '' };
   const chk = { checked: opt.chk !== false };
   const alerts = { innerHTML: '', textContent: opt.alertText || '' };
@@ -101,6 +107,9 @@ function chuumonTsukuru(x){
     ok('①読み直して確かめたことが出る', h.indexOf('発注書を読み直して確かめました') >= 0);
     ok('①★途中の工程（⏳）が、1つものこっていない', h.indexOf('⏳') < 0,
        '（出た画面：' + h.replace(/<[^>]*>/g, ' ').slice(0, 220) + '）');
+    ok('①待っている間も「30秒ほど」と伝えている',
+       s.log.mademita.some(function(x){ return x.indexOf('30秒ほどかかります') >= 0; }),
+       '（出た途中の文：' + s.log.mademita.join(' ／ ').slice(0, 200) + '）');
     ok('①★出る枠は2つだけ（結果＋倉庫への注意）',
        (h.match(/border-radius:9px/g) || []).length === 2,
        '（出た枠の数：' + (h.match(/border-radius:9px/g) || []).length + '）');
@@ -208,7 +217,14 @@ function chuumonTsukuru(x){
        ren.indexOf('▶ 受注登録画面をひらいて入力する（今までどおり）') >= 0);
     ok('⑧白いボタンも、はじめは押せない', ren.indexOf('id="rt-go-btn" disabled') >= 0);
     ok('⑧☑で2つとも押せるようになる', ren.indexOf('rtKakuninChk(this.checked)') >= 0);
-    ok('⑧「10秒ほどかかります」と正直に書いてある', ren.indexOf('10秒ほどかかります') >= 0);
+    /* ★2026-09-17 ひろみさん「スプシにリンクが現れるまで30秒ほどかかります、と
+       　ボタンのすぐ近くに出しといてほしい。貼り付かないって、私も思っちゃったから」
+       　実際にかかる時間は10秒ではなく30秒ほどでした。正直な数字に直しています。 */
+    ok('⑧ボタンのすぐ近くに「30秒ほどかかります」と正直に書いてある',
+       ren.indexOf('30秒ほどかかります') >= 0);
+    ok('⑧何が30秒かかるのか（スプレッドシートにリンクが出るまで）が書いてある',
+       ren.indexOf('スプレッドシートに 発注伝票・納品書のリンクが出るまで') >= 0);
+    ok('⑧古い「10秒ほど」に戻っていない', ren.indexOf('10秒ほどかかります') < 0);
     ok('⑧結果の枠が、画面の作り直しで消えない場所にある',
        SRC.indexOf('<div id="rt-ikki-log"') >= 0 && ren.indexOf('rt-ikki-log') < 0,
        '（#rt-preview の中に置くと、作り直しで消えます）');
