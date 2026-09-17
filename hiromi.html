@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-13-02">
+<meta name="oos-version" content="2026-09-17-01">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -464,8 +464,18 @@ input[type=text]{padding:7px 10px;border:1px solid #d8cfc4;border-radius:8px;fon
   <!-- ⑤ フリースペース（2026-08-25追加：形式を決めない自由記入欄） -->
   <div class="card" style="margin-top:14px">
     <div class="shd"><span class="sec" style="margin:0">🖊 フリースペース</span><span id="free-save-state" style="margin-left:auto;font-size:11px;color:#9a9188"></span></div>
-    <div class="info-box" style="margin-bottom:10px">やること・大切なメモに当てはまらない、なんでも自由に書ける場所です。書いた内容は自動で保存されます。🔒 パスワード・暗証番号などは書かないでください。</div>
+    <div class="info-box" style="margin-bottom:10px">やること・大切なメモに当てはまらない、なんでも自由に書ける場所です。書いたら、下の<b>💾 保存する</b>を押してください（★2026-09-17 ひろみさん指示で、手で保存する形にしました）。押すまで、書いた内容はこの画面にだけあります。🔒 パスワード・暗証番号などは書かないでください。</div>
     <textarea id="free-space-text" placeholder="ここに自由に書いてください…" style="min-height:220px" oninput="onFreeSpaceInput()"></textarea>
+    <!-- ★2026-09-17 手元とサーバーが食いちがったときだけ出る帯。勝手に上書きしないための知らせ -->
+    <div id="free-chigai" style="display:none;background:#fef9c3;border:2px solid #f59e0b;border-radius:9px;padding:10px 13px;margin:8px 0;font-size:13px;color:#78350f;line-height:1.8">
+      ⚠️ <b>まだ保存していない内容があります。</b>いま出ているのは、この画面に残っていた書きかけです。<br>
+      <span style="font-size:12.5px">サーバーに保存してある内容とは違います。このまま <b>💾 保存する</b> を押せば、いまの内容で上書きされます。</span><br>
+      <button type="button" onclick="freeUseServer()" style="margin-top:7px;background:#fff;border:1.5px solid #9d957f;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer">↩ サーバーに保存してある内容に戻す</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <button type="button" id="free-save-btn" onclick="saveFreeSpaceNow()" style="background:#4a5a2a;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-size:15px;font-weight:800;cursor:pointer">💾 保存する</button>
+      <span style="font-size:12px;color:#8a8578">押すまで保存されません。書いた内容は、この画面には残ります。</span>
+    </div>
   </div>
 
 </div>
@@ -1183,64 +1193,126 @@ async function autoUnlock(pw){
 /* ============================================================
    ⑤ フリースペース（2026-08-25追加）
    ・形式を決めない自由記入欄。1本のテキストを1件だけ保存する（一覧ではない）
-   ・書いている間はまず手元(localStorage)にすぐ控える → 消えて見えることがない
-   ・止まったら1.2秒後にサーバー(GAS)へ自動保存。通信が失敗しても手元には残る
+
+   ★2026-09-17 ひろみさん指示で【手で保存する】形に変えました
+   　ひろみさん「ひろみメモの自由に書けるフリースペース、いつも消えてる気がする。
+   　　　　　　　保存するボタンを作って手動で保存するようにして。
+   　　　　　　　今入っている者は消さないで」
+
+   ★なぜ消えていたか（2026-09-17に見つけた本当の原因）
+     画面を開いたとき、【サーバーの内容で、書いてある文字を必ず上書き】していました。
+     　ta.value = m.text;   ← 中身をくらべずに、いつも上書き
+     自動保存（1.2秒後）がうまくいっていなかったときは、サーバーには【古い文字】が
+     残っています。次に開くと、その古い文字で上書きされ、書いた分が消えて見えました。
+     しかも保存に失敗しても「✅ 保存しました」と出ていました（post は status を見ずに
+     返すので、GASがエラーを返しても catch に入らなかったため）。
+
+   ★いまの決めごと
+     ① 書いている間は【手元（localStorage）】にすぐ控える（今までどおり）
+     ② サーバーへは【💾 保存する を押したときだけ】送る（自動保存はしない）
+     ③ 開いたとき、手元とサーバーが違っていたら【手元を残す】。
+     　 勝手に上書きせず、黄色い帯で知らせる
+     ④ 保存の成否は、GASの返事をちゃんと見て言う（うそをつかない）
+   見張り：tests/test_hiromi_free.js
    ============================================================ */
 const FREE_NOTE_ID = 'free_note_1';
 const FREE_CACHE_KEY = 'oos_hiromi_freespace_cache';
-let freeSpaceSaveTimer = null;
 let freeSpaceCreatedAt = null;
+let freeSpaceServerText = null;   /* サーバーにある内容（戻したいとき用に控える） */
 
-/* ★2026-09-13夜 1回でまとめて読んだぶんを、フリースペースの枠に入れる部品。
-   （読みに行く処理と、枠に入れる処理を分けました。★loadFreeSpace と同じ中身にしてください） */
-function hmApplyFree(memosArr){
+/* 黄色い帯（手元とサーバーが違うときだけ出す） */
+function freeShowChigai(show){
+  const box = document.getElementById('free-chigai');
+  if(box) box.style.display = show ? 'block' : 'none';
+}
+/* 手元とサーバーをくらべて、枠に入れる。★勝手に上書きしません */
+function freeApply_(serverText, createdAt){
   const ta = document.getElementById('free-space-text');
   if(!ta) return;
-  try{ const cached = localStorage.getItem(FREE_CACHE_KEY); if(cached!=null && !ta.value) ta.value = cached; }catch(e){}
-  const m = (memosArr||[]).find(function(x){ return x.id===FREE_NOTE_ID; });
-  if(m){
-    ta.value = m.text||'';
-    freeSpaceCreatedAt = m.createdAt || null;
-    try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+  let cached = null;
+  try{ cached = localStorage.getItem(FREE_CACHE_KEY); }catch(e){}
+  if(createdAt) freeSpaceCreatedAt = createdAt;
+  freeSpaceServerText = (serverText == null) ? null : String(serverText);
+
+  if(cached != null && freeSpaceServerText != null && cached !== freeSpaceServerText){
+    /* 食い違い＝手元に、まだ保存していない書きかけがある。手元を残す */
+    ta.value = cached;
+    freeShowChigai(true);
+    return;
   }
+  freeShowChigai(false);
+  if(freeSpaceServerText != null){
+    ta.value = freeSpaceServerText;
+    try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+  }else if(cached != null){
+    ta.value = cached;
+  }
+}
+/* サーバーの内容を見る／戻す（押したときだけ。押さなければ手元のまま） */
+function freeUseServer(){
+  const ta = document.getElementById('free-space-text');
+  if(!ta || freeSpaceServerText == null) return;
+  if(!confirm('いま書いてある内容を、サーバーに保存されている内容に【置きかえます】。\n\n'
+    + 'いま書いてある分は消えます。よろしいですか？')) return;
+  ta.value = freeSpaceServerText;
+  try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+  freeShowChigai(false);
+  const st = document.getElementById('free-save-state');
+  if(st) st.textContent = 'サーバーの内容に戻しました';
+}
+/* ★2026-09-13夜 1回でまとめて読んだぶんを、フリースペースの枠に入れる部品 */
+function hmApplyFree(memosArr){
+  const m = (memosArr||[]).find(function(x){ return x.id===FREE_NOTE_ID; });
+  freeApply_(m ? (m.text||'') : null, m ? (m.createdAt||null) : null);
 }
 async function loadFreeSpace(){
   const ta = document.getElementById('free-space-text');
   if(!ta) return;
-  try{ const cached = localStorage.getItem(FREE_CACHE_KEY); if(cached!=null && !ta.value) ta.value = cached; }catch(e){}
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_FREE, password: password });
-    if(data.status==='ok'){
+    if(data && data.status==='ok'){
       const m = (data.data.memos||[]).find(function(x){ return x.id===FREE_NOTE_ID; });
-      if(m){
-        ta.value = m.text||'';
-        freeSpaceCreatedAt = m.createdAt || null;
-        try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
-      }
+      freeApply_(m ? (m.text||'') : null, m ? (m.createdAt||null) : null);
+      return;
     }
-  }catch(err){ /* 通信できないときは、上で表示した手元のキャッシュのまま */ }
+  }catch(err){ /* 通信できないときは、下で手元のぶんを入れます */ }
+  freeApply_(null, null);
 }
+/* 書いている間：手元に控えるだけ。サーバーへは送りません（★自動保存に戻さないでください） */
 function onFreeSpaceInput(){
   const ta = document.getElementById('free-space-text');
   if(!ta) return;
   try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
   const st = document.getElementById('free-save-state');
-  if(st) st.textContent = '書いています…';
-  clearTimeout(freeSpaceSaveTimer);
-  freeSpaceSaveTimer = setTimeout(saveFreeSpaceNow, 1200);
+  if(st){ st.textContent = '⚠️ まだ保存していません（💾 を押してください）'; st.style.color = '#a33'; }
+  const b = document.getElementById('free-save-btn');
+  if(b){ b.style.background = '#c2410c'; b.textContent = '💾 保存する（未保存あり）'; }
 }
+/* 💾 保存する を押したときだけ、サーバーへ送る */
 async function saveFreeSpaceNow(){
   const ta = document.getElementById('free-space-text');
   const st = document.getElementById('free-save-state');
+  const b  = document.getElementById('free-save-btn');
   if(!ta) return;
+  if(b){ b.disabled = true; b.textContent = '保存しています…'; }
+  if(st){ st.textContent = '保存しています…'; st.style.color = '#9a9188'; }
   if(!freeSpaceCreatedAt) freeSpaceCreatedAt = new Date().toISOString();
   const memo = { id: FREE_NOTE_ID, text: ta.value, reminderDate:'', tellSomeone:false, done:false, createdAt: freeSpaceCreatedAt, color:'free' };
   try{
-    await post({ action:'saveStickyMemo', sheetName: SHEET_FREE, password: password, memo: memo });
-    if(st) st.textContent = '✅ 保存しました';
+    /* ★GASの返事を【ちゃんと見ます】。前は見ずに「✅保存しました」と出していました */
+    const data = await post({ action:'saveStickyMemo', sheetName: SHEET_FREE, password: password, memo: memo });
+    if(data && data.status === 'ok'){
+      freeSpaceServerText = ta.value;
+      try{ localStorage.setItem(FREE_CACHE_KEY, ta.value); }catch(e){}
+      freeShowChigai(false);
+      if(st){ st.textContent = '✅ 保存しました（' + new Date().toLocaleTimeString('ja-JP') + '）'; st.style.color = '#0f5a4a'; }
+    }else{
+      if(st){ st.textContent = '⚠️ 保存できませんでした：' + ((data && data.message) || '理由が分かりません') + '（手元には残っています）'; st.style.color = '#a33'; }
+    }
   }catch(err){
-    if(st) st.textContent = '⚠️ まだ保存できていません（このままでも手元には残ります）';
+    if(st){ st.textContent = '⚠️ 保存できませんでした（通信）。手元には残っています。もう一度押してください'; st.style.color = '#a33'; }
   }
+  if(b){ b.disabled = false; b.style.background = '#4a5a2a'; b.textContent = '💾 保存する'; }
 }
 
 /* ============================================================
