@@ -210,8 +210,14 @@ function mkOrder(x){
       mkOrder({ customerType:'wholesale1', lines:[{productId:1,sku:'ORG250',productName:'オルガニック 250ml',bottles:0,boxes:2,boxQty:12}] }), 46656],
     ['卸①6箱→卸②に上がる 1600×72=115200　+8%=9216',
       mkOrder({ customerType:'wholesale1', lines:[{productId:1,sku:'ORG250',productName:'オルガニック 250ml',bottles:0,boxes:6,boxQty:12}] }), 124416],
-    ['RT 1920×6=11520　+8%=921（切り捨てず四捨五入で921.6→922）',
-      mkOrder({ customerType:'rt', enclosedDoc:'納品書' }), 12442],
+    /* ★2026-09-17 ひろみさん確定：**RTだけ消費税を切り捨て**（他は四捨五入のまま）。
+       　理由：アイポーターの発注伝票と1円もずらさないため。
+       　11,520×8% = 921.6 → 【切り捨てて 921】。合計 12,441。
+       　（2026-09-17 まではここが四捨五入で 922・合計 12,442 でした）
+       ★この行を 12442 に戻さないでください。戻すとRTの伝票と1円ずれます。
+       　決めごとの置き場所は oos-zei.js だけです。見張り：tests/test_zei_hasuu.js */
+    ['RT 1920×6=11520　+8%は921.6→【切り捨て】921（RTだけ切り捨て）',
+      mkOrder({ customerType:'rt', enclosedDoc:'納品書' }), 12441],
     ['特別提供価格 2000×6=12000　+8%=960', mkOrder({ customerType:'special' }), 12960],
     ['w1指定の行＋定価の行 1800×4=7200(8%576) + 3600×2=7200(8%576)',
       mkOrder({ customerType:'general', lines:[

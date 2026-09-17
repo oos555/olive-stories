@@ -163,6 +163,39 @@
     return out;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     💴 消費税の端数　★2026-09-17 ひろみさん確定
+     ──────────────────────────────────────────────────────────────────────
+     ひろみさんの言葉
+       「多くのところで計算方法が四捨五入になっているので、うちだけ切り捨てちゃうと
+       　よそと合わなくなってしまう可能性があるの。
+       　なので、**RTだけは切り捨て、他は今までどおり四捨五入**。このやり方にする」
+
+     ★決めごとは2つだけです。ここ以外に書かないでください。
+       ・RT（リゾートトラスト）… 税率ごとの【小計】を出してから【切り捨て】
+       　　→ アイポーターの発注伝票と、1円もずれないようにするため
+       ・それ以外　　　　　　　… 今までどおり【1行ごとに四捨五入】
+       　　→ よその会社と計算が合うようにするため
+
+     ★どちらか片方だけを別の場所に書き写さないでください。
+     　「同じ決めごとが2か所にある」は、この会社で何度も事故になっています。
+     見張り：tests/test_zei_hasuu.js
+     ══════════════════════════════════════════════════════════════════════ */
+  /* この注文は、切り捨てで数える相手か（＝RTかどうか） */
+  function kirisuteKa(customerType){
+    var t = String(customerType == null ? '' : customerType).trim().toLowerCase();
+    return t === 'rt' || t === 'rtgc' || t === 'ＲＴ'.toLowerCase()
+        || String(customerType || '').indexOf('RT') === 0;
+  }
+  /* 税額を出す唯一の場所。
+       kingaku … 税抜の金額（RTは税率ごとの小計、それ以外は1行ぶん）
+       rate    … 0.08 / 0.10
+       kirisute… true なら切り捨て、false なら四捨五入 */
+  function zeiGaku(kingaku, rate, kirisute){
+    var n = Number(kingaku) || 0;
+    var r = normalizeRate(rate);
+    return kirisute ? Math.floor(n * r) : Math.round(n * r);
+  }
   global.OOS_ZEI = {
     VERSION: VERSION,
     FOOD_GROUPS: FOOD_GROUPS,
@@ -177,6 +210,8 @@
     normalizeRate: normalizeRate,
     normalizePercent: normalizePercent,
     isReduced: isReduced,
+    kirisuteKa: kirisuteKa,
+    zeiGaku: zeiGaku,
     findMismatches: findMismatches
   };
 })(typeof window !== 'undefined' ? window : globalThis);

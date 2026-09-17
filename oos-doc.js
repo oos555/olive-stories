@@ -75,12 +75,38 @@
     /* ★2026-09-11 承認済みモック：ピックアップ料金と送料は明細に出さず、
        内訳（右）の左の枠に出します。でも【消費税の計算には入れます】。
        zeiOnly がそのぶんです。★足し忘れると、10%の消費税が取りそこねになります。 */
+    /* ══════════════════════════════════════════════════════════════════
+       💴 端数の出し方は【親＝oos-zei.js】が決めます　★2026-09-17 ひろみさん確定
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん「多くのところで計算方法が四捨五入になっているので、うちだけ
+       　切り捨てちゃうと、よそと合わなくなる可能性がある。
+       　**RTだけは切り捨て、他は今までどおり四捨五入**」
+
+       ・RT　　　… 税率ごとの【小計】を出してから【切り捨て】
+       　　　　　　（アイポーターの発注伝票と1円もずらさないため）
+       ・それ以外 … 今までどおり【1行ごとに四捨五入】
+
+       ★ここに Math.round / Math.floor を直接書かないでください。
+       　どちらにするかは親（OOS_ZEI.zeiGaku）だけが知っています。
+       見張り：tests/test_zei_hasuu.js
+       ══════════════════════════════════════════════════════════════════ */
+    var _kirisute = !!opt.kirisute;
     items.concat(opt.zeiOnly || []).forEach(function(it){
       /* ★2026-08-24 税率は【親＝oos-zei.js】で判定する。0.10 との一致で見ていたため、
          「10」や「10%」と書かれた行が黙って8%に転んでいた。★戻さないでください */
-      if(!OOS_ZEI.isReduced(it.taxRate)){ sub10 += it.amount||0; tax10 += Math.round((it.amount||0)*0.10); }
-      else { sub8 += it.amount||0; tax8 += Math.round((it.amount||0)*0.08); }
+      if(!OOS_ZEI.isReduced(it.taxRate)){
+        sub10 += it.amount||0;
+        if(!_kirisute) tax10 += OOS_ZEI.zeiGaku(it.amount||0, 0.10, false);
+      } else {
+        sub8 += it.amount||0;
+        if(!_kirisute) tax8 += OOS_ZEI.zeiGaku(it.amount||0, 0.08, false);
+      }
     });
+    /* RTは【小計が出そろってから】切り捨てます（1行ずつ切り捨てると伝票とずれます） */
+    if(_kirisute){
+      tax8  = OOS_ZEI.zeiGaku(sub8,  0.08, true);
+      tax10 = OOS_ZEI.zeiGaku(sub10, 0.10, true);
+    }
     var total = sub8 + sub10 + tax8 + tax10;
 
     /* ★2026-08-19 品数が多いと1枚に収まらないので、印刷のときだけ詰める印を付ける
