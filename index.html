@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-11">
+<meta name="oos-version" content="2026-09-17-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -3285,7 +3285,12 @@ function pickupTog(el){
   var wrap = el.parentNode;
   Array.prototype.forEach.call(wrap.querySelectorAll('.pkg-doc'), function(x){ x.classList.remove('on'); });
   el.classList.add('on');
-  var card = el.closest('[data-role="pkgBox"]') || el.closest('.deliv-card') || document;
+  /* ★2026-09-17 ここは 'pkgBox' と '.deliv-card' を探していましたが、
+     　そんな名前はこのファイルのどこにもありませんでした（いつも document になっていた）。
+     　そのため、届け先が2つ以上あるとき、どのカードを押しても
+     　【1枚目の】⚠ えらぶまで受注登録できません が消えていました。
+     ★正しい名前は 'pkgbox'（小文字）と '.recipient-card' です。 */
+  var card = el.closest('[data-role="pkgbox"]') || el.closest('.recipient-card') || document;
   var mada = card.querySelector('[data-role="pickupMada"]');
   if(mada) mada.style.display = 'none';
 }
@@ -3293,7 +3298,12 @@ function soryoTog(el){
   var wrap = el.parentNode;
   Array.prototype.forEach.call(wrap.querySelectorAll('.pkg-doc'), function(x){ x.classList.remove('on'); });
   el.classList.add('on');
-  var card = el.closest('[data-role="pkgBox"]') || el.closest('.deliv-card') || document;
+  /* ★2026-09-17 ここは 'pkgBox' と '.deliv-card' を探していましたが、
+     　そんな名前はこのファイルのどこにもありませんでした（いつも document になっていた）。
+     　そのため、届け先が2つ以上あるとき、どのカードを押しても
+     　【1枚目の】⚠ えらぶまで受注登録できません が消えていました。
+     ★正しい名前は 'pkgbox'（小文字）と '.recipient-card' です。 */
+  var card = el.closest('[data-role="pkgbox"]') || el.closest('.recipient-card') || document;
   var mada = card.querySelector('[data-role="soryoMada"]');
   if(mada) mada.style.display = 'none';
   /* 「その他」だけ、書き込む欄を出す */
@@ -3304,6 +3314,11 @@ function soryoTog(el){
 
 /* えらばれた金額を読む（税抜）。えらばれていなければ null */
 function pickupYenIn(card){
+  /* ★2026-09-17 RT伝票取込から来た注文の【なし】。受注登録のボタンには無い選び方なので、
+     　カードに付けた印を読みます。0円（無料サービス）とは意味が違います
+     　（書類には『なし』は ― と出て、0円は『無料サービス』と出ます）。 */
+  if(card && card.getAttribute && card.getAttribute('data-rt-pickup') === 'nashi'
+     && !card.querySelector('[data-role="pickupBtns"] .pkg-doc.on')) return 'nashi';
   var el = card && card.querySelector('[data-role="pickupBtns"] .pkg-doc.on');
   if(!el) return null;
   var i = parseInt(el.getAttribute('data-pickup'), 10);
@@ -12629,6 +12644,21 @@ async function rtAttachDocsToOrder(o){
     if(!o || !o.yukaKey) return;                       // ふだが無ければ貼る先が分からない
     if(!rtParsed) return;                              // RTの伝票が読み込まれていないとき
     if(!/RT伝票取込/.test(String(o.note||''))) return;  // RTの伝票から作った注文だけ
+    /* ══════════════════════════════════════════════════════════════
+       ★2026-09-17 ちがう伝票の書類を貼らないための確かめ
+       　受注登録へ進んだあとも、読み取った中身（rtParsed）を残すようにしました
+       　（残さないと、そもそも貼れません。ゆかちゃんの報告）。
+       　そのぶん、伝票を2枚つづけて取り込んだあと、古いほうの注文で［貼る］を押すと
+       　【ちがう伝票の納品書】を貼ってしまう恐れがあります。
+       　伝票番号が合わないときは、貼らずに知らせます。 */
+    var _slip = String(rtParsed.slipNo || '');
+    if(_slip && String(o.note||'').indexOf(_slip) < 0){
+      o.nouhinDocNg = 'いま開いている伝票（' + _slip + '）と、この注文の伝票番号がちがいます。'
+        + 'この注文の伝票をもう一度取り込んでから貼ってください。';
+      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + o.nouhinDocNg, true);
+      return;
+    }
 
     var nouhinUrl = '', nouhinName = '';
     try{
@@ -13101,6 +13131,16 @@ async function rtMakeDeliveryNote(){
   }
 }
 
+/* 取り込みの【画面だけ】を閉じる。読み取った中身（rtParsed）は残します。
+   ★2026-09-17 受注登録へ進むときに使います。ここで rtParsed を消すと、
+   　あとで発注書に伝票と納品書を貼れなくなります（ゆかちゃんの報告）。 */
+function rtImportGamenTojiru_(){
+  const el = document.getElementById('rt-preview');
+  if(el){ el.style.display='none'; el.innerHTML=''; }
+  const f = document.getElementById('rt-file'); if(f) f.value='';
+  if(typeof rtSetActionsEnabled==='function') rtSetActionsEnabled(false);
+}
+/* ✕ 取り込みをやめる … こちらは読み取った中身も消します（今までどおり） */
 function cancelRtImport(){
   rtParsed = null;
   if(typeof rtResetExtraDoc==='function') rtResetExtraDoc();
@@ -13123,6 +13163,96 @@ function fillEcWarehouse(cardId){
   rtSetVal(card,'addr', EC_WAREHOUSE.addr);
   rtSetVal(card,'tel', EC_WAREHOUSE.tel);
   if(typeof showSyncStatus==='function') showSyncStatus('🛒 お届け先に「リゾートトラスト通販倉庫（京都）」を入れました。ご確認ください');
+}
+/* ══════════════════════════════════════════════════════════════════════
+   🏨 RTは、送料と倉庫ピッキング手数料を【もう一度えらばない】
+   ★2026-09-17 ひろみさん指示（ゆかちゃんの報告を受けて）
+   ──────────────────────────────────────────────────────────────────────
+   ゆかちゃんの報告
+     「RTデータ取込でアイポーターの伝票を取込、納品書を作成しました！
+     　ここまでは順調です！
+     　それから、受注登録の画面に進み、**再度送料を入力**し、内容を確認すると、
+     　（⚠ えらぶまで受注登録できません）になります。
+     　RTの受注伝票がない、となり、そのままの内容でOKで進めると、
+     　登録はできますが、**伝票の貼り付けができない**、となります」
+
+   ひろみさんの言葉
+     「RTに関しては伝票を取り込んで納品書も全部作っていて、その段階で
+     　**倉庫のピッキング手数料とか送料っていうのは、もう全部そこに出来上がってる**ので、
+     　もうあとはそのまま倉庫と連動してるスプレッドシートに情報を流していくだけでいい。
+     　**その流れに変えてほしい、RTは**」
+
+   ★2026-09-12の決めごと「毎回えらぶ・えらぶまで登録できません」は、
+     RT以外は今までどおりです。RTだけ、【前の画面で人が選んでいるので】
+     その選択をそのまま持ってきます（自動で決めているのではありません）。
+
+   ★持ってくるもの
+     ・送料（税抜）… RT取込の「送料（税抜）」に入れた数字
+     ・倉庫ピッキング手数料 … なし／無料サービス／700円（税抜）
+   ══════════════════════════════════════════════════════════════════════ */
+/* RT取込で選んだ送料・ピッキング手数料を、お届け先カードに入れる。
+   　人がもう選んだものを写すだけです。勝手に決めません。 */
+function rtHikitsuguRyokin(card, p){
+  if(!card || !p) return { soryo:'', pickup:'' };
+  var mieru = { soryo:'', pickup:'' };
+
+  /* ── 送料（税抜） ── */
+  var s = (p.shipFee === '' || p.shipFee == null) ? null : (parseInt(p.shipFee, 10) || 0);
+  if(s !== null){
+    var si = -1;
+    for(var i=0;i<PKG_SORYO.length;i++){ if(PKG_SORYO[i].yen === s){ si = i; break; } }
+    if(si < 0){ for(var j=0;j<PKG_SORYO.length;j++){ if(PKG_SORYO[j].yen === null){ si = j; break; } } }
+    var sbtn = card.querySelector('[data-role="soryoBtns"] [data-soryo="' + si + '"]');
+    if(sbtn){
+      if(typeof soryoTog === 'function') soryoTog(sbtn);
+      else sbtn.classList.add('on');
+      if(PKG_SORYO[si] && PKG_SORYO[si].yen === null){
+        var ot = card.querySelector('[data-role="soryoOther"]');
+        if(ot) ot.value = s;
+      }
+      mieru.soryo = '¥' + s.toLocaleString() + '（税抜）';
+    }
+  }
+
+  /* ── 倉庫ピッキング手数料 ──
+     RT取込の3つ：なし／無料サービス（0円）／700円（税抜）
+     「なし」は受注登録のボタンに無い選択なので、カードに印として持たせます
+     （pickupYenIn がその印を読みます）。 */
+  var pf = (p.pickFee === undefined) ? 'nashi' : p.pickFee;
+  if(String(pf) === 'nashi'){
+    card.setAttribute('data-rt-pickup', 'nashi');
+    var mada = card.querySelector('[data-role="pickupMada"]');
+    if(mada) mada.style.display = 'none';
+    mieru.pickup = 'なし';
+  }else{
+    var pn = parseInt(pf, 10) || 0;
+    var pi = -1;
+    for(var k=0;k<PKG_PICKUP.length;k++){ if(PKG_PICKUP[k].yen === pn){ pi = k; break; } }
+    var pbtn = (pi >= 0) ? card.querySelector('[data-role="pickupBtns"] [data-pickup="' + pi + '"]') : null;
+    if(pbtn){
+      if(typeof pickupTog === 'function') pickupTog(pbtn);
+      else pbtn.classList.add('on');
+      mieru.pickup = pn ? ('¥' + pn.toLocaleString() + '（税抜）') : '無料サービス';
+    }
+  }
+  return mieru;
+}
+/* 「RT取込で選んだものを持ってきました」と、カードの上に出す */
+function rtRyokinShirase(card, mieru){
+  if(!card || !mieru || (!mieru.soryo && !mieru.pickup)) return;
+  var box = card.querySelector('[data-role="pkgbox"]');
+  if(!box) return;
+  var old = box.querySelector('[data-role="rtRyokinShirase"]');
+  if(old) old.parentNode.removeChild(old);
+  var d = document.createElement('div');
+  d.setAttribute('data-role', 'rtRyokinShirase');
+  d.style.cssText = 'background:#eef4f9;border:1.5px solid #b9d0e3;border-radius:8px;'
+    + 'padding:8px 11px;margin:8px 0;font-size:12.5px;color:#1f4a6d;font-weight:700;line-height:1.8';
+  d.innerHTML = '🏨 <b>RT伝票取込で選んだものを、そのまま持ってきました。</b>'
+    + '<br>送料：' + (mieru.soryo || '（未入力）')
+    + '　／　倉庫ピッキング手数料：' + (mieru.pickup || '（未選択）')
+    + '<br><span style="font-weight:600">納品書にもこの金額で出ています。えらび直す必要はありません（直したいときは下のボタンを押せば変えられます）。</span>';
+  box.insertBefore(d, box.firstChild);
 }
 function applyRtToOrderForm(){
   /* ══════════════════════════════════════════════════════════════════
@@ -13205,7 +13335,18 @@ function applyRtToOrderForm(){
   // 同梱＝RT発注伝票＋納品書（必ずセット）だけにする（★2026-09-05 お届け先カードの札で）
   if(typeof pkgSetDocs==='function') pkgSetDocs(card, ['RT発注伝票＋納品書'], false);
 
-  cancelRtImport();
+  /* ★2026-09-17 ひろみさん指示：RTは、送料と倉庫ピッキング手数料を【もう一度えらばない】。
+     　前の画面（RT伝票取込）で人がもう選んでいて、納品書にもその金額で出ています。
+     ★ここを消すと、ゆかちゃんがまた入れ直すことになります（2026-09-16の報告）。 */
+  try{ rtRyokinShirase(card, rtHikitsuguRyokin(card, p)); }catch(_rr){}
+
+  /* ★2026-09-17 ここで cancelRtImport() を呼ぶと rtParsed が空になり、
+     　あとで［この内容で発注書に貼る］を押したときに rtAttachDocsToOrder が
+     　「RTの伝票が読み込まれていない」で止まります。
+     　＝ゆかちゃんの報告【伝票の貼り付けができない】の原因でした。
+     ★画面だけ閉じて、読み取った中身は【貼り終わるまで残します】。
+     　cancelRtImport() に戻さないでください。 */
+  rtImportGamenTojiru_();
   showPanel('order', document.getElementById('tab-order'));
   showSyncStatus('🏨 RT伝票から受注登録画面に反映しました（商品 ' + rtLines.length + ' 品）。内容を確認して「登録」を押してください');
   const po = document.getElementById('panel-order'); if(po) po.scrollIntoView({behavior:'smooth'});
