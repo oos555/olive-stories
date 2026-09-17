@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-17-02">
+<meta name="oos-version" content="2026-09-17-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1191,6 +1191,10 @@ body{background:#fff}
         <button id="rt-pdf-btn" disabled onclick="rtMakeDeliveryNote()" style="width:100%;background:#d6d3cd;border:1px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:12px;cursor:not-allowed">🖨️ 納品書をPDFで取り出す（確認・印刷・保存）</button>
         <div style="font-size:12px;color:#8a8578;margin-top:5px;line-height:1.6">🖨️ まずここで納品書を作って、中身を確かめてください（印刷・PDF保存できます）。ここからは送信しません。</div>
       </div>
+      <!-- ★2026-09-17 「✅ この内容で登録して、発注書まで送る」の結果を1行ずつ出す枠。
+           　#rt-preview の【外】に置いています（画面を作り直しても消えないように）。
+           ★この枠を消さないでください。結果が出なくなります。 -->
+      <div id="rt-ikki-log" style="display:none;margin-top:10px"></div>
       <div id="rt-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:16px">
         <div style="background:#fff;border-radius:14px;max-width:430px;width:100%;padding:18px 18px 16px;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
           <div style="font-size:17px;font-weight:800;color:#166534;margin-bottom:4px">📄 発注書に貼る書類の確認</div>
@@ -12492,12 +12496,19 @@ function renderRtPreview(){
     +'<div id="rt-actions-slot" style="margin-top:14px"></div>'
     +'<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
       +'<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">⚠️ 伝票と納品書を確認しましたか？</div>'
-      +'<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="rt-confirm-chk" onchange="document.getElementById(\'rt-go-btn\').disabled=!this.checked" style="width:18px;height:18px"> 伝票の内容と、作られる納品書が合っていることを確認しました</label>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#2b2a26;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="rt-confirm-chk" onchange="rtKakuninChk(this.checked)" style="width:18px;height:18px"> 伝票の内容と、作られる納品書が合っていることを確認しました</label>'
       +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-        +'<button id="rt-go-btn" class="btn btn-green" disabled onclick="applyRtToOrderForm()">この内容で受注登録画面へ進む ▶</button>'
         +'<button class="btn btn-gray" onclick="cancelRtImport()">キャンセル</button>'
       +'</div>'
-      +'<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">このボタンを押すと、自動で<b>受注登録画面</b>に進みます。そこで<b>足りない部分</b>を入力してください。</div>'
+      /* ★2026-09-17 承認済みモック mock_RT登録まで一気に_2026-09-17.html のとおり。
+         　いちばん上が【緑の1ボタン】。今までの道（受注登録画面）は白いボタンで残します。
+         ★どちらも ☑ を押すまで押せません。 */
+      +'<button id="rt-ikki-btn" disabled onclick="rtIkkiGo()" style="width:100%;margin-top:10px;background:#d6d3cd;border:2px solid #d6d3cd;border-radius:10px;color:#8a8578;font-weight:800;font-size:16px;padding:14px 16px;cursor:not-allowed">✅ この内容で登録して、発注書まで送る（書類2つも貼ります）</button>'
+      +'<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">押すと、<b>登録 → 発注書へ送る → 書類2つのリンクを貼る → 貼れたか確かめる</b>まで進みます（10秒ほどかかります）。倉庫へは、まだ何も行きません。</div>'
+      +'<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #d8c99a">'
+        +'<div style="font-size:12.5px;color:#6b6a63;margin-bottom:6px">ふつうと違う入力をしたいとき（分類を付ける・特別な指示を書くなど）は、こちら：</div>'
+        +'<button id="rt-go-btn" disabled onclick="applyRtToOrderForm()" style="background:#fff;border:1.5px solid #9d957f;border-radius:9px;color:#4a4a44;font-weight:700;font-size:13px;padding:9px 14px;cursor:not-allowed;opacity:.55">▶ 受注登録画面をひらいて入力する（今までどおり）</button>'
+      +'</div>'
     +'</div>';
   /* ★2026-09-16 作り直したあと、預かっていたボタンを置き直します（確認の枠の【上】）。
      　★この1行を消さないでください。消すとボタンが消えたままになります。 */
@@ -13325,7 +13336,201 @@ function rtRyokinShirase(card, mieru){
     + '<br><span style="font-weight:600">納品書にもこの金額で出ています。えらび直す必要はありません（直したいときは下のボタンを押せば変えられます）。</span>';
   box.insertBefore(d, box.firstChild);
 }
-function applyRtToOrderForm(){
+/* ══════════════════════════════════════════════════════════════════════
+   ✅ RT：この内容で登録して、発注書まで送る（書類2つも貼ります）
+   ★2026-09-17 ひろみさん承認ずみ
+   　承認済みモック：デスクトップ/システム開発用おわるまで捨てないで/
+   　　　　　　　　　mock_RT登録まで一気に_2026-09-17.html
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさんの言葉
+     「RTはもう登録が終わってるわけだよね。伝票を取り込んで納品書を作ってるときに、
+     　もうそこからアプリの中で**登録が済ませられる状態**なわけだから、
+     　**人が打ち込むよりも正しい状態**で。
+     　なので、**納品書が作り終わって確認した段階から、すぐにスプレッドシートに
+     　情報を移していく**っていう流れでいいんじゃないかな。
+     　**でも必ず書類のリンクは貼るように**」
+
+   ★この1つのボタンの中で、順に走ります
+     ① 伝票番号の二重登録を見る　　→ あれば【登録せずに】止める
+     ② 受注登録のフォームに入れる（人が打つより正確）
+     ③ いつもの確認（previewOrder）を通す　→ 足りなければ【登録せずに】止める
+     ④ 在庫が足りるか見る　　　　　→ 足りなければ【登録せずに】止める
+     ⑤ 書類は「見た」とする（この画面で納品書を出して☑を押しているため）
+     ⑥ 登録する（registerOrder）＝ここで在庫が減り、発注書へ自動で入ります
+     ⑦ 発注書に行ができるのを待つ
+     ⑧ 書類のリンクを2つ貼り、**貼れたかを読み直して確かめる**
+
+   ★守っている決めごと（外さないでください）
+     ・在庫が足りなければ止める（2026-08-18）
+     ・RT残高からの切り出しは registerOrder の中で今までどおり（2026-09-04）
+     ・「見てから貼る」（2026-09-12）は、この画面の
+     　［🖨️ 納品書をPDFで取り出す］と［☑ 確認しました］が果たしています
+     ・書類が貼れなくても【登録は取り消しません】
+     　（取り消すと在庫とRT残高が二重に動くため。モックで承認ずみ）
+   見張り：tests/test_rt_ikki.js
+   ══════════════════════════════════════════════════════════════════════ */
+/* ☑「確認しました」で、2つのボタンをいっしょに押せるようにする（2026-09-17 承認済みモック） */
+function rtKakuninChk(on){
+  var midori = document.getElementById('rt-ikki-btn');
+  if(midori){
+    midori.disabled = !on;
+    midori.style.background = on ? '#4a5a2a' : '#d6d3cd';
+    midori.style.borderColor = on ? '#4a5a2a' : '#d6d3cd';
+    midori.style.color = on ? '#fff' : '#8a8578';
+    midori.style.cursor = on ? 'pointer' : 'not-allowed';
+  }
+  var shiro = document.getElementById('rt-go-btn');
+  if(shiro){
+    shiro.disabled = !on;
+    shiro.style.opacity = on ? '1' : '.55';
+    shiro.style.cursor = on ? 'pointer' : 'not-allowed';
+  }
+}
+var rtIkkiChu = false;
+/* 結果を1行ずつ出す枠（#rt-preview の【外】にあります。作り直しで消えません） */
+function rtIkkiLog(){ return document.getElementById('rt-ikki-log'); }
+function rtIkkiClear(){ var el = rtIkkiLog(); if(el){ el.innerHTML = ''; el.style.display = 'none'; } }
+function rtIkkiSay(kind, html){
+  var el = rtIkkiLog(); if(!el) return;
+  el.style.display = 'block';
+  var iro = { wait:['#f4f6f8','#9aa7b3','#46525e'],
+              ok  :['#eef7ef','#0f5a4a','#0f5a4a'],
+              ng  :['#fef2f2','#b91c1c','#b91c1c'],
+              chui:['#fff7ed','#8a4b0b','#8a4b0b'] }[kind] || ['#f4f6f8','#9aa7b3','#46525e'];
+  el.insertAdjacentHTML('beforeend',
+    '<div style="background:' + iro[0] + ';border:1.5px solid ' + iro[1] + ';color:' + iro[2]
+    + ';border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85">' + html + '</div>');
+  el.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+/* 同じ伝票番号が、もう登録されていないか */
+function rtIkkiNijuu(slipNo){
+  var s = String(slipNo || '').trim();
+  if(!s) return null;
+  var list = (typeof orders !== 'undefined' ? orders : []);
+  for(var i=0;i<list.length;i++){
+    var o = list[i];
+    if(!o || o.status === 'cancelled' || o.status === 'deleted') continue;
+    if(!/RT伝票取込/.test(String(o.note||''))) continue;
+    if(String(o.note||'').indexOf('伝票番号 ' + s) >= 0) return o;
+  }
+  return null;
+}
+async function rtIkkiGo(){
+  if(rtIkkiChu) return;
+  if(!rtParsed){ return; }
+  var chk = document.getElementById('rt-confirm-chk');
+  if(chk && !chk.checked){ return; }   /* ボタンは押せませんが、二重の守り */
+  rtIkkiChu = true;
+  var btn = document.getElementById('rt-ikki-btn');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '進めています…'; }
+  rtIkkiClear();
+  var modoshi = function(){
+    rtIkkiChu = false;
+    if(btn){ btn.disabled = false; btn.style.opacity = '1';
+             btn.textContent = '✅ この内容で登録して、発注書まで送る（書類2つも貼ります）'; }
+  };
+  try{
+    /* ── ① 伝票番号の二重登録 ── */
+    var mae = rtIkkiNijuu(rtParsed.slipNo);
+    if(mae){
+      rtIkkiSay('ng', '⛔ <b>登録していません。</b>伝票番号 ' + esc(String(rtParsed.slipNo))
+        + ' は、もう登録されています（' + esc(String(mae.num||'')) + '）。');
+      rtIkkiSay('chui', '※ 二重登録を止めました。わざと2回入れたいときは、下の白いボタンから受注登録画面でお願いします。');
+      modoshi(); return;
+    }
+
+    /* ── ② 受注登録のフォームに入れる（画面は切り替えません） ── */
+    rtIkkiSay('wait', '⏳ 登録しています…');
+    applyRtToOrderForm(true);
+
+    /* ── ③ いつもの確認を通す（足りないものは、いつもと同じ見張りが見ます） ── */
+    window._pendingOrders = null;
+    previewOrder();
+    var list = window._pendingOrders;
+    if(!list || !list.length){
+      var al = document.getElementById('order-alerts');
+      var riyuu = al ? String(al.textContent||'').trim() : '';
+      rtIkkiSay('ng', '⛔ <b>登録していません。</b>' + (riyuu ? esc(riyuu) : '受注登録の内容が足りません。')
+        + '<br><span style="font-weight:600">下の白いボタンから受注登録画面をひらいて、直してください。</span>');
+      modoshi(); return;
+    }
+
+    /* ── ④ 在庫（承認済みモックの文言どおり） ── */
+    var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
+    if(short.length){
+      rtIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
+        + short.map(function(s){
+            return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
+                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+      rtIkkiSay('chui', '※ 在庫を入れてから、もう一度押してください。');
+      modoshi(); return;
+    }
+
+    /* ── ⑤ 書類は、この画面で見て☑を押しているので「見た」とします ── */
+    if(typeof docKakuninSuru === 'function' && typeof OOS_NOUHIN !== 'undefined'){
+      list.forEach(function(o){
+        (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){ docKakuninSuru(o, mei); });
+      });
+    }
+
+    /* ── ⑥ 登録（在庫が減り、発注書へ自動で入ります） ── */
+    var ids = list.map(function(o){ return o.id; });
+    registerOrder();
+    var toroku = (typeof orders !== 'undefined' ? orders : []).filter(function(o){ return ids.indexOf(o.id) >= 0; });
+    if(!toroku.length){
+      rtIkkiSay('ng', '⛔ <b>登録できませんでした。</b>下の白いボタンから受注登録画面をひらいて、お確かめください。');
+      modoshi(); return;
+    }
+    rtIkkiSay('ok', '✅ 登録しました　<b>' + esc(String(toroku[0].num||'')) + '</b>');
+
+    /* ── ⑦ 発注書に行ができるのを待つ ── */
+    for(var i=0;i<toroku.length;i++){
+      if(!toroku[i].yukaKey && typeof docFudaMachi === 'function'){ await docFudaMachi(toroku[i]); }
+    }
+    if(toroku.every(function(o){ return !!o.yukaKey; })){
+      rtIkkiSay('ok', '✅ 発注書に送りました');
+    }else{
+      rtIkkiSay('ng', '⚠️ <b>発注書にまだ入っていません。</b>受注一覧のカードから［📥 …『発注書』に送る］を押してください。');
+      modoshi(); return;
+    }
+
+    /* ── ⑧ 書類を2つ貼って、貼れたかを確かめる ── */
+    rtIkkiSay('wait', '⏳ 書類のリンクを貼っています…');
+    for(var j=0;j<toroku.length;j++){ await rtAttachDocsToOrder(toroku[j]); }
+    var dame = toroku.filter(function(o){ return !!o.nouhinDocNg; });
+    if(!dame.length){
+      rtIkkiSay('ok', '✅ 書類のリンクを2つとも貼りました<br>　📄 納品書（ひらく）　／　📄 発注伝票（ひらく）');
+      rtIkkiSay('ok', '✅ <b>発注書を読み直して、2つとも入っていることを確かめました。</b>');
+      rtIkkiSay('chui', '※ 倉庫へは、まだ何も行きません。発注書のA列を🔵にしたときだけです（今までどおり）。');
+    }else{
+      dame.forEach(function(o){ rtIkkiSay('ng', '⚠️ ' + esc(String(o.nouhinDocNg))); });
+      rtIkkiSay('ng', '<button onclick="rtIkkiHariNaosu()" '
+        + 'style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:800;cursor:pointer">'
+        + '📄 書類を貼り直す</button>');
+      rtIkkiSay('chui', '※ <b>登録は取り消していません</b>（取り消すと在庫とRT残高が二重に動くためです）。'
+        + '<br>※ この赤い文字は<b>受注一覧のカードにも残ります</b>。貼れるまで消えません。');
+    }
+    window._rtIkkiOrders = toroku;
+  }catch(e){
+    rtIkkiSay('ng', '⚠️ 途中でつまずきました：' + esc(String((e && e.message) || e))
+      + '<br><span style="font-weight:600">受注一覧を見て、登録できているかお確かめください。</span>');
+  }
+  modoshi();
+}
+/* 貼り直す（登録はそのまま） */
+async function rtIkkiHariNaosu(){
+  var list = window._rtIkkiOrders || [];
+  if(!list.length) return;
+  rtIkkiSay('wait', '⏳ もう一度、書類のリンクを貼っています…');
+  for(var i=0;i<list.length;i++){ await rtAttachDocsToOrder(list[i]); }
+  var dame = list.filter(function(o){ return !!o.nouhinDocNg; });
+  if(!dame.length){
+    rtIkkiSay('ok', '✅ <b>今度は2つとも貼れました。</b>発注書を読み直して確かめました。');
+  }else{
+    dame.forEach(function(o){ rtIkkiSay('ng', '⚠️ ' + esc(String(o.nouhinDocNg))); });
+  }
+}
+function applyRtToOrderForm(rtNokoru){
   /* ══════════════════════════════════════════════════════════════════
      ★2026-09-10 ひろみさん指示：手書きの修正が入った伝票からは、
      　読み取った中身を使いません（消した数字をそのまま拾ってしまうため）。
@@ -13417,6 +13622,9 @@ function applyRtToOrderForm(){
      　＝ゆかちゃんの報告【伝票の貼り付けができない】の原因でした。
      ★画面だけ閉じて、読み取った中身は【貼り終わるまで残します】。
      　cancelRtImport() に戻さないでください。 */
+  /* ★2026-09-17 「✅ この内容で登録して、発注書まで送る」から呼ばれたときは、
+     　RTの画面に残ります（結果の行をそこに出すため）。画面も閉じません。 */
+  if(rtNokoru) return;
   rtImportGamenTojiru_();
   showPanel('order', document.getElementById('tab-order'));
   showSyncStatus('🏨 RT伝票から受注登録画面に反映しました（商品 ' + rtLines.length + ' 品）。内容を確認して「登録」を押してください');
