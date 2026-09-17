@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-17-01">
+<meta name="oos-version" content="2026-09-17-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -12639,64 +12639,135 @@ function rtDeliveryNoteCss(){ return '*{box-sizing:border-box;margin:0;padding:0
    　発注書のA列を【🔵 発送してください】にしたときだけです。
    ★この決まりを変えないでください。
    ══════════════════════════════════════════════════════════════════════ */
+/* RTの書類の名札（この2つを、発注書のV列に必ず並べます） */
+var RT_DOC_NOUHIN  = '📄 納品書（ひらく）';
+var RT_DOC_DENPYOU = '📄 発注伝票（ひらく）';
+/* 発注書のV列に、この名札のリンクが入っているか（入っていればURLを返す） */
+function rtDocHareteru(o, nafuda){
+  if(!docVretsu || !o || !o.yukaKey) return '';
+  var list = docVretsu[String(o.yukaKey)] || [];
+  for(var i=0;i<list.length;i++){
+    if(String(list[i]['文字'] || '').trim() === nafuda) return String(list[i]['リンク'] || '');
+  }
+  return '';
+}
+/* PDFをドライブに入れて、URLをもらう。だめなら空 */
+async function rtPdfIreru_(b64, nm){
+  if(!b64) return '';
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:nm }) });
+    var d = await res.json();
+    return (d && d.status==='ok' && d.url) ? d.url : '';
+  }catch(e){ return ''; }
+}
 async function rtAttachDocsToOrder(o){
   try{
-    if(!o || !o.yukaKey) return;                       // ふだが無ければ貼る先が分からない
-    if(!rtParsed) return;                              // RTの伝票が読み込まれていないとき
+    if(!o) return;
     if(!/RT伝票取込/.test(String(o.note||''))) return;  // RTの伝票から作った注文だけ
-    /* ══════════════════════════════════════════════════════════════
-       ★2026-09-17 ちがう伝票の書類を貼らないための確かめ
-       　受注登録へ進んだあとも、読み取った中身（rtParsed）を残すようにしました
-       　（残さないと、そもそも貼れません。ゆかちゃんの報告）。
-       　そのぶん、伝票を2枚つづけて取り込んだあと、古いほうの注文で［貼る］を押すと
-       　【ちがう伝票の納品書】を貼ってしまう恐れがあります。
-       　伝票番号が合わないときは、貼らずに知らせます。 */
-    var _slip = String(rtParsed.slipNo || '');
-    if(_slip && String(o.note||'').indexOf(_slip) < 0){
-      o.nouhinDocNg = 'いま開いている伝票（' + _slip + '）と、この注文の伝票番号がちがいます。'
-        + 'この注文の伝票をもう一度取り込んでから貼ってください。';
-      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
-      if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + o.nouhinDocNg, true);
+
+    /* ── ふだ（転記キー）を待つ。無いまま黙って帰らない ── */
+    if(!o.yukaKey && typeof docFudaMachi === 'function'){
+      if(typeof showSyncStatus === 'function') showSyncStatus('📄 発注書に行ができるのを待っています…', false, true);
+      await docFudaMachi(o);
+    }
+    if(!o.yukaKey){
+      o.nouhinDocNg = 'まだ発注書に行ができていません。カードの［📥 …『発注書』に送る］を押して、'
+        + '「発注書に入りました」と出てから、もう一度押してください。';
+      if(typeof showSyncStatus === 'function') showSyncStatus('⚠ ' + o.nouhinDocNg, true);
+      if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+      if(typeof renderList === 'function') renderList();
       return;
     }
 
-    var nouhinUrl = '', nouhinName = '';
-    try{
-      var b64 = await rtBuildNotePdfB64();
-      /* ★2026-09-10 ひろみさん指示：伝票と納品書に【同じ名前】を付けて、ドライブで並ぶようにします。
-         ゆかちゃんが名前を決めていればそれを使い、まだなら候補を使います。
-         ★「納品書_（番号）」に戻さないでください（伝票と離れて見つけにくくなります） */
-      var _base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
-                ? rtDocBaseName
-                : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT'));
-      var nm  = _base + '_納品書.pdf';
-      var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'saveExtraDoc', base64:b64, filename:nm }) });
-      var d = await res.json();
-      if(d && d.status==='ok' && d.url){ nouhinUrl = d.url; nouhinName = d.name || nm; }
-    }catch(e){ /* 納品書が作れなくても、伝票のリンクだけは貼る */ }
-
-    if(!nouhinUrl && !o.extraDocUrl) return;           // 貼るものが何も無い
-
-    var r2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'yukaSetDocLinks', payload:{
-        key: o.yukaKey,
-        nouhinUrl: nouhinUrl, nouhinName: nouhinUrl ? '📄 納品書（ひらく）' : '',
-        hokaUrl:   o.extraDocUrl || '', hokaName: o.extraDocUrl ? '📄 発注伝票（ひらく）' : ''
-      }})});
-    var d2 = await r2.json();
-    if(d2 && d2.status==='ok'){
-      /* ★2026-09-12 写し（o.nouhinDocUrl）はやめました。親は発注書のV列だけです。
-         　貼ったあとは、発注書を読み直して札を出し直します。 */
-      o.nouhinDocNg = '';
-      if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
-      await docVretsuYomu(true);
-      if(typeof renderList==='function') renderList();
-      if(typeof showSyncStatus==='function') showSyncStatus('📄 発注書に書類のリンクを貼りました（納品書・発注伝票）');
-    } else {
-      if(typeof showSyncStatus==='function') showSyncStatus('⚠ 発注書に書類のリンクを貼れませんでした：'+((d2&&d2.message)||'不明'), true);
+    /* ── ① 納品書をつくる ──
+       　いちばん正しいのは【いま開いている伝票から作る】ですが、
+       　伝票が閉じていたり、ちがう伝票が開いていても、
+       　【注文から作る】道で必ず1枚つくります。★ここで あきらめないでください。 */
+    var _slip = (typeof rtParsed !== 'undefined' && rtParsed) ? String(rtParsed.slipNo || '') : '';
+    var _denpyouKara = !!(_slip && String(o.note||'').indexOf(_slip) >= 0);
+    var nouhinUrl = rtDocHareteru(o, RT_DOC_NOUHIN);      /* もう貼ってあれば、作り直しません */
+    if(!nouhinUrl){
+      var b64 = '', nm = '';
+      if(_denpyouKara){
+        try{
+          b64 = await rtBuildNotePdfB64();
+          /* ★2026-09-10 伝票と納品書に【同じ名前】を付けて、ドライブで並ぶようにします */
+          var _base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
+                    ? rtDocBaseName
+                    : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT'));
+          nm = _base + '_納品書.pdf';
+        }catch(e){ b64 = ''; }
+      }
+      if(!b64){
+        /* 伝票が開いていないとき（あとから貼るとき）は、注文から作ります */
+        try{
+          b64 = await nouhinBuildPdfB64(o, '納品書');
+          nm  = nouhinFileName(o, '納品書');
+        }catch(e2){ b64 = ''; }
+      }
+      nouhinUrl = await rtPdfIreru_(b64, nm);
     }
-  }catch(e){ /* ここで止まっても、発注そのものは通っています */ }
+
+    /* ── ② 発注伝票 ──
+       　注文に控えてある伝票PDFのURLを使います。
+       　まだ無くて、いま伝票を開いているなら、ここで入れ直します。 */
+    var denpyouUrl = rtDocHareteru(o, RT_DOC_DENPYOU) || o.extraDocUrl || '';
+    if(!denpyouUrl && _denpyouKara && typeof rtSlipPdfB64 !== 'undefined' && rtSlipPdfB64){
+      var _bn = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
+              ? rtDocBaseName
+              : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : (_slip || 'RT'));
+      denpyouUrl = await rtPdfIreru_(rtSlipPdfB64, _bn + '_伝票.pdf');
+      if(denpyouUrl){ o.extraDocUrl = denpyouUrl; o.extraDocName = _bn + '_伝票.pdf'; }
+    }
+
+    /* ── ③ 発注書のV列に、2つ並べて貼る（W列にはさわりません＝パンフレットの指示が残ります） ── */
+    if(nouhinUrl || denpyouUrl){
+      var r2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'yukaSetDocLinks', payload:{
+          key: o.yukaKey,
+          nouhinUrl: nouhinUrl, nouhinName: nouhinUrl ? RT_DOC_NOUHIN : '',
+          hokaUrl:   denpyouUrl, hokaName: denpyouUrl ? RT_DOC_DENPYOU : ''
+        }})});
+      try{ await r2.json(); }catch(e3){}
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       ── ④ 貼れたかどうかを【自分で確かめる】★2026-09-17 ひろみさん指示
+       ひろみさん：「RTは常に2種類の書類を発送するときに同梱しなければいけません。
+       　伝票とそして納品書です。この2つが間違いなく倉庫に届くように、
+       　必ず倉庫のスプレッドシートにリンクを貼るようにしてください。
+       　**そのリンクはこれまで途切れてしまって何度もやり取りしている**ので、
+       　そこはちゃんとできているのか、私が確認する前に確認してください」
+
+       ★「貼りました」と言う前に、発注書を読み直して、本当に2つとも
+       　入っているかを見ます。片方でも欠けていたら、どちらが欠けたかを
+       　注文に残します（カードにずっと出ます）。
+       ★この確かめを外さないでください。外すと、また黙って途切れます。
+       ══════════════════════════════════════════════════════════════════ */
+    try{ await docVretsuYomu(true); }catch(e4){}
+    var aNouhin  = rtDocHareteru(o, RT_DOC_NOUHIN);
+    var aDenpyou = rtDocHareteru(o, RT_DOC_DENPYOU);
+    if(aNouhin && aDenpyou){
+      o.nouhinDocNg = '';
+      if(typeof showSyncStatus==='function') showSyncStatus('📄 発注書に2つとも貼れました（納品書・発注伝票）');
+    }else{
+      var kaketa = [];
+      if(!aNouhin)  kaketa.push('納品書');
+      if(!aDenpyou) kaketa.push('発注伝票');
+      o.nouhinDocNg = 'RTは【納品書と発注伝票の2つ】が要ります。いま貼れていないのは：'
+        + kaketa.join('・') + '。'
+        + (!aDenpyou && !o.extraDocUrl
+            ? '発注伝票のPDFが残っていないので、②RT伝票取込でこの伝票をもう一度読み込んでから押してください。'
+            : 'もう一度［この内容で発注書に貼る］を押してください。');
+      if(typeof showSyncStatus==='function') showSyncStatus('⚠ ' + o.nouhinDocNg, true);
+    }
+    if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+    if(typeof renderList==='function') renderList();
+  }catch(e){
+    o.nouhinDocNg = '貼るときにつまずきました：' + ((e && e.message) || e);
+    if(typeof syncOrdersToGAS==='function') syncOrdersToGAS([o]);
+  }
 }
 
 function rtSendDocsToWarehouse(){
