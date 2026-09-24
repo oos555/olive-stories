@@ -181,7 +181,7 @@ eq('⑦ 支払期限の係が消えても気づく', v.some(function(s){ return 
    ★どちらか片方だけに戻さないでください。 */
 async function juchuAKagi(){
   const idx = H.read('index.html');
-  const KAGI = { gate:'GATE-TEST', secret:'SECRET-TEST' };   /* 本物のパスワードは書きません */
+  const KAGI = { gate:'GATE123', secret:'SECRET456' };   /* 本物のパスワードは書きません */
   async function tamesu(pw){
     const els = { 'gate-pw-input':{ value:pw }, 'gate-err':{ textContent:'' }, 'gate-ok-btn':{ disabled:false },
                   'gate-overlay':{ classList:{ remove(){}, add(){} } }, 'main-wrap':{ classList:{ add(){} } } };
@@ -194,16 +194,67 @@ async function juchuAKagi(){
         if(b.action==='loadStickyMemos') ok = (b.sheetName==='付箋メモI' && b.password===KAGI.secret);
         return { json: async ()=>(ok ? {status:'ok'} : {status:'error', message:'パスワードが違います'}) }; } };
     vm.createContext(box);
-    vm.runInContext(H.cut(idx, 'gateUnlock'), box);
+    vm.runInContext(H.cut(idx, 'oosPwSoroe') + '\n' + H.cut(idx, 'gateUnlock'), box);
     await box.gateUnlock();
     return store['oos_gate_ok'] === '1';
   }
   eq('⑩ 受注Ａ：玄関のパスワードで開く（スタッフ）', await tamesu(KAGI.gate), true);
   eq('⑩ 受注Ａ：社長のパスワードでも開く（ひろみさん）', await tamesu(KAGI.secret), true);
   eq('⑩ 受注Ａ：ちがうパスワードでは開かない', await tamesu('chigau'), false);
+  /* ══ ⑪ 全角で打っても開く（2026-09-24 ひろみさん「アトリエがまたPWが違いますといって開けない！」）══
+     日本語入力のまま打つと全角になり、見た目は同じでも「違います」になっていた。 */
+  eq('⑪ 受注Ａ：全角で打った玄関のパスワードでも開く', await tamesu('ＧＡＴＥ１２３'), true);
+  eq('⑪ 受注Ａ：前後に空白が入っていても開く', await tamesu(' GATE123　'), true);
+}
+/* ⑪ 玄関（home.html）の社長の鍵・マーケ（お隣）の鍵も、全角をそろえてから照合する */
+async function atelierKagi(){
+  const KAGI = 'SECRET456';
+  /* 玄関の社長の鍵：本物の presUnlock に全角で入れて、サーバーへ半角で届くか */
+  {
+    const hs = H.read('home.html');
+    let okutta = null;
+    const els = { 'pres-pw-input':{ value:'ＳＥＣＲＥＴ４５６' }, 'pres-err':{ textContent:'' }, 'pres-ok-btn':{ disabled:false },
+                  'pres-overlay':{ classList:{ remove(){}, add(){} } } };
+    const box = { JSON, String, Promise, console, GAS_URL:'x', window:{ location:{} },
+      document:{ getElementById:(id)=>els[id] || { style:{}, classList:{ add(){}, remove(){} }, textContent:'' } },
+      localStorage:{ setItem(){}, getItem(){ return null; }, removeItem(){} },
+      fetch: async (u, opt)=>{ const b = JSON.parse(opt.body); okutta = b.password; return { json: async ()=>(b.password === KAGI ? {status:'ok'} : {status:'error', message:'パスワードが違います'}) }; },
+      oosMarkUnlocked(){}, presCloseModal(){}, presTargetHref:null };
+    vm.createContext(box);
+    try{
+      vm.runInContext(H.cut(hs, 'oosPwSoroe') + '\n' + H.cut(hs, 'presUnlock'), box);
+      await box.presUnlock();
+      eq('⑪ 玄関の社長の鍵：全角で打っても、半角でサーバーへ届く', okutta, KAGI);
+    }catch(e){ fail++; fails.push('⑪ 玄関の社長の鍵を動かせませんでした：' + e.message); }
+  }
+  /* マーケの鍵：全角で開く／サーバーが混んでいるときに「違います」と言わない・鍵を消さない */
+  {
+    const ms = H.read('eigyo/marketing.html');
+    async function mk(pw, kotae){
+      const store = { oos_unlock_secret: JSON.stringify({ p:KAGI }) };
+      const els = { 'pw-input':{ value:pw }, 'pw-err':{ textContent:'', style:{} }, 'lock':{ style:{} } };
+      const box = { JSON, String, Promise, console, MAIN_GAS_URL:'x',
+        document:{ getElementById:(id)=>els[id] },
+        localStorage:{ setItem(k, v){ store[k] = v; }, getItem(k){ return store[k] || null; }, removeItem(k){ delete store[k]; } },
+        fetch: async (u, opt)=>{ const b = JSON.parse(opt.body); return { json: async ()=>(kotae || (b.password === KAGI ? {status:'ok'} : {status:'error', message:'パスワードが違います'})) }; } };
+      vm.createContext(box);
+      vm.runInContext(H.cut(ms, 'oosPwSoroe') + '\n' + H.cut(ms, 'oosMarkUnlocked') + '\n' + H.cut(ms, 'oosClearUnlock') + '\n' + H.cut(ms, 'checkPw'), box);
+      await box.checkPw(false);
+      return { err: els['pw-err'].textContent, lock: els['lock'].style.display, kagi: store.oos_unlock_secret };
+    }
+    try{
+      const a = await mk('ＳＥＣＲＥＴ４５６');
+      eq('⑪ マーケ：全角で打っても開く', a.lock, 'none');
+      const b = await mk('chigau');
+      eq('⑪ マーケ：本当に違うときは「違います」', /パスワードが違います/.test(b.err), true);
+      const c = await mk(KAGI, { status:'error', message:'サーバーが混雑しています' });
+      eq('⑪ マーケ：サーバーが混んでいるときは「違います」と言わない', /違います/.test(c.err), false);
+      eq('⑪ マーケ：サーバーが混んでいるときは、保存してある鍵を消さない', !!c.kagi, true);
+    }catch(e){ fail++; fails.push('⑪ マーケの鍵を動かせませんでした：' + e.message); }
+  }
 }
 
-juchuAKagi().catch(function(e){ fail++; fails.push('⑩ 動かせませんでした：' + e.message); }).then(function(){
+juchuAKagi().then(atelierKagi).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }

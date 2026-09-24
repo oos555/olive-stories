@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-09-24-01">
 <script src="../oos-version.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -330,8 +330,13 @@ function boot(){
   var s = savedSecret();
   if(s){ password=s; openMain(); syncLoad(); }
 }
+/* ★2026-09-24 ひろみさん「アトリエがまたPWが違いますといって開けない！」
+   　日本語入力のまま打つと「ＡＢＣ１２３」のような【全角】になり、見た目は同じでも別の文字なので
+   　「パスワードが違います」になっていました。全角の英数字を半角に直し、空白を取ってから照合します。
+   ★どの鍵の入力欄も、この形で照合してください。見張り：tests/test_genkan.js ⑪ */
+function oosPwSoroe(s){ return String(s == null ? '' : s).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[\s　]/g, ''); }
 function tryUnlock(){
-  var pw = document.getElementById('pw').value.trim();
+  var pw = oosPwSoroe(document.getElementById('pw').value);
   if(!pw){ return; }
   password = pw;
   document.getElementById('pwerr').textContent = '確認中…';

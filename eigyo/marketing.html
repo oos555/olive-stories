@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-08-18-01">
+<meta name="oos-version" content="2026-09-24-01">
 <script src="../oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -289,8 +289,13 @@ function oosMarkUnlocked(group, pw){
 }
 function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 function oosAtelierOk(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
+/* ★2026-09-24 ひろみさん「アトリエがまたPWが違いますといって開けない！」
+   　日本語入力のまま打つと「ＡＢＣ１２３」のような【全角】になり、見た目は同じでも別の文字なので
+   　「パスワードが違います」になっていました。全角の英数字を半角に直し、空白を取ってから照合します。
+   ★どの鍵の入力欄も、この形で照合してください。見張り：tests/test_genkan.js ⑪ */
+function oosPwSoroe(s){ return String(s == null ? '' : s).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[\s　]/g, ''); }
 async function checkPw(isAuto){
-  const pw = document.getElementById("pw-input").value;
+  const pw = oosPwSoroe(document.getElementById("pw-input").value);
   if(!pw) return;
   document.getElementById("pw-err").style.display="none";
   try{
@@ -304,13 +309,18 @@ async function checkPw(isAuto){
       oosMarkUnlocked('secret', pw);
       try{ localStorage.setItem('oos_atelier_ok','1'); }catch(e){}
       document.getElementById("lock").style.display="none";
-    } else {
+    } else if(String(data.message||'') === 'パスワードが違います'){
+      /* ★2026-09-24 サーバーが【パスワードが違う】と言ったときだけ、違いますと出して鍵を消します */
       oosClearUnlock('secret');
       document.getElementById("pw-input").value="";
       if(!isAuto){
-        document.getElementById("pw-err").textContent="パスワードが違います";
+        document.getElementById("pw-err").textContent="パスワードが違います（社長専用のパスワードです）";
         document.getElementById("pw-err").style.display="block";
       }
+    } else {
+      /* ★2026-09-24 それ以外（サーバーが混んでいる等）は「違います」と言わない・鍵も消さない */
+      document.getElementById("pw-err").textContent="サーバーが混んでいて確かめられませんでした（" + String(data.message||'不明') + "）。少し待ってもう一度お試しください。";
+      document.getElementById("pw-err").style.display="block";
     }
   }catch(e){
     document.getElementById("pw-err").textContent="通信エラーが発生しました";
