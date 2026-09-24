@@ -287,12 +287,17 @@
         width: fullW, height: fullH, x:0, y:0,
         windowWidth: fullW, windowHeight: fullH, scrollX:0, scrollY:0
       });
-      const img = canvas.toDataURL('image/png');
+      /* ★2026-09-24 ひろみさん「PDFの文章、最後途中でおわってるよ」
+         　PNGのまま貼ると、1枚で約14MBになっていました（発注書に貼るPDFの約40倍）。
+         　重すぎて、開いたときに下のほうが描ききれずに途中で止まって見えていました。
+         　→ 発注書に貼るPDF（nouhinBuildPdfB64）と同じ JPEG（0.92）にします。約0.3MB。
+         ★PNG に戻さないでください。見張り：tests/test_apps.js（PDFの重さ） */
+      const img = canvas.toDataURL('image/jpeg', 0.92);
       let imgW = usableW;
       let imgH = imgW * (canvas.height / canvas.width);
       if(imgH > usableH){ const k = usableH / imgH; imgW *= k; imgH *= k; } // 縦がはみ出すなら縮めて1枚に収める
       const x = margin + (usableW - imgW)/2;
-      pdf.addImage(img, 'PNG', x, margin, imgW, imgH);
+      pdf.addImage(img, 'JPEG', x, margin, imgW, imgH);
       pdf.save(filename || '書類.pdf');
     }catch(e){
       alert('PDFを作れませんでした：' + (e && e.message));

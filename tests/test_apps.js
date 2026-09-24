@@ -770,7 +770,26 @@ try{
      H.read('oos-doc.js').indexOf('class="invoice-doc-note" style="background:#f7f5f0"') < 0, true);
 }catch(e){ fails.push('⑤ 書類を作れませんでした: ' + e.message); fail++; }
 
-console.log('===== 4アプリ突き合わせ／不良出荷／注文番号 =====');
-console.log(`PASS ${pass} / FAIL ${fail}`);
-if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
-process.exit(fail ? 1 : 0);
+/* ── ⑥ 🖨️ で取り出すPDFの重さ（2026-09-24） ──
+   ひろみさん「PDFの文章、最後途中でおわってるよ」
+   PNGのまま貼っていて1枚で約14MB → 開いたとき下のほうが描ききれずに止まって見えていた。
+   発注書に貼るPDFと同じ JPEG にした。本物の OOS_DOC.downloadPdf を身代わりの道具で動かして確かめます。 */
+(async function(){
+  const kiroku = { type:null, q:null, fmt:null, saved:null };
+  const S = H.makeSandbox({
+    html2canvas: async function(){ return { width:1600, height:2188, toDataURL(t, q){ kiroku.type = t; kiroku.q = q; return 'data:x'; } }; },
+    jspdf: { jsPDF: function(){ return {
+      internal:{ pageSize:{ getWidth(){ return 210; }, getHeight(){ return 297; } } },
+      addImage(img, fmt){ kiroku.fmt = fmt; }, save(nm){ kiroku.saved = nm; } }; } }
+  });
+  const el = { style:{}, offsetHeight:1094, scrollWidth:800, getBoundingClientRect(){ return {}; } };
+  await S.box.OOS_DOC.downloadPdf(el, 't.pdf');
+  eq('⑥ 🖨️のPDFは圧縮した形（JPEG）で作る（PNGだと約14MBになり途中で止まって見える）', kiroku.type, 'image/jpeg');
+  eq('⑥ 🖨️のPDFに貼る形も JPEG', kiroku.fmt, 'JPEG');
+  eq('⑥ 🖨️のPDFは保存まで進む', kiroku.saved, 't.pdf');
+})().catch(function(e){ fail++; fails.push('⑥ PDFの作り方を動かせませんでした: ' + e.message); }).then(function(){
+  console.log('===== 4アプリ突き合わせ／不良出荷／注文番号 =====');
+  console.log(`PASS ${pass} / FAIL ${fail}`);
+  if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
+  process.exit(fail ? 1 : 0);
+});
