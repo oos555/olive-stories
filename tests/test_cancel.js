@@ -105,6 +105,49 @@ b.cancelOrder('r5');
 eq('⑥ 予約のままキャンセル → 15 のまま', b.computeAvailable('ORG250'), 15);
 eq('⑥ ロットも増えない CUR-A 5',          L(b,'CUR-A'), 5);
 
+/* ── ⑦ 発注書の❌キャンセル☑・↩️差し戻し（GAS）でも、裏ラベルが戻るか（2026-09-24） ──
+   ひろみさん「キャンセルでラベルも戻す。それは戻してください」
+   前は GAS の oosYukaStockRestoreByKey_ が【オイルだけ】戻して、ラベルは減ったままでした（7件・7枚）。
+   本物の GAS の関数を、身代わりのスプレッドシートで動かします。GASが手元に無いときは飛ばします。 */
+(function(){
+  const p = require('path'), os = require('os');
+  const gp = p.join(os.homedir(), 'OneDrive', 'ドキュメント', 'olive-stories-gas', 'コード.js');
+  if(!fs.existsSync(gp)){ console.log('（GASのファイルが手元に無いので ⑦ は飛ばしました）'); return; }
+  const G = fs.readFileSync(gp, 'utf8');
+  function cutG(name){ const i = G.indexOf('function ' + name + '('); if(i < 0) throw new Error(name); let d = 0, j = G.indexOf('{', i); for(; j < G.length; j++){ if(G[j] === '{') d++; else if(G[j] === '}'){ d--; if(!d) break; } } return G.slice(i, j + 1); }
+  function mkSheet(rows){
+    return { rows,
+      getLastRow(){ return rows.length; }, getLastColumn(){ return rows[0].length; },
+      getDataRange(){ const r = rows; return { getValues(){ return r.map(x => x.slice()); } }; },
+      getRange(r, c, nr, nc){ const R = rows; return {
+        getValues(){ const out = []; for(let i = 0; i < (nr||1); i++) out.push(R[r-1+i].slice(c-1, c-1+(nc||1))); return out; },
+        setValue(v){ R[r-1][c-1] = v; } }; } };
+  }
+  const extra = { yukaKey:'K1', stockDeducted:true, stockLog:[
+    { kind:'lot', id:'L1', qty:1 },
+    { kind:'label', pid:2, i:0, qty:1 } ] };
+  const juchu = mkSheet([ ['h'].concat(Array(19).fill('')), ['o1'].concat(Array(18).fill('')).concat([JSON.stringify(extra)]) ]);
+  const zaiko = mkSheet([ ['id','pid','name','','','stock','',''], ['L1', 2, 'オルガニック 250ml', '', '', 10, '', 'new'] ]);
+  const shohin = mkSheet([ ['id','sku','name','ラベル１枚数','ラベル２枚数'],
+                           [2, 'ORG250', 'オルガニック 250ml', '48', '既貼'] ]);
+  const box = { SHEET_ID_MAIN:'x', PRODUCTS_SHEET_NAME:'商品マスタ', JSON, String, Number, isNaN, Date,
+    SpreadsheetApp:{ openById(){ return { getSheetByName(n){ return n === '受注データ' ? juchu : n === '在庫データ' ? zaiko : n === '商品マスタ' ? shohin : null; } }; } },
+    oosMeiboWasureru_(){}, loadProducts(){ return { products:[] }; } };
+  vm.createContext(box);
+  let _lab = '';
+  try{ _lab = cutG('oosLabelModosu_'); }catch(e){ fail++; fails.push('⑦ 裏ラベルを戻す係（oosLabelModosu_）がGASにありません'); }
+  vm.runInContext(_lab + '\n' + cutG('oosYukaStockRestoreByKey_'), box);
+  const r = box.oosYukaStockRestoreByKey_('K1');
+  eq('⑦ 発注書の❌キャンセル：オイルが戻る（10→11）', zaiko.rows[1][5], 11);
+  eq('⑦ 発注書の❌キャンセル：裏ラベルも戻る（48→49）', shohin.rows[1][3], '49');
+  eq('⑦ 「既貼」の欄にはさわらない', shohin.rows[1][4], '既貼');
+  const ex2 = JSON.parse(juchu.rows[1][19]);
+  eq('⑦ 戻したラベルの記録は消す（二重に戻さない）', ex2.stockLog.filter(e => e.kind === 'label').length, 0);
+  eq('⑦ 戻したことが記録に出る', /裏ラベル（オルガニック 250ml）×1/.test(ex2.stockLog[ex2.stockLog.length-1].txt), true);
+  const r2 = box.oosYukaStockRestoreByKey_('K1');
+  eq('⑦ もう一度押しても二重に戻さない', shohin.rows[1][3], '49');
+})();
+
 console.log('===== キャンセルで在庫が戻るか =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }
