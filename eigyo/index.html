@@ -16,7 +16,7 @@
      　（プラン・アイデアは、そもそもGAS側に受け皿が無く保存されていませんでした）
      ★この2行と ../oos-version.js / ../version.json を消さないでください。
      ══════════════════════════════════════════════════════════════════════ -->
-<meta name="oos-version" content="2026-09-14-02">
+<meta name="oos-version" content="2026-09-24-01">
 <script src="../oos-version.js"></script>
 <title>💼 営業のお隣 ｜ オリーブオイル・ストーリーズ</title>
 <style>
@@ -113,8 +113,25 @@
    鍵は localStorage の oos_atelier_ok（＝アトリエで一度開けたら覚えている印）。
    ★ここではGASに聞きません（玄関で待たされる原因だったため）。
    　中の3つ（マーケ・書類・外部依頼）は、それぞれ自分で照合します。 */
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-24 ひろみさん「私社長なのに、入れない。玄関にもどされるけど、
+   　玄関にPWを入れる場所もないし」
+   ──────────────────────────────────────────────────────────────────────
+   原因：玄関(home.html)は【社長の鍵 oos_unlock_secret】が保存されていれば
+   　聞かずにすぐここへ送ります。ところがここは【oos_atelier_ok】しか見て
+   　いませんでした。oos_atelier_ok を立てるのは、この扉の【中】のマーケだけ。
+   　→ 鍵はあるのに入れない → 玄関へ → 鍵があるので聞かれずに、またここ、の堂々めぐり。
+   直し：玄関と同じ鍵（oos_unlock_secret）でも入れます。
+   ★oos_atelier_ok だけを見る形に戻さないでください。社長が締め出されます。
+   ══════════════════════════════════════════════════════════════════════ */
 (function(){
-  function akerarete(){ try{ return localStorage.getItem('oos_atelier_ok') === '1'; }catch(e){ return false; } }
+  function akerarete(){
+    try{
+      if(localStorage.getItem('oos_atelier_ok') === '1') return true;
+      var v = JSON.parse(localStorage.getItem('oos_unlock_secret') || 'null');
+      return !!(v && v.p);
+    }catch(e){ return false; }
+  }
   if(!akerarete()){
     document.querySelector('.heya').innerHTML =
       '<div style="background:#fff;border:1px solid #e3ded2;border-radius:14px;padding:22px 20px">' +
