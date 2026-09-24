@@ -483,7 +483,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-24-05">
+<meta name="oos-version" content="2026-09-24-06">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5280,6 +5280,34 @@ function logGiftIfApplicable(o){
 function zaikoYometeruKa(){
   return (typeof lots !== 'undefined') && Array.isArray(lots) && lots.length > 0;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   🔄 登録する直前に、在庫をいちばん新しくする（2026-09-24）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「在庫を入れたのにいつまでもこの表示が消えず、前に進めない」
+   原因：受注Ａは【開いたときに一度だけ】在庫を読みます。開いたまま統合マスタＮで
+   　在庫を入れても、この画面は古い在庫（0個）のまま「在庫が足りません」と言い続けました。
+   　（実測：統合マスタＮにはカップオイル3種 各100個が入っていたのに、受注Ａは0個）
+   　さらに古いままだと、新しく入れたロットから引けず、在庫が減らないまま登録されます。
+   → ［✅ この内容で登録して、発注書まで送る］（通常・RT）の最初に、ここで読み直します。
+   　読めなかったときは、今の在庫のまま進めます（今までと同じ）。
+   ★消さないでください。見張り：tests/test_ikisaki.js ⑱-92 */
+async function zaikoYomiNaosu(){
+  if(typeof gasSyncEnabled !== 'undefined' && !gasSyncEnabled) return false;
+  try{
+    var r = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders'), {cache:'no-store'});
+    var d = await r.json();
+    if(!(d && d.status === 'ok' && d.data && Array.isArray(d.data.lots) && d.data.lots.length)) return false;
+    lots = d.data.lots;
+    if(Array.isArray(d.data.defects))   defects   = d.data.defects;
+    if(Array.isArray(d.data.holds))     holds     = d.data.holds;
+    if(Array.isArray(d.data.preorders)) preorders = d.data.preorders;
+    if(typeof renderStockStrip === 'function'){ try{ renderStockStrip(); }catch(e){} }
+    return true;
+  }catch(e){
+    if(typeof oosShippai === 'function') oosShippai('在庫を読み直すところ', e);
+    return false;
+  }
+}
 function checkStockShortage(list){
   if(!zaikoYometeruKa()) return [];      /* ★まだ読めていないので、在庫の確認はしません */
   const demand = {}; // sku -> 必要本数（正規のみ）
@@ -9373,7 +9401,10 @@ async function juchuIkkiGo(){
   if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '進めています…'; }
   var log = document.getElementById('juchu-ikki-log'); if(log) log.innerHTML = '';
   try{
-    /* ── 在庫（RTと同じ守り・同じ文言） ── */
+    /* ── 在庫（RTと同じ守り・同じ文言）。★先にいちばん新しい在庫を読み直します（2026-09-24） ── */
+    juchuIkkiIma('⏳ 在庫を確かめています…');
+    await zaikoYomiNaosu();
+    juchuIkkiIma('');
     var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
     if(short.length){
       juchuIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
@@ -13791,7 +13822,8 @@ async function rtIkkiGo(){
       modoshi(); return;
     }
 
-    /* ── ④ 在庫（承認済みモックの文言どおり） ── */
+    /* ── ④ 在庫（承認済みモックの文言どおり）。★先にいちばん新しい在庫を読み直します（2026-09-24） ── */
+    await zaikoYomiNaosu();
     var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
     if(short.length){
       rtIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'

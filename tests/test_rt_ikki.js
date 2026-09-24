@@ -62,6 +62,8 @@ function sunaba(opt){
     /* ↓ この見張りが見るのは rtIkkiGo の段取りなので、まわりは作り物にします */
     applyRtToOrderForm: function(nokoru){ ashiato.push('applyRtToOrderForm(' + (nokoru ? 'true' : '') + ')'); },
     previewOrder: function(){ ashiato.push('previewOrder'); ctx.window._pendingOrders = opt.pending || null; },
+    /* ★2026-09-24 在庫を見る前に、いちばん新しい在庫を読み直します（開いたままの画面の在庫が古いため） */
+    zaikoYomiNaosu: async function(){ ashiato.push('zaikoYomiNaosu'); return true; },
     checkStockShortage: function(){ ashiato.push('checkStockShortage'); return opt.short || []; },
     docKakuninSuru: function(o, mei){ ashiato.push('docKakuninSuru:' + mei); },
     registerOrder: function(){
@@ -115,8 +117,9 @@ function chuumonTsukuru(x){
        '（出た枠の数：' + (h.match(/border-radius:9px/g) || []).length + '）');
     ok('①「倉庫へは、まだ何も行きません」と書いてある',
        h.indexOf('倉庫へは、まだ何も行きません') >= 0);
-    ok('①順番どおりに走っている（入れる→確認→在庫→登録→ふだ→貼る）',
-       s.ashiato.join(',').indexOf('applyRtToOrderForm(true),previewOrder,checkStockShortage') >= 0
+    /* ★2026-09-24 「在庫を入れたのにいつまでも在庫が足りませんが消えない」→ 在庫を見る前に読み直す */
+    ok('①順番どおりに走っている（入れる→確認→在庫を読み直す→在庫→登録→ふだ→貼る）',
+       s.ashiato.join(',').indexOf('applyRtToOrderForm(true),previewOrder,zaikoYomiNaosu,checkStockShortage') >= 0
        && s.ashiato.indexOf('registerOrder') < s.ashiato.indexOf('rtAttachDocsToOrder'),
        '（出た足あと：' + s.ashiato.join(' → ') + '）');
     ok('①RTの画面に残る（受注登録画面へ切り替えない）',

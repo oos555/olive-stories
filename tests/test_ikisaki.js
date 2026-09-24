@@ -1204,7 +1204,7 @@ function hacchuushoGyou(payload){
       ['esc','docKakuninKa','docKakuninSuru','docHareteruKa','docOtherHattaKa','docZenbuHattaKa','rtKubunKa','rtDenpyoOrderKa',
        'nagareSt','nagareNokori','nagareWaku','nagareMaeRender',
        'juchuMaeMitaKa','juchuMaeRender','juchuKakuninChk','juchuPdfHiraku','juchuIkkiSay','juchuIkkiIma',
-       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_'
+       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__kiroku = kiroku;
       try {
@@ -1214,7 +1214,12 @@ function hacchuushoGyou(payload){
           + 'OOS_NOUHIN = Object.assign({}, OOS_NOUHIN, { build: function(){ return "<div>書類</div>"; }, missingPrices: function(){ return []; } });'
           + 'var OOS_DOC = { downloadPdf: async function(el, nm){ __kiroku.pdf.push(nm); } };'
           + 'function nouhinDeps(){ return {}; } function nouhinFileName(o, m){ return m + ".pdf"; } function rtNouhinHtml(){ return ""; }'
-          + 'function checkStockShortage(){ return __zaikoTarinai; }'
+          + 'var GAS_URL = "x"; var gasSyncEnabled = true; function bust(u){ return u; }'
+          + 'var lots = [{ id:"L0", pid:1, status:"new", stock:5 }]; var defects = []; var holds = []; var preorders = [];'
+          + 'var __fresh = null; var __yonda = 0;'
+          + 'fetch = async function(){ __yonda++; return { json: async function(){ return __fresh ? { status:"ok", data:{ lots:__fresh, defects:[], holds:[], preorders:[] } } : { status:"error" }; } }; };'
+          + 'function checkStockShortage(){ return (!lots.some(function(l){ return l.pid === 38 && l.stock > 0; }) && __kappu) ? [{ name:"カップオイル 13g グリーンブーケ（オルガニック）", need:3, avail:0 }] : __zaikoTarinai; }'
+          + 'var __kappu = false;'
           + 'function registerOrder(opt){ __kiroku.reg.push(opt); (window._pendingOrders||[]).forEach(function(o){ o.yukaKey = "K-" + o.id; o.num = "TK-" + o.id; orders.push(o); }); }'
           + 'async function docFudaMachi(){ return true; }'
           + 'async function nouhinAttachToOrder(o, m){ __kiroku.hari.push(m); if(__hariOk){ (docVretsu[o.yukaKey] = docVretsu[o.yukaKey] || []).push({ "文字":"📄 " + OOS_NOUHIN.docTitleOf(m) + "（ひらく）", "リンク":"u-" + m }); } else { o.nouhinDocNg = "テストの失敗"; } }'
@@ -1291,6 +1296,23 @@ function hacchuushoGyou(payload){
       vm.runInContext('__zaikoTarinai = [];', _S.ctx);
       B._pendingOrders = [{ id:'w1', status:'held', enclosedDoc:'なし' }]; B.nagareMaeRender();
       ok('⑱-91 取り置き・予約は今までの流れ（③ 受注一覧に登録する）', box().indexOf('受注一覧に登録する') >= 0 && box().indexOf('juchu-ikki-btn') < 0);
+
+      /* ── ⑱-92 開いたままの画面の在庫が古くても、押したときに読み直して進める（2026-09-24） ──
+         ひろみさん「在庫を入れたのにいつまでもこの表示が消えず、前に進めない」
+         実測：統合マスタＮにはカップオイル3種 各100個、受注Ａの画面は開いたときの0個のまま。 */
+      vm.runInContext('__kappu = true; __fresh = null;', _S.ctx);
+      const kp = { id:'p9', status:'pending', enclosedDoc:'なし' };
+      B._pendingOrders = [kp]; B.nagareMaeRender(); B.juchuKakuninChk(true);
+      const reg0 = kiroku.reg.length;
+      await B.juchuIkkiGo();
+      ok('⑱-92 読み直せなければ、今までどおり止める（在庫が足りません）',
+         kiroku.reg.length === reg0 && log().indexOf('在庫が足りません') >= 0);
+      vm.runInContext('__fresh = [{ id:"CUP-A", pid:38, status:"new", stock:100 }];', _S.ctx);
+      B._pendingOrders = [{ id:'p10', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
+      await B.juchuIkkiGo();
+      ok('⑱-92 押したときに在庫を読み直している', B.__yonda >= 2);
+      ok('⑱-92 統合マスタＮで入れた在庫が見えて、登録まで進む', kiroku.reg.length === reg0 + 1 && log().indexOf('在庫が足りません') < 0);
+      ok('⑱-92 画面の在庫も新しくなる（新しいロットから引ける）', B.lots.some(function(l){ return l.id === 'CUP-A'; }));
     })();
 
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
