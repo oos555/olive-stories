@@ -1151,25 +1151,135 @@ function hacchuushoGyou(payload){
          !oshiteru(B.nagareCardHtml(d), 'd') && /金額の載る書類はありません/.test(B.nagareCardHtml(d)) && goAkeru(B.nagareCardHtml(d)));
     })();
 
+    /* ══════════════════════════════════════════════════════════════════
+       ⑱-80〜 通常発送の確認画面：RTと同じ「見る → ☑ → 1つのボタン」（2026-09-24）
+       ──────────────────────────────────────────────────────────────────
+       承認モック：mocks/mock_受注A書類をその場で確認_2026-09-24.html
+       決まったこと：見積書は入れない／🖨️と📎を全部開くまで☑は押せない／
+       　PDFはRTと同じくファイルとして開く（OOS_DOC.downloadPdf）／文言はモックのまま
+       本物の関数を動かして、押せる・押せない・結果の文言を確かめます。★文字さがしに戻さないでください。
+       ══════════════════════════════════════════════════════════════════ */
+    await (async function(){
+      const els = {};
+      function mkEl(id){ return els[id] || (els[id] = { id:id, innerHTML:'', style:{}, textContent:'', disabled:false,
+        insertAdjacentHTML(p, h){ this.innerHTML += h; }, remove(){ delete els[id]; }, querySelector(){ return null; } }); }
+      const kiroku = { pdf:[], open:[], reg:[], hari:[], other:[] };
+      const doc = { getElementById: mkEl, createElement(){ return { style:{}, innerHTML:'', querySelector(){ return null; } }; },
+                    body:{ appendChild(){}, removeChild(){} } };
+      const _S = H.makeSandbox({ document: doc, alert(){}, open(u){ kiroku.open.push(u); } });
+      let _ug = true;
+      ['esc','docKakuninKa','docKakuninSuru','docHareteruKa','docOtherHattaKa','docZenbuHattaKa','rtKubunKa','rtDenpyoOrderKa',
+       'nagareSt','nagareNokori','nagareWaku','nagareMaeRender',
+       'juchuMaeMitaKa','juchuMaeRender','juchuKakuninChk','juchuPdfHiraku','juchuIkkiSay','juchuIkkiIma',
+       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_'
+      ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
+      _S.box.__kiroku = kiroku;
+      try {
+        vm.runInContext('var docVretsu = {}; var docKakuninMap = {}; var DOC_MARU = ["①","②","③","④","⑤"];'
+          + 'var juchuMaeKumi = []; var juchuMaeChk = false; var juchuIkkiChu = false; var juchuMaeListRef = null;'
+          + 'var orders = []; var __zaikoTarinai = []; var __hariOk = true;'
+          + 'OOS_NOUHIN = Object.assign({}, OOS_NOUHIN, { build: function(){ return "<div>書類</div>"; }, missingPrices: function(){ return []; } });'
+          + 'var OOS_DOC = { downloadPdf: async function(el, nm){ __kiroku.pdf.push(nm); } };'
+          + 'function nouhinDeps(){ return {}; } function nouhinFileName(o, m){ return m + ".pdf"; } function rtNouhinHtml(){ return ""; }'
+          + 'function checkStockShortage(){ return __zaikoTarinai; }'
+          + 'function registerOrder(opt){ __kiroku.reg.push(opt); (window._pendingOrders||[]).forEach(function(o){ o.yukaKey = "K-" + o.id; o.num = "TK-" + o.id; orders.push(o); }); }'
+          + 'async function docFudaMachi(){ return true; }'
+          + 'async function nouhinAttachToOrder(o, m){ __kiroku.hari.push(m); if(__hariOk){ (docVretsu[o.yukaKey] = docVretsu[o.yukaKey] || []).push({ "文字":"📄 " + OOS_NOUHIN.docTitleOf(m) + "（ひらく）", "リンク":"u-" + m }); } else { o.nouhinDocNg = "テストの失敗"; } }'
+          + 'async function docHariOther(o){ __kiroku.other.push(o.id); if(__hariOk){ (docVretsu[o.yukaKey] = docVretsu[o.yukaKey] || []).push({ "文字":"x", "リンク":o.otherDocUrl }); } }'
+          + 'async function docVretsuYomu(){ return docVretsu; }'
+          + 'function renderList(){} function syncOrdersToGAS(){} function showSyncStatus(){} function oosShippai(){}', _S.ctx);
+      } catch (e) { _ug = false; console.log(e); }
+      ok('⑱-80 新しい確認画面を、本物の関数のまま動かせる', _ug);
+      if (!_ug) return;
+      const B = _S.box;
+      const box = () => mkEl('nagare-mae').innerHTML;
+      const chkOff = () => /id="juchu-confirm-chk"[^>]* disabled/.test(box());
+      const btnOn  = () => /<button id="juchu-ikki-btn" onclick/.test(box());
+      const log = () => mkEl('juchu-ikki-log').innerHTML;
+
+      /* A. 納品書兼請求書 ＋ その他のPDF */
+      const a = { id:'p1', status:'pending', enclosedDoc:'納品書兼請求書 ＋ その他', otherDocUrl:'https://x/o1', otherDocName:'o1.pdf' };
+      B._pendingOrders = [a];
+      B.nagareMaeRender();
+      ok('⑱-81 🖨️ の文言（モックどおり）', box().indexOf('🖨️ 納品書兼請求書をPDFで取り出す（確認・印刷・保存）') >= 0);
+      ok('⑱-81 📎 の文言（モックどおり）', box().indexOf('📎 その他のPDF（o1.pdf）を開いて確認する') >= 0);
+      ok('⑱-81 黄色い枠の見出し・☑・戻る・ボタンの文言（モックどおり）',
+         box().indexOf('⚠️ 注文の内容と書類を確認しましたか？') >= 0
+         && box().indexOf('注文の内容と、作られる書類が合っていることを確認しました') >= 0
+         && box().indexOf('◀ 戻って直す') >= 0
+         && box().indexOf('✅ この内容で登録して、発注書まで送る（書類も貼ります）') >= 0);
+      ok('⑱-81 見積書は出さない', box().indexOf('見積') < 0);
+      ok('⑱-82 開く前は ☑ を押せない・ボタンも押せない', chkOff() && !btnOn());
+      B.juchuKakuninChk(true);
+      ok('⑱-82 開く前に ☑ を押そうとしても、ボタンは押せないまま', !btnOn());
+      await B.juchuPdfHiraku(0);
+      ok('⑱-83 🖨️ は RT と同じ OOS_DOC.downloadPdf で PDFファイルとして開く', kiroku.pdf[0] === '納品書兼請求書.pdf');
+      ok('⑱-83 1つだけ開いても、まだ ☑ は押せない（📎が残っている）', chkOff());
+      await B.juchuPdfHiraku(1);
+      ok('⑱-83 📎 はそのPDFを開く', kiroku.open[0] === 'https://x/o1');
+      ok('⑱-84 全部開いたら ☑ を押せる', !chkOff() && !btnOn());
+      B.juchuKakuninChk(true);
+      ok('⑱-84 ☑ を押したらボタンが押せる（青）', btnOn() && /background:#2563eb/.test(box()));
+
+      /* 押す：登録 → 貼る → 読み直し */
+      await B.juchuIkkiGo();
+      ok('⑱-85 登録は registerOrder を「画面を移らない」呼び方で1回だけ', kiroku.reg.length === 1 && kiroku.reg[0] && kiroku.reg[0].ikki === true);
+      ok('⑱-85 納品書とその他のPDFを貼る', kiroku.hari[0] === '納品書兼請求書' && kiroku.other[0] === 'p1');
+      ok('⑱-86 うまくいったときの文言（モックどおり）',
+         log().indexOf('✅ 登録しました') >= 0 && log().indexOf('（発注書を読み直して確かめました）。') >= 0
+         && log().indexOf('※ 倉庫へは、まだ何も行きません。発注書のA列を🔵にしたときだけです（今までどおり）。') >= 0);
+      ok('⑱-87 登録が済んだら ☑ とボタンを押せなくする（二重登録の防止）',
+         B._pendingOrders === null && mkEl('juchu-confirm-chk').disabled === true && mkEl('juchu-ikki-btn').disabled === true);
+      await B.juchuIkkiGo();
+      ok('⑱-87 もう一度押しても二重に登録しない', kiroku.reg.length === 1);
+
+      /* B. 貼れなかったとき */
+      vm.runInContext('__hariOk = false; docVretsu = {};', _S.ctx);
+      const b = { id:'p2', status:'pending', enclosedDoc:'納品書' };
+      B._pendingOrders = [b]; B.nagareMaeRender(); await B.juchuPdfHiraku(0); B.juchuKakuninChk(true);
+      await B.juchuIkkiGo();
+      ok('⑱-88 貼れなかったときは理由と［📄 書類を貼り直す］（モックどおり）',
+         log().indexOf('⚠️ 発注書に貼れませんでした：テストの失敗') >= 0 && log().indexOf('📄 書類を貼り直す') >= 0
+         && log().indexOf('登録は取り消していません') >= 0);
+
+      /* C. 書類なし・在庫が足りないとき */
+      vm.runInContext('__hariOk = true; __zaikoTarinai = [{ name:"オルガニック 250ml", need:3, avail:1 }];', _S.ctx);
+      const c = { id:'p3', status:'pending', enclosedDoc:'なし' };
+      B._pendingOrders = [c]; B.nagareMaeRender();
+      ok('⑱-89 書類が無い注文は 🖨️ の段が出ず、☑ はすぐ押せる', box().indexOf('🖨️') < 0 && !chkOff());
+      B.juchuKakuninChk(true);
+      const regMae = kiroku.reg.length;
+      await B.juchuIkkiGo();
+      ok('⑱-90 在庫が足りなければ登録せずに止める（RTと同じ文言）',
+         kiroku.reg.length === regMae && log().indexOf('⛔ <b>登録していません。</b>在庫が足りません。') >= 0
+         && log().indexOf('オルガニック 250ml … 必要 3本 ／ 販売可能 1本（2本たりません）') >= 0);
+
+      /* D. 取り置き・予約は今までの流れのまま */
+      vm.runInContext('__zaikoTarinai = [];', _S.ctx);
+      B._pendingOrders = [{ id:'w1', status:'held', enclosedDoc:'なし' }]; B.nagareMaeRender();
+      ok('⑱-91 取り置き・予約は今までの流れ（③ 受注一覧に登録する）', box().indexOf('受注一覧に登録する') >= 0 && box().indexOf('juchu-ikki-btn') < 0);
+    })();
+
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
     const nm2 = H.cut(idx, 'nagareMaeRender');
+    /* ★2026-09-24 通常発送は ⑱-80〜 の新しい画面（RTと同じ）。⑱-52〜59 は【取り置き・予約】の今までの流れを見ています。 */
     ok('⑱-51 確認画面に流れバーを出す', /id="nagare-mae"/.test(idx) && /nagareMaeRender\(\)/.test(idx));
-    ok('⑱-52 流れバーの①②から docMaeMiru が動く', /docMaeMiru\(/.test(nm2));
-    ok('⑱-52b 見終わるまで③［受注一覧に登録する］は押せない',
+    ok('⑱-52 （取り置き・予約の流れ）流れバーの①②から docMaeMiru が動く', /docMaeMiru\(/.test(nm2));
+    ok('⑱-52b （取り置き・予約の流れ）見終わるまで③［受注一覧に登録する］は押せない',
        /st-lock', '③', '受注一覧に登録する/.test(nm2) && /registerOrder\(\)/.test(nm2));
-    ok('⑱-53 出す枠がある',             /id="doc-check-mae"/.test(idx));
+    ok('⑱-53 （取り置き・予約の流れ）出す枠がある',             /id="doc-check-mae"/.test(idx));
     const mm = H.cut(idx, 'docMaeMiru');
     const ms = H.cut(idx, 'docMaeShow');
-    ok('⑱-54 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
-    ok('⑱-55 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
-    ok('⑱-56 何枚目かを出す',           /枚目／全/.test(ms));
+    ok('⑱-54 （取り置き・予約の流れ）登録前の注文から作る',     /window\._pendingOrders/.test(mm));
+    ok('⑱-55 （取り置き・予約の流れ）書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
+    ok('⑱-56 （取り置き・予約の流れ）何枚目かを出す',           /枚目／全/.test(ms));
     /* ★2026-09-13 承認モック：ボタンは2つだけ。次の書類は「この内容でOK」で自動で開きます */
-    ok('⑱-57 ボタンは2つだけ（戻って直す／この内容でOK）',
+    ok('⑱-57 （取り置き・予約の流れ）ボタンは2つだけ（戻って直す／この内容でOK）',
        /◀ 戻って直す/.test(ms) && /この内容でOK ▶/.test(ms) && ms.indexOf('docMaeSusumu(') < 0);
-    ok('⑱-58 登録前なので貼らない',
+    ok('⑱-58 （取り置き・予約の流れ）登録前なので貼らない',
        !/nouhinAttachToOrder/.test(mm) && !/nouhinAttachToOrder/.test(ms));
-    ok('⑱-59 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
+    ok('⑱-59 （取り置き・予約の流れ）まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
 
     /* ── RTの伝票取込だけ、書類の作り方がちがう ── */
     ok('⑱-61 RTかどうかを見分ける所がある', /function rtDenpyoOrderKa\s*\(/.test(idx));

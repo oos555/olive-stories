@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-24-03">
+<meta name="oos-version" content="2026-09-24-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -822,7 +822,9 @@ body{background:#fff}
            ★［受注一覧に登録する］は、この中の③です。①②を見るまで押せません。
            ★バラバラのボタンに戻さないでください。 -->
       <div id="nagare-mae"></div>
-      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <!-- ★2026-09-24 通常発送では、黄色い枠の［◀ 戻って直す］が同じ役をするので、この段は隠します（juchuMaeRender）。
+           　取り置き・予約では今までどおり出します。 -->
+      <div id="juchu-shusei-row" style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-gray" onclick="document.getElementById('confirm-area').style.display='none'">修正する</button>
       </div>
       <!-- ★2026-09-13 ひろみさん指示：「その下の赤枠の説明の枠を消して」
@@ -5342,7 +5344,11 @@ function oosShippai(doko, e){
   }catch(_){}
   return r;
 }
-function registerOrder(){
+function registerOrder(opt){
+  /* ★2026-09-24 opt.ikki … 通常発送の「✅ この内容で登録して、発注書まで送る」から呼ぶとき。
+     　確認画面を閉じず、受注一覧へも移りません（結果をボタンの下に出すため）。
+     　ほかの呼び方（RTの rtIkkiGo など）は今までどおりです。 */
+  opt = opt || {};
   const list = window._pendingOrders;
   if(!list || !list.length) return;
   /* ★2026-09-13 ひろみさん：「受注一覧に送る前にPDFを必ず目視で確認させたい」
@@ -5357,7 +5363,7 @@ function registerOrder(){
     });
     if(_mi.length){
       alert('📄 先に書類（PDF）を見て確かめてください。\n\nまだ見ていない書類：' + _mi.join('・')
-        + '\n\n上の流れの【添付書類◯ を見て確認】を押すと開きます。');
+        + '\n\n上の［🖨️ …をPDFで取り出す］（取り置き・予約は【添付書類◯ を見て確認】）を押すと開きます。');
       if(typeof nagareMaeRender === 'function') nagareMaeRender();
       return;
     }
@@ -5414,7 +5420,7 @@ function registerOrder(){
     list.forEach(applyStockDeductOnSend);   // ★通常受注は登録＝出荷依頼送信なので、この時点で在庫を減らす
     persistStockDeduct(list);               // ① 減らした分だけを最新在庫に反映して保存
   }
-  document.getElementById('confirm-area').style.display = 'none';
+  if(!opt.ikki) document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
   syncOrdersToGAS(list);                     // ① 登録した注文だけを最新にマージして保存
@@ -5460,6 +5466,7 @@ function registerOrder(){
   /* ★2026-09-13 承認モック：書類を見るのは【登録の前】になりました。
      　登録したあとに自動で出すのはやめます（同じものを2回見ることになるため）。
      ★ここに docCheckStart を戻さないでください。 */
+  if(opt.ikki){ showSyncStatus('✅ '+list.length+'件の受注を登録しました'); return; }
   document.querySelectorAll('.tab-row .tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(recordType==='pending'){
@@ -9135,6 +9142,15 @@ function nagareWaku(app, sheet){
 function nagareMaeRender(){
   var box = document.getElementById('nagare-mae'); if(!box) return;
   var list = (window._pendingOrders || []);
+  /* ★2026-09-24 通常発送は、RTと同じ「見る → ☑ → 1つのボタン」（承認モック
+     　mocks/mock_受注A書類をその場で確認_2026-09-24.html）。取り置き・予約は下の今までの流れ。 */
+  var _shusei = document.getElementById('juchu-shusei-row');
+  if(list.length && list[0].status === 'pending'){
+    if(_shusei) _shusei.style.display = 'none';
+    juchuMaeRender();
+    return;
+  }
+  if(_shusei) _shusei.style.display = 'flex';
   var kumi = [];
   list.forEach(function(o){
     if(typeof OOS_NOUHIN === 'undefined') return;
@@ -9164,6 +9180,260 @@ function nagareMaeRender(){
     + '<div style="font-size:12px;color:#83857a">★書類を見終わるまで、③は押せません（必ず目で見ていただくためです）。'
     + '<br>★中身がちがっていたら［修正する］で直してください。まだ登録していないので、取り消しは要りません。</div>';
 }
+/* ══════════════════════════════════════════════════════════════════════
+   📄 通常発送：書類をその場で見て → ☑ → 1つのボタン（2026-09-24）
+   ──────────────────────────────────────────────────────────────────────
+   承認モック：mocks/mock_受注A書類をその場で確認_2026-09-24.html
+   ひろみさん：「受注Ａで作った納品書とか、もうその場でRTの時のように、ここで確認できるように
+   　…違ってたら戻って直せるようにしたいの。次に進む前にね。RTの方とそのやり方並びに合わせて」
+   決まったこと（2026-09-24）：
+   　・見積書は入れない
+   　・🖨️（と📎）を【全部開くまで】☑は押せない
+   　・PDFはRTと同じく【PDFファイルとして開く】（OOS_DOC.downloadPdf）
+   　・文言はモックのまま
+   ★RTの画面（rtIkkiGo）は変えていません。登録は同じ registerOrder を通ります。
+   見張り：tests/test_ikisaki.js ⑱-80〜
+   ══════════════════════════════════════════════════════════════════════ */
+var juchuMaeKumi = [];        /* 開く書類の一覧 {o, mei} または {o, other:true} */
+var juchuMaeChk = false;      /* ☑ */
+var juchuIkkiChu = false;
+var juchuMaeListRef = null;
+function juchuMaeMitaKa(q){
+  return q.other ? docKakuninKa(q.o, '__other__') : docKakuninKa(q.o, q.mei);
+}
+function juchuMaeRender(){
+  var box = document.getElementById('nagare-mae'); if(!box) return;
+  var list = (window._pendingOrders || []);
+  /* 内容を確認しなおしたら、☑も押しなおしていただきます */
+  if(juchuMaeListRef !== window._pendingOrders){ juchuMaeChk = false; juchuMaeListRef = window._pendingOrders; }
+  juchuMaeKumi = [];
+  list.forEach(function(o){
+    if(typeof OOS_NOUHIN !== 'undefined'){
+      (OOS_NOUHIN.shoruiList(o) || []).forEach(function(mei){ juchuMaeKumi.push({ o:o, mei:mei }); });
+    }
+    if(o.otherDocUrl) juchuMaeKumi.push({ o:o, other:true });
+  });
+  var zenbuMita = juchuMaeKumi.every(juchuMaeMitaKa);
+  if(!zenbuMita) juchuMaeChk = false;
+  var h = '';
+  if(juchuMaeKumi.length){
+    juchuMaeKumi.forEach(function(q, i){
+      if(q.other){
+        h += '<button type="button" onclick="juchuPdfHiraku(' + i + ')" style="width:100%;background:#fff;border:2px solid #2563eb;border-radius:10px;color:#1f4a6d;font-weight:800;font-size:15px;padding:11px 12px;cursor:pointer;margin-bottom:6px">'
+           + '📎 その他のPDF（' + esc(q.o.otherDocName || 'その他の書類') + '）を開いて確認する</button>';
+      } else {
+        h += '<button type="button" onclick="juchuPdfHiraku(' + i + ')" style="width:100%;background:#2563eb;border:1px solid #2563eb;border-radius:10px;color:#fff;font-weight:800;font-size:15px;padding:12px;cursor:pointer;margin-bottom:6px">'
+           + '🖨️ ' + esc(q.mei) + 'をPDFで取り出す（確認・印刷・保存）</button>';
+      }
+    });
+    h += '<div style="font-size:12px;color:#8a8578;margin-top:2px;line-height:1.6">🖨️ まずここで書類を作って、中身を確かめてください（印刷・PDF保存できます）。ここからは送信しません。</div>';
+  }
+  var chkOk = zenbuMita && !juchuIkkiChu;
+  var on = chkOk && juchuMaeChk;
+  h += '<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
+     +   '<div style="font-size:15px;font-weight:700;color:#78350f;margin-bottom:8px">⚠️ 注文の内容と書類を確認しましたか？</div>'
+     +   '<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:' + (chkOk ? '#2b2a26' : '#a8a49a') + ';margin-bottom:10px;cursor:' + (chkOk ? 'pointer' : 'not-allowed') + '">'
+     +     '<input type="checkbox" id="juchu-confirm-chk"' + (juchuMaeChk ? ' checked' : '') + (chkOk ? '' : ' disabled')
+     +     ' onchange="juchuKakuninChk(this.checked)" style="width:18px;height:18px"> 注文の内容と、作られる書類が合っていることを確認しました</label>'
+     +   '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+     +     '<button class="btn btn-gray" onclick="document.getElementById(\'confirm-area\').style.display=\'none\'">◀ 戻って直す</button>'
+     +   '</div>'
+     +   '<button id="juchu-ikki-btn"' + (on ? '' : ' disabled') + ' onclick="juchuIkkiGo()" style="width:100%;margin-top:10px;background:' + (on ? '#2563eb' : '#d6d3cd') + ';border:2px solid ' + (on ? '#2563eb' : '#d6d3cd') + ';border-radius:10px;color:' + (on ? '#fff' : '#8a8578') + ';font-weight:800;font-size:16px;padding:14px 16px;cursor:' + (on ? 'pointer' : 'not-allowed') + '">✅ この内容で登録して、発注書まで送る（書類も貼ります）</button>'
+     +   '<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">押すと、<b>登録 → 発注書へ送る → 書類のリンクを貼る → 貼れたか確かめる</b>まで進みます。<br><b style="color:#b45309">スプレッドシートに 書類のリンクが出るまで、30秒ほどかかります。</b>そのまま待ってください（終わると下に出ます）。倉庫へは、まだ何も行きません。</div>'
+     + '</div>'
+     + '<div id="juchu-ikki-log" style="margin-top:10px"></div>';
+  box.innerHTML = h;
+}
+function juchuKakuninChk(on){
+  juchuMaeChk = !!on && juchuMaeKumi.every(juchuMaeMitaKa);
+  juchuMaeRender();
+}
+/* 🖨️ 書類をPDFファイルとして開く（RTの rtMakeDeliveryNote と同じ OOS_DOC.downloadPdf） */
+async function juchuPdfHiraku(i){
+  var q = juchuMaeKumi[i]; if(!q) return;
+  var o = q.o;
+  if(q.other){
+    if(o.otherDocUrl) window.open(o.otherDocUrl, '_blank');
+    docKakuninSuru(o, '__other__');
+    juchuMaeRender();
+    return;
+  }
+  var mei = q.mei;
+  var miss = [];
+  try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
+  if(miss.length){
+    alert('⚠ 単価が登録されていない商品があるので、書類を作れません：' + miss.join('・')
+      + '\n\n統合マスタＮ（輸入・原価Ｅ）で単価を入れてください。');
+    return;
+  }
+  var html = '', docErr = '';
+  /* RTの伝票取込の注文は、見た書類と貼られる書類が同じになるよう docMaeShow と同じ作り方にします */
+  if(rtDenpyoOrderKa(o)){
+    try{ html = rtNouhinHtml() || ''; }catch(e){ html = ''; }
+  }
+  if(!html){
+    try{ html = OOS_NOUHIN.build(o, nouhinDeps(), mei) || ''; }catch(e){ html = ''; docErr = String((e && e.message) || e); }
+  }
+  if(!html){ alert('書類を作れませんでした：' + (docErr || ('中身が空で返ってきました（書類の種類：' + mei + '）'))); return; }
+  var holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;width:820px';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  try{
+    var el = holder.querySelector('.invoice-doc') || holder;
+    await OOS_DOC.downloadPdf(el, nouhinFileName(o, mei));
+    docKakuninSuru(o, mei);
+  }catch(e){
+    alert('PDFを開けませんでした：' + ((e && e.message) || e));
+  }finally{
+    try{ document.body.removeChild(holder); }catch(e){}
+  }
+  juchuMaeRender();
+}
+function juchuIkkiSay(kind, html){
+  var log = document.getElementById('juchu-ikki-log'); if(!log) return;
+  var st = kind === 'ok'   ? 'background:#eef7ef;border:1.5px solid #0f5a4a;color:#0f5a4a'
+         : kind === 'ng'   ? 'background:#fef2f2;border:1.5px solid #b91c1c;color:#b91c1c'
+         : kind === 'chui' ? 'background:#fff7ed;border:1.5px solid #8a4b0b;color:#8a4b0b'
+         :                   'background:#f4f6f8;border:1.5px solid #9aa7b3;color:#46525e';
+  log.insertAdjacentHTML('beforeend', '<div style="border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85;' + st + '">' + html + '</div>');
+}
+function juchuIkkiIma(html){
+  var log = document.getElementById('juchu-ikki-log'); if(!log) return;
+  var ima = document.getElementById('juchu-ikki-ima');
+  if(!html){ if(ima) ima.remove(); return; }
+  if(!ima){ log.insertAdjacentHTML('beforeend', '<div id="juchu-ikki-ima"></div>'); ima = document.getElementById('juchu-ikki-ima'); }
+  ima.innerHTML = '<div style="border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85;background:#f4f6f8;border:1.5px solid #9aa7b3;color:#46525e">' + html + '</div>';
+}
+/* 書類を貼って、発注書を読み直して確かめる（貼り直しでも同じものを使います） */
+async function juchuIkkiHaru(toroku){
+  for(var j = 0; j < toroku.length; j++){
+    var o = toroku[j];
+    var meis = (OOS_NOUHIN.shoruiList(o) || []);
+    for(var k = 0; k < meis.length; k++){
+      try{
+        if(rtDenpyoOrderKa(o) && typeof rtAttachDocsToOrder === 'function') await rtAttachDocsToOrder(o);
+        else await nouhinAttachToOrder(o, meis[k]);
+      }catch(e){
+        o.nouhinDocNg = '貼るときにつまずきました：' + ((e && e.message) || e);
+        if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+      }
+    }
+    if(o.otherDocUrl) await docHariOther(o);
+  }
+  try{ await docVretsuYomu(true); }catch(e){ if(typeof oosShippai === 'function') oosShippai('発注書を読み直すところ', e); }
+  return toroku.filter(function(o){ return !docZenbuHattaKa(o); });
+}
+function juchuIkkiKekka(toroku, dame, num){
+  if(!dame.length){
+    var nm = [];
+    toroku.forEach(function(o){
+      (OOS_NOUHIN.shoruiList(o) || []).forEach(function(m){ if(nm.indexOf('📄 ' + m) < 0) nm.push('📄 ' + m); });
+      if(o.otherDocUrl && nm.indexOf('📎 その他のPDF') < 0) nm.push('📎 その他のPDF');
+    });
+    juchuIkkiSay('ok', '✅ 登録しました　<b>' + num + '</b>'
+      + (nm.length ? '<div style="font-weight:600;margin-top:3px">発注書に送り、' + nm.join(' と ') + ' を貼りました（発注書を読み直して確かめました）。</div>' : ''));
+    juchuIkkiSay('chui', '※ 倉庫へは、まだ何も行きません。発注書のA列を🔵にしたときだけです（今までどおり）。');
+  } else {
+    juchuIkkiSay('ok', '✅ 登録しました　<b>' + num + '</b>');
+    dame.forEach(function(o){
+      var r = String(o.nouhinDocNg || '（理由が分かりませんでした）').replace(/^発注書に貼れませんでした：/, '');
+      juchuIkkiSay('ng', '⚠️ 発注書に貼れませんでした：' + esc(r));
+    });
+    juchuIkkiSay('ng', '<button onclick="juchuIkkiHariNaosu()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:800;cursor:pointer">📄 書類を貼り直す</button>');
+    juchuIkkiSay('chui', '※ <b>登録は取り消していません</b>（取り消すと在庫が二重に動くためです）。'
+      + '<br>※ この赤い文字は<b>受注一覧のカードにも残ります</b>。貼れるまで消えません。');
+  }
+  if(typeof renderList === 'function') renderList();
+}
+async function juchuIkkiGo(){
+  if(juchuIkkiChu) return;
+  var list = window._pendingOrders;
+  if(!list || !list.length) return;
+  /* ★二重の守り：書類を全部開いて、☑を押していないと進みません */
+  if(!juchuMaeKumi.every(juchuMaeMitaKa) || !juchuMaeChk) return;
+  juchuIkkiChu = true;
+  var btn = document.getElementById('juchu-ikki-btn');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '進めています…'; }
+  var log = document.getElementById('juchu-ikki-log'); if(log) log.innerHTML = '';
+  try{
+    /* ── 在庫（RTと同じ守り・同じ文言） ── */
+    var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
+    if(short.length){
+      juchuIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
+        + short.map(function(s){
+            return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
+                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+      juchuIkkiSay('chui', '※ 在庫を入れてから、もう一度押してください。');
+      juchuIkkiChu = false; juchuMaeRender0_(); return;
+    }
+    /* ── 登録（在庫が減り、発注書へ自動で入ります）。画面は移りません ── */
+    var ids = list.map(function(o){ return o.id; });
+    juchuIkkiIma('⏳ 登録しています…');
+    registerOrder({ ikki: true });
+    var toroku = (typeof orders !== 'undefined' ? orders : []).filter(function(o){ return ids.indexOf(o.id) >= 0; });
+    if(!toroku.length){
+      juchuIkkiIma('');
+      juchuIkkiSay('ng', '⛔ <b>登録できませんでした。</b>内容をお確かめください。');
+      juchuIkkiChu = false; juchuMaeRender0_(); return;
+    }
+    var num = toroku.map(function(o){ return esc(String(o.num || '')); }).join('・');
+    window._juchuIkkiOrders = toroku;
+    /* ★登録が済んだら、☑とボタンを二度と押せなくします（二重登録の防止）。★外さないでください */
+    window._pendingOrders = null;
+    juchuIkkiRock_();
+    /* ── 発注書に行ができるのを待つ ── */
+    juchuIkkiIma('⏳ 発注書に送っています…');
+    for(var i = 0; i < toroku.length; i++){
+      if(!toroku[i].yukaKey && typeof docFudaMachi === 'function') await docFudaMachi(toroku[i], 12);
+    }
+    if(!toroku.every(function(o){ return !!o.yukaKey; })){
+      juchuIkkiIma('');
+      juchuIkkiSay('ok', '✅ 登録しました　<b>' + num + '</b>');
+      juchuIkkiSay('ng', '⚠️ <b>発注書にまだ入っていません。</b>受注一覧のカードから［📥 …『発注書』に送る］を押してください。');
+      if(typeof renderList === 'function') renderList();
+      juchuIkkiChu = false; return;
+    }
+    /* ── 書類を貼って、貼れたかを確かめる ── */
+    juchuIkkiIma('⏳ 書類のリンクを貼っています…<br><span style="font-weight:600">スプレッドシートに出るまで30秒ほどかかります。そのままお待ちください。</span>');
+    var dame = await juchuIkkiHaru(toroku);
+    juchuIkkiIma('');
+    juchuIkkiKekka(toroku, dame, num);
+  }catch(e){
+    juchuIkkiIma('');
+    juchuIkkiSay('ng', '⚠️ 途中でつまずきました：' + esc(String((e && e.message) || e))
+      + '<br><span style="font-weight:600">受注一覧を見て、登録できているかお確かめください。</span>');
+  }
+  juchuIkkiChu = false;
+}
+function juchuIkkiRock_(){
+  var chk = document.getElementById('juchu-confirm-chk'); if(chk) chk.disabled = true;
+  var btn = document.getElementById('juchu-ikki-btn');
+  if(btn){
+    btn.disabled = true; btn.style.opacity = '1';
+    btn.style.background = '#d6d3cd'; btn.style.borderColor = '#d6d3cd'; btn.style.color = '#8a8578'; btn.style.cursor = 'not-allowed';
+    btn.textContent = '✅ この内容で登録して、発注書まで送る（書類も貼ります）';
+  }
+}
+/* 登録の前に止まったときは、ボタンを元に戻します（結果の枠はそのまま） */
+function juchuMaeRender0_(){
+  var keep = document.getElementById('juchu-ikki-log');
+  var html = keep ? keep.innerHTML : '';
+  juchuMaeRender();
+  var log = document.getElementById('juchu-ikki-log'); if(log) log.innerHTML = html;
+}
+/* 📄 書類を貼り直す（登録はそのまま） */
+async function juchuIkkiHariNaosu(){
+  var toroku = window._juchuIkkiOrders || [];
+  if(!toroku.length) return;
+  var log = document.getElementById('juchu-ikki-log'); if(log) log.innerHTML = '';
+  juchuIkkiIma('⏳ 書類のリンクを貼っています…<br><span style="font-weight:600">スプレッドシートに出るまで30秒ほどかかります。そのままお待ちください。</span>');
+  var num = toroku.map(function(o){ return esc(String(o.num || '')); }).join('・');
+  var dame = await juchuIkkiHaru(toroku);
+  juchuIkkiIma('');
+  juchuIkkiKekka(toroku, dame, num);
+}
+
 /* ── 受注一覧のカードの流れバー ── */
 function nagareCardHtml(o){
   if(!o || typeof OOS_NOUHIN === 'undefined') return '';
