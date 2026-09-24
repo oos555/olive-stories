@@ -992,13 +992,25 @@ function hacchuushoGyou(payload){
            _S.box.docCheckTaisho({ source:'basara', customerType:'卸バサラスター', enclosedDoc:'納品書兼請求書' }) === false);
         ok('⑱-11 ふつうの注文は出す',
            _S.box.docCheckTaisho({ source:'', customerType:'定価', enclosedDoc:'納品書兼請求書' }) === true);
+        /* ══════════════════════════════════════════════════════════════
+           ★2026-09-24 ⑱-13 を書き直しました（張りぼてだったため）。
+           　もとは「docCheckTaisho の中に o.nouhinDocUrl という字があるか」を
+           　見ていました。nouhinDocUrl は 2026-09-12 に捨てた写しの名前です。
+           　本物のコードにはもう無く、「この名前に戻さないでください」という
+           　【注意書きの文字】に当たって合格していました（名前と中身が真逆）。
+           → 発注書のV列に貼ってある状態を作って、本当に出さないかを動かして見ます。
+           ★文字さがしに戻さないでください。 */
+        var _lbl = '📄 ' + _S.box.OOS_NOUHIN.docTitleOf('納品書兼請求書') + '（ひらく）';
+        vm.runInContext('docVretsu = ' + JSON.stringify({ K13: [{ '文字': _lbl, 'リンク': 'https://x/13' }] }) + ';', _S.ctx);
+        ok('⑱-13 もう発注書のV列に貼ってある書類は、もう一度出さない（動かして確かめる）',
+           _S.box.docCheckTaisho({ source:'', customerType:'定価', enclosedDoc:'納品書兼請求書', yukaKey:'K13' }) === false);
+        vm.runInContext('docVretsu = {};', _S.ctx);
       }
     })();
     /* ★2026-09-12（夜）RTも【見てから貼る】に入れました（ひろみさん指示）。
        　それまでは登録した瞬間に自動で貼られ、見る機会がありませんでした。
        ★RTを対象から外す形に戻さないでください。 */
     ok('⑱-12 RTの伝票取込も出す（外していない）', !/RT伝票取込/.test(ts));
-    ok('⑱-13 もう貼ってあるものは出さない', /o\.nouhinDocUrl/.test(ts));
     ok('⑱-14 金額の載らない書類は出さない', /needsNouhin/.test(ts));
 
     /* カードの札 */
@@ -1010,15 +1022,13 @@ function hacchuushoGyou(payload){
        　「見る」「貼る」は流れバー（nagareCardHtml）が受け持ちます。 */
     const nb = H.cut(idx, 'nagareCardHtml');
     ok('⑱-16 まだ見ていない書類は「いまここ」で出す', /押すとPDFが開きます/.test(nb));
-    /* ★2026-09-13 ひろみさん指示の言い方：「④PDFをスプシに貼り、発注書に情報を流す」 */
-    ok('⑱-16b 見たあとは④「PDFをスプシに貼り、発注書に情報を流す」が押せる',
-       /PDFをスプシに貼り、発注書に情報を流す/.test(nb) && /docHariZenbu\(/.test(nb));
+    /* ★2026-09-24 ⑱-16b（④の文字があるか）は外しました。
+       　⑱-70〜 で、本物のカードを描いて「④が押せるか」を見ています。 */
     /* ★2026-09-12 ひろみさんの文言：「PDFをスプシに貼る前に確認する」というボタン */
     /* ★2026-09-12（夜）ひろみさん：「PDFを開いて一度確認すると
        　スプシに貼るボタンが出ます　にして！！　そしたらみんな迷わない」 */
     ok('⑱-17 カードからも書類を開ける', /docCheckOne\(/.test(nb));
-    ok('⑱-17c ⑤は発注書スプシを開くだけ（アプリから🔵にしない）',
-       /OOS_HACCHUSHO_URL/.test(nb) && /window\.open/.test(nb));
+    /* ★2026-09-24 ⑱-17c（⑤の文字があるか）は ⑱-70〜 にまとめました（動かして確かめます） */
     /* ★2枚えらんだら2枚とも札が出るか（1枚ぶんに戻さないための見張り） */
     ok('⑱-17b 札は書類の枚数ぶん出す', /OOS_NOUHIN\.shoruiList\(o\)/.test(fd) && /meis\.forEach/.test(fd));
     ok('⑱-18 書類が無い注文は「書類はありません」',     /金額の載る書類はありません/.test(fd));
@@ -1046,8 +1056,7 @@ function hacchuushoGyou(payload){
     ok('⑱-25 待つ係がいる', /async function docFudaMachi/.test(idx));
     /* ★2026-09-13 ［いま作って貼る］は廃止。貼る場所は【カードの大きいボタン】1つだけ */
     ok('⑱-26 貼る係は docHari の1つだけ', /async function docHari/.test(idx) && !/async function docIma/.test(idx));
-    ok('⑱-27 貼るのは④のボタン1つにまとめてある',
-       /async function docHariZenbu/.test(idx) && /docHariZenbu\(/.test(H.cut(idx, 'nagareCardHtml')));
+    /* ★2026-09-24 ⑱-27（④のボタンの文字があるか）は ⑱-16b と同じことを見ていたので外しました。⑱-70〜 へ */
     ok('⑱-28 行が見つからないときは、次にすることを書く', /行が見つかりません/.test(at));
 
       /* ══ 2026-09-13 ひろみさん指示（3つ）══════════════════════════
@@ -1061,32 +1070,104 @@ function hacchuushoGyou(payload){
     ok('⑱-33 その他のPDFを入れる口がある', /data-role=otherPdfFile/.test(idx) && /async function otherPdfHairu/.test(idx));
     ok('⑱-34 入れたPDFはドライブに保存する', /action:'saveExtraDoc'/.test(H.cut(idx, 'otherPdfHairu')));
     ok('⑱-35 注文にPDFを持たせる', /otherDocUrl:/.test(idx));
-    ok('⑱-36 ④でその他のPDFも貼る', /docHariOther\(o\)/.test(H.cut(idx, 'docHariZenbu')));
-    ok('⑱-37 その他のPDFも貼れたか見る', /function docOtherHattaKa/.test(idx) &&
-       /docOtherHattaKa\(o\)/.test(H.cut(idx, 'docZenbuHattaKa')));
+    /* ══════════════════════════════════════════════════════════════════
+       ⑱-70〜 受注一覧のカードを【本物の関数で描いて】確かめる（2026-09-24）
+       ──────────────────────────────────────────────────────────────────
+       ひろみさん：「受注登録をして、納品書とかがスプレッドシートに貼り付かないの」
+       本番で見たこと：9/22のShopify 4件（同梱書類＝「その他」＋自分で入れたPDF）が、
+       　発注書に行はできているのに、V列が空のままだった。
+       原因：カードの④が「金額の載る書類が無い」＝最初から ✅ で【押せなかった】。
+       　貼る係（docHariZenbu → docHariOther）は正しかったのに、呼ぶボタンが出ていない。
+       見張りが見逃した理由：⑱-16b・⑱-27・⑱-36・⑱-37 は【文字があるか】だけを見ていた。
+       　「docHariZenbu という字がある」ので合格。その他だけの注文は誰も試していなかった。
+       → 4つを外して、ここにまとめました。★文字さがしに戻さないでください。
+       ══════════════════════════════════════════════════════════════════ */
+    (function(){
+      const _S = H.makeSandbox({});
+      let _ug = true;
+      ['esc','nagareSt','nagareNokori','nagareWaku','nagareCardHtml','docHareteruKa',
+       'docKakuninKa','docKakuninSuru','docOtherHattaKa','docZenbuHattaKa','docFudaHtml','docHariZenbu'
+      ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; } });
+      try {
+        vm.runInContext('var docVretsu = {}; var docKakuninMap = {}; var DOC_MARU = ["①","②","③","④","⑤"];'
+          + 'var OOS_HACCHUSHO_URL = "https://x/hacchusho"; var orders = []; var __yobi = [];'
+          + 'function docHari(id, mei){ __yobi.push("docHari:" + mei); }'
+          + 'function docHariOther(o){ __yobi.push("docHariOther"); }'
+          + 'function showSyncStatus(){}', _S.ctx);
+      } catch (e) { _ug = false; }
+      ok('⑱-70 カードを描く仕掛けを、本物のまま動かせる', _ug);
+      if (!_ug) return;
+      const B = _S.box;
+      const V = function(m){ vm.runInContext('docVretsu = ' + JSON.stringify(m) + ';', _S.ctx); };
+      const oshiteru  = function(h, id){ return h.indexOf('onclick="docHariZenbu(\'' + id + '\')"') >= 0; };
+      const goAkeru   = function(h){ return /onclick="window\.open\(OOS_HACCHUSHO_URL/.test(h); };
+      const nouLbl = '📄 ' + B.OOS_NOUHIN.docTitleOf('納品書兼請求書') + '（ひらく）';
+
+      /* A. 納品書兼請求書だけ（いちばん普通の注文） */
+      const a = { id:'a', yukaKey:'KA', enclosedDoc:'納品書兼請求書' };
+      V({});
+      ok('⑱-71 納品書：見る前は④を押せない', !oshiteru(B.nagareCardHtml(a), 'a'));
+      B.docKakuninSuru(a, '納品書兼請求書');
+      ok('⑱-72 納品書：見たら④が押せる',       oshiteru(B.nagareCardHtml(a), 'a'));
+      ok('⑱-72 納品書：④が終わるまで⑤は開かない', !goAkeru(B.nagareCardHtml(a)));
+      V({ KA:[{ '文字':nouLbl, 'リンク':'https://x/a' }] });
+      ok('⑱-73 納品書：貼れたら④は✅（もう押さない）', !oshiteru(B.nagareCardHtml(a), 'a'));
+      ok('⑱-73 納品書：貼れたら⑤で発注書スプシを開ける（アプリから🔵にはしない）', goAkeru(B.nagareCardHtml(a)));
+
+      /* B. 「その他」＋自分で入れたPDFだけ（9/22のShopifyの形・今回の穴） */
+      const b = { id:'b', yukaKey:'KB', enclosedDoc:'その他 ＋  ＋ ',
+                  otherDocUrl:'https://x/other-b', otherDocName:'#1026児玉恵美子様.pdf' };
+      V({});
+      ok('⑱-74 その他だけ：まだ貼れていなければ④が押せる', oshiteru(B.nagareCardHtml(b), 'b'));
+      ok('⑱-74 その他だけ：④が終わるまで⑤は開かない',       !goAkeru(B.nagareCardHtml(b)));
+      ok('⑱-75 その他だけ：札に「まだ発注書に貼れていません」とPDFの名前が出る',
+         /まだ発注書に貼れていません/.test(B.docFudaHtml(b)) && /#1026児玉恵美子様\.pdf/.test(B.docFudaHtml(b)));
+      vm.runInContext('orders = [' + JSON.stringify(b) + ']; __yobi = [];', _S.ctx);
+      vm.runInContext('docHariZenbu("b")', _S.ctx);
+      ok('⑱-76 その他だけ：④を押すと、その他のPDFを貼る係が動く',
+         JSON.stringify(B.__yobi) === JSON.stringify(['docHariOther']));
+      V({ KB:[{ '文字':'📄 #1026児玉恵美子様.pdf（ひらく）', 'リンク':'https://x/other-b' }] });
+      ok('⑱-77 その他だけ：貼れたら④は✅、⑤で発注書スプシを開ける',
+         !oshiteru(B.nagareCardHtml(b), 'b') && goAkeru(B.nagareCardHtml(b)));
+      ok('⑱-77 その他だけ：貼れたら札は「📎 添付PDF（その他）」',
+         /📎 添付PDF（その他）/.test(B.docFudaHtml(b)) && !/まだ発注書に貼れていません/.test(B.docFudaHtml(b)));
+
+      /* C. 納品書 ＋ その他（納品書だけ先に貼れた） */
+      const c = { id:'c', yukaKey:'KC', enclosedDoc:'納品書兼請求書 ＋ その他',
+                  otherDocUrl:'https://x/other-c', otherDocName:'c.pdf' };
+      B.docKakuninSuru(c, '納品書兼請求書');
+      V({ KC:[{ '文字':nouLbl, 'リンク':'https://x/c' }] });
+      ok('⑱-78 納品書＋その他：その他が残っていれば④はまだ押せる', oshiteru(B.nagareCardHtml(c), 'c'));
+
+      /* D. 書類なし */
+      const d = { id:'d', yukaKey:'KD', enclosedDoc:'なし' };
+      V({});
+      ok('⑱-79 書類なし：④は✅「金額の載る書類はありません」、⑤は開ける',
+         !oshiteru(B.nagareCardHtml(d), 'd') && /金額の載る書類はありません/.test(B.nagareCardHtml(d)) && goAkeru(B.nagareCardHtml(d)));
+    })();
 
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
     const nm2 = H.cut(idx, 'nagareMaeRender');
-    ok('⑱-24 確認画面に流れバーを出す', /id="nagare-mae"/.test(idx) && /nagareMaeRender\(\)/.test(idx));
-    ok('⑱-25 流れバーの①②から docMaeMiru が動く', /docMaeMiru\(/.test(nm2));
-    ok('⑱-25b 見終わるまで③［受注一覧に登録する］は押せない',
+    ok('⑱-51 確認画面に流れバーを出す', /id="nagare-mae"/.test(idx) && /nagareMaeRender\(\)/.test(idx));
+    ok('⑱-52 流れバーの①②から docMaeMiru が動く', /docMaeMiru\(/.test(nm2));
+    ok('⑱-52b 見終わるまで③［受注一覧に登録する］は押せない',
        /st-lock', '③', '受注一覧に登録する/.test(nm2) && /registerOrder\(\)/.test(nm2));
-    ok('⑱-26 出す枠がある',             /id="doc-check-mae"/.test(idx));
+    ok('⑱-53 出す枠がある',             /id="doc-check-mae"/.test(idx));
     const mm = H.cut(idx, 'docMaeMiru');
     const ms = H.cut(idx, 'docMaeShow');
-    ok('⑱-27 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
-    ok('⑱-28 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
-    ok('⑱-29 何枚目かを出す',           /枚目／全/.test(ms));
+    ok('⑱-54 登録前の注文から作る',     /window\._pendingOrders/.test(mm));
+    ok('⑱-55 書類の枚数ぶん並べる',     /OOS_NOUHIN\.shoruiList\(o\)/.test(mm));
+    ok('⑱-56 何枚目かを出す',           /枚目／全/.test(ms));
     /* ★2026-09-13 承認モック：ボタンは2つだけ。次の書類は「この内容でOK」で自動で開きます */
-    ok('⑱-30 ボタンは2つだけ（戻って直す／この内容でOK）',
+    ok('⑱-57 ボタンは2つだけ（戻って直す／この内容でOK）',
        /◀ 戻って直す/.test(ms) && /この内容でOK ▶/.test(ms) && ms.indexOf('docMaeSusumu(') < 0);
-    ok('⑱-31 登録前なので貼らない',
+    ok('⑱-58 登録前なので貼らない',
        !/nouhinAttachToOrder/.test(mm) && !/nouhinAttachToOrder/.test(ms));
-    ok('⑱-32 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
+    ok('⑱-59 まだ入っていないと書いてある', /まだ受注一覧にも発注書にも入っていません/.test(ms));
 
     /* ── RTの伝票取込だけ、書類の作り方がちがう ── */
-    ok('⑱-33 RTかどうかを見分ける所がある', /function rtDenpyoOrderKa\s*\(/.test(idx));
+    ok('⑱-61 RTかどうかを見分ける所がある', /function rtDenpyoOrderKa\s*\(/.test(idx));
     const rk = H.cut(idx, 'rtDenpyoOrderKa');
     /* ══════════════════════════════════════════════════════════════════
        ★2026-09-12 ここは【まちがった書き方を固定していた見張り】でした。
@@ -1097,30 +1178,30 @@ function hacchuushoGyou(payload){
        つまり、この見張りが穴のある書き方を守っていました。
        → 書き方を見るのをやめ、【実際に動かして見分けられるか】を見ます。
        ★文字さがしに戻さないでください。 */
-    ok('⑱-34 伝票取込の印を見ている', /RT伝票取込/.test(rk));
+    ok('⑱-62 伝票取込の印を見ている', /RT伝票取込/.test(rk));
     {
       const _S = H.makeSandbox({});
       let _ugoku = true;
       ['rtKubunKa', 'rtDenpyoOrderKa'].forEach(function (n) {
         try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ugoku = false; }
       });
-      ok('⑱-34 見分ける仕掛けを切り出して動かせる', _ugoku);
+      ok('⑱-62 見分ける仕掛けを切り出して動かせる', _ugoku);
       if (_ugoku) {
         /* ★実データに入っている【日本語】の値で確かめます */
-        ok('⑱-34 日本語の「RT」をRTと見分ける',
+        ok('⑱-62 日本語の「RT」をRTと見分ける',
            _S.box.rtKubunKa('RT') === true);
-        ok('⑱-34 日本語の「RTGC（ゴルフ）」もRTと見分ける',
+        ok('⑱-62 日本語の「RTGC（ゴルフ）」もRTと見分ける',
            _S.box.rtKubunKa('RTGC（ゴルフ）') === true);
-        ok('⑱-34 英語の rt / rtgc も見分ける（昔のデータ）',
+        ok('⑱-62 英語の rt / rtgc も見分ける（昔のデータ）',
            _S.box.rtKubunKa('rt') === true && _S.box.rtKubunKa('rtgc') === true);
-        ok('⑱-34 「定価」をRTと取りちがえない',
+        ok('⑱-62 「定価」をRTと取りちがえない',
            _S.box.rtKubunKa('定価') === false);
         /* ★伝票から作ったRTだけが、伝票の道へ行くこと */
-        ok('⑱-34 RTで伝票から作った注文は、伝票の道へ',
+        ok('⑱-62 RTで伝票から作った注文は、伝票の道へ',
            _S.box.rtDenpyoOrderKa({ customerType: 'RT', note: 'RT伝票取込 2026-09-12' }) === true);
-        ok('⑱-34 RTでも伝票でない注文は、書類の親の道へ',
+        ok('⑱-62 RTでも伝票でない注文は、書類の親の道へ',
            _S.box.rtDenpyoOrderKa({ customerType: 'RT', note: 'aaaaa' }) === false);
-        ok('⑱-34 一般の注文は、伝票の道へ行かない',
+        ok('⑱-62 一般の注文は、伝票の道へ行かない',
            _S.box.rtDenpyoOrderKa({ customerType: '定価', note: 'RT伝票取込' }) === false);
       }
     }
@@ -1141,17 +1222,17 @@ function hacchuushoGyou(payload){
        くわしい見張りは tests/test_rt_nouhin_ippon.js にあります。
        ══════════════════════════════════════════════════════════════════ */
     const rn = H.cut(idx, 'rtNouhinHtml');
-    ok('⑱-35 RTの納品書も【親＝OOS_NOUHIN】から作る', /OOS_NOUHIN\.build\(/.test(rn));
-    ok('⑱-36 RTで古い写し（rtDeliveryNoteHtml）を呼んでいない',
+    ok('⑱-63 RTの納品書も【親＝OOS_NOUHIN】から作る', /OOS_NOUHIN\.build\(/.test(rn));
+    ok('⑱-64 RTで古い写し（rtDeliveryNoteHtml）を呼んでいない',
        !/rtDeliveryNoteHtml\(\)/.test(rn.replace(/\/\*[\s\S]*?\*\//g, '')));
-    ok('⑱-37 登録前の確認でRTを見せ分けている',
+    ok('⑱-65 登録前の確認でRTを見せ分けている',
        /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(ms));
-    ok('⑱-38 登録後の画面でもRTを見せ分けている',
+    ok('⑱-66 登録後の画面でもRTを見せ分けている',
        /rtDenpyoOrderKa\(o\)[\s\S]{0,80}rtNouhinHtml\(\)/.test(nx));
-    ok('⑱-39 RTは rtAttachDocsToOrder で貼る', /rtAttachDocsToOrder\(o\)/.test(H.cut(idx, 'docHari')));
-    ok('⑱-40 登録の瞬間にRTを自動で貼っていない', !/rtAttachDocsToOrder/.test(reg));
+    ok('⑱-67 RTは rtAttachDocsToOrder で貼る', /rtAttachDocsToOrder\(o\)/.test(H.cut(idx, 'docHari')));
+    ok('⑱-68 登録の瞬間にRTを自動で貼っていない', !/rtAttachDocsToOrder/.test(reg));
     const arf = H.cut(idx, 'applyRtToOrderForm');
-    ok('⑱-41 RTも同じ受注フォームを使う（日付・状態・種別が同じに効く）',
+    ok('⑱-69 RTも同じ受注フォームを使う（日付・状態・種別が同じに効く）',
        /addRecipient\(\)/.test(arf) && /recipient-card/.test(arf));
   })();
 

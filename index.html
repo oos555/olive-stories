@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-17-06">
+<meta name="oos-version" content="2026-09-24-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -9180,16 +9180,26 @@ function nagareCardHtml(o){
   /* ★2026-09-13 ひろみさん指示の言い方：「④PDFをスプシに貼り、発注書に情報を流す」
      ★在庫が減るのは【③ 受注一覧に登録する】を押したときです（ここではありません）。
      　実際の動きと違うことを書かないため、そのことを小さく添えています。 */
-  if(!meis.length || zenbuHatta){
+  /* ══════════════════════════════════════════════════════════════════
+     ★2026-09-24 ひろみさん「受注登録をして、納品書とかがスプレッドシートに貼り付かないの」
+     　前は「金額の載る書類が無い（meis が空）」だけで④を ✅ にしていました。
+     　「その他」＋自分で入れたPDFだけの注文（9/22のShopify 4件）は、
+     　④が最初から ✅ で押せず、PDFが一度も貼られませんでした。
+     ★その他のPDFが残っているあいだは、④を押せるままにしてください。
+     見張り：tests/test_ikisaki.js ⑱-70〜79（本物のカードを描いて確かめます）
+     ══════════════════════════════════════════════════════════════════ */
+  var otherNokori = !docOtherHattaKa(o);
+  var kazu = meis.length + (o.otherDocUrl ? 1 : 0);
+  if((!meis.length && !otherNokori) || zenbuHatta){
     app += nagareSt('st-done', '✅', 'PDFをスプシに貼り、発注書に情報を流す',
-      (meis.length ? '発注書のV列に貼りました' : '金額の載る書類はありません'), '');
+      (kazu ? '発注書のV列に貼りました' : '金額の載る書類はありません'), '');
   } else if(zenbuMita){
     app += nagareSt('st-now', '④', 'PDFをスプシに貼り、発注書に情報を流す',
-      '押すと' + meis.length + '枚とも発注書のV列に貼ります（在庫は③の登録で減っています）', 'docHariZenbu(\'' + o.id + '\')');
+      '押すと' + kazu + '枚とも発注書のV列に貼ります（在庫は③の登録で減っています）', 'docHariZenbu(\'' + o.id + '\')');
   } else {
     app += nagareSt('st-lock', '④', 'PDFをスプシに貼り、発注書に情報を流す', '上の書類を見てからでないと押せません', '');
   }
-  var sheet = (zenbuHatta || !meis.length)
+  var sheet = (zenbuHatta || (!meis.length && !otherNokori))
     ? nagareSt('st-now-b', '⑤', '倉庫に発送許可を出す（A列を🔵）',
         '押すと発注書スプシが開きます（この行のA列を【🔵 発送してください】に）',
         'window.open(OOS_HACCHUSHO_URL, "_blank")')
@@ -9241,6 +9251,26 @@ function docFudaHtml(o, torikeshi){
   if(!o || typeof OOS_NOUHIN === 'undefined') return '';
   if(o.source === 'basara') return '';            /* バサラは書類を作りません */
   var meis = OOS_NOUHIN.shoruiList(o);
+  /* ★2026-09-24 ひろみさんOK：「その他」＋自分で入れたPDFだけの注文も、
+     　貼れていなければ ⚠、貼れたら 📎 を出します（前は「書類はありません」だけで、
+     　貼れていないことに気づけませんでした）。 */
+  if(!meis.length && o.otherDocUrl){
+    var _onm = esc(o.otherDocName || 'その他の書類');
+    if(!docVretsu){
+      return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;background:#f6f5f1;'
+           + 'border:1px solid #cfc9ba;border-radius:7px;padding:5px 10px;color:#57534e">'
+           + '⏳ 📄 ' + _onm + '　発注書を確かめています…</div>';
+    }
+    var _oriyuu = o.nouhinDocNg
+      ? '<div style="font-size:12px;color:#a32d2d;font-weight:700;margin-top:4px">⚠ 理由：' + esc(o.nouhinDocNg) + '</div>' : '';
+    if(docOtherHattaKa(o)){
+      return '<div style="margin-top:4px;font-size:12.5px"><a href="' + esc(o.otherDocUrl)
+           + '" target="_blank" style="color:#0c447c;text-decoration:none">📎 添付PDF（その他）　' + _onm + '</a></div>';
+    }
+    return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;color:#a32d2d;font-weight:700;background:#fdeaea;'
+         + 'border:1px solid #e0a3a1;border-radius:7px;padding:5px 10px">'
+         + '⚠ その他のPDF（' + _onm + '）はまだ発注書に貼れていません</div>' + _oriyuu;
+  }
   if(!meis.length){
     return '<div class="rk-doc" style="margin-top:6px;font-size:12.5px;color:#7a6a45;background:#f6f4ee;'
          + 'border:1px solid #d9c48a;border-radius:7px;padding:5px 10px">'
@@ -9694,7 +9724,17 @@ async function docHariZenbu(id){
 }
 /* その他の書類のPDFを、発注書のV列に貼る（ひろみさん指示・2026-09-13） */
 async function docHariOther(o){
-  if(!o || !o.otherDocUrl || !o.yukaKey) return;
+  if(!o || !o.otherDocUrl) return;
+  /* ★2026-09-24 ふだ（転記キー）が無いときに【黙って帰らない】（納品書と同じ守り）。
+     　発注書に行ができるのを待ち、それでも無ければ理由をカードに残します。 */
+  if(!o.yukaKey && typeof docFudaMachi === 'function') await docFudaMachi(o);
+  if(!o.yukaKey){
+    o.nouhinDocNg = 'まだ発注書に行ができていません。カードの［📥 …『発注書』に送る］を押して、'
+      + '「発注書に入りました」と出てから、もう一度④を押してください。';
+    if(typeof syncOrdersToGAS === 'function') syncOrdersToGAS([o]);
+    if(typeof renderList === 'function') renderList();
+    return;
+  }
   try{
     var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'yukaSetDocLinks', payload:{ key: o.yukaKey,
