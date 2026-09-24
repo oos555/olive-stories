@@ -165,6 +165,80 @@ ok('⑧【動かす】再開（false）にすれば、倉庫のアドレスに�
    M2.atesaki.join(',').indexOf('reimaria.oliosanto@gmail.com') >= 0);
 
 /* ══════════════════════════════════════════════════════════════════════
+   ⑪ 🔵のあと、倉庫へ【一文だけ】まとめて知らせる（2026-09-24 ひろみさん）
+   ──────────────────────────────────────────────────────────────────────
+   「A列を発送してくださいにしたとたんに、倉庫に『スプレッドシートに発送依頼を送りました。
+   　よろしくお願いします』っていう簡単な一文を送る」／3分まとめ／送ったら「発送してください（LINE通知済）」
+   ・止め木（OOS_SOUKO_RENRAKU_OFF）はそのまま。通すのはこの一文だけ。
+   ・本物の関数を、身代わりの発注書とタイマーで動かします。
+   ══════════════════════════════════════════════════════════════════════ */
+ok('⑪スイッチの1行がある（OOS_SOUKO_MATOME_ON）', /var OOS_SOUKO_MATOME_ON = (true|false);/.test(GAS));
+ok('⑪まとめる分は3分（ひろみさん「3分、いいね」）', /var OOS_YUKA_MATOME_MIN = 3;/.test(GAS));
+ok('⑪通知済みの文言はひろみさん指定のまま', GAS.indexOf("var OOS_YUKA_BTN_GO_TSUCHI = '発送してください（LINE通知済）';") >= 0);
+{
+  /* 倉庫のLINEグループへ【直接】送っている場所は、止め木の入口と、この一文の係の2か所だけ */
+  const direct = (GAS.match(/sendLineGroupMessage\([^)]*LINE_GROUP_ID\)/g) || []).length;
+  /* 3か所＝止め木の入口（oosLineToWarehouse_）・一文のまとめ送り・送り先の確認テスト（2026-08-17・人が実行したときだけ） */
+  ok('⑪倉庫のLINEへ直接送る場所は3か所だけ（止め木の入口・一文のまとめ送り・送り先の確認テスト）', direct === 3, '（いま ' + direct + ' か所）');
+  const ms = bodyOf(GAS, 'oosSoukoMatomeSend');
+  ok('⑪まとめ送りの文面は一文だけ（商品や本数を書かない）',
+     /'📦 スプレッドシートに発送依頼を' \+ rows\.length \+ '件送りました。よろしくお願いします。'/.test(ms) && ms.indexOf('disp[') < 0);
+}
+function ugokasuMatome(){
+  const okuri = [], tr = [];
+  const props = {};
+  const rows = [   /* A列, 転記キー */
+    { a:'発送してください', key:'K1', note:'' },
+    { a:'発送してください', key:'K2', note:'' },
+    { a:'OOS未チェック 発送しないでください（登録済）', key:'K3', note:'' } ];
+  const cell = (r) => ({ getValue(){ return rows[r-2].a; }, setValue(v){ rows[r-2].a = v; },
+    getNote(){ return rows[r-2].note; }, setNote(n){ rows[r-2].note = n; }, setDataValidation(){} });
+  const sh = { getRange(r, c){ return cell(r); }, getConditionalFormatRules(){ return []; }, setConditionalFormatRules(){}, getMaxRows(){ return 10; } };
+  const box = {
+    console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean,
+    Logger: { log(){} },
+    LINE_GROUP_ID: 'Cd300fca34e5ec3331888c9066fa9c747',
+    OOS_LINE_WAREHOUSE_NAME: 'OOS出荷依頼グループ（倉庫）',
+    sendLineGroupMessage(text, to){ okuri.push([String(text), String(to)]); return { status:'ok', code:200 }; },
+    LockService: { getScriptLock(){ return { waitLock(){}, releaseLock(){} }; } },
+    PropertiesService: { getScriptProperties(){ return { getProperty(k){ return props[k] || null; }, setProperty(k, v){ props[k] = v; }, deleteProperty(k){ delete props[k]; } }; } },
+    ScriptApp: { getProjectTriggers(){ return tr.map(h => ({ getHandlerFunction(){ return h; } })); }, deleteTrigger(t){ tr.splice(tr.indexOf(t.getHandlerFunction()), 1); },
+      newTrigger(h){ return { timeBased(){ return { after(){ return { create(){ tr.push(h); } }; } }; } }; } },
+    Utilities: { formatDate(){ return '9/24 15:02'; } },
+    SpreadsheetApp: { newDataValidation(){ const o = { requireValueInList(){ return o; }, setAllowInvalid(){ return o; }, build(){ return {}; } }; return o; },
+      newConditionalFormatRule(){ const o = { whenTextEqualTo(){ return o; }, setBackground(){ return o; }, setFontColor(){ return o; }, setBold(){ return o; }, setRanges(){ return o; }, build(){ return {}; } }; return o; } },
+    oosYukaFile_(){ return { getSheetByName(){ return sh; } }; },
+    oosKeyColByHeader_(){ return 29; },
+    oosFindRowByKey_(s, c, k){ const i = rows.findIndex(x => x.key === k); return i < 0 ? 0 : i + 2; }
+  };
+  box.globalThis = box;
+  const ctx = vm.createContext(box);
+  vm.runInContext(H.cutVar(GAS, 'OOS_YUKA_MATOME_MIN') + '\n' + H.cutVar(GAS, 'OOS_YUKA_BTN_STOP') + '\n' + H.cutVar(GAS, 'OOS_YUKA_BTN_GO') + '\n'
+    + H.cutVar(GAS, 'OOS_YUKA_BTN_GO_TSUCHI') + '\n' + H.cutVar(GAS, 'OOS_YUKA_BTN_BACK') + '\n' + H.cutVar(GAS, 'OOS_MATOME_PROP') + '\n'
+    + 'var OOS_YUKA_SHEET = "発注書";\n'
+    + H.cut(GAS, 'oosSoukoMatomeYoyaku_') + '\n' + H.cut(GAS, 'oosSoukoMatomeSend') + '\n' + H.cut(GAS, 'oosYukaTsuchiMitame_'), ctx);
+  return { box, okuri, tr, rows };
+}
+{
+  const M = ugokasuMatome();
+  M.box.oosSoukoMatomeYoyaku_('K1', 2);
+  M.box.oosSoukoMatomeYoyaku_('K2', 3);
+  M.box.oosSoukoMatomeYoyaku_('K3', 4);   /* 🔵にしたあと、3分以内に赤へ戻した行 */
+  ok('⑪【動かす】🔵のときは、すぐには1通も出ない', M.okuri.length === 0);
+  ok('⑪【動かす】タイマーは1つだけ（続けて押してもかけ直すだけ）', M.tr.length === 1 && M.tr[0] === 'oosSoukoMatomeSend');
+  M.box.oosSoukoMatomeSend();
+  ok('⑪【動かす】3分後に倉庫へ1通だけ', M.okuri.length === 1 && M.okuri[0][1] === 'Cd300fca34e5ec3331888c9066fa9c747');
+  ok('⑪【動かす】文面は一文（赤に戻した行は数えない＝2件）',
+     M.okuri[0] && M.okuri[0][0] === '📦 スプレッドシートに発送依頼を2件送りました。よろしくお願いします。', '（文面：' + (M.okuri[0] && M.okuri[0][0]) + '）');
+  ok('⑪【動かす】知らせた行のA列は「発送してください（LINE通知済）」', M.rows[0].a === '発送してください（LINE通知済）' && M.rows[1].a === '発送してください（LINE通知済）');
+  ok('⑪【動かす】赤に戻した行はそのまま', M.rows[2].a === 'OOS未チェック 発送しないでください（登録済）');
+  ok('⑪【動かす】ふせんに「📨 倉庫にLINEで知らせました」', M.rows[0].note.indexOf('📨 倉庫にLINEで知らせました') >= 0);
+  M.box.oosSoukoMatomeSend();
+  ok('⑪【動かす】もう一度動いても二重には送らない', M.okuri.length === 1);
+  ok('⑪【動かす】タイマーは残らない', M.tr.length === 0);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    ⑩ 本部グループへのLINEを止める（2026-09-13 ひろみさん）
       「受注Ａで操作した時に本部のラインに飛ばすのも、とめて」
       → そのあと1つずつ決めていただきました。

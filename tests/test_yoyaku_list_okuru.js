@@ -108,6 +108,8 @@ function sandbox(opt){
     oosYukaFile_(){ return { getSheetByName(n){ return n === '発注書' ? yuka : null; } }; },
     oosKeyColByHeader_(){ return 29; },      /* 発注書の隠しふだ列 */
     oosLineToWarehouse_(txt){ lineSent.push(String(txt)); },
+    /* ★2026-09-24 🔵のあとは一文のまとめ送りを【予約】するだけ（送るのは3分後の oosSoukoMatomeSend） */
+    oosSoukoMatomeYoyaku_(k, r){ (box.__yoyaku = box.__yoyaku || []).push([k, r]); },
     oosSetOrderStatusByKey_(k, st){ statusSet.push([k, st]); return true; },
     oosYukaImportOrder(p){
       imported.push(p);
@@ -131,7 +133,7 @@ function sandbox(opt){
   let code = '';
   /* ★2026-09-13 倉庫への自動連絡の止め木（OOS_SOUKO_RENRAKU_OFF）も、本物を砂場に入れます。
      入れ忘れると「全部PASSなのに、古い決めごとを測っている」状態になります。 */
-  ['OOS_SOUKO_RENRAKU_OFF', 'OOS_YUKA_SHEET', 'OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_DONE',
+  ['OOS_SOUKO_RENRAKU_OFF', 'OOS_SOUKO_MATOME_ON', 'OOS_YUKA_MATOME_MIN', 'OOS_YUKA_SHEET', 'OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_DONE',
    'OOS_YL_SHEET', 'OOS_YL_STAY', 'OOS_YL_GO', 'OOS_YL'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
   ['oosLastDataRow_', 'oosYukaShipGo_', 'oosYoyakuListSummary_', 'oosYoyakuListGo_'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   /* 合計行の作り直しは、この見張りでは本題ではないので、シートを探しに行かせない */
@@ -213,9 +215,9 @@ function sandbox(opt){
   inc('②何行目に入ったかも書く',         s.stateA(), '（発注書 2行目）', true);
   eq('②発注書に1行入る',                 s.yuka.rows.length, 1);
   eq('②発注書のA列は青（発送してください）', s.yuka.rows[0][0], '発送してください');
-  eq('②倉庫LINEはこのとき1回だけ飛ぶ',   s.lineSent.length, 1);
-  inc('②LINEは出荷依頼の形',             s.lineSent[0], '📦 新しい出荷依頼です', true);
-  inc('②LINEにお届け先のお名前が入る',   s.lineSent[0], '宮西 杏奈 様', true);
+  /* ★2026-09-24 🔵のときは中身入りのLINEを作らず、一文のまとめ送り（3分後）を予約するだけ（ひろみさん指示） */
+  eq('②このとき中身入りの倉庫LINEは出さない', s.lineSent.length, 0);
+  eq('②倉庫への一文のまとめ送りを1回予約する', (s.box.__yoyaku || []).length, 1);
   eq('②受注Ａは「通常受注」に変わる',     JSON.stringify(s.statusSet), JSON.stringify([['K-TEST-1', 'pending']]));
   eq('②A列の選択肢は外す（もう選ばせない）', s.yl.validationCleared.length >= 1, true);
   eq('②メモは消す（古い警告を残さない）', s.noteA(), '');
@@ -228,7 +230,7 @@ function sandbox(opt){
   const s = sandbox({});
   s.push();
   inc("②'抜けが無ければ1回で送れる", s.stateA(), '✅ 送りました', true);
-  eq("②'倉庫LINEは1回",             s.lineSent.length, 1);
+  eq("②'倉庫への一文のまとめ送りを1回予約する", (s.box.__yoyaku || []).length, 1);
   eq("②'発注書に1行",               s.yuka.rows.length, 1);
   eq("②'発注書へ渡した分類",         s.imported[0].bunrui, 'ノヴェッロ2026予約');
   eq("②'発注書へ渡したふだ",         s.imported[0].key, 'K-TEST-1');

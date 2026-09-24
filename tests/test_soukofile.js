@@ -442,7 +442,8 @@ has('⑯ゆかスプシに送り状を書いたら自動配り（バサラ・台
 has('⑯送り状記入ではT☑を押さない（倉庫さんのボタン）', trkSrc.indexOf('setValue(true)')<0 ? 'ok':'ng', 'ok');
 const konSrc = H.cut(gasSrc, 'oosKonpoOrders');
 has('⑯倉庫Ｄ・梱包ビューはゆかスプシを読む', konSrc, 'oosYukaFile_()');
-has('⑯出すのは青「発送してください」の行だけ', konSrc, 'OOS_YUKA_BTN_GO) continue');
+/* ★2026-09-24 LINEで知らせたあとの「発送してください（LINE通知済）」も🔵と同じに出す */
+has('⑯出すのは青「発送してください」の行だけ（LINE通知済も）', konSrc, 'if(!oosYukaGoKa_(d[0])) continue');
 has('⑯送り状NO.が入った行は出さない', konSrc, "d[OOS_YC.track-1]||'').trim()) continue");
 const acc16 = H.cut(gasSrc, 'oosBasaraOrderAccept_');
 has('⑯在庫は受付と同時に減る（ひろみさん決定）', acc16, 'ゆかスプシ転記と同時）に確保して減らす');
