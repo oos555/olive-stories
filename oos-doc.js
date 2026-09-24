@@ -282,9 +282,15 @@
     const usableW = pdfW - margin*2;
     const usableH = pdfH - margin*2;
     try{
+      /* ★2026-09-24 ひろみさん「PDFの文章、最後途中でおわってるよ」
+         　ここで高さ（height: fullH）を指示していたため、html2canvas が作る【写し】のほうで
+         　文字の折り返しが1行増えると、はみ出した最後の行（破損していた場合の最後の行）が切り落とされていました。
+         　→ 高さは指示せず、写しの本当の高さで撮ります（発注書に貼る nouhinBuildPdfB64 と同じ）。
+         　　横幅（はしが切れない工夫）はそのまま。
+         ★height: fullH を戻さないでください。見張り：tests/test_apps.js ⑥ */
       const canvas = await html2canvas(el, {
         scale: SCALE, backgroundColor:'#ffffff', useCORS:true,
-        width: fullW, height: fullH, x:0, y:0,
+        width: fullW, x:0, y:0,
         windowWidth: fullW, windowHeight: fullH, scrollX:0, scrollY:0
       });
       /* ★2026-09-24 ひろみさん「PDFの文章、最後途中でおわってるよ」

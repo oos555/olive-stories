@@ -777,7 +777,7 @@ try{
 (async function(){
   const kiroku = { type:null, q:null, fmt:null, saved:null };
   const S = H.makeSandbox({
-    html2canvas: async function(){ return { width:1600, height:2188, toDataURL(t, q){ kiroku.type = t; kiroku.q = q; return 'data:x'; } }; },
+    html2canvas: async function(el, opt){ kiroku.opt = opt; return { width:1600, height:2188, toDataURL(t, q){ kiroku.type = t; kiroku.q = q; return 'data:x'; } }; },
     jspdf: { jsPDF: function(){ return {
       internal:{ pageSize:{ getWidth(){ return 210; }, getHeight(){ return 297; } } },
       addImage(img, fmt){ kiroku.fmt = fmt; }, save(nm){ kiroku.saved = nm; } }; } }
@@ -787,6 +787,9 @@ try{
   eq('⑥ 🖨️のPDFは圧縮した形（JPEG）で作る（PNGだと約14MBになり途中で止まって見える）', kiroku.type, 'image/jpeg');
   eq('⑥ 🖨️のPDFに貼る形も JPEG', kiroku.fmt, 'JPEG');
   eq('⑥ 🖨️のPDFは保存まで進む', kiroku.saved, 't.pdf');
+  /* ★2026-09-24 高さを指示すると、写しで1行ふえたとき最後の行が切り落とされる（「最後途中でおわってる」） */
+  eq('⑥ 🖨️は切り取る高さを指示しない（写しの本当の高さで撮る）', !!kiroku.opt && !('height' in kiroku.opt), true);
+  eq('⑥ 🖨️は横幅の指示は残す（はしが切れない工夫）', !!kiroku.opt && kiroku.opt.width === 800, true);
 })().catch(function(e){ fail++; fails.push('⑥ PDFの作り方を動かせませんでした: ' + e.message); }).then(function(){
   console.log('===== 4アプリ突き合わせ／不良出荷／注文番号 =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
