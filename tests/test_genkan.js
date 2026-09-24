@@ -174,7 +174,38 @@ eq('⑦ 支払期限の係が消えても気づく', v.some(function(s){ return 
   });
 })();
 
-console.log('===== 玄関のアラート =====');
-console.log(`PASS ${pass} / FAIL ${fail}`);
-if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }
-process.exit(fail?1:0);
+/* ══════ ⑩ 受注Ａを直接開いたときの「玄関の鍵」（2026-09-24） ══════
+   ひろみさん：「私は社長のパスワードで入れて、他の人たちは玄関のパスワードで入れる」
+   前は社長のパスワードだけで照合していて、玄関のパスワードでは入れなかった
+   （画面には「玄関の鍵」と出ているのに）。本物の gateUnlock を動かして確かめます。
+   ★どちらか片方だけに戻さないでください。 */
+async function juchuAKagi(){
+  const idx = H.read('index.html');
+  const KAGI = { gate:'GATE-TEST', secret:'SECRET-TEST' };   /* 本物のパスワードは書きません */
+  async function tamesu(pw){
+    const els = { 'gate-pw-input':{ value:pw }, 'gate-err':{ textContent:'' }, 'gate-ok-btn':{ disabled:false },
+                  'gate-overlay':{ classList:{ remove(){}, add(){} } }, 'main-wrap':{ classList:{ add(){} } } };
+    const store = {};
+    const box = { JSON, String, Promise, console, GAS_URL:'x',
+      document:{ getElementById:(id)=>els[id] },
+      localStorage:{ setItem:(k,v)=>{ store[k]=v; }, getItem:(k)=>store[k]||null },
+      fetch: async (u, opt)=>{ const b = JSON.parse(opt.body); let ok = false;
+        if(b.action==='verifyPassword') ok = (b.group==='gate' && b.password===KAGI.gate);
+        if(b.action==='loadStickyMemos') ok = (b.sheetName==='付箋メモI' && b.password===KAGI.secret);
+        return { json: async ()=>(ok ? {status:'ok'} : {status:'error', message:'パスワードが違います'}) }; } };
+    vm.createContext(box);
+    vm.runInContext(H.cut(idx, 'gateUnlock'), box);
+    await box.gateUnlock();
+    return store['oos_gate_ok'] === '1';
+  }
+  eq('⑩ 受注Ａ：玄関のパスワードで開く（スタッフ）', await tamesu(KAGI.gate), true);
+  eq('⑩ 受注Ａ：社長のパスワードでも開く（ひろみさん）', await tamesu(KAGI.secret), true);
+  eq('⑩ 受注Ａ：ちがうパスワードでは開かない', await tamesu('chigau'), false);
+}
+
+juchuAKagi().catch(function(e){ fail++; fails.push('⑩ 動かせませんでした：' + e.message); }).then(function(){
+  console.log('===== 玄関のアラート =====');
+  console.log(`PASS ${pass} / FAIL ${fail}`);
+  if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }
+  process.exit(fail?1:0);
+});

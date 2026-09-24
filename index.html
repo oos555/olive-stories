@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-24-02">
+<meta name="oos-version" content="2026-09-24-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2362,12 +2362,29 @@ async function gateUnlock(){
   if(!pw){ errEl.textContent = 'パスワードを入れてください'; return; }
   okBtn.disabled = true;
   try{
-    const res = await fetch(GAS_URL, {
+    /* ══════════════════════════════════════════════════════════════════
+       ★2026-09-24 ひろみさん確認：「私は社長のパスワードで入れて、
+       　他の人たちは玄関のパスワードで入れる」
+       　前は【社長のパスワードだけ】で照合していました（付箋メモIの入口）。
+       　画面には「玄関の鍵」と出ているのに、玄関のパスワードでは
+       　「パスワードが違います」になり、スタッフが入れませんでした。
+       → まず玄関の鍵（home.html と同じ verifyPassword / gate）で見て、
+       　合わなければ社長の鍵（いままでどおり）で見ます。
+       ★どちらか片方だけに戻さないでください。 */
+    let res = await fetch(GAS_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+      body: JSON.stringify({ action:'verifyPassword', group:'gate', password: pw }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
-    const data = await res.json();
+    let data = await res.json();
+    if(data.status!=='ok'){
+      res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      data = await res.json();
+    }
     if(data.status==='ok'){
       try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
       document.getElementById('gate-overlay').classList.remove('show');
