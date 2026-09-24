@@ -38,8 +38,9 @@ function bodyOf(src, name){
 
 /* ── ① B列＝伝票番号 ───────────────────────────────── */
 ok('①列の地図で2列目は slip（伝票番号）', /slip:2/.test(GAS));
-ok('①取り込みの1つ目に書くのは伝票番号',
-   GAS.indexOf('String(order.slipNo') >= 0,
+/* ★2026-09-24 B列＝注文番号（RTの伝票番号があれば2行目）。ひろみさん「TK-…は伝票番号だから B列に」 */
+ok('①取り込みの1つ目に書くのは伝票番号（注文番号＋RTの伝票番号）',
+   GAS.indexOf('oosYukaBangouText_(order.num, order.slipNo') >= 0,
    '（order.exp だけに戻すと、B列がまた空になります）');
 ok('①倉庫オーダー表の見出しも伝票番号',
    GAS.indexOf("'伝票番号','商品①") >= 0 && GAS.indexOf("'賞味期限','商品①") < 0);
@@ -161,7 +162,7 @@ function ugokasu(opts){
   };
   box.globalThis = box;
   const ctx = vm.createContext(box);
-  vm.runInContext(H.cutVar(GAS, 'OOS_YC') + '\n' + H.cut(GAS, 'oosYukaSashimodoshi_') + '\n'
+  vm.runInContext(H.cutVar(GAS, 'OOS_YC') + '\n' + H.cut(GAS, 'oosYukaBangouOf_') + '\n' + H.cut(GAS, 'oosYukaSashimodoshi_') + '\n'
     + 'oosYukaSashimodoshi_(__sh, 5);', Object.assign(ctx, { __sh: sh }));
   return { shita, rowVals };
 }
@@ -186,6 +187,49 @@ ok('⑥【動かす】発送済みのときは在庫を戻さない', !R2.shita.
 const R3 = ugokasu({ key:'' });
 ok('⑥【動かす】ふだが無い行は、そう書いて残す',
    R3.shita.note.indexOf('ふだ（転記キー）がありません') >= 0);
+
+/* ══════════════════════════════════════════════════════════════════════
+   ⑦ 注文番号は B列（伝票番号）へ・備考欄には書かない（2026-09-24 ひろみさん）
+   「TK-20260924-3865 とか、これは伝票番号だから、B の伝票番号の列に入れておかないと混乱するから、移してください」
+   本物の GAS の関数を、身代わりの発注書で動かします。
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  const bx = { String, RegExp, Math, Object, JSON };
+  vm.createContext(bx);
+  const rows = [
+    { B:'',                  U:'📦 ふつう／箱:卸レベルでOK ｜ 【その他 TK-20260924-3865】' },
+    { B:'380498',            U:'📦 ふつう ｜ RT伝票取込 ／ 納品先 ｲﾀﾘｱﾝ厨房　【RT RT-20260924-9381】' },
+    { B:'',                  U:'ふつう ｜ 【↩️差戻 RT TK-20260913-1234】' },
+    { B:'TK-20260922-2652',  U:'Shopifyから転記　【その他 TK-20260922-2652】' },
+    { B:'',                  U:'本部メモだけの行（番号なし）' },
+    { B:'',                  U:'shopifyから転記　【その他 TK-20260922-6566】　❌ キャンセルされました 9/22 10:00' } ];
+  const cellOf = (r, c) => ({
+    getDisplayValues(){ return null; },
+    setValue(v){ if(c === 2) rows[r-2].B = String(v); else if(c === 21) rows[r-2].U = String(v); return this; },
+    setWrap(){ return this; } });
+  const sh = { getRange(r, c, nr){
+    if(nr){ return { getDisplayValues(){ return rows.slice(r-2, r-2+nr).map(x => [c === 2 ? x.B : x.U]); } }; }
+    return cellOf(r, c); } };
+  bx.oosYukaFile_ = () => ({ getSheetByName(){ return sh; } });
+  bx.oosLastDataRow_ = () => rows.length + 1;
+  vm.runInContext(H.cutVar(GAS, 'OOS_YC') + '\nvar OOS_YUKA_SHEET = "発注書";\n'
+    + H.cut(GAS, 'oosYukaBangouText_') + '\n' + H.cut(GAS, 'oosYukaBangouOf_') + '\n' + H.cut(GAS, 'oosYukaBangouUtsusu'), bx);
+  ok('⑦新しい行のB列は注文番号', bx.oosYukaBangouText_('TK-20260924-3865', '') === 'TK-20260924-3865');
+  ok('⑦RTはB列の2行目にRTの伝票番号', bx.oosYukaBangouText_('RT-20260924-9381', '380498') === 'RT-20260924-9381\n伝票 380498');
+  /* 新しい行のB列・備考・二重送りの止めは、test_ikisaki.js ②-3 で本物の関数を動かして確かめています */
+  const d = bx.oosYukaBangouUtsusu(true);
+  ok('⑦見るだけ（dry）では何も変えない', d.kawatta === 5 && rows[0].B === '' && rows[0].U.indexOf('【その他') >= 0);
+  bx.oosYukaBangouUtsusu(false);
+  ok('⑦今ある行：番号を備考からB列へ移す', rows[0].B === 'TK-20260924-3865' && rows[0].U === '📦 ふつう／箱:卸レベルでOK');
+  ok('⑦今ある行：RTはB列の伝票番号を2行目に', rows[1].B === 'RT-20260924-9381\n伝票 380498' && rows[1].U.indexOf('【RT') < 0);
+  ok('⑦今ある行：差し戻した行は「↩️差戻」をB列に付ける', rows[2].B === '↩️差戻 TK-20260913-1234' && rows[2].U === 'ふつう');
+  ok('⑦今ある行：B列に同じ番号がある行は、備考から外すだけ', rows[3].B === 'TK-20260922-2652' && rows[3].U === 'Shopifyから転記');
+  ok('⑦番号の無い行にはさわらない', rows[4].U === '本部メモだけの行（番号なし）' && rows[4].B === '');
+  ok('⑦番号が備考の途中にある行（うしろに ❌ キャンセル…）も移す・キャンセルの印は残す',
+     rows[5].B === 'TK-20260922-6566' && rows[5].U === 'shopifyから転記　❌ キャンセルされました 9/22 10:00', '（' + rows[5].U + '）');
+  ok('⑦2回動かしても同じ（何も変えない）', bx.oosYukaBangouUtsusu(false).kawatta === 0);
+  ok('⑦差し戻した行は「もう入っている」に数えない（送り直すと新しい行が入る）', bx.oosYukaBangouOf_('↩️差戻 TK-20260913-1234') === '');
+}
 
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);

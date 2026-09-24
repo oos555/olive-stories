@@ -25,6 +25,7 @@
    　直す前に、必ずひろみさんに確認してください。★消さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
+const vm = require('vm');   /* ★2026-09-24 番号の取り出し係を動かして確かめるため */
 const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
 const ZU  = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_バサラ発注の流れ_2026-09-10.html', 'utf8');
 const PIC = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/pickup.html', 'utf8');
@@ -35,6 +36,8 @@ function ok(name, cond, detail) {
   if (cond) { pass++; return; }
   fail++; fails.push('        ' + name + (detail ? '  ' + detail : ''));
 }
+/* 関数まるごと（function 〜 閉じかっこ）を切り出す */
+function bodyOfFull(src, name){ const i = src.indexOf('function ' + name + '('); if(i < 0) return ''; let d = 0, j = src.indexOf('{', i); for(; j < src.length; j++){ if(src[j] === '{') d++; else if(src[j] === '}'){ d--; if(!d) break; } } return src.slice(i, j + 1); }
 function bodyOf(src, name) {
   const m = src.match(new RegExp('function\\s+' + name + '\\s*\\([^)]*\\)\\s*\\{'));
   if (!m) return '';
@@ -170,10 +173,20 @@ ok('❌キャンセルの☑は、発注書の30列目（うっかり押しに�
 ok('❌📦 在庫を戻す（引いたロットに、引いた本数だけ）',
   cancel.indexOf('var r = key ? oosYukaStockRestoreByKey_(key) :') >= 0,
   '（ふだのある行なら必ず戻す。条件を書きかえないでください）');
+/* ★2026-09-24 注文番号がB列に入るようになりました（ひろみさん「これは伝票番号だから B列に」）。
+   　流れ（キャンセルしたらバサラの請求明細も取り消す）は変えていません。番号の取り出し先が B列→備考（古い行）の順になっただけです。
+   　変数の名前を探すのをやめ、取り出し係を動かして確かめます。 */
 ok('❌バサラの御請求明細も取り消す',
-  cancel.indexOf('oosBasaraMeisaiCancel_(m[1])') >= 0 &&
+  /oosBasaraMeisaiCancel_\(_ba\)/.test(cancel) && /oosYukaBaNumOf_\(/.test(cancel) &&
   GAS.indexOf('function oosBasaraMeisaiCancel_') >= 0,
   '（取り消さないと、キャンセルした分が請求書に載ります）');
+{
+  const bx = { String, RegExp }; vm.createContext(bx);
+  vm.runInContext(bodyOfFull(GAS, 'oosYukaBangouOf_') + '\n' + bodyOfFull(GAS, 'oosYukaBaNumOf_'), bx);
+  ok('❌バサラの番号を B列から取り出せる（新しい行）', bx.oosYukaBaNumOf_('BA-20260924-4823', '📦 ふつう') === 'BA-20260924-4823');
+  ok('❌バサラの番号を 備考の【…】から取り出せる（古い行）', bx.oosYukaBaNumOf_('', '📦 ふつう ｜ 【バサラスター BA-20260817-4823】') === 'BA-20260817-4823');
+  ok('❌バサラ以外の番号は取り出さない', bx.oosYukaBaNumOf_('TK-20260924-3865', '') === '');
+}
 ok('❌本部にLINEで知らせる', cancel.indexOf('oosLineToHonbu_') >= 0);
 ok('❌A列は赤（発送しないでください）に戻す',
   cancel.indexOf('OOS_YUKA_BTN_STOP') >= 0);

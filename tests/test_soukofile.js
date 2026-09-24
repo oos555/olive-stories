@@ -465,7 +465,9 @@ has('⑯発送済みボタンはT列の☑', H.cut(gasSrc,'oosYukaOnEdit'), 'oos
    　くわしい見張り：tests/test_hacchusho_retsu.js の ⑦ */
 has('⑯番号がまだでも☑は外さず、ふせんで案内する', chkSrc, 'このまま「送り状NO.」に番号を書いてください');
 has('⑯T☑でも配りは同じ部品', chkSrc, 'oosTrackFanout_(key, track)');
-has('⑯見出しは「状態を選択してください」', H.cut(gasSrc,'oosYukaShipBtnSetup'), '状態を選択してください');
+/* ★2026-09-24 ひろみさん「LINEお知らせ AG列みたいな形で、この文字を追加」→ 見出しに足した */
+has('⑯見出しは「状態を選択してください（LINEお知らせ → AG列）」', H.cut(gasSrc,'oosYukaShipBtnSetup'), 'setValue(OOS_YUKA_A_HEAD)');
+has('⑯見出しの文言', gasSrc, "var OOS_YUKA_A_HEAD    = '状態を選択してください（LINEお知らせ → AG列）';");
 has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
 
 /* 数字テスト：oosYukaStockDeductByKey_ を本物のまま砂場で動かす */

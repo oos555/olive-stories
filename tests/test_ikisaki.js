@@ -181,10 +181,11 @@ function hacchuushoGyou(payload){
   /* ★2026-09-13 A列の3つ目【↩️ アプリに差し戻す】も砂場に入れます。
      入れ忘れると本物の関数が動かせず、見張りが空回りします（見張りの砂場に親を入れる決まり）。 */
   ['OOS_YUKA_SHEET','OOS_YC','OOS_YUKA_BTN_STOP','OOS_YUKA_BTN_GO','OOS_YUKA_BTN_BACK'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
-  ['oosLastDataRow_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
+  /* ★2026-09-24 注文番号は B列（oosYukaBangouText_）。砂場にも入れます */
+  ['oosLastDataRow_','oosYukaBangouText_','oosYukaBangouOf_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   vm.runInContext(code, ctx);
   const res = box.oosYukaImportOrder(payload);
-  return { res: res, gyou: yuka.rows[0] || [] };
+  return { res: res, gyou: yuka.rows[0] || [], box: box };
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -206,6 +207,10 @@ function hacchuushoGyou(payload){
       if(r.dare && (r.dare.indexOf('倉庫') === 0 || r.dare.indexOf('本部') === 0)) return;
       notEmpty('②-2 ' + r.retsu + '列目「' + r.midashi + '」に値が届く（表：' + r.juchuA + '）', gyou[r.retsu - 1]);
     });
+    /* ★2026-09-24 ひろみさん「TK-…は伝票番号だから B列に。備考欄に入っちゃってると混乱する」（本物の関数で確かめる） */
+    eq('②-3 B列（伝票番号）の1行目に注文番号が入る', String(gyou[1] || '').split(/\r?\n/)[0], String(payload.num));
+    eq('②-3 備考欄（U列）に注文番号を書かない', String(gyou[20] || '').indexOf(String(payload.num)) < 0, true);
+    eq('②-3 同じ注文をもう一度送っても二重に入らない（B列の番号で気づく）', (out.box.oosYukaImportOrder(payload) || {}).status, 'dup');
   } else if(!gasSrc){
     console.log('（GASのファイルが手元にないので ② と ⑥ は飛ばしました）');
   }
