@@ -781,6 +781,23 @@ try{
      H.read('oos-doc.js').indexOf('class="invoice-doc-note" style="background:#f7f5f0"') < 0, true);
 }catch(e){ fails.push('⑤ 書類を作れませんでした: ' + e.message); fail++; }
 
+/* ── ⑦ データ取込に「Shopify CSV取込」のタブ（2026-09-24 ひろみさん「枠だけ・タブだけ。ストアーズの横。今後作成する、と一言」） ── */
+{
+  const idx = H.read('index.html');
+  const els = {};
+  const el = (id) => els[id] || (els[id] = { id, style:{}, classList:{ _on:false, toggle(c, v){ this._on = !!v; } }, options:[1], innerHTML:'' });
+  const S = H.makeSandbox({ document:{ getElementById: el } });
+  vm.runInContext(H.cut(idx, 'switchImportMode'), S.ctx);
+  S.box.switchImportMode('shopify');
+  eq('⑦ Shopifyのタブを押すと、Shopifyの枠が出る', el('import-mode-shopify').style.display, 'block');
+  eq('⑦ そのときSTORESの枠は隠れる', el('import-mode-csv').style.display, 'none');
+  S.box.switchImportMode('csv');
+  eq('⑦ STORESに戻すと、Shopifyの枠は隠れる', el('import-mode-shopify').style.display, 'none');
+  { const pc = idx.indexOf('id="import-tab-csv"'), ps = idx.indexOf('id="import-tab-shopify"'), pp = idx.indexOf('id="import-tab-pdf"');
+    eq('⑦ Shopifyのタブは STORES のすぐ右（お客様リストより左）', pc >= 0 && pc < ps && ps < pp, true); }
+  eq('⑦ 中身は「今後作成します」の一言', /id="import-mode-shopify"[\s\S]{0,300}今後作成します。/.test(idx), true);
+}
+
 /* ── ⑥ 🖨️ で取り出すPDFの重さ（2026-09-24） ──
    ひろみさん「PDFの文章、最後途中でおわってるよ」
    PNGのまま貼っていて1枚で約14MB → 開いたとき下のほうが描ききれずに止まって見えていた。
