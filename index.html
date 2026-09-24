@@ -321,6 +321,7 @@ body.oos-machi .order-line select[data-role=machiKind][data-machi=reserve]{backg
 .order-line select[data-role=condition]{font-weight:700}
 .order-line select[data-role=condition][data-cond=old]{background:#faeeda;color:#633806;border-color:#e0b45f}
 .order-line select[data-role=condition][data-cond=defect]{background:#fcebeb;color:#a32d2d;border-color:#e89a9a}
+.order-line select[data-role=condition][data-cond=kizu]{background:#fff1cc;color:#8a5a00;border-color:#e0b45f}
 /* 読むだけの欄（点線＝書き換えられません） */
 .ol-yomi{background:#eef0e8;border:1px dashed #c9c5b8;border-radius:6px;padding:6px 3px;font-size:12.5px;text-align:center;color:#54564d;font-weight:700}
 .ol-tanka{background:#eef0e8;border:1px dashed #c9c5b8;border-radius:6px;padding:6px 6px;font-size:12.5px;text-align:right;color:#2b2a26;font-weight:700;font-variant-numeric:tabular-nums}
@@ -482,7 +483,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-24-04">
+<meta name="oos-version" content="2026-09-24-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -4090,7 +4091,10 @@ function giftOptionsHtml(isSet, selected){
      ★Object.keys(GIFT_TYPE_LABEL) に戻さないでください。
      　戻すと 卸①価格・卸②価格・「―」まで、またえらべるようになります。
      ══════════════════════════════════════════════════════════════════ */
-  let keys = isSet ? ['gift'] : GIFT_TYPE_ERABERU.filter(k=>k!=='gift');
+  /* ★2026-09-24 ひろみさん「ユアストーリーのギフトとかを…お客様にサンプルで渡すときもある。
+     　通常ギフトを選択はするんだけれども、無料サンプルにしたり、有償サンプルに変えたり」
+     　→ セットは【ギフト（最初）・無料サンプル・有償サンプル】の3つから選べます。 */
+  let keys = isSet ? ['gift', 'sample_free', 'sample_paid'] : GIFT_TYPE_ERABERU.filter(k=>k!=='gift');
   /* ★古い注文を開いたとき、いまはえらべない種別（卸①価格など）が入っていたら、
      その注文の値を勝手に変えないように、その1つだけ足して見せます。 */
   if(selected && keys.indexOf(selected) < 0 && GIFT_TYPE_LABEL[selected]) keys = keys.concat([selected]);
@@ -4201,6 +4205,8 @@ function condValueOfLine(l){
   if(l.condition==='defect'){
     return (l.defectLevel && l.defectLotKind) ? ('defect|'+l.defectLevel+'|'+l.defectLotKind) : 'defect';
   }
+  /* ★2026-09-24 多少傷アリOK は、在庫では正規（condition:'normal'）＋ 目印 kizuOk */
+  if((l.condition || 'normal') === 'normal' && l.kizuOk) return 'kizu';
   return l.condition || 'normal';
 }
 /* ★2026-08-17 画面と出荷依頼書に出す状態の名前。
@@ -4214,6 +4220,7 @@ function condLabelOfLine(l){
   var c = String((l && l.condition) || 'normal');
   if(c==='old') return '旧ロット';
   if(c.indexOf('defect')===0) return '不良品';
+  if(l && l.kizuOk) return '多少傷アリOK';     /* ★2026-09-24 在庫は正規から引きます */
   return '正規';
 }
 function condRemainFor(pid, val){
@@ -4373,9 +4380,15 @@ function conditionOptionsHtml(pid, selected){
      ★disabled で選べなくしないでください。
      見張り：tests/test_ikisaki.js の ⑮-7
      ══════════════════════════════════════════════════════════════════ */
+  /* ★2026-09-24 ひろみさん「多少傷があってもOKっていうものも選択できるようにしてほしい」
+     　「長いから、多少傷アリOK に言葉を変えて」。4つ目に足しました。
+     　在庫は【正規から】引きます（condition は 'normal' のまま・目印 kizuOk を付けるだけ）。
+     　倉庫さんには、発注書の商品名のうしろに「（多少傷アリOK）」で伝わります。
+     ★在庫の計算（condition）を変えないでください。見張り：tests/test_apps.js ② */
   return opt('normal','正規',  false)
        + opt('old',   '旧ロット', false)
-       + opt('defect','不良品',  false);
+       + opt('defect','不良品',  false)
+       + opt('kizu',  '多少傷アリOK', false);
 }
 function refreshLineCondition(row){
   if(!row) return;
@@ -4439,7 +4452,7 @@ function onRecipientLineProductChange(cardId, lineId){
   const giftSel = row.querySelector('[data-role=gift]');
   const isSet = !!(p && p.isSet);
   giftSel.innerHTML = giftOptionsHtml(isSet);
-  giftSel.disabled = isSet;
+  giftSel.disabled = false;   /* ★2026-09-24 セットも選べます（最初はギフト） */
   updateCardGiftSummary(cardId);
   updateRecycleLock(cardId);
   refreshLineCondition(row);
@@ -4498,12 +4511,15 @@ function getRecipientLines(cardId){
     const _cv = (row.querySelector('[data-role=condition]')||{}).value || 'normal';
     return {
       productId: p?p.id:'', productName: p?p.name:'', boxQty: p?(p.boxQty||1):1,
-      giftType: (p&&p.isSet) ? 'gift' : row.querySelector('[data-role=gift]').value,
+      /* ★2026-09-24 セットも種別を選べるように（最初はギフト）。空なら今までどおりギフト */
+      giftType: (p&&p.isSet) ? (row.querySelector('[data-role=gift]').value || 'gift') : row.querySelector('[data-role=gift]').value,
       bottles: parseInt(row.querySelector('[data-role=bottles]').value)||0,
       boxes: parseInt(row.querySelector('[data-role=boxes]').value)||0,
       /* ★2026-08-17 「defect|程度|現or旧」を3つに分けて持つ。
          condition の中身（normal/old/defect）は今までどおりなので、他のアプリは何も変わらない。 */
-      condition: String(_cv).split('|')[0] || 'normal',
+      /* ★2026-09-24 多少傷アリOK（kizu）は、在庫では正規。目印 kizuOk だけ付けます */
+      condition: (_cv === 'kizu') ? 'normal' : (String(_cv).split('|')[0] || 'normal'),
+      kizuOk: (_cv === 'kizu'),
       defectLevel:   (String(_cv).indexOf('defect|')===0 ? String(_cv).split('|')[1] : ''),
       defectLotKind: (String(_cv).indexOf('defect|')===0 ? String(_cv).split('|')[2] : ''),
       memo: row.querySelector('[data-role=memo]').value,
@@ -4595,7 +4611,7 @@ function updateCardGiftSummary(cardId){
   const el = document.getElementById(cardId).querySelector('[data-role=giftSummary]');
   if(!lines.length){ el.innerHTML = '<span style="color:#2b2a26">商品を追加すると内訳が表示されます</span>'; return; }
   el.innerHTML = lines.map(function(l){
-    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+condLabelOfLine(l)+'</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 7px;border-radius:99px">正規</span>');
+    var base = l.productName+' × '+lineTotal(l)+'本'+(l.boxes?'（バラ'+l.bottles+'＋'+l.boxes+'箱）':'')+(l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'')+(l.condition==='old'?'　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>':l.condition==='defect'?'　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+condLabelOfLine(l)+'</span>':(l.kizuOk?'　<span style="background:#fff1cc;color:#8a5a00;font-weight:700;padding:1px 7px;border-radius:99px">多少傷アリOK</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 7px;border-radius:99px">正規</span>'));
     var sp = findProduct(l.productId);
     if(sp && sp.isSet && sp.components && sp.components.length){
       var cnt = (l.bottles||0)+(l.boxes||0)*(l.boxQty||sp.boxQty||1);
@@ -5196,7 +5212,7 @@ function previewOrder(){
           ? '　<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 9px;border-radius:99px">旧ロット</span>'
           : (l.condition==='defect')
           ? '　<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 9px;border-radius:99px">'+condLabelOfLine(l)+'</span>'
-          : '　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 9px;border-radius:99px">正規</span>';
+          : (l.kizuOk?'　<span style="background:#fff1cc;color:#8a5a00;font-weight:700;padding:1px 9px;border-radius:99px">多少傷アリOK</span>':'　<span style="background:#e7efd8;color:#3b5310;font-weight:700;padding:1px 9px;border-radius:99px">正規</span>');   /* ★2026-09-24 多少傷アリOK */
         var gift = (l.giftType!=='normal'?'　['+GIFT_TYPE_LABEL[l.giftType]+']':'');
         var memo = (l.memo && String(l.memo).trim())
           ? '<div style="background:#fffaf0;border-left:3px solid #e0b45f;color:#7a5a12;font-weight:700;padding:3px 8px;border-radius:0 6px 6px 0;margin:3px 0 6px 14px;font-size:12.5px">📝 メモ：'+esc(l.memo)+'</div>'
@@ -10524,7 +10540,9 @@ async function yukaImportOne(id){
     var _pn   = String(l.productName || p.name || '').trim();
     var _lines = [];
     if(_code) _lines.push(_code);
-    if(_pn)   _lines.push(_pn);
+    /* ★2026-09-24 多少傷アリOK は、倉庫さんに伝わるよう商品名のうしろに付けます（3行の形はそのまま）。
+       　在庫は正規から引きます。★消さないでください（倉庫に伝わらなくなります） */
+    if(_pn)   _lines.push(_pn + (l.kizuOk ? '（多少傷アリOK）' : ''));
     if(_exp)  _lines.push('賞味期限 ' + _exp);
     return { name: _lines.join('\n'), qty: qty };
   });
@@ -11068,7 +11086,7 @@ function buildSlipHtml(o){
     /* ★2026-08-17 出荷依頼書には「不良・軽（現ロット）」まで書く（倉庫さんがどの箱から取るか分かるように） */
     const condHtml = cond==='old' ? '<span style="background:#faeeda;color:#633806;font-weight:700;padding:1px 7px;border-radius:99px">旧ロット</span>'
       : cond==='defect' ? '<span style="background:#fcebeb;color:#a32d2d;font-weight:700;padding:1px 7px;border-radius:99px">'+esc(condLabelOfLine(l))+'</span>'
-      : '<span style="color:#2b2a26">正規</span>';
+      : (l.kizuOk ? '<span style="background:#fff1cc;color:#8a5a00;font-weight:700;padding:1px 7px;border-radius:99px">多少傷アリOK</span>' : '<span style="color:#2b2a26">正規</span>');
     /* ★2026-08-18 商品名のうしろに賞味期限を出す（名簿の文字をそのまま）。★消さないでください。 */
     /* ★2026-09-04 ゆかさん指摘：単位が「箱」等の商品（ギフト用空箱など）は、本数の欄に単位まで書く（倉庫が迷わないように） */
     var _u = lineUnit(l);

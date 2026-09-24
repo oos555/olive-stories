@@ -150,7 +150,18 @@ a = freshA();
 const html = a.conditionOptionsHtml(1, 'normal');
 const opts = (html.match(/<option/g) || []).length;
 const dis  = (html.match(/disabled/g) || []).length;
-eq('② 状態の選択肢は3つ（正規・旧ロット・不良品）', opts, 3);
+/* ★2026-09-24 ひろみさん「多少傷があってもOKっていうものも選択できるように」「多少傷アリOK に言葉を変えて」
+   　→ 4つ目を足しました。在庫は【正規から】引きます（condition は normal のまま・目印 kizuOk）。
+   ★3つに戻さないでください。 */
+eq('② 状態の選択肢は4つ（正規・旧ロット・不良品・多少傷アリOK）', opts, 4);
+eq('② 「多少傷アリOK」がある（言葉はひろみさん指定）', html.indexOf('>多少傷アリOK<') >= 0, true);
+eq('② 長い言い方「多少傷があってもOK」は使わない', html.indexOf('多少傷があってもOK') < 0, true);
+{
+  const K = build('index.html', ['condValueOfLine','condLabelOfLine'], {});
+  eq('② 多少傷アリOK の行は、選択肢では kizu に戻る（直すときに正規に化けない）', K.condValueOfLine({ condition:'normal', kizuOk:true }), 'kizu');
+  eq('② 多少傷アリOK の名前', K.condLabelOfLine({ condition:'normal', kizuOk:true }), '多少傷アリOK');
+  eq('② 目印が無ければ今までどおり正規', K.condLabelOfLine({ condition:'normal' }), '正規');
+}
 eq('② 「正規」がある',       html.indexOf('>正規<') >= 0, true);
 /* ★2026-09-12 ひろみさん決定で【逆】になりました。
    　「その括弧 残りゼロ だけを取り除けばいいだけじゃない?」

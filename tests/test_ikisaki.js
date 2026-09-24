@@ -540,6 +540,39 @@ function hacchuushoGyou(payload){
     ok('⑫-5 えらべる一覧に「―」（自動の行の印）を出していない', html5.indexOf('>―<') < 0);
     ok('⑫-6 えらべる一覧に「無料サンプル」がある', html5.indexOf('無料サンプル') >= 0);
     ok('⑫-7 えらべる一覧に「有償サンプル」がある', html5.indexOf('有償サンプル') >= 0);
+    /* ★2026-09-24 ひろみさん「ユアストーリーのギフトとかを…サンプルで渡すときもある。
+       　通常ギフトを選択はするんだけれども、無料サンプル・有償サンプルに変えたりする」
+       ★セットを「ギフト」1つだけ（選べない）に戻さないでください。 */
+    const hSet = gbox.giftOptionsHtml(true);
+    eq('⑫-13 セットで選べるのは ギフト／無料サンプル／有償サンプル',
+       (hSet.match(/value="([^"]+)"/g) || []).map(x => x.slice(7, -1)).join('／'), 'gift／sample_free／sample_paid');
+    ok('⑫-13 セットは最初「ギフト」（いちばん上）', /^<option value="gift"/.test(hSet));
+    /* ★⑫-14・⑫-15 は本物の関数を身代わりの行で動かして確かめます（文字さがしにしない・張りぼて点検 ①） */
+    {
+      const _S = H.makeSandbox({});
+      const setP = { id:9, name:'your story 100ml×3本セット', isSet:true, boxQty:3, components:[] };
+      const mk = (v) => ({ value:v, innerHTML:'', disabled:true, setAttribute(){}, children:[] });
+      const row = { f:{ product:mk('9'), gift:mk(''), bottles:mk('3'), boxes:mk('0'), condition:mk('kizu'), memo:mk(''), machiKind:mk('') },
+        querySelector(sel){ const m = String(sel).match(/data-role=(\w+)/); return m ? (this.f[m[1]] || null) : null; } };
+      const lines = { children:[row] };
+      const card = { querySelector(sel){ return /lines/.test(sel) ? lines : null; } };
+      _S.box.document = { getElementById(id){ return id === 'L1' ? row : card; } };
+      ['giftOptionsHtml','onRecipientLineProductChange','getRecipientLines'].forEach(n => vm.runInContext(H.cut(idx, n), _S.ctx));
+      vm.runInContext(H.cutVar(idx, 'GIFT_TYPE_LABEL') + ';' + H.cutVar(idx, 'GIFT_TYPE_ERABERU') + ';', _S.ctx);
+      _S.box.findProduct = (id) => String(id) === '9' ? setP : null;
+      ['updateCardGiftSummary','updateRecycleLock','refreshLineCondition'].forEach(n => _S.box[n] = function(){});
+      _S.box.machiModeKa = () => false;
+      _S.box.onRecipientLineProductChange('C1', 'L1');
+      ok('⑫-14 セットを選んでも種別を灰色（選べない）にしない（動かして確かめる）', row.f.gift.disabled === false);
+      row.f.gift.value = 'sample_free';
+      const gl = _S.box.getRecipientLines('C1')[0] || {};
+      eq('⑫-15 登録のとき、セットの種別は選んだもの（無料サンプル）を使う', gl.giftType, 'sample_free');
+      row.f.gift.value = '';
+      eq('⑫-15 空なら今までどおりギフト', (_S.box.getRecipientLines('C1')[0] || {}).giftType, 'gift');
+      /* 状態：多少傷アリOK は、在庫では正規（normal）＋目印 kizuOk */
+      eq('⑫-16 多少傷アリOK は在庫では「正規」として登録する', gl.condition, 'normal');
+      eq('⑫-16 多少傷アリOK の目印が付く', gl.kizuOk, true);
+    }
 
     /* 古い注文に卸①価格が入っていたら、その1つだけは見せる（勝手に変えない） */
     const hOld = gbox.giftOptionsHtml(false, 'w1');

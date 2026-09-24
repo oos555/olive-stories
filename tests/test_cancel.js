@@ -105,6 +105,18 @@ b.cancelOrder('r5');
 eq('⑥ 予約のままキャンセル → 15 のまま', b.computeAvailable('ORG250'), 15);
 eq('⑥ ロットも増えない CUR-A 5',          L(b,'CUR-A'), 5);
 
+/* ── ⑧ 状態「多少傷アリOK」は【正規（現ロット）】から引き、キャンセルで戻る（2026-09-24） ──
+   在庫の計算は正規と同じ（condition:'normal'）。目印 kizuOk が付くだけです。 */
+b=fresh();
+b.orders.push({id:'k1',num:'TK-K1',status:'reserved',stockDeducted:false,stockLog:[],
+  lines:[{productId:1,bottles:3,boxes:0,boxQty:1,condition:'normal',kizuOk:true}]});
+b.convertToShipping('k1');
+eq('⑧ 多少傷アリOK は現ロットから引く CUR-A 5→2', L(b,'CUR-A'), 2);
+eq('⑧ 旧ロットには触らない 8',                    L(b,'OLD'),   8);
+eq('⑧ 不良品には触らない（現・軽 4）',              D(b,'D-cur-lv1'), 4);
+b.cancelOrder('k1');
+eq('⑧ キャンセルで現ロットに戻る CUR-A 5',          L(b,'CUR-A'), 5);
+
 /* ── ⑦ 発注書の❌キャンセル☑・↩️差し戻し（GAS）でも、裏ラベルが戻るか（2026-09-24） ──
    ひろみさん「キャンセルでラベルも戻す。それは戻してください」
    前は GAS の oosYukaStockRestoreByKey_ が【オイルだけ】戻して、ラベルは減ったままでした（7件・7枚）。
