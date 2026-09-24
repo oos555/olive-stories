@@ -942,7 +942,7 @@ function hacchuushoGyou(payload){
      ★自動で貼る形に戻さないでください。
      ★同じ決めごとを、別の番号でもう一度書かないでください（2026-09-12 ひろみさん指摘）。
      ══════════════════════════════════════════════════════════════════ */
-  (function(){
+  await (async function(){
     /* 登録したときに、その場では貼らない */
     const reg = H.cut(idx, 'registerOrder').replace(/\/\*[\s\S]*?\*\//g, '');
     ok('⑱-1 登録のときに自動で貼っていない', !/nouhinAttachToOrder\s*\(/.test(reg));
@@ -1082,7 +1082,7 @@ function hacchuushoGyou(payload){
        　「docHariZenbu という字がある」ので合格。その他だけの注文は誰も試していなかった。
        → 4つを外して、ここにまとめました。★文字さがしに戻さないでください。
        ══════════════════════════════════════════════════════════════════ */
-    (function(){
+    await (async function(){
       const _S = H.makeSandbox({});
       let _ug = true;
       ['esc','nagareSt','nagareNokori','nagareWaku','nagareCardHtml','docHareteruKa',
@@ -1093,7 +1093,8 @@ function hacchuushoGyou(payload){
           + 'var OOS_HACCHUSHO_URL = "https://x/hacchusho"; var orders = []; var __yobi = [];'
           + 'function docHari(id, mei){ __yobi.push("docHari:" + mei); }'
           + 'function docHariOther(o){ __yobi.push("docHariOther"); }'
-          + 'function showSyncStatus(){}', _S.ctx);
+          + 'function showSyncStatus(){}'
+          + 'function renderList(){ __yobi.push("renderList"); }', _S.ctx);
       } catch (e) { _ug = false; }
       ok('⑱-70 カードを描く仕掛けを、本物のまま動かせる', _ug);
       if (!_ug) return;
@@ -1123,9 +1124,13 @@ function hacchuushoGyou(payload){
       ok('⑱-75 その他だけ：札に「まだ発注書に貼れていません」とPDFの名前が出る',
          /まだ発注書に貼れていません/.test(B.docFudaHtml(b)) && /#1026児玉恵美子様\.pdf/.test(B.docFudaHtml(b)));
       vm.runInContext('orders = [' + JSON.stringify(b) + ']; __yobi = [];', _S.ctx);
-      vm.runInContext('docHariZenbu("b")', _S.ctx);
-      ok('⑱-76 その他だけ：④を押すと、その他のPDFを貼る係が動く',
-         JSON.stringify(B.__yobi) === JSON.stringify(['docHariOther']));
+      await vm.runInContext('docHariZenbu("b")', _S.ctx);
+      ok('⑱-76 その他だけ：④を押すと、その他のPDFを貼る係が動く', B.__yobi[0] === 'docHariOther');
+      /* ★2026-09-24 本番で私（Claude）が押して確かめたら、発注書には貼れているのに
+         　カードが「④ いまここ」のままでした（描き直しを呼んでいなかった）。
+         　これでは「貼れていない」と見えて、また押し直すことになります。 */
+      ok('⑱-76 その他だけ：貼ったあと、カードを描き直す（「④ いまここ」のまま残さない）',
+         B.__yobi.indexOf('renderList') > B.__yobi.indexOf('docHariOther'));
       V({ KB:[{ '文字':'📄 #1026児玉恵美子様.pdf（ひらく）', 'リンク':'https://x/other-b' }] });
       ok('⑱-77 その他だけ：貼れたら④は✅、⑤で発注書スプシを開ける',
          !oshiteru(B.nagareCardHtml(b), 'b') && goAkeru(B.nagareCardHtml(b)));

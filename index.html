@@ -482,7 +482,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-24-01">
+<meta name="oos-version" content="2026-09-24-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -9720,7 +9720,19 @@ async function docHariZenbu(id){
   if(!meis.length && !otherNokori){ if(typeof showSyncStatus === 'function') showSyncStatus('📌 もう貼れています'); return; }
   for(var i = 0; i < meis.length; i++){ await docHari(id, meis[i]); }
   /* ★2026-09-13 「その他（自分で書く）」で入れたPDFも、同じV列へ（2つまで／パンフレットは数えません） */
-  if(otherNokori) await docHariOther(o);
+  if(otherNokori){
+    await docHariOther(o);
+    /* ★2026-09-24 本番で押して確かめたら、発注書には貼れているのに
+       　カードが「④ いまここ」のままでした（ここで描き直していなかった）。
+       　納品書（docHari）と同じく、貼ったらカードを描き直して結果を出します。
+       ★消さないでください。「貼れていない」と見えて、また押し直すことになります。
+       見張り：tests/test_ikisaki.js ⑱-76 */
+    if(typeof renderList === 'function') renderList();
+    if(typeof showSyncStatus === 'function'){
+      if(docOtherHattaKa(o)) showSyncStatus('📌 発注書に貼りました（' + (o.otherDocName || 'その他の書類') + '）');
+      else showSyncStatus('⚠ 貼れませんでした（' + (o.otherDocName || 'その他の書類') + '）。カードに理由が出ています。', true);
+    }
+  }
 }
 /* その他の書類のPDFを、発注書のV列に貼る（ひろみさん指示・2026-09-13） */
 async function docHariOther(o){
