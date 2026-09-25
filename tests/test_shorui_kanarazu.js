@@ -434,6 +434,33 @@ inc('⑧「金額があれば出す」に戻っていない', H.read('oos-nouhin
      mujun.length ? ('→ ' + mujun.join(' ／ ') + '　★2026-09-11の決めごと【枠は必ず出す】と矛盾') : '');
 }
 
+/* ══ ⑨ お客様へのひとこと（2026-09-25 ひろみさん確定） ══════════════════════
+   「商品の明細の真下、小計や合計の金額が全部終わったその下、今枠で書いている文章の上」
+   「最大100文字」「入力がなくても枠だけは出る」「見出しはなし」「納品書・請求書・領収書、兼、RTの納品書もすべて」 */
+{
+  const MSG = 'このたびはご注文ありがとうございます。';
+  const withMsg = (x) => Object.assign(mkOrder(x), { okyakuMsg: MSG });
+  ['納品書兼請求書','納品書兼領収書','納品書','請求書','領収書'].forEach(function(mei){
+    box.__o = withMsg({ customerType:'general', warehouseFee:0, shippingFee:0, enclosedDoc: mei });
+    const h = String(vm.runInContext('OOS_NOUHIN.build(__o, __d, ' + JSON.stringify(mei) + ')', ctx));
+    ok('⑨「' + mei + '」にお客様へのひとことが出る', h.indexOf('class="doc2-okyaku"') >= 0 && h.indexOf(MSG) >= 0);
+  });
+  { box.__o = withMsg({ customerType:'rt', warehouseFee:700, shippingFee:880, enclosedDoc:'RT発注伝票＋納品書' });
+    const h = String(vm.runInContext('OOS_NOUHIN.build(__o, __d, "納品書")', ctx));
+    ok('⑨RTの納品書にも出る', h.indexOf('class="doc2-okyaku"') >= 0 && h.indexOf(MSG) >= 0); }
+  const h0 = String(nouhin(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:0 })));
+  ok('⑨書いていなくても、枠はいつも出る（1つだけ）', (h0.match(/class="doc2-okyaku"/g) || []).length === 1);
+  const hS = String(nouhin(withMsg({ customerType:'general', warehouseFee:0, shippingFee:0, enclosedDoc:'納品書兼請求書' })));
+  const pT = hS.indexOf('合計（税込）'), pW = hS.indexOf('class="doc2-okyaku"'), pB = hS.indexOf('【お振込先】'), pH = hS.indexOf('破損していた場合');
+  ok('⑨場所：合計（税込）の下', pT >= 0 && pT < pW);
+  ok('⑨場所：お振込先・破損の枠の上', pW < pB && pW < pH);
+  ok('⑨見出しは出さない', !/お客様へのひとこと/.test(hS));
+  const naga = 'あ'.repeat(150);
+  const hL = String(nouhin(Object.assign(mkOrder({ customerType:'general', warehouseFee:0, shippingFee:0 }), { okyakuMsg: naga })));
+  ok('⑨100文字より長くても、書類には100文字まで', hL.indexOf('あ'.repeat(100)) >= 0 && hL.indexOf('あ'.repeat(101)) < 0);
+  ok('⑨枠の大きさは決まっている（文字の量で変えない）', /class="doc2-okyaku" style="[^"]*height:5\.25em;overflow:hidden/.test(hS) && /height:5\.25em;overflow:hidden/.test(h0));
+}
+
 console.log('===== 📄 書類に【必ず載るもの】（2026-09-11）=====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(function(f){ console.log('  ' + f); }); }

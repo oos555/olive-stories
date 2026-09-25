@@ -67,6 +67,19 @@
   /* 書類を1枚つくる
      opt = { title, addressee, zip, addr, tel, metaRight:[…], lead, items:[{name,qty,unitPrice,amount,taxRate}],
              showAmount, bankIndex, notes:[…], footNote } */
+  /* ══════════════════════════════════════════════════════════════════════
+     💬 お客様へのひとこと の枠　★2026-09-25 ひろみさん確定
+     ・最大100文字。書いていなくても枠は出す（大きさはいつも同じ＝3行ぶん）
+     ・見出しなし。はみ出す分は出しません（100文字なら2行で収まります）
+     ★大きさを文字の量で変える形にしないでください（ひろみさん：枠が決まっていればバグが起きにくい）
+     ══════════════════════════════════════════════════════════════════════ */
+  function okyakuWakuHtml(opt){
+    if(!opt || !opt.okyakuWaku) return '';
+    var t = String(opt.okyakuMsg || '').replace(/[\r\n]+/g, ' ').slice(0, 100);
+    return '<div class="doc2-okyaku" style="border:1px solid #e8e2d8;border-radius:6px;padding:8px 12px;margin:.6rem 0 0;'
+         + 'font-size:12.5px;line-height:1.75;height:5.25em;overflow:hidden;box-sizing:content-box;color:#2b2a26">'
+         + esc(t) + '</div>';
+  }
   function buildDoc(opt){
     injectCss();
     opt = opt || {};
@@ -228,6 +241,7 @@
       /* ★2026-08-19 ひろみさん指示：※印の断り書きは、合計（税込）のすぐ下に置く。
          いちばん下の備考に混ぜないでください（読み手がすぐ結びつけられるように） */
       if(sub8) h += '<div style="text-align:right;font-size:11px;color:#57534e;margin:-10px 0 14px">※印は軽減税率対象商品です。</div>';
+      h += okyakuWakuHtml(opt);   /* ★2026-09-25 お客様へのひとこと（お振込先・破損の枠の上） */
       var bank = BANK_ACCOUNTS[opt.bankIndex||0] || BANK_ACCOUNTS[0];
       /* ★2026-08-19 ゆかさん報告：納品書に振込先を出さない。
          お振込先は【請求書・領収書を兼ねるとき】だけ。★戻さないでください */
@@ -239,6 +253,8 @@
          + '<span style="color:#57534e">恐れ入りますが、お振込手数料はお客様のご負担にてお願いいたします。</span></div>';
     }
 
+    /* 金額の表が無い書類でも、枠は1回だけ出します（上で出していなければ） */
+    if(opt.okyakuWaku && h.indexOf('class="doc2-okyaku"') < 0) h += okyakuWakuHtml(opt);
     (opt.notes||[]).forEach(function(n){
       h += '<div class="invoice-doc-note">'+n+'</div>';
     });

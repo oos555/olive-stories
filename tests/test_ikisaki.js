@@ -1319,6 +1319,19 @@ function hacchuushoGyou(payload){
       ok('⑱-92 統合マスタＮで入れた在庫が見えて、登録まで進む', kiroku.reg.length === reg0 + 1 && log().indexOf('在庫が足りません') < 0);
       ok('⑱-92 画面の在庫も新しくなる（新しいロットから引ける）', B.lots.some(function(l){ return l.id === 'CUP-A'; }));
     })();
+    /* ══ ⑱-95 お客様へのひとこと・倉庫への連絡（2026-09-25 ひろみさん確定） ══ */
+    await (async function(){
+      { const pN = idx.indexOf('<input type="text" data-role="note"'), lb = idx.lastIndexOf('<label>', pN);
+        ok('⑱-95 備考の名前は「倉庫への連絡（任意）」', pN > 0 && idx.slice(lb, pN).indexOf('倉庫への連絡') >= 0 && idx.slice(lb, pN).indexOf('備考') < 0); }
+      ok('⑱-95 お客様へのひとことは最大100文字（それ以上は打てない）', /<textarea data-role="okyakuMsg" maxlength="100"/.test(idx) && /<textarea id="rt-okyaku-msg" maxlength="100"/.test(idx));
+      const _S = H.makeSandbox({});
+      vm.runInContext(H.cut(idx, 'okyakuMsgKazoeru'), _S.ctx);
+      const kazu = { textContent:'', style:{} };
+      const el = { value:'い'.repeat(120), closest(){ return { querySelector(){ return kazu; } }; } };
+      _S.box.okyakuMsgKazoeru(el);
+      ok('⑱-95 貼り付けで100文字を超えても、100文字で止める', el.value.length === 100 && kazu.textContent === '100 / 100文字');
+      ok('⑱-95 お客様へのひとことは発注書（倉庫）へ送らない', H.cut(idx, 'yukaImportOne').indexOf('okyakuMsg') < 0);
+    })();
 
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
