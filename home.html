@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-03">
+<meta name="oos-version" content="2026-09-25-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-08-18 玄関でも在庫を数えるため、親を読む。★消さないでください
      ★2026-09-13 見張りを2つに減らしたので、いまは玄関では使っていません。
@@ -678,7 +678,7 @@
 
   /* ============================================================
      鍵①：玄関(home.html)自体のロック
-     ・localStorage の oos_gate_ok に '1' が入っていれば、
+     ・localStorage の oos_gate_ok に OOS_GATE_HAN（版）が入っていれば、
        日付を見ずにずっと解錠されたまま（＝毎回は聞かない）
      ・パスワードは GAS の GROUP_PASSWORDS.gate（スタッフ共通の玄関鍵。値はGAS側にのみ保持）を
        verifyPassword(group:'gate') で照合する
@@ -686,9 +686,14 @@
        玄関を開けても社長専用の印(oos_unlock_secret)は立てないので、
        E/G/H/I/K は玄関を開けたあとでも改めて社長専用パスワードを求める
      ============================================================ */
+  /* ★2026-09-25 ひろみさん「一旦開きなおすようにさせて」（パスワードを全部変えたため）
+     　玄関の印は【版】で持ちます。OOS_GATE_HAN と同じ値のときだけ開いたまま。前の印（'1'）や古い版は消して、もう一度聞きます。
+     　次にパスワードを変えたときは、home.html・index.html・rt_chef_daicho.html の OOS_GATE_HAN を3つとも同じ新しい値にしてください。
+     　見張り：tests/test_genkan.js ⑭（3つが同じか・古い印では開かないか） */
+  var OOS_GATE_HAN = 'kagi-2026-09-25';
   function gateCheck(){
     let ok = false;
-    try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
+    try{ ok = localStorage.getItem('oos_gate_ok') === OOS_GATE_HAN; if(!ok) localStorage.removeItem('oos_gate_ok'); }catch(e){}
     if(ok){
       document.getElementById('main-wrap').classList.add('gate-open');
       initAlerts();
@@ -714,7 +719,7 @@
       });
       const data = await res.json();
       if(data.status==='ok'){
-        try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
+        try{ localStorage.setItem('oos_gate_ok', OOS_GATE_HAN); }catch(e){}
         document.getElementById('gate-overlay').classList.remove('show');
         document.getElementById('main-wrap').classList.add('gate-open');
         initAlerts();

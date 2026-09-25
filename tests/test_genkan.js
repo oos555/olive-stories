@@ -190,13 +190,14 @@ async function juchuAKagi(){
       document:{ getElementById:(id)=>els[id] },
       localStorage:{ setItem:(k,v)=>{ store[k]=v; }, getItem:(k)=>store[k]||null },
       fetch: async (u, opt)=>{ const b = JSON.parse(opt.body); let ok = false;
-        if(b.action==='verifyPassword') ok = (b.group==='gate' && b.password===KAGI.gate);
-        if(b.action==='loadStickyMemos') ok = (b.sheetName==='付箋メモI' && b.password===KAGI.secret);
+        /* ★2026-09-25 サーバー（GAS verifyPassword）と同じ：玄関は、玄関の鍵でも社長の鍵でも開く。付箋メモIへの二重の照合は外した */
+        if(b.action==='verifyPassword') ok = (b.group==='gate' && (b.password===KAGI.gate || b.password===KAGI.secret));
+        if(b.action==='loadStickyMemos') ok = false;
         return { json: async ()=>(ok ? {status:'ok'} : {status:'error', message:'パスワードが違います'}) }; } };
     vm.createContext(box);
-    vm.runInContext(H.cut(idx, 'oosPwSoroe') + '\n' + H.cut(idx, 'gateUnlock'), box);
+    vm.runInContext(H.cutVar(idx, 'OOS_GATE_HAN') + ';\n' + H.cut(idx, 'oosPwSoroe') + '\n' + H.cut(idx, 'gateUnlock'), box);
     await box.gateUnlock();
-    return store['oos_gate_ok'] === '1';
+    return store['oos_gate_ok'] === box.OOS_GATE_HAN && !!box.OOS_GATE_HAN;
   }
   eq('⑩ 受注Ａ：玄関のパスワードで開く（スタッフ）', await tamesu(KAGI.gate), true);
   eq('⑩ 受注Ａ：社長のパスワードでも開く（ひろみさん）', await tamesu(KAGI.secret), true);
@@ -305,6 +306,41 @@ async function kagiNokosu(){
     }catch(e){ fail++; fails.push('⑬ ' + mei + 'を動かせませんでした：' + e.message); }
   }
 }
+
+/* ══════ ⑭ 玄関は一度だけ開きなおす（2026-09-25 ひろみさん「一旦開きなおすようにさせて」パスワードを全部変えたため）══════
+   玄関の印を【版】で持つ。前の印（'1'）では開かず、印は消える。3つのページの版は同じ。 */
+function gateHan(){
+  const path = require('path');
+  const hans = {};
+  for (const file of ['home.html', 'index.html', 'rt_chef_daicho.html']) {
+    const hs = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    const m = hs.match(/var OOS_GATE_HAN = '([^']+)'/);
+    hans[file] = m ? m[1] : null;
+    if (file === 'rt_chef_daicho.html') continue;
+    for (const [mae, mei] of [['1', '前の印（1）'], ['kagi-2000-01-01', '古い版の印'], [null, '印なし']]) {
+      const store = mae == null ? {} : { oos_gate_ok: mae };
+      let deta = false;
+      const box = { console,
+        localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } },
+        document:{ getElementById:(id)=>({ classList:{ add(){ if(id==='gate-overlay') deta = true; }, remove(){} }, focus(){} }) },
+        setTimeout(){}, initAlerts(){} };
+      vm.createContext(box);
+      vm.runInContext(H.cutVar(hs, 'OOS_GATE_HAN') + ';\n' + H.cut(hs, 'gateCheck'), box);
+      box.gateCheck();
+      eq('⑭ ' + file + '：' + mei + 'では玄関がもう一度聞く', deta, true);
+      eq('⑭ ' + file + '：' + mei + 'は消える（上に重ならない）', 'oos_gate_ok' in store, false);
+    }
+    { const store = { oos_gate_ok: hans[file] }; let deta = false;
+      const box = { console, localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem(){}, removeItem:(k)=>{ delete store[k]; } },
+        document:{ getElementById:(id)=>({ classList:{ add(){ if(id==='gate-overlay') deta = true; }, remove(){} }, focus(){} }) }, setTimeout(){}, initAlerts(){} };
+      vm.createContext(box);
+      vm.runInContext(H.cutVar(hs, 'OOS_GATE_HAN') + ';\n' + H.cut(hs, 'gateCheck'), box);
+      box.gateCheck();
+      eq('⑭ ' + file + '：新しい版の印なら、聞かずに開いたまま', deta, false); }
+  }
+  eq('⑭ 玄関の版は3つのページで同じ（玄関・受注Ａ・RT台帳）', !!hans['home.html'] && hans['home.html'] === hans['index.html'] && hans['home.html'] === hans['rt_chef_daicho.html'], true);
+}
+try{ gateHan(); }catch(e){ fail++; fails.push('⑭ 玄関の版を確かめられませんでした：' + e.message); }
 
 juchuAKagi().then(atelierKagi).then(kagiNokosu).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');

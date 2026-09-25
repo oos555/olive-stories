@@ -483,7 +483,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-03">
+<meta name="oos-version" content="2026-09-25-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2351,13 +2351,18 @@ function refreshAllDeliveryMins(){
 
 /* ════════════════════════════════════════════════════════════════
    玄関の鍵（home.htmlと共通）
-   ・localStorage の oos_gate_ok に '1' が入っていれば、
+   ・localStorage の oos_gate_ok に OOS_GATE_HAN（版）が入っていれば、
      この端末ではもう聞かない（日付での区切りなし）
-   ・パスワード照合は home.html と同じ loadStickyMemos 経由
+   ・パスワード照合は home.html と同じ verifyPassword（gate）。社長のパスワードでもサーバーが開けます（GAS@359〜）
    ════════════════════════════════════════════════════════════════ */
+/* ★2026-09-25 ひろみさん「一旦開きなおすようにさせて」（パスワードを全部変えたため）
+   　玄関の印は【版】で持ちます。OOS_GATE_HAN と同じ値のときだけ開いたまま。前の印（'1'）や古い版は消して、もう一度聞きます。
+   　次にパスワードを変えたときは、home.html・index.html・rt_chef_daicho.html の OOS_GATE_HAN を3つとも同じ新しい値にしてください。
+   　見張り：tests/test_genkan.js ⑭（3つが同じか・古い印では開かないか） */
+var OOS_GATE_HAN = 'kagi-2026-09-25';
 function gateCheck(){
   let ok = false;
-  try{ ok = localStorage.getItem('oos_gate_ok') === '1'; }catch(e){}
+  try{ ok = localStorage.getItem('oos_gate_ok') === OOS_GATE_HAN; if(!ok) localStorage.removeItem('oos_gate_ok'); }catch(e){}
   if(ok){
     document.getElementById('main-wrap').classList.add('gate-open');
   } else {
@@ -2384,25 +2389,17 @@ async function gateUnlock(){
        　前は【社長のパスワードだけ】で照合していました（付箋メモIの入口）。
        　画面には「玄関の鍵」と出ているのに、玄関のパスワードでは
        　「パスワードが違います」になり、スタッフが入れませんでした。
-       → まず玄関の鍵（home.html と同じ verifyPassword / gate）で見て、
-       　合わなければ社長の鍵（いままでどおり）で見ます。
-       ★どちらか片方だけに戻さないでください。 */
+       ★2026-09-25 サーバー（verifyPassword の gate）が、玄関の鍵でも社長の鍵でも開けるようにしました。
+       　そのため、ここで社長の鍵（付箋メモIの入口）をもう一度たずねる二重の照合は外しました。
+       　★二重の照合を戻さないでください（同じ決めごとが2か所になります）。 */
     let res = await fetch(GAS_URL, {
       method:'POST',
       body: JSON.stringify({ action:'verifyPassword', group:'gate', password: pw }),
       headers: {'Content-Type':'text/plain;charset=utf-8'}
     });
     let data = await res.json();
-    if(data.status!=='ok'){
-      res = await fetch(GAS_URL, {
-        method:'POST',
-        body: JSON.stringify({ action:'loadStickyMemos', sheetName:'付箋メモI', password: pw }),
-        headers: {'Content-Type':'text/plain;charset=utf-8'}
-      });
-      data = await res.json();
-    }
     if(data.status==='ok'){
-      try{ localStorage.setItem('oos_gate_ok','1'); }catch(e){}
+      try{ localStorage.setItem('oos_gate_ok', OOS_GATE_HAN); }catch(e){}
       document.getElementById('gate-overlay').classList.remove('show');
       document.getElementById('main-wrap').classList.add('gate-open');
     } else {
