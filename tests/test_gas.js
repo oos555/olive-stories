@@ -261,13 +261,15 @@ eq('参考：0 で止まる', oya3, 0);
   };
   const tabs = {};
   const kanri = { getSheetByName(n){ return tabs[n] || null; }, insertSheet(n){ return (tabs[n] = new Sh()); }, getEditors(){ return []; } };
+  const shTabs = {}; let tsukutta = 0; const props = {};
+  const shacho = { getSheetByName(n){ return shTabs[n] || null; }, getSheets(){ return Object.keys(shTabs).map(k => shTabs[k]); }, insertSheet(n){ return (shTabs[n] = new Sh()); }, getId(){ return 'SHACHO'; } };
   const alive = {};
   let hi = null;
   const RealDate = Date;
   class FakeDate extends RealDate { constructor(...a){ if(a.length) super(...a); else if(hi) super(hi[0], hi[1] - 1, hi[2], 12); else super(); } }
   const ctx = vm.createContext({ console, Math, JSON, String, Number, Object, Array, RegExp, Error, parseInt, Date: FakeDate,
-    SpreadsheetApp:{ openById(){ return kanri; } },
-    PropertiesService:{ getScriptProperties(){ return { getProperty(k){ return k === 'OOS_KANRI_FILE_ID' ? 'K' : null; } }; } },
+    SpreadsheetApp:{ openById(id){ return id === 'SHACHO' ? shacho : kanri; }, create(){ tsukutta++; return shacho; } },
+    PropertiesService:{ getScriptProperties(){ return { getProperty(k){ return k === 'OOS_KANRI_FILE_ID' ? 'K' : (props[k] || null); }, setProperty(k, v){ props[k] = v; } }; } },
     LockService:{ getScriptLock(){ return { waitLock(){}, releaseLock(){} }; } },
     DriveApp:{ getFileById(id){ if(!alive[id]) throw new Error('no'); return { isTrashed(){ return false; } }; } },
     Utilities:{ formatDate(d, tz, f){ const p = n => ('0' + n).slice(-2); return f.replace('yyyy', d.getFullYear()).replace('MM', p(d.getMonth() + 1)).replace('dd', p(d.getDate())); } },
@@ -294,6 +296,14 @@ eq('参考：0 で止まる', oya3, 0);
     ctx.oosHakkouLinkTenken();
     eq('発行記録③ 週1回の点検でキャンセルの灰色を白に戻さない', sh.bg[2], '#eeece6');
     eq('発行記録③ 開けるPDFの行は白', sh.bg[4], null);
+    /* ★2026-09-25 サンプル発送先は社長専用スプシ・［終了］は古い画面からの保存で戻らない */
+    const ss = ctx.oosSampleSheet_(); ctx.oosSampleSheet_();
+    eq('サンプル⑦ 社長専用のファイルを1回だけ作る（2回目は作らない）', tsukutta, 1);
+    ss.c.push(['2026-09-20', 'A社', 'オイル', '無償', 'TK-1', '', '', '', '', '送った', '', 'o1', '']);
+    ctx.oosSampleOwari('o1');
+    ctx.oosSampleSave({ id:'o1', mokuteki:'x', jokyo:'反応待ち' });
+    eq('サンプル⑦ ［終了］した行は、古い画面から保存しても「終了」のまま', ss.c[1][9], '終了');
+    eq('サンプル⑦ 終了した日が入る', /^\d{4}-\d{2}-\d{2}$/.test(ss.c[1][12]), true);
   }
 }
 

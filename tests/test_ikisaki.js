@@ -1359,7 +1359,7 @@ function hacchuushoGyou(payload){
           + 'function noshipDocErabi(){ return "請求書"; } function noshipZaikoErabi(){ return __zaiko; } var __zaiko = "";'
           + 'async function nouhinBuildPdfB64(o, m){ return "QUJD"; } function hakkouPdfHiraku(b, n){ __k.dl.push(n); }'
           + 'function nouhinDeps(){ return {}; } function nouhinFileName(o, m){ return m + ".pdf"; }'
-          + 'fetch = async function(u, opt){ var b = JSON.parse(opt.body); __k.post.push(b); return { json: async function(){ return { status:"ok", url:"https://drive/x", name:b.baseName + ".pdf", dropbox:"鍵待ち" }; } }; };'
+          + 'fetch = async function(u, opt){ if(!opt){ __k.get = (__k.get || []).concat([String(u)]); return { json: async function(){ return { status:"ok" }; } }; } var b = JSON.parse(opt.body); __k.post.push(b); return { json: async function(){ return { status:"ok", url:"https://drive/x", name:b.baseName + ".pdf", dropbox:"鍵待ち" }; } }; };'
           + 'async function zaikoYomiNaosu(){} function checkStockShortage(){ return []; } function zaikoYometeruKa(){ return true; }'
           + 'function applyStockDeductOnSend(o){ __k.heras++; o.stockDeducted = true; } function persistStockDeduct(){}'
           + 'function yukaImportOne(){ __k.yuka++; } function yoyakuListAddOne(){ __k.yuka++; }'
@@ -1430,6 +1430,17 @@ function hacchuushoGyou(payload){
       ok('⑱-99 それでも発注書へは送らない', kiroku.yuka === 0);
       await B.noshipCancel(B.orders[1].id);
       const _c2 = kiroku.post[kiroku.post.length - 1] || {};
+      /* ★2026-09-25 無料／有償サンプルの注文を登録したら、保存のあとサンプル発送先（社長専用スプシ）へすぐ足してもらう */
+      const _g0 = (kiroku.get || []).length;
+      B._pendingOrders = [mk('n5', { lines:[{ productName:'オイル', bottles:1, boxes:0, boxQty:6, giftType:'sample_free' }] })];
+      B.docKakuninSuru(B._pendingOrders[0], '請求書'); B.registerOrder({ ikki:true });
+      await new Promise(function(r){ setImmediate(r); }); await new Promise(function(r){ setImmediate(r); });
+      ok('⑱-99 サンプルの注文を登録すると、サンプル発送先へ足す知らせを送る', (kiroku.get || []).slice(_g0).some(function(u){ return u.indexOf('action=oosSampleSync') >= 0; }));
+      const _g1 = (kiroku.get || []).length;
+      B._pendingOrders = [mk('n6', { lines:[{ productName:'オイル', bottles:1, boxes:0, boxQty:6, giftType:'normal' }] })];
+      B.docKakuninSuru(B._pendingOrders[0], '請求書'); B.registerOrder({ ikki:true });
+      await new Promise(function(r){ setImmediate(r); }); await new Promise(function(r){ setImmediate(r); });
+      ok('⑱-99 サンプルでない注文では送らない', (kiroku.get || []).slice(_g1).every(function(u){ return u.indexOf('oosSampleSync') < 0; }));
       ok('⑱-99 キャンセル：減らした在庫を1回だけ戻し、メモに「在庫：2本戻しました」', B.orders[1].status === 'cancelled' && kiroku.modoshi === 1 && /在庫：2本戻しました$/.test(_c2.memo) && _c2.bangou === '20260925-1111');
 
       /* C. あとから領収書のさがす窓口 */
