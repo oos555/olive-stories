@@ -41,20 +41,23 @@ function eq(name, a, b){ if(a === b){ pass++; } else { fail++; fails.push(name +
   /* 編集画面も選ぶ形 */
   eq('① 名簿を直す画面の単位表示も▼', src.indexOf('<select id="mp-tani">') > 0 && src.indexOf("fg('単位表示（空でOK）','mp-tani'") < 0, true);
 
-  /* ② 小口卸取引先：合計本数の列が無い（本物の renderPartnerMatrix を動かす） */
+  /* ② 小口卸取引先（2026-09-25 書き直し）
+     ひろみさん「価格リストを見ればわかるね。二重になるから、一番下の取引先の連絡先の部分だけのこし、上の商品リストは全部消そう。
+     　下の取引先の連絡先のところ、いつから取引しているのか、というお取引開始時期という欄をもうけておいて」
+     → 合計本数どころか、商品×取引先の卸価格の表ごとやめたので、前の「合計本数が無い」見張りは外しました。 */
+  const pan = src.slice(src.indexOf('<div id="panel-partners" class="panel">'), src.indexOf('<div id="partner-contact-list"></div>'));
+  eq('② 小口卸取引先のタブに、商品×取引先の卸価格の表が無い（価格リストと二重にしない）', pan.indexOf('<table') < 0 && src.indexOf('renderPartnerMatrix') < 0, true);
   try{
-    const els = { 'partner-matrix-head': { innerHTML:'' }, 'partner-matrix-body': { innerHTML:'' } };
-    const box2 = { console, document:{ getElementById: id => els[id] },
-      salesPartners:[{ id:'a', name:'葛西さん' }], PRODUCTS:[{ sku:'ORG100', name:'オルガニック 100ml', group:'オルガニック' }],
-      mGroupOrder: () => ['オルガニック'], mIsActive: () => true, mPriceFor: () => null, partnerPriceFor: () => 1000,
-      partnerSoldQty: () => 3, yen: n => '¥' + n };
-    box2.esc = s => String(s == null ? '' : s);
+    const vals = { 'sp-name-a':'葛西さん', 'sp-cat-a':'卸①', 'sp-contact-a':'', 'sp-email-a':'', 'sp-tel-a':'', 'sp-addr-a':'', 'sp-quote-a':'', 'sp-note-a':'', 'sp-start-a':'2024年4月' };
+    let commit = 0;
+    const box2 = { console, Date, document:{ getElementById: id => (id in vals ? { value: vals[id] } : null) },
+      salesPartners:[{ id:'a', name:'葛西さん' }], commitSalesPartners(){ commit++; }, renderPartnerContacts(){} };
     vm.createContext(box2);
-    vm.runInContext(H.cut(src, 'renderPartnerMatrix'), box2);
-    box2.renderPartnerMatrix();
-    eq('② 小口卸取引先の見出しに「合計本数」が無い', els['partner-matrix-head'].innerHTML.indexOf('合計本数') < 0 && /葛西さん/.test(els['partner-matrix-head'].innerHTML), true);
-    eq('② 区分の行は 商品＋取引先の数 のはば', /colspan="2"/.test(els['partner-matrix-body'].innerHTML), true);
+    vm.runInContext(H.cut(src, 'findSalesPartner') + '\n' + H.cut(src, 'savePartner'), box2);
+    box2.savePartner('a');
+    eq('② 「お取引開始時期」を保存する', box2.salesPartners[0].startDate === '2024年4月' && commit === 1, true);
   }catch(e){ fail++; fails.push('② 動かせませんでした：' + e.message); }
+  eq('② 連絡先の画面に「お取引開始時期」の欄', /お取引開始時期<\/label><input type="text" id="sp-start-'\+p\.id\+'"/.test(H.cut(src, 'renderPartnerContacts')), true);
 
   /* ③ ログのタブ */
   eq('③ ログのタブに「使っていません」', /showPanel\('ilog',this\)[^>]*>🕓 ログ（使っていません）<\/button>/.test(src), true);
