@@ -205,15 +205,18 @@ async function juchuAKagi(){
      日本語入力のまま打つと全角になり、見た目は同じでも「違います」になっていた。 */
   eq('⑪ 受注Ａ：全角で打った玄関のパスワードでも開く', await tamesu('ＧＡＴＥ１２３'), true);
   eq('⑪ 受注Ａ：前後に空白が入っていても開く', await tamesu(' GATE123　'), true);
+  /* 2026-09-25 ひろみさん「また入れない」：鍵はすべて英大文字＋数字。小文字で打っても開く */
+  eq('⑪ 受注Ａ：小文字で打っても開く', await tamesu('gate123'), true);
+  eq('⑪ 受注Ａ：全角の小文字で打っても開く', await tamesu('ｇａｔｅ１２３'), true);
 }
 /* ⑪ 玄関（home.html）の社長の鍵・マーケ（お隣）の鍵も、全角をそろえてから照合する */
 async function atelierKagi(){
   const KAGI = 'SECRET456';
   /* 玄関の社長の鍵：本物の presUnlock に全角で入れて、サーバーへ半角で届くか */
-  {
+  for (const [utta, mei] of [['ＳＥＣＲＥＴ４５６','全角で打っても'], ['secret456','小文字で打っても'], ['ｓｅｃｒｅｔ４５６','全角の小文字で打っても']]) {
     const hs = H.read('home.html');
     let okutta = null;
-    const els = { 'pres-pw-input':{ value:'ＳＥＣＲＥＴ４５６' }, 'pres-err':{ textContent:'' }, 'pres-ok-btn':{ disabled:false },
+    const els = { 'pres-pw-input':{ value:utta }, 'pres-err':{ textContent:'' }, 'pres-ok-btn':{ disabled:false },
                   'pres-overlay':{ classList:{ remove(){}, add(){} } } };
     const box = { JSON, String, Promise, console, GAS_URL:'x', window:{ location:{} },
       document:{ getElementById:(id)=>els[id] || { style:{}, classList:{ add(){}, remove(){} }, textContent:'' } },
@@ -224,7 +227,7 @@ async function atelierKagi(){
     try{
       vm.runInContext(H.cut(hs, 'oosPwSoroe') + '\n' + H.cut(hs, 'presUnlock'), box);
       await box.presUnlock();
-      eq('⑪ 玄関の社長の鍵：全角で打っても、半角でサーバーへ届く', okutta, KAGI);
+      eq('⑪ 玄関の社長の鍵：' + mei + '、半角の大文字でサーバーへ届く', okutta, KAGI);
     }catch(e){ fail++; fails.push('⑪ 玄関の社長の鍵を動かせませんでした：' + e.message); }
   }
   /* マーケの鍵：全角で開く／サーバーが混んでいるときに「違います」と言わない・鍵を消さない */
