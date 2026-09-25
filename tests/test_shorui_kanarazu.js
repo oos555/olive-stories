@@ -360,7 +360,8 @@ inc('⑧「金額があれば出す」に戻っていない', H.read('oos-nouhin
   /* 名簿（統合マスタＮ）に列があること／決め方を写していないこと */
   const mst = H.read('master.html');
   inc('⑥名簿に「単位表示」の列がある', mst, '単位表示<br>', true);
-  inc('⑥名簿は親を呼ぶだけ（写しを作らない）', mst, 'OOS_SHORUI.taniOf(p)', true);
+  /* ★2026-09-25 名簿の単位は▼で選ぶ形に。「（自動：◯）」の◯は、書いた単位を外して親に聞いた値（親を呼ぶのは同じ） */
+  inc('⑥名簿は親を呼ぶだけ（写しを作らない）', H.cut(mst, 'meiboTaniCell'), 'OOS_SHORUI.taniOf(Object.assign({}, p,', true);
   inc('⑥名簿の「単位表示」を保存している', mst, "'単位表示': (document.getElementById('mp-tani')", true);
 }
 /* ══ ⑦ 振込先は【人が選ぶ】（2026-09-13 ひろみさん指示）══════════════════

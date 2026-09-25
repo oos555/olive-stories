@@ -456,7 +456,7 @@ tr.totalrow td{border-top:1px solid #ddd8cc;background:#f9f8f5}
 tr.totalrow .num{font-size:17px}
 tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c1c}
 </style>
-<meta name="oos-version" content="2026-09-25-01">
+<meta name="oos-version" content="2026-09-25-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -581,7 +581,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
        数字は在庫リストの取置列（うち自動◯）・予約列に出ています。戻したいときは style="display:none" を消してください。 -->
   <button class="tab" style="display:none" onclick="showPanel('hold',this)">👀 取り置き</button>
   <button class="tab" style="display:none" onclick="showPanel('pre',this)">📝 予約</button>
-  <button class="tab" onclick="showPanel('ilog',this)">🕓 ログ</button>
+  <button class="tab" onclick="showPanel('ilog',this)" style="color:#9a9484">🕓 ログ（使っていません）</button>   <!-- ★2026-09-25 ひろみさん「ログのタブは要らないと思う。使ってないと、タブに書いて置いて。そのうち消そう」 -->
 </div>
 
 <!-- 在庫リスト -->
@@ -982,6 +982,7 @@ tr.totalrow .c-d1 .num,tr.totalrow .c-d2 .num,tr.totalrow .c-d3 .num{color:#b91c
 
 <!-- ログ（在庫Bから移設・見るだけ） -->
 <div id="panel-ilog" class="panel">
+  <div class="info-box" style="background:#fdf6e3;border-color:#e8d49a;color:#7a5a12;font-weight:700">⚠️ このタブは使っていません。そのうち消します（2026-09-25 ひろみさん）。</div>
   <div class="info-box">🕓 このアプリで数を直した記録です。<strong>いつ・何を・どれだけ動かしたか</strong>が新しい順に並びます。見るだけの画面です。</div>
   <div class="sec">操作ログ</div>
   <div id="inv-log-list"></div>
@@ -5235,13 +5236,39 @@ function farmOf(p){
    ・空のときは、親（oos-shorui-kimari.js の taniOf）が決めた単位をうすい字で出します
    ★ここで単位を決めないでください。決めるのは親だけです（写しを作らない）。
    ══════════════════════════════════════════════════════════════════════ */
+/* ★2026-09-25 ひろみさん「単位の表示をそれぞれに記載して。間違えたら私が修正できるように、選べるようにしてほしい」
+   　→ 全部の商品の「単位表示」に書き込み済み（GAS oosTaniKaku）。表の中の▼で選ぶと、その場で商品マスタに保存します。
+   　「（自動）」を選ぶと空に戻り、親の決めごとで決まります（うすい字で出ている単位）。
+   ★選べる単位を増やすときは OOS_TANI_ERABU に足してください。見張り：tests/test_tani_erabu.js */
+var OOS_TANI_ERABU = ['瓶', '缶', '個', '冊', '枚', '箱', 'セット', '本'];
 function meiboTaniCell(p){
+  if(!p || !p.sku) return mDash();
   var ex = (p && p.extras) || {};
   var te = String(ex['単位表示'] || ex['単位'] || '').trim();
-  var oya = (typeof OOS_SHORUI !== 'undefined' && OOS_SHORUI.taniOf) ? OOS_SHORUI.taniOf(p) : '';
-  if(te) return '<span class="spec" style="font-weight:800;color:#8a5a12">' + esc(te) + '</span>';
-  if(oya) return '<span style="color:#9a9484">' + esc(oya) + '</span>';
-  return mDash();
+  var oya = (typeof OOS_SHORUI !== 'undefined' && OOS_SHORUI.taniOf) ? OOS_SHORUI.taniOf(Object.assign({}, p, { extras: Object.assign({}, ex, { '単位表示':'', '単位':'' }) })) : '';
+  var opts = '<option value=""' + (te ? '' : ' selected') + '>（自動' + (oya ? '：' + esc(oya) : '') + '）</option>';
+  var list = OOS_TANI_ERABU.slice();
+  if(te && list.indexOf(te) < 0) list.push(te);
+  list.forEach(function(t){ opts += '<option value="' + esc(t) + '"' + (t === te ? ' selected' : '') + '>' + esc(t) + '</option>'; });
+  return '<select onchange="meiboTaniErabu(\'' + esc(p.sku) + '\', this.value, this)" title="単位を選ぶと、その場で保存します" style="font-size:13px;font-weight:800;color:' + (te ? '#8a5a12' : '#9a9484') + ';border:1px solid #d9cfb4;border-radius:6px;padding:2px 4px;background:#fffdf7">' + opts + '</select>';
+}
+async function meiboTaniErabu(sku, v, el){
+  var p = PRODUCTS.find(function(x){ return x.sku === sku; });
+  if(!p) return;
+  if(el) el.disabled = true;
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveOneProduct', product:{ sku: sku, '単位表示': v } }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    var d = await res.json();
+    if(d && d.status === 'ok'){
+      p.extras = p.extras || {}; p.extras['単位表示'] = v; p['単位表示'] = v;
+      try{ saveProductsToCache(PRODUCTS, (typeof EXTRA_FIELDS!=='undefined'?EXTRA_FIELDS:[])); }catch(e){}
+      showSyncStatus('📏 単位を保存しました：' + (p.name || sku) + ' → ' + (v || '（自動）'));
+      renderMeibo();
+    } else {
+      alert('保存に失敗しました：' + ((d && d.message) || ''));
+      renderMeibo();
+    }
+  }catch(e){ alert('通信エラー：' + e.message); renderMeibo(); }
 }
 function shipUnitOf(p){
   if(!p) return '';
@@ -6006,7 +6033,10 @@ function meiboEditRowHtml(p, sp){
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
       fg('出荷単位（この形で出す）','mp-unit',v.shipUnit,'1箱／20本 など')+
       /* ★2026-09-13 ひろみさん指示：単位表示（空なら、決めごとから自動で決まります） */
-      fg('単位表示（空でOK）','mp-tani',v.tani,'本・瓶・缶・個・枚・冊・箱・セット')+
+      /* ★2026-09-25 選ぶ形に（打ちまちがいを防ぐ）。空＝自動 */
+      '<div class="mp-fg"><label>単位表示（空＝自動）</label><select id="mp-tani">'+
+        ['<option value=""'+(v.tani?'':' selected')+'>（自動）</option>'].concat(OOS_TANI_ERABU.concat(v.tani && OOS_TANI_ERABU.indexOf(v.tani)<0 ? [v.tani] : []).map(function(t){ return '<option value="'+esc(t)+'"'+(t===v.tani?' selected':'')+'>'+esc(t)+'</option>'; })).join('')+
+      '</select></div>'+
       /* ★2026-07-24 ロットと賞味期限も、ここで直せるようにした（ロット管理に行かなくてよい） */
       '<div class="mp-fg"><label style="color:#8a5a12">ロット</label><input type="text" id="mp-lot" value="'+esc(v.lotCode)+'" placeholder="例：A5" style="border-color:#e0a020;background:#fffdf5"></div>'+
       '<div class="mp-fg"><label style="color:#8a5a12">賞味期限</label><input type="text" id="mp-exp" value="'+esc(v.expiry)+'" placeholder="例：2027.11.21" style="border-color:#e0a020;background:#fffdf5"></div>'+
@@ -6168,16 +6198,15 @@ function meiboLotCells(p, sp, jan){
     // 在庫データにある最新ロットをそのまま出す（画面から直せるのはこちら）
     nows.forEach(function(n){
       /* ★2026-09-09夜 在庫0でも出します。0本のときは、まだ入荷していないと分かるように書きます */
-      lotCell += line('now','<span class="lotcode">'+esc(n.lot)+'</span>'+
-        ((n.qty>0) ? '<span class="lotqty now">'+esc(n.qty)+' 本</span>'
-                   : '<span class="lotqty" style="color:#8a7f6a">0 本（入荷前）</span>'));
+      /* ★2026-09-25 ひろみさん「ロット横の数字は最新になってないから、それなら消して」→ 数は出しません（在庫の数は在庫リストで見ます） */
+      lotCell += line('now','<span class="lotcode">'+esc(n.lot)+'</span>');
       expCell += line('now', n.expiry?'<span class="expiry">'+esc(n.expiry)+'</span>':mDash());
       janCell += line('now', jan?'<span class="jancode">'+esc(jan)+'</span>'
                                 :mDash());
     });
     var ojan0 = OLD_LOT_JAN[p.sku] || '';
     olds.forEach(function(o){
-      lotCell += line('old','<span class="lotcode old">'+esc(o.lot)+'</span><span class="lotqty">残り '+esc(o.qty)+' 本</span>');
+      lotCell += line('old','<span class="lotcode old">'+esc(o.lot)+'</span>');   /* ★2026-09-25 残りの数は出さない */
       expCell += line('old','<span class="expiry old">'+esc(o.expiry||'—')+'</span>');
       janCell += line('old', ojan0?'<span class="jancode old">'+esc(ojan0)+'</span>':'<span class="dash">—</span>');
     });
@@ -6198,7 +6227,7 @@ function meiboLotCells(p, sp, jan){
 
   var ojan = OLD_LOT_JAN[p.sku] || '';
   olds.forEach(function(o){
-    lotCell += line('old','<span class="lotcode old">'+esc(o.lot)+'</span><span class="lotqty">残り '+esc(o.qty)+' 本</span>');
+    lotCell += line('old','<span class="lotcode old">'+esc(o.lot)+'</span>');   /* ★2026-09-25 残りの数は出さない */
     expCell += line('old','<span class="expiry old">'+esc(o.expiry||'—')+'</span>');
     janCell += line('old', ojan?'<span class="jancode old">'+esc(ojan)+'</span>':'<span class="dash">—</span>');
   });
@@ -6340,28 +6369,26 @@ function renderPartnerMatrix(){
   var cols = salesPartners.length;
   var hh = '<th>商品</th>';
   salesPartners.forEach(function(pt){ hh += '<th class="num">'+esc(pt.name||'（名前未入力）')+'</th>'; });
-  hh += '<th class="num" style="background:#f4e7c9;color:#7a4e12">合計本数</th>';
+  /* ★2026-09-25 ひろみさん「合計本数は不要」→ 列をやめました */
   head.innerHTML = hh;
 
   var rows='';
   mGroupOrder().forEach(function(g){
     var ps=PRODUCTS.filter(function(p){return mIsActive(p)&&(p.group||'その他')===g;});
     if(!ps.length) return;
-    rows+='<tr><td class="grp" colspan="'+(cols+2)+'">'+esc(g)+'</td></tr>';
+    rows+='<tr><td class="grp" colspan="'+(cols+1)+'">'+esc(g)+'</td></tr>';
     ps.forEach(function(p){
-      var cells='', totalQty=0, anyQty=false;
+      var cells='';
       salesPartners.forEach(function(pt){
         var price = (pt.name==='バサラ') ? (mPriceFor(p.sku)&&mPriceFor(p.sku).priceBasara) : partnerPriceFor(pt.id, p.sku);
         var y = yen(price);
         var qty = partnerSoldQty(pt, p);
-        if(qty!=null){ anyQty=true; totalQty+=qty; }
         cells += '<td class="num">'+(y?('<span class="price-main">'+y+'</span>'+(qty!=null?'<div style="font-size:10.5px;color:#8a857a">'+qty+'本</div>':'')):'<span class="dash">—</span>')+'</td>';
       });
-      rows+='<tr><td><div class="pname">'+esc(p.name||p.sku)+'</div><div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span></div></td>'+cells+
-        '<td class="num" style="background:#fbf3e0;font-weight:800;color:#8a5a00">'+(anyQty?totalQty+'本':'<span class="dash">—</span>')+'</td></tr>';
+      rows+='<tr><td><div class="pname">'+esc(p.name||p.sku)+'</div><div class="psub"><span class="sku">'+esc(p.sku||'—')+'</span></div></td>'+cells+'</tr>';
     });
   });
-  body.innerHTML = rows || '<tr><td colspan="'+(cols+2)+'" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
+  body.innerHTML = rows || '<tr><td colspan="'+(cols+1)+'" style="padding:16px;color:#9a9484">商品がありません</td></tr>';
 }
 
 function newPartnerId(){ return 'partner_'+Date.now()+'_'+Math.floor(Math.random()*1000); }
