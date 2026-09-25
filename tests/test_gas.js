@@ -235,6 +235,68 @@ eq('参考：0 で止まる', oya3, 0);
      (kieta.length ? '消えた：' + kieta.join('・') : 'ぜんぶ残った') + '）', kieta.length, 0);
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   📄 書類の発行記録・📑 価格リストのリンク（2026-09-25 検証で見つけた穴の見張り）
+   身代わりのスプシ・ドライブの上で、本物のGASの関数を動かします（本番には触りません）。
+   　・有効期限：3か月後に同じ日が無いとき（11/30 → 2月）は、その月の末日（3/1 にしない）
+   　・キャンセル：その番号の請求書の行だけ灰色＋メモ。あとから出した領収書の行は触らない・二度書かない
+   　・週1回の点検：キャンセルの灰色を白に戻さない
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  function Sh(){ this.c = []; this.bg = {}; }
+  Sh.prototype = {
+    getLastRow(){ for(let r = this.c.length; r > 0; r--){ if((this.c[r-1] || []).some(v => v !== '' && v != null)) return r; } return 0; },
+    getRange(r, c, nr, nc){ const sh = this; nr = nr || 1; nc = nc || 1;
+      const get = f => { const o = []; for(let i = 0; i < nr; i++){ const a = []; for(let j = 0; j < nc; j++){ const v = (sh.c[r-1+i] || [])[c-1+j]; a.push(f(v == null ? '' : v)); } o.push(a); } return o; };
+      const rg = {
+        getValues(){ return get(v => v); }, getFormulas(){ return get(v => (typeof v === 'string' && v[0] === '=') ? v : ''); },
+        getValue(){ return get(v => v)[0][0]; },
+        setValues(vs){ vs.forEach((row, i) => { sh.c[r-1+i] = sh.c[r-1+i] || []; row.forEach((v, j) => { sh.c[r-1+i][c-1+j] = v; }); }); return rg; },
+        setValue(v){ return rg.setValues([[v]]); }, setBackground(b){ for(let i = 0; i < nr; i++) sh.bg[r+i] = b; return rg; },
+        setFontColor(){ return rg; }, setFontWeight(){ return rg; }, setNumberFormat(){ return rg; } };
+      return rg; },
+    insertRowBefore(r){ this.c.splice(r-1, 0, []); }, setFrozenRows(){}, setColumnWidth(){}, getSheetId(){ return 1; },
+    getParent(){ return { getUrl(){ return 'u'; } }; }
+  };
+  const tabs = {};
+  const kanri = { getSheetByName(n){ return tabs[n] || null; }, insertSheet(n){ return (tabs[n] = new Sh()); }, getEditors(){ return []; } };
+  const alive = {};
+  let hi = null;
+  const RealDate = Date;
+  class FakeDate extends RealDate { constructor(...a){ if(a.length) super(...a); else if(hi) super(hi[0], hi[1] - 1, hi[2], 12); else super(); } }
+  const ctx = vm.createContext({ console, Math, JSON, String, Number, Object, Array, RegExp, Error, parseInt, Date: FakeDate,
+    SpreadsheetApp:{ openById(){ return kanri; } },
+    PropertiesService:{ getScriptProperties(){ return { getProperty(k){ return k === 'OOS_KANRI_FILE_ID' ? 'K' : null; } }; } },
+    LockService:{ getScriptLock(){ return { waitLock(){}, releaseLock(){} }; } },
+    DriveApp:{ getFileById(id){ if(!alive[id]) throw new Error('no'); return { isTrashed(){ return false; } }; } },
+    Utilities:{ formatDate(d, tz, f){ const p = n => ('0' + n).slice(-2); return f.replace('yyyy', d.getFullYear()).replace('MM', p(d.getMonth() + 1)).replace('dd', p(d.getDate())); } },
+    Logger:{ log(){} }, ContentService:{}, HtmlService:{}, ScriptApp:{}, CacheService:{}, UrlFetchApp:{}, Session:{}, MailApp:{}, GmailApp:{} });
+  let _ug = true;
+  try { vm.runInContext(gasSrc, ctx); } catch (e) { _ug = false; console.log('GASを読み込めない', e.message); }
+  if(_ug && typeof ctx.oosKakakuLinkSave === 'function'){
+    const kigen = function(y, m, d){ hi = [y, m, d]; ctx.oosKakakuLinkSave('①', 'https://x'); const r = ctx.oosKakakuLinkList().rows[0]; hi = null; return r.kigen; };
+    eq('発行記録⑤ 有効期限 9/25 → 12/24', kigen(2026, 9, 25), '2026-12-24');
+    eq('発行記録⑤ 有効期限 11/30 → 2/28（3/1 にしない）', kigen(2026, 11, 30), '2027-02-28');
+    eq('発行記録⑤ 有効期限 1/31 → 4/30', kigen(2027, 1, 31), '2027-04-30');
+    eq('発行記録⑤ 有効期限 12/1 → 2/28', kigen(2026, 12, 1), '2027-02-28');
+    /* キャンセルと週1回の点検 */
+    const sh = ctx.oosHakkouSheet_();
+    const L = id => '=HYPERLINK("https://drive.google.com/file/d/' + id + '/view","📄 開く")';
+    sh.c.push(['9/25', '請求書', 'TK-1', 'A様', 100, 'ひろみ', '減らした', L('AAAAAAAAAAAAAAAAAAAAAA1'), '', '']);
+    sh.c.push(['9/26', '領収書（あとから）', 'TK-1', 'A様', 100, 'ゆか', '—', L('AAAAAAAAAAAAAAAAAAAAAA2'), '', '']);
+    sh.c.push(['9/26', '請求書', 'TK-2', 'B様', 100, 'ゆか', '減らさない', L('AAAAAAAAAAAAAAAAAAAAAA3'), '', '']);
+    alive['AAAAAAAAAAAAAAAAAAAAAA1'] = alive['AAAAAAAAAAAAAAAAAAAAAA2'] = alive['AAAAAAAAAAAAAAAAAAAAAA3'] = true;
+    const c1 = ctx.oosHakkouCancel({ bangou:'TK-1', memo:'❌ キャンセル（ひろみ）在庫：2本戻しました' });
+    eq('発行記録② キャンセルは請求書の1行だけ（あとから領収書の行は触らない）', c1.n, 1);
+    eq('発行記録② メモに書き足し・灰色', String(sh.c[1][9]).indexOf('キャンセル') >= 0 && sh.bg[2] === '#eeece6' && sh.bg[3] !== '#eeece6', true);
+    eq('発行記録② 二度押しても二重に書かない', ctx.oosHakkouCancel({ bangou:'TK-1', memo:'❌ キャンセル（ひろみ）在庫：2本戻しました' }).n, 0);
+    ctx.oosHakkouLinkTenken();
+    eq('発行記録③ 週1回の点検でキャンセルの灰色を白に戻さない', sh.bg[2], '#eeece6');
+    eq('発行記録③ 開けるPDFの行は白', sh.bg[4], null);
+  }
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

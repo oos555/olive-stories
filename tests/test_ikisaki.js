@@ -1333,7 +1333,7 @@ function hacchuushoGyou(payload){
       ok('⑱-95 お客様へのひとことは発注書（倉庫）へ送らない', H.cut(idx, 'yukaImportOne').indexOf('okyakuMsg') < 0);
     })();
 
-    /* ══ ⑱-96 発送不要（請求書のみ）／あとから領収書（2026-09-25 承認モック第3版）══
+    /* ══ ⑱-96 発送不要（請求書のみ）／あとから領収書（2026-09-25 承認モック第3版・第4版：売上に入れる／入れない・キャンセル）══
        本物の関数を動かして、押せる・押せない・どこへ行くか・在庫を確かめます。
        ★新しい見張りファイルは作らず、受注Ａの流れの見張り（ここ）に入れました。 */
     await (async function(){
@@ -1347,11 +1347,14 @@ function hacchuushoGyou(payload){
       let _ug = true;
       ['esc','docKakuninKa','docKakuninSuru','nagareMaeRender','noshipShirushi','noshipMaeRender','noshipPdfMiru','noshipSay','noshipGo',
        'noshipNokosuHitotsu','noshipCardHtml','sakuseishaIma','sakuseishaOku','sakuseishaSelHtml','hakkouTeishutsu','hakkouBaseName',
-       'hakkouKingaku','hakkouNokosu','nagareCardHtml','renrakuBox','ryoshuSoroe','ryoshuMe','ryoshuHizuke','ryoshuMark','ryoshuSagasu','registerOrder'
+       'hakkouKingaku','hakkouNokosu','nagareCardHtml','renrakuBox','ryoshuSoroe','ryoshuMe','ryoshuHizuke','ryoshuMark','ryoshuSagasu','registerOrder',
+       'noshipMCyomu','noshipTsukijimeKa','noshipUriageHtml','noshipUriageErabu','noshipDame','noshipBtnJotai','noshipCancel','noshipCancelKiroku','noshipHonsu','noshipHizukeJikan','cancelOrder','lineTotal'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__k = kiroku;
       try {
         vm.runInContext('var docKakuninMap = {}; var OOS_SAKUSEI_KEY = "k"; var noshipMita = false, noshipGoChu = false, noshipListRef = null; var ryoshuKouho = [];'
+          + 'var noshipUriage = "", noshipRiyu = ""; var noshipMC = [{ company:"株式会社バサラスター" }], noshipMCyomi = false, noshipMCng = false;'
+          + 'function buildStockDeltas(){ return []; } function undoStockForOrder(o){ __k.modoshi = (__k.modoshi || 0) + 1; o.stockDeducted = false; } function persistStockDeltas(){} function yukaCancelMark(){}'
           + 'var orders = []; var customers = []; var ordersLoaded = true; var GAS_URL = "x";'
           + 'function noshipDocErabi(){ return "請求書"; } function noshipZaikoErabi(){ return __zaiko; } var __zaiko = "";'
           + 'async function nouhinBuildPdfB64(o, m){ return "QUJD"; } function hakkouPdfHiraku(b, n){ __k.dl.push(n); }'
@@ -1378,12 +1381,17 @@ function hacchuushoGyou(payload){
       const box = () => mkEl('nagare-mae').innerHTML;
       const btnOn = () => /<button id="noship-go-btn" onclick/.test(box());
       ok('⑱-97 倉庫へは行かない流れ（🔵倉庫へ に線）・通常発送のボタンは出ない', box().indexOf('🔵倉庫へ') >= 0 && box().indexOf('line-through') >= 0 && box().indexOf('juchu-ikki-btn') < 0);
-      ok('⑱-97 書類を見る前・在庫を選ぶ前・作成者を選ぶ前は②を押せない', !btnOn() && box().indexOf('①で書類を見てください') >= 0 && box().indexOf('「在庫は？」をえらんでください') >= 0 && box().indexOf('作成者をえらんでください') >= 0);
+      ok('⑱-97 書類を見る前・売上を選ぶ前・在庫を選ぶ前・作成者を選ぶ前は②を押せない', !btnOn() && box().indexOf('①で書類を見てください') >= 0 && box().indexOf('売上に入れるか入れないかをえらんでください') >= 0 && box().indexOf('「在庫は？」をえらんでください') >= 0 && box().indexOf('作成者をえらんでください') >= 0);
+      ok('⑱-97 月締めでないお客様には「月締めの対象の取引先です」を出さない（売上の選択は誰にでも出す）', box().indexOf('月締めの対象の取引先です') < 0 && box().indexOf('売上に入れますか？') >= 0);
       await B.noshipGo();
       ok('⑱-97 押せない状態で呼ばれても登録しない', B.orders.length === 0 && kiroku.post.length === 0);
       await B.noshipPdfMiru();
       B._pendingOrders[0].noShipZaiko = 'herasanai'; B.sakuseishaOku('ゆか'); B.noshipMaeRender();
-      ok('⑱-97 見て・選んだら②を押せる', btnOn());
+      ok('⑱-97 売上を選ぶまでは、ほかが揃っても押せない', !btnOn());
+      B.noshipUriageErabu('irenai');
+      ok('⑱-97 「売上に入れない」は理由を書くまで押せない', !btnOn() && box().indexOf('入れない理由（必ず書く）') >= 0);
+      B.noshipRiyu = '請求書をなくされたため出し直し'; B.noshipMaeRender();
+      ok('⑱-97 見て・選んで・理由を書いたら②を押せる', btnOn());
       await B.noshipGo();
       const p = kiroku.post[0] || { row:{} };
       ok('⑱-98 ②で登録し、発行記録へ1回だけ送る', B.orders.length === 1 && kiroku.post.length === 1 && p.action === 'oosHakkouSave');
@@ -1391,6 +1399,7 @@ function hacchuushoGyou(payload){
       ok('⑱-98 「減らさない」なら在庫は動かない', kiroku.heras === 0 && p.row.zaiko === '減らさない');
       eq('⑱-98 PDFの名前は 伝票番号＿書類の種類＿提出先', p.baseName, 'TK-20260925-5521_請求書_山田商店様');
       ok('⑱-98 行の中身（種類・番号・提出先・金額・作成者）', p.row.shurui === '請求書' && p.row.bangou === 'TK-20260925-5521' && p.row.teishutsu === '山田商店様' && p.row.kingaku === 32400 && p.row.sakusei === 'ゆか' && B.orders[0].orderTotal === 32400);
+      ok('⑱-98 売上に入れない印と理由が注文に付き、発行記録のメモにも入る', B.orders[0].uriageIrenai === true && B.orders[0].uriageIrenaiRiyu === '請求書をなくされたため出し直し' && p.row.memo === '売上に入れない（理由：請求書をなくされたため出し直し）');
       ok('⑱-98 登録後はボタンを押せない（二重登録を防ぐ）', B._pendingOrders === null && mkEl('noship-go-btn').textContent === '✅ 登録しました');
       /* ★受注一覧のカードの入口（renrakuBox）で確かめる。［📥 発注書に送る］が出ると、請求書だけの注文が倉庫へ流れる */
       const _kado = (function(){ try { return B.renrakuBox(B.orders[0], {}); } catch (e) { return ''; } })();
@@ -1401,14 +1410,27 @@ function hacchuushoGyou(payload){
       let _tomatta = true;   /* 止めが無いと先へ進み、発注書へ送る処理（ここでは用意していない）で落ちる */
       try { await B.__honmonoYukaImportOne(B.orders[0].id); } catch (e) { _tomatta = false; }
       ok('⑱-98 ほかの道から発注書へ送ろうとしても止まる', _tomatta && kiroku.post.length === _p0);
+      /* 第4版：キャンセル（減らさない請求 → 在庫は動かない） */
+      await B.noshipCancel(B.orders[0].id);
+      const _c1 = kiroku.post[kiroku.post.length - 1] || {};
+      ok('⑱-98 キャンセル：注文は取り消し・在庫は戻さない・発行記録のメモに「在庫：動いていません」', B.orders[0].status === 'cancelled' && !kiroku.modoshi && _c1.action === 'oosHakkouCancel' && _c1.bangou === 'TK-20260925-5521' && /キャンセル（ゆか）在庫：動いていません$/.test(_c1.memo));
+      ok('⑱-98 キャンセルしたカードは灰色で、在庫がどうなったかを出す（もう一度キャンセルは出ない）', B.noshipCardHtml(B.orders[0]).indexOf('❌ キャンセルしました') >= 0 && B.noshipCardHtml(B.orders[0]).indexOf('在庫：動いていません') >= 0 && B.noshipCardHtml(B.orders[0]).indexOf('noshipCancel(') < 0);
       /* B. 在庫を減らす・RTの番号 */
       B.noshipMita = false;
-      B._pendingOrders = [mk('n2', { num:'RT-20260925-1111', client:'ホテルＡ 御中', noShipZaiko:'heras' })];
+      B._pendingOrders = [mk('n2', { num:'RT-20260925-1111', client:'ホテルＡ 御中', customerType:'rt', lines:[{ bottles:2, boxes:0, boxQty:6 }] })];
       B._pendingOrders[0].noShipZaiko = 'heras';
-      B.nagareMaeRender(); await B.noshipPdfMiru(); await B.noshipGo();
-      ok('⑱-99 「減らす」なら在庫を1回だけ減らす', kiroku.heras === 1 && kiroku.post[1].row.zaiko === '減らした');
-      ok('⑱-99 RTは記号を外した番号・御中はそのまま', kiroku.post[1].baseName === '20260925-1111_請求書_ホテルＡ 御中');
+      B.nagareMaeRender();
+      ok('⑱-99 月締め（RT）には「月締めの対象の取引先です…二重請求」を出す', box().indexOf('月締めの対象の取引先です。本当に請求書を作りますか？') >= 0 && box().indexOf('二重請求になる可能性') >= 0);
+      ok('⑱-99 前の注文で選んだ「売上に入れない」は持ち越さない', !btnOn() && box().indexOf('売上に入れるか入れないかをえらんでください') >= 0);
+      await B.noshipPdfMiru(); B.noshipUriageErabu('ireru'); await B.noshipGo();
+      const _p2 = kiroku.post.filter(x => x.action === 'oosHakkouSave')[1] || { row:{} };
+      ok('⑱-99 「減らす」なら在庫を1回だけ減らす', kiroku.heras === 1 && _p2.row.zaiko === '減らした');
+      ok('⑱-99 RTは記号を外した番号・御中はそのまま', _p2.baseName === '20260925-1111_請求書_ホテルＡ 御中');
+      ok('⑱-99 月締めで売上に入れるときは、メモに「月締めの取引先・売上に入れる」', _p2.row.memo === '月締めの取引先・売上に入れる' && B.orders[1].uriageIrenai === false);
       ok('⑱-99 それでも発注書へは送らない', kiroku.yuka === 0);
+      await B.noshipCancel(B.orders[1].id);
+      const _c2 = kiroku.post[kiroku.post.length - 1] || {};
+      ok('⑱-99 キャンセル：減らした在庫を1回だけ戻し、メモに「在庫：2本戻しました」', B.orders[1].status === 'cancelled' && kiroku.modoshi === 1 && /在庫：2本戻しました$/.test(_c2.memo) && _c2.bangou === '20260925-1111');
 
       /* C. あとから領収書のさがす窓口 */
       B.orders = [
@@ -1430,6 +1452,42 @@ function hacchuushoGyou(payload){
       ok('⑱-100 領収書は発行記録へ「領収書（あとから）」で残し、新しく受注登録しない', H.cut(idx, 'ryoshuDasu').indexOf("'領収書（あとから）'") >= 0 && H.cut(idx, 'ryoshuDasu').indexOf('registerOrder') < 0);
     })();
 
+
+    /* ══ ⑱-101 保存は1本ずつ順番に（2026-09-25 検証で見つけた穴）══
+       保存＝「サーバーを読む → 変更を重ねる → まるごと書き直す」。続けて呼ぶと、あとの保存が
+       前の保存の書き終わる前に読み、入れたばかりの注文を手元の一覧から落としたり、古い写しで書き直したりした。
+       本物の syncOrdersToGAS を、時間のかかる身代わりのサーバーで動かして確かめます。 */
+    await (async function(){
+      const _S = H.makeSandbox({});
+      let _ug = true;
+      ['syncOrdersToGAS','syncOrdersToGASHontai_'].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
+      try {
+        vm.runInContext('var __oosSyncKyu = Promise.resolve(); var __oosSyncMachi = {};'
+          + 'var gasSyncEnabled = true; var GAS_URL = "x"; function bust(u){ return u; } function renderList(){} function showSyncStatus(){} function honbuMirrorPing(){}'
+          + 'var __srv = [{ id:"old", v:1 }]; var __log = [];'
+          + 'function __matsu(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }'
+          + 'fetch = async function(u, opt){ if(opt && opt.method === "POST"){ var b = JSON.parse(opt.body); __log.push("書く"); await __matsu(30); __srv = JSON.parse(JSON.stringify(b.orders)); return { json: async function(){ return { status:"ok" }; } }; }'
+          + '  __log.push("読む"); var kopi = JSON.parse(JSON.stringify(__srv)); await __matsu(20); return { json: async function(){ return { status:"ok", data:{ orders: kopi } }; } }; };'
+          + 'var orders = [{ id:"old", v:1 }];', Object.assign(_S.ctx, { setTimeout: setTimeout }));
+      } catch (e) { _ug = false; console.log(e); }
+      ok('⑱-101 本物の保存を身代わりのサーバーで動かせる', _ug);
+      if (!_ug) return;
+      const B = _S.box;
+      const A = { id:'A', hakkou:null }, Bo = { id:'B', hakkou:null };
+      B.orders.push(A, Bo);
+      const p1 = B.syncOrdersToGAS([A, Bo]);          /* 登録したときの保存 */
+      A.hakkou = { url:'a' }; const p2 = B.syncOrdersToGAS([A]);    /* 発行記録のあと（前の保存を待たずに呼ぶ） */
+      Bo.hakkou = { url:'b' }; const p3 = B.syncOrdersToGAS([Bo]);
+      await Promise.all([p1, p2, p3]);
+      eq('⑱-101 読む・書くが1本ずつ交互（前の書き込みが終わってから次を読む）', B.__log.join(','), '読む,書く,読む,書く,読む,書く');
+      const srv = {}; B.__srv.forEach(function(o){ srv[o.id] = o; });
+      ok('⑱-101 サーバーに A も B も残り、どちらの印も古い写しで消されない', srv.A && srv.B && srv.old && srv.A.hakkou && srv.B.hakkou);
+      ok('⑱-101 手元の一覧にも A と B が残る', B.orders.some(function(o){ return o.id === 'A'; }) && B.orders.some(function(o){ return o.id === 'B'; }));
+      /* 手元にまだサーバーへ届いていない注文があっても、別の保存で一覧から落とさない */
+      const C = { id:'C' }; B.orders.push(C);
+      await B.syncOrdersToGAS([A]);
+      ok('⑱-101 まだ保存していない手元の注文を、別の保存で一覧から落とさない', B.orders.some(function(o){ return o.id === 'C'; }));
+    })();
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
     const nm2 = H.cut(idx, 'nagareMaeRender');

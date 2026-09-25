@@ -85,6 +85,11 @@ eq('① G キャンセル → 出ない',              box.isSalesListTarget(ORD
 eq('① H 出荷済みは送った印が無くても出る',  box.isSalesListTarget(ORDERS[7]), true);
 /* ★2026-09-25 発送不要（請求書のみ）：倉庫へは送らないが、②「登録してPDFを残す」の時点で載る（受注Ａが status:shipped で登録） */
 eq('① 発送不要（請求書のみ）は倉庫へ送らなくても出る', box.isSalesListTarget(o({ status:'shipped', noShip:true, notified:false, shippedAt:'2026-09-25T01:00:00Z' })), true);
+/* ★2026-09-25 第4版：「売上に入れない」を選んだ請求書（なくされた請求書の出し直しなど）は出さない。理由は折りたたみに出す */
+eq('① 発送不要で「売上に入れない」は出ない（理由の名前 irenai）', box.salesExcludeReason(o({ status:'shipped', noShip:true, shippedAt:'2026-09-25T01:00:00Z', uriageIrenai:true, uriageIrenaiRiyu:'出し直し' })), 'irenai');
+/* 月末のまとめ請求・RT月次・発送リストCSV も「売上に入れない」「発送不要」を外しているか（関数の中の条件を見る） */
+eq('① 月末のまとめ請求・RT月次は「売上に入れない」を外す', H.cut(src, 'calcMonthlyInvoice').indexOf('if(o.uriageIrenai) return false;') >= 0 && H.cut(src, 'runRtMonthly').indexOf('if(o.uriageIrenai) return false;') >= 0, true);
+eq('① 発送リストCSVに発送不要を入れない', H.cut(src, 'exportShippingListCSV').indexOf('!o.noShip') >= 0, true);
 
 /* ── ② 出さない理由の名前 ── */
 eq('② B の理由 unsent',    box.salesExcludeReason(ORDERS[1]), 'unsent');

@@ -22,7 +22,7 @@
        いまのこの画面は金額を1つも扱わないので、まだ戻していません。
      ★この2行と oos-version.js / version.json は消さないでください。
      ══════════════════════════════════════════════════════════════════════ -->
-<meta name="oos-version" content="2026-09-25-02">
+<meta name="oos-version" content="2026-09-25-03">
 <script src="oos-version.js"></script>
 <title>オリーブオイル・ストーリーズ 価格リスト・見積</title>
 <style>
@@ -215,9 +215,20 @@ async function sampleHozon(i, btn){
   try{
     var d = await gasPost({ action:'oosSampleSave', row:row });
     if(!d || d.status !== 'ok') throw new Error((d && d.message) || '保存できませんでした');
-    if(te){ document.getElementById('te-tasu').innerHTML = ''; await sampleYomu(); return; }
+    /* ★2026-09-25 保存したカードだけを描き直す（全部を描き直すと、ほかのカードの書きかけが消えるため）。
+       　並びは、画面を開いたときに「次の追いかけの日が近い順」に並べます */
+    if(te){
+      row.id = d.id || ''; SAMPLES.push(row);
+      document.getElementById('te-tasu').innerHTML = '';
+      var w = document.getElementById('sample-waku');
+      if(SAMPLES.length === 1) w.innerHTML = '';
+      w.insertAdjacentHTML('beforeend', sampleCard(row, SAMPLES.length - 1));
+      var kt = document.getElementById('sample-kekka-' + (SAMPLES.length - 1));
+      if(kt){ kt.style.color = '#0f5a4a'; kt.textContent = '✅ たしました'; }
+      return;
+    }
     SAMPLES[+i] = row;
-    sampleKaku();
+    el.outerHTML = sampleCard(row, +i);
     var k2 = document.getElementById('sample-kekka-' + i);
     if(k2){ k2.style.color = '#0f5a4a'; k2.textContent = '✅ 保存しました'; }
   }catch(e){

@@ -160,6 +160,23 @@
     return priceForSku(sku, lineTierType(order, line), priceMaster, defaults);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     📅 月締め（月末にまとめて請求する）取引先か　★2026-09-25 親をここに1つ
+     ──────────────────────────────────────────────────────────────────────
+     それまでは売上Ｃ（billing.html の isMonthlyConsolidated）だけが持っていた見分け方です。
+     受注Ａの「発送不要（請求書のみ）」でも使う（二重請求の注意）ので、写しを作らずここへ移しました。
+     　・RT（ホテル・ゴルフ）
+     　・バサラ（区分・バサラ発注シートから来た注文・注文番号 BA-）
+     　・売上Ｃに登録した「月次登録会社」（monthlyClients）の会社名が発注元に入っている
+     ★ひろみさん（2026-09-25）「今後CG大阪が加わる予定」→ 月次登録会社に入れれば、ここで月締めになります。
+     ══════════════════════════════════════════════════════════════════════ */
+  function tsukijimeKa(o, monthlyClients) {
+    if (!o) return false;
+    if (isRt(o.customerType)) return true;
+    if (isType(o.customerType, 'basara') || o.source === 'basara' || /^BA-/.test(String(o.num || ''))) return true;
+    return !!(monthlyClients && monthlyClients.some(function (c) { return c && c.company && String(o.client || '').indexOf(c.company) >= 0; }));
+  }
+
   root.OOS_KAKAKU = {
     BULK_UPGRADE_BOXES: BULK_UPGRADE_BOXES,
     PRICE_KEY: PRICE_KEY,
@@ -170,7 +187,8 @@
     lineTierType: lineTierType,
     priceForSku: priceForSku,
     muryouSampleKa: muryouSampleKa,
-    unitPriceForLine: unitPriceForLine
+    unitPriceForLine: unitPriceForLine,
+    tsukijimeKa: tsukijimeKa
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 

@@ -10,15 +10,15 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-01">
+<meta name="oos-version" content="2026-09-25-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=p8cfaaa82f7"></script>
+<script src="oos-hizuke.js?v=p4fa1decad1"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-meibo.js?v=p8cfaaa82f7"></script>
+<script src="oos-meibo.js?v=p4fa1decad1"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px}
@@ -189,11 +189,11 @@ tr:last-child td{border-bottom:none}
 }
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=p8cfaaa82f7"></script>
+<script src="oos-zaiko.js?v=p4fa1decad1"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
-<script src="oos-zei.js?v=p8cfaaa82f7"></script>
-<script src="oos-kakaku.js?v=p8cfaaa82f7"></script>
-<script src="oos-shorui-kimari.js?v=p8cfaaa82f7"></script>
+<script src="oos-zei.js?v=p4fa1decad1"></script>
+<script src="oos-kakaku.js?v=p4fa1decad1"></script>
+<script src="oos-shorui-kimari.js?v=p4fa1decad1"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率で請求書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -1131,11 +1131,8 @@ function isBasaraOrder(o){
   return /^BA-/.test(String(o.num || ''));          // 注文番号が BA- ではじまる
 }
 function isMonthlyConsolidated(o){
-  if(!o) return false;
-  if(OOS_KAKAKU.isRt(o.customerType)) return true;
-  if(isBasaraOrder(o)) return true;                 /* ★2026-09-13 バサラも月次まとめ（バサラスプシ側） */
-  if(typeof monthlyClients!=='undefined' && monthlyClients && monthlyClients.some(function(c){ return c && c.company && (o.client||'').indexOf(c.company) >= 0; })) return true;
-  return false;
+  /* ★2026-09-25 見分け方の親は oos-kakaku.js の tsukijimeKa（受注Ａも同じものを呼びます）。ここに書き写さないでください */
+  return OOS_KAKAKU.tsukijimeKa(o, (typeof monthlyClients!=='undefined' ? monthlyClients : []));
 }
 /* ══════════════════════════════════════════════════════════════════════
    💴 消費税の端数は【親＝oos-zei.js】が決めます　★2026-09-17 ひろみさん確定
@@ -1254,7 +1251,10 @@ const SALES_HIDE_INFO = {
   reserved :{label:'🗓 予約（入荷まち）',        how:'入荷して発注書へ送り、A列を🔵にしたとき',         dim:false},
   unsent   :{label:'✉ まだ倉庫へ送っていない',   how:'発注書のA列を🔵にしたとき（倉庫さんは発注書を見て発送されます）', dim:false},
   /* ★2026-09-16 ひろみさん指示：入金チェックが済んだものはスプシへ移す（下の「移す」を見てください） */
-  archived :{label:'📤 スプシへ移した',          how:'本部管理専用ゆかスプシの「入金チェック済み売上一覧表」にあります', dim:true}
+  archived :{label:'📤 スプシへ移した',          how:'本部管理専用ゆかスプシの「入金チェック済み売上一覧表」にあります', dim:true},
+  /* ★2026-09-25 受注Ａの「発送不要（請求書のみ）」で【売上に入れない】を選んだもの（なくされた請求書の出し直しなど）。
+     　理由は受注Ａで必ず書きます。本部ゆかスプシの「📄 書類の発行記録」のメモにも同じ理由があります */
+  irenai   :{label:'🧾 売上に入れない請求書',     how:'出ません（受注Ａで「売上に入れない」を選んだもの・理由は下に）', dim:true}
 };
 function salesWasSentToWarehouse(o){
   return !!(o && (o.notified || o.shippedAt || o.status === 'shipped'));
@@ -1268,6 +1268,7 @@ function salesExcludeReason(o){
   /* ★2026-09-16 スプシへ移したものは、売上一覧に出しません。
      　★受注のデータは消えていません。印（salesArchivedAt）が付いているだけです。 */
   if(o.salesArchivedAt)        return 'archived';
+  if(o.uriageIrenai)           return 'irenai';     /* ★2026-09-25 発送不要で「売上に入れない」 */
   if(salesWasSentToWarehouse(o)) return '';   // '' ＝ 売上一覧に載せる
   return 'unsent';
 }
@@ -1569,7 +1570,7 @@ function renderSalesHiddenList(){
       + '<td style="' + SALES_TD + '">' + esc(o.recipientName || o.client || '') + '</td>'
       + '<td style="' + SALES_TD + '">' + esc(String(o.registeredAt||'').slice(0,10)) + '</td>'
       + '<td style="' + SALES_TD + ';text-align:right">¥' + orderAmount(o).toLocaleString() + '</td>'
-      + '<td style="' + SALES_TD + '">' + (isDup ? '<b style="color:#9b2c2c">👉 上の黄色い枠を見てください</b>' : esc(info.how)) + '</td></tr>';
+      + '<td style="' + SALES_TD + '">' + (isDup ? '<b style="color:#9b2c2c">👉 上の黄色い枠を見てください</b>' : esc(info.how + (o.uriageIrenai && o.uriageIrenaiRiyu ? '　理由：' + o.uriageIrenaiRiyu : ''))) + '</td></tr>';
   }).join('');
   el.innerHTML = '<details style="background:#fff;border:1px solid #d5cfc3;border-radius:8px;margin:14px 0">'
     + '<summary style="cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;background:#f4f1ea;border-radius:8px">👀 いま売上一覧に出していないもの（' + hidden.length + '件）── 理由つき</summary>'
@@ -3923,6 +3924,7 @@ function runRtMonthly(){
   var inMonth = (typeof orders!=='undefined'?orders:[]).filter(function(o){
     if(!o) return false;
     if(o.status==='cancelled' || o.status==='deleted') return false;
+    if(o.uriageIrenai) return false;   /* ★2026-09-25 「売上に入れない」請求書はRT月次にも入れない */
     if(!salesWasSentToWarehouse(o)) return false;
     return String(o.registeredAt||'').slice(0,7)===ym;
   });
@@ -4168,6 +4170,7 @@ function calcMonthlyInvoice(forcedClient){
 
   const targetOrders = orders.filter(function(o){
     if(o.status==='cancelled') return false;
+    if(o.uriageIrenai) return false;   /* ★2026-09-25 「売上に入れない」請求書は、月末のまとめ請求にも入れない（二重請求を防ぐ） */
     if((o.client||'').indexOf(client) < 0) return false;
     if(!o.shippedAt) return false;
     return (o.shippedAt||'').startsWith(ym);
@@ -4441,7 +4444,7 @@ function downloadCSV(filename, rows){
 function exportShippingListCSV(){
   const start = document.getElementById('exp-start').value;
   const end = document.getElementById('exp-end').value;
-  let list = orders.filter(o=>o.status!=='cancelled' && o.shippedAt);
+  let list = orders.filter(o=>o.status!=='cancelled' && o.shippedAt && !o.noShip);   /* ★2026-09-25 発送不要（請求書のみ）は発送していないので、発送リストに入れない */
   if(start) list = list.filter(o=>(o.shippedAt||'').slice(0,10) >= start);
   if(end) list = list.filter(o=>(o.shippedAt||'').slice(0,10) <= end);
   const rows = [['注文番号','出荷日','お客様(発注元)','お届け先','区分','支払方法','商品明細','金額(税込)','入金']];

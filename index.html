@@ -440,15 +440,15 @@ body{background:#fff}
 .pres-modal .err{color:#dc2626;font-size:12px;margin-top:10px;min-height:14px}
 </style>
 <!-- ★在庫の数え方の【親】。ここを読むので、このファイルの中に同じ計算を書かないこと -->
-<script src="oos-zaiko.js?v=p8cfaaa82f7"></script>
+<script src="oos-zaiko.js?v=p4fa1decad1"></script>
 <!-- ★消費税の決め方の【親】。8%は食品だけ・ほかは全部10%。このファイルの中に同じ判定を書かないこと -->
-<script src="oos-zei.js?v=p8cfaaa82f7"></script>
+<script src="oos-zei.js?v=p4fa1decad1"></script>
 <!-- ★2026-09-10 単価と納品書の【親】。受注Ａ・売上Ｃ・見積М・倉庫Ｄ で同じものを使います。
      ここに同じ判定を書き写さないでください（納品書と請求書の金額がズレます） -->
-<script src="oos-kakaku.js?v=p8cfaaa82f7"></script>
-<script src="oos-shorui-kimari.js?v=p8cfaaa82f7"></script>
-<script src="oos-doc.js?v=p8cfaaa82f7"></script>
-<script src="oos-nouhin.js?v=p8cfaaa82f7"></script>
+<script src="oos-kakaku.js?v=p4fa1decad1"></script>
+<script src="oos-shorui-kimari.js?v=p4fa1decad1"></script>
+<script src="oos-doc.js?v=p4fa1decad1"></script>
+<script src="oos-nouhin.js?v=p4fa1decad1"></script>
 <script>
 /* ★消費税の【親】oos-zei.js が読めなかったときの見張り。
    黙って間違った税率でRT納品書が出るのが一番あぶないので、その場で気づけるようにする。 */
@@ -494,16 +494,16 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-07">
+<meta name="oos-version" content="2026-09-25-09">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
-<script src="oos-hizuke.js?v=p8cfaaa82f7"></script>
+<script src="oos-hizuke.js?v=p4fa1decad1"></script>
 <!-- ★2026-09-12 商品名簿がどこから来たかを見張る【親】。
      名簿を読めなかったとき、前は黙って古い名簿で動いていました。
      このファイルが、必要なときだけ画面に帯を出します。消さないでください。 -->
-<script src="oos-kubun.js?v=p8cfaaa82f7"></script>
-<script src="oos-meibo.js?v=p8cfaaa82f7"></script>
+<script src="oos-kubun.js?v=p4fa1decad1"></script>
+<script src="oos-meibo.js?v=p4fa1decad1"></script>
 </head>
 <body>
 <div class="pres-overlay" id="gate-overlay">
@@ -8951,10 +8951,11 @@ function yukaCancelMark(o){
     })
     .catch(function(){ alert('⚠️ 通信できず、スプシへキャンセルの印が付いていません。\nゆかスプシ・倉庫ファイルの行（'+o.num+'）を直接ご確認ください。'); });
 }
-function cancelOrder(id){
+function cancelOrder(id, kakuninBun){
   const o = orders.find(x=>x.id===id);
   if(!o) return;
-  if(!confirm(o.num+' をキャンセルしますか？')) return;
+  /* ★2026-09-25 発送不要のキャンセルは、確認の文に在庫がどうなるかを入れて呼びます（ほかは今までどおり） */
+  if(!confirm(kakuninBun || (o.num+' をキャンセルしますか？'))) return;
   var hasRefund = false;
   if(o.paymentConfirmed || o.paymentClaimed || o.paymentMode==='paid'){
     hasRefund = confirm('このお客様はすでにお支払い済み（または入金申告済み）です。\n返金が必要ですか？\n\n「OK」＝返金あり　／　「キャンセル」＝返金なし');
@@ -9691,14 +9692,14 @@ function hakkouPdfHiraku(b64, name){
   }catch(e){ alert('PDFを開けませんでした：' + ((e && e.message) || e)); }
 }
 /* 発行記録へ残す（GAS oosHakkouSave）。返事をそのまま返します */
-async function hakkouNokosu(o, mei, shurui, zaiko, sakusei){
+async function hakkouNokosu(o, mei, shurui, zaiko, sakusei, memo){
   var b64 = await nouhinBuildPdfB64(o, mei);
   var base = hakkouBaseName(o, mei);
   var kingaku = hakkouKingaku(o, mei);
   var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify({ action:'oosHakkouSave', base64:b64, baseName:base, row:{
       shurui: shurui, bangou: OOS_NOUHIN.docNumberOf(o.num), teishutsu: hakkouTeishutsu(o),
-      kingaku: kingaku, sakusei: sakusei, zaiko: zaiko, memo: '' } }) });
+      kingaku: kingaku, sakusei: sakusei, zaiko: zaiko, memo: memo || '' } }) });
   var d = await res.json();
   if(!d || d.status !== 'ok') throw new Error((d && d.message) || '発行記録に残せませんでした');
   d.b64 = b64; d.kingaku = kingaku;
@@ -9707,10 +9708,74 @@ async function hakkouNokosu(o, mei, shurui, zaiko, sakusei){
 
 /* ── 確認画面（登録の前）：① 書類を見る → ② 登録してPDFを残す ── */
 var noshipMita = false, noshipGoChu = false, noshipListRef = null;
+/* ★2026-09-25 第4版：売上に入れる／入れない（誰に対しても毎回・Q16）。入れないなら理由は必ず */
+var noshipUriage = '', noshipRiyu = '';
+/* 月締めの取引先か（見分け方の親は oos-kakaku.js の tsukijimeKa）。月次登録会社はここで1回だけ読みます */
+var noshipMC = null, noshipMCyomi = false, noshipMCng = false;
+function noshipMCyomu(){
+  if(noshipMC !== null || noshipMCyomi) return;
+  noshipMCyomi = true;
+  fetch(GAS_URL + '?action=loadAllData&only=monthlyClients&t=' + Date.now()).then(function(r){ return r.json(); }).then(function(d){
+    noshipMC = (d && d.status === 'ok' && d.data && d.data.monthlyClients) || [];
+    noshipMCng = !(d && d.status === 'ok');
+  }).catch(function(){ noshipMC = []; noshipMCng = true; }).then(function(){
+    noshipMCyomi = false;
+    if(window._pendingOrders && window._pendingOrders[0] && window._pendingOrders[0].noShip) noshipMaeRender();
+  });
+}
+function noshipTsukijimeKa(o){ return OOS_KAKAKU.tsukijimeKa(o, noshipMC || []); }
+function noshipUriageHtml(o){
+  var tsuki = noshipTsukijimeKa(o);
+  var aka = tsuki || noshipUriage === 'irenai';
+  var r = function(v, t, sub){
+    return '<label class="noship-radio"><input type="radio" name="noship-uriage" value="' + v + '"' + (noshipUriage === v ? ' checked' : '')
+      + ' onchange="noshipUriageErabu(this.value)"> <span>' + t + '<span class="noship-s">' + sub + '</span></span></label>';
+  };
+  var h = '<div style="background:' + (tsuki ? '#fef2f2' : '#fff') + ';border:2px solid ' + (aka ? '#b91c1c' : '#cdd9a6') + ';border-radius:10px;padding:10px 12px;margin-top:12px;color:#2b2a26">';
+  if(tsuki){
+    h += '<div style="font-weight:800;font-size:15px;margin-bottom:4px;color:#7f1d1d">⚠️ 月締めの対象の取引先です。本当に請求書を作りますか？</div>'
+       + '<div style="font-size:13px;color:#7f1d1d">月末のまとめ請求と<b>二重請求になる可能性</b>があります。</div>';
+  }else if(noshipMC === null){
+    h += '<div style="font-size:12.5px;color:#8a8578">⏳ 月締めの取引先かどうかを確かめています…</div>';
+  }else if(noshipMCng){
+    h += '<div style="font-size:12.5px;color:#b45309;font-weight:700">⚠ 月締めの取引先の一覧を読めませんでした（RT・バサラだけ見ています）。月締めのお客様なら、二重請求にお気をつけください。</div>';
+  }
+  h += '<div style="font-weight:700;font-size:13px;margin:8px 0 4px">売上に入れますか？（どちらかを選ぶまで②は押せません）</div>'
+     + r('ireru', '売上に入れる', 'この請求書の金額を売上一覧・月末のまとめ請求に入れる')
+     + r('irenai', '売上に入れない', 'なくされた請求書の出し直しなど。売上一覧にも月末のまとめ請求にも入れない');
+  if(noshipUriage === 'irenai'){
+    h += '<div style="font-weight:700;font-size:13px;margin:6px 0 3px">入れない理由（必ず書く）</div>'
+       + '<textarea id="noship-riyu" rows="2" maxlength="200" oninput="noshipRiyu=this.value;noshipBtnJotai()" placeholder="例：8月分の請求書をなくされたため、出し直し" style="width:100%;box-sizing:border-box;border:1.5px solid #b91c1c;border-radius:7px;padding:7px 9px;font-size:13.5px;font-family:inherit">' + esc(noshipRiyu) + '</textarea>';
+  }
+  return h + '</div>';
+}
+function noshipUriageErabu(v){ noshipUriage = (v === 'irenai' ? 'irenai' : 'ireru'); noshipMaeRender(); var t = document.getElementById('noship-riyu'); if(t && t.focus) t.focus(); }
+function noshipDame(){
+  var list = (window._pendingOrders || []);
+  var zaiko = (list[0] && list[0].noShipZaiko) || '';
+  var dame = [];
+  if(!noshipMita) dame.push('①で書類を見てください');
+  if(noshipMC === null) dame.push('月締めの取引先かどうかを確かめています…');
+  if(noshipUriage !== 'ireru' && noshipUriage !== 'irenai') dame.push('売上に入れるか入れないかをえらんでください');
+  if(noshipUriage === 'irenai' && !String(noshipRiyu || '').trim()) dame.push('売上に入れない理由を書いてください');
+  if(zaiko !== 'heras' && zaiko !== 'herasanai') dame.push('上の「在庫は？」をえらんでください（◀ 戻って直す）');
+  if(!sakuseishaIma()) dame.push('作成者をえらんでください');
+  return dame;
+}
+/* 理由を打つたびに画面を描き直すと字が消えるので、ボタンと注意書きだけ入れかえます */
+function noshipBtnJotai(){
+  var b = document.getElementById('noship-go-btn'), w = document.getElementById('noship-dame'); if(!b) return;
+  if(b.textContent !== '② 登録してPDFを残す') return;   /* 登録したあとは触らない */
+  var dame = noshipDame(), on = !dame.length && !noshipGoChu;
+  b.disabled = !on; b.style.background = on ? '#2563eb' : '#d6d3cd'; b.style.borderColor = on ? '#2563eb' : '#d6d3cd';
+  b.style.color = on ? '#fff' : '#8a8578'; b.style.cursor = on ? 'pointer' : 'not-allowed';
+  if(w) w.innerHTML = dame.map(esc).join('<br>');
+}
 function noshipMaeRender(){
   var box = document.getElementById('nagare-mae'); if(!box) return;
   var list = (window._pendingOrders || []);
-  if(noshipListRef !== window._pendingOrders){ noshipMita = false; noshipListRef = window._pendingOrders; }
+  if(noshipListRef !== window._pendingOrders){ noshipMita = false; noshipUriage = ''; noshipRiyu = ''; noshipListRef = window._pendingOrders; }
+  noshipMCyomu();
   var mei = (list[0] && list[0].noShipDoc) || '請求書';
   var zaiko = (list[0] && list[0].noShipZaiko) || '';
   var sakusei = sakuseishaIma();
@@ -9722,19 +9787,17 @@ function noshipMaeRender(){
   h += '<button type="button" onclick="noshipPdfMiru()" style="width:100%;background:#2563eb;border:1px solid #2563eb;border-radius:10px;color:#fff;font-weight:800;font-size:15px;padding:12px;cursor:pointer;margin-bottom:6px">'
      + '🖨️ ' + esc(mei) + 'をPDFで取り出す（確認・印刷・保存）</button>'
      + '<div style="font-size:12px;color:#8a8578;margin-top:2px;line-height:1.6">🖨️ まずここで書類を作って、中身を確かめてください。ここからは送信しません。</div>';
-  var dame = [];
-  if(!noshipMita) dame.push('①で書類を見てください');
-  if(zaiko !== 'heras' && zaiko !== 'herasanai') dame.push('上の「在庫は？」をえらんでください（◀ 戻って直す）');
-  if(!sakusei) dame.push('作成者をえらんでください');
+  if(list[0]) h += noshipUriageHtml(list[0]);
+  var dame = noshipDame();
   var on = !dame.length && !noshipGoChu;
   h += '<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
      +   '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
      +     '<button class="btn btn-gray" onclick="document.getElementById(\'confirm-area\').style.display=\'none\'">◀ 戻って直す</button>'
-     +     sakuseishaSelHtml('noship-sakusei', 'noshipMaeRender()')
+     +     sakuseishaSelHtml('noship-sakusei', 'noshipBtnJotai()')
      +     '<span style="font-size:13px;font-weight:700;color:#4a463d">在庫：' + (zaiko === 'heras' ? '減らす' : (zaiko === 'herasanai' ? '減らさない' : '<span style="color:#b91c1c">まだえらんでいません</span>')) + '</span>'
      +   '</div>'
      +   '<button id="noship-go-btn"' + (on ? '' : ' disabled') + ' onclick="noshipGo()" style="width:100%;margin-top:10px;background:' + (on ? '#2563eb' : '#d6d3cd') + ';border:2px solid ' + (on ? '#2563eb' : '#d6d3cd') + ';border-radius:10px;color:' + (on ? '#fff' : '#8a8578') + ';font-weight:800;font-size:16px;padding:14px 16px;cursor:' + (on ? 'pointer' : 'not-allowed') + '">② 登録してPDFを残す</button>'
-     +   (dame.length ? '<div style="font-size:12.5px;color:#b45309;font-weight:700;margin-top:7px">' + dame.map(esc).join('<br>') + '</div>' : '')
+     +   '<div id="noship-dame" style="font-size:12.5px;color:#b45309;font-weight:700;margin-top:7px">' + dame.map(esc).join('<br>') + '</div>'
      +   '<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">②を押すと：PDFができる → 発行記録シートに1行 → Googleドライブ＋Dropboxに保存 → 売上一覧に載る。<br>'
      +   (zaiko === 'heras' ? '<b>在庫を減らす</b>を選んでいるので、②で在庫が減ります。' : '在庫は動きません。') + '倉庫へは何も行きません。<br>PDFはその場でファイルとして開くので、そのままメールに添付できます。</div>'
      + '</div>'
@@ -9767,8 +9830,14 @@ async function noshipGo(){
   var list = window._pendingOrders;
   if(!list || !list.length || !list[0].noShip) return;
   var zaiko = list[0].noShipZaiko, sakusei = sakuseishaIma();
-  if(!noshipMita || (zaiko !== 'heras' && zaiko !== 'herasanai') || !sakusei) return;
+  if(noshipDame().length) return;   /* 押せない理由が1つでも残っていたら進めない（画面の注意書きと同じ守り） */
   noshipGoChu = true;
+  /* ★2026-09-25 第4版：売上に入れない印と理由（売上Ｃの売上一覧・月末のまとめ請求・RT月次から外れます） */
+  list.forEach(function(o){
+    o.uriageIrenai = (noshipUriage === 'irenai');
+    o.uriageIrenaiRiyu = o.uriageIrenai ? String(noshipRiyu || '').trim() : '';
+    o.tsukijime = noshipTsukijimeKa(o);
+  });
   var btn = document.getElementById('noship-go-btn');
   if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '進めています…'; }
   var log = document.getElementById('noship-log'); if(log) log.innerHTML = '';
@@ -9810,7 +9879,8 @@ async function noshipNokosuHitotsu(o, sakusei){
   var mei = o.noShipDoc || '請求書';
   var say = (typeof noshipSay === 'function' && document.getElementById('noship-log')) ? noshipSay : function(k, h){ showSyncStatus(h.replace(/<[^>]+>/g, ''), k === 'ng'); };
   try{
-    var d = await hakkouNokosu(o, mei, mei, (o.noShipZaiko === 'heras' ? '減らした' : '減らさない'), sakusei || sakuseishaIma());
+    var memo = o.uriageIrenai ? '売上に入れない（理由：' + (o.uriageIrenaiRiyu || '') + '）' : (o.tsukijime ? '月締めの取引先・売上に入れる' : '');
+    var d = await hakkouNokosu(o, mei, mei, (o.noShipZaiko === 'heras' ? '減らした' : '減らさない'), sakusei || sakuseishaIma(), memo);
     o.hakkou = { url: d.url, name: d.name, at: new Date().toISOString() };
     if(d.kingaku) o.orderTotal = d.kingaku;   /* 出した請求書の合計（税込）。あとから領収書の金額さがしに使います */
     o.hakkouNg = '';
@@ -9831,8 +9901,18 @@ async function noshipNokosuHitotsu(o, sakusei){
 document.addEventListener('DOMContentLoaded', function(){ try{ noshipKirikae(); }catch(e){} });
 /* 受注一覧のカード（発送不要の注文）：流れバーの代わりにこれを出します */
 function noshipCardHtml(o){
+  /* ★2026-09-25 第4版：キャンセルしたものは灰色で、在庫がどうなったかを出します */
+  if(o.status === 'cancelled'){
+    var c = o.noShipCancel || {};
+    return '<div style="border:1.5px solid #cfc9bd;background:#f4f2ec;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:13px;line-height:1.8;color:#57534e">'
+      + '<b>❌ キャンセルしました' + (c.at ? '（' + esc(noshipHizukeJikan(c.at)) + '）' : '') + '</b>　在庫：' + esc(c.zaiko || (o.noShipZaiko === 'heras' ? '戻しました' : '動いていません'))
+      + (o.hakkou && o.hakkou.url ? '<br><a href="' + esc(o.hakkou.url) + '" target="_blank" rel="noopener">📄 ' + esc(o.hakkou.name || 'PDF') + '</a>（記録として残ります）' : '')
+      + (c.kirokuNg ? '<br><span style="color:#b91c1c;font-weight:700">⚠ 発行記録にキャンセルを書けませんでした（' + esc(c.kirokuNg) + '）</span> <button class="btn-sm" onclick="noshipCancelKiroku(\'' + esc(o.id) + '\', this)">もう一度書く</button>' : '')
+      + '</div>';
+  }
   var h = '<div style="border:1.5px solid #9fb7d8;background:#f4f8fd;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:13px;line-height:1.8">'
-    + '<b>📄 発送不要（' + esc(o.noShipDoc || '請求書') + 'のみ）</b>　在庫：' + (o.noShipZaiko === 'heras' ? '減らした' : '減らさない') + '<br>';
+    + '<b>📄 発送不要（' + esc(o.noShipDoc || '請求書') + 'のみ）</b>　在庫：' + (o.noShipZaiko === 'heras' ? '減らした（' + noshipHonsu(o) + '本）' : '減らさない') + '<br>'
+    + (o.uriageIrenai ? '<span style="color:#7f1d1d;font-weight:700">🧾 売上に入れない（理由：' + esc(o.uriageIrenaiRiyu || '') + '）</span><br>' : '');
   if(o.hakkou && o.hakkou.url){
     h += '✅ 発行記録に残しました　<a href="' + esc(o.hakkou.url) + '" target="_blank" rel="noopener">📄 ' + esc(o.hakkou.name || 'PDFを開く') + '</a>';
   }else{
@@ -9840,7 +9920,41 @@ function noshipCardHtml(o){
       + sakuseishaSelHtml('noship-card-sakusei-' + esc(o.id), '') + ' '
       + '<button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:800" onclick="noshipCardNokosu(\'' + esc(o.id) + '\', this)">📄 発行記録に残す</button>';
   }
+  h += '<div style="margin-top:6px">' + (o.hakkou && o.hakkou.url ? sakuseishaSelHtml('noship-cancel-sakusei-' + esc(o.id), '') + ' ' : '')
+    + '<button class="btn-sm" style="border:2px solid #b91c1c;color:#b91c1c;background:#fff;font-weight:800" onclick="noshipCancel(\'' + esc(o.id) + '\')">✖ キャンセル</button></div>';
   return h + '</div>';
+}
+function noshipHonsu(o){ return (o.lines || []).reduce(function(s, l){ return s + lineTotal(l); }, 0); }
+function noshipHizukeJikan(v){ var d = new Date(v); if(isNaN(d)) return ''; var p = function(n){ return ('0' + n).slice(-2); }; return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+/* ✖ キャンセル（第4版）：取り消しそのものは今までの cancelOrder（在庫の戻し方も同じ）。
+   確認の文に在庫がどうなるかを出し、発行記録の行を灰色にしてメモに書き足します（行もPDFも消しません） */
+async function noshipCancel(id){
+  var o = orders.find(function(x){ return String(x.id) === String(id); }); if(!o || o.status === 'cancelled') return;
+  var sakusei = sakuseishaIma();
+  if(!sakusei){ alert('作成者をえらんでください。'); return; }
+  var herashita = !!o.stockDeducted, hon = noshipHonsu(o);
+  cancelOrder(o.id, o.num + ' をキャンセルしますか？' + String.fromCharCode(10, 10)
+    + '在庫：' + (herashita ? '減らした' + hon + '本を戻します' : '動いていません（戻すものはありません）'));
+  if(o.status !== 'cancelled') return;   /* 「キャンセル」を押さなかった */
+  o.noShipCancel = { at: new Date().toISOString(), by: sakusei, zaiko: (herashita ? hon + '本戻しました' : '動いていません') };
+  syncOrdersToGAS([o]);
+  await noshipCancelKiroku(o.id);
+}
+async function noshipCancelKiroku(id, btn){
+  var o = orders.find(function(x){ return String(x.id) === String(id); }); if(!o || !o.noShipCancel) return;
+  if(btn){ btn.disabled = true; btn.textContent = '書いています…'; }
+  var c = o.noShipCancel;
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'oosHakkouCancel', bangou: OOS_NOUHIN.docNumberOf(o.num),
+        memo: '❌ ' + noshipHizukeJikan(c.at) + ' キャンセル（' + c.by + '）在庫：' + c.zaiko }) });
+    var d = await res.json();
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || '書けませんでした');
+    c.kirokuNg = '';
+    showSyncStatus('❌ キャンセルしました：' + o.num + '（発行記録にも書きました）');
+  }catch(e){ c.kirokuNg = String((e && e.message) || e); }
+  syncOrdersToGAS([o]);
+  if(typeof renderList === 'function') renderList();
 }
 async function noshipCardNokosu(id, btn){
   var o = orders.find(function(x){ return String(x.id) === String(id); }); if(!o) return;
@@ -14833,7 +14947,29 @@ function honbuMirrorPing(){
     }catch(e){}
   }, 5000);
 }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-09-25 保存は【1本ずつ順番に】（検証で見つけた穴）
+   ──────────────────────────────────────────────────────────────────────
+   保存は「サーバーの最新を読む → 自分の変更を重ねる → まるごと書き直す」です。
+   続けて2回呼ぶと、あとの保存が【前の保存が書き終わる前】に読んでしまい、
+   　・前の保存で入れたばかりの注文が、手元の一覧から一時的に消える
+   　・古い写しで書き直して、前に保存した印（発行記録・金額など）がサーバーから消える
+   ことがありました（発送不要の「登録 → 発行記録」で、実際に手元の一覧から消えるのを再現）。
+   → 前の保存が終わってから、次の保存を始めます。
+   → 書き終わったあと、まだサーバーに届いていない注文・保存を待っている注文は、手元の方を残します。
+   ★順番待ち（__oosSyncKyu）を外さないでください。見張り：tests/test_ikisaki.js ⑱-101
+   ══════════════════════════════════════════════════════════════════════ */
+var __oosSyncKyu = Promise.resolve();
+var __oosSyncMachi = {};   /* id → まだ保存が終わっていない回数 */
 function syncOrdersToGAS(changed){
+  var ids = Array.isArray(changed) ? changed.map(function(o){ return o && o.id; }).filter(Boolean) : [];
+  ids.forEach(function(id){ __oosSyncMachi[id] = (__oosSyncMachi[id] || 0) + 1; });
+  var p = __oosSyncKyu.then(function(){ return syncOrdersToGASHontai_(changed); });
+  var owari = function(){ ids.forEach(function(id){ if(--__oosSyncMachi[id] <= 0) delete __oosSyncMachi[id]; }); };
+  __oosSyncKyu = p.then(owari, owari);
+  return p;
+}
+function syncOrdersToGASHontai_(changed){
   if(!gasSyncEnabled) return Promise.resolve();
   const fallbackSave = function(arr){
     return fetch(GAS_URL, {
@@ -14863,6 +14999,16 @@ function syncOrdersToGAS(changed){
     }
     return fallbackSave(base).then(function(d){
       if(d && d.status==='ok'){
+        /* ★2026-09-25 手元の最新化。ただし、まだサーバーに届いていない注文と、
+           　このあと保存を待っている注文（__oosSyncMachi）は、手元の方を残します（上の説明） */
+        var _teMoto = {}; orders.forEach(function(o){ if(o && o.id) _teMoto[o.id] = o; });
+        var _jibun = {}; changed.forEach(function(o){ if(o && o.id) _jibun[o.id] = true; });
+        var _baseIds = {};
+        base = base.map(function(o){
+          _baseIds[o.id] = true;
+          return (!_jibun[o.id] && __oosSyncMachi[o.id] && _teMoto[o.id]) ? _teMoto[o.id] : o;
+        });
+        orders.forEach(function(o){ if(o && o.id && !_baseIds[o.id]) base.push(o); });
         orders = base;   // 手元も最新化（他アプリの変更もここで反映される）
         renderList();
         showSyncStatus('✅ 保存しました（'+new Date().toLocaleTimeString('ja-JP')+'）');
