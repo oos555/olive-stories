@@ -254,21 +254,26 @@ eq('参考：0 で止まる', oya3, 0);
         getValue(){ return get(v => v)[0][0]; },
         setValues(vs){ vs.forEach((row, i) => { sh.c[r-1+i] = sh.c[r-1+i] || []; row.forEach((v, j) => { sh.c[r-1+i][c-1+j] = v; }); }); return rg; },
         setValue(v){ return rg.setValues([[v]]); }, setBackground(b){ for(let i = 0; i < nr; i++) sh.bg[r+i] = b; return rg; },
-        setFontColor(){ return rg; }, setFontWeight(){ return rg; }, setNumberFormat(){ return rg; } };
+        setFontColor(){ return rg; }, setFontWeight(){ return rg; }, setNumberFormat(){ return rg; }, setWrap(){ return rg; },
+        getDisplayValues(){ return get(v => String(v)); }, setFormula(v){ return rg.setValues([[v]]); }, clear(){ for(let i = 0; i < nr; i++){ const row = sh.c[r-1+i]; if(row) for(let j = 0; j < nc; j++) row[c-1+j] = ''; } return rg; },
+        getRichTextValues(){ return get(v => v).map((row, i) => row.map((v, j) => { const runs = ((sh.rich || {})[(r+i) + ':' + (c+j)]) || []; return { getRuns(){ return runs.map(x => ({ getText(){ return x.t; }, getLinkUrl(){ return x.u; } })); } }; })); } };
       return rg; },
     insertRowBefore(r){ this.c.splice(r-1, 0, []); }, setFrozenRows(){}, setColumnWidth(){}, getSheetId(){ return 1; },
+    getLastColumn(){ return this.c.reduce((m, row) => Math.max(m, (row || []).length), 0); }, hideColumns(){},
+    getMaxRows(){ return Math.max(this.c.length, 1); }, getMaxColumns(){ return Math.max(this.getLastColumn(), 1); },
     getParent(){ return { getUrl(){ return 'u'; } }; }
   };
   const tabs = {};
   const kanri = { getSheetByName(n){ return tabs[n] || null; }, insertSheet(n){ return (tabs[n] = new Sh()); }, getEditors(){ return []; } };
-  const shTabs = {}; let tsukutta = 0; const props = {};
+  const shTabs = {}; let tsukutta = 0; const props = { OOS_YUKA_FILE_ID:'YUKA' };
+  const yTabs = {}; const yukaF = { getSheetByName(n){ return yTabs[n] || null; } };
   const shacho = { getSheetByName(n){ return shTabs[n] || null; }, getSheets(){ return Object.keys(shTabs).map(k => shTabs[k]); }, insertSheet(n){ return (shTabs[n] = new Sh()); }, getId(){ return 'SHACHO'; } };
   const alive = {};
   let hi = null;
   const RealDate = Date;
   class FakeDate extends RealDate { constructor(...a){ if(a.length) super(...a); else if(hi) super(hi[0], hi[1] - 1, hi[2], 12); else super(); } }
   const ctx = vm.createContext({ console, Math, JSON, String, Number, Object, Array, RegExp, Error, parseInt, Date: FakeDate,
-    SpreadsheetApp:{ openById(id){ return id === 'SHACHO' ? shacho : kanri; }, create(){ tsukutta++; return shacho; } },
+    SpreadsheetApp:{ openById(id){ return id === 'SHACHO' ? shacho : (id === 'YUKA' ? yukaF : kanri); }, create(){ tsukutta++; return shacho; } },
     PropertiesService:{ getScriptProperties(){ return { getProperty(k){ return k === 'OOS_KANRI_FILE_ID' ? 'K' : (props[k] || null); }, setProperty(k, v){ props[k] = v; } }; } },
     LockService:{ getScriptLock(){ return { waitLock(){}, releaseLock(){} }; } },
     DriveApp:{ getFileById(id){ if(!alive[id]) throw new Error('no'); return { isTrashed(){ return false; } }; } },
@@ -311,6 +316,38 @@ eq('参考：0 で止まる', oya3, 0);
     const n1 = ss.c.length; const a2 = ctx.oosSampleAddOrder('u1', '有償');
     eq('サンプル⑧ 同じ注文を2回押しても二重に入らない', a2.aru === true && ss.c.length === n1, true);
     eq('サンプル⑧ 無い注文は断る', ctx.oosSampleAddOrder('zzz').status, 'error');
+    /* ★2026-09-25 請求書は「📄 書類の発行記録」に一本に（ひろみさん）。発注書に貼った請求書を足す */
+    {
+      const hk = ctx.oosHakkouSheet_(); const mae = hk.c.length;
+      const hc = kanri.getSheetByName('受注データ') || kanri.insertSheet('受注データ');
+      const J = function(id, num, client, st, reg, enc, key, extra){ const r = []; r[0] = id; r[1] = client; r[2] = num; r[3] = '定価'; r[11] = st; r[12] = reg; r[19] = JSON.stringify(Object.assign({ enclosedDoc:enc, yukaKey:key, orderTotal:5130, lines:[] }, extra || {})); return r; };
+      hc.c.push(J('h1', 'TK-20260912-1111', '梨木綾', 'shipped', '2026-09-12', '納品書兼請求書', 'K1'));
+      hc.c.push(J('h2', 'TK-20260824-2222', '浅本亮', 'pending', '2026-08-24', '納品書兼請求書 ＋  ＋ ', 'K2'));
+      hc.c.push(J('h3', 'TK-20260825-3333', 'のみ商店', 'shipped', '2026-08-25', '請求書', '', { noShip:true }));
+      hc.c.push(J('h4', 'RT-20260825-4444', 'ホテル', 'pending', '2026-08-25', '納品書兼請求書', 'K4'));
+      hc.c.push(J('h5', 'TK-20260826-5555', '納品書だけ', 'pending', '2026-08-26', '納品書', 'K5'));
+      hc.c.push(J('h6', 'TK-20260827-6666', 'キャンセル済', 'cancelled', '2026-08-27', '納品書兼請求書', 'K6'));
+      hc.c[hc.c.length - 3][3] = 'RT（ホテル）';
+      const ysh = new Sh(); yTabs['発注書'] = ysh; ysh.rich = {};
+      const head = []; head[39] = '転記キー（自動・さわらない）'; ysh.c.push(head);
+      const yr = []; yr[21] = '📄 納品書兼請求書（ひらく）'; yr[39] = 'K1'; ysh.c.push(yr); ysh.rich['2:22'] = [{ t:'📄 納品書兼請求書（ひらく）', u:'https://drive.google.com/file/d/AAAAAAAAAAAAAAAAAAAAAA9/view' }];
+      const yr2 = []; yr2[1] = 'x'; yr2[39] = 'K2'; ysh.c.push(yr2);
+      const k1 = ctx.oosHakkouHassouSync_();
+      const add = hk.c.slice(mae);
+      eq('一本化① 倉庫へ送った注文の請求書を足す（バサラ・RT・発送不要・納品書だけ・キャンセル済は足さない）', k1.status === 'ok' && add.map(r => r[2]).join(',') === 'TK-20260824-2222,TK-20260912-1111', true);
+      eq('一本化① 古い順・リンクがあれば式・なければ（リンクなし）・メモの印', add[0][7] === '（リンクなし）' && /^=HYPERLINK\("https:\/\/drive/.test(add[1][7]) && add[1][9] === '発注書に貼った書類（倉庫へ発送）' && add[1][6] === '発送あり（倉庫）', true);
+      eq('一本化① 空の「＋」を書類の種類にしない', add[0][1], '納品書兼請求書');
+      const n2 = hk.c.length; ctx.oosHakkouHassouSync_();
+      eq('一本化② 何度動かしても二重に足さない', hk.c.length, n2);
+      ysh.rich['3:22'] = [{ t:'📄 納品書兼請求書（ひらく）', u:'https://drive.google.com/file/d/BBBBBBBBBBBBBBBBBBBBBB8/view' }]; ysh.c[2][21] = '📄';
+      ctx.oosHakkouHassouSync_();
+      eq('一本化② あとから貼られたリンクを入れる', /BBBB/.test(hk.c[mae][7]), true);
+      hc.c[3][11] = 'cancelled'; ctx.oosHakkouHassouSync_();
+      eq('一本化③ あとでキャンセルされたら、行は消さずに灰色＋メモ', hk.c.length === n2 && String(hk.c[mae][9]).indexOf('キャンセル') >= 0 && hk.bg[mae + 1] === '#eeece6', true);
+      hk.c.push(['2026/09/20', '納品書兼請求書', 'TK-9', 'x様', '', '—', '発送あり（倉庫）', '（リンクなし）', '—', '発注書に貼った書類（倉庫へ発送）']);
+      const _bgNashi = hk.bg[hk.c.length]; const _tk = ctx.oosHakkouLinkTenken();
+      eq('一本化④ 週1回の点検は、リンクがまだ無い行を赤くしない（数だけ数える）', hk.bg[hk.c.length] === _bgNashi && /リンクなし：1件/.test(_tk), true);
+    }
     eq('サンプル⑦ 終了した日が入る', /^\d{4}-\d{2}-\d{2}$/.test(ss.c[1][12]), true);
   }
 }
