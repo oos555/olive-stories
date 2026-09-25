@@ -303,6 +303,14 @@ eq('参考：0 で止まる', oya3, 0);
     ctx.oosSampleOwari('o1');
     ctx.oosSampleSave({ id:'o1', mokuteki:'x', jokyo:'反応待ち' });
     eq('サンプル⑦ ［終了］した行は、古い画面から保存しても「終了」のまま', ss.c[1][9], '終了');
+    /* ★2026-09-25 売上一覧から手で入れる（例：中村先生を有償サンプルとして） */
+    const od = kanri.insertSheet('受注データ'); const ex = JSON.stringify({ recipientName:'中村先生', lines:[{ productName:'オイルA', bottles:1, boxes:1, boxQty:6, giftType:'normal' }, { productName:'オイルB', bottles:2, giftType:'normal' }] });
+    od.c.push(['ID']); const rr = []; rr[0] = 'u1'; rr[1] = '中村先生'; rr[2] = 'TK-20260912-5577'; rr[11] = 'shipped'; rr[12] = '2026-09-12'; rr[13] = '2026-09-13'; rr[19] = ex; od.c.push(rr);
+    const a1 = ctx.oosSampleAddOrder('u1', '有償'); const row = ss.c[ss.c.length - 1];
+    eq('サンプル⑧ 売上一覧から入れる：商品ぜんぶ・有償・伝票番号・状況は送った', a1.status === 'ok' && row[2] === 'オイルA ×7、オイルB ×2' && row[3] === '有償' && row[4] === 'TK-20260912-5577' && row[9] === '送った' && row[11] === 'u1', true);
+    const n1 = ss.c.length; const a2 = ctx.oosSampleAddOrder('u1', '有償');
+    eq('サンプル⑧ 同じ注文を2回押しても二重に入らない', a2.aru === true && ss.c.length === n1, true);
+    eq('サンプル⑧ 無い注文は断る', ctx.oosSampleAddOrder('zzz').status, 'error');
     eq('サンプル⑦ 終了した日が入る', /^\d{4}-\d{2}-\d{2}$/.test(ss.c[1][12]), true);
   }
 }

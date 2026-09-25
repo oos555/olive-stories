@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-02">
+<meta name="oos-version" content="2026-09-25-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1718,7 +1718,32 @@ function buildOrderDetailHtml(o){
     '<tbody>'+itemsHtml+'</tbody></table>'+
     '<div style="text-align:right;font-size:14px;font-weight:800;margin-top:8px">合計（税込）：¥'+sum.toLocaleString()+'</div>'+
     '<div style="font-size:11.5px;color:#2b2a26;margin-top:6px">対応状況メモ：'+(o.billingNote ? esc(o.billingNote) : '（未記入）')+'</div>'+
+    /* ★2026-09-25 ひろみさん「売上一覧に入っているものも、実は有償サンプルということがある。私があとで手で入れたい」
+       　この注文を、価格リスト・見積Ｍのサンプル発送先（社長専用スプシ）に入れます。売上一覧からは外れません。 */
+    '<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e8e2d8;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<select id="sample-yushou-'+esc(o.id)+'" style="padding:5px 8px;border:1px solid #d5cfc3;border-radius:6px;font-size:12.5px"><option>有償</option><option>無償</option></select>'+
+      '<button type="button" onclick="uriageSampleIreru(\''+esc(o.id)+'\', this)" style="background:#fff;border:2px solid #55622e;color:#55622e;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer">🎁 サンプル発送先リストに入れる</button>'+
+      '<span id="sample-kekka-'+esc(o.id)+'" style="font-size:12px;font-weight:700"></span>'+
+    '</div>'+
     '</div>';
+}
+/* ★2026-09-25 売上一覧の注文を、サンプル発送先（社長専用スプシ）へ手で入れる（GAS oosSampleAddOrder・二重には入らない） */
+async function uriageSampleIreru(id, btn){
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return String(x.id) === String(id); }); if(!o) return;
+  var sel = document.getElementById('sample-yushou-' + id), k = document.getElementById('sample-kekka-' + id);
+  var yushou = sel ? sel.value : '有償';
+  if(!confirm((o.client || o.recipientName || '') + '（' + (o.num || '') + '）を、' + yushou + 'サンプルとして\nサンプル発送先リストに入れますか？\n\n売上一覧からは外れません。')) return;
+  btn.disabled = true; if(k){ k.style.color = '#8a8578'; k.textContent = '入れています…'; }
+  try{
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'oosSampleAddOrder', orderId: id, yushou: yushou }) });
+    var d = await res.json();
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || '入れられませんでした');
+    if(k){ k.style.color = '#0f5a4a'; k.textContent = d.aru ? '✅ もう入っています（価格リスト・見積Ｍで見られます）' : '✅ 入れました（価格リスト・見積Ｍのサンプル発送先に出ます）'; }
+  }catch(e){
+    btn.disabled = false;
+    if(k){ k.style.color = '#b91c1c'; k.textContent = '⚠ 入れられませんでした：' + (e.message || e) + '（もう一度押してください）'; }
+  }
 }
 async function saveBillingFields(orderId){
   const contactInput = document.querySelector('.billing-contact-input[data-id="'+orderId+'"]');
