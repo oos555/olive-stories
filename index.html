@@ -319,6 +319,17 @@ body.oos-machi .order-line select[data-role=machiKind]{font-weight:800;text-alig
 body.oos-machi .order-line select[data-role=machiKind][data-machi=hold]{background:#e7f0da;color:#33421f;border-color:#a8bd7c}
 body.oos-machi .order-line select[data-role=machiKind][data-machi=reserve]{background:#e4ecf6;color:#1f4a6d;border-color:#8fb0d4}
 .order-line select[data-role=condition]{font-weight:700}
+/* ★2026-09-25 発送不要（請求書のみ）：届け先カードの「発送だけに使う欄」を隠します（承認モック第3版）。
+   　倉庫ピッキング手数料・送料は【いつもどおり人が選ぶ】ので隠しません（ひろみさん 2026-09-25）。 */
+body.oos-noship .recipient-card .hs-only{display:none!important}
+.ryoshu-small{font-size:12px;color:#8a8578;margin:3px 0 10px;line-height:1.6}
+.ryoshu-hit{border:1px solid #e3e0d6;border-radius:9px;padding:8px 10px;margin:0 0 7px;background:#fff}
+.ryoshu-hit mark{background:#fde68a;padding:0 1px}
+.noship-radio{display:flex;align-items:flex-start;gap:7px;border:1.5px solid #dcd8cd;border-radius:8px;padding:6px 9px;margin:0 0 5px;font-weight:700;font-size:13.5px;background:#fff;cursor:pointer}
+.noship-radio input{margin-top:3px}
+.noship-radio:has(input:checked){border-color:#2563eb;background:#eff5ff}
+.noship-radio.off{opacity:.45;cursor:not-allowed;background:#f4f2ec}
+.noship-s{display:block;font-weight:400;font-size:12px;color:#6b6a63}
 .order-line select[data-role=condition][data-cond=old]{background:#faeeda;color:#633806;border-color:#e0b45f}
 .order-line select[data-role=condition][data-cond=defect]{background:#fcebeb;color:#a32d2d;border-color:#e89a9a}
 .order-line select[data-role=condition][data-cond=kizu]{background:#fff1cc;color:#8a5a00;border-color:#e0b45f}
@@ -483,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-05">
+<meta name="oos-version" content="2026-09-25-06">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -519,7 +530,7 @@ body{background:#fff}
     <a href="stock.html">📦 在庫 B</a>
     -->
     <a href="billing.html">🧾 売上 C</a>
-    <a href="mitsumori.html">📝 見積・請求書 M</a>
+    <a href="mitsumori.html">📑 価格リスト・見積 M</a>
     <a href="soryo.html">💴 送料・約束ごと S</a>
     <a href="master.html">📒 統合マスタ N</a>
     <a href="rt_chef_daicho.html">🍽️ RTシェフ台帳</a>
@@ -623,6 +634,8 @@ body{background:#fff}
        　→ 名前と薄さだけ出荷依頼書にそろえました。中身・はたらきは変えていません（貼れなかったときの④・📥はここに残っています）。 -->
   <button class="tab" id="tab-list" onclick="showPanel('list',this)" style="opacity:.62">（使いません）受注一覧</button>
   <button class="tab" id="tab-hold" onclick="showPanel('hold',this)">取り置き・予約<span id="hold-tab-badge"></span></button>
+  <!-- ★2026-09-25 あとから領収書（承認モック第3版）。新しく登録せず、もとの注文から出します -->
+  <button class="tab" id="tab-ryoshu" onclick="showPanel('ryoshu',this)">🧾 あとから領収書</button>
   <!-- ★2026-09-10 ひろみさん指示：もう使わないものは【（使いません）】で言葉をそろえる。
        「使わない」「消す予定」「今は使ってない」とバラバラに書かないでください。
        出荷依頼書は、倉庫への連絡が【発注書のA列を🔵にしたとき】だけになったので、通りません。 -->
@@ -656,6 +669,13 @@ body{background:#fff}
                  ★3つに戻さないでください。混ざった注文（取置分＋予約分）が作れなくなります。 -->
             <option value="pending">通常発送（いますぐ倉庫へ）</option>
             <option value="wait">取り置き・予約（待つもの）</option>
+            <!-- ★2026-09-25 承認モック mocks/mock_請求書のみ・書類の発行記録・価格リスト見積M_2026-09-25.html（第3版）
+                 ひろみさん「受注登録で、登録の種類の中に、発送不要（請求書のみ）が選択できれば、請求書を作成できるのでは？」
+                 ・倉庫スプシ（発注書）には1行も飛びません／倉庫へのLINEもありません
+                 ・書類のPDFは【📄 書類の発行記録】（本部管理専用ゆかスプシ）に1行・Googleドライブ＋Dropboxへ
+                 ・売上一覧には②を押した時点で載ります（status は shipped・noShip の印つき）
+                 ★上の2つ（9/13の決めごと）とは別の話です。取り置き・予約を分け直さないでください。 -->
+            <option value="noship">発送不要（請求書のみ）</option>
           </select>
         </div>
         <!-- ★2026-09-12 ひろみさん：「価格区分という名前がわかりにくいか。
@@ -682,6 +702,28 @@ body{background:#fff}
             <option value="paid">入金済み</option>
           </select>
         </div>
+      </div>
+      <!-- ══════════════════════════════════════════════════════════════
+           ★2026-09-25 発送不要（請求書のみ）のときの2つ（承認モック第3版のとおり）
+           ・作る書類：請求書／納品書兼請求書（ひろみさん Q1）
+           ・在庫は？：減らす／減らさない をその都度えらぶ（Q2）。最初はどちらも選ばれていません。
+           　えらぶまで②は押せません（選び忘れで在庫がずれないように）
+           ★【発送不要を選んだときだけ】さわれます（Q12）。ほかのときは灰色で押せません。
+           ══════════════════════════════════════════════════════════════ -->
+      <div id="noship-waku" style="margin-top:10px;background:#fff;border:1.5px solid #cdd9a6;border-radius:9px;padding:10px 12px">
+        <div class="g2" style="gap:12px">
+          <div>
+            <div style="font-weight:700;font-size:13px;margin-bottom:4px">作る書類</div>
+            <label class="noship-radio"><input type="radio" name="noship-doc" value="請求書" checked> <span>請求書</span></label>
+            <label class="noship-radio"><input type="radio" name="noship-doc" value="納品書兼請求書"> <span>納品書兼請求書<span class="noship-s">品物は手渡し済みで、書類だけ郵送・メールするとき</span></span></label>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px;margin-bottom:4px">在庫は？（その都度えらぶ・最初はどちらも選ばれていません）</div>
+            <label class="noship-radio"><input type="radio" name="noship-zaiko" value="heras"> <span>在庫を減らす<span class="noship-s">品物は手渡しなどで、もうお客様の手元にある</span></span></label>
+            <label class="noship-radio"><input type="radio" name="noship-zaiko" value="herasanai"> <span>在庫は減らさない<span class="noship-s">品物は動かない請求</span></span></label>
+          </div>
+        </div>
+        <div id="noship-hint" style="font-size:12px;color:#8a8578;margin-top:4px"></div>
       </div>
       <!-- ★2026-09-10 ひろみさん指示：分類（予約の名前）。どの注文にも付けられます。
            ひろみさんの言葉：「田中さんの発送ですが、と言われても、どの田中さん、いつのやつ、
@@ -1733,6 +1775,19 @@ body{background:#fff}
 </div>
 
 <!-- 取り置き・予約 -->
+<!-- ★2026-09-25 🧾 あとから領収書（承認モック mocks/mock_請求書のみ・書類の発行記録・価格リスト見積M_2026-09-25.html 第3版 2.） -->
+<div id="panel-ryoshu" class="panel">
+  <div class="card">
+    <div class="sec">🧾 あとから領収書（受注Ａ）</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input type="text" id="ryoshu-q" placeholder="例：山田　／　4182　／　32400" onkeydown="if(event.key==='Enter')ryoshuSagasu()" style="flex:1;border:1.5px solid #9fb7d8;border-radius:8px;padding:8px 10px;font-size:14px">
+      <button class="btn" onclick="ryoshuSagasu()" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:800">さがす</button>
+    </div>
+    <div class="ryoshu-small">名前の一部・伝票番号の一部（「4182」だけでも）・金額でさがせます。ひらがなとカタカナ、全角と半角、空白のあるなしは同じとみなします。</div>
+    <div id="ryoshu-kekka"></div>
+  </div>
+</div>
+
 <div id="panel-hold" class="panel">
   <details style="background:#eef1e6;border:1px solid #c9d3b4;border-radius:10px;padding:10px 12px;margin-bottom:14px">
     <summary style="font-size:14px;font-weight:700;color:#33421f;cursor:pointer">❓ この画面ですること（タップで開く）</summary>
@@ -2463,6 +2518,8 @@ function renderYukisakiNotice(){
   var b = document.getElementById('reg-yukisaki-yoyaku');
   if(a) a.style.display = yoyaku ? 'none' : '';
   if(b) b.style.display = yoyaku ? '' : 'none';
+  /* ★2026-09-25 発送不要（請求書のみ）は、どちらの箱にも入らないので両方隠します */
+  if(t === 'noship'){ if(a) a.style.display = 'none'; if(b) b.style.display = 'none'; }
 }
 
 function renderBunruiList(){
@@ -3179,9 +3236,12 @@ function onRecordTypeChange(){
   var _machi = machiModeKa();
   try{ document.body.classList.toggle('oos-machi', _machi); }catch(_ec){ if(typeof oosShippai==='function') oosShippai('取り置き・予約の列の出し分け', _ec); }
   machiHizukeKirikae();
-  const colors = { pending: ['#fff','#2b2a26'], wait: ['#fef3c7','#78350f'] };
+  const colors = { pending: ['#fff','#2b2a26'], wait: ['#fef3c7','#78350f'], noship: ['#eff5ff','#1f4a6d'] };
   sel.style.background = (colors[type]||colors.pending)[0];
   sel.style.color      = (colors[type]||colors.pending)[1];
+  /* ★2026-09-25 発送不要（請求書のみ）：届け先カードの発送だけの欄を隠し、
+     　「作る書類」「在庫は？」を【このときだけ】さわれるようにします（ひろみさん Q12） */
+  try{ noshipKirikae(); }catch(_en){ if(typeof oosShippai==='function') oosShippai('発送不要の出し分け', _en); }
   /* ★2026-09-13 ひろみさん指示：分類は【取り置き・予約のときだけ】打てます。
      　「この分類、予約と取り置きの時だけ入力できるようにして」
      ★通常受注では打てないようにします（打てる形に戻さないでください）。 */
@@ -3248,21 +3308,21 @@ function pkgOpts(g, vals, cur, gift){
 }
 function pkgBlockHtml(id){
   return '<div class="pkgbox" data-role="pkgbox">'+
-    '<div class="pkgh">📦 梱包の指示</div>'+
-    '<div class="pkg-switch">'+
+    '<div class="pkgh hs-only">📦 梱包の指示</div>'+
+    '<div class="pkg-switch hs-only">'+
       '<button type="button" data-role="kindNormal" class="on" onclick="setPkgKind(\''+id+'\',\'normal\')">📦 ふつうの発送</button>'+
       '<button type="button" data-role="kindGift" onclick="setPkgKind(\''+id+'\',\'gift\')">🎁 ギフト</button>'+
     '</div>'+
-    '<div data-role="paneNormal">'+
+    '<div data-role="paneNormal" class="hs-only">'+
       '<div class="pkg-row"><span class="pkg-lb">発送に使う箱</span>'+pkgOpts('box', PKG_BOX, 'きれいなものならリサイクル箱OK', false)+'</div>'+
     '</div>'+
-    '<div data-role="paneGift" style="display:none">'+
+    '<div data-role="paneGift" class="hs-only" style="display:none">'+
       '<div class="pkg-row"><span class="pkg-lb">発送に使う箱</span>'+pkgOpts('gbox', PKG_GBOX, '化粧箱に入れる', true)+'<span class="pkg-hint">※サイズは倉庫で選びます</span></div>'+
       '<div class="pkg-row"><span class="pkg-lb">包装紙</span>'+pkgOpts('wrap', ['包む','包まない'], '包む', true)+'<span class="pkg-hint">※1種類なので、どの紙かは選びません</span></div>'+
       '<div class="pkg-row"><span class="pkg-lb">リボン</span>'+pkgOpts('ribbon', ['かける','かけない'], 'かける', true)+'</div>'+
       '<div class="pkg-row"><span class="pkg-lb">熨斗（のし）</span>'+pkgOpts('noshiSide', ['なし','内のし','外のし'], 'なし', true)+'</div>'+
     '</div>'+
-    '<div class="pkg-row" style="align-items:flex-start"><span class="pkg-lb">同梱する書類</span><div>'+
+    '<div class="pkg-row hs-only" style="align-items:flex-start"><span class="pkg-lb">同梱する書類</span><div>'+
       '<div class="pkg-docs">'+
         PKG_DOCS.map(function(d){ return '<span class="pkg-doc" data-doc="'+esc(d)+'" onclick="encTog(this)">'+esc(d)+'</span>'; }).join('')+
         '<span class="pkg-doc" data-doc="__other" onclick="encTog(this)">その他（自分で書く）</span>'+
@@ -3290,7 +3350,7 @@ function pkgBlockHtml(id){
     '</div></div>'+
     /* ★2026-09-05 ひろみさん指示：ギフトなのに金額の紙が選ばれていたら、受注Ａでも気づけるようにする。
        数え方は倉庫Ｄとまったく同じ（ギフト＋よそ様あて＋RT以外）。★勝手に外しません・止めません */
-    '<div data-role="giftMoneyWarn" style="display:none;background:#fbeaea;border:2px solid #dc2626;color:#991b1b;border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:13px;line-height:1.7"></div>'+
+    '<div data-role="giftMoneyWarn" class="hs-only" style="display:none;background:#fbeaea;border:2px solid #dc2626;color:#991b1b;border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:13px;line-height:1.7"></div>'+
     /* ══════════════════════════════════════════════════════════════
        💰 倉庫ピッキング手数料（＋税10％）／送料（＋税10％）
        ★2026-09-12 承認済みモック（第7版）のとおり。
@@ -3312,7 +3372,7 @@ function pkgBlockHtml(id){
       '<div class="pkg-hint" style="margin-top:5px">沖縄・北海道は1000円、それ以外は800円</div>'+
       '<div data-role="soryoMada" style="margin-top:5px;background:#fff4f2;border:1px solid #e6b3b1;border-radius:6px;padding:5px 9px;font-size:12px;color:#a32d2d;font-weight:700">⚠ えらぶまで受注登録できません</div>'+
     '</div></div>'+
-    '<div class="pkg-row"><span class="pkg-lb">送り状の貼り方</span><span class="pkg-fixed">倉庫さんにおまかせ</span></div>'+
+    '<div class="pkg-row hs-only"><span class="pkg-lb">送り状の貼り方</span><span class="pkg-fixed">倉庫さんにおまかせ</span></div>'+
   '</div>';
 }
 /* ★2026-09-05 承認モック：倉庫さんが読む「📦 梱包の指示」。
@@ -3814,7 +3874,7 @@ function addRecipient(){
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
       '<div style="font-weight:700;font-size:13px">📦 届け先 <span class="r-idx"></span></div>'+
       '<div style="display:flex;gap:6px">'+
-        '<button class="btn-sm" onclick="toggleRecipientOverride(\''+id+'\')">✏️ この届け先だけ送り主名を変更</button>'+
+        '<button class="btn-sm hs-only" onclick="toggleRecipientOverride(\''+id+'\')">✏️ この届け先だけ送り主名を変更</button>'+
         '<button class="btn-sm" onclick="removeRecipient(\''+id+'\')">✕ この届け先を削除</button>'+
       '</div>'+
     '</div>'+
@@ -3828,14 +3888,14 @@ function addRecipient(){
       '</div>'+
       '<div class="fg" style="margin-bottom:0"><label>送り主住所（上書き）</label><input type="text" data-role="senderAddrOv" placeholder="空欄なら共通の送り主情報を使用"></div>'+
     '</div>'+
-    '<div class="fg"><label>届け先住所</label>'+
+    '<div class="fg hs-only"><label>届け先住所</label>'+
       '<input type="checkbox" data-role="addrModeSame" checked style="display:none">'+
       '<div data-role="sameAddrBox" style="background:#e5e7eb;color:#2b2a26;border-radius:6px;padding:8px 10px;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
         '<span>✓ 発注者と同じ住所（登録時に自動で入ります）</span>'+
         '<button type="button" class="btn-sm" onclick="setRecipientAddrMode(\''+id+'\',false)">別の住所に送る</button>'+
       '</div>'+
     '</div>'+
-    '<div data-role="addrFields" style="display:none">'+
+    '<div data-role="addrFields" class="hs-only" style="display:none">'+
     '<div data-role="giftHint" style="display:none;background:#fdf6ee;border:1px solid #d9a441;border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#8a5a1c">🎁 ギフトのため、お届け先は発注者と別の住所を入れてください</div>'+
     '<button type="button" class="btn-sm" data-role="resetAddrBtn" onclick="setRecipientAddrMode(\''+id+'\',true)" style="margin-bottom:10px">↩ 発注者と同じ住所に戻す</button>'+
     '<button type="button" class="btn-sm" onclick="fillEcWarehouse(\''+id+'\')" style="margin:0 0 10px 6px;border:1.5px solid #c2761f;color:#7c3a12;font-weight:800;background:#fff7ec">🛒 京都のリゾートトラスト通販倉庫を入れる（EC注文）</button>'+
@@ -3860,7 +3920,7 @@ function addRecipient(){
     '<div class="fg"><label>住所</label><input type="text" data-role="addr" placeholder="東京都千代田区..."></div>'+
     '</div>'+
     /* ★2026-09-05 「リサイクル箱使用可」チェックは「📦 梱包の指示」の3択（卸レベルでOK／きれいなものならリサイクル箱OK／新しい箱で）に置きかわりました */
-    '<div class="g2">'+
+    '<div class="g2 hs-only">'+
       '<div class="fg">'+
         '<label>発送区分</label>'+
         /* ★2026-09-12 ひろみさん：「通常（3日以内に発送）、急ぎ（明日発送希望）、日時指定
@@ -3873,7 +3933,7 @@ function addRecipient(){
       '</div>'+
       '<div class="fg" data-role="leadDateWrap" style="display:none"><label>希望到着日（お届け日指定）</label><input type="date" data-role="leadDate"><div data-role="leadDateHint" style="font-size:12px;color:#185fa5;margin-top:4px;line-height:1.5"></div></div>'+
     '</div>'+
-    '<div class="g2">'+
+    '<div class="g2 hs-only">'+
       '<div class="fg"><label>配送時間指定 <span style="font-size:13px;color:#2b2a26">（任意）</span></label>'+
         '<select data-role="time" onchange="toggleCardTimeOther(\''+id+'\')">'+
           '<option value="">指定なし</option>'+
@@ -3886,9 +3946,9 @@ function addRecipient(){
       '<div class="fg" data-role="timeOtherWrap" style="display:none"><label>時間帯を記入</label><input type="text" data-role="timeOther" placeholder="例：14〜16時"></div>'+
     '</div>'+
     /* ★2026-09-25 ひろみさん「備考（任意）は倉庫連絡だから『倉庫への連絡（任意）』に。絶対そうしてください」 */
-    '<div class="fg"><label>倉庫への連絡 <span style="font-size:13px;color:#2b2a26">（任意）</span></label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：その他同梱物の指定など（のしは下の「熨斗をつける」で設定できます）"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。下の「熨斗をつける」でも設定できます。</div></div>'+
+    '<div class="fg hs-only"><label>倉庫への連絡 <span style="font-size:13px;color:#2b2a26">（任意）</span></label><input type="text" data-role="note" oninput="onNoteInputCheck(this)" placeholder="例：その他同梱物の指定など（のしは下の「熨斗をつける」で設定できます）"><div data-role="noshiWarn" style="display:none;color:#dc2626;font-weight:700;font-size:12px;margin-top:2px">⚠️ 「のし」の指示があります。下の「熨斗をつける」でも設定できます。</div></div>'+
     pkgBlockHtml(id)+
-    '<div data-role="noshiBox" style="background:#fdf6ee;border:1px solid #e8d9c4;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+    '<div data-role="noshiBox" class="hs-only" style="background:#fdf6ee;border:1px solid #e8d9c4;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
       '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;font-size:13px;color:#8a5a1c"><input type="checkbox" data-role="noshiOn" onchange="toggleNoshi(\''+id+'\')" style="width:auto">🎀 熨斗（のし）をつける</label>'+
       '<div data-role="noshiFields" style="display:none;margin-top:10px">'+
         '<div class="fg"><label>表書き（上に入る言葉）</label>'+
@@ -5079,6 +5139,8 @@ function buildOrdersFromForm(){
       registeredAt: new Date().toISOString()
     });
   });
+  /* ★2026-09-25 発送不要（請求書のみ）の印（status:'shipped'・noShip など）。上の組み立ては変えていません */
+  if(recordType === 'noship') noshipShirushi(list);
   return list;
 }
 
@@ -5505,6 +5567,12 @@ function registerOrder(opt){
     list.forEach(applyStockDeductOnSend);   // ★通常受注は登録＝出荷依頼送信なので、この時点で在庫を減らす
     persistStockDeduct(list);               // ① 減らした分だけを最新在庫に反映して保存
   }
+  /* ★2026-09-25 発送不要（請求書のみ）は、人が「在庫を減らす」を選んだときだけ減らします（ひろみさん Q2）。
+     　発注書（倉庫スプシ）にも取り置き・予約リストにも入りません（status が shipped のため下を通りません）。 */
+  if(list[0].noShip && list[0].noShipZaiko === 'heras'){
+    list.forEach(applyStockDeductOnSend);
+    persistStockDeduct(list);
+  }
   if(!opt.ikki) document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
@@ -5613,6 +5681,7 @@ function showPanel(name, btn){
   if(name==='list'){ renderList(); }
   if(name==='slip') renderSlipSelect();
   if(name==='hold') renderHoldPreLists();
+  if(name==='ryoshu'){ var _rq = document.getElementById('ryoshu-q'); if(_rq) setTimeout(function(){ _rq.focus(); }, 0); }
   if(name==='customers') renderCustomerList();
 }
 
@@ -9233,6 +9302,12 @@ function nagareMaeRender(){
   /* ★2026-09-24 通常発送は、RTと同じ「見る → ☑ → 1つのボタン」（承認モック
      　mocks/mock_受注A書類をその場で確認_2026-09-24.html）。取り置き・予約は下の今までの流れ。 */
   var _shusei = document.getElementById('juchu-shusei-row');
+  /* ★2026-09-25 発送不要（請求書のみ）：① 書類を見る → ② 登録してPDFを残す（倉庫へは行きません） */
+  if(list.length && list[0].noShip){
+    if(_shusei) _shusei.style.display = 'none';
+    noshipMaeRender();
+    return;
+  }
   if(list.length && list[0].status === 'pending'){
     if(_shusei) _shusei.style.display = 'none';
     juchuMaeRender();
@@ -9525,9 +9600,369 @@ async function juchuIkkiHariNaosu(){
   juchuIkkiKekka(toroku, dame, num);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   📄 発送不要（請求書のみ）／🧾 あとから領収書　★2026-09-25
+   ──────────────────────────────────────────────────────────────────────
+   承認モック：mocks/mock_請求書のみ・書類の発行記録・価格リスト見積M_2026-09-25.html（第3版・ひろみさん「OK」）
+   ひろみさん：「倉庫に連絡は必要ないから、PDFで取り出して、それをメールなどで送り、売上リストに載っていく」
+   　　　　　　「領収書を製作した、請求書を製作したなど、全部残しておく必要がある」
+   決まったこと：
+   　・書類は 請求書／納品書兼請求書（Q1）。在庫は 減らす／減らさない をその都度（Q2）
+   　・倉庫スプシ（発注書）には飛ばない。PDFは【📄 書類の発行記録】に1行（GAS oosHakkouSave）
+   　・発行記録に載るのは【倉庫に発送依頼をしていない書類だけ】（Q4）
+   　・PDFの名前：伝票番号＿書類の種類＿提出先（作り直しは _再発行2）。RT・バサラは記号を外した番号（Q5）
+   　・あとから領収書は【もとの注文から出す】（新しく登録しない＝売上が2回にならない）。入金✓が無いと押せない（Q3）
+   　・料金（倉庫ピッキング手数料・送料）は発送不要でも【いつもどおり人が選ぶ】（2026-09-25）
+   ★注文は status:'shipped'＋noShip:true。売上Ｃの「倉庫へ送った注文だけ載せる」は shipped を載せるので、
+   　売上Ｃは1行も変えずに②の時点で売上一覧に載ります。
+   ══════════════════════════════════════════════════════════════════════ */
+function noshipKa(){ var s = document.getElementById('o-record-type'); return !!(s && String(s.value||'') === 'noship'); }
+function noshipDocErabi(){ var el = document.querySelector('input[name=noship-doc]:checked'); return el ? el.value : '請求書'; }
+function noshipZaikoErabi(){ var el = document.querySelector('input[name=noship-zaiko]:checked'); return el ? el.value : ''; }
+function noshipKirikae(){
+  var on = noshipKa();
+  document.body.classList.toggle('oos-noship', on);
+  Array.prototype.forEach.call(document.querySelectorAll('#noship-waku input[type=radio]'), function(el){
+    el.disabled = !on;
+    var lb = el.closest ? el.closest('label') : null;
+    if(lb) lb.classList.toggle('off', !on);
+  });
+  /* ★ほかの種類へ変えたら「在庫は？」は空に戻します（最初はどちらも選ばれていない） */
+  if(!on) Array.prototype.forEach.call(document.querySelectorAll('input[name=noship-zaiko]'), function(el){ el.checked = false; });
+  var w = document.getElementById('noship-waku'); if(w) w.style.borderColor = on ? '#2563eb' : '#cdd9a6';
+  var h = document.getElementById('noship-hint');
+  if(h) h.textContent = on
+    ? '倉庫スプシ（発注書）には飛びません。書類のPDFは本部管理専用ゆかスプシの「📄 書類の発行記録」に残ります。'
+    : '※ 登録の種類で「発送不要（請求書のみ）」を選んだときだけ選べます。';
+}
+/* 組み立てた注文に、発送不要の印を付けます（buildOrdersFromForm の最後から呼ぶ） */
+function noshipShirushi(list){
+  var doc = noshipDocErabi(), zaiko = noshipZaikoErabi(), ima = new Date().toISOString();
+  (list || []).forEach(function(o){
+    o.status = 'shipped'; o.shippedAt = ima;
+    o.noShip = true; o.noShipDoc = doc; o.noShipZaiko = zaiko;
+    o.enclosedDoc = doc; o.includePamphlet = false;
+    o.otherDocUrl = ''; o.otherDocName = '';
+    o.leadType = 'normal'; o.leadDate = ''; o.delivTime = ''; o.note = ''; o.noshi = null;
+  });
+  return list;
+}
+
+/* ── 作成者（ゆか／ひろみ）。その端末で最後に選んだ人を覚えます ── */
+var OOS_SAKUSEI_KEY = 'oos_sakuseisha_v1';
+function sakuseishaIma(){ try{ return localStorage.getItem(OOS_SAKUSEI_KEY) || ''; }catch(e){ return ''; } }
+function sakuseishaOku(v){ try{ localStorage.setItem(OOS_SAKUSEI_KEY, v || ''); }catch(e){} }
+function sakuseishaSelHtml(id, onchange){
+  var v = sakuseishaIma();
+  return '<select id="' + id + '" onchange="sakuseishaOku(this.value);' + (onchange || '') + '" style="font-weight:700;font-size:14px;padding:6px 8px;border:1.5px solid #9fb7d8;border-radius:7px">'
+    + '<option value=""' + (v ? '' : ' selected') + '>作成者▼</option>'
+    + ['ゆか','ひろみ'].map(function(n){ return '<option value="' + n + '"' + (v === n ? ' selected' : '') + '>' + n + '</option>'; }).join('')
+    + '</select>';
+}
+
+/* ── PDFの名前（決定）：伝票番号＿書類の種類＿提出先 ── */
+function hakkouTeishutsu(o){
+  var nm = String((o && (o.client || o.recipientName)) || 'お客様').trim();
+  return /(様|御中)$/.test(nm) ? nm : nm + '様';
+}
+function hakkouBaseName(o, mei){
+  var num = (typeof OOS_NOUHIN !== 'undefined') ? OOS_NOUHIN.docNumberOf(o && o.num) : String((o && o.num) || '');
+  return (num + '_' + mei + '_' + hakkouTeishutsu(o)).replace(/[\\\/:*?"<>|]/g, '_');
+}
+function hakkouKingaku(o, mei){
+  try{
+    var h = OOS_NOUHIN.build(o, nouhinDeps(), mei);
+    var g = String(h || '').match(/ご請求金額（税込）<\/span><span class="amt">([^<]*)</);
+    if(g) return parseInt(String(g[1]).replace(/[^0-9]/g, ''), 10) || 0;
+  }catch(e){}
+  return Number(o && o.orderTotal) || 0;
+}
+/* PDFをファイルとして開く（メールに添付できるように、発行記録と同じ名前で） */
+function hakkouPdfHiraku(b64, name){
+  try{
+    var bin = atob(b64), u8 = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([u8], { type:'application/pdf' }));
+    var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ document.body.removeChild(a); URL.revokeObjectURL(url); }catch(e){} }, 4000);
+  }catch(e){ alert('PDFを開けませんでした：' + ((e && e.message) || e)); }
+}
+/* 発行記録へ残す（GAS oosHakkouSave）。返事をそのまま返します */
+async function hakkouNokosu(o, mei, shurui, zaiko, sakusei){
+  var b64 = await nouhinBuildPdfB64(o, mei);
+  var base = hakkouBaseName(o, mei);
+  var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'oosHakkouSave', base64:b64, baseName:base, row:{
+      shurui: shurui, bangou: OOS_NOUHIN.docNumberOf(o.num), teishutsu: hakkouTeishutsu(o),
+      kingaku: hakkouKingaku(o, mei), sakusei: sakusei, zaiko: zaiko, memo: '' } }) });
+  var d = await res.json();
+  if(!d || d.status !== 'ok') throw new Error((d && d.message) || '発行記録に残せませんでした');
+  d.b64 = b64;
+  return d;
+}
+
+/* ── 確認画面（登録の前）：① 書類を見る → ② 登録してPDFを残す ── */
+var noshipMita = false, noshipGoChu = false, noshipListRef = null;
+function noshipMaeRender(){
+  var box = document.getElementById('nagare-mae'); if(!box) return;
+  var list = (window._pendingOrders || []);
+  if(noshipListRef !== window._pendingOrders){ noshipMita = false; noshipListRef = window._pendingOrders; }
+  var mei = (list[0] && list[0].noShipDoc) || '請求書';
+  var zaiko = (list[0] && list[0].noShipZaiko) || '';
+  var sakusei = sakuseishaIma();
+  var st = function(cls, t){ return '<span style="border:1.5px solid ' + (cls === 'now' ? '#4a5a2a' : (cls === 'off' ? '#dcd8cd' : '#cfd6bd')) + ';background:' + (cls === 'now' ? '#4a5a2a' : (cls === 'off' ? '#eeece6' : '#fff')) + ';color:' + (cls === 'now' ? '#fff' : (cls === 'off' ? '#a8a396' : '#4a5a2a')) + ';border-radius:9px;padding:7px 11px;font-size:12.5px;font-weight:800' + (cls === 'off' ? ';text-decoration:line-through' : '') + '">' + t + '</span>'; };
+  var ya = '<span style="color:#b3b0a6;font-weight:800">→</span>';
+  var h = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px">'
+    + st(noshipMita ? 'done' : 'now', (noshipMita ? '✅ ' : '① ') + '🖨️ 書類を見て確かめる') + ya
+    + st(noshipMita ? 'now' : 'yet', '② 登録してPDFを残す') + ya + st('off', '🔵倉庫へ') + ya + st('now', '売上一覧に載る') + '</div>';
+  h += '<button type="button" onclick="noshipPdfMiru()" style="width:100%;background:#2563eb;border:1px solid #2563eb;border-radius:10px;color:#fff;font-weight:800;font-size:15px;padding:12px;cursor:pointer;margin-bottom:6px">'
+     + '🖨️ ' + esc(mei) + 'をPDFで取り出す（確認・印刷・保存）</button>'
+     + '<div style="font-size:12px;color:#8a8578;margin-top:2px;line-height:1.6">🖨️ まずここで書類を作って、中身を確かめてください。ここからは送信しません。</div>';
+  var dame = [];
+  if(!noshipMita) dame.push('①で書類を見てください');
+  if(zaiko !== 'heras' && zaiko !== 'herasanai') dame.push('上の「在庫は？」をえらんでください（◀ 戻って直す）');
+  if(!sakusei) dame.push('作成者をえらんでください');
+  var on = !dame.length && !noshipGoChu;
+  h += '<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:14px">'
+     +   '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+     +     '<button class="btn btn-gray" onclick="document.getElementById(\'confirm-area\').style.display=\'none\'">◀ 戻って直す</button>'
+     +     sakuseishaSelHtml('noship-sakusei', 'noshipMaeRender()')
+     +     '<span style="font-size:13px;font-weight:700;color:#4a463d">在庫：' + (zaiko === 'heras' ? '減らす' : (zaiko === 'herasanai' ? '減らさない' : '<span style="color:#b91c1c">まだえらんでいません</span>')) + '</span>'
+     +   '</div>'
+     +   '<button id="noship-go-btn"' + (on ? '' : ' disabled') + ' onclick="noshipGo()" style="width:100%;margin-top:10px;background:' + (on ? '#2563eb' : '#d6d3cd') + ';border:2px solid ' + (on ? '#2563eb' : '#d6d3cd') + ';border-radius:10px;color:' + (on ? '#fff' : '#8a8578') + ';font-weight:800;font-size:16px;padding:14px 16px;cursor:' + (on ? 'pointer' : 'not-allowed') + '">② 登録してPDFを残す</button>'
+     +   (dame.length ? '<div style="font-size:12.5px;color:#b45309;font-weight:700;margin-top:7px">' + dame.map(esc).join('<br>') + '</div>' : '')
+     +   '<div style="font-size:12.5px;color:#4a463d;margin-top:9px;line-height:1.75">②を押すと：PDFができる → 発行記録シートに1行 → Googleドライブ＋Dropboxに保存 → 売上一覧に載る。<br>'
+     +   (zaiko === 'heras' ? '<b>在庫を減らす</b>を選んでいるので、②で在庫が減ります。' : '在庫は動きません。') + '倉庫へは何も行きません。<br>PDFはその場でファイルとして開くので、そのままメールに添付できます。</div>'
+     + '</div>'
+     + '<div id="noship-log" style="margin-top:10px"></div>';
+  box.innerHTML = h;
+}
+async function noshipPdfMiru(){
+  var list = window._pendingOrders || []; var o = list[0]; if(!o) return;
+  var mei = o.noShipDoc || '請求書';
+  var miss = [];
+  try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
+  if(miss.length){ alert('⚠ 単価が登録されていない商品があるので、書類を作れません：' + miss.join('・') + '\n\n統合マスタＮ（輸入・原価Ｅ）で単価を入れてください。'); return; }
+  try{
+    for(var i = 0; i < list.length; i++){
+      var b64 = await nouhinBuildPdfB64(list[i], mei);
+      hakkouPdfHiraku(b64, hakkouBaseName(list[i], mei) + '.pdf');
+      docKakuninSuru(list[i], mei);
+    }
+    noshipMita = true;
+  }catch(e){ alert('PDFを開けませんでした：' + ((e && e.message) || e)); }
+  noshipMaeRender();
+}
+function noshipSay(kind, html){
+  var log = document.getElementById('noship-log'); if(!log) return;
+  var c = { ok:['#eef7ef','#0f5a4a'], ng:['#fef2f2','#b91c1c'], chui:['#fff7ed','#8a4b0b'] }[kind] || ['#fff','#2b2a26'];
+  log.insertAdjacentHTML('beforeend', '<div style="border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:6px 0;line-height:1.85;background:' + c[0] + ';border:1.5px solid ' + c[1] + ';color:' + c[1] + '">' + html + '</div>');
+}
+async function noshipGo(){
+  if(noshipGoChu) return;
+  var list = window._pendingOrders;
+  if(!list || !list.length || !list[0].noShip) return;
+  var zaiko = list[0].noShipZaiko, sakusei = sakuseishaIma();
+  if(!noshipMita || (zaiko !== 'heras' && zaiko !== 'herasanai') || !sakusei) return;
+  noshipGoChu = true;
+  var btn = document.getElementById('noship-go-btn');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '進めています…'; }
+  var log = document.getElementById('noship-log'); if(log) log.innerHTML = '';
+  try{
+    if(zaiko === 'heras'){
+      await zaikoYomiNaosu();
+      var short = checkStockShortage(list);
+      if(short.length){
+        noshipSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>' + short.map(function(s){
+          return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+        noshipSay('chui', '※ 在庫を入れてから、もう一度押してください。「在庫は減らさない」の請求なら、◀ 戻って直してください。');
+        noshipGoChu = false; if(btn){ btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '② 登録してPDFを残す'; }
+        return;
+      }
+    }
+    var ids = list.map(function(o){ return o.id; });
+    registerOrder({ ikki: true });
+    var toroku = orders.filter(function(o){ return ids.indexOf(o.id) >= 0; });
+    if(!toroku.length){ noshipSay('ng', '⛔ <b>登録できませんでした。</b>内容をお確かめください。'); noshipGoChu = false; return; }
+    /* ★登録が済んだら、ボタンを二度と押せなくします（二重登録の防止） */
+    window._pendingOrders = null;
+    if(btn){ btn.style.opacity = '1'; btn.style.background = '#d6d3cd'; btn.style.borderColor = '#d6d3cd'; btn.style.color = '#8a8578'; btn.textContent = '✅ 登録しました'; }
+    noshipSay('ok', '✅ 登録しました　<b>' + toroku.map(function(o){ return esc(o.num); }).join('・') + '</b>（売上一覧に載ります' + (zaiko === 'heras' ? '・在庫を減らしました' : '・在庫は動かしていません') + '）');
+    for(var i = 0; i < toroku.length; i++) await noshipNokosuHitotsu(toroku[i], sakusei);
+    if(typeof renderList === 'function') renderList();
+  }catch(e){
+    noshipSay('ng', '⚠️ 途中でつまずきました：' + esc(String((e && e.message) || e)) + '<br><span style="font-weight:600">受注一覧を見て、登録できているかお確かめください。</span>');
+  }
+  noshipGoChu = false;
+}
+/* 1件を発行記録へ。登録は済んでいるので、失敗しても登録はそのまま（受注一覧のカードから残し直せます） */
+async function noshipNokosuHitotsu(o, sakusei){
+  var mei = o.noShipDoc || '請求書';
+  var say = (typeof noshipSay === 'function' && document.getElementById('noship-log')) ? noshipSay : function(k, h){ showSyncStatus(h.replace(/<[^>]+>/g, ''), k === 'ng'); };
+  try{
+    var d = await hakkouNokosu(o, mei, mei, (o.noShipZaiko === 'heras' ? '減らした' : '減らさない'), sakusei || sakuseishaIma());
+    o.hakkou = { url: d.url, name: d.name, at: new Date().toISOString() };
+    o.hakkouNg = '';
+    syncOrdersToGAS([o]);
+    hakkouPdfHiraku(d.b64, d.name);
+    say('ok', '✅ 発行記録に残しました　' + esc(d.name) + '<br>'
+      + '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">📄 PDFを開く</a>　'
+      + (d.sheetUrl ? '<a href="' + esc(d.sheetUrl) + '" target="_blank" rel="noopener">📄 書類の発行記録を開く</a>' : '')
+      + (d.dropbox === 'ok' ? '<br>Dropboxにも入れました。' : (d.dropbox === '鍵待ち' ? '<br><span style="font-weight:600">Dropboxは鍵をまだ作っていないので、あとでまとめて入れます（Googleドライブには入っています）。</span>' : '<br><span style="color:#b45309">⚠ Dropboxには入れられませんでした：' + esc(d.dropbox) + '（Googleドライブには入っています）</span>')));
+  }catch(e){
+    o.hakkouNg = String((e && e.message) || e);
+    syncOrdersToGAS([o]);
+    say('ng', '⚠️ <b>' + esc(o.num) + '</b> は登録できましたが、発行記録にまだ残せていません：' + esc(o.hakkouNg)
+      + '<br><span style="font-weight:600">受注一覧のカードの［📄 発行記録に残す］から、もう一度残せます。</span>');
+  }
+}
+/* 画面を開いたときに「作る書類」「在庫は？」を灰色にしておきます（発送不要のときだけさわれる） */
+document.addEventListener('DOMContentLoaded', function(){ try{ noshipKirikae(); }catch(e){} });
+/* 受注一覧のカード（発送不要の注文）：流れバーの代わりにこれを出します */
+function noshipCardHtml(o){
+  var h = '<div style="border:1.5px solid #9fb7d8;background:#f4f8fd;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:13px;line-height:1.8">'
+    + '<b>📄 発送不要（' + esc(o.noShipDoc || '請求書') + 'のみ）</b>　在庫：' + (o.noShipZaiko === 'heras' ? '減らした' : '減らさない') + '<br>';
+  if(o.hakkou && o.hakkou.url){
+    h += '✅ 発行記録に残しました　<a href="' + esc(o.hakkou.url) + '" target="_blank" rel="noopener">📄 ' + esc(o.hakkou.name || 'PDFを開く') + '</a>';
+  }else{
+    h += '<span style="color:#b91c1c;font-weight:700">⚠ まだ発行記録に残せていません' + (o.hakkouNg ? '（' + esc(o.hakkouNg) + '）' : '') + '</span><br>'
+      + sakuseishaSelHtml('noship-card-sakusei-' + esc(o.id), '') + ' '
+      + '<button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:800" onclick="noshipCardNokosu(\'' + esc(o.id) + '\', this)">📄 発行記録に残す</button>';
+  }
+  return h + '</div>';
+}
+async function noshipCardNokosu(id, btn){
+  var o = orders.find(function(x){ return String(x.id) === String(id); }); if(!o) return;
+  if(!sakuseishaIma()){ alert('作成者をえらんでください。'); return; }
+  if(btn){ btn.disabled = true; btn.textContent = '残しています…'; }
+  await noshipNokosuHitotsu(o, sakuseishaIma());
+  if(typeof renderList === 'function') renderList();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   🧾 あとから領収書：さがす窓口（承認モック第3版 2.）
+   ひろみさん：「この人または伝票番号がわからないと後から出せないから、探せる窓口があるとうれしい。
+   　　　　　　完全一致じゃなくても出せる、PDFも出せる、じゃないと間違う」
+   ・名前の一部・伝票番号の一部・金額でさがす。ひらがな／カタカナ、全角／半角、空白は同じとみなす
+   ・候補を全部並べる（1件に決めつけない）。新しい順
+   ・［🖨️ もとの書類（PDF）を見る］で確かめてから出せる
+   ・［🧾 領収書を出す］→ 先に領収書のPDFを見せる →［この内容で出す］のときだけ発行記録に1行
+   ・入金✓が無い注文は灰色で押せない
+   ★新しく受注として登録しません（売上が2回にならないように）
+   ══════════════════════════════════════════════════════════════════════ */
+function ryoshuSoroe(s){
+  s = String(s == null ? '' : s);
+  try{ s = s.normalize('NFKC'); }catch(e){}
+  s = s.replace(/[ァ-ヶ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0x60); });
+  return s.replace(/[\s　\-‐－ー・,，¥￥円様]/g, '').toLowerCase();
+}
+function ryoshuMe(o){
+  var num = String(o.num || '');
+  var dn = (typeof OOS_NOUHIN !== 'undefined') ? OOS_NOUHIN.docNumberOf(num) : num;
+  var slip = (String(o.note || '').match(/伝票番号\s*(\d+)/) || [])[1] || '';
+  return ryoshuSoroe([o.client, o.recipientName, o.companyName, o.personName, num, dn, slip, o.orderTotal].join('|'));
+}
+/* 日付はモックのとおり「9/12」の形（年は出さない） */
+function ryoshuHizuke(v){ if(!v) return ''; var d = new Date(v); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate(); }   /* 日本の日付（夜中の入金が前の日にずれないように） */
+function ryoshuMark(text, q){
+  var t = esc(text);
+  String(q || '').split(/[\s　]+/).filter(Boolean).forEach(function(w){
+    var e = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try{ t = t.replace(new RegExp('(' + e + ')', 'gi'), '<mark>$1</mark>'); }catch(err){}
+  });
+  return t;
+}
+var ryoshuKouho = [];
+function ryoshuSagasu(){
+  var box = document.getElementById('ryoshu-kekka'); if(!box) return;
+  var raw = String((document.getElementById('ryoshu-q') || {}).value || '').trim();
+  var terms = raw.split(/[\s　]+/).map(ryoshuSoroe).filter(Boolean);
+  if(!terms.length){ box.innerHTML = '<div class="ryoshu-small">名前の一部・伝票番号の一部・金額を入れて［さがす］を押してください。</div>'; return; }
+  if(typeof ordersLoaded !== 'undefined' && !ordersLoaded){ box.innerHTML = '<div class="ryoshu-small">⏳ 受注データを読み込み中です。少し待ってから、もう一度［さがす］を押してください。</div>'; return; }
+  var hit = (typeof orders !== 'undefined' ? orders : []).filter(function(o){
+    if(!o || o.status === 'cancelled' || o.status === 'deleted') return false;
+    var me = ryoshuMe(o);
+    return terms.every(function(t){ return me.indexOf(t) >= 0; });
+  });
+  hit.sort(function(a, b){ return String(b.registeredAt || '').localeCompare(String(a.registeredAt || '')); });
+  var zen = hit.length;
+  ryoshuKouho = hit.slice(0, 30);
+  if(!zen){ box.innerHTML = '<div class="ryoshu-small">見つかりませんでした。名前を短くする（「山田商店」→「山田」）、伝票番号の下4けただけ、などでお試しください。</div>'; return; }
+  var h = '';
+  ryoshuKouho.forEach(function(o, i){
+    var paid = !!o.paymentConfirmed;
+    var hassou = o.noShip ? '発送不要' : (o.shippedAt || o.notifiedAt ? '発送 ' + ryoshuHizuke(o.shippedAt || o.notifiedAt) : (o.notified ? '倉庫へ送信済み' : 'まだ発送していません'));
+    var todoke = (o.recipientName && o.recipientName !== o.client) ? '（お届け先：' + ryoshuMark(o.recipientName, raw) + ' 様）' : '';
+    var kin = o.orderTotal ? '　¥' + Number(o.orderTotal).toLocaleString('ja-JP') : '';
+    var dn = (typeof OOS_NOUHIN !== 'undefined') ? OOS_NOUHIN.docNumberOf(o.num) : o.num;
+    h += '<div class="ryoshu-hit">'
+      + '<div style="font-weight:800">' + ryoshuMark(o.client || o.recipientName || '', raw) + ' 様' + todoke + kin + '</div>'
+      + '<div class="ryoshu-small" style="margin:0">' + ryoshuMark(dn, raw) + ' ／ ' + esc(hassou) + ' ／ 入金 ' + (paid ? esc(ryoshuHizuke(o.paidAt)) + ' ✓' : 'まだ') + '</div>'
+      + '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+      +   '<button class="btn-sm" style="border:2px solid #2563eb;color:#1f4a6d;font-weight:800;background:#fff" onclick="ryoshuMotoMiru(' + i + ')">🖨️ もとの書類（PDF）を見る</button>'
+      +   (paid
+            ? '<button class="btn-sm" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:800" onclick="ryoshuMiru(' + i + ')">🧾 領収書を出す</button>'
+            : '<button class="btn-sm" disabled style="background:#e8e5dd;color:#a8a396;border-color:#e8e5dd;font-weight:800;cursor:not-allowed">🧾 領収書を出す（入金✓がまだ）</button>')
+      + '</div>'
+      + '<div id="ryoshu-kakunin-' + i + '"></div>'
+      + '</div>';
+  });
+  if(zen > ryoshuKouho.length) h += '<div class="ryoshu-small">ほかに ' + (zen - ryoshuKouho.length) + ' 件あります。もう少しくわしく入れてください。</div>';
+  h += '<div class="ryoshu-small">新しい順に出ます。お届け先の名前でも見つかります。</div>';
+  box.innerHTML = h;
+}
+async function ryoshuMotoMiru(i){
+  var o = ryoshuKouho[i]; if(!o) return;
+  var mei = (OOS_NOUHIN.shoruiList(o) || [])[0];
+  if(!mei){ alert('この注文には、金額の載る書類がありません（同梱書類なし）。'); return; }
+  try{ var b64 = await nouhinBuildPdfB64(o, mei); hakkouPdfHiraku(b64, nouhinFileName(o, mei)); }
+  catch(e){ alert('PDFを開けませんでした：' + ((e && e.message) || e)); }
+}
+/* 先に領収書を見せる（まだ残しません） */
+async function ryoshuMiru(i){
+  var o = ryoshuKouho[i]; if(!o || !o.paymentConfirmed) return;
+  var miss = [];
+  try{ miss = OOS_NOUHIN.missingPrices(o, nouhinDeps()) || []; }catch(e){ miss = []; }
+  if(miss.length){ alert('⚠ 単価が登録されていない商品があるので、書類を作れません：' + miss.join('・')); return; }
+  try{
+    var b64 = await nouhinBuildPdfB64(o, '領収書');
+    hakkouPdfHiraku(b64, hakkouBaseName(o, '領収書') + '.pdf');
+  }catch(e){ alert('PDFを開けませんでした：' + ((e && e.message) || e)); return; }
+  var w = document.getElementById('ryoshu-kakunin-' + i); if(!w) return;
+  w.innerHTML = '<div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:10px;padding:10px 12px;margin-top:8px">'
+    + '<div style="font-weight:800;color:#78350f;margin-bottom:6px">いま開いた領収書でよければ、［この内容で出す］を押してください。</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + sakuseishaSelHtml('ryoshu-sakusei-' + i, '')
+    + '<button class="btn-sm" id="ryoshu-dasu-' + i + '" style="background:#2563eb;color:#fff;border-color:#2563eb;font-weight:800;font-size:14px;padding:8px 14px" onclick="ryoshuDasu(' + i + ')">この内容で出す</button></div>'
+    + '<div class="ryoshu-small" style="margin:6px 0 0">押すと「📄 書類の発行記録」に1行入り、Googleドライブ＋Dropboxに入ります。売上は増えません。</div>'
+    + '<div id="ryoshu-log-' + i + '"></div></div>';
+}
+async function ryoshuDasu(i){
+  var o = ryoshuKouho[i]; if(!o || !o.paymentConfirmed) return;
+  var sakusei = sakuseishaIma();
+  if(!sakusei){ alert('作成者をえらんでください。'); return; }
+  var btn = document.getElementById('ryoshu-dasu-' + i);
+  if(btn){ if(btn.disabled) return; btn.disabled = true; btn.textContent = '残しています…'; }
+  var log = document.getElementById('ryoshu-log-' + i);
+  try{
+    var d = await hakkouNokosu(o, '領収書', '領収書（あとから）', '—', sakusei);
+    o.ryoshuAto = (o.ryoshuAto || []).concat([{ url: d.url, name: d.name, at: new Date().toISOString() }]);
+    syncOrdersToGAS([o]);
+    hakkouPdfHiraku(d.b64, d.name);
+    if(btn){ btn.textContent = '✅ 出しました'; btn.style.background = '#d6d3cd'; btn.style.borderColor = '#d6d3cd'; btn.style.color = '#8a8578'; }
+    if(log) log.innerHTML = '<div style="margin-top:8px;border-radius:9px;padding:8px 11px;font-size:13px;font-weight:700;background:#eef7ef;border:1.5px solid #0f5a4a;color:#0f5a4a;line-height:1.8">✅ 発行記録に残しました　' + esc(d.name)
+      + '<br><a href="' + esc(d.url) + '" target="_blank" rel="noopener">📄 PDFを開く</a>　' + (d.sheetUrl ? '<a href="' + esc(d.sheetUrl) + '" target="_blank" rel="noopener">📄 書類の発行記録を開く</a>' : '')
+      + (d.dropbox === '鍵待ち' ? '<br><span style="font-weight:600">Dropboxは鍵をまだ作っていないので、あとでまとめて入れます。</span>' : (d.dropbox && d.dropbox !== 'ok' ? '<br><span style="color:#b45309">⚠ Dropboxには入れられませんでした：' + esc(d.dropbox) + '</span>' : '')) + '</div>';
+  }catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = 'この内容で出す'; }
+    if(log) log.innerHTML = '<div style="margin-top:8px;border-radius:9px;padding:8px 11px;font-size:13px;font-weight:700;background:#fef2f2;border:1.5px solid #b91c1c;color:#b91c1c">⚠️ 残せませんでした：' + esc(String((e && e.message) || e)) + '<br>もう一度［この内容で出す］を押してください。</div>';
+  }
+}
+
 /* ── 受注一覧のカードの流れバー ── */
 function nagareCardHtml(o){
   if(!o || typeof OOS_NOUHIN === 'undefined') return '';
+  /* ★2026-09-25 発送不要（請求書のみ）は倉庫へ行かないので、④⑤の流れは出しません */
+  if(o.noShip) return noshipCardHtml(o);
   var meis = OOS_NOUHIN.shoruiList(o) || [];
   var app = '', tsugi = -1;
   meis.forEach(function(mei, i){

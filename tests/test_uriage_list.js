@@ -83,6 +83,8 @@ eq('① D 取り置き → 出ない',                box.isSalesListTarget(ORDE
 eq('① E 予約 → 出ない',                    box.isSalesListTarget(ORDERS[4]), false);
 eq('① G キャンセル → 出ない',              box.isSalesListTarget(ORDERS[6]), false);
 eq('① H 出荷済みは送った印が無くても出る',  box.isSalesListTarget(ORDERS[7]), true);
+/* ★2026-09-25 発送不要（請求書のみ）：倉庫へは送らないが、②「登録してPDFを残す」の時点で載る（受注Ａが status:shipped で登録） */
+eq('① 発送不要（請求書のみ）は倉庫へ送らなくても出る', box.isSalesListTarget(o({ status:'shipped', noShip:true, notified:false, shippedAt:'2026-09-25T01:00:00Z' })), true);
 
 /* ── ② 出さない理由の名前 ── */
 eq('② B の理由 unsent',    box.salesExcludeReason(ORDERS[1]), 'unsent');

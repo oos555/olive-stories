@@ -1333,6 +1333,95 @@ function hacchuushoGyou(payload){
       ok('⑱-95 お客様へのひとことは発注書（倉庫）へ送らない', H.cut(idx, 'yukaImportOne').indexOf('okyakuMsg') < 0);
     })();
 
+    /* ══ ⑱-96 発送不要（請求書のみ）／あとから領収書（2026-09-25 承認モック第3版）══
+       本物の関数を動かして、押せる・押せない・どこへ行くか・在庫を確かめます。
+       ★新しい見張りファイルは作らず、受注Ａの流れの見張り（ここ）に入れました。 */
+    await (async function(){
+      const els = {};
+      function mkEl(id){ return els[id] || (els[id] = { id:id, innerHTML:'', style:{}, textContent:'', disabled:false, value:'',
+        insertAdjacentHTML(p, h){ this.innerHTML += h; }, querySelector(){ return null; } }); }
+      const kiroku = { post:[], reg:[], heras:0, yuka:0, dl:[] };
+      let _mem = '';
+      const _S = H.makeSandbox({ document:{ getElementById: mkEl, createElement(){ return { style:{}, click(){} }; }, body:{ appendChild(){}, removeChild(){} } },
+        localStorage:{ getItem(){ return _mem; }, setItem(k, v){ _mem = v; }, removeItem(){} } });
+      let _ug = true;
+      ['esc','docKakuninKa','docKakuninSuru','nagareMaeRender','noshipShirushi','noshipMaeRender','noshipPdfMiru','noshipSay','noshipGo',
+       'noshipNokosuHitotsu','noshipCardHtml','sakuseishaIma','sakuseishaOku','sakuseishaSelHtml','hakkouTeishutsu','hakkouBaseName',
+       'hakkouKingaku','hakkouNokosu','nagareCardHtml','ryoshuSoroe','ryoshuMe','ryoshuHizuke','ryoshuMark','ryoshuSagasu','registerOrder'
+      ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
+      _S.box.__k = kiroku;
+      try {
+        vm.runInContext('var docKakuninMap = {}; var OOS_SAKUSEI_KEY = "k"; var noshipMita = false, noshipGoChu = false, noshipListRef = null; var ryoshuKouho = [];'
+          + 'var orders = []; var customers = []; var ordersLoaded = true; var GAS_URL = "x";'
+          + 'function noshipDocErabi(){ return "請求書"; } function noshipZaikoErabi(){ return __zaiko; } var __zaiko = "";'
+          + 'async function nouhinBuildPdfB64(o, m){ return "QUJD"; } function hakkouPdfHiraku(b, n){ __k.dl.push(n); }'
+          + 'function nouhinDeps(){ return {}; } function nouhinFileName(o, m){ return m + ".pdf"; }'
+          + 'fetch = async function(u, opt){ var b = JSON.parse(opt.body); __k.post.push(b); return { json: async function(){ return { status:"ok", url:"https://drive/x", name:b.baseName + ".pdf", dropbox:"鍵待ち" }; } }; };'
+          + 'async function zaikoYomiNaosu(){} function checkStockShortage(){ return []; } function zaikoYometeruKa(){ return true; }'
+          + 'function applyStockDeductOnSend(o){ __k.heras++; o.stockDeducted = true; } function persistStockDeduct(){}'
+          + 'function yukaImportOne(){ __k.yuka++; } function yoyakuListAddOne(){ __k.yuka++; }'
+          + 'function rtSlipAutoCut(){} function logGiftIfApplicable(){} function clearForm(){} function updateSummary(){} function renderSlipSelect(){}'
+          + 'function renderList(){} function syncOrdersToGAS(){} function showSyncStatus(){} function oosShippai(){} function renderHoldPreLists(){}'
+          + 'OOS_NOUHIN = Object.assign({}, OOS_NOUHIN, { build: function(){ return \'<span class="lbl">ご請求金額（税込）</span><span class="amt">¥32,400</span>\'; }, missingPrices: function(){ return []; } });', _S.ctx);
+      } catch (e) { _ug = false; console.log(e); }
+      ok('⑱-96 発送不要の流れを、本物の関数のまま動かせる', _ug);
+      if (!_ug) return;
+      const B = _S.box;
+      ok('⑱-96 登録の種類に「発送不要（請求書のみ）」がある', idx.indexOf('<option value="noship">発送不要（請求書のみ）</option>') >= 0);
+      ok('⑱-96 「在庫は？」ははじめ、どちらも選ばれていない', !/name="noship-zaiko" value="\w+" checked/.test(idx));
+
+      const mk = (id, extra) => B.noshipShirushi([Object.assign({ id:id, num:'TK-20260925-5521', client:'山田商店', recipientName:'山田商店', lines:[] }, extra || {})])[0];
+      /* A. 在庫は減らさない */
+      B._pendingOrders = [mk('n1')];
+      ok('⑱-97 印：status は shipped（売上一覧に載る）・同梱は選んだ書類だけ', B._pendingOrders[0].status === 'shipped' && B._pendingOrders[0].noShip === true && B._pendingOrders[0].enclosedDoc === '請求書' && B._pendingOrders[0].includePamphlet === false);
+      B.nagareMaeRender();
+      const box = () => mkEl('nagare-mae').innerHTML;
+      const btnOn = () => /<button id="noship-go-btn" onclick/.test(box());
+      ok('⑱-97 倉庫へは行かない流れ（🔵倉庫へ に線）・通常発送のボタンは出ない', box().indexOf('🔵倉庫へ') >= 0 && box().indexOf('line-through') >= 0 && box().indexOf('juchu-ikki-btn') < 0);
+      ok('⑱-97 書類を見る前・在庫を選ぶ前・作成者を選ぶ前は②を押せない', !btnOn() && box().indexOf('①で書類を見てください') >= 0 && box().indexOf('「在庫は？」をえらんでください') >= 0 && box().indexOf('作成者をえらんでください') >= 0);
+      await B.noshipGo();
+      ok('⑱-97 押せない状態で呼ばれても登録しない', B.orders.length === 0 && kiroku.post.length === 0);
+      await B.noshipPdfMiru();
+      B._pendingOrders[0].noShipZaiko = 'herasanai'; B.sakuseishaOku('ゆか'); B.noshipMaeRender();
+      ok('⑱-97 見て・選んだら②を押せる', btnOn());
+      await B.noshipGo();
+      const p = kiroku.post[0] || { row:{} };
+      ok('⑱-98 ②で登録し、発行記録へ1回だけ送る', B.orders.length === 1 && kiroku.post.length === 1 && p.action === 'oosHakkouSave');
+      ok('⑱-98 発注書（倉庫スプシ）へも取り置き・予約リストへも送らない', kiroku.yuka === 0);
+      ok('⑱-98 「減らさない」なら在庫は動かない', kiroku.heras === 0 && p.row.zaiko === '減らさない');
+      eq('⑱-98 PDFの名前は 伝票番号＿書類の種類＿提出先', p.baseName, 'TK-20260925-5521_請求書_山田商店様');
+      ok('⑱-98 行の中身（種類・番号・提出先・金額・作成者）', p.row.shurui === '請求書' && p.row.bangou === 'TK-20260925-5521' && p.row.teishutsu === '山田商店様' && p.row.kingaku === 32400 && p.row.sakusei === 'ゆか');
+      ok('⑱-98 登録後はボタンを押せない（二重登録を防ぐ）', B._pendingOrders === null && mkEl('noship-go-btn').textContent === '✅ 登録しました');
+      ok('⑱-98 カードには④⑤の流れを出さず、残したPDFを出す', (function(){ try { return B.nagareCardHtml(B.orders[0]); } catch (e) { return ''; } })().indexOf('✅ 発行記録に残しました') >= 0);
+      /* B. 在庫を減らす・RTの番号 */
+      B.noshipMita = false;
+      B._pendingOrders = [mk('n2', { num:'RT-20260925-1111', client:'ホテルＡ 御中', noShipZaiko:'heras' })];
+      B._pendingOrders[0].noShipZaiko = 'heras';
+      B.nagareMaeRender(); await B.noshipPdfMiru(); await B.noshipGo();
+      ok('⑱-99 「減らす」なら在庫を1回だけ減らす', kiroku.heras === 1 && kiroku.post[1].row.zaiko === '減らした');
+      ok('⑱-99 RTは記号を外した番号・御中はそのまま', kiroku.post[1].baseName === '20260925-1111_請求書_ホテルＡ 御中');
+      ok('⑱-99 それでも発注書へは送らない', kiroku.yuka === 0);
+
+      /* C. あとから領収書のさがす窓口 */
+      B.orders = [
+        { id:'r1', num:'TK-20260910-4182', client:'山田商店', recipientName:'山田商店', registeredAt:'2026-09-10', paymentConfirmed:true, paidAt:'2026-09-20T01:00:00Z', shippedAt:'2026-09-12T01:00:00Z' },
+        { id:'r2', num:'OS2-20260915-2210', client:'ヤマダキッチン', registeredAt:'2026-09-15', paymentConfirmed:false },
+        { id:'r3', num:'TK-20260801-0931', client:'山本商店', recipientName:'山田 花子', registeredAt:'2026-08-01', paymentConfirmed:true },
+        { id:'r4', num:'TK-20260902-0001', client:'山田商店', registeredAt:'2026-09-02', status:'cancelled', paymentConfirmed:true }
+      ];
+      const kekka = () => { B.ryoshuSagasu(); return mkEl('ryoshu-kekka').innerHTML; };
+      mkEl('ryoshu-q').value = '山田';
+      const k1 = kekka();
+      ok('⑱-100 一部だけで出る・お届け先の名前でも出る・キャンセルは出ない・新しい順', B.ryoshuKouho.map(o => o.id).join(',') === 'r1,r3');
+      mkEl('ryoshu-q').value = 'やまだ';
+      const k2 = kekka();
+      ok('⑱-100 ひらがな「やまだ」でカタカナ「ヤマダ」が出る', B.ryoshuKouho.map(o => o.id).join(',') === 'r2' && k2.indexOf('入金✓がまだ') >= 0);
+      mkEl('ryoshu-q').value = '４１８２'; kekka();
+      ok('⑱-100 伝票番号の下4けた（全角でも）で出る', B.ryoshuKouho.length === 1 && B.ryoshuKouho[0].id === 'r1');
+      ok('⑱-100 入金✓のある注文は［🧾 領収書を出す］を押せる', k1.indexOf('onclick="ryoshuMiru(0)"') >= 0);
+      ok('⑱-100 領収書は発行記録へ「領収書（あとから）」で残し、新しく受注登録しない', H.cut(idx, 'ryoshuDasu').indexOf("'領収書（あとから）'") >= 0 && H.cut(idx, 'ryoshuDasu').indexOf('registerOrder') < 0);
+    })();
+
   /* ── ① 登録する【前】の下見（もと㉒。同じ決めごとなのでここに入れました）── */
     /* ★2026-09-13 承認モック：バラバラのボタンをやめ、流れバーの中から開きます */
     const nm2 = H.cut(idx, 'nagareMaeRender');
