@@ -222,6 +222,11 @@ eq('参考：0 で止まる', oya3, 0);
     deletedAt: '2026-09-01T00:00:00.000Z', paymentConfirmedAt: '2026-09-12T04:00:00.000Z', rtmCancelled: true,
     /* ★だれも GAS に書いていない、これから足されるかもしれない印。
        　これが戻ってくれば「もう書き足さなくてよい」が本当だと分かります。 */
+    /* ★2026-09-25 発送不要・売上に入れない・キャンセル・発行記録・あとから領収書の印 */
+    noShip: true, noShipDoc: '請求書', noShipZaiko: 'heras', uriageIrenai: true, uriageIrenaiRiyu: '出し直し', tsukijime: true,
+    noShipCancel: { at: '2026-09-26T01:00:00.000Z', by: 'ゆか', zaiko: '2本戻しました', kirokuNg: '' },
+    hakkou: { url: 'https://drive.google.com/file/d/BBB/view', name: 'TK_請求書_x様.pdf', at: '2026-09-25T10:00:00.000Z' }, hakkouNg: '',
+    ryoshuAto: [{ url: 'https://drive.google.com/file/d/CCC/view', name: 'TK_領収書_x様.pdf', at: '2026-09-26T02:00:00.000Z' }], orderTotal: 32400,
     mada_dare_mo_shiranai_shirushi: { a: 1, b: ['x', 'y'] }
   };
   bako.__o = [moto];
