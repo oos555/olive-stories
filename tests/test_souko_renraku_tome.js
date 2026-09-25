@@ -366,7 +366,8 @@ const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-st
 const BIL = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/billing.html', 'utf8');
 
 /* ★2026-09-24 🔵のあと倉庫へ一文だけ（ひろみさん指示）。ヘルプも今の流れに書き直した */
-ok('⑨受注Ａ：🔵のあと3分で倉庫へ一文だけ、と書いてある', IDX.indexOf('3分後に倉庫のLINEへ一文だけ届き') >= 0);
+/* ★2026-09-25 説明書きを図にした（ひろみさん「図式にして、簡潔に、短く」）。「発注書 A列を🔵」のあとに「倉庫のLINEに一文（3分後）」の箱があるか */
+ok('⑨受注Ａ：🔵のあと3分で倉庫へ一文だけ、と書いてある', (function(){ var i = IDX.indexOf('発注書 A列を🔵'); return i >= 0 && IDX.indexOf('倉庫のLINEに一文<small>3分後</small>', i) > i && IDX.indexOf('倉庫のLINEに一文<small>3分後</small>', i) - i < 200; })());
 ok('⑨受注Ａ：古い「倉庫へのLINE・メールはどこからも出しません」は消えている', IDX.indexOf('倉庫へのLINE・メールは<strong>どこからも出しません</strong>') < 0);
 ok('⑨受注Ａ：古い「そのときはじめて倉庫へ連絡が行きます」は消えている',
    IDX.indexOf('そのときはじめて倉庫へ連絡</b>が行きます') < 0);
