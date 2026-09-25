@@ -381,7 +381,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<meta name="oos-version" content="2026-09-24-01">
+<meta name="oos-version" content="2026-09-24-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -465,7 +465,28 @@ async function gateUnlock(){
     okBtn.disabled = false;
   }
 }
-gateCheck();
+/* ══════════════════════════════════════════════════════════════════════
+   💤 倉庫Ｄはお休み中（2026-09-25 ひろみさん指示）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん「倉庫Ｄは、使うときに言うので、今は使いませんので、切っておいていいです。
+   　重たくならないようにしておいて」
+   → 開いても【何も読みに行きません】（GASへの読み込みをしない）。お休みの案内だけ出します。
+   ★中身のコードは消していません。再開するときは、この1行を false にするだけです。
+   見張り：tests/test_genkan.js ⑫ */
+var SOUKO_D_YASUMI = true;
+if(SOUKO_D_YASUMI){
+  document.addEventListener('DOMContentLoaded', function(){
+    var mw = document.getElementById('main-wrap'); if(mw) mw.style.display = 'none';
+    var d = document.createElement('div');
+    d.id = 'souko-d-yasumi';
+    d.style.cssText = 'max-width:560px;margin:60px auto;padding:22px 20px;background:#fff;border:2px solid #d5cfc3;border-radius:14px;'
+      + 'font-size:15px;line-height:1.9;color:#2b2a26;text-align:center';
+    d.innerHTML = '💤 <b>倉庫Ｄは、いまお休み中です。</b><br>発送は【倉庫＆OOS発送連絡スプシ】の発注書をご覧ください。';
+    document.body.appendChild(d);
+  });
+} else {
+  gateCheck();
+}
 const NOSHI_IMAGE = 'noshi-flower.png';
 /* ★2026-09-05 承認モック「おためし版_梱包の指示_受注A入力画面_2026-09-05.html」
    受注Ａでゆかちゃんが選んだ「📦 梱包の指示」を、そのまま倉庫Ｄに出す。
@@ -2656,8 +2677,11 @@ async function completeOrder(){
   }
 }
 
-initializeProducts();
-init();
+/* ★2026-09-25 お休み中は読み込まない（上の SOUKO_D_YASUMI） */
+if(!SOUKO_D_YASUMI){
+  initializeProducts();
+  init();
+}
 </script>
 </body>
 </html>

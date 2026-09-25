@@ -254,6 +254,27 @@ async function atelierKagi(){
   }
 }
 
+/* ══════ ⑫ 倉庫Ｄはお休み中＝開いても何も読みに行かない（2026-09-25 ひろみさん「切っておいていい。重たくならないように」）══════ */
+(function(){
+  const pk = H.read('pickup.html');
+  const i0 = pk.indexOf('var SOUKO_D_YASUMI'), i1 = pk.indexOf("const NOSHI_IMAGE");
+  const j0 = pk.indexOf('if(!SOUKO_D_YASUMI){\n  initializeProducts();') >= 0 ? pk.indexOf('if(!SOUKO_D_YASUMI){\n  initializeProducts();') : pk.indexOf('if(!SOUKO_D_YASUMI){\r\n  initializeProducts();');
+  if(i0 < 0 || i1 < 0 || j0 < 0){ fail++; fails.push('⑫ 倉庫Ｄのお休みスイッチが見つかりません'); return; }
+  const j1 = pk.indexOf('}', pk.indexOf('init();', j0)) + 1;
+  const yonda = [], soeta = [];
+  let kido = null;
+  const box = { console, String,
+    gateCheck(){ yonda.push('gateCheck'); }, initializeProducts(){ yonda.push('initializeProducts'); }, init(){ yonda.push('init'); },
+    document:{ addEventListener(ev, fn){ if(ev === 'DOMContentLoaded') kido = fn; },
+      getElementById(){ return { style:{} }; }, createElement(){ return { style:{} }; }, body:{ appendChild(x){ soeta.push(x); } } } };
+  vm.createContext(box);
+  vm.runInContext(pk.slice(i0, i1) + '\n' + pk.slice(j0, j1), box);
+  if(kido) kido();
+  eq('⑫ 倉庫Ｄ：お休みのスイッチは入っている（true）', box.SOUKO_D_YASUMI, true);
+  eq('⑫ 倉庫Ｄ：開いても何も読みに行かない（鍵・商品・注文の読み込みをしない）', yonda.length, 0);
+  eq('⑫ 倉庫Ｄ：お休みの案内を出す', soeta.length === 1 && /お休み中/.test(soeta[0].innerHTML), true);
+})();
+
 juchuAKagi().then(atelierKagi).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
