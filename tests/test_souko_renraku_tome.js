@@ -242,6 +242,33 @@ function ugokasuMatome(){
   ok('⑪【動かす】もう一度動いても二重には送らない', M.okuri.length === 1);
   ok('⑪【動かす】タイマーは残らない', M.tr.length === 0);
 }
+/* ⑪ 2通目は行かない（2026-09-25 ひろみさん「バサラで流した後に、普通の発注書でも青色に変えた時に、また2通目がいかないように」）
+   本物の oosYukaShipGo_ を動かして、「📨 知らせました」のある行をもう一度🔵にしても予約しないことを確かめます。 */
+function ugokasuShipGo(note){
+  const yoyaku = [];
+  const cellA = { note: note, getNote(){ return this.note; }, setNote(n){ this.note = n; }, setValue(){ return this; } };
+  const disp = new Array(32).fill(''); disp[2] = 'MEM500-5132\nメメジック 500ml'; disp[10] = 'バサラスター 様';
+  const sh = { getRange(r, c, nr, nc){
+    if(nr){ return { getDisplayValues(){ return [disp.slice(0, nc)]; } }; }
+    if(c === 1) return cellA;
+    if(c === 29) return { getValue(){ return 'K-BA-1'; } };
+    return { setValue(){ return this; }, setFontColor(){ return this; }, setFontWeight(){ return this; }, getValue(){ return ''; } }; } };
+  const box = { console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean,
+    Logger:{ log(){} }, Utilities:{ formatDate(){ return '9/25 10:00'; } },
+    oosKeyColByHeader_(){ return 29; }, oosYukaStockDeductByKey_(){ return { status:'ok' }; },
+    oosSoukoMatomeYoyaku_(k, r){ yoyaku.push([k, r]); }, oosYukaLineMidashi_(){}, oosLineToWarehouse_(){ yoyaku.push('中身入り'); } };
+  box.globalThis = box; const ctx = vm.createContext(box);
+  vm.runInContext(H.cutVar(GAS, 'OOS_YC') + '\n' + H.cutVar(GAS, 'OOS_SOUKO_MATOME_ON') + '\n' + H.cutVar(GAS, 'OOS_YUKA_MATOME_MIN') + '\n'
+    + H.cutVar(GAS, 'OOS_SOUKO_RENRAKU_OFF') + '\n' + H.cutVar(GAS, 'OOS_YUKA_BTN_STOP') + '\n' + H.cutVar(GAS, 'OOS_YUKA_BTN_GO') + '\n'
+    + H.cutVar(GAS, 'OOS_YUKA_LINE_COL') + '\n' + H.cutVar(GAS, 'OOS_YUKA_LINE_MADA') + '\n' + H.cut(GAS, 'oosYukaShipGo_') + '\noosYukaShipGo_(__sh, 5);', Object.assign(ctx, { __sh: sh }));
+  return yoyaku;
+}
+{
+  const y1 = ugokasuShipGo('');
+  ok('⑪【動かす】🔵にしたら、一文のまとめ送りを1回だけ予約する（中身入りのLINEは作らない）', y1.length === 1 && y1[0][0] === 'K-BA-1', JSON.stringify(y1));
+  const y2 = ugokasuShipGo('📨 倉庫にLINEで知らせました 9/24 15:02');
+  ok('⑪【動かす】もう知らせた行をもう一度🔵にしても、2通目は予約しない（バサラも同じ）', y2.length === 0, JSON.stringify(y2));
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    ⑩ 本部グループへのLINEを止める（2026-09-13 ひろみさん）
