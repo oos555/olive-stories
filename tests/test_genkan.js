@@ -342,7 +342,50 @@ function gateHan(){
 }
 try{ gateHan(); }catch(e){ fail++; fails.push('⑭ 玄関の版を確かめられませんでした：' + e.message); }
 
-juchuAKagi().then(atelierKagi).then(kagiNokosu).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
+/* ══════ ⑮ 古い社長の鍵は玄関で消す・社長の鍵があれば玄関もRT台帳も聞かない（2026-09-26 ひろみさん「社長の方のアプリ全部できかれる」）══════ */
+async function kagiTashikameTest(){
+  const han = (src.match(/var OOS_GATE_HAN = '([^']+)'/) || [])[1];
+  function tamesu(store, kotae){
+    const t = { store, show:true, alerts:0 }; const sess = {};
+    const box = { console, JSON, String,
+      localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } },
+      sessionStorage:{ getItem:(k)=>(k in sess ? sess[k] : null), setItem:(k,v)=>{ sess[k]=v; } },
+      document:{ getElementById:(id)=>({ classList:{ contains:()=> id==='gate-overlay' ? t.show : false, remove(){ if(id==='gate-overlay') t.show=false; }, add(){} } }) },
+      GAS_URL:'x', initAlerts(){ t.alerts++; },
+      fetch: async ()=>({ json: async ()=> kotae }) };
+    vm.createContext(box);
+    vm.runInContext(H.cutVar(src, 'OOS_GATE_HAN') + ';\n' + H.cut(src, 'oosSavedPw') + '\n' + H.cut(src, 'oosMarkUnlocked') + '\n' + H.cut(src, 'oosClearUnlock') + '\n'
+      + H.cut(src, 'kagiTashikame') + '\n' + H.cut(src, 'kagiShachoMo'), box);
+    t.box = box; return t;
+  }
+  const kagi = JSON.stringify({ p:'AAA' });
+  { const t = tamesu({ oos_unlock_secret:kagi, oos_gate_ok:han }, { status:'error', message:'パスワードが違います' }); await t.box.kagiTashikame();
+    eq('⑮ 古い社長の鍵（サーバーが違いますと言う）は玄関で消す', 'oos_unlock_secret' in t.store, false); }
+  { const t = tamesu({ oos_unlock_secret:kagi, oos_gate_ok:han }, { status:'error', message:'Service invoked too many times' }); await t.box.kagiTashikame();
+    eq('⑮ 混んでいるだけなら社長の鍵を消さない', 'oos_unlock_secret' in t.store, true); }
+  { const t = tamesu({ oos_unlock_secret:kagi }, { status:'ok' }); await t.box.kagiTashikame();
+    eq('⑮ 正しい社長の鍵があれば、玄関の枠を自動で閉じる', t.show, false);
+    eq('⑮ そのとき玄関の印を今の版で立てる', t.store.oos_gate_ok, han);
+    eq('⑮ 見張りは1回だけ動く', t.alerts, 1); }
+  { const t = tamesu({}, { status:'ok' }); await t.box.kagiShachoMo('AAA');
+    eq('⑮ 玄関で社長のパスワードを入れたら、社長の鍵としても覚える', t.store.oos_unlock_secret, kagi); }
+  { const t = tamesu({ oos_unlock_secret:kagi }, { status:'error', message:'パスワードが違います' }); await t.box.kagiShachoMo('BBB');
+    eq('⑮ 玄関でスタッフの鍵を入れても、今ある社長の鍵は消さない・変えない', t.store.oos_unlock_secret, kagi); }
+  eq('⑮ 玄関を開いたときに社長の鍵を確かめている', /\n\s*gateCheck\(\);\s*\n\s*kagiTashikame\(\);/.test(src), true);
+  eq('⑮ 玄関で開けたあと社長の鍵も覚える', /initAlerts\(\);\s*\n\s*kagiShachoMo\(pw\);/.test(src), true);
+  const rt = fs.readFileSync(require('path').join(__dirname, '..', 'rt_chef_daicho.html'), 'utf8');
+  { const store = { oos_unlock_secret:kagi }; let aita = 0; let okutta = null;
+    const box = { console, JSON,
+      localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } },
+      loadPeople(){}, openMain(){ aita++; }, lockAgain(){}, pingUnlock(pw){ okutta = pw; } };
+    vm.createContext(box);
+    vm.runInContext('var GATE_PW="oos_rtchef_gate_pw", password="";\n' + H.cut(rt, 'savedSecret') + '\n' + H.cut(rt, 'oosSavedPw') + '\n' + H.cut(rt, 'boot'), box);
+    box.boot();
+    eq('⑮ RT台帳は社長の鍵があれば聞かずに開く', aita, 1);
+    eq('⑮ RT台帳はその鍵をサーバーで確かめる', okutta, 'AAA'); }
+}
+
+juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }

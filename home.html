@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-06">
+<meta name="oos-version" content="2026-09-26-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-08-18 玄関でも在庫を数えるため、親を読む。★消さないでください
      ★2026-09-13 見張りを2つに減らしたので、いまは玄関では使っていません。
@@ -703,6 +703,54 @@
     }
   }
   gateCheck();
+  kagiTashikame();
+
+  /* ★2026-09-26 ひろみさん「社長の方のアプリ全部できかれる。枠がでてきて入力が必要な状態」
+     実際にひろみさんのChromeで見たら：社長の鍵は保存されていたが【9/25にパスワードを変える前の古い鍵】で、
+     玄関は確かめずに通す → 行った先で「違います」→ 鍵が消えて「玄関から入れ直して」、と遠回りしていました。
+     ① 玄関を開いたとき、保存された社長の鍵を【裏で】1回だけ確かめます（待たせません）。古ければその場で消します。
+     ② 社長の鍵が正しいのに玄関の印だけ無い（版が変わった）ときは、玄関の枠を自動で閉じます。
+     ★消すのはサーバーが【パスワードが違います】と言ったときだけ（混んでいるだけでは消さない）。見張り：tests/test_genkan.js ⑮ */
+  async function kagiTashikame(){
+    const saved = oosSavedPw('secret');
+    if(!saved) return;
+    let gateOk = false;
+    try{ gateOk = localStorage.getItem('oos_gate_ok') === OOS_GATE_HAN; }catch(e){}
+    try{ if(gateOk && sessionStorage.getItem('oos_kagi_tashikameta') === '1') return; }catch(e){}
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'verifyPassword', group:'secret', password: saved }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const data = await res.json();
+      if(data.status==='ok'){
+        try{ sessionStorage.setItem('oos_kagi_tashikameta', '1'); }catch(e){}
+        if(!gateOk && document.getElementById('gate-overlay').classList.contains('show')){
+          try{ localStorage.setItem('oos_gate_ok', OOS_GATE_HAN); }catch(e){}
+          document.getElementById('gate-overlay').classList.remove('show');
+          document.getElementById('main-wrap').classList.add('gate-open');
+          initAlerts();
+        }
+      } else if(String(data.message||'') === 'パスワードが違います'){
+        oosClearUnlock('secret');
+      }
+    }catch(e){}
+  }
+  /* ★2026-09-26 玄関で【社長のパスワード】を入れたときは、社長の鍵としても覚えます（社長の画面でもう一度聞かない）。
+     　スタッフの鍵を入れたときは何も変えません（今ある社長の鍵も消しません）。 */
+  async function kagiShachoMo(pw){
+    if(oosSavedPw('secret') === pw) return;
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'verifyPassword', group:'secret', password: pw }),
+        headers: {'Content-Type':'text/plain;charset=utf-8'}
+      });
+      const data = await res.json();
+      if(data.status==='ok') oosMarkUnlocked('secret', pw);
+    }catch(e){}
+  }
 
   async function gateUnlock(){
     const pw = oosPwSoroe(document.getElementById('gate-pw-input').value);
@@ -723,6 +771,7 @@
         document.getElementById('gate-overlay').classList.remove('show');
         document.getElementById('main-wrap').classList.add('gate-open');
         initAlerts();
+        kagiShachoMo(pw);
       } else {
         errEl.textContent = data.message ? ('エラー：'+data.message) : 'パスワードが違います';
       }
