@@ -275,7 +275,35 @@ async function atelierKagi(){
   eq('⑫ 倉庫Ｄ：お休みの案内を出す', soeta.length === 1 && /お休み中/.test(soeta[0].innerHTML), true);
 })();
 
-juchuAKagi().then(atelierKagi).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
+/* ══════ ⑬ 混んでいるだけのときに、社長の鍵を消さない（2026-09-25 ひろみさん「また入れない！同じ端末から入ってるよ」）══════
+   輸入Ｅ・ひろみメモは、サーバーの答えが ok 以外なら何でも鍵を消していたので、GASが混んだだけで同じ端末でまた聞かれていました。 */
+async function kagiNokosu(){
+  const path = require('path');
+  for (const [mei, file] of [['輸入Ｅ','import.html'], ['ひろみメモ','hiromi.html']]) {
+    const hs = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    async function tamesu(kotae){
+      const kieta = [];
+      const el = () => ({ style:{}, classList:{ add(){}, remove(){} }, textContent:'', innerHTML:'' });
+      const box = { console, JSON, String, Promise, setTimeout,
+        document:{ getElementById: el, querySelectorAll(){ return []; } },
+        fetch: async () => ({ json: async () => kotae }),
+        post: async () => kotae,
+        oosClearUnlock(g){ kieta.push(g); }, showSyncStatus(){},
+        hmCacheHayaMise(){ return false; }, hmYomikomiChu(){}, hmCacheLoad(){ return null; }, hmYomenakatta(){}, hmItsuno(){ return ''; },
+        SHEET_NAME:'', SHEET_IMPORTANT:'', SHEET_TODO:'', SHEET_FREE:'', GAS_URL:'x', password:'' };
+      vm.createContext(box);
+      vm.runInContext('var password=""; ' + H.cut(hs, 'autoUnlock'), box);
+      await box.autoUnlock('KAGI');
+      return kieta.length;
+    }
+    try{
+      eq('⑬ ' + mei + '：サーバーが混んでいるだけのときは、鍵を消さない', await tamesu({ status:'error', message:'Service invoked too many times' }), 0);
+      eq('⑬ ' + mei + '：本当にパスワードが違うときだけ鍵を消す', await tamesu({ status:'error', message:'パスワードが違います' }), 1);
+    }catch(e){ fail++; fails.push('⑬ ' + mei + 'を動かせませんでした：' + e.message); }
+  }
+}
+
+juchuAKagi().then(atelierKagi).then(kagiNokosu).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }

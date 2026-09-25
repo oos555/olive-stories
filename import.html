@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-16-03">
+<meta name="oos-version" content="2026-09-25-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1014,6 +1014,13 @@ async function autoUnlock(pw){
       loadCostDataFromGAS();
       initializeProductsE();
       if(typeof ynInitPanel==='function') ynInitPanel();
+    } else if(String(data.message||'') !== 'パスワードが違います'){
+      /* ★2026-09-25 ひろみさん「また入れない！同じ端末から入ってるよ」
+       　GASが混んでいる・読めなかっただけのときにも鍵を消していたので、同じ端末でまた聞かれていました。
+       　サーバーが【パスワードが違います】と言ったときだけ鍵を消します。★条件を外さないでください。見張り：tests/test_genkan.js ⑬ */
+      document.getElementById('locked-view').style.display = 'none';
+      document.getElementById('unlocked-view').style.display = 'block';
+      showSyncStatus('⚠️ いま読めませんでした（'+String(data.message||'')+'）。少し待って画面を開き直してください', true);
     } else {
       // パスワードが違う（古い/誤った鍵）→ 画面（ガワ）も見せず、鍵を消してロック画面へ戻す
       oosClearUnlock('secret');
