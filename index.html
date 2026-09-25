@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-06">
+<meta name="oos-version" content="2026-09-25-07">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5075,7 +5075,7 @@ function buildOrdersFromForm(){
      ══════════════════════════════════════════════════════════════════ */
   for(var _ri=0; _ri<recipients.length; _ri++){
     var _r = recipients[_ri];
-    if(_r.lead==='scheduled' && !_r.leadDate){
+    if(_r.lead==='scheduled' && !_r.leadDate && recordType !== 'noship'){   /* ★2026-09-25 発送不要では発送区分の欄が隠れているので見ません */
       alert('「日時指定」の届け先は、希望到着日を入れてください。'); return;
     }
   }
@@ -8264,7 +8264,7 @@ function updateSummary(){
   const thisMonth = today.slice(0,7);
   document.getElementById('sum-today').textContent = orders.filter(o=>shipDayKeyJst(o.registeredAt)===today).length+'件';
   document.getElementById('sum-pending').textContent = orders.filter(o=>o.status==='pending').length+'件';
-  document.getElementById('sum-shipped').textContent = orders.filter(o=>o.status==='shipped' && shipDayKeyJst(o.shippedAt)===today).length+'件';
+  document.getElementById('sum-shipped').textContent = orders.filter(o=>o.status==='shipped' && !o.noShip && shipDayKeyJst(o.shippedAt)===today).length+'件';   /* ★2026-09-25 発送不要（請求書のみ）は出荷ではないので数えない */
   document.getElementById('sum-month').textContent = orders.filter(o=>shipDayKeyJst(o.registeredAt).slice(0,7)===thisMonth).length+'件';
 }
 
@@ -9629,6 +9629,7 @@ function noshipKirikae(){
   });
   /* ★ほかの種類へ変えたら「在庫は？」は空に戻します（最初はどちらも選ばれていない） */
   if(!on) Array.prototype.forEach.call(document.querySelectorAll('input[name=noship-zaiko]'), function(el){ el.checked = false; });
+  if(!on){ var _d0 = document.querySelector('input[name=noship-doc][value="請求書"]'); if(_d0) _d0.checked = true; }   /* 次の発送不要は「請求書」から */
   var w = document.getElementById('noship-waku'); if(w) w.style.borderColor = on ? '#2563eb' : '#cdd9a6';
   var h = document.getElementById('noship-hint');
   if(h) h.textContent = on
@@ -9644,6 +9645,8 @@ function noshipShirushi(list){
     o.enclosedDoc = doc; o.includePamphlet = false;
     o.otherDocUrl = ''; o.otherDocName = '';
     o.leadType = 'normal'; o.leadDate = ''; o.delivTime = ''; o.note = ''; o.noshi = null;
+    /* 隠した欄（ギフト）が前の入力のまま残っていても、ギフトの扱いにしない */
+    o.pkg = Object.assign({}, o.pkg || {}, { kind:'normal' });
   });
   return list;
 }
@@ -9691,13 +9694,14 @@ function hakkouPdfHiraku(b64, name){
 async function hakkouNokosu(o, mei, shurui, zaiko, sakusei){
   var b64 = await nouhinBuildPdfB64(o, mei);
   var base = hakkouBaseName(o, mei);
+  var kingaku = hakkouKingaku(o, mei);
   var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify({ action:'oosHakkouSave', base64:b64, baseName:base, row:{
       shurui: shurui, bangou: OOS_NOUHIN.docNumberOf(o.num), teishutsu: hakkouTeishutsu(o),
-      kingaku: hakkouKingaku(o, mei), sakusei: sakusei, zaiko: zaiko, memo: '' } }) });
+      kingaku: kingaku, sakusei: sakusei, zaiko: zaiko, memo: '' } }) });
   var d = await res.json();
   if(!d || d.status !== 'ok') throw new Error((d && d.message) || '発行記録に残せませんでした');
-  d.b64 = b64;
+  d.b64 = b64; d.kingaku = kingaku;
   return d;
 }
 
@@ -9771,6 +9775,12 @@ async function noshipGo(){
   try{
     if(zaiko === 'heras'){
       await zaikoYomiNaosu();
+      /* 在庫を読めていないと、減らしたつもりで1本も減らない。黙って進めずに止めます */
+      if(typeof zaikoYometeruKa === 'function' && !zaikoYometeruKa()){
+        noshipSay('ng', '⛔ <b>登録していません。</b>在庫を読み込めなかったので、在庫を減らせません。画面を開き直してから、もう一度押してください。');
+        noshipGoChu = false; if(btn){ btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '② 登録してPDFを残す'; }
+        return;
+      }
       var short = checkStockShortage(list);
       if(short.length){
         noshipSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>' + short.map(function(s){
@@ -9802,6 +9812,7 @@ async function noshipNokosuHitotsu(o, sakusei){
   try{
     var d = await hakkouNokosu(o, mei, mei, (o.noShipZaiko === 'heras' ? '減らした' : '減らさない'), sakusei || sakuseishaIma());
     o.hakkou = { url: d.url, name: d.name, at: new Date().toISOString() };
+    if(d.kingaku) o.orderTotal = d.kingaku;   /* 出した請求書の合計（税込）。あとから領収書の金額さがしに使います */
     o.hakkouNg = '';
     syncOrdersToGAS([o]);
     hakkouPdfHiraku(d.b64, d.name);
@@ -9897,7 +9908,7 @@ function ryoshuSagasu(){
     var dn = (typeof OOS_NOUHIN !== 'undefined') ? OOS_NOUHIN.docNumberOf(o.num) : o.num;
     h += '<div class="ryoshu-hit">'
       + '<div style="font-weight:800">' + ryoshuMark(o.client || o.recipientName || '', raw) + ' 様' + todoke + kin + '</div>'
-      + '<div class="ryoshu-small" style="margin:0">' + ryoshuMark(dn, raw) + ' ／ ' + esc(hassou) + ' ／ 入金 ' + (paid ? esc(ryoshuHizuke(o.paidAt)) + ' ✓' : 'まだ') + '</div>'
+      + '<div class="ryoshu-small" style="margin:0">' + ryoshuMark(dn, raw) + ' ／ ' + esc(hassou) + ' ／ 入金 ' + (paid ? esc(ryoshuHizuke(o.paidAt || o.paymentConfirmedAt)) + ' ✓' : 'まだ') + '</div>'
       + '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
       +   '<button class="btn-sm" style="border:2px solid #2563eb;color:#1f4a6d;font-weight:800;background:#fff" onclick="ryoshuMotoMiru(' + i + ')">🖨️ もとの書類（PDF）を見る</button>'
       +   (paid
@@ -10627,6 +10638,8 @@ function renrakuBox(o, acts){
      ══════════════════════════════════════════════════════════════════════ */
   acts = acts || {one:'', two:'', twoTop:''};
   var other = [acts.one||'', acts.twoTop||'', acts.two||''].join('');
+  /* ★2026-09-25 発送不要（請求書のみ）は発注書へ行かない注文です。［📥 発注書に送る］は出さず、発行記録の札だけ出します */
+  if(o.noShip) return '<div style="margin-top:8px">' + noshipCardHtml(o) + '</div>';
 
   /* ── 発注書（スプシ）に行ったか ── */
   /* ══════════════════════════════════════════════════════════════════
@@ -10980,6 +10993,8 @@ async function yoyakuListAddOne(o){
 
 async function yukaImportOne(id){
   var o = orders.find(x=>x.id===id); if(!o) return;
+  /* ★2026-09-25 発送不要（請求書のみ）は倉庫へ行きません。ほかの道から呼ばれても止めます */
+  if(o.noShip){ alert('⛔ この注文は「発送不要（請求書のみ）」です。発注書（倉庫）へは送りません。'); return; }
   /* ══════════════════════════════════════════════════════════════════
      ★2026-09-10 夜の点検で見つけたバグの手当て（二重の守り）。
      取り消した注文（🗑 発注から消した・✖ キャンセル）を発注書へ送ると、

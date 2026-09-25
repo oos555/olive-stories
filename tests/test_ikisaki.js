@@ -1347,7 +1347,7 @@ function hacchuushoGyou(payload){
       let _ug = true;
       ['esc','docKakuninKa','docKakuninSuru','nagareMaeRender','noshipShirushi','noshipMaeRender','noshipPdfMiru','noshipSay','noshipGo',
        'noshipNokosuHitotsu','noshipCardHtml','sakuseishaIma','sakuseishaOku','sakuseishaSelHtml','hakkouTeishutsu','hakkouBaseName',
-       'hakkouKingaku','hakkouNokosu','nagareCardHtml','ryoshuSoroe','ryoshuMe','ryoshuHizuke','ryoshuMark','ryoshuSagasu','registerOrder'
+       'hakkouKingaku','hakkouNokosu','nagareCardHtml','renrakuBox','ryoshuSoroe','ryoshuMe','ryoshuHizuke','ryoshuMark','ryoshuSagasu','registerOrder'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__k = kiroku;
       try {
@@ -1390,9 +1390,17 @@ function hacchuushoGyou(payload){
       ok('⑱-98 発注書（倉庫スプシ）へも取り置き・予約リストへも送らない', kiroku.yuka === 0);
       ok('⑱-98 「減らさない」なら在庫は動かない', kiroku.heras === 0 && p.row.zaiko === '減らさない');
       eq('⑱-98 PDFの名前は 伝票番号＿書類の種類＿提出先', p.baseName, 'TK-20260925-5521_請求書_山田商店様');
-      ok('⑱-98 行の中身（種類・番号・提出先・金額・作成者）', p.row.shurui === '請求書' && p.row.bangou === 'TK-20260925-5521' && p.row.teishutsu === '山田商店様' && p.row.kingaku === 32400 && p.row.sakusei === 'ゆか');
+      ok('⑱-98 行の中身（種類・番号・提出先・金額・作成者）', p.row.shurui === '請求書' && p.row.bangou === 'TK-20260925-5521' && p.row.teishutsu === '山田商店様' && p.row.kingaku === 32400 && p.row.sakusei === 'ゆか' && B.orders[0].orderTotal === 32400);
       ok('⑱-98 登録後はボタンを押せない（二重登録を防ぐ）', B._pendingOrders === null && mkEl('noship-go-btn').textContent === '✅ 登録しました');
-      ok('⑱-98 カードには④⑤の流れを出さず、残したPDFを出す', (function(){ try { return B.nagareCardHtml(B.orders[0]); } catch (e) { return ''; } })().indexOf('✅ 発行記録に残しました') >= 0);
+      /* ★受注一覧のカードの入口（renrakuBox）で確かめる。［📥 発注書に送る］が出ると、請求書だけの注文が倉庫へ流れる */
+      const _kado = (function(){ try { return B.renrakuBox(B.orders[0], {}); } catch (e) { return ''; } })();
+      ok('⑱-98 カードは発行記録の札だけ（［📥 発注書に送る］を出さない）', _kado.indexOf('✅ 発行記録に残しました') >= 0 && _kado.indexOf('yukaImportOne') < 0);
+      const _p0 = kiroku.post.length;
+      /* 本物の yukaImportOne を別の名前で入れて呼ぶ（登録のときに呼ばれないかは、下の身代わりで数えています） */
+      vm.runInContext(H.cut(idx, 'yukaImportOne').replace('async function yukaImportOne(', 'async function __honmonoYukaImportOne('), _S.ctx);
+      let _tomatta = true;   /* 止めが無いと先へ進み、発注書へ送る処理（ここでは用意していない）で落ちる */
+      try { await B.__honmonoYukaImportOne(B.orders[0].id); } catch (e) { _tomatta = false; }
+      ok('⑱-98 ほかの道から発注書へ送ろうとしても止まる', _tomatta && kiroku.post.length === _p0);
       /* B. 在庫を減らす・RTの番号 */
       B.noshipMita = false;
       B._pendingOrders = [mk('n2', { num:'RT-20260925-1111', client:'ホテルＡ 御中', noShipZaiko:'heras' })];
