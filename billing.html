@@ -10,7 +10,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-25-05">
+<meta name="oos-version" content="2026-09-26-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1227,7 +1227,7 @@ function renderQiInvoices(){
     var st = paid ? '<span style="color:#8a8578;font-size:11px">入金済み</span>' : (od ? '<span class="badge" style="background:#dc2626;color:#fff">🚨期限越え未入金</span>' : '<span class="badge badge-unpaid">未入金</span>');
     var bg = od ? '#fef2f2' : (paid ? '#eeece7' : '#fff');
     var amt = (parseInt(r.amountTotal)||0).toLocaleString();
-    var issued = (r.invoiceDateStr||'') || String(r.issuedAt||'').slice(0,10);
+    var issued = (r.invoiceDateStr||'') || OOS_HIZUKE.dake(r.issuedAt);
     return '<tr style="background:'+bg+'"><td style="font-weight:700;color:#185FA5">'+esc(r.invoiceNo||r.estimateNo||'')+'</td>'+
       '<td>'+esc(r.customerName||'')+'</td>'+
       '<td>'+esc(issued)+'</td>'+
@@ -1308,7 +1308,7 @@ function salesDupKey(o){
     const slip = rtSlipNoOf(o);
     return slip ? ('RT伝票|' + slip) : '';   // '' ＝ 判定しない
   }
-  return (o.recipientName||o.client||'') + '|' + String(o.registeredAt||'').slice(0,10) + '|' + orderAmount(o);
+  return (o.recipientName||o.client||'') + '|' + OOS_HIZUKE.dake(o.registeredAt) + '|' + orderAmount(o);
 }
 function findSalesDuplicates(){
   const map = {};
@@ -1343,7 +1343,7 @@ function renderSalesDupAlert(){
     const head = '<div style="margin-top:8px"><b>' + esc(g[0].recipientName||g[0].client||'') + '</b> 様　'
       + (slip
           ? '<b>伝票番号 ' + esc(slip) + '</b>　'
-          : esc(String(g[0].registeredAt||'').slice(0,10)) + ' 受注　<b>¥' + orderAmount(g[0]).toLocaleString() + '</b>　')
+          : esc(OOS_HIZUKE.dake(g[0].registeredAt)) + ' 受注　<b>¥' + orderAmount(g[0]).toLocaleString() + '</b>　')
       + 'が <b>' + g.length + '件</b>あります。'
       + (slip ? '<span style="font-size:11px;color:#8a8578">（同じ伝票番号が2件以上あります。RTは伝票番号で見分けます）</span>' : '')
       + '</div>';
@@ -1536,7 +1536,7 @@ async function uriageIkouGo(){
     if(fresh.status!=='ok' || !fresh.data || !Array.isArray(fresh.data.orders)){
       iu('⚠️ スプシには書けましたが、印が付けられませんでした。もう一度押してください（二重には書かれません）。', true); return;
     }
-    var kyou = new Date().toISOString().slice(0,10);
+    var kyou = OOS_HIZUKE.dake(new Date());
     var n = 0;
     fresh.data.orders.forEach(function(o){ if(kaketa[String(o.num||'')] && !o.salesArchivedAt){ o.salesArchivedAt = kyou; n++; } });
     var sres = await fetch(GAS_URL, { method:'POST',
@@ -1576,7 +1576,7 @@ function renderSalesHiddenList(){
       + (isDup ? '<br>' + SALES_DUP_BADGE : '') + '</td>'
       + '<td style="' + SALES_TD + ';font-family:Consolas,monospace">' + esc(o.num||'') + '</td>'
       + '<td style="' + SALES_TD + '">' + esc(o.recipientName || o.client || '') + '</td>'
-      + '<td style="' + SALES_TD + '">' + esc(String(o.registeredAt||'').slice(0,10)) + '</td>'
+      + '<td style="' + SALES_TD + '">' + esc(OOS_HIZUKE.dake(o.registeredAt)) + '</td>'
       + '<td style="' + SALES_TD + ';text-align:right">¥' + orderAmount(o).toLocaleString() + '</td>'
       + '<td style="' + SALES_TD + '">' + (isDup ? '<b style="color:#9b2c2c">👉 上の黄色い枠を見てください</b>' : esc(info.how + (o.uriageIrenai && o.uriageIrenaiRiyu ? '　理由：' + o.uriageIrenaiRiyu : ''))) + '</td></tr>';
   }).join('');
@@ -1625,7 +1625,7 @@ function renderInvoiceList(){
   const alertEl = document.getElementById('overdue-payment-alert');
   if(alertEl){
     alertEl.innerHTML = overdueOneMonth.length
-      ? '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d;font-weight:700">🚨 受注から1ヶ月以上経っても入金が確認できていない受注が'+overdueOneMonth.length+'件あります：'+overdueOneMonth.map(o=>(o.recipientName||o.client)+'（'+o.num+'／'+(o.registeredAt||'').slice(0,10)+'受注）').join('、')+'</div>'
+      ? '<div class="info-box" style="background:#fee2e2;border-color:#dc2626;color:#7f1d1d;font-weight:700">🚨 受注から1ヶ月以上経っても入金が確認できていない受注が'+overdueOneMonth.length+'件あります：'+overdueOneMonth.map(o=>(o.recipientName||o.client)+'（'+o.num+'／'+OOS_HIZUKE.dake(o.registeredAt)+'受注）').join('、')+'</div>'
       : '';
   }
 
@@ -1643,7 +1643,7 @@ function renderInvoiceList(){
     const rowBg = overdue ? '#fef2f2' : (effPaid ? '#eeece7' : '#ffffff');
     const rowColor = effPaid ? '#83817b' : '#2b2a26';
     const numColor = effPaid ? '#8a8578' : '#185FA5';
-    return '<tr style="background:'+rowBg+';color:'+rowColor+'"><td><a href="javascript:void(0)" onclick="toggleOrderDetail(\''+o.id+'\')" style="color:'+numColor+';font-weight:700;text-decoration:underline;cursor:pointer" title="タップすると注文の中身が下に開きます">'+o.num+'<span class="order-chev" data-id="'+o.id+'" style="font-size:9px;margin-left:3px">▶</span></a>'+(_dupIds[o.id]?'<br>'+SALES_DUP_BADGE:'')+'</td><td>'+(o.recipientName||o.client)+'</td><td>'+(o.registeredAt||'').slice(0,10)+'</td>'+
+    return '<tr style="background:'+rowBg+';color:'+rowColor+'"><td><a href="javascript:void(0)" onclick="toggleOrderDetail(\''+o.id+'\')" style="color:'+numColor+';font-weight:700;text-decoration:underline;cursor:pointer" title="タップすると注文の中身が下に開きます">'+o.num+'<span class="order-chev" data-id="'+o.id+'" style="font-size:9px;margin-left:3px">▶</span></a>'+(_dupIds[o.id]?'<br>'+SALES_DUP_BADGE:'')+'</td><td>'+(o.recipientName||o.client)+'</td><td>'+OOS_HIZUKE.dake(o.registeredAt)+'</td>'+
       '<td>'+(CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType)+'</td><td>'+payBadge+'</td>'+
       '<td style="text-align:right">¥'+amount.toLocaleString()+'</td>'+
       '<td>'+(mm?'<span style="font-size:11px;font-weight:700;color:#1f4a6d;background:#eef4fb;border:1px solid #93b4e0;border-radius:6px;padding:2px 7px;white-space:nowrap">月次まとめ予定</span>':paidBadge)+'</td>'+
@@ -1668,7 +1668,7 @@ function renderInvoiceList(){
   const _ym = _now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
   let mCount=0, mGeneral=0, mRT=0, mWho=0, mOther=0;
   orders.filter(isSalesListTarget).forEach(function(o){
-    if(String(o.registeredAt||'').slice(0,7) !== _ym) return;
+    if(OOS_HIZUKE.dake(o.registeredAt).slice(0,7) !== _ym) return;
     mCount++;
     const t = o.customerType;
     if(t==='general') mGeneral++;
@@ -1699,7 +1699,7 @@ function toggleOrderDetail(orderId){
 // 注文の中身のHTMLを組み立てる（発注者・お届け先・出荷日・商品明細・合計・対応状況メモ）
 function buildOrderDetailHtml(o){
   const recipient = o.recipientName ? esc(o.recipientName) : '（発注者と同じ）';
-  const shipDate = o.shippedAt ? String(o.shippedAt).slice(0,10) : '未出荷';
+  const shipDate = o.shippedAt ? OOS_HIZUKE.dake(o.shippedAt) : '未出荷';
   let itemsHtml = '', sum = 0;
   (o.lines||[]).forEach(function(l){
     const boxes = l.boxes||0, bottles = l.bottles||0, boxQty = l.boxQty||1;
@@ -2178,7 +2178,7 @@ function renderPastQuoteSuggestion(c){
   if(!past.length){ cardEl.style.display='none'; listEl.innerHTML=''; return; }
   cardEl.style.display = '';
   listEl.innerHTML = past.map(function(r){
-    const dateStr = (r.issuedAt||'').slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(r.issuedAt);
     const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : '📝 見積書';
     let detail = '';
     if(r.kind==='pricelist'){
@@ -2835,7 +2835,7 @@ function downloadQuotePdf(record){
       pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
       heightLeft -= (pdfH - 20);
     }
-    const dateStr = new Date().toISOString().slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(new Date());
     const kindStr = record.kind==='pricelist' ? '標準価格表' : '見積書';
     pdf.save(kindStr+'_'+record.customerName+'_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
@@ -2918,7 +2918,7 @@ function renderQuoteHistory(){
   } else { alertEl.innerHTML = ''; }
   if(!sorted.length){ listEl.innerHTML = '<div class="info-box">まだ提出履歴がありません。</div>'; return; }
   listEl.innerHTML = sorted.map(function(r){
-    const dateStr = (r.issuedAt||'').slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(r.issuedAt);
     const kindStr = r.kind==='pricelist' ? '📋 標準価格表' : (r.kind==='oilwholesale' ? '🗂️ オイル価格表' : '📝 見積書');
     const hasOrder = hasOrderSince(r.customerId, r.issuedAt);
     const state = effectiveFollowUpState(r, now);
@@ -2937,9 +2937,9 @@ function renderQuoteHistory(){
     if(hasOrder){
       actionsHtml = '<button class="btn-sm" onclick="viewQuoteHistoryItem(\''+r.id+'\')">表示</button>';
     } else {
-      const todayStr = now.toISOString().slice(0,10);
+      const todayStr = OOS_HIZUKE.dake(now);
       const defaultSnooze = new Date(now); defaultSnooze.setDate(defaultSnooze.getDate()+FOLLOWUP_THRESHOLD_DAYS);
-      const defaultSnoozeStr = defaultSnooze.toISOString().slice(0,10);
+      const defaultSnoozeStr = OOS_HIZUKE.dake(defaultSnooze);
       actionsHtml = '<div class="qhist-actions">'
         + '<span class="qhist-mini-btn green" onclick="markFollowUpStatus(\''+r.id+'\',\'done\')">✅ 対応済み</span>'
         + '<span class="qhist-mini-btn blue" onclick="toggleSnoozeBox(\''+r.id+'\')">⏰ 期日を延ばす</span>'
@@ -3172,7 +3172,7 @@ function downloadSpecialPricePdf(record){
     const imgW = pdf.internal.pageSize.getWidth() - 20;
     const imgH = canvas.height * imgW / canvas.width;
     pdf.addImage(img, 'PNG', 10, 10, imgW, imgH);
-    const dateStr = new Date().toISOString().slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(new Date());
     pdf.save('特別見積書_'+record.customerName+'_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
@@ -3192,7 +3192,7 @@ function renderSpecialPriceList(){
   list.sort((a,b)=>(b.issuedAt||'').localeCompare(a.issuedAt||''));
   if(!list.length){ listEl.innerHTML = '<div class="info-box">該当するイレギュラー特価はありません。</div>'; return; }
   listEl.innerHTML = list.map(function(r){
-    const dateStr = (r.issuedAt||'').slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(r.issuedAt);
     return '<div class="card" style="padding:10px 14px;margin-bottom:8px">'
       + '<div><strong>'+esc(r.customerName)+'</strong>：'+esc(r.productName)+'　¥'+r.unitPrice.toLocaleString()+' × '+r.qty+'本</div>'
       + '<div style="font-size:11px;color:#2b2a26;margin-top:4px">発行日：'+dateStr+'／作成者：'+esc(r.creator||'')+'</div>'
@@ -3707,7 +3707,7 @@ function downloadOwPdf(record){
       pdf.addImage(img, 'PNG', 10, position, imgW, imgH);
       heightLeft -= (pdfH - 20);
     }
-    const dateStr = new Date().toISOString().slice(0,10);
+    const dateStr = OOS_HIZUKE.dake(new Date());
     pdf.save('オイル価格表_'+record.customerName+'_'+dateStr+'.pdf');
     showSyncStatus('✅ PDFを作成しました');
   }).catch(function(err){
@@ -3945,7 +3945,7 @@ let _monthlyCtx = null;
 // ══ RT月次まとめ（RTホテルは全部まとめて1枚／RTGCゴルフは施設ごとに1枚）══
 let _rtMonthlyCtx = null;
 function rtmSetDefaultMonth(){ var el=document.getElementById('rtm-yearmonth'); if(el&&!el.value){ var d=new Date(); el.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); } }
-function rtmRow(o){ return { mgmtNo:o.num||'', orderDate:(o.registeredAt||'').slice(0,10), facility:(o.recipientName||o.client||''), amount:orderAmount(o) }; }
+function rtmRow(o){ return { mgmtNo:o.num||'', orderDate:OOS_HIZUKE.dake(o.registeredAt), facility:(o.recipientName||o.client||''), amount:orderAmount(o) }; }
 function runRtMonthly(){
   rtmSetDefaultMonth();
   var ym = document.getElementById('rtm-yearmonth').value;
@@ -3959,7 +3959,7 @@ function runRtMonthly(){
     if(o.status==='cancelled' || o.status==='deleted') return false;
     if(o.uriageIrenai) return false;   /* ★2026-09-25 「売上に入れない」請求書はRT月次にも入れない */
     if(!salesWasSentToWarehouse(o)) return false;
-    return String(o.registeredAt||'').slice(0,7)===ym;
+    return OOS_HIZUKE.dake(o.registeredAt).slice(0,7)===ym;
   });
   // RT（ホテル）＝全部まとめて1枚
   var rtOrders = inMonth.filter(function(o){ return OOS_KAKAKU.isType(o.customerType, 'rt'); })
@@ -3989,7 +3989,7 @@ function runRtMonthly(){
     if(!o) return false;
     if(o.status==='cancelled' || o.status==='deleted') return false;
     if(o.customerType!=='rt' && o.customerType!=='rtgc') return false;
-    return String(o.registeredAt||'').slice(0,7)===ym;
+    return OOS_HIZUKE.dake(o.registeredAt).slice(0,7)===ym;
   });
   var _machi = {};
   _ymRt.forEach(function(o){
@@ -4206,7 +4206,7 @@ function calcMonthlyInvoice(forcedClient){
     if(o.uriageIrenai) return false;   /* ★2026-09-25 「売上に入れない」請求書は、月末のまとめ請求にも入れない（二重請求を防ぐ） */
     if((o.client||'').indexOf(client) < 0) return false;
     if(!o.shippedAt) return false;
-    return (o.shippedAt||'').startsWith(ym);
+    return OOS_HIZUKE.dake(o.shippedAt).startsWith(ym);
   });
 
   let subtotalTax8 = 0, subtotalTax10 = 0, taxAmount8 = 0, taxAmount10 = 0;
@@ -4226,7 +4226,7 @@ function calcMonthlyInvoice(forcedClient){
       if(!OOS_ZEI.isReduced(tax)){ subtotalTax10 += amount; taxAmount10 += taxAmt; }
       else { subtotalTax8 += amount; taxAmount8 += taxAmt; }
       if(appPaid) appPaidTotal += (amount + taxAmt);
-      rows.push({ orderNum:o.num, shippedAt:(o.shippedAt||'').slice(0,10), productName:l.productName, qty:totalQty, unitPrice:unitPrice, openPrice:openPrice, amount:amount, taxRate:tax, appPaid:appPaid });
+      rows.push({ orderNum:o.num, shippedAt:OOS_HIZUKE.dake(o.shippedAt), productName:l.productName, qty:totalQty, unitPrice:unitPrice, openPrice:openPrice, amount:amount, taxRate:tax, appPaid:appPaid });
     });
   });
   const subtotal = subtotalTax8 + subtotalTax10;
@@ -4478,8 +4478,8 @@ function exportShippingListCSV(){
   const start = document.getElementById('exp-start').value;
   const end = document.getElementById('exp-end').value;
   let list = orders.filter(o=>o.status!=='cancelled' && o.shippedAt && !o.noShip);   /* ★2026-09-25 発送不要（請求書のみ）は発送していないので、発送リストに入れない */
-  if(start) list = list.filter(o=>(o.shippedAt||'').slice(0,10) >= start);
-  if(end) list = list.filter(o=>(o.shippedAt||'').slice(0,10) <= end);
+  if(start) list = list.filter(o=>OOS_HIZUKE.dake(o.shippedAt) >= start);
+  if(end) list = list.filter(o=>OOS_HIZUKE.dake(o.shippedAt) <= end);
   const rows = [['注文番号','出荷日','お客様(発注元)','お届け先','区分','支払方法','商品明細','金額(税込)','入金']];
   list.forEach(function(o){
     const lines = (o.lines||[]).map(l=>{
@@ -4487,14 +4487,14 @@ function exportShippingListCSV(){
       return l.productName+' × '+totalQty+'本';
     }).join(' / ');
     rows.push([
-      o.num, (o.shippedAt||'').slice(0,10),
+      o.num, OOS_HIZUKE.dake(o.shippedAt),
       o.client||'', o.recipientName||'',
       CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType,
       o.paymentMode==='prepay'?'先払い':o.paymentMode==='paid'?'現金':'後払い',
       lines, orderAmount(o), o.paymentConfirmed?'済':'未'
     ]);
   });
-  downloadCSV('発送リスト_'+(new Date().toISOString().slice(0,10))+'.csv', rows);
+  downloadCSV('発送リスト_'+(OOS_HIZUKE.dake(new Date()))+'.csv', rows);
   showSyncStatus('✅ 発送リストCSVをダウンロードしました');
 }
 function exportBillingBackupCSV(){
@@ -4505,7 +4505,7 @@ function exportBillingBackupCSV(){
       return l.productName+' × '+totalQty+'本';
     }).join(' / ');
     rows.push([
-      o.num, (o.registeredAt||'').slice(0,10), (o.shippedAt||'').slice(0,10),
+      o.num, OOS_HIZUKE.dake(o.registeredAt), OOS_HIZUKE.dake(o.shippedAt),
       o.client||'', o.recipientName||'',
       CUSTOMER_TYPE_LABEL[o.customerType]||o.customerType,
       o.paymentMode==='prepay'?'先払い':o.paymentMode==='paid'?'現金':'後払い',
@@ -4516,7 +4516,7 @@ function exportBillingBackupCSV(){
   // 合計金額（税込）の行を一番下に追加。画面には出さず、CSVを開いた時だけ総額が分かる。
   const grandTotal = orders.filter(isSalesListTarget).reduce(function(s,o){ return s + orderAmount(o); }, 0);
   rows.push(['','','','','','','','合計金額(税込)', grandTotal, '','','']);
-  downloadCSV('請求データ_'+(new Date().toISOString().slice(0,10))+'.csv', rows);
+  downloadCSV('請求データ_'+(OOS_HIZUKE.dake(new Date()))+'.csv', rows);
   showSyncStatus('✅ 請求データCSVをダウンロードしました');
 }
 

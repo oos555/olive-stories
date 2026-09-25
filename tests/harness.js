@@ -103,6 +103,9 @@ function makeSandbox(extra){
      どのテストでも入れておく。統合マスタＮ・受注Ａ・倉庫Ｄ は自分で番号を作らず
      OOS_KUBUN.kanriBangou を呼ぶだけになったためです。★消さないでください */
   try{ vm.runInContext(read('oos-kubun.js'), ctx); }catch(e){}
+  /* ★2026-09-26 日付の【親】oos-hizuke.js も入れます。売上Ｃは月・日を自分で切らず OOS_HIZUKE.dake を呼ぶだけになったため
+     （ひろみさん「月の境目　日本時間で治して！」）。★消さないでください */
+  try{ vm.runInContext(read('oos-hizuke.js'), ctx); }catch(e){}
   return { box, ctx };
 }
 

@@ -176,6 +176,22 @@ eq('⑥ 列は4つだけ（勝手に増やさない）', (FH.match(/<th[ >]/g)||
 inc('⑥ RT（ホテル）のカードに明細が出る', out, '施設ごとの月次まとめ（明細）', true);
 eq('⑥ ゴルフ（もともと1施設1枚）には出さない', (out.match(/施設ごとの月次まとめ（明細）/g)||[]).length, 1);
 
+/* ══ ⑦ 月の境目は日本時間（2026-09-26 ひろみさん「月の境目　日本時間で治して！」）══════
+   受注日は世界時間で保存されています。「2026-09-30T16:00:00.000Z」は日本時間の【10月1日 1時】。
+   先頭7文字を切ると9月の請求書に入ってしまっていました。 */
+process.env.TZ = 'Asia/Tokyo';
+box.orders = [
+  mk('RT-S', '2026-09', '30', 'RT', 'shipped', { registeredAt:'2026-09-30T14:59:00.000Z', shippedAt:'2026-10-01' }),   /* 日本時間 9/30 23:59 */
+  mk('RT-O', '2026-09', '30', 'RT', 'shipped', { registeredAt:'2026-09-30T16:00:00.000Z', shippedAt:'2026-10-01' })    /* 日本時間 10/1 1:00 */
+];
+box.normOrdersCtype(box.orders);
+function kyouNo(ym){ boxes['rtm-yearmonth'].value = ym; boxes['rtmonthly-preview'] = mkEl('rtmonthly-preview'); box.runRtMonthly(); return JSON.stringify((box._rtMonthlyCtx || {}).invoices || []); }
+const sep = kyouNo('2026-09'), oct = kyouNo('2026-10');
+inc('⑦ 日本時間 9/30 23:59 の受注は9月に入る', sep, 'RT-S', true);
+inc('⑦ 日本時間 10/1 1:00 の受注は9月に入らない', sep, 'RT-O', false);
+inc('⑦ 日本時間 10/1 1:00 の受注は10月に入る', oct, 'RT-O', true);
+inc('⑦ 明細の発注日も日本時間（10/1）', oct, '2026-10-01', true);
+
 console.log('===== RT月次まとめ「この月の分を集計する」=====');
 console.log('PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(function(f){ console.log('  ' + f); }); }
