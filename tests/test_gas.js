@@ -357,6 +357,27 @@ eq('参考：0 で止まる', oya3, 0);
   }
 }
 
+/* ── 発送済の行は A列も同じグレー（2026-09-28 ひろみさん「A のセルが青いままなの…全部同じ色でグレーに」）──
+   A列の🔵の色の決まりより上に、A列だけのグレーが来ること。何度呼んでも1つだけ。 */
+{
+  const mkRule = (f, rng) => ({ f, rng, getBooleanCondition(){ return { getCriteriaValues(){ return [f]; } }; } });
+  function builder(){ const b = { f:'', rng:null,
+    whenFormulaSatisfied(f){ b.f = f; return b; }, whenTextEqualTo(t){ b.f = t; return b; },
+    setBackground(){ return b; }, setFontColor(){ return b; }, setBold(){ return b; },
+    setRanges(r){ b.rng = r[0]; return b; }, build(){ return mkRule(b.f, b.rng); } }; return b; }
+  let rules = [mkRule('🔵 発送を依頼する'), mkRule('🔴 まだ')];
+  const sh = { getConditionalFormatRules(){ return rules.slice(); }, setConditionalFormatRules(r){ rules = r; },
+    getRange(r, c, n, w){ return { r, c, n, w }; } };
+  const box = { SpreadsheetApp:{ newConditionalFormatRule: builder }, String, OOS_YC:{ honbuMemo:31 } };
+  vm.createContext(box);
+  vm.runInContext(H.cutVar(gasSrc, 'OOS_HASSOU_GREY') + ';\n' + H.cutVar(gasSrc, 'OOS_HASSOU_GREY_A') + ';\n' + H.cut(gasSrc, 'oosYukaHassouGreyAdd_'), box);
+  box.oosYukaHassouGreyAdd_(sh, 31);
+  box.oosYukaHassouGreyAdd_(sh, 31);
+  eq('発送済グレー① A列のグレーが一番上（🔵の色に勝つ）', /\$Y2=TRUE/.test(rules[0].f) && rules[0].rng.w === 1, true);
+  eq('発送済グレー② キャンセルの行はA列も赤いまま（グレーにしない）', /キャンセル/.test(rules[0].f), true);
+  eq('発送済グレー③ 何度呼んでもA列のグレーは1つ・行のグレーも1つ', rules.filter(r => /\$Y2=TRUE/.test(r.f)).length, 2);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
