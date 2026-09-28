@@ -419,7 +419,7 @@ eq('参考：0 で止まる', oya3, 0);
   vm.createContext(G);
   vm.runInContext(['OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_GO_TSUCHI'].map(n => H.cutVar(gasSrc, n)).join(';\n') + ';\n'
     + 'var OOS_YC = { slip:2, note:21, shipped:25 };\n'
-    + ['oosYukaGoKa_', 'oosImaKigenOf_', 'oosImaGyou_', 'oosImaKigenMoji_'].map(n => H.cut(gasSrc, n)).join('\n'), G);
+    + ['oosYukaGoKa_', 'oosImaKigenOf_', 'oosImaGyou_'].map(n => H.cut(gasSrc, n)).join('\n'), G);
   const GO = '発送してください', TSU = '発送してください（LINE通知済）', STOP = 'OOS未チェック 発送しないでください（登録済）';
   function gyo(a, b, y, note, name){ const r = new Array(25).fill(''); r[0] = a; r[1] = b; r[2] = 'MEM2L-5231\nメメジック 2L\n賞味期限 2027.11.11'; r[3] = '2'; r[10] = name || 'x'; r[20] = note || ''; r[24] = y ? 'TRUE' : 'FALSE'; return r; }
   const disp = [
@@ -438,9 +438,10 @@ eq('参考：0 で止まる', oya3, 0);
   eq('いま発送する分② 〆の早い順・日時指定は前の日で・〆なしは下', out.map(g => g.row).join(','), '4,5,9,2,8');
   eq('いま発送する分③ 〆を過ぎた行は黄色', out[0].kg.kiire, true);
   eq('いま発送する分④ 今日が〆の前の日なら黄色にしない（急ぎ9/29）', out[1].kg.kiire, false);
-  eq('いま発送する分⑤ 〆の欄：期限切れ', G.oosImaKigenMoji_(out[0].kg), '⚠ 9/26(土)\n期限切れ');
-  eq('いま発送する分⑥ 〆の欄：急ぎ', G.oosImaKigenMoji_(out[1].kg), '9/29(火)\n急ぎ');
-  eq('いま発送する分⑦ 〆の欄：日時指定', G.oosImaKigenMoji_(out[3].kg), '🗓 10/3(土) お届け');
+  /* ★2026-09-28 ひろみさん「〆と依頼の列は発注書にはないよね。いらない」→ 伝票番号の欄に発注書のB列をそのまま */
+  eq('いま発送する分⑤ 伝票番号の欄は発注書のB列そのまま（依頼・〆も入る）', out[0].b, 'TK-3\n依頼 9/24(木)\n〆 9/26(土)までに発送');
+  eq('いま発送する分⑥ 表の見出しは4つ（〆・依頼の列はない）', /\['発注書へ', '伝票番号', 'お届け先', '商品'\]/.test(H.cut(gasSrc, 'oosImaHassouTsukuru_')), true);
+  eq('いま発送する分⑦ 説明（ひろみさんの言葉）と、だれも書けない保護', /発送がOKになったもの（🔵 発送してください）だけを抜き出したシートです/.test(gasSrc) && /setWarningOnly\(false\)/.test(H.cut(gasSrc, 'oosImaHassouTsukuru_')), true);
   eq('いま発送する分⑧ 商品は番号＋名前×数（賞味期限の行は出さない）', out[0].shohin, 'MEM2L-5231 メメジック 2L ×2');
   const kyou2 = G.oosImaGyou_(vals, disp, new Date(2026, 9, 2));
   eq('いま発送する分⑨ お届け10/3は前の日（10/2）から黄色', kyou2.filter(g => g.row === 2)[0].kg.kiire, true);
