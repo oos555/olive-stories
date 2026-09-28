@@ -413,6 +413,40 @@ eq('参考：0 で止まる', oya3, 0);
   eq('発送の〆⑨ B列は番号の行を残し、前の依頼・〆だけ入れ替える', txt, 'TK-20260928-4821\n伝票 313653\n依頼 9/28(月)\n〆 9/30(水)までに発送');
 }
 
+/* ── 🚚 いま発送する分（2026-09-28 承認モック）：🔵で☑なしだけ・〆の早い順・日時指定は前の日で並べる・〆なしは下 ── */
+{
+  const G = { Date, Math, String, Object, JSON, isNaN };
+  vm.createContext(G);
+  vm.runInContext(['OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_GO_TSUCHI'].map(n => H.cutVar(gasSrc, n)).join(';\n') + ';\n'
+    + 'var OOS_YC = { slip:2, note:21, shipped:25 };\n'
+    + ['oosYukaGoKa_', 'oosImaKigenOf_', 'oosImaGyou_', 'oosImaKigenMoji_'].map(n => H.cut(gasSrc, n)).join('\n'), G);
+  const GO = '発送してください', TSU = '発送してください（LINE通知済）', STOP = 'OOS未チェック 発送しないでください（登録済）';
+  function gyo(a, b, y, note, name){ const r = new Array(25).fill(''); r[0] = a; r[1] = b; r[2] = 'MEM2L-5231\nメメジック 2L\n賞味期限 2027.11.11'; r[3] = '2'; r[10] = name || 'x'; r[20] = note || ''; r[24] = y ? 'TRUE' : 'FALSE'; return r; }
+  const disp = [
+    gyo(GO,   'RT-1\n依頼 9/20(日)\n🗓 お届け 10/3(土) 指定', false, '', '上の行'),   /* 2行目：お届け10/3 → 10/2で並ぶ */
+    gyo(STOP, 'TK-2\n依頼 9/28(月)\n〆 9/30(水)までに発送', false),                    /* 赤は出ない */
+    gyo(TSU,  'TK-3\n依頼 9/24(木)\n〆 9/26(土)までに発送', false, '', '期限切れ'),     /* 4行目 */
+    gyo(GO,   'TK-4\n依頼 9/28(月)\n〆 9/29(火)までに発送（急ぎ）', false, '', '急ぎ'),  /* 5行目 */
+    gyo(GO,   'TK-5\n依頼 9/28(月)\n〆 9/30(水)までに発送', true),                      /* 発送済は出ない */
+    gyo(GO,   'TK-6\n依頼 9/28(月)\n〆 9/30(水)までに発送', false, '❌ キャンセルされました'),  /* キャンセルは出ない */
+    gyo(GO,   'TK-7\n伝票 313653', false, '', '昔の行'),                                  /* 8行目：〆なし → 下 */
+    gyo(GO,   'TK-8\n依頼 9/28(月)\n〆 10/1(木)までに発送', false, '', '通常')            /* 9行目 */
+  ];
+  const vals = disp.map(r => r.map((c, i) => i === 24 ? c === 'TRUE' : c));
+  const out = G.oosImaGyou_(vals, disp, new Date(2026, 8, 28));
+  eq('いま発送する分① 出るのは🔵で☑なし・キャンセルでない行だけ（5件）', out.length, 5);
+  eq('いま発送する分② 〆の早い順・日時指定は前の日で・〆なしは下', out.map(g => g.row).join(','), '4,5,9,2,8');
+  eq('いま発送する分③ 〆を過ぎた行は黄色', out[0].kg.kiire, true);
+  eq('いま発送する分④ 今日が〆の前の日なら黄色にしない（急ぎ9/29）', out[1].kg.kiire, false);
+  eq('いま発送する分⑤ 〆の欄：期限切れ', G.oosImaKigenMoji_(out[0].kg), '⚠ 9/26(土)\n期限切れ');
+  eq('いま発送する分⑥ 〆の欄：急ぎ', G.oosImaKigenMoji_(out[1].kg), '9/29(火)\n急ぎ');
+  eq('いま発送する分⑦ 〆の欄：日時指定', G.oosImaKigenMoji_(out[3].kg), '🗓 10/3(土) お届け');
+  eq('いま発送する分⑧ 商品は番号＋名前×数（賞味期限の行は出さない）', out[0].shohin, 'MEM2L-5231 メメジック 2L ×2');
+  const kyou2 = G.oosImaGyou_(vals, disp, new Date(2026, 9, 2));
+  eq('いま発送する分⑨ お届け10/3は前の日（10/2）から黄色', kyou2.filter(g => g.row === 2)[0].kg.kiire, true);
+  eq('いま発送する分⑩ 案内の文言（ひろみさん案）', /［📝 ◯行目へ］を押すと「発注書」タブの◯行目に飛びます。そこで送り状NO.を書いてください（ここでは書かないでください）。/.test(gasSrc), true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
