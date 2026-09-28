@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-26-01">
+<meta name="oos-version" content="2026-09-28-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-08-18 玄関でも在庫を数えるため、親を読む。★消さないでください
      ★2026-09-13 見張りを2つに減らしたので、いまは玄関では使っていません。
@@ -360,6 +360,7 @@
       <button class="btn-ok" id="pres-ok-btn" onclick="presUnlock()">開く</button>
     </div>
     <div class="err" id="pres-err"></div>
+    <div id="pres-kiroku" style="margin-top:8px;font-size:11.5px;color:#8a8578;line-height:1.5"></div>
   </div>
 </div>
 
@@ -670,11 +671,11 @@
   }
   function oosMarkUnlocked(group, pw){
     try{
-      localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw}));
+      localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw})); try{ if(group==='secret') localStorage.setItem('oos_kagi_hozon', new Date().toISOString()); }catch(eK){}   /* ★2026-09-28 鍵を覚えた日時（玄関の枠に出す） */
       localStorage.removeItem('oos_unlock_date');
     }catch(e){}
   }
-  function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
+  function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); if(group==='secret') localStorage.setItem('oos_kagi_kieta', JSON.stringify({ doko:'玄関', itsu:new Date().toISOString() })); }catch(e){} }   /* ★2026-09-28 どこで・いつ消したかを残す（玄関の枠に出す） */
 
   /* ============================================================
      鍵①：玄関(home.html)自体のロック
@@ -846,7 +847,18 @@
     }
   }
 
+  /* ★2026-09-28 ひろみさん「また社長の部屋が入れない。なんで入れないの」
+     枠が出た理由をその場で分かるように、鍵を覚えた日時・消した日時と画面を1行で出します（鍵の中身は出しません）。 */
+  function kagiKirokuBun(){
+    function hi(iso){ var d = new Date(iso); return isNaN(d.getTime()) ? '' : (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); }
+    var k = null, h = '';
+    try{ k = JSON.parse(localStorage.getItem('oos_kagi_kieta') || 'null'); h = localStorage.getItem('oos_kagi_hozon') || ''; }catch(e){}
+    if(k && k.itsu && (!h || k.itsu >= h)) return '記録：' + hi(k.itsu) + 'に「' + k.doko + '」で鍵を消しました（サーバーが「パスワードが違います」と答えたため）';
+    if(h) return '記録：この画面で最後に鍵を覚えたのは ' + hi(h) + ' です。消した記録はありません（画面の保存が消えています）';
+    return '記録：この画面には、鍵を覚えた記録がありません（はじめての画面か、閉じると保存が消える設定です）';
+  }
   function presOpenModal(){
+    try{ document.getElementById('pres-kiroku').textContent = kagiKirokuBun(); }catch(eK){}
     document.getElementById('pres-err').textContent = '';
     document.getElementById('pres-pw-input').value = '';
     document.getElementById('pres-overlay').classList.add('show');

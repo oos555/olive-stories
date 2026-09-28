@@ -385,6 +385,28 @@ async function kagiTashikameTest(){
     eq('⑮ RT台帳はその鍵をサーバーで確かめる', okutta, 'AAA'); }
 }
 
+/* ══════ ⑯ 鍵を消したら「どこで・いつ」を残し、玄関の枠に出す（2026-09-28 ひろみさん「また社長の部屋が入れない。なんで」）══════ */
+function kagiKirokuTest(){
+  const path = require('path');
+  for (const [file, mei] of [['home.html','玄関'], ['hiromi.html','ひろみメモ'], ['import.html','輸入・原価'], ['eigyo/marketing.html','マーケ'], ['eigyo/documents.html','書類']]) {
+    const hs = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    const store = { oos_unlock_secret: '{"p":"A"}' };
+    const box = { JSON, Date, localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } } };
+    vm.createContext(box); vm.runInContext(H.cut(hs, 'oosClearUnlock'), box);
+    box.oosClearUnlock('secret');
+    eq('⑯ ' + mei + '：鍵を消したら、どこで消したかを残す', ('oos_unlock_secret' in store) + ' ' + (JSON.parse(store.oos_kagi_kieta || '{}').doko), 'false ' + mei);
+  }
+  const store = {};
+  const box = { JSON, Date, isNaN, localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; } } };
+  vm.createContext(box); vm.runInContext(H.cut(src, 'kagiKirokuBun'), box);
+  eq('⑯ 記録なし → 覚えた記録がないと出る', /覚えた記録がありません/.test(box.kagiKirokuBun()), true);
+  store.oos_kagi_hozon = '2026-09-28T01:00:00.000Z';
+  eq('⑯ 覚えたあと消した記録なし → 保存が消えていると出る', /消した記録はありません/.test(box.kagiKirokuBun()), true);
+  store.oos_kagi_kieta = JSON.stringify({ doko:'ひろみメモ', itsu:'2026-09-28T02:00:00.000Z' });
+  eq('⑯ あとで消した → どこで消したかが出る', /「ひろみメモ」で鍵を消しました/.test(box.kagiKirokuBun()), true);
+}
+try{ kagiKirokuTest(); }catch(e){ fail++; fails.push('⑯ 動かせませんでした：' + e.message); }
+
 juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
