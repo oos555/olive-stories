@@ -378,6 +378,41 @@ eq('参考：0 で止まる', oya3, 0);
   eq('発送済グレー③ 何度呼んでもA列のグレーは1つ・行のグレーも1つ', rules.filter(r => /\$Y2=TRUE/.test(r.f)).length, 2);
 }
 
+/* ── 発送の〆（2026-09-28 ひろみさん確定）：親 oos-hizuke.js と GAS のコピーが同じ日を出すか ──
+   お休みは送料・約束ごとＳ（soryo.html）の本物の判定を使う。2026〜2027年の毎日で突き合わせる。 */
+{
+  const soryo = fs.readFileSync(require('path').join(__dirname, '..', 'soryo.html'), 'utf8');
+  const TOKU = [{ sMM:8, sDD:11, eMM:8, eDD:17 }, { sMM:12, sDD:29, eMM:1, eDD:4 }];
+  const S = H.makeSandbox({});
+  vm.runInContext('var _holCache={}; var specialHolidays=' + JSON.stringify(TOKU) + ';\n'
+    + ['hpad2','hdkey','hParseKey','hNthMon','jpHolidaySet','isJpHoliday','inHolidayRange','isSpecialHoliday','isClosedDay'].map(n => H.cut(soryo, n)).join('\n'), S.ctx);
+  const G = { Date, Math, String, Object, JSON, isNaN };
+  vm.createContext(G);
+  vm.runInContext(['oosJpHolidaySet_','oosYasumi_','oosHassouKigen_','oosKigenMD_','oosYukaKigenText_'].map(n => H.cut(gasSrc, n)).join('\n'), G);
+  const oya = (d, t, ld) => S.box.OOS_HIZUKE.hassouKigen(d, t, ld || '', S.box.isClosedDay);
+  const gas = (d, t, ld) => G.oosHassouKigen_(d, t, ld || '', x => G.oosYasumi_(x, TOKU));
+  let chigau = [];
+  for (let d = new Date(2026, 0, 1); d < new Date(2028, 0, 1); d.setDate(d.getDate() + 1)) {
+    for (const t of ['normal', 'urgent']) {
+      const a = oya(new Date(d), t), b = gas(new Date(d), t);
+      if (JSON.stringify(a) !== JSON.stringify(b)) chigau.push(d.toDateString() + ' ' + t);
+      if (!!S.box.isClosedDay(d) !== !!G.oosYasumi_(new Date(d), TOKU)) chigau.push(d.toDateString() + ' お休み');
+    }
+  }
+  eq('発送の〆① 親とGASが2年分の毎日で同じ日を出す', chigau.length ? chigau.slice(0, 3).join(' / ') : 'なし', 'なし');
+  const hi = (s, t, ld) => (oya(new Date(s + 'T00:00:00'), t || 'normal', ld) || {}).hi;
+  eq('発送の〆② 9/28(月)に依頼 → 9/30(水)（水曜1日は数える）', hi('2026-09-28'), '2026-09-30');
+  eq('発送の〆③ 9/18(金)に依頼 → 9/24(木)（20〜23の連休を飛ばす）', hi('2026-09-18'), '2026-09-24');
+  eq('発送の〆④ 10/10(土)に依頼 → 10/14(水)（日曜＋祝日も連休）', hi('2026-10-10'), '2026-10-14');
+  eq('発送の〆⑤ 11/2(月)に依頼 → 11/6(金)（祝日＋水曜も連休）', hi('2026-11-02'), '2026-11-06');
+  eq('発送の〆⑥ 12/28(月)に依頼 → 1/6(水)（年末年始を飛ばす）', hi('2026-12-28'), '2027-01-06');
+  eq('発送の〆⑦ 急ぎは翌営業日（9/28→9/29）', hi('2026-09-28', 'urgent'), '2026-09-29');
+  const ot = oya(new Date('2026-09-28T00:00:00'), 'scheduled', '2026-10-03');
+  eq('発送の〆⑧ 日時指定はお届け日・前の日から黄色', ot.hi + ' ' + ot.kiiro, '2026-10-03 2026-10-02');
+  const txt = G.oosYukaKigenText_('TK-20260928-4821\n伝票 313653\n依頼 9/1(火)\n〆 9/3(木)までに発送', new Date(2026, 8, 28), { shu:'tsujo', hi:'2026-09-30' });
+  eq('発送の〆⑨ B列は番号の行を残し、前の依頼・〆だけ入れ替える', txt, 'TK-20260928-4821\n伝票 313653\n依頼 9/28(月)\n〆 9/30(水)までに発送');
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

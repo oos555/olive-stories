@@ -68,5 +68,42 @@
     return (d.getMonth() + 1) + '月' + d.getDate() + '日';
   }
 
-  root.OOS_HIZUKE = { dake: dake, asa: asa, jp: jp };
+  function tasu(d, n) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+
+  /* ══════════════════════════════════════════════════════════════════
+     📦 発送の〆（2026-09-28 ひろみさん確定）
+     　通常 … 依頼した日を【1日目】として【3日目】まで。
+     　　　　 お休み（水・日・祝日・特別休業）は、1日だけなら【1日として数える】。
+     　　　　 2日以上つながったお休み（連休）は【まるごと飛ばす】。定休日と祝日がつながったときも連休。
+     　急ぎ … 翌営業日まで（お休みは飛ばす）。
+     　日時指定 … お届け日そのもの。【お届け日の前の日】になっても発送していなければ黄色
+     　　　　　 （福岡から関東・関西は中1〜2日かかるため）。
+     　yasumi(日付) … お休みなら true を返す関数（お休みの大もとは送料・約束ごとＳ）。
+     　かえす値 … { shu:'tsujo'|'isogi'|'otodoke', hi:'2026-09-30', kiiro:'2026-10-01'（この日から黄色） }
+     ★GAS（oosHassouKigen_）に同じ計算のコピーが1つあります。見張り：tests/test_gas.js「発送の〆」
+     ══════════════════════════════════════════════════════════════════ */
+  function hassouKigen(irai, leadType, leadDate, yasumi) {
+    var d0 = asa(irai);
+    if (!d0) return null;
+    if (leadType === 'scheduled') {
+      var t = asa(leadDate);
+      return t ? { shu: 'otodoke', hi: dake(t), kiiro: dake(tasu(t, -1)) } : null;
+    }
+    if (typeof yasumi !== 'function') return null;
+    var d, i;
+    if (leadType === 'urgent') {
+      d = tasu(d0, 1);
+      for (i = 0; i < 60 && yasumi(d); i++) d = tasu(d, 1);
+      return { shu: 'isogi', hi: dake(d), kiiro: dake(tasu(d, 1)) };
+    }
+    function renkyu(x) { return yasumi(x) && (yasumi(tasu(x, -1)) || yasumi(tasu(x, 1))); }
+    var c = 0; d = d0;
+    for (i = 0; i < 60; i++) {
+      if (!renkyu(d)) { c++; if (c >= 3) break; }
+      d = tasu(d, 1);
+    }
+    return { shu: 'tsujo', hi: dake(d), kiiro: dake(tasu(d, 1)) };
+  }
+
+  root.OOS_HIZUKE = { dake: dake, asa: asa, jp: jp, hassouKigen: hassouKigen };
 })(typeof window !== 'undefined' ? window : globalThis);
