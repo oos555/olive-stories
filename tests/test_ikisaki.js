@@ -1370,7 +1370,7 @@ function hacchuushoGyou(payload){
       ok('⑱-96 発送不要の流れを、本物の関数のまま動かせる', _ug);
       if (!_ug) return;
       const B = _S.box;
-      ok('⑱-96 登録の種類に「発送不要（請求書のみ）」がある', idx.indexOf('<option value="noship">発送不要（請求書のみ）</option>') >= 0);
+      ok('⑱-96 登録の種類に「発送不要（書類・在庫操作のみ）」がある（2026-09-28 名前を変更）', idx.indexOf('<option value="noship">発送不要（書類・在庫操作のみ）</option>') >= 0);
       ok('⑱-96 「在庫は？」ははじめ、どちらも選ばれていない', !/name="noship-zaiko" value="\w+" checked/.test(idx));
 
       const mk = (id, extra) => B.noshipShirushi([Object.assign({ id:id, num:'TK-20260925-5521', client:'山田商店', recipientName:'山田商店', lines:[] }, extra || {})])[0];
