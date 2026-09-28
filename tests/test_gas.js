@@ -448,6 +448,16 @@ eq('参考：0 で止まる', oya3, 0);
   eq('いま発送する分⑩ 案内の文言（ひろみさん案）', /［📝 ◯行目へ］を押すと「発注書」タブの◯行目に飛びます。そこで送り状NO.を書いてください（ここでは書かないでください）。/.test(gasSrc), true);
 }
 
+/* ── 頼みごとメモ（2026-09-28）：社長の鍵でサーバーに保存できる・ほかの鍵では開かない ── */
+{
+  const G = { GROUP_PASSWORDS:{ secret:'S1', j:'J1', gate:'G1', biz:'B1', d:'D1' } };
+  vm.createContext(G); vm.runInContext(H.cut(gasSrc, 'stickyMemoPasswordOk'), G);
+  eq('頼みごとメモ① 社長の鍵で開く', G.stickyMemoPasswordOk('頼みごとメモ', 'S1'), true);
+  eq('頼みごとメモ② ほかの鍵では開かない', G.stickyMemoPasswordOk('頼みごとメモ', 'J1') || G.stickyMemoPasswordOk('頼みごとメモ', 'G1'), false);
+  const tm = fs.readFileSync(require('path').join(__dirname, '..', 'eigyo', 'tanomi_memo.html'), 'utf8');
+  eq('頼みごとメモ③ 画面が使うタブの名前と同じ', /var SHEET_NAME = '頼みごとメモ';/.test(tm), true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
