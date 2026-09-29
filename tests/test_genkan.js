@@ -407,7 +407,33 @@ function kagiKirokuTest(){
 }
 try{ kagiKirokuTest(); }catch(e){ fail++; fails.push('⑯ 動かせませんでした：' + e.message); }
 
-juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
+/* ══════ ⑰ ゆかメモは鍵をコードに書かない・覚えた鍵で開く・混んでも消さない（2026-09-29 ひろみさん「新しいパスワード以外はもう使わない・毎回聞かれるのをなくして」）══════ */
+async function yukaMemoKagiTest(){
+  const path = require('path');
+  const hs = fs.readFileSync(path.join(__dirname, '..', 'yuka.html'), 'utf8');
+  eq('⑰ ゆかメモ：鍵をコードに書き込んでいない（APP_PASSWORD なし）', /APP_PASSWORD/.test(hs), false);
+  eq('⑰ ゆかメモ：password に文字を直接入れていない', /let password\s*=\s*['"][^'"]+['"]/.test(hs), false);
+  function run(saved, replies){
+    const store = saved ? { oos_unlock_j: JSON.stringify({ p: saved }) } : {};
+    const asked = []; const sent = [];
+    const box = { JSON, String, Promise, setTimeout, SHEET_NAME:'付箋メモJ', memos:[], localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } },
+      renderMemoList(){}, renderAlerts(){}, loadImportantMemos(){}, loadTodos(){}, loadBoardFromGAS(){}, showSyncStatus(){},
+      post: async (b)=>{ sent.push(b.password); return replies.shift(); }, oosAskKey: async (m)=>{ asked.push(m); return 'NEWKEY'; } };
+    vm.createContext(box);
+    vm.runInContext(H.cut(hs, 'oosPwSoroe') + H.cut(hs, 'oosSavedPw') + H.cut(hs, 'oosMarkUnlocked') + H.cut(hs, 'oosClearUnlock') + 'var password = "";' + H.cut(hs, 'autoLoad'), box);
+    return box.autoLoad().then(()=>({ asked, sent, store }));
+  }
+  let r = await run('OLDKEY', [{ status:'ok', data:{ memos:[] } }]);
+  eq('⑰ 覚えた鍵がある → 聞かない', r.asked.length, 0);
+  r = await run('OLDKEY', [{ status:'error', message:'サーバーが混んでいます' }]);
+  eq('⑰ 混んでいるだけ → 鍵を消さない・聞かない', ('oos_unlock_j' in r.store) + ' ' + r.asked.length, 'true 0');
+  r = await run('OLDKEY', [{ status:'error', message:'パスワードが違います' }, { status:'ok', data:{ memos:[] } }]);
+  eq('⑰ 「違います」のとき → 古い鍵を消して、1回だけ聞き直す', ('oos_unlock_j' in r.store) + ' ' + r.asked.length + ' ' + r.sent.join(','), 'false 1 OLDKEY,NEWKEY');
+  r = await run('', [{ status:'ok', data:{ memos:[] } }]);
+  eq('⑰ 鍵がまだない端末 → 最初の1回だけ聞く', r.asked.length + ' ' + r.sent.join(','), '1 NEWKEY');
+}
+
+juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).then(yukaMemoKagiTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }

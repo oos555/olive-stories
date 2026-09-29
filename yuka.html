@@ -17,7 +17,7 @@
    ・一番上に「なんでもメモ」／伝言板／やること（1本リスト）／⭐大切なメモ
    ・「ゆかメモ J」タブは普段は色なし。伝言板の状態で信号になる：
      🔴赤＝ひろみさんからの未対応の伝言あり／🟡黄＝対応済みがまだ板に残っている／⚪色なし＝板が空
-   ・保存の仕組み（シート名：付箋メモJ系・鍵W168W自動）は変更なし
+   ・保存の仕組み（シート名：付箋メモJ系・鍵は端末が覚える）は変更なし
    ・伝言板はGAS側で「社長の鍵」「ゆかメモの鍵」どちらでも読み書きOK（v13で対応済み） */
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#faf7f2;color:#2b2a26;font-size:14px}
@@ -381,8 +381,15 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uU
 const SHEET_NAME = '付箋メモJ';
 const SHEET_IMPORTANT = '付箋メモJ大切';
 const SHEET_TODO = '付箋メモJやること';
-const APP_PASSWORD = 'W168W';   // Jゆかメモ専用パスワード（画面には出さず、裏側で自動的に使う）
-let password = APP_PASSWORD;     // GAS通信に使う（自動ログイン化）。伝言板もこの鍵でOK（GAS v13対応済み）
+/* ★2026-09-29 鍵をコードに書かない。ひろみさん「新しくしたパスワード以外はもう使わない」
+   　この端末が覚えた鍵（oos_unlock_j）を使う。無ければ最初の1回だけ聞いて、サーバーOKのときだけ覚える。
+   　消すのは、サーバーが『パスワードが違います』と答えたときだけ（混んでいる・通信エラーでは消さない＝毎回聞かない）。
+   　見張り test_genkan ⑰ */
+let password = '';
+function oosPwSoroe(s){ return String(s == null ? '' : s).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[s　]/g, '').toUpperCase(); }
+function oosSavedPw(group){ try{ const v = JSON.parse(localStorage.getItem('oos_unlock_'+group)||'null'); return (v && v.p) ? String(v.p) : ''; }catch(e){ return ''; } }
+function oosMarkUnlocked(group, pw){ try{ localStorage.setItem('oos_unlock_'+group, JSON.stringify({p:pw})); }catch(e){} }
+function oosClearUnlock(group){ try{ localStorage.removeItem('oos_unlock_'+group); }catch(e){} }
 let memos = [];
 let importantMemos = [];
 let todos = [];
@@ -414,9 +421,43 @@ async function post(body){
   return await res.json();
 }
 
+/* 鍵の枠（最初の1回だけ）。サーバーがOKと言った鍵だけ覚える */
+function oosAskKey(msg){
+  return new Promise(function(resolve){
+    let ov=document.getElementById('oos-key-ov');
+    if(ov) ov.remove();
+    ov=document.createElement('div'); ov.id='oos-key-ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+    ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.25)"><div style="font-size:16px;font-weight:700;margin-bottom:6px">🔑 パスワードを入れてください</div><div id="oos-key-msg" style="font-size:13px;color:#b91c1c;min-height:18px;margin-bottom:8px"></div><input id="oos-key-in" type="password" autocomplete="new-password" style="width:100%;box-sizing:border-box;font-size:18px;padding:10px;border:2px solid #cbd5e1;border-radius:8px"><button id="oos-key-ok" style="width:100%;margin-top:12px;font-size:16px;font-weight:700;padding:11px;border:0;border-radius:8px;background:#3f7d4e;color:#fff">開く</button><div style="font-size:12px;color:#64748b;margin-top:8px">一度合えば、この端末では次から聞きません。</div></div>';
+    document.body.appendChild(ov);
+    const inp=document.getElementById('oos-key-in'), btn=document.getElementById('oos-key-ok'), m=document.getElementById('oos-key-msg');
+    if(msg) m.textContent=msg;
+    setTimeout(function(){ inp.focus(); },50);
+    async function go(){
+      const pw=oosPwSoroe(inp.value); if(!pw){ m.textContent='パスワードを入れてください'; return; }
+      btn.disabled=true;
+      try{
+        const r=await post({ action:'verifyPassword', group:'j', password:pw });
+        if(r.status==='ok'){ oosMarkUnlocked('j',pw); ov.remove(); resolve(pw); return; }
+        m.textContent=r.message||'パスワードが違います';
+      }catch(e){ m.textContent='通信エラーです。もう一度押してください'; }
+      btn.disabled=false;
+    }
+    btn.addEventListener('click',go);
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
+  });
+}
+
 async function autoLoad(){
   try{
-    const data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: password });
+    password = oosSavedPw('j');
+    if(!password) password = await oosAskKey('');
+    let data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: password });
+    if(data.status!=='ok' && data.message==='パスワードが違います'){
+      oosClearUnlock('j');
+      password = await oosAskKey('前の鍵が古くなっていました。新しいパスワードを入れてください');
+      data = await post({ action:'loadStickyMemos', sheetName: SHEET_NAME, password: password });
+    }
     if(data.status==='ok'){
       memos = data.data.memos || [];
       renderMemoList();
