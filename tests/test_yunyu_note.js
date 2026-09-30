@@ -229,6 +229,90 @@ ok('⑩見えている表につながる仕掛けがある',           src.index
 ok('⑩横に長くないときは出さない',                   src.indexOf('scrollWidth > el.clientWidth + 4') >= 0);
 ok('⑩表の入れ物をまとめて拾う',                     src.indexOf('.tbl-wrap, .tr-tblwrap') >= 0);
 
+/* ══════ ⑪ 年度ごとの平均原価（2026-09-30 ひろみさん承認・mocks/mock_輸入E_年度ごとの平均原価_2026-09-30.html） ══════
+   ひろみさん「11月から10月までを1年間として」「回ごとの原価をただ平均する」「仮のノートは入れなくていい」
+   　　　　　「ずれの基準は、全部の年の平均から、原価データを引く」「その年のレートの行は残してください」
+   ★読むだけ。原価データには書かない。 */
+(function(){
+  const NN = ['ynNendoOf','ynNendoLabel','ynNendoSub','ynNendoRows','ynNendoAvg','ynNendoDelta','ynRenderNendo','esc','ynFarmLabel'];
+  let code2 = '';
+  NN.forEach(function(n){ try{ code2 += H.cut(src, n) + '\n'; }catch(e){ fail++; fails.push('⑪★ 関数が消えています: ' + n); } });
+  let html = '';
+  const el = { style:{}, set innerHTML(v){ html = v; }, get innerHTML(){ return html; } };
+  const S = H.makeSandbox({ importBatches: [], costData: {}, OOS_PRODUCTS: [] });
+  S.box.document = { getElementById(id){ return id==='yn-nendo-wrap' ? el : null; } };
+  ['FARM_LABEL','FARM_PRODUCTS','YN_W_PREFIX','YN_W_ML','YN_W_SKU'].forEach(function(v){ vm.runInContext(H.cutVar(src, v), S.ctx); });
+  try{ vm.runInContext(H.cut(src,'ynCalc') + '\n' + code2, S.ctx); }catch(e){ fail++; fails.push('⑪★ 関数が動きません: ' + e.message); }
+  const b = S.box;
+  /* 年度の境目：11月から新しい年度 */
+  eq('⑪ 2025-10 は 2024年度', b.ynNendoOf('2025-10'), 2024);
+  eq('⑪ 2025-11 は 2025年度', b.ynNendoOf('2025-11'), 2025);
+  eq('⑪ 2025-12 は 2025年度', b.ynNendoOf('2025-12'), 2025);
+  eq('⑪ 2026-04-30 は 2025年度', b.ynNendoOf('2026-04-30'), 2025);
+  eq('⑪ 「2026-03（※推定）」も 2025年度', b.ynNendoOf('2026-03（※シートに日付記載なし・推定）'), 2025);
+  eq('⑪ 年月なしは null', b.ynNendoOf(''), null);
+  eq('⑪ 呼び名は「2025年度の平均原価」', b.ynNendoLabel(2025), '2025年度の平均原価');
+  eq('⑪ 期間は「2025-11〜2026-10」', b.ynNendoSub(2025), '2025-11〜2026-10');
+  /* 回ごとの原価をただ平均する（本数の重みなし）／⏳仮は入れない／ずれ＝全部の年度の平均−原価データ */
+  function note(id, ym, st, eur, qty){ return { id:id, kind:'note', farm:'novavera', yearMonth:ym, status:st, exchangeRate:100, exp:{}, lines:[{ sku:'ORG100', eur:eur, qty:qty, ml:100, g:250 }] }; }
+  b.importBatches = [
+    note('a','2024-12','fixed',10,100),   /* 2024年度 ¥1000 ×100本 */
+    note('b','2025-03','fixed',30,1),     /* 2024年度 ¥3000 ×1本 → ただ平均＝¥2000（本数加重なら¥1020） */
+    note('c','2025-12','fixed',20,10),    /* 2025年度 ¥2000 */
+    note('d','2026-02','draft',90,10),    /* ⏳仮 → 入れない */
+    { id:'e', farm:'mozzicato', yearMonth:'2024-02', exchangeRate:150, items:[{ sku:'PRI250', bottles:24, priceEur:5, costPerUnit:1500 }, { sku:'', bottles:7, priceEur:3, costPerUnit:900 }] }  /* 旧記録・2023年度 */
+  ];
+  b.costData = { ORG100:{cost:1500}, PRI250:{cost:1000} };
+  b.OOS_PRODUCTS = [{ sku:'ORG100', name:'オルガニック 100ml' }];
+  b.ynRenderNendo();
+  ok('⑪ 表が描かれる', html.indexOf('<table id="yn-nendo-table">') >= 0);
+  ok('⑪ 列見出し：商品', html.indexOf('<th class="ynn-item">商品</th>') >= 0);
+  ok('⑪ 列見出し：2023年度の平均原価（旧記録の年度）', html.indexOf('2023年度の平均原価') >= 0);
+  ok('⑪ 列見出し：2024年度の平均原価', html.indexOf('2024年度の平均原価') >= 0);
+  ok('⑪ 列見出し：2025年度の平均原価', html.indexOf('2025年度の平均原価') >= 0);
+  ok('⑪ 列見出し：🔒 いまの原価データ', html.indexOf('🔒 いまの原価データ') >= 0);
+  ok('⑪ 列見出し：ずれ（全部の年度の平均 − 原価データ）', html.indexOf('ずれ<div class="ynn-sub">全部の年度の平均 − 原価データ</div>') >= 0);
+  ok('⑪ 年度は古い順（左が2023）', html.indexOf('2023年度') < html.indexOf('2024年度') && html.indexOf('2024年度') < html.indexOf('2025年度'));
+  const row = (html.split('<tr>').find(function(t){ return t.indexOf('ORGANIK（オルガニック） 100ml') >= 0; }) || '');
+  ok('⑪ 2024年度＝回ごとをただ平均 ¥2,000（本数加重の¥1,020ではない）', row.indexOf('¥2,000') >= 0 && row.indexOf('¥1,020') < 0);
+  ok('⑪ 本数と回数が出る（101本・2回）', row.indexOf('101本・2回') >= 0);
+  ok('⑪ 2025年度 ¥2,000 は前の年度と同じ → ±0%', row.indexOf('±0%') >= 0);
+  ok('⑪ ⏳仮（€90）は平均に入らない', row.indexOf('¥9,000') < 0 && row.indexOf('¥5,500') < 0);
+  ok('⑪ 🔒原価データ ¥1,500 が青い列に出る', row.indexOf('ynn-lock">¥1,500') >= 0);
+  /* 全部の年度の平均＝(1000+3000+2000)/3＝¥2,000 → ずれ ＝ 2000−1500 ＝ +¥500（+33%） */
+  ok('⑪ ずれ＝全部の年度の平均 − 原価データ ＝ +¥500（+33%）', row.indexOf('+¥500（+33%）') >= 0);
+  ok('⑪ 実際のほうが高いので赤', row.indexOf('ynn-zure ynn-up') >= 0);
+  const row2 = (html.split('<tr>').find(function(t){ return t.indexOf('primo frutto（プリモフルット） 250ml') >= 0; }) || '');
+  ok('⑪ 旧記録の costPerUnit がそのまま回の原価（¥1,500）', row2.indexOf('¥1,500') >= 0);
+  ok('⑪ 旧記録の ずれ ＝ 1500−1000 ＝ +¥500（+50%）', row2.indexOf('+¥500（+50%）') >= 0);
+  ok('⑪ 名簿にない商品は「今は扱いなし」', row2.indexOf('名簿にない商品（今は扱いなし）') >= 0);
+  ok('⑪ 名簿にある商品には「扱いなし」を出さない', row.indexOf('今は扱いなし') < 0);
+  ok('⑪ 商品なしの明細は ⚠️ の行に本数で出る（7本・1回）', html.indexOf('⚠️ 商品が選ばれていない明細（平均に入れていません）') >= 0 && html.indexOf('7本・1回') >= 0);
+  ok('⑪ その年度のレートの行が残っている', html.indexOf('その年度のレート 1€＝円') >= 0 && html.indexOf('確定した回の単純平均') >= 0);
+  ok('⑪ レート：⏳仮は入れない（2025年度は c だけ＝100.00・1回）', html.indexOf('100.00') >= 0);
+  ok('⑪ 農園の区切り（🫒 ノバベラ）', html.indexOf('🫒 ノバベラ') >= 0);
+  /* 仮のみの年度 */
+  b.importBatches = [ note('z','2025-12','draft',20,10) ]; b.costData = {}; b.ynRenderNendo();
+  ok('⑪ その年度が仮のノートしかないときは「⏳仮のみ」', html.indexOf('⏳仮のみ') >= 0);
+  /* 読むだけ：原価データに書かない・保存を呼ばない */
+  const fnSrc = H.cut(src, 'ynRenderNendo') + H.cut(src, 'ynNendoRows');
+  ok('⑪ 年度表は saveCostData を呼ばない', fnSrc.indexOf('saveCostData') < 0);
+  ok('⑪ 年度表は costData に書き込まない', !/costData\[[^\]]+\]\s*=/.test(fnSrc));
+  ok('⑪ 年度表は fetch を呼ばない（読むだけ）', fnSrc.indexOf('fetch(') < 0);
+  /* 画面の文言（承認モックの本文そのまま） */
+  ok('⑪ カードの見出し', src.indexOf('📅 年度ごとの平均原価（11月〜10月を1年度として、その年度に輸入した分の平均）') >= 0);
+  ok('⑪ 決めごと：11月〜翌年10月', src.indexOf('<b>🫒 オリーブオイルの1年度は 11月 〜 翌年10月。</b>毎年12月に届くのが新しい油（ノヴェッロ）なので、そこからスタートして1年度と数えます。') >= 0);
+  ok('⑪ 決めごと：ただ平均', src.indexOf('回ごとの「1本の本当の原価」（くらべる表と同じ数字）を、ただ平均した数。') >= 0);
+  ok('⑪ 決めごと：原価データにさわらない', src.indexOf('<b>手入力はなく、原価データにも一切さわりません。</b>ノートを直せばこの表も変わります。') >= 0);
+  ok('⑪ 置き場：くらべる表の下・🗂カードの上', src.indexOf('id="yn-compare-wrap"') < src.indexOf('id="yn-nendo-wrap"') && src.indexOf('id="yn-nendo-wrap"') < src.indexOf('id="yn-cards"'));
+  ok('⑪ 原価データを読んだら年度表も描き直す（ずれは原価データが届いてから決まる）', H.cut(src,'loadCostDataFromGAS').indexOf('ynRenderNendo()') >= 0);
+  ok('⑪ カードを描いたら年度表も描き直す', H.cut(src,'ynRenderCards').indexOf('ynRenderNendo()') >= 0);
+  /* カードを消す：GASは batchId で受け取る（2026-09-30 ひろみさん「消したけど残ってるよ」） */
+  const del = H.cut(src, 'ynDelete');
+  ok('⑪ 消すときは batchId で送る（GASの受け口の名前）', del.indexOf('batchId: ynCurrent.id') >= 0);
+  ok('⑪ 消したあと読み直して、残っていたら「消えていません」と言う', del.indexOf('⚠️ 消えていません') >= 0 && del.indexOf('_nokotta') >= 0);
+})();
+
 /* ── 結果 ───────────────────────────────────────── */
 console.log('\n輸入ノートへ流す  PASS ' + pass + ' / FAIL ' + fail);
 if(fails.length){ console.log('\n--- 直すところ ---'); fails.forEach(function(f){ console.log('  ★ ' + f); }); }
