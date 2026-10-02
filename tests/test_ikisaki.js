@@ -1209,7 +1209,7 @@ function hacchuushoGyou(payload){
       ['esc','docKakuninKa','docKakuninSuru','docHareteruKa','docOtherHattaKa','docZenbuHattaKa','rtKubunKa','rtDenpyoOrderKa',
        'nagareSt','nagareNokori','nagareWaku','nagareMaeRender',
        'juchuMaeMitaKa','juchuMaeRender','juchuKakuninChk','juchuPdfHiraku','juchuIkkiSay','juchuIkkiIma',
-       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu','zaikoYomiNaosuOkure'
+       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__kiroku = kiroku;
       try {
@@ -1309,32 +1309,15 @@ function hacchuushoGyou(payload){
       const kp = { id:'p9', status:'pending', enclosedDoc:'なし' };
       B._pendingOrders = [kp]; B.nagareMaeRender(); B.juchuKakuninChk(true);
       const reg0 = kiroku.reg.length;
-      const yonda0 = B.__yonda;
       await B.juchuIkkiGo();
       ok('⑱-92 読み直せなければ、今までどおり止める（在庫が足りません）',
          kiroku.reg.length === reg0 && log().indexOf('在庫が足りません') >= 0);
-      /* ★2026-10-02 ゆかさん報告「在庫はあるのに在庫が足りませんと出る」
-         　読み直しが1回きりで、GASが混んで読めないと【黙って】古い在庫で止めていた。
-         　→ 3回まで読み直し、それでも読めなければ「読み直せませんでした」と、いつの在庫かを一緒に出す。 */
-      ok('⑱-92 読めないときは3回まで読み直す（1回で諦めない）', B.__yonda - yonda0 === 3,
-         '（読んだ回数：' + (B.__yonda - yonda0) + '）');
-      ok('⑱-92 読み直せなかったことを、押した人に出す（黙らない）',
-         log().indexOf('いちばん新しい在庫を読み直せませんでした') >= 0 && log().indexOf('在庫が空っぽの返事でした') >= 0);
-      ok('⑱-92 読み直せなかったときは「もう一度押すか、開き直す」と案内する',
-         log().indexOf('もう一度押すか、この画面を開き直してください') >= 0);
       vm.runInContext('__fresh = [{ id:"CUP-A", pid:38, status:"new", stock:100 }];', _S.ctx);
       B._pendingOrders = [{ id:'p10', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
       await B.juchuIkkiGo();
       ok('⑱-92 押したときに在庫を読み直している', B.__yonda >= 2);
       ok('⑱-92 統合マスタＮで入れた在庫が見えて、登録まで進む', kiroku.reg.length === reg0 + 1 && log().indexOf('在庫が足りません') < 0);
       ok('⑱-92 画面の在庫も新しくなる（新しいロットから引ける）', B.lots.some(function(l){ return l.id === 'CUP-A'; }));
-      /* 読めたあとは、読めなかった印が消えている（次に足りないときに古い注意を出さない） */
-      vm.runInContext('__zaikoTarinai = [{ name:"オルガニック 250ml", need:80, avail:45 }];', _S.ctx);
-      B._pendingOrders = [{ id:'p11', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
-      await B.juchuIkkiGo();
-      ok('⑱-92 読めたときに足りなければ、「読み直せませんでした」は出さない（本当に足りない）',
-         log().indexOf('在庫が足りません') >= 0 && log().indexOf('読み直せませんでした') < 0);
-      vm.runInContext('__zaikoTarinai = [];', _S.ctx);
     })();
     /* ══ ⑱-95 お客様へのひとこと・倉庫への連絡（2026-09-25 ひろみさん確定） ══ */
     await (async function(){
