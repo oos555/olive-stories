@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-28-02">
+<meta name="oos-version" content="2026-10-02-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5366,8 +5366,20 @@ function zaikoYometeruKa(){
 async function zaikoYomiNaosu(){
   if(typeof gasSyncEnabled !== 'undefined' && !gasSyncEnabled) return false;
   try{
-    var r = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders'), {cache:'no-store'});
-    var d = await r.json();
+    /* ★2026-10-02 ゆかさん報告「統合マスタＮは285本なのに、受注Ａは45本で止まる」。
+       　画面を【開いたとき】は loadBundleForOrders（速いまとめ読み・3回まで）で在庫を取っているのに、
+       　ここだけ loadAllData を【1回】読む形で、GASが混むと読めず、開いたときの古い在庫で止まっていました。
+       → 開いたときと【同じ読み方・同じ回数】にそろえます。それでも読めなければ今までの読み方で1回だけ。
+       ★在庫の数え方・数字は何も変えていません。 */
+    var d = null;
+    try{
+      var b = await oosGetJson(bust(GAS_URL + '?action=loadBundleForOrders&only=lots,defects,holds,preorders,customers,facilities,priceMaster'));
+      if(b && b.status === 'ok' && b.data && Array.isArray(b.data.lots) && b.data.lots.length) d = { status:'ok', data:b.data };
+    }catch(e0){ d = null; }
+    if(!d){
+      var r = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders'), {cache:'no-store'});
+      d = await r.json();
+    }
     if(!(d && d.status === 'ok' && d.data && Array.isArray(d.data.lots) && d.data.lots.length)) return false;
     lots = d.data.lots;
     if(Array.isArray(d.data.defects))   defects   = d.data.defects;

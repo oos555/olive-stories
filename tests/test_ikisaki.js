@@ -1209,7 +1209,7 @@ function hacchuushoGyou(payload){
       ['esc','docKakuninKa','docKakuninSuru','docHareteruKa','docOtherHattaKa','docZenbuHattaKa','rtKubunKa','rtDenpyoOrderKa',
        'nagareSt','nagareNokori','nagareWaku','nagareMaeRender',
        'juchuMaeMitaKa','juchuMaeRender','juchuKakuninChk','juchuPdfHiraku','juchuIkkiSay','juchuIkkiIma',
-       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu'
+       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu','oosGetJson'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__kiroku = kiroku;
       try {
@@ -1222,7 +1222,8 @@ function hacchuushoGyou(payload){
           + 'var GAS_URL = "x"; var gasSyncEnabled = true; function bust(u){ return u; }'
           + 'var lots = [{ id:"L0", pid:1, status:"new", stock:5 }]; var defects = []; var holds = []; var preorders = [];'
           + 'var __fresh = null; var __yonda = 0;'
-          + 'fetch = async function(){ __yonda++; return { json: async function(){ return __fresh ? { status:"ok", data:{ lots:__fresh, defects:[], holds:[], preorders:[] } } : { status:"error" }; } }; };'
+          + 'function __henji(){ return __fresh ? { status:"ok", data:{ lots:__fresh, defects:[], holds:[], preorders:[] } } : { status:"error" }; }'
+          + 'fetch = async function(){ __yonda++; return { json: async function(){ return __henji(); }, text: async function(){ return JSON.stringify(__henji()); } }; };'
           + 'function checkStockShortage(){ return (!lots.some(function(l){ return l.pid === 38 && l.stock > 0; }) && __kappu) ? [{ name:"カップオイル 13g グリーンブーケ（オルガニック）", need:3, avail:0 }] : __zaikoTarinai; }'
           + 'var __kappu = false;'
           + 'function registerOrder(opt){ __kiroku.reg.push(opt); (window._pendingOrders||[]).forEach(function(o){ o.yukaKey = "K-" + o.id; o.num = "TK-" + o.id; orders.push(o); }); }'
@@ -1316,6 +1317,8 @@ function hacchuushoGyou(payload){
       B._pendingOrders = [{ id:'p10', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
       await B.juchuIkkiGo();
       ok('⑱-92 押したときに在庫を読み直している', B.__yonda >= 2);
+      /* ★2026-10-02 読み直しは【開いたときと同じ読み方】（loadBundleForOrders・oosGetJson）。1回きりの loadAllData に戻さない */
+      ok('⑱-92 読み直しは開いたときと同じ読み方（loadBundleForOrders）', /loadBundleForOrders/.test(H.cut(idx, 'zaikoYomiNaosu')) && /oosGetJson\(/.test(H.cut(idx, 'zaikoYomiNaosu')));
       ok('⑱-92 統合マスタＮで入れた在庫が見えて、登録まで進む', kiroku.reg.length === reg0 + 1 && log().indexOf('在庫が足りません') < 0);
       ok('⑱-92 画面の在庫も新しくなる（新しいロットから引ける）', B.lots.some(function(l){ return l.id === 'CUP-A'; }));
     })();
