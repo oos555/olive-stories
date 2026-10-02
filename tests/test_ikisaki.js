@@ -1209,7 +1209,7 @@ function hacchuushoGyou(payload){
       ['esc','docKakuninKa','docKakuninSuru','docHareteruKa','docOtherHattaKa','docZenbuHattaKa','rtKubunKa','rtDenpyoOrderKa',
        'nagareSt','nagareNokori','nagareWaku','nagareMaeRender',
        'juchuMaeMitaKa','juchuMaeRender','juchuKakuninChk','juchuPdfHiraku','juchuIkkiSay','juchuIkkiIma',
-       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu','oosGetJson'
+       'juchuIkkiHaru','juchuIkkiKekka','juchuIkkiGo','juchuIkkiRock_','juchuMaeRender0_','zaikoYomiNaosu','oosGetJson','zaikoYomiNaosuOkure'
       ].forEach(function(n){ try { vm.runInContext(H.cut(idx, n), _S.ctx); } catch (e) { _ug = false; console.log('切り出せない:', n, e.message); } });
       _S.box.__kiroku = kiroku;
       try {
@@ -1313,6 +1313,11 @@ function hacchuushoGyou(payload){
       await B.juchuIkkiGo();
       ok('⑱-92 読み直せなければ、今までどおり止める（在庫が足りません）',
          kiroku.reg.length === reg0 && log().indexOf('在庫が足りません') >= 0);
+      /* ★2026-10-02 ひろみさん「読み込めてませんということと、次に何をしたらいいのかも書いてほしい」 */
+      ok('⑱-92 読み込めなかったことを出す（黙らない）', log().indexOf('いちばん新しい在庫を読み込めませんでした') >= 0);
+      ok('⑱-92 次にすること①②③が出る（もう一度押す／統合マスタＮで見る・開き直す／在庫を入れる）',
+         log().indexOf('もう一度 ✅ を押してください') >= 0 && log().indexOf('統合マスタＮ') >= 0
+         && log().indexOf('この画面を開き直して') >= 0 && log().indexOf('在庫を入れてから押してください') >= 0);
       vm.runInContext('__fresh = [{ id:"CUP-A", pid:38, status:"new", stock:100 }];', _S.ctx);
       B._pendingOrders = [{ id:'p10', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
       await B.juchuIkkiGo();
@@ -1321,6 +1326,14 @@ function hacchuushoGyou(payload){
       ok('⑱-92 読み直しは開いたときと同じ読み方（loadBundleForOrders）', /loadBundleForOrders/.test(H.cut(idx, 'zaikoYomiNaosu')) && /oosGetJson\(/.test(H.cut(idx, 'zaikoYomiNaosu')));
       ok('⑱-92 統合マスタＮで入れた在庫が見えて、登録まで進む', kiroku.reg.length === reg0 + 1 && log().indexOf('在庫が足りません') < 0);
       ok('⑱-92 画面の在庫も新しくなる（新しいロットから引ける）', B.lots.some(function(l){ return l.id === 'CUP-A'; }));
+      /* 読めたうえで足りないときは「読み込めませんでした」を出さず、「✅ 最新」の帯を待つ案内を出す */
+      vm.runInContext('__zaikoTarinai = [{ name:"オルガニック 250ml", need:80, avail:45 }];', _S.ctx);
+      B._pendingOrders = [{ id:'p11', status:'pending', enclosedDoc:'なし' }]; B.nagareMaeRender(); B.juchuKakuninChk(true);
+      await B.juchuIkkiGo();
+      ok('⑱-92 読めたうえで足りないときは「読み込めませんでした」を出さない',
+         log().indexOf('在庫が足りません') >= 0 && log().indexOf('読み込めませんでした') < 0);
+      ok('⑱-92 読めたうえで足りないときは「✅ 最新」の帯を待つ案内を出す', log().indexOf('「✅ 最新」') >= 0);
+      vm.runInContext('__zaikoTarinai = [];', _S.ctx);
     })();
     /* ══ ⑱-95 お客様へのひとこと・倉庫への連絡（2026-09-25 ひろみさん確定） ══ */
     await (async function(){

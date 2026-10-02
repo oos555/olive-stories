@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-02-01">
+<meta name="oos-version" content="2026-10-02-02">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -2928,7 +2928,7 @@ function loadInitialData(retry, pre){
 
     if(dOk){
       // 空っぽの返事で、今表示できている在庫・お客様を消さない
-      if(Array.isArray(d.lots) && (d.lots.length>0 || lots.length===0)) lots = d.lots;
+      if(Array.isArray(d.lots) && (d.lots.length>0 || lots.length===0)){ lots = d.lots; if(typeof zaikoYomiNaosu === 'function') zaikoYomiNaosu.toki = new Date(); }   /* ★2026-10-02 いつ読めた在庫かを覚える */
       if(Array.isArray(d.defects)) defects = d.defects;
       if(Array.isArray(d.holds)) holds = d.holds;
       if(Array.isArray(d.preorders)) preorders = d.preorders;
@@ -5380,17 +5380,42 @@ async function zaikoYomiNaosu(){
       var r = await fetch(bust(GAS_URL + '?action=loadAllData&only=lots,defects,holds,preorders'), {cache:'no-store'});
       d = await r.json();
     }
-    if(!(d && d.status === 'ok' && d.data && Array.isArray(d.data.lots) && d.data.lots.length)) return false;
+    if(!(d && d.status === 'ok' && d.data && Array.isArray(d.data.lots) && d.data.lots.length)){
+      zaikoYomiNaosu.ng = '在庫が空っぽの返事でした';   /* ★2026-10-02 読めなかったことを覚える（下の zaikoYomiNaosuOkure が出す） */
+      return false;
+    }
     lots = d.data.lots;
     if(Array.isArray(d.data.defects))   defects   = d.data.defects;
     if(Array.isArray(d.data.holds))     holds     = d.data.holds;
     if(Array.isArray(d.data.preorders)) preorders = d.data.preorders;
     if(typeof renderStockStrip === 'function'){ try{ renderStockStrip(); }catch(e){} }
+    zaikoYomiNaosu.toki = new Date(); zaikoYomiNaosu.ng = '';   /* ★2026-10-02 いつ読めたかを覚える */
     return true;
   }catch(e){
+    zaikoYomiNaosu.ng = (e && e.message) ? e.message : String(e || '');
     if(typeof oosShippai === 'function') oosShippai('在庫を読み直すところ', e);
     return false;
   }
+}
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-10-02 ひろみさん「読み込めてませんということと、次に何をしたらいいのかも書いてほしい」
+   　「在庫が足りません」の下に添える文。止まった人が、その場で次の一手を取れるように。
+   　・読み直せなかったとき … 上の数字が古いことと、①もう一度押す ②統合マスタＮで見る ③開き直す、を出す
+   　・読めたとき          … 本当に足りない。統合マスタＮで入れた直後なら「✅ 最新」の帯を待つ、を出す
+   ★在庫の数え方・止まり方は変えていません。文を足しただけです。 */
+function zaikoYomiNaosuOkure(){
+  var t = zaikoYomiNaosu.toki;
+  var ji = t ? (String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0')) : '';
+  if(zaikoYomiNaosu.ng){
+    return '<br><br>⚠ <b>いちばん新しい在庫を読み込めませんでした</b>（' + esc(zaikoYomiNaosu.ng) + '）。'
+      + '上の「販売可能」は' + (ji ? ' <b>' + ji + '</b> に読んだ' : 'この画面を開いたときの') + '<b>古い数</b>で、本当は足りているかもしれません。'
+      + '<br><b>次にすること</b>：'
+      + '<br>① <b>もう一度 ✅ を押してください</b>（押すたびに在庫を読み直します。混んでいるだけなら、これで通ります）。'
+      + '<br>② それでも止まるなら、<b>統合マスタＮ</b>でこの商品の販売可能数を見てください。足りていれば、<b>この画面を開き直して</b>（伝票は取り込み直し）もう一度押してください。'
+      + '<br>③ 統合マスタＮの数も足りないなら、在庫を入れてから押してください。';
+  }
+  return '<br><br>※ 在庫は' + (ji ? ' ' + ji + ' に' : '') + 'いま読み直したばかりです（統合マスタＮの販売可能数と同じ数です）。'
+    + '統合マスタＮで在庫を入れた直後なら、あちらの帯が <b>「✅ 最新」</b> になるのを待ってから、もう一度 ✅ を押してください。';
 }
 function checkStockShortage(list){
   if(!zaikoYometeruKa()) return [];      /* ★まだ読めていないので、在庫の確認はしません */
@@ -9517,7 +9542,8 @@ async function juchuIkkiGo(){
       juchuIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
         + short.map(function(s){
             return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
-                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>')
+        + ((typeof zaikoYomiNaosuOkure === 'function') ? zaikoYomiNaosuOkure() : ''));   /* ★2026-10-02 次に何をするかを添える */
       juchuIkkiSay('chui', '※ 在庫を入れてから、もう一度押してください。');
       juchuIkkiChu = false; juchuMaeRender0_(); return;
     }
@@ -9840,7 +9866,8 @@ async function noshipGo(){
       var short = checkStockShortage(list);
       if(short.length){
         noshipSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>' + short.map(function(s){
-          return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+          return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>')
+          + ((typeof zaikoYomiNaosuOkure === 'function') ? zaikoYomiNaosuOkure() : ''));   /* ★2026-10-02 次に何をするかを添える */
         noshipSay('chui', '※ 在庫を入れてから、もう一度押してください。「在庫は減らさない」の請求なら、◀ 戻って直してください。');
         noshipGoChu = false; if(btn){ btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '② 登録してPDFを残す'; }
         return;
@@ -14484,7 +14511,8 @@ async function rtIkkiGo(){
       rtIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
         + short.map(function(s){
             return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
-                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
+                 + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>')
+        + ((typeof zaikoYomiNaosuOkure === 'function') ? zaikoYomiNaosuOkure() : ''));   /* ★2026-10-02 次に何をするかを添える */
       rtIkkiSay('chui', '※ 在庫を入れてから、もう一度押してください。');
       modoshi(); return;
     }
