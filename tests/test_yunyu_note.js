@@ -194,7 +194,7 @@ ok('⑨ノートがある場合も転記だけできる', src.indexOf('function 
 ok('⑨★在庫の計算式（oos-zaiko.js）を輸入Ｅに書き写していない',
    src.indexOf("status==='hold'") < 0 && src.indexOf('sellable') < 0);
 
-const gasPath2 = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
+const gasPath2 = require('./harness').gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
 if(fs.existsSync(gasPath2)){
   const gas2 = fs.readFileSync(gasPath2, 'utf8');
   ok('⑨setIncomingOnly がある', gas2.indexOf('function setIncomingOnly') >= 0);

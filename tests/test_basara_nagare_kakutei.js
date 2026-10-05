@@ -25,10 +25,11 @@
    　直す前に、必ずひろみさんに確認してください。★消さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
+const H = require('./harness');   /* ★2026-10-05 GASとHTMLの置き場所は harness だけが知っている */
 const vm = require('vm');   /* ★2026-09-24 番号の取り出し係を動かして確かめるため */
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
-const ZU  = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_バサラ発注の流れ_2026-09-10.html', 'utf8');
-const PIC = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/pickup.html', 'utf8');
+const GAS = H.readGas();
+const ZU  = H.read('mocks/mock_バサラ発注の流れ_2026-09-10.html');
+const PIC = H.read('pickup.html');
 
 let pass = 0, fail = 0;
 const fails = [];

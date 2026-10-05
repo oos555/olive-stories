@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-28-02">
+<meta name="oos-version" content="2026-10-05-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5570,7 +5570,7 @@ function registerOrder(opt){
         /* ★2026-09-10 発注書に入ってから（＝ふだが付いてから）、RTの書類のリンクを貼ります。
            順番が逆だと、貼る先の行が見つかりません。★消さないでください */
         try{
-          Promise.resolve(yukaImportOne(o.id)).then(function(){
+          yukaImportMachiTsukeru_(o.id, yukaImportOne(o.id)).then(function(){
             /* ★2026-09-12 RTも【見てから貼る】にしたので、ここでは貼りません。
                　下の docCheckStart が書類を画面に出し、押したときに貼ります。
                ★ここで rtAttachDocsToOrder を呼ぶ形に戻さないでください。 */
@@ -11176,8 +11176,7 @@ async function yukaImportOne(id){
     .replace(/\s*[／\/]?\s*納品予定日\s*[0-9]{4}[\/\-.][0-9]{1,2}[\/\-.][0-9]{1,2}/g, '')
     .replace(/^\s*[／\/]\s*/, '').replace(/\s*[／\/]\s*$/, '').trim();
   try{
-    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'yukaImportOrder', order:{
+    var _body = JSON.stringify({ action:'yukaImportOrder', order:{
         /* ★2026-09-13 exp（旧・B列の賞味期限）は、B列が【伝票番号】になったので送りません。
            かわりに slipNo を送ります。★exp を復活させないでください */
         num: o.num, src: srcLabel, slipNo: _slip, items: items,
@@ -11217,8 +11216,20 @@ async function yukaImportOne(id){
            備考欄には残しません（ひろみさん「備考欄にあれこれあって、とても見づらい」）。
            ★書き戻さないでください。 */
         note: _noteOut
-      }})});
-    var d = await res.json();
+      }});
+    var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:_body });
+    var d = null;
+    try{ d = await res.json(); }catch(eJ){ d = null; }
+    /* ★2026-10-05 GASが混んでいると、JSONではなくGoogleの「ページが見つかりません」（HTML）が返ることがあります
+       （重い呼び出しほど起きやすい・2026-09-17に実測）。それまでは「通信できませんでした」で終わり、
+       発注書に行ができず、書類も貼れませんでした。いまは20秒おいて、もう1回だけ送り直します。
+       発注書側は同じ注文番号の行があれば dup を返すので、二重の行にはなりません。★消さないでください */
+    if(!d){
+      if(typeof showSyncStatus === 'function') showSyncStatus('⏳ 発注書への送信の返事が読めませんでした。20秒後にもう一度送ります…', false, true);
+      await new Promise(function(r){ setTimeout(r, 20000); });
+      var res2 = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:_body });
+      d = await res2.json();
+    }
     if(d && (d.status==='ok' || d.status==='dup')){
       o.yukaImport = { at: new Date().toISOString() };
       /* ★2026-09-10 発注書の行とこの注文をつなぐ【ふだ】を控える。
@@ -13867,8 +13878,25 @@ async function nouhinBuildPdfB64(o, shoruiMei){
    ══════════════════════════════════════════════════════════════════════ */
 /* ふだ（転記キー）が付くのを待ちます。付いたら true。最大で4回・約40秒。
    発注書に行ができると、その行の「ふだ」が注文に書き戻されます。 */
+/* ★2026-10-05 登録のときに走り出した「発注書へ送る」（yukaImportOne）の約束（Promise）を控える箱。
+   docFudaMachi は、まずこの約束が終わるのを待ってから（最長4分）、ふだが付いたかを見ます。
+   それまでは 2.5秒×12回＝30秒しか待たず、GASが混んでいて取り込みに1分かかると
+   「⚠️ 発注書にまだ入っていません」と出て書類が貼られませんでした（実物は、あとから行だけ入る）。
+   ひろみさん 2026-10-05「添付ファイルが貼り付いてない」の正体のひとつ。★30秒だけの待ちに戻さないでください。
+   見張り：tests/test_ikisaki.js ㉓ */
+var yukaImportMachi = {};
+function yukaImportMachiTsukeru_(id, p){
+  p = Promise.resolve(p).catch(function(){});
+  yukaImportMachi[id] = p;
+  p.then(function(){ setTimeout(function(){ if(yukaImportMachi[id] === p) delete yukaImportMachi[id]; }, 60000); });
+  return p;
+}
 async function docFudaMachi(o, kai){
   kai = kai || 4;
+  var _p = o && yukaImportMachi[o.id];
+  if(_p && !(o && o.yukaKey)){
+    await Promise.race([_p, new Promise(function(r){ setTimeout(r, 240000); })]);
+  }
   for(var i = 0; i < kai && !(o && o.yukaKey); i++){
     await new Promise(function(r){ setTimeout(r, 2500); });
     var f = null;

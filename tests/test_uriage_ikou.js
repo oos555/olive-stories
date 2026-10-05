@@ -26,7 +26,7 @@ const H = require('./harness');
 const LIVE = path.join(__dirname, '..');
 const SRC = fs.readFileSync(path.join(LIVE, 'billing.html'), 'utf8');
 const GASJS = (function(){
-  const p = path.join(LIVE, '..', 'olive-stories-gas', 'コード.js');
+  const p = require('./harness').gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
   return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;   /* 手元に無ければ、その分は飛ばす */
 })();
 

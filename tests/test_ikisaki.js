@@ -1761,6 +1761,38 @@ function hacchuushoGyou(payload){
        '（押し直したら oshinaoshi に「日付と理由」を足してください）');
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     ㉓ 発注書に行ができるのを【取り込みが終わるまで】待つ（2026-10-05）
+     ひろみさん「スプレッドシートに添付ファイルが貼り付いてない」
+     　登録のときに走り出した取り込み（yukaImportOne）の約束を控えておき、docFudaMachi はまずそれを待つ。
+     　それまでは 2.5秒×12回＝30秒だけ待って「まだ入っていません」と出し、書類が貼られなかった
+     　（GASが混んでいると取り込みに1分〜10分かかる・2026-09-13に実測）。
+     ★本物の docFudaMachi を動かして確かめます。
+     ══════════════════════════════════════════════════════════════════════ */
+  {
+    const kiroku = { fresh:0 };
+    const box = { console, Promise, String, Object, Error,
+      setTimeout:(f, ms) => setTimeout(f, ms >= 200000 ? 500 : Math.min(ms, 5)),
+      fetchOrderFresh: async function(){ kiroku.fresh++; return {}; } };
+    vm.createContext(box);
+    vm.runInContext(H.cutVar(idx, 'yukaImportMachi') + '\n' + H.cut(idx, 'yukaImportMachiTsukeru_') + '\n' + H.cut(idx, 'docFudaMachi'), box);
+    const o = { id:'O1' };
+    const p = new Promise(function(r){ setTimeout(function(){ o.yukaKey = 'K-1'; r({ status:'ok' }); }, 40); });
+    box.yukaImportMachiTsukeru_('O1', p);
+    const r = await box.docFudaMachi(o, 4);
+    ok('㉓-1 取り込みの約束が終わるまで待ってから、ふだを見る', r === true);
+    eq('㉓-2 約束を待っているあいだ、読み直し（fetchOrderFresh）で混ませない', kiroku.fresh, 0);
+    const o2 = { id:'O2' };
+    box.yukaImportMachiTsukeru_('O2', Promise.reject(new Error('だめ')));
+    const r2 = await box.docFudaMachi(o2, 2);
+    ok('㉓-3 取り込みが失敗しても止まらず、今までどおり読み直しに進む', r2 === false);
+    eq('㉓-3 読み直しは頼まれた回数だけ', kiroku.fresh, 2);
+    ok('㉓-4 登録のときに約束を控えている', /yukaImportMachiTsukeru_\(o\.id, yukaImportOne\(o\.id\)\)/.test(idx));
+    const yi = H.cut(idx, 'yukaImportOne');
+    ok('㉓-5 返事がJSONで読めなかったら、20秒おいて1回だけ送り直す', /setTimeout\(r, 20000\)/.test(yi));
+    eq('㉓-5 送るのは同じ本文（二重の行にならない）', (yi.match(/body:_body \}/g) || []).length, 2);
+  }
+
   /* ── しめ ───────────────────────────────────────── */
   console.log('');
   console.log('===== 🧭 項目のゆくえ（①発注書 ②書類 ③倉庫Ｄ／2026-09-12）=====');

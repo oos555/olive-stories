@@ -119,4 +119,25 @@ function runZei(ctx){
   vm.runInContext(read('oos-zei.js'), ctx);
 }
 
-module.exports = { read, cut, cutVar, makeSandbox, runZaiko, runZei, ANY, LIVE };
+/* ★2026-10-05 GAS（コード.js）の置き場所は【ここだけ】が知っている（ひろみさん「見張りを整理して」）。
+   それまで12本のテストが Windows の固定パス（C:/Users/cucin/…）を自分で持っていて、
+   別の場所（クラウドのセッション・別のPC）では1本も動かず「動きませんでした」と出ていた。
+   さがす順：① tests/gas/コード.js（公開しない・.gitignore 済み）② OneDrive の olive-stories-gas ③ リポジトリの隣の olive-stories-gas */
+function gasPath(){
+  const os = require('os');
+  const cands = [
+    path.join(__dirname, 'gas', 'コード.js'),
+    path.join(os.homedir(), 'OneDrive', 'ドキュメント', 'olive-stories-gas', 'コード.js'),
+    'C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js',
+    path.join(LIVE, '..', 'olive-stories-gas', 'コード.js')
+  ];
+  for(const c of cands){ if(fs.existsSync(c)) return c; }
+  return '';
+}
+function readGas(){
+  const p = gasPath();
+  if(!p) throw new Error('GASのファイルが手元にありません（tests/gas/コード.js か olive-stories-gas/コード.js に置いてください）');
+  return fs.readFileSync(p, 'utf8');
+}
+
+module.exports = { read, cut, cutVar, makeSandbox, runZaiko, runZei, ANY, LIVE, gasPath, readGas };

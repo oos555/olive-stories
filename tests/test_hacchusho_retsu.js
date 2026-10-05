@@ -18,8 +18,8 @@
 const fs = require('fs');
 const vm = require('vm');
 const H = require('./harness');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
-const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/index.html', 'utf8');
+const GAS = H.readGas();
+const IDX = H.read('index.html');
 
 const title = '🧾 発注書の列と ↩️ 差し戻し（2026-09-13）';
 let pass = 0, fail = 0;

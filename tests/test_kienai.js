@@ -20,7 +20,7 @@ const F = { zaiko: read('oos-zaiko.js'), master: read('master.html'), index: rea
             home: read('home.html'), billing: read('billing.html'), pickup: read('pickup.html') };
 /* GASは手元にある人だけ確かめる（無くても他の項目は動く） */
 let GAS = '';
-try{ GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js','utf8'); }catch(e){}
+try{ GAS = H.readGas(); }catch(e){}
 
 let ok = 0, ng = 0; const bad = [];
 function t(name, got, want){ if(String(got) === String(want)) ok++; else { ng++; bad.push(name + '　期待:' + want + '　実際:' + got); } }

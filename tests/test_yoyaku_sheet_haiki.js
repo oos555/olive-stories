@@ -23,7 +23,8 @@
    ★このファイルを消さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+const H = require('./harness');   /* ★2026-10-05 GASとHTMLの置き場所は harness だけが知っている */
+const GAS = H.readGas();
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -99,7 +100,7 @@ ok('⑧ RT専用タブをしまう・消すコードを書いていない',
    　　　　　　何か統一したその言葉をつけておいてもらって、
    　　　　　　できるだけシンプルに分かりやすくしていってもらいたい」
    → 統一の言葉は【（使いません）】。ほかの言い方を混ぜないでください。 */
-const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/index.html', 'utf8');
+const IDX = H.read('index.html');
 function hasIdx(name, needle){ ok(name, IDX.indexOf(needle) >= 0, '（' + needle.slice(0,40) + ' が無い）'); }
 hasIdx('⑨出荷依頼書タブに印',        '（使いません）出荷依頼書');
 hasIdx('⑨バサラ半自動取込タブに印',  '（使いません）📧 バサラ半自動化・取り込み');

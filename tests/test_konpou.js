@@ -131,8 +131,7 @@ function box(){
 
 /* ── ⑥ ゆかスプシ（発注書）：列は増やさず、備考の先頭と同梱書類の2列へ ── */
 {
-  const gasPath = require('path').join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
-  const gas = require('fs').readFileSync(gasPath, 'utf8');
+  const gas = H.readGas();
   has('⑥受注Ａが梱包の1行を送る', H.cut(idx,'yukaImportOne'), "pkg: (typeof pkgOneLine==='function' ? pkgOneLine(o) : '')");
   has('⑥受注Ａが同梱書類を2つに分けて送る', H.cut(idx,'yukaImportOne'), 'docNouhin:');
   /* ★2026-09-12 この見張りは【捨てました】。

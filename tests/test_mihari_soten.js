@@ -168,7 +168,7 @@ KNOWN_WATCHERS.forEach(function(w){
    手渡し用の安全策）は例外として許す。その関数名はここに書き出し、増やすときは
    コード側に必ず「上書きします」の注記があることを人が確認してから足すこと。 */
 {
-  const gasPath = path.join(H.LIVE, '..', 'olive-stories-gas', 'コード.js');
+  const gasPath = H.gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
   const ALLOWED_INTENTIONAL_OVERRIDE = ['oosRenrakuRoute'];  // 末尾に「上書きします」の注記あり（画面からの入口を安全に足す手法）
   if(fs.existsSync(gasPath)){
     const gasSrc = fs.readFileSync(gasPath, 'utf8');

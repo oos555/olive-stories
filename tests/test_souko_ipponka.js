@@ -19,9 +19,10 @@
    ★このファイルを消さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
-const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/index.html', 'utf8');
-const PIC = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/pickup.html', 'utf8');
+const H = require('./harness');   /* ★2026-10-05 GASとHTMLの置き場所は harness だけが知っている */
+const GAS = H.readGas();
+const IDX = H.read('index.html');
+const PIC = H.read('pickup.html');
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -147,7 +148,7 @@ ok('⑤-2 ストアーズには【記録のみ】の印が最初から付く',
   '（付けないと、赤い「未送信」として残りつづけます）');
 ok('⑤-2 ストアーズが売上一覧に出る条件を満たす',
   /salesWasSentToWarehouse[\s\S]{0,200}o\.status === 'shipped'/.test(
-    fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/billing.html', 'utf8')),
+    H.read('billing.html')),
   '（売上一覧は notified／shippedAt／status===shipped のどれかで判定しています）');
 /* ★2026-09-10 ひろみさん指示：もう出荷依頼書は使わないので、
      ボタンの名前を「📦 発注書へ送る」に変え、押したあと出荷依頼書タブへ飛ばないようにした。
@@ -281,7 +282,8 @@ ok('⑦倉庫Ｄのカードにも、そのリンクがボタンで出る',
   bodyOf(GAS, 'oosKonpoOrders').indexOf('getRichTextValues()') >= 0,
   '（発注書のV列・W列のリンクを読んでいます）');
 ok('⑦受注Ａ：発注書に入ってから貼る（順番）',
-  IDX.indexOf('Promise.resolve(yukaImportOne(o.id)).then(function(){') >= 0 &&
+  /* ★2026-10-05 取り込みの約束を控える形（yukaImportMachiTsukeru_）に変わりました。順番（発注書に入ってから貼る）は同じです */
+  IDX.indexOf('yukaImportMachiTsukeru_(o.id, yukaImportOne(o.id)).then(function(){') >= 0 &&
   IDX.indexOf('rtAttachDocsToOrder(o)') >= 0,
   '（先に貼ろうとすると、貼る先の行がまだありません）');
 ok('⑦受注Ａ：貼る部品がある（rtAttachDocsToOrder）',

@@ -19,7 +19,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const H = require('./harness');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+const GAS = H.readGas();
 
 const title = '🛑 倉庫への自動連絡の止め木（2026-09-13）';
 let pass = 0, fail = 0;
@@ -363,8 +363,8 @@ ok('⑩【動かす】再開（false）にすれば、本部LINEはちゃんと�
    ⑨ 画面の文言（2026-09-13 ひろみさん指示「変えてください」）
       止めたのに「倉庫へLINEが飛びます」と書いてあると、本部が誤解します。
    ══════════════════════════════════════════════════════════════════════ */
-const IDX = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/index.html', 'utf8');
-const BIL = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/billing.html', 'utf8');
+const IDX = H.read('index.html');
+const BIL = H.read('billing.html');
 
 /* ★2026-09-24 🔵のあと倉庫へ一文だけ（ひろみさん指示）。ヘルプも今の流れに書き直した */
 /* ★2026-09-25 説明書きを図にした（ひろみさん「図式にして、簡潔に、短く」）。「発注書 A列を🔵」のあとに「倉庫のLINEに一文（3分後）」の箱があるか */
@@ -393,9 +393,9 @@ ok('⑨請求М：新しい言い方になっている',
 
 /* ★2026-09-13 ひろみさん「そこも変えて」。流れの図も直しました。
    ★「倉庫にLINE 1通」「本部にLINE 1通」に戻さないでください。 */
-const ZEN = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_全発注の流れ_2026-09-10.html', 'utf8');
-const TOR = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_取り置き予約の流れ_2026-09-10.html', 'utf8');
-const SEI = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories/mocks/mock_請求の流れ_2026-09-10.html', 'utf8');
+const ZEN = H.read('mocks/mock_全発注の流れ_2026-09-10.html');
+const TOR = H.read('mocks/mock_取り置き予約の流れ_2026-09-10.html');
+const SEI = H.read('mocks/mock_請求の流れ_2026-09-10.html');
 
 ok('⑨図（全発注）：🔵のあと一文だけ・中身は書かない、が先頭に書いてある',
    ZEN.indexOf('3分後に倉庫のLINEへ一文だけ届きます') >= 0 && ZEN.indexOf('中身（商品・本数）は書きません') >= 0);

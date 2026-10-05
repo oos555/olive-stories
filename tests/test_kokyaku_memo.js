@@ -25,7 +25,8 @@
    ★このファイルを消さないでください。
    ══════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+const H = require('./harness');   /* ★2026-10-05 GASとHTMLの置き場所は harness だけが知っている */
+const GAS = H.readGas();
 
 let pass = 0, fail = 0;
 const fails = [];

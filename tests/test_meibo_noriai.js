@@ -28,7 +28,7 @@ const path = require('path');
 const H = require('./harness');
 
 const LIVE = path.join(__dirname, '..');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+const GAS = H.readGas();
 const MASTER = fs.readFileSync(path.join(LIVE, 'master.html'), 'utf8');
 const INDEX = fs.readFileSync(path.join(LIVE, 'index.html'), 'utf8');
 

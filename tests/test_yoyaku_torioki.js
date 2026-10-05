@@ -340,7 +340,7 @@ ok('⑨-4 帯から取り直せる',         src.indexOf('onclick="reloadStockNo
 })();
 
 /* ══════ ⑩ GAS側（手元にあるときだけ） ══════ */
-const gasPath = path.join(__dirname, '..', '..', 'olive-stories-gas', 'コード.js');
+const gasPath = require('./harness').gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
 if(fs.existsSync(gasPath)){
   const gas = fs.readFileSync(gasPath, 'utf8');
   ok('⑩setOrderStatusOnly がある', gas.indexOf('function setOrderStatusOnly') >= 0);

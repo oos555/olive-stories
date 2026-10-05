@@ -22,8 +22,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const H = require('./harness');
-const GASPATH = 'C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js';
-const gasSrc = fs.readFileSync(GASPATH, 'utf8');
+const gasSrc = H.readGas();
 
 let pass = 0, fail = 0; const fails = [];
 function eq(l, g, w){ if(String(g) === String(w)) pass++; else { fail++; fails.push(l + '  期待:' + w + '  実際:' + g); } }

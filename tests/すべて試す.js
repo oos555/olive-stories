@@ -148,7 +148,7 @@ const FILES = [
    　・見張りを足したら、そのぶん上げてください（上げるのは自由です）。
    　・減らすときは、ひろみさんに「なぜ減るのか」を先に説明してください。
    ══════════════════════════════════════════════════════════════════════ */
-const KOUMOKU_KAGEN = 3000;   /* 2026-09-12 実測 3,077項目（GASが手元に無いと少し減ります） */
+const KOUMOKU_KAGEN = 4500;   /* 2026-09-12 実測 3,077項目 → 2026-10-05 実測 4,620項目（GASの置き場所を harness に一本化して、飛ばしていた19本が全部動くようになりました） */
 
 let total = 0, ngFiles = [], skipped = 0;
 console.log('══════════════════════════════════════════════');
@@ -165,7 +165,8 @@ FILES.forEach(function(row){
   }
   let out = '';
   let ok = true;
-  try{ out = execFileSync(process.execPath, [p], { encoding:'utf8' }); }
+  /* ★2026-10-05 どこで動かしても日本時間（ひろみさんのPCと同じ条件）。日付の見張りが時差で落ちないため */
+  try{ out = execFileSync(process.execPath, [p], { encoding:'utf8', env: Object.assign({}, process.env, { TZ:'Asia/Tokyo' }) }); }
   catch(e){ out = String((e.stdout||'') + (e.stderr||'')); ok = false; }
   const m = out.match(/PASS (\d+) \/ FAIL (\d+)/);
   if(m){ total += parseInt(m[1],10); if(parseInt(m[2],10) > 0) ok = false; }

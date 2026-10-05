@@ -27,7 +27,7 @@ const read = f => fs.readFileSync(path.join(LIVE, f), 'utf8');
 const MASTER = read('master.html');
 const INDEX = read('index.html');
 const PICKUP = read('pickup.html');
-const GAS = fs.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+const GAS = H.readGas();
 
 const title = '🏷 商品管理番号（親・アプリ3つ・GASが同じ答えか／2026-09-16）';
 let pass = 0, fail = 0;

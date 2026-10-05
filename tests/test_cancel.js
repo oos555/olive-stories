@@ -123,7 +123,7 @@ eq('⑧ キャンセルで現ロットに戻る CUR-A 5',          L(b,'CUR-A'),
    本物の GAS の関数を、身代わりのスプレッドシートで動かします。GASが手元に無いときは飛ばします。 */
 (function(){
   const p = require('path'), os = require('os');
-  const gp = p.join(os.homedir(), 'OneDrive', 'ドキュメント', 'olive-stories-gas', 'コード.js');
+  const gp = require('./harness').gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
   if(!fs.existsSync(gp)){ console.log('（GASのファイルが手元に無いので ⑦ は飛ばしました）'); return; }
   const G = fs.readFileSync(gp, 'utf8');
   function cutG(name){ const i = G.indexOf('function ' + name + '('); if(i < 0) throw new Error(name); let d = 0, j = G.indexOf('{', i); for(; j < G.length; j++){ if(G[j] === '{') d++; else if(G[j] === '}'){ d--; if(!d) break; } } return G.slice(i, j + 1); }

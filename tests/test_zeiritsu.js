@@ -253,7 +253,7 @@ FILES.concat(['tests/harness.js']).forEach(function(f){
 {
   const fs9 = require('fs');
   const ZEI9 = fs9.readFileSync(require('path').join(__dirname, '..', 'oos-zei.js'), 'utf8');
-  const GAS9 = fs9.readFileSync('C:/Users/cucin/OneDrive/ドキュメント/olive-stories-gas/コード.js', 'utf8');
+  const GAS9 = H.readGas();
   function miru9(name, cond){ if(cond){ ok++; } else { ng++; bad.push(name); } }
   miru9('⑨画面：アルモニアが8%の一覧にある', ZEI9.indexOf("'アルモニア'") >= 0);
   miru9('⑨画面：唐辛子オイルが8%の一覧にある', ZEI9.indexOf("'唐辛子オイル'") >= 0);

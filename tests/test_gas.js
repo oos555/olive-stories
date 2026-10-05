@@ -458,6 +458,89 @@ eq('参考：0 で止まる', oya3, 0);
   eq('頼みごとメモ③ 画面が使うタブの名前と同じ', /var SHEET_NAME = '頼みごとメモ';/.test(tm), true);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   🛡 見張り（自動実行）の整理 ── 2026-10-05 ひろみさん
+   「見張りがいくつもあるから、その見張りが間違ったり古い見張りが作動したりしてると思う。
+   　見張りをチェックして、古いものは捨てて新しく更新するとか、見張りの数も減らして、
+   　機能をしっかりつけさせたものにしてほしい」
+   ★自動実行の正本は GAS の OOS_MIHARI_KIMARI（要るもの）・OOS_MIHARI_FURUI（古いもの）。
+   　oosMihariSeiri を【本物のまま】身代わりの ScriptApp で動かして確かめます。
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  const G = { console, JSON, String, Object, Array, Number, Math, Date, RegExp, Logger:{ log(){} } };
+  vm.createContext(G);
+  ['OOS_YC','OOS_YUKA_SHEET','OOS_YUKA_PROP_KEY','OOS_HONBU_PROP_KEY','OOS_BASARA_SHEET_PROP',
+   'OOS_MIHARI_KIMARI','OOS_MIHARI_ICHIJI','OOS_MIHARI_FURUI','OOS_HAKKOU_ATO_FN']
+    .forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G));
+  ['oosMihariSeiri','oosMihariIchiran','oosImaHassouIruKa_','oosHakkouAtoYoyaku_','oosHakkouAto']
+    .forEach(n => vm.runInContext(H.cut(gasSrc, n), G));
+  const kimariFn = G.OOS_MIHARI_KIMARI.map(k => k.fn);
+  eq('見張りの整理① 要る自動実行の表は15本（時間11・入力のたび4）', kimariFn.length + ':' + G.OOS_MIHARI_KIMARI.filter(k => k.shu === 'edit').length, '15:4');
+  eq('見張りの整理② 表の名前がだぶっていない', new Set(kimariFn).size, kimariFn.length);
+  eq('見張りの整理③ 古いもの（捨てる）に、やめた4本が入っている',
+     ['basaraWatch','updateViewCopy','oosSoukoStockSync','oosSoukoOnEdit'].every(n => !!G.OOS_MIHARI_FURUI[n]), true);
+  eq('見張りの整理④ 要るものと古いものが重なっていない', kimariFn.filter(n => G.OOS_MIHARI_FURUI[n]).length, 0);
+
+  /* 身代わりの ScriptApp */
+  let tr = [];
+  function mk(fn, shu, sid){ return { getHandlerFunction(){ return fn; }, getEventType(){ return shu; }, getTriggerSourceId(){ return sid || ''; } }; }
+  G.ScriptApp = { WeekDay:{ MONDAY:'MONDAY' },
+    getProjectTriggers(){ return tr.slice(); },
+    deleteTrigger(t){ const i = tr.indexOf(t); if(i >= 0) tr.splice(i, 1); },
+    newTrigger(fn){ const b = { _shu:'CLOCK', _sid:'', timeBased(){ return b; }, everyMinutes(){ return b; }, everyHours(){ return b; }, everyDays(){ return b; },
+      atHour(){ return b; }, onWeekDay(){ return b; }, after(){ return b; }, forSpreadsheet(id){ b._sid = id; return b; }, onEdit(){ b._shu = 'ON_EDIT'; return b; },
+      create(){ tr.push(mk(fn, b._shu, b._sid)); } }; return b; } };
+  const props = {}; props[G.OOS_YUKA_PROP_KEY] = 'YUKA'; props[G.OOS_HONBU_PROP_KEY] = 'HONBU'; props[G.OOS_BASARA_SHEET_PROP] = 'BASARA';
+  G.PropertiesService = { getScriptProperties(){ return { getProperty(k){ return props[k] || ''; } }; } };
+  G.oosKanriFileId_ = function(){ return 'KANRI'; };
+  tr = [ mk('basaraWatch','CLOCK'), mk('basaraWatchV2','CLOCK'), mk('basaraWatchV2','CLOCK'), mk('updateViewCopy','CLOCK'),
+         mk('oosYukaOnEdit','ON_EDIT','OLDFILE'), mk('oosYukaOnEdit','ON_EDIT','YUKA'), mk('nazo','CLOCK'), mk('oosSoukoMatomeSend','CLOCK') ];
+  const d = G.oosMihariIchiran();
+  eq('見張りの整理⑤ 見るだけ（dry）では1本も消さない・足さない', tr.length, 8);
+  eq('見張りの整理⑥ 古い・二重・別ファイルを見分ける', d.消した.sort().join('、'), 'basaraWatch、basaraWatchV2（二重）、oosYukaOnEdit（別ファイル）、updateViewCopy');
+  eq('見張りの整理⑦ 見覚えのないものは消さずに報告', d.気になる.join('／'), '見覚えなし：nazo');
+  eq('見張りの整理⑧ 一時のもの（3分まとめLINE）は消さない', d.lines.some(l => l.indexOf('⏳ 一時') >= 0), true);
+  const r = G.oosMihariSeiri(false);
+  const nokori = tr.map(t => t.getHandlerFunction());
+  eq('見張りの整理⑨ 整理すると 15本＋見覚えなし1＋一時1＝17本', tr.length, 17);
+  eq('見張りの整理⑩ 古い2本が消えている', nokori.filter(n => n === 'basaraWatch' || n === 'updateViewCopy').length, 0);
+  eq('見張りの整理⑪ basaraWatchV2 は1本だけ', nokori.filter(n => n === 'basaraWatchV2').length, 1);
+  eq('見張りの整理⑫ oosYukaOnEdit は正しいファイルの1本だけ', tr.filter(t => t.getHandlerFunction() === 'oosYukaOnEdit').map(t => t.getTriggerSourceId()).join(), 'YUKA');
+  eq('見張りの整理⑬ 足りなかった13本を入れた', r.入れた.length, 13);
+  eq('見張りの整理⑭ 入力のたび（onEdit）は正しいファイルに付く',
+     ['oosKanriOnEdit:KANRI','oosHonbuOnEdit:HONBU','oosBasaraSheetOnEdit:BASARA'].every(x => tr.some(t => t.getHandlerFunction() + ':' + t.getTriggerSourceId() === x)), true);
+  const r2 = G.oosMihariSeiri(false);
+  eq('見張りの整理⑮ もう一度やっても何も変わらない（何回でも同じ）', r2.消した.length + r2.入れた.length + ':' + tr.length, '0:17');
+  eq('見張りの整理⑯ doGet に点検・整理の窓口がある', /action === 'oosMihariSeiri'/.test(H.cut(gasSrc, 'doGet')), true);
+  eq('見張りの整理⑰ 昔の簡易トリガー onEdit は止めてある', /\nfunction onEdit\(/.test(gasSrc), false);
+
+  /* 🚚 いま発送する分の作り直しは、中身が変わる列だけ */
+  function ev(name, row, col, n){ return { range:{ getSheet(){ return { getName(){ return name; } }; }, getRow(){ return row; }, getColumn(){ return col; }, getNumColumns(){ return n || 1; } } }; }
+  const Y = G.OOS_YUKA_SHEET;
+  eq('作り直し① 送り状NO.（X列）を書いても作り直さない', G.oosImaHassouIruKa_(ev(Y, 5, G.OOS_YC.track)), false);
+  eq('作り直し② 倉庫用メモ・本部用メモ・LINEお知らせ列でも作り直さない',
+     [G.OOS_YC.soukoMemo, G.OOS_YC.honbuMemo, 33].map(c => G.oosImaHassouIruKa_(ev(Y, 5, c))).join(), 'false,false,false');
+  eq('作り直し③ A列（🔵）・B列・商品・お届け先・備考・発送済☑・❌は作り直す',
+     [1, 2, 3, 11, G.OOS_YC.note, G.OOS_YC.shipped, G.OOS_YC.cancel].map(c => G.oosImaHassouIruKa_(ev(Y, 5, c))).join(), 'true,true,true,true,true,true,true');
+  eq('作り直し④ 見出し行・ほかのタブは作り直さない', [G.oosImaHassouIruKa_(ev(Y, 1, 1)), G.oosImaHassouIruKa_(ev('ほか', 5, 1))].join(), 'false,false');
+  eq('作り直し⑤ まとめて貼った範囲に発送済☑が入っていれば作り直す', G.oosImaHassouIruKa_(ev(Y, 5, 23, 3)), true);
+  eq('作り直し⑥ oosYukaOnEdit の finally は oosImaHassouIruKa_ に聞く', /oosImaHassouIruKa_\(e\)/.test(H.cut(gasSrc, 'oosYukaOnEdit')), true);
+  eq('作り直し⑦ どのマスでも作り直す古い形に戻っていない', /getRow\(\) >= 2\) oosImaHassouTsukuru_\(\)/.test(H.cut(gasSrc, 'oosYukaOnEdit')), false);
+
+  /* 📄 書類を貼ったあとの発行記録の作り直しは、2分後に1回だけ */
+  tr = []; let tsukutta = 0; G.oosSeikyuIchiranTsukuru = function(){ tsukutta++; };
+  G.oosHakkouAtoYoyaku_(); G.oosHakkouAtoYoyaku_(); G.oosHakkouAtoYoyaku_();
+  eq('貼ったあと① 3回貼っても予約は1つ', tr.filter(t => t.getHandlerFunction() === 'oosHakkouAto').length, 1);
+  G.oosHakkouAto();
+  eq('貼ったあと② 動いたら予約を消して1回だけ作り直す', tsukutta + ':' + tr.length, '1:0');
+  eq('貼ったあと③ oosYukaSetDocLinks はその場で作り直さず予約する',
+     H.cut(gasSrc, 'oosYukaSetDocLinks').indexOf('oosSeikyuIchiranTsukuru()') < 0 && H.cut(gasSrc, 'oosYukaSetDocLinks').indexOf('oosHakkouAtoYoyaku_()') >= 0, true);
+
+  /* 🔵 黙って通さない・（LINE通知済）を直接えらんだ行 */
+  eq('🔵① B列に依頼／〆を書けなかったらA列のメモに残す', H.cut(gasSrc, 'oosYukaShipGo_').indexOf('B列に「依頼／〆」を書けませんでした') >= 0, true);
+  eq('🔵② ▼で（LINE通知済）を直接えらんだ行も🔵と同じ', /OOS_YUKA_BTN_GO_TSUCHI[\s\S]{0,160}oosYukaShipGo_\(sh, row\)/.test(H.cut(gasSrc, 'oosYukaOnEdit')), true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
