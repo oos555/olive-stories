@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-28-01">
+<meta name="oos-version" content="2026-10-08-01">
 <script src="oos-version.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -515,10 +515,65 @@ let todos = [];
 let removedTodoIds = new Set();
 try{ (JSON.parse(localStorage.getItem('oos_hiromi_removed_todos')||'[]')||[]).forEach(function(x){ removedTodoIds.add(x); }); }catch(e){}
 function persistRemovedTodoIds(){ try{ localStorage.setItem('oos_hiromi_removed_todos', JSON.stringify(Array.from(removedTodoIds))); }catch(e){} }
+/* ══════════════════════════════════════════════════════════════════════
+   ★2026-10-08 「終了にした・消したものが、開き直すと復活する」を止める（ゆかメモと同じ直し）
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん：「ひろみメモもおかしいんだったら、そこを同じように直して」
+   起きていたこと：
+   　① GAS が「完了」の印（done）をシートから読み戻せていなかった（GAS側で直した・2026-10-08）
+   　② 保存・削除に失敗しても【黙って】通っていた（catch の中が空）→ 開き直すと元に戻る
+   　③ 「消す」の直後に、遅れて届いた保存が同じ id の行を作り直す（やることだけ 2026-07-21 に対策済み。メモ・伝言板には無かった）
+   直し方：
+   　・oosHozon … 保存・削除は3回までためし（0秒・4秒・12秒）、GASが ok と言ったときだけ成功。だめなら赤い帯で知らせる
+   　・removedTodoIds … やることだけでなく、メモ・大切なメモ・伝言板の「消す」も覚えて、読み込んでも出さない・保存し直さない
+   ★この仕組みを外さないでください。見張り：test_genkan ⑱
+   ══════════════════════════════════════════════════════════════════════ */
+function oosKeshitaOboeru(id){ removedTodoIds.add(id); persistRemovedTodoIds(); }
+function oosKeshitaJanai(list){ return (list||[]).filter(function(m){ return !removedTodoIds.has(m.id); }); }
+function oosNemuru(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+/* 赤い帯（消えない）。次に保存が成功したら消える */
+function oosHozonShirase(msg){
+  let el = document.getElementById('oos-hozon-fail');
+  if(!msg){ if(el) el.style.display='none'; return; }
+  if(!el){
+    el = document.createElement('div'); el.id = 'oos-hozon-fail';
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9998;background:#fee2e2;color:#7f1d1d;border-bottom:3px solid #dc2626;padding:12px 44px 12px 14px;font-size:14px;font-weight:700;line-height:1.5';
+    const x = document.createElement('button'); x.textContent = '✕'; x.title = '閉じる';
+    x.style.cssText = 'position:absolute;right:10px;top:8px;border:0;background:none;font-size:18px;color:#7f1d1d;cursor:pointer';
+    x.onclick = function(){ el.style.display='none'; };
+    el.appendChild(document.createElement('span')); el.appendChild(x);
+    document.body.appendChild(el);
+  }
+  el.firstChild.textContent = msg; el.style.display = 'block';
+}
+/* 保存・削除を「確かに」送る。ok が返ったときだけ true */
+async function oosHozon(body, nani){
+  const machi = [0, 4000, 12000];
+  let saigo = '';
+  for(let i = 0; i < machi.length; i++){
+    if(machi[i]) await oosNemuru(machi[i]);
+    try{
+      const r = await post(body);
+      if(r && r.status === 'ok'){ oosHozonShirase(''); return true; }
+      saigo = (r && r.message) ? String(r.message) : 'サーバーが「失敗」と答えました';
+      if(saigo === 'パスワードが違います') break;   /* 待っても直らない */
+    }catch(e){ saigo = '通信の途中でHTMLの画面が返りました（サーバーが混んでいます）'; }
+  }
+  oosHozonShirase('⚠️ 「' + nani + '」をサーバーに保存できませんでした（' + saigo + '）。このまま開き直すと元に戻ります。少し待って、もう一度押してください。');
+  showSyncStatus('⚠️ 保存できませんでした', true);
+  return false;
+}
+function oosMijikaku(t){ return String(t||'').replace(/\s+/g,' ').slice(0, 20); }
+async function saveMemoSafe(sheet, memo, nani){
+  if(!memo || removedTodoIds.has(memo.id)) return false;   /* 消した項目は絶対に保存し直さない（復活防止） */
+  return oosHozon({ action:'saveStickyMemo', sheetName: sheet, password: password, memo: memo }, nani);
+}
+async function deleteMemoSafe(sheet, id, nani){
+  oosKeshitaOboeru(id);
+  return oosHozon({ action:'deleteStickyMemo', sheetName: sheet, password: password, id: id }, nani);
+}
 async function saveTodoMemo(t){
-  if(!t || removedTodoIds.has(t.id)) return;   // 消した項目は絶対に保存し直さない（復活防止）
-  try{ await post({ action:'saveStickyMemo', sheetName: SHEET_TODO, password: password, memo: t }); }
-  catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
+  return saveMemoSafe(SHEET_TODO, t, 'やること「' + oosMijikaku(t && t.text) + '」');
 }
 let memoInputMode = 'normal';   // 入力：normal / important
 let memoListMode = 'normal';    // 一覧：normal / important
@@ -819,7 +874,7 @@ function updateBoardTab(glowOn, incoming){
 async function loadBoardFromGAS(){
   try{
     const data = await post({ action:'loadBoard', password: password });
-    if(data.status==='ok'){ boardItems = (data.data && data.data.items) || []; renderBoard(); }
+    if(data.status==='ok'){ boardItems = oosKeshitaJanai((data.data && data.data.items) || []); renderBoard(); }
     else hmYomenakatta(['伝言板']);
   /* ★2026-09-13夜 黙って終わらないこと。読めなかったら帯で知らせます（空＝消えた、と思わせない） */
   }catch(err){ hmYomenakatta(['伝言板']); }
@@ -829,6 +884,7 @@ function bdNowLabel(){ const d=new Date(); return ('0'+d.getHours()).slice(-2)+'
 /* ★2026-07-23 変更：送れたか送れなかったかを、はっきり返す＆画面に残す */
 let bdUnsent = {};   // 送信できなかった伝言のid
 async function bdSaveItem(it){
+  if(!it || removedTodoIds.has(it.id)) return false;   /* ★2026-10-08 消した伝言は保存し直さない（復活防止） */
   try{
     const r = await post({ action:'saveBoardItem', password: password, item: it });
     // ★2026-07-23 GASが「失敗」と返した場合も失敗として扱う（今までは成功扱いだった）
@@ -922,9 +978,11 @@ async function bdReopen(id){
   renderBoard(); await bdSaveItem(it);
 }
 async function bdDelete(id){
+  const it0 = boardItems.find(function(x){return x.id===id;});
+  oosKeshitaOboeru(id);   /* ★2026-10-08 復活防止 */
   boardItems = boardItems.filter(function(x){return x.id!==id;});
   renderBoard();
-  try{ await post({ action:'deleteBoardItem', password: password, id: id }); }catch(err){ showSyncStatus('⚠️ 削除に失敗しました', true); }
+  await oosHozon({ action:'deleteBoardItem', password: password, id: id }, '伝言の削除「' + oosMijikaku(it0 && it0.text) + '」');
 }
 function bdToggleReplies(id){
   bdExpanded[id] = !bdExpanded[id];
@@ -1132,14 +1190,14 @@ function hmItsuno(at){
 }
 /* 受け取った中身を画面に入れる（1回目の表示でも、最新の差し替えでも、同じ道を通ります） */
 function hmApplyAll(d){
-  memos = d.memos || [];
-  importantMemos = d.important || [];
+  memos = oosKeshitaJanai(d.memos || []);
+  importantMemos = oosKeshitaJanai(d.important || []);
   renderMemoList();
   renderAlerts();
-  todos = (d.todos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
+  todos = oosKeshitaJanai(d.todos || []);
   if(typeof renderTodos==='function') renderTodos();
   hmApplyFree(d.free || []);
-  boardItems = d.board || [];
+  boardItems = oosKeshitaJanai(d.board || []);
   if(typeof renderBoard==='function') renderBoard();
 }
 /* 開いた瞬間に、前回の内容で描く */
@@ -1370,10 +1428,7 @@ async function addImportantMemo(){
   document.getElementById('imp-red').checked = false;
   renderMemoList();
   renderAlerts();
-  try{
-    await post({ action:'saveStickyMemo', sheetName: SHEET_IMPORTANT, password: password, memo: memo });
-    showSyncStatus('⭐ 大切なメモを追加しました');
-  }catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
+  if(await saveMemoSafe(SHEET_IMPORTANT, memo, '大切なメモ「' + oosMijikaku(text) + '」')) showSyncStatus('⭐ 大切なメモを追加しました');
 }
 
 function toggleImpSection(){
@@ -1459,7 +1514,7 @@ async function saveMemoEdit(id){
   m.text = newText;
   editingId = null;
   renderMemoList(); renderAlerts();
-  try{ await post({ action:'saveStickyMemo', sheetName: sheetOf(id), password: password, memo: m }); showSyncStatus('✅ 書き直しました'); }catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
+  if(await saveMemoSafe(sheetOf(id), m, 'メモの書き直し「' + oosMijikaku(newText) + '」')) showSyncStatus('✅ 書き直しました');
 }
 async function toggleImportant(id){
   const m = findMemo(id);
@@ -1470,30 +1525,32 @@ async function toggleImportant(id){
   renderMemoList(); renderAlerts();
   const fromSheet = wasImp ? SHEET_IMPORTANT : SHEET_NAME;
   const toSheet = wasImp ? SHEET_NAME : SHEET_IMPORTANT;
-  try{
-    await post({ action:'deleteStickyMemo', sheetName: fromSheet, password: password, id: id });
-    await post({ action:'saveStickyMemo', sheetName: toSheet, password: password, memo: m });
-    showSyncStatus(wasImp ? '☆ ふつうに戻しました' : '⭐ 大切にしました');
-  }catch(err){ showSyncStatus('⚠️ 保存に失敗しました', true); }
+  /* ★2026-10-08 移すときは「消した」として覚えない（deleteMemoSafe は使わない）。移し先に入ったときだけ元を消す */
+  const nani = (wasImp ? 'ふつうに戻す' : '大切にする') + '「' + oosMijikaku(m.text) + '」';
+  if(await saveMemoSafe(toSheet, m, nani)){
+    if(await oosHozon({ action:'deleteStickyMemo', sheetName: fromSheet, password: password, id: id }, nani + '（元の場所から消す）'))
+      showSyncStatus(wasImp ? '☆ ふつうに戻しました' : '⭐ 大切にしました');
+  }
 }
 async function doneMemo(id, sheet){
   const m = findMemo(id);
   if(!m) return;
   m.done = true;
   renderMemoList(); renderAlerts();
-  try{ await post({ action:'saveStickyMemo', sheetName: sheet, password: password, memo: m }); }catch(err){}
+  await saveMemoSafe(sheet, m, 'メモの完了「' + oosMijikaku(m.text) + '」');
 }
 async function removeMemo(id, sheet){
   if(!confirm('このメモを削除しますか？')) return;
+  const m0 = findMemo(id);
   if(sheet===SHEET_IMPORTANT) importantMemos = importantMemos.filter(x=>x.id!==id);
   else memos = memos.filter(x=>x.id!==id);
   renderMemoList(); renderAlerts();
-  try{ await post({ action:'deleteStickyMemo', sheetName: sheet, password: password, id: id }); }catch(err){}
+  await deleteMemoSafe(sheet, id, 'メモの削除「' + oosMijikaku(m0 && m0.text) + '」');
 }
 async function loadImportantMemos(){
   try{
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_IMPORTANT, password: password });
-    if(data.status==='ok'){ importantMemos = data.data.memos || []; renderMemoList(); renderAlerts(); }
+    if(data.status==='ok'){ importantMemos = oosKeshitaJanai(data.data.memos || []); renderMemoList(); renderAlerts(); }
     else hmYomenakatta(['大切なメモ']);
   /* ★2026-09-13夜 黙って終わらないこと（★catch を空に戻さないでください） */
   }catch(err){ hmYomenakatta(['大切なメモ']); }
@@ -1526,7 +1583,7 @@ async function loadTodos(){
     const data = await post({ action:'loadStickyMemos', sheetName: SHEET_TODO, password: password });
     if(data.status==='ok'){
       // ★復活防止：この端末で「消す」を押した項目は、サーバーにまだ残っていても表示しない
-      todos = (data.data.memos || []).filter(function(m){ return !removedTodoIds.has(m.id); });
+      todos = oosKeshitaJanai(data.data.memos || []);
       renderTodos();
     }
     else hmYomenakatta(['やること']);
@@ -1676,12 +1733,12 @@ async function archiveTodo(id){
 }
 async function removeTodo(id){
   if(!confirm('この項目を消しますか？')) return;
-  removedTodoIds.add(id); persistRemovedTodoIds();   // ★復活防止：この端末では二度と出さない
+  const t0 = todos.find(x=>x.id===id);
   todos = todos.filter(x=>x.id!==id);
   openTodoPanel = null;
   renderTodos();
-  try{ await post({ action:'deleteStickyMemo', sheetName: SHEET_TODO, password: password, id: id }); showSyncStatus('🗑 消しました'); }
-  catch(err){ showSyncStatus('⚠️ 消去の通信に失敗しました（次に開いた時も消えたままです）', true); }
+  /* ★復活防止：deleteMemoSafe が id を覚える（この端末では二度と出さない）＋ 確かに消えたときだけ 🗑 */
+  if(await deleteMemoSafe(SHEET_TODO, id, 'やることを消す「' + oosMijikaku(t0 && t0.text) + '」')) showSyncStatus('🗑 消しました');
 }
 
 </script>

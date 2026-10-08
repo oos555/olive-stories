@@ -435,12 +435,19 @@ async function yukaMemoKagiTest(){
 
 /* ══════ ⑱ ゆかメモ：終了にした・消したものが、開き直しても復活しない（2026-10-08 ひろみさん「完全にバグだよね。起こらないように直して。今書いてあるものは絶対に消さないで」）══════ */
 async function yukaFukkatsuTest(){
+  /* ゆかメモと、ひろみメモ（2026-10-08 ひろみさん「ひろみメモもおかしいんだったら同じように直して」）の両方を同じ見張りで見る */
+  await fukkatsuTest('ゆかメモ',   'yuka.html',   'removedIds',     'oos_yuka_removed_ids',     5, 0);
+  /* ひろみメモ：読み込みは hmApplyAll の4つ＋大切＋やること＋伝言板＋定義＝8。
+     直接 post が1か所残るのは「フリースペースの💾保存」で、そこは自分で返事を見て画面に出している（test_hiromi_free の見張り） */
+  await fukkatsuTest('ひろみメモ', 'hiromi.html', 'removedTodoIds', 'oos_hiromi_removed_todos', 8, 1);
+}
+async function fukkatsuTest(mei, file, varName, storeKey, yomiKazu, chokusetsu){
   const path = require('path');
-  const hs = fs.readFileSync(path.join(__dirname, '..', 'yuka.html'), 'utf8');
+  const hs = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   /* 黙って通る形（catch の中が空）に戻っていないか：saveStickyMemo／deleteStickyMemo を post で直接送る行が無い */
-  eq('⑱ ゆかメモ：メモの保存・削除を直接 post していない（全部 saveMemoSafe／deleteMemoSafe を通る）',
-     (hs.match(/await post\(\{ action:'(saveStickyMemo|deleteStickyMemo)'/g) || []).length, 0);
-  eq('⑱ ゆかメモ：読み込み4か所（メモ・大切・やること・伝言板）が「消したもの」を出さない', (hs.match(/oosKeshitaJanai\(/g) || []).length, 5);
+  eq('⑱ ' + mei + '：メモの保存・削除を直接 post していない（全部 saveMemoSafe／deleteMemoSafe を通る）',
+     (hs.match(/await post\(\{ action:'(saveStickyMemo|deleteStickyMemo)'/g) || []).length, chokusetsu);
+  eq('⑱ ' + mei + '：読み込み（メモ・大切・やること・伝言板）が「消したもの」を出さない', (hs.match(/oosKeshitaJanai\(/g) || []).length, yomiKazu);
   function hako(replies){
     const store = {}; const sent = []; const msgs = [];
     const box = { JSON, String, Array, Set, Promise, setTimeout, console, password:'PW',
@@ -449,7 +456,8 @@ async function yukaFukkatsuTest(){
       showSyncStatus(m){ msgs.push(m); },
       post: async (b)=>{ sent.push(b); const r = replies.shift(); if(r === 'HTML') throw new Error('json'); return r; } };
     vm.createContext(box);
-    vm.runInContext(H.cutVar(hs, 'removedIds') + ['oosKeshitaOboeru','oosKeshitaJanai','oosNemuru','oosHozonShirase','oosHozon','oosMijikaku','saveMemoSafe','deleteMemoSafe'].map(n => H.cut(hs, n)).join('\n'), box);
+    const motte = /function persistRemovedTodoIds/.test(hs) ? H.cut(hs, 'persistRemovedTodoIds') + '\n' : '';
+    vm.runInContext(H.cutVar(hs, varName) + '\n' + motte + ['oosKeshitaOboeru','oosKeshitaJanai','oosNemuru','oosHozonShirase','oosHozon','oosMijikaku','saveMemoSafe','deleteMemoSafe'].map(n => H.cut(hs, n)).join('\n'), box);
     box.oosNemuru = async function(){};                 /* 待ち時間は飛ばす */
     const obi = []; box.oosHozonShirase = function(m){ obi.push(m); };
     return { box, store, sent, msgs, obi };
@@ -469,7 +477,7 @@ async function yukaFukkatsuTest(){
   const ok2 = await h.box.saveMemoSafe('付箋メモJやること', { id:'todo_1', text:'消したはず', done:true }, 'やること');
   eq('⑱ 消したあとに遅れて来た保存は送らない（行を作り直さない）', ok2 + ' ' + h.sent.length + ' ' + h.sent[0].action, 'false 1 deleteStickyMemo');
   eq('⑱ 消した id はサーバーに残っていても画面に出さない', h.box.oosKeshitaJanai([{ id:'todo_1' }, { id:'todo_2' }]).map(x => x.id).join(), 'todo_2');
-  eq('⑱ 消した id は端末が覚える（開き直しても・他のアプリから戻っても）', JSON.parse(h.store.oos_yuka_removed_ids || '[]').join(), 'todo_1');
+  eq('⑱ ' + mei + '：消した id は端末が覚える（開き直しても・他のアプリから戻っても）', JSON.parse(h.store[storeKey] || '[]').join(), 'todo_1');
   /* 伝言板の保存（bdSaveItem）も、消した伝言は送らない（本物の関数を動かして見る） */
   h = hako([{ status:'ok' }]);
   vm.runInContext('var bdUnsent = {}; function renderBoard(){}\n' + H.cut(hs, 'bdSaveItem'), h.box);
