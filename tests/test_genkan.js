@@ -433,7 +433,53 @@ async function yukaMemoKagiTest(){
   eq('⑰ 鍵がまだない端末 → 最初の1回だけ聞く', r.asked.length + ' ' + r.sent.join(','), '1 NEWKEY');
 }
 
-juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).then(yukaMemoKagiTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
+/* ══════ ⑱ ゆかメモ：終了にした・消したものが、開き直しても復活しない（2026-10-08 ひろみさん「完全にバグだよね。起こらないように直して。今書いてあるものは絶対に消さないで」）══════ */
+async function yukaFukkatsuTest(){
+  const path = require('path');
+  const hs = fs.readFileSync(path.join(__dirname, '..', 'yuka.html'), 'utf8');
+  /* 黙って通る形（catch の中が空）に戻っていないか：saveStickyMemo／deleteStickyMemo を post で直接送る行が無い */
+  eq('⑱ ゆかメモ：メモの保存・削除を直接 post していない（全部 saveMemoSafe／deleteMemoSafe を通る）',
+     (hs.match(/await post\(\{ action:'(saveStickyMemo|deleteStickyMemo)'/g) || []).length, 0);
+  eq('⑱ ゆかメモ：読み込み4か所（メモ・大切・やること・伝言板）が「消したもの」を出さない', (hs.match(/oosKeshitaJanai\(/g) || []).length, 5);
+  function hako(replies){
+    const store = {}; const sent = []; const msgs = [];
+    const box = { JSON, String, Array, Set, Promise, setTimeout, console, password:'PW',
+      localStorage:{ getItem:(k)=>(k in store ? store[k] : null), setItem:(k,v)=>{ store[k]=v; }, removeItem:(k)=>{ delete store[k]; } },
+      document:{ getElementById(){ return null; }, createElement(){ return { style:{}, appendChild(){}, firstChild:{} }; }, body:{ appendChild(){} } },
+      showSyncStatus(m){ msgs.push(m); },
+      post: async (b)=>{ sent.push(b); const r = replies.shift(); if(r === 'HTML') throw new Error('json'); return r; } };
+    vm.createContext(box);
+    vm.runInContext(H.cutVar(hs, 'removedIds') + ['oosKeshitaOboeru','oosKeshitaJanai','oosNemuru','oosHozonShirase','oosHozon','oosMijikaku','saveMemoSafe','deleteMemoSafe'].map(n => H.cut(hs, n)).join('\n'), box);
+    box.oosNemuru = async function(){};                 /* 待ち時間は飛ばす */
+    const obi = []; box.oosHozonShirase = function(m){ obi.push(m); };
+    return { box, store, sent, msgs, obi };
+  }
+  let h = hako(['HTML', 'HTML', 'HTML']);
+  let ok1 = await h.box.saveMemoSafe('付箋メモJ', { id:'m1', text:'テスト', done:true }, 'メモの完了「テスト」');
+  eq('⑱ HTMLの画面が3回返った → 失敗と分かる（黙って通らない）', ok1 + ' ' + h.sent.length, 'false 3');
+  eq('⑱ そのとき赤い帯に「開き直すと元に戻ります」と出る', h.obi.some(m => /開き直すと元に戻ります/.test(m)) && /メモの完了/.test(h.obi[h.obi.length-1]), true);
+  h = hako([{ status:'error', message:'サーバーが混んでいます' }, { status:'ok' }]);
+  ok1 = await h.box.saveMemoSafe('付箋メモJ', { id:'m2', text:'x', done:true }, 'メモ');
+  eq('⑱ 1回目が失敗でも、もう一度送って ok なら成功', ok1 + ' ' + h.sent.length + ' ' + h.obi.join('|'), 'true 2 ');
+  h = hako([{ status:'error', message:'パスワードが違います' }]);
+  ok1 = await h.box.saveMemoSafe('付箋メモJ', { id:'m3', text:'x' }, 'メモ');
+  eq('⑱ 鍵が違うときは待っても直らないので1回でやめる', ok1 + ' ' + h.sent.length, 'false 1');
+  h = hako([{ status:'ok' }, { status:'ok' }]);
+  await h.box.deleteMemoSafe('付箋メモJやること', 'todo_1', 'やることを消す');
+  const ok2 = await h.box.saveMemoSafe('付箋メモJやること', { id:'todo_1', text:'消したはず', done:true }, 'やること');
+  eq('⑱ 消したあとに遅れて来た保存は送らない（行を作り直さない）', ok2 + ' ' + h.sent.length + ' ' + h.sent[0].action, 'false 1 deleteStickyMemo');
+  eq('⑱ 消した id はサーバーに残っていても画面に出さない', h.box.oosKeshitaJanai([{ id:'todo_1' }, { id:'todo_2' }]).map(x => x.id).join(), 'todo_2');
+  eq('⑱ 消した id は端末が覚える（開き直しても・他のアプリから戻っても）', JSON.parse(h.store.oos_yuka_removed_ids || '[]').join(), 'todo_1');
+  /* 伝言板の保存（bdSaveItem）も、消した伝言は送らない（本物の関数を動かして見る） */
+  h = hako([{ status:'ok' }]);
+  vm.runInContext('var bdUnsent = {}; function renderBoard(){}\n' + H.cut(hs, 'bdSaveItem'), h.box);
+  h.box.oosKeshitaOboeru('b1');
+  const ok3 = await h.box.bdSaveItem({ id:'b1', text:'消した伝言' });
+  const ok4 = await h.box.bdSaveItem({ id:'b2', text:'生きている伝言' });
+  eq('⑱ 伝言板：消した伝言は保存し直さず、生きている伝言は送る', ok3 + ' ' + ok4 + ' ' + h.sent.map(b => b.item.id).join(), 'false true b2');
+}
+
+juchuAKagi().then(atelierKagi).then(kagiNokosu).then(kagiTashikameTest).then(yukaMemoKagiTest).then(yukaFukkatsuTest).catch(function(e){ fail++; fails.push('⑩⑪ 動かせませんでした：' + e.message); }).then(function(){
   console.log('===== 玄関のアラート =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f=>console.log('  '+f)); }

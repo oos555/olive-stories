@@ -541,6 +541,33 @@ eq('参考：0 で止まる', oya3, 0);
   eq('🔵② ▼で（LINE通知済）を直接えらんだ行も🔵と同じ', /OOS_YUKA_BTN_GO_TSUCHI[\s\S]{0,160}oosYukaShipGo_\(sh, row\)/.test(H.cut(gasSrc, 'oosYukaOnEdit')), true);
 }
 
+/* ══════ 📝 付箋メモ：完了（done）の印を、シートが真偽値に変えていても読み戻す（2026-10-08）══════
+   ひろみさん「ゆかメモで終了にしたものが、開き直すと全部復活する」。
+   保存は 'TRUE' という文字で書くが、スプレッドシートは真偽値 TRUE に変えて持つ。文字としか比べていなかったので
+   done が毎回 false で戻り、✅完了にしたメモが開き直すたびに復活していた。GASの本物の loadStickyMemos で確かめる。 */
+{
+  const M = H.makeSandbox({
+    stickyMemoPasswordOk(){ return true; },
+    stickyMemoSpreadsheet(){ return {}; },
+    readSheetGlobal(ss, name, mapFn){
+      return [
+        ['memo_1', '真偽値で持たれた完了',  '2026-10-08', false,   true,    '2026-10-08T00:00:00.000Z', ''],
+        ['memo_2', '文字で持たれた完了',    '2026-10-08', 'FALSE', 'TRUE',  '2026-10-08T00:00:00.000Z', ''],
+        ['memo_3', 'まだ',                  '2026-10-08', 'FALSE', 'FALSE', '2026-10-08T00:00:00.000Z', 'today'],
+        ['memo_4', 'まだ（真偽値）',        '2026-10-08', false,   false,   '2026-10-08T00:00:00.000Z', 'today']
+      ].map(mapFn);
+    },
+    Utilities: { formatDate(d){ return '2026-10-08'; } }, Session: { getScriptTimeZone(){ return 'Asia/Tokyo'; } }
+  });
+  vm.runInContext(H.cut(gasSrc, 'loadStickyMemos') + '\n' + H.cut(gasSrc, 'normalizeStickyDate'), M.ctx);
+  const got = M.box.loadStickyMemos('付箋メモJ', 'x').data.memos;
+  eq('付箋メモ① 真偽値 TRUE で持たれた完了も done:true で読み戻す', got[0].done, true);
+  eq('付箋メモ② 文字 \'TRUE\' で持たれた完了も done:true', got[1].done, true);
+  eq('付箋メモ③ まだのものは false のまま（文字・真偽値どちらも）', got[2].done + ',' + got[3].done, 'false,false');
+  eq('付箋メモ④ 誰かに伝える（tellSomeone）も同じ読み方', got[0].tellSomeone + ',' + got[1].tellSomeone, 'false,false');
+  eq('付箋メモ⑤ 中身（text・色）はそのまま', got[2].text + '/' + got[2].color, 'まだ/today');
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
