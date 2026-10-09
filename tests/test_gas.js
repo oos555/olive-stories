@@ -750,6 +750,29 @@ eq('参考：0 で止まる', oya3, 0);
   eq('依頼〆⑫ oosYukaKigenKaku_ は🔵にした日を受け取れる（渡さなければ今日）', gasSrc.indexOf('oosYukaKigenKaku_(sh, row, key, disp, iraiDate)') >= 0 && gasSrc.indexOf('var irai = iraiDate ') >= 0, true);
 }
 
+
+/* ══════ 📦 バサラ発注シート：商品①と②が同じときの注意メモ（2026-10-09 ひろみさん）／メール取込の停止 ══════ */
+{
+  const B = { console, String, Object, Array, Number };
+  vm.createContext(B);
+  vm.runInContext(H.cut(gasSrc, 'oosBasaraOnajiShohin_'), B);
+  function gyou(a, b, c, d){ const r = new Array(26).fill(''); r[2] = a || ''; r[4] = b || ''; r[6] = c || ''; r[8] = d || ''; return r; }
+  eq('同じ商品① ①と②が同じ → 注意の文', B.oosBasaraOnajiShohin_(gyou('ORG250 オルガニック 250ml', 'ORG250 オルガニック 250ml')),
+     '⚠️ 商品①と②が同じ商品です。まちがいでなければそのままで大丈夫です（受付はしています）。');
+  eq('同じ商品② ちがう商品なら何も言わない', B.oosBasaraOnajiShohin_(gyou('ORG250 オルガニック 250ml', 'MEM250 メメジック 250ml')), '');
+  eq('同じ商品③ ①だけなら何も言わない', B.oosBasaraOnajiShohin_(gyou('ORG250 オルガニック 250ml')), '');
+  eq('同じ商品④ （入荷待ち）が付いていても同じと見る', B.oosBasaraOnajiShohin_(gyou('ORG750 オルガニック 750ml（入荷待ち）', 'ORG750 オルガニック 750ml')) !== '', true);
+  eq('同じ商品⑤ ①と③・②と④のように離れていても見つける', B.oosBasaraOnajiShohin_(gyou('A', 'B', 'A', 'B')), '⚠️ 商品①と③・商品②と④が同じ商品です。まちがいでなければそのままで大丈夫です（受付はしています）。');
+  const acc = H.cut(gasSrc, 'oosBasaraOrderAccept_');
+  eq('同じ商品⑥ 受付（✅ 受付）のあとにメモを付ける・受付は止めない', acc.indexOf('oosBasaraOnajiShohin_(d)') > acc.indexOf("cell.setValue('✅ 受付 '") && acc.indexOf('oosBasaraOnajiShohin_(d)') > 0, true);
+  eq('同じ商品⑦ stop（受付を止める）には使っていない', /stop\([^)]*oosBasaraOnajiShohin_/.test(acc), false);
+  /* メールの入口 */
+  const bw = H.cut(gasSrc, 'basaraWatchV2');
+  eq('メール入口① basaraWatchV2 は BASARA_MAIL_TORIKOMI が false なら basaraRun_ を呼ばない', /var BASARA_MAIL_TORIKOMI = false;/.test(gasSrc) && bw.indexOf('if(!BASARA_MAIL_TORIKOMI)') >= 0, true);
+  eq('メール入口② 欠品の見張り（basaraStockWatchV2_）は残っている', bw.indexOf('basaraStockWatchV2_()') >= 0, true);
+  eq('メール入口③ 共有に足す窓口は決めたアドレスだけ', H.cut(gasSrc, 'doGet').indexOf("['hara@basarastar.com', 'nobuyukidayoooo@gmail.com']") >= 0, true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
