@@ -179,6 +179,43 @@ const DAI = [
      s.run('aiNaiTsukiBun(__n2)').join(''), '2025年 1月〜2月・9月〜12月');
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   📇 名刺情報タブが【親】（2026-10-09 ひろみさん）
+   「アプリだけで全情報を持っておかないでほしい。人の情報はすごい大事だから、ちゃんとスプレッドシートに残しておいてほしい」
+   スマホで入れたシェフ（土橋さん）がPCのRT台帳に出なかった。本物の meishiMerge を動かして確かめる。
+   ══════════════════════════════════════════════════════════════ */
+{
+  const ctx = vm.createContext({ console, String, Object, Array, Number, JSON });
+  ['meishiKey', 'meishiFromSheet', 'meishiMerge'].forEach(n => vm.runInContext(H.cut(SRC, n), ctx));
+  const run = (people, sheet) => vm.runInContext('meishiMerge(' + JSON.stringify(people) + ',' + JSON.stringify(sheet) + ')', ctx);
+  /* ① PCには無い人がタブにいる → 足す（スマホで入れた土橋さんがPCに出る） */
+  const r1 = run([{ name:'加藤 俊彦', fac:'サンクチュアリコート日光', role:'料理長' }],
+                 [{ name:'加藤 俊彦', fac:'サンクチュアリコート日光', role:'総料理長' }, { name:'土橋', fac:'エクシブ蓼科', type:'シェフ（料理長）', status:'現任', certs:'ソムリエ、調理師', vip:'◎' }]);
+  ok('親① タブにいて端末に無い人は足す', r1.tashita === 1 && r1.people.some(p => p.name === '土橋'));
+  ok('親① タブの中身で端末を直す（役職が総料理長に）', r1.naoshita === 1 && r1.people[0].role === '総料理長');
+  ok('親① 資格は「、」で分けて配列に・◎は重要', (() => { const t = r1.people.find(p => p.name === '土橋'); return t.certs.join('|') === 'ソムリエ|調理師' && t.vip === true && t.status === '現任'; })());
+  ok('親① 送るものは無い（全員タブにいる）', r1.okuru.length === 0);
+  /* ② 端末にだけいる人 → 送る側に */
+  const r2 = run([{ name:'浅野', fac:'ラグーナベイコート倶楽部' }], [{ name:'加藤 俊彦', fac:'サンクチュアリコート日光' }]);
+  ok('親② 端末にだけいる人は、タブへ送る', r2.okuru.length === 1 && r2.okuru[0].name === '浅野');
+  /* ③ 端末で直して、まだ送れていない（⚠️）人 → 端末の方を残して送る */
+  const r3 = run([{ name:'加藤 俊彦', fac:'サンクチュアリコート日光', role:'副料理長', _okurimachi:true }], [{ name:'加藤 俊彦', fac:'サンクチュアリコート日光', role:'料理長' }]);
+  ok('親③ ⚠️のカードはタブで上書きせず、端末の方を送る', r3.people[0].role === '副料理長' && r3.okuru.length === 1);
+  /* ④ 名前の空い行は無視 */
+  const r4 = run([], [{ name:'', fac:'x' }]);
+  ok('親④ 名前の無い行は足さない', r4.people.length === 0);
+  /* ⑤ 作り（文字でも） */
+  ok('親⑤ 開いたとき親を読む（boot → meishiOyaYomu）', H.cut(SRC, 'boot').indexOf('meishiOyaYomu()') >= 0);
+  ok('親⑤ 読む先は loadMeishiCards・だめなら3回', H.cut(SRC, 'meishiYomu').indexOf('loadMeishiCards') >= 0 && H.cut(SRC, 'meishiYomu').indexOf('i < 3') >= 0);
+  ok('親⑤ 送れなかったら ⚠️ を付けて次に開いたとき送り直す', H.cut(SRC, 'sheetSaveMeishi').indexOf('p._okurimachi=true') >= 0 && H.cut(SRC, 'meishiOyaYomu').indexOf('meishiOkuruMachi()') >= 0);
+  ok('親⑤ 現任⇔前任・交代・取り込みもタブへ送る', H.cut(SRC, 'toggleStatus').indexOf('meishiOkuruMachi()') >= 0 && H.cut(SRC, 'savePerson').indexOf('meishiOkuruMachi()') >= 0 && H.cut(SRC, 'doImport').indexOf('meishiOkuruMachi()') >= 0);
+  ok('親⑤ アプリから消すのは端末の控えだけ（タブの行は消さない）', H.cut(SRC, 'delPerson').indexOf('名刺情報タブ（親）の行は消しません') >= 0);
+  ok('親⑤ ⚠️ の札がカードに出る', H.cut(SRC, 'buildPersonCard').indexOf('⚠️ まだスプシに送れていません') >= 0);
+  ok('親⑤ 「シェフで」見つからないとき、人物カードにいる人を案内する', H.cut(SRC, 'renderDaicho').indexOf('この方は<b>人物カード</b>にはいます') >= 0);
+  ok('親⑤ 版 2026-10-09-01', SRC.indexOf('oos-version" content="2026-10-09-01"') >= 0);
+}
+
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
   fails.forEach(x => console.log(x));

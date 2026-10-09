@@ -773,6 +773,40 @@ eq('参考：0 で止まる', oya3, 0);
   eq('メール入口③ 共有に足す窓口は決めたアドレスだけ', H.cut(gasSrc, 'doGet').indexOf("['hara@basarastar.com', 'nobuyukidayoooo@gmail.com']") >= 0, true);
 }
 
+
+/* ══════ 📇 名刺情報タブが【親】（2026-10-09 ひろみさん「人の情報はスプレッドシートに残して」）══════ */
+{
+  const M = { console, String, Object, Array, Number, JSON, Logger: { log(){} }, SpreadsheetApp: null };
+  vm.createContext(M);
+  ['OOS_MEISHI_COLS', 'OOS_MEISHI_SHEET_ID', 'OOS_MEISHI_TAB'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), M));
+  ['oosMeishiLoad', 'oosMeishiWrite_'].forEach(n => vm.runInContext(H.cut(gasSrc, n), M));
+  const cols = M.OOS_MEISHI_COLS.map(c => c[0]);
+  const pi = cols.indexOf('photo');
+  function gyou(o){ return cols.map(c => c === 'photo' ? (o.photo || '') : (o[c] || '')); }
+  const rows = [ gyou({ fac:'エクシブ蓼科', name:'土橋 太郎', role:'料理長', type:'シェフ（料理長）', status:'現任', photo:'data:PHOTO' }),
+                 gyou({ fac:'', name:'' }),
+                 gyou({ fac:'ラグーナベイコート倶楽部', name:'奥村 洋隆', certs:'ソムリエ、調理師' }) ];
+  const sh = { getLastRow(){ return rows.length + 1; }, getRange(r, c, n, m){ return { getDisplayValues(){ return rows.slice(); } }; } };
+  M.SpreadsheetApp = { openById(){ return { getSheetByName(){ return sh; } }; } };
+  const d = M.oosMeishiLoad();
+  eq('名刺親① タブを読める（空の行は数えない）', d.status + ':' + d.data.人数, 'ok:2');
+  eq('名刺親① 写真は返さず「写真あり」だけ', d.data.list[0].photo === undefined && d.data.list[0].photoAri === true && d.data.list[1].photoAri === false, true);
+  eq('名刺親① 施設・名前・種類がそのまま', d.data.list[0].fac + '/' + d.data.list[0].name + '/' + d.data.list[0].type, 'エクシブ蓼科/土橋 太郎/シェフ（料理長）');
+  /* 写真を持たずに上書きしても、タブの写真は残る */
+  let kaita = null;
+  const sh2 = { getLastRow(){ return 5; }, getRange(r, c, n, m){ return { getValue(){ return (r === 3 && c === pi + 1) ? 'data:OLD' : ''; }, setValues(v){ kaita = { r, v: v[0] }; } }; } };
+  M.oosMeishiFindRow_ = function(){ return 3; };
+  M.Utilities = { formatDate(){ return '2026/10/09 12:00'; } };
+  M.oosMeishiWrite_(sh2, { fac:'A', name:'B', photo:'' });
+  eq('名刺親② 写真なしで上書き → タブの写真を残す', kaita.r + ':' + kaita.v[pi], '3:data:OLD');
+  M.oosMeishiWrite_(sh2, { fac:'A', name:'B', photo:'data:NEW' });
+  eq('名刺親② 写真つきなら新しい写真', kaita.v[pi], 'data:NEW');
+  M.oosMeishiFindRow_ = function(){ return 0; };
+  M.oosMeishiWrite_(sh2, { fac:'A', name:'C', photo:'' });
+  eq('名刺親② 新しい行は空のまま（行は最後に足す）', kaita.r + ':' + kaita.v[pi], '6:');
+  eq('名刺親③ doGet に読む窓口 loadMeishiCards', H.cut(gasSrc, 'doGet').indexOf("'loadMeishiCards'") >= 0, true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }

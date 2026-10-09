@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-28-01">
+<meta name="oos-version" content="2026-10-09-01">
 <script src="oos-version.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -463,6 +463,7 @@
       <button id="buybtn" onclick="toggleBuyOnly()" style="background:#fff;border:1.5px solid #9aad63;color:#4d5a24;border-radius:999px;padding:8px 15px;font-size:14px;font-weight:700;">🫒 よく買ってくれている先だけ</button>
     </div>
     <div class="mini" style="margin:-4px 0 10px;">◎はあなたの判断の印、🫒は伝票の実績から自動で付く印です。</div>
+    <div id="meishi-oya" class="mini" style="margin:4px 0 8px;min-height:16px;"></div>
     <div id="peoplebox"></div>
   </div>
 
@@ -886,6 +887,7 @@ function pingUnlock(pw, cb){
 }
 function boot(){
   loadPeople();
+  if(typeof meishiOyaYomu === 'function') meishiOyaYomu();   /* ★2026-10-09 名刺情報タブ（親）を読んで合わせる（砂場で起動だけ動かすときのため typeof で守る） */
   /* ★2026-09-26 ひろみさん「社長の方のアプリ全部できかれる」：この台帳だけ、玄関や社長の画面で入れた鍵を見ずに毎回聞いていました。
      　社長の鍵でも開きます（サーバーの玄関の照合は社長の鍵も通すため）。見張り：tests/test_genkan.js ⑮ */
   var s=savedSecret() || oosSavedPw('secret');
@@ -1339,6 +1341,14 @@ function renderDaicho(){
         '<div class="tip">'+esc(g)+'のシェフたちは上の銘柄をよく使います。新しい'+esc(g)+'のシェフにはここから提案すると当たりやすい。</div></div>';
     });
   }
+  /* ★2026-10-09 ひろみさん「シェフの文言も足していい」：台帳の「シェフで」は経歴表（CHEF_CAREER）を探します。
+     人物カードにはいる人は、そのことを出します（どこを見ればよいか分かるように） */
+  if(!html && curMode==='chef' && q){
+    var _hito=(typeof PEOPLE!=='undefined'?PEOPLE:[]).filter(function(p){ return p && match(q, p.name+' '+p.fac); });
+    if(_hito.length){
+      html='<div class="empty">見つかりませんでした。<br>この方は<b>人物カード</b>にはいます：'+_hito.slice(0,3).map(function(p){ return esc(p.name)+'（'+esc(p.fac)+'）'; }).join('、')+'<br><span class="mini">「シェフで」に出るのは経歴表にあるシェフです。人物カードは上の「👥 人物カード」からご覧ください。</span></div>';
+    }
+  }
   box.innerHTML = html||'<div class="empty">見つかりませんでした。</div>';
 }
 function nextTip(f){
@@ -1575,7 +1585,7 @@ function checkSuccession(rec){
   var names=same.map(function(p){return p.name;}).join('、');
   var ok=confirm('同じポスト（'+(rec.fac||'')+'／'+(rec.dept||'')+'／'+(rec.role||'')+'）に、すでに '+names+' さんがいます。\n\n【OK】＝役職が交代した（'+names+' さんを「前任」にします）\n【キャンセル】＝2人体制なので、そのまま両方を「現任」で残す');
   if(!ok) return;
-  same.forEach(function(p){ p.status='前任'; p.succ=rec.name; });
+  same.forEach(function(p){ p.status='前任'; p.succ=rec.name; p._okurimachi=true; });   /* ★2026-10-09 タブ（親）にも送る */
   rec.pred=names;
 }
 
@@ -1593,14 +1603,16 @@ function savePerson(){
   storePeople();
   document.getElementById('pcount').textContent=PEOPLE.length;
   sheetSaveMeishi(rec, shotDataUrl);
+  meishiOkuruMachi();   /* ★2026-10-09 前任にした人など、まだ送れていないカードも */
   cancelReview(); nav('people');
 }
 function v(id){ var el=document.getElementById(id); return el? el.value : ''; }
-function delPerson(i){ if(!confirm('この人物カードを消しますか？')) return; PEOPLE.splice(i,1); storePeople(); document.getElementById('pcount').textContent=PEOPLE.length; renderPeople(); }
+function delPerson(i){ if(!confirm('この人物カードを【この端末から】消しますか？\n\n名刺情報タブ（親）の行は消しません。次に開いたときにタブから戻ります。\n本当に消すときは、スプレッドシートの「名刺情報」タブの行を消してください。')) return; PEOPLE.splice(i,1); storePeople(); document.getElementById('pcount').textContent=PEOPLE.length; renderPeople(); }
 function toggleStatus(i){
   var p=PEOPLE[i];
   p.status = (p.status==='前任') ? '現任' : '前任';
-  storePeople(); renderPeople();
+  p._okurimachi=true;   /* ★2026-10-09 タブ（親）にも送る */
+  storePeople(); renderPeople(); meishiOkuruMachi();
 }
 
 /* 書き出し（バックアップ用） */
@@ -1678,6 +1690,7 @@ function doImport(){
   storePeople();
   document.getElementById('pcount').textContent=PEOPLE.length;
   document.getElementById('io').value='';
+  PEOPLE.slice(Math.max(0, PEOPLE.length-added)).forEach(function(p){ p._okurimachi=true; }); storePeople(); meishiOkuruMachi();   /* ★2026-10-09 タブ（親）にも送る */
   alert(added+'件を取り込みました。'+(skipped?'（すでに入っていた '+skipped+' 件はとばしました）':''));
   nav('people');
 }
@@ -1707,6 +1720,95 @@ function loadPeople(){
   });
   storePeople();
   var pc=document.getElementById('pcount'); if(pc) pc.textContent=PEOPLE.length;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   📇 名刺情報タブが【親】　★2026-10-09 ひろみさん
+   「アプリだけで全情報を持っておかないでほしい。人の情報はすごい大事だから、ちゃんとスプレッドシートに残しておいてほしい」
+   ──────────────────────────────────────────────────────────────────────
+   それまで：人物カードは端末（localStorage）＋HTMLの種88人。タブへは送るだけで読み戻さない。
+   　　　　　→ スマホで入れたシェフ（土橋さん）がPCに出なかった（2026-10-09）。
+   これから：開いたとき名刺情報タブを読んで人物カードにする（タブが親・端末は控え）。
+   　　　　　まだタブに送れていないカードは ⚠️ の札を付けて残し、次に開いたとき自動で送り直す。
+   　　　　　消すのは人がスプシで（アプリから消すのは端末の控えだけ）。
+   ══════════════════════════════════════════════════════════════════════ */
+var MEISHI_OYA = { yonda:false, ninzu:0, at:'', ng:'', okutta:0 };
+var meishiOkuriChu = false;
+function meishiKey(p){ return String((p && p.fac) || '').trim() + '／' + String((p && p.name) || '').trim(); }
+/* タブの1行 → 人物カードの形（写真は持たない） */
+function meishiFromSheet(o){
+  o = o || {};
+  return { name:String(o.name||'').trim(), fac:String(o.fac||'').trim(), role:o.role||'', dept:o.dept||'', type:o.type||'',
+           status:o.status||'現任', tel:o.tel||'', mail:o.mail||'',
+           certs:String(o.certs||'').split(/[、,]/).map(function(s){ return s.trim(); }).filter(Boolean),
+           career:o.career||'', oils:o.oils||'', vip:(String(o.vip||'').trim()==='◎'), hand:o.hand||'', note:o.note||'',
+           pred:o.pred||'', succ:o.succ||'', regDate:o.regDate||'', photo:'' };
+}
+/* 合わせる（親＝タブ）。端末に ⚠️（まだ送れていない）があれば端末の方を残し、あとで送る。
+   返す：足した数・直した数・これから送るカード */
+function meishiMerge(people, sheetList){
+  var byKey = {}; people.forEach(function(p){ byKey[meishiKey(p)] = p; });
+  var tashita = 0, naoshita = 0, aru = {};
+  (sheetList || []).forEach(function(o){
+    var s = meishiFromSheet(o); if(!s.name) return;
+    var k = meishiKey(s); aru[k] = true;
+    var p = byKey[k];
+    if(p && p._okurimachi) return;
+    if(p){ Object.keys(s).forEach(function(f){ if(f !== 'photo') p[f] = s[f]; }); p._okurimachi = false; naoshita++; }
+    else { s._okurimachi = false; people.push(s); byKey[k] = s; tashita++; }
+  });
+  var okuru = people.filter(function(p){ return p && p.name && (!aru[meishiKey(p)] || p._okurimachi); });
+  return { people:people, tashita:tashita, naoshita:naoshita, okuru:okuru };
+}
+function meishiOyaMsg(){
+  var el = document.getElementById('meishi-oya'); if(!el) return;
+  var machi = PEOPLE.filter(function(p){ return p && p._okurimachi; }).length;
+  var t = '';
+  if(MEISHI_OYA.ng) t = '⚠️ ' + MEISHI_OYA.ng;
+  else if(MEISHI_OYA.yonda) t = '☁️ 名刺情報タブ（親）と合わせました：' + MEISHI_OYA.ninzu + '人（' + MEISHI_OYA.at + '）' + (MEISHI_OYA.okutta ? '　送った：' + MEISHI_OYA.okutta + '人' : '');
+  if(machi) t += (t ? '　' : '') + '⚠️ まだタブに送れていないカード：' + machi + '人（次に開いたとき自動で送り直します）';
+  el.textContent = t; el.style.color = MEISHI_OYA.ng || machi ? '#b03a2e' : '#2f6b2f';
+}
+/* タブを読む（返事がエラー画面なら2秒おいて3回まで） */
+async function meishiYomu(){
+  for(var i = 0; i < 3; i++){
+    try{
+      var r = await fetch(GAS_URL + '?action=loadMeishiCards&t=' + Date.now(), { cache:'no-store' });
+      var d = await r.json();
+      if(d && d.status === 'ok' && d.data && Array.isArray(d.data.list)) return d.data.list;
+    }catch(e){}
+    await new Promise(function(ok){ setTimeout(ok, 2000); });
+  }
+  return null;
+}
+async function meishiOyaYomu(){
+  var list = await meishiYomu();
+  if(!list){ MEISHI_OYA.ng = '名刺情報タブを読めませんでした（この端末の控えを表示しています）'; meishiOyaMsg(); return; }
+  var r = meishiMerge(PEOPLE, list);
+  MEISHI_OYA.yonda = true; MEISHI_OYA.ng = ''; MEISHI_OYA.ninzu = list.length;
+  MEISHI_OYA.at = new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+  r.okuru.forEach(function(p){ p._okurimachi = true; });
+  storePeople();
+  var pc = document.getElementById('pcount'); if(pc) pc.textContent = PEOPLE.length;
+  try{ if(document.getElementById('pq')) renderPeople(); }catch(e){}
+  try{ if(document.getElementById('q')) renderDaicho(); }catch(e){}
+  meishiOyaMsg();
+  if(r.okuru.length) await meishiOkuruMachi();
+}
+/* ⚠️ のカードをまとめてタブへ（写真は付かない。タブにある写真はGAS側で残す） */
+async function meishiOkuruMachi(){
+  if(meishiOkuriChu) return;
+  var list = PEOPLE.filter(function(p){ return p && p._okurimachi && p.name; });
+  if(!list.length) return;
+  meishiOkuriChu = true;
+  try{
+    var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'saveMeishiBulk', list:list.map(function(p){ return meishiRow(p, ''); }) }) });
+    var d = await r.json();
+    if(d && d.status === 'ok'){ list.forEach(function(p){ p._okurimachi = false; }); MEISHI_OYA.okutta += list.length; storePeople(); try{ if(document.getElementById('pq')) renderPeople(); }catch(e){} }
+  }catch(e){}
+  meishiOkuriChu = false;
+  meishiOyaMsg();
 }
 function storePeople(){
   try{ localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE)); storeWarn(''); return true; }
@@ -1744,10 +1846,11 @@ function sheetSaveMeishi(p, photo){
     body:JSON.stringify({action:'saveMeishiCard', rec:meishiRow(p, photo)})})
     .then(function(r){return r.json();})
     .then(function(d){
-      if(d&&d.status==='ok'){ setMeishiMsg('☁️ スプレッドシートの「名刺情報」タブに保存しました：'+p.name, true); }
-      else { setMeishiMsg('スプレッドシートに保存できませんでした：'+((d&&d.message)||'不明')+'（GASの更新・デプロイがまだかもしれません）。この端末には入っています。', false); }
+      if(d&&d.status==='ok'){ p._okurimachi=false; storePeople(); setMeishiMsg('☁️ スプレッドシートの「名刺情報」タブに保存しました：'+p.name, true); }
+      else { p._okurimachi=true; storePeople(); setMeishiMsg('⚠️ まだスプレッドシートに送れていません：'+((d&&d.message)||'不明')+'。この端末には入っています。次に開いたとき自動で送り直します。', false); }
+      meishiOyaMsg();
     })
-    .catch(function(){ setMeishiMsg('通信できませんでした。この端末には入っています。電波の良いところで「☁️ まとめて送る」をお試しください。', false); });
+    .catch(function(){ p._okurimachi=true; storePeople(); setMeishiMsg('⚠️ 通信できず、まだスプレッドシートに送れていません。この端末には入っています。次に開いたとき自動で送り直します。', false); meishiOyaMsg(); });
 }
 /* 今ある人物カードを全部まとめて「名刺情報」タブへ（写真は付きません） */
 function sheetSendAll(){
@@ -2098,6 +2201,7 @@ function buildPersonCard(p,i){
     var isOld=(p.status==='前任');
     var badge='<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;'+
       (isOld?'background:#efe9e2;color:#8a7a66;':'background:#e5eecf;color:#4d5a24;')+'">'+(isOld?'前任':'現任')+'</span>';
+    if(p._okurimachi) badge+='<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#fdecea;color:#b03a2e;">⚠️ まだスプシに送れていません</span>';   /* ★2026-10-09 */
     var buy=facTotal(p.fac)||0;
     var buyTag = (buy>=48)? '<span style="display:inline-block;background:#e5eecf;color:#3f4a1d;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">🫒 よく買ってくれている（'+buy+'本）</span>'
                : (buy>0)? '<span style="display:inline-block;background:#f2f0ea;color:#6b6459;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;margin:0 6px 5px 0;">🫒 取引あり（'+buy+'本）</span>'
