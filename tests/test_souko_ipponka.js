@@ -118,7 +118,8 @@ ok('⑤RTだけでなく、登録した注文は全部が自動で発注書へ',
    　　【pending のときだけ発注書へ流している】ことを見ます。
    ★書き方を文字でコピーする形に戻さないでください。 */
 ok('⑤取り置き・予約は流れない（pendingのときだけ）',
-  /if\(recordType==='pending'\)\{\s*list\.forEach\(function\(o\)\{\s*if\(typeof yukaImportOne==='function'\)/.test(IDX),
+  /* ★2026-10-09 RTの1往復（opt.rtIkki）は GAS の oosRtIkki が発注書へ入れるので、ここは通さない。「pending だけ」は変わらない */
+  /if\(recordType==='pending'(?: && !opt\.rtIkki)?\)\{\s*(?:\/\*[^*]*\*\/\s*)?list\.forEach\(function\(o\)\{\s*if\(typeof yukaImportOne==='function'\)/.test(IDX),
   '（pending の外に出すと、取り置き・予約まで倉庫に流れます）');
 ok('⑤📥が返した【ふだ】を、受注Ａ側に控えている',
   IDX.indexOf('if(d.key) o.yukaKey = String(d.key);') >= 0,

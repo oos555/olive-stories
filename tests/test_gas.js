@@ -203,7 +203,7 @@ eq('参考：0 で止まる', oya3, 0);
   const ct = vm.createContext(bako);
   const retsuAt = gasSrc.indexOf('var OOS_ORDER_RETSU =');
   vm.runInContext(gasSrc.slice(retsuAt, gasSrc.indexOf('];', retsuAt) + 2), ct);
-  ['oosOrderExtraAll_', 'oosOrderKasaneru_', 'saveOrdersMain', 'saveOrders', 'loadAll']
+  ['oosOrderExtraAll_', 'oosOrderKasaneru_', 'oosOrderGyou_', 'saveOrdersMain', 'saveOrders', 'loadAll']   /* ★2026-10-09 行の作り方は oosOrderGyou_ に切り出した */
     .forEach(function(n){ vm.runInContext(gasCut(n), ct); });
 
   const moto = {
@@ -566,6 +566,188 @@ eq('参考：0 で止まる', oya3, 0);
   eq('付箋メモ③ まだのものは false のまま（文字・真偽値どちらも）', got[2].done + ',' + got[3].done, 'false,false');
   eq('付箋メモ④ 誰かに伝える（tellSomeone）も同じ読み方', got[0].tellSomeone + ',' + got[1].tellSomeone, 'false,false');
   eq('付箋メモ⑤ 中身（text・色）はそのまま', got[2].text + '/' + got[2].color, 'まだ/today');
+}
+
+
+/* ══════ ✅ RTの登録は【1往復】（oosRtIkki）＋ 🗓 依頼／〆の取りこぼし（2026-10-09 ひろみさん承認）══════
+   承認済みモック：mocks/mock_RT登録は1往復_2026-10-09.html
+   本物の oosRtIkki・oosRtIkkiChuumon_・oosRtIkkiChuumonKaku_・oosRtIkkiPdf_・oosOrderGyou_ を、
+   シート・ドライブ・鍵の身代わりで動かす。発注書に1行入れる oosYukaImportOrder と V列を書く oosYukaSetDocLinks は
+   記録だけ取る作り物（それぞれ自分の見張りがある）。 */
+{
+  const juchu = [];                       /* 受注データ（2行目から）。1行＝20列 */
+  const yukaV = {};                       /* 発注書のV列 { key: [{文字,リンク}] } */
+  const drive = {};                       /* RT書類フォルダ { 名前: {url,id} } */
+  let saveta = 0, importKaisu = 0, setKaisu = 0, lockMachi = 0, lockHanashi = 0, lockDame = false;
+  const juchuSheet = {
+    getLastRow(){ return juchu.length + 1; },
+    getRange(r, c, n, m){
+      return {
+        getValues(){ return juchu.slice(r - 2, r - 2 + (n || 1)).map(x => x.slice(c - 1, c - 1 + (m || 1))); },
+        getValue(){ return (juchu[r - 2] || [])[c - 1]; },
+        setValue(v){ if(!juchu[r - 2]) juchu[r - 2] = new Array(20).fill(''); juchu[r - 2][c - 1] = v; }
+      };
+    },
+    appendRow(row){ juchu.push(row.slice()); }
+  };
+  const yukaSheet = {
+    getLastRow(){ return 3; },
+    getLastColumn(){ return 40; },
+    getRange(r, c, n, m){
+      return { getDisplayValues(){ return [['RT-20260916-7361\n380498'], ['']].slice(0, n || 1).map(x => c === 21 ? ['【RT RT-20260916-7361】'] : x); },
+               getValues(){ return [[c === 40 ? 'K-old' : '転記キー（自動・さわらない）']]; },
+               getValue(){ return 'K-old'; }, setValue(){}, hideColumns(){} };
+    },
+    hideColumns(){}
+  };
+  const G = H.makeSandbox({
+    SHEET_ID_MAIN: 'MAIN',
+    SpreadsheetApp: { openById(){ return { getSheetByName(n){ return n === '受注データ' ? juchuSheet : null; } }; } },
+    LockService: { getScriptLock(){ return { waitLock(){ lockMachi++; if(lockDame) throw new Error('busy'); }, releaseLock(){ lockHanashi++; } }; } },
+    Logger: { log(){} }, Utilities: { sleep(){} },
+    oosYukaFile_(){ return { getSheetByName(n){ return n === '発注書' ? yukaSheet : null; } }; },
+    oosKeyColByHeader_(){ return 40; },
+    oosFindRowByKey_(sh, col, key){ return key ? 5 : 0; },
+    oosYukaBangouOf_(b){ return String(b || '').split('\n')[0]; },
+    oosRtDocFolder_(){ return { getFilesByName(nm){ const f = drive[nm]; let used = false;
+      return { hasNext(){ return !!f && !used; }, next(){ used = true; return { getUrl(){ return f.url; }, getId(){ return f.id; } }; } }; } }; },
+    oosRtDocShare_(){},
+    saveExtraDoc(b64, nm){ saveta++; drive[nm] = { url: 'https://drive.test/' + nm, id: 'id-' + saveta }; return { status: 'ok', url: drive[nm].url, id: drive[nm].id, name: nm }; },
+    oosYukaImportOrder(yo){ importKaisu++; return importKaisu === 1 ? { status: 'ok', row: 5, key: 'K-new' } : { status: 'dup', row: 5, key: 'K-new' }; },
+    oosYukaSetDocLinks(p){ setKaisu++; const l = yukaV[p.key] || []; function tasu(n, u){ if(!u) return; if(!l.some(x => x['文字'] === n)) l.push({ '文字': n, 'リンク': u }); }
+      tasu(p.nouhinName, p.nouhinUrl); tasu(p.hokaName, p.hokaUrl); yukaV[p.key] = l; return { status: 'ok' }; },
+    oosRtIkkiVretsu_(key){ return (yukaV[key] || []).slice(); }
+  });
+  const retsuAt = gasSrc.indexOf('var OOS_ORDER_RETSU =');
+  vm.runInContext(gasSrc.slice(retsuAt, gasSrc.indexOf('];', retsuAt) + 2), G.ctx);
+  ['OOS_YC', 'OOS_YUKA_SHEET', 'OOS_RT_IKKI_NOUHIN', 'OOS_RT_IKKI_DENPYOU'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G.ctx));
+  ['oosOrderExtraAll_', 'oosOrderKasaneru_', 'oosOrderGyou_', 'oosRtIkki', 'oosRtIkkiChuumon_', 'oosRtIkkiFudaSagasu_', 'oosRtIkkiPdf_', 'oosRtIkkiChuumonKaku_']
+    .forEach(n => vm.runInContext(H.cut(gasSrc, n), G.ctx));
+  G.box.oosRtIkkiVretsu_ = function(key){ return (yukaV[key] || []).slice(); };   /* 作り物をあとから置き直す（切り出しが本物を連れてきても負けない） */
+
+  const order = { id: 'o-new', num: 'RT-20261009-1234', client: 'エクシブ蓼科', customerType: 'rt', status: 'pending',
+    note: 'RT伝票取込 ／ 伝票番号 670636 ／ 納品予定日 2026/10/14', registeredAt: '2026-10-09T00:00:00.000Z',
+    lines: [{ productId: 1, productName: 'オルガニック 500ml', bottles: 12, boxes: 0 }], recipientName: 'エクシブ蓼科', rtCut: { fac: 'エクシブ蓼科' } };
+  const nimotsu = { mode: 'toroku', slipNo: '670636', order: JSON.parse(JSON.stringify(order)),
+    yukaOrder: { num: 'RT-20261009-1234', src: 'RT', slipNo: '670636', items: [] },
+    docs: [{ shu: 'nouhin', b64: 'N', filename: 'エクシブ蓼科_670636_納品書.pdf' }, { shu: 'denpyou', b64: 'D', filename: 'エクシブ蓼科_670636_伝票.pdf' }] };
+
+  /* ① 1回の荷物で、行・PDF2つ・V列のリンク2つ・受注データの1件 がそろう */
+  const r1 = G.box.oosRtIkki(JSON.parse(JSON.stringify(nimotsu)));
+  eq('1往復① 返事は ok で、2つとも貼れている', r1.status + ':' + r1.hareta, 'ok:true');
+  eq('1往復① 発注書に1行（oosYukaImportOrder を1回）', importKaisu, 1);
+  eq('1往復① PDFを2つ保存した', saveta, 2);
+  eq('1往復① V列にリンク2つ（名札はRTの決めごとどおり）', (yukaV['K-new'] || []).map(x => x['文字']).join('／'), '📄 納品書（ひらく）／📄 発注伝票（ひらく）');
+  eq('1往復① 受注データに【1件だけ】足した（全消しではない）', juchu.length + ':' + r1.kaita.shu, '1:tashita');
+  eq('1往復① 受注データの行は saveOrdersMain と同じ作り（20列・IDが1列目・拡張JSONが20列目）',
+     juchu[0].length + ':' + juchu[0][0] + ':' + (JSON.parse(juchu[0][19]).yukaKey), '20:o-new:K-new');
+  eq('1往復① 注文にふだ・送った時刻・伝票PDFのURLが入って返る',
+     r1.order.yukaKey + ':' + (!!r1.order.yukaImport.at) + ':' + r1.order.extraDocUrl, 'K-new:true:https://drive.test/エクシブ蓼科_670636_伝票.pdf');
+  eq('1往復① rtCut（RT残高の切り出し）など、注文の印はまるごと残る', JSON.parse(juchu[0][19]).rtCut.fac, 'エクシブ蓼科');
+  eq('1往復① 鍵をかけて、はなした', lockMachi + ':' + lockHanashi, '1:1');
+
+  /* ② 同じ荷物をもう一度 → 二重にならない（行も・PDFも・受注データも） */
+  const r2 = G.box.oosRtIkki(JSON.parse(JSON.stringify(nimotsu)));
+  eq('1往復② 2回目も ok・2つとも貼れている', r2.status + ':' + r2.hareta, 'ok:true');
+  eq('1往復② 「もう登録されている」と見分け、発注書へは行を作りに行かない', r2.nijuu + ':' + importKaisu, 'RT-20261009-1234:1');
+  eq('1往復② PDFは同じ名前を使い回す（保存は増えない）', saveta, 2);
+  eq('1往復② V列は2つのまま（増えない）', (yukaV['K-new'] || []).length, 2);
+  eq('1往復② 受注データも1件のまま（印だけ直す）', juchu.length + ':' + r2.kaita.shu, '1:naoshita');
+
+  /* ③ 書類だけ（登録済みの伝票を読み直したとき）。ふだが注文に無くても、発注書の行から見つける */
+  juchu.push(G.box.oosOrderGyou_({ id: 'o-old', num: 'RT-20260916-7361', note: 'RT伝票取込 ／ 伝票番号 380498', status: 'pending', lines: [] }));
+  const r3 = G.box.oosRtIkki({ mode: 'docsOnly', slipNo: '380498', order: { id: 'o-old', num: 'RT-20260916-7361' },
+    docs: [{ shu: 'nouhin', b64: 'N2', filename: '高山_380498_納品書.pdf' }, { shu: 'denpyou', b64: 'D2', filename: '高山_380498_伝票.pdf' }] });
+  eq('1往復③ 書類だけでも ok・2つとも貼れる', r3.status + ':' + r3.mode + ':' + r3.hareta, 'ok:docsOnly:true');
+  eq('1往復③ ふだは発注書の行（番号）から見つけた', r3.key, 'K-old');
+  eq('1往復③ 発注書に行は作らない', importKaisu, 1);
+  eq('1往復③ 受注データの印だけ直す（行は増えない）', juchu.length + ':' + r3.kaita.shu + ':' + JSON.parse(juchu[1][19]).yukaKey, '2:naoshita:K-old');
+
+  /* ④ 書類だけなのに、受注データに無い → はっきり断る（何も書かない） */
+  const r4 = G.box.oosRtIkki({ mode: 'docsOnly', order: { id: 'nai', num: 'RT-0' }, docs: [] });
+  eq('1往復④ 無い注文には理由つきで断る', r4.status + ':' + (r4.message.indexOf('見つかりません') >= 0), 'error:true');
+  eq('1往復④ 何も書いていない（③で2つ保存したので4のまま）', juchu.length + ':' + saveta + ':' + importKaisu, '2:4:1');
+
+  /* ⑤ 発注書に行を作れなかった → 断る。PDFも受注データも書かない（順番＝行が先） */
+  G.box.oosYukaImportOrder = function(){ return { status: 'error', message: '発注書のファイルがありません' }; };
+  const r5 = G.box.oosRtIkki({ mode: 'toroku', slipNo: '999', order: { id: 'o-x', num: 'RT-0', note: '伝票番号 999' }, yukaOrder: { num: 'RT-0' },
+    docs: [{ shu: 'nouhin', b64: 'N3', filename: 'x_納品書.pdf' }] });
+  eq('1往復⑤ 行を作れなければ、GASの理由をそのまま返す', r5.status + ':' + r5.message, 'error:発注書に行を作れませんでした：発注書のファイルがありません');
+  eq('1往復⑤ PDFも受注データも書いていない', saveta + ':' + juchu.length, '4:2');
+
+  /* ⑥ 鍵が取れない（混んでいる） → 断る */
+  lockDame = true;
+  const r6 = G.box.oosRtIkki(JSON.parse(JSON.stringify(nimotsu)));
+  eq('1往復⑥ 混んでいるときは「もう一度送る」案内で断る', r6.status + ':' + (r6.message.indexOf('混み合っています') >= 0), 'error:true');
+  lockDame = false;
+
+  /* ⑦ 作り（文字でも） */
+  eq('1往復⑦ doPost の振り分けに rtIkki がある', gasSrc.indexOf("'rtIkki') return oosRtIkki(") >= 0, true);
+  eq('1往復⑦ saveOrdersMain は oosOrderGyou_ を使う（行の作り方は1か所）', /orders\.map\(oosOrderGyou_\)/.test(H.cut(gasSrc, 'saveOrdersMain')), true);
+  eq('1往復⑦ oosRtIkki は saveOrdersMain（全消し→書き直し）を呼ばない', H.cut(gasSrc, 'oosRtIkki').indexOf('saveOrdersMain') < 0, true);
+}
+
+/* ══════ 🗓 B列の「依頼／〆」を取りこぼさない（2026-10-09 ひろみさん「1時間では遅い。2〜3分以内に」）══════ */
+{
+  const G = { console, JSON, String, Object, Array, Number, Math, Date, RegExp, Error, Logger: { log(){} }, Utilities: { sleep(){} } };
+  vm.createContext(G);
+  ['OOS_YC', 'OOS_YUKA_SHEET', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_GO_TSUCHI', 'OOS_KIGEN_ATO_FN', 'OOS_KIGEN_ATO_PROP', 'OOS_MIHARI_ICHIJI']
+    .forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G));
+  ['oosYukaKigenKakuKurikaeshi_', 'oosKigenAtoYoyaku_', 'oosKigenAto', 'oosKigenUmeru_', 'oosKigenNoteDate_']
+    .forEach(n => vm.runInContext(H.cut(gasSrc, n), G));
+  /* やり直し：2回こけて3回目で書けた */
+  let kake = 0, kaita = [];
+  G.oosYukaKigenKaku_ = function(sh, row, key, disp, irai){ kake++; if(kake < 3) throw new Error('混んでいます'); kaita.push({ row, irai }); return { shu: 'tsujo' }; };
+  const k1 = G.oosYukaKigenKakuKurikaeshi_({}, 5, 'K', []);
+  eq('依頼〆① 同じ実行の中で3回までやり直す（2回こけても書ける）', kake + ':' + (k1 && k1.shu), '3:tsujo');
+  kake = 0; G.oosYukaKigenKaku_ = function(){ kake++; throw new Error('まだ混んでいます'); };
+  let nageta = '';
+  try{ G.oosYukaKigenKakuKurikaeshi_({}, 5, 'K', []); }catch(e){ nageta = e.message; }
+  eq('依頼〆② 3回ともだめなら、理由を投げる（黙らない）', kake + ':' + nageta, '3:まだ混んでいます');
+  /* 2分後に1回の予約：何回頼んでも1つ、行は足していく */
+  let tr = []; const props = {};
+  G.ScriptApp = { getProjectTriggers(){ return tr.slice(); }, deleteTrigger(t){ tr.splice(tr.indexOf(t), 1); },
+    newTrigger(fn){ const b = { timeBased(){ return b; }, after(){ return b; }, create(){ tr.push({ getHandlerFunction(){ return fn; } }); } }; return b; } };
+  G.PropertiesService = { getScriptProperties(){ return { getProperty(k){ return props[k] || ''; }, setProperty(k, v){ props[k] = v; }, deleteProperty(k){ delete props[k]; } }; } };
+  G.oosKigenAtoYoyaku_(5); G.oosKigenAtoYoyaku_(7); G.oosKigenAtoYoyaku_(5);
+  eq('依頼〆③ 予約は1つだけ・行は 5,7 の2つ', tr.length + ':' + props[G.OOS_KIGEN_ATO_PROP], '1:5,7');
+  let umetaRows = null; G.oosKigenUmeru_ = function(rows){ umetaRows = rows.slice(); return { status: 'ok' }; };
+  G.oosKigenAto();
+  eq('依頼〆④ 2分後：予約を消して、その行だけ埋めに行く', tr.length + ':' + umetaRows.join(','), '0:5,7');
+  eq('依頼〆④ 控えた行も消す（次の予約が古い行を引きずらない）', props[G.OOS_KIGEN_ATO_PROP] === undefined, true);
+  /* 埋める：🔵なのに依頼／〆が無い行だけ。発送済・キャンセル・赤・もう書いてある行は触らない。依頼日は🔵にした日 */
+  vm.runInContext(H.cut(gasSrc, 'oosKigenUmeru_'), G);   /* 本物に戻す */
+  const Y = G.OOS_YC;
+  function gyou(a, b, note, track, shipped){ const r = new Array(Y.shipped).fill(''); r[0] = a; r[Y.slip - 1] = b; r[Y.note - 1] = note || ''; r[Y.track - 1] = track || ''; r[Y.shipped - 1] = shipped || ''; return r; }
+  const disp = [
+    gyou(G.OOS_YUKA_BTN_GO,        'RT-1\n670636'),                                  /* 2行目：🔵・依頼なし → 埋める */
+    gyou(G.OOS_YUKA_BTN_GO_TSUCHI, 'RT-2\n依頼 10/8(木)\n〆 10/10(土)までに発送'),   /* 3行目：もう書いてある → 触らない */
+    gyou('OOS未チェック 発送しないでください（登録済）', 'RT-3'),                       /* 4行目：赤 → 触らない */
+    gyou(G.OOS_YUKA_BTN_GO,        'RT-4', '', '4523-0000'),                          /* 5行目：送り状NO.あり → 触らない */
+    gyou(G.OOS_YUKA_BTN_GO,        'RT-5', '❌ キャンセルされました'),                   /* 6行目：キャンセル → 触らない */
+    gyou(G.OOS_YUKA_BTN_GO_TSUCHI, 'RT-6')                                            /* 7行目：🔵（通知済）・依頼なし → 埋める */
+  ];
+  const notes = [['⏳ 3分後に倉庫へLINEで知らせます（ほかの🔵とまとめて1通） 10/8 14:30'], [''], [''], [''], [''], ['📨 倉庫LINEへ知らせました 10/7 09:05']];
+  const sh = { getRange(r, c, n, m){ return {
+    getDisplayValues(){ return disp.slice(); }, getNotes(){ return notes.slice(); },
+    getValues(){ return disp.map((_, i) => ['K' + (i + 2)]); } }; } };
+  G.oosYukaFile_ = function(){ return { getSheetByName(){ return sh; } }; };
+  G.oosLastDataRow_ = function(){ return disp.length + 1; };
+  G.oosKeyColByHeader_ = function(){ return 40; };
+  kaita = []; G.oosYukaKigenKaku_ = function(s, row, key, d, irai){ kaita.push(row + ':' + key + ':' + (irai.getMonth() + 1) + '/' + irai.getDate()); };
+  const u = G.oosKigenUmeru_();
+  eq('依頼〆⑤ 埋めるのは「🔵なのに依頼／〆が無い」2行だけ（赤・書いてある・発送済・キャンセルは触らない）', u.umeta + ':' + u.mita, '2:2');
+  eq('依頼〆⑤ 依頼日は🔵にした日（A列のメモの日時）から数える', kaita.join('／'), '2:K2:10/8／7:K7:10/7');
+  const u2 = G.oosKigenUmeru_(['7']);
+  eq('依頼〆⑥ 行を指定すればその行だけ', u2.umeta + ':' + kaita[kaita.length - 1], '1:7:K7:10/7');
+  eq('依頼〆⑦ メモに日時が無ければ今日（null）', G.oosKigenNoteDate_('') === null, true);
+  /* 作り */
+  const go = H.cut(gasSrc, 'oosYukaShipGo_');
+  eq('依頼〆⑧ 🔵は やり直し付き（oosYukaKigenKakuKurikaeshi_）で書き、だめなら2分後の予約（oosKigenAtoYoyaku_）', go.indexOf('oosYukaKigenKakuKurikaeshi_(sh, row, key, disp)') >= 0 && go.indexOf('oosKigenAtoYoyaku_(row)') >= 0, true);
+  eq('依頼〆⑨ 10/5の「A列のメモに⚠️を残す」は残っている', go.indexOf('B列に「依頼／〆」を書けませんでした') >= 0, true);
+  eq('依頼〆⑩ 1時間ごとの既存の見張り（oosImaHassouJikan）に相乗り（新しい見張りは作らない）', H.cut(gasSrc, 'oosImaHassouJikan').indexOf('oosKigenUmeru_()') >= 0, true);
+  eq('依頼〆⑪ 2分後の予約 oosKigenAto は「一時のもの」の表にある（見張りの整理で消されない）', G.OOS_MIHARI_ICHIJI.indexOf('oosKigenAto') >= 0, true);
+  eq('依頼〆⑫ oosYukaKigenKaku_ は🔵にした日を受け取れる（渡さなければ今日）', gasSrc.indexOf('oosYukaKigenKaku_(sh, row, key, disp, iraiDate)') >= 0 && gasSrc.indexOf('var irai = iraiDate ') >= 0, true);
 }
 
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');

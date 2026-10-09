@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-05-01">
+<meta name="oos-version" content="2026-10-09-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -5545,7 +5545,8 @@ function registerOrder(opt){
   if(!opt.ikki) document.getElementById('confirm-area').style.display = 'none';
   clearForm();
   updateSummary(); renderList(); renderSlipSelect();
-  var _torokuHozon = syncOrdersToGAS(list);  // ① 登録した注文だけを最新にマージして保存
+  /* ★2026-10-09 opt.rtIkki（RTの1往復）のときは、GASの窓口 oosRtIkki がその1件を書くので、ここでは保存しない（全消し→書き直しを通らない） */
+  var _torokuHozon = opt.rtIkki ? Promise.resolve() : syncOrdersToGAS(list);  // ① 登録した注文だけを最新にマージして保存
   /* ★2026-09-25 ひろみさん「サンプルと無償サンプルの場合は必ず、価格リスト見積もり M のサンプル発送先リストに入れる」
      　無料サンプル／有償サンプルの行がある注文は、保存が終わってから、サンプル発送先（スプシ「🎁 サンプル発送先」）へすぐ足してもらいます。
      　（取りこぼしてもGASが1時間ごとに足します。★どちらも外さないでください） */
@@ -5564,7 +5565,7 @@ function registerOrder(opt){
       if(typeof yoyakuListAddOne==='function'){ try{ yoyakuListAddOne(o); }catch(eL){ oosShippai('取り置き・予約の送信', eL); } }
     });
   }
-  if(recordType==='pending'){
+  if(recordType==='pending' && !opt.rtIkki){   /* ★2026-10-09 RTの1往復は oosRtIkki が発注書へ入れる（ここは通さない） */
     list.forEach(function(o){
       if(typeof yukaImportOne==='function'){
         /* ★2026-09-10 発注書に入ってから（＝ふだが付いてから）、RTの書類のリンクを貼ります。
@@ -11080,7 +11081,10 @@ async function yoyakuListAddOne(o){
   }catch(e){ /* ここで止まっても、登録そのものは通っています */ }
 }
 
-async function yukaImportOne(id){
+async function yukaImportOne(id, opt){
+  /* ★2026-10-09 opt.bodyDake … 発注書に入れる中身だけを返して【送らない】。RTの1往復（oosRtIkki）が使います。
+     　渡さなければ今までどおり（送ります）。中身の作り方はこの1か所のまま（複製を作らないため） */
+  opt = opt || {};
   var o = orders.find(x=>x.id===id); if(!o) return;
   /* ★2026-09-25 発送不要（請求書のみ）は倉庫へ行きません。ほかの道から呼ばれても止めます */
   if(o.noShip){ alert('⛔ この注文は「発送不要（書類・在庫操作のみ）」です。発注書（倉庫）へは送りません。'); return; }
@@ -11101,7 +11105,7 @@ async function yukaImportOne(id){
     return;
   }
   /* 最新を読み直して、もう1人の画面から取り込まれていないか確かめる（②と同じ作法） */
-  var _fresh = await fetchOrderFresh(id);
+  var _fresh = opt.bodyDake ? null : await fetchOrderFresh(id);   /* ★2026-10-09 中身だけのときは読みに行かない */
   if(_fresh && _fresh.yukaImport && _fresh.yukaImport.at){
     o.yukaImport = _fresh.yukaImport;
     if(typeof renderList === 'function') renderList();
@@ -11217,6 +11221,7 @@ async function yukaImportOne(id){
            ★書き戻さないでください。 */
         note: _noteOut
       }});
+    if(opt.bodyDake) return JSON.parse(_body).order;   /* ★2026-10-09 送らずに中身だけ返す */
     var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:_body });
     var d = null;
     try{ d = await res.json(); }catch(eJ){ d = null; }
@@ -14474,6 +14479,8 @@ async function rtIkkiGo(){
       rtIkkiSay('ng', '⛔ <b>登録していません。</b>伝票番号 ' + esc(String(rtParsed.slipNo))
         + ' は、もう登録されています（' + esc(String(mae.num||'')) + '）。');
       rtIkkiSay('chui', '※ 二重登録を止めました。わざと2回入れたいときは、下の白いボタンから受注登録画面でお願いします。');
+      /* ★2026-10-09 行き止まりにしない：V列を見て、足りなければ［📄 この注文に、書類2つを貼り直す］を出す */
+      if(RT_IKKI_1OUFUKU){ try{ await rtIkkiHariNaoshiAnnai_(mae); }catch(_eH){} }
       modoshi(); return;
     }
 
@@ -14512,6 +14519,12 @@ async function rtIkkiGo(){
       });
     }
 
+    /* ★2026-10-09 ここから【1往復】（承認済みモック mock_RT登録は1往復_2026-10-09.html）。
+       RT_IKKI_1OUFUKU を false にすると、下の今までの道（⑥⑦⑧）に戻ります。★下は消していません */
+    if(RT_IKKI_1OUFUKU){
+      await rtIkki1Oufuku_(list);
+      modoshi(); return;
+    }
     /* ── ⑥ 登録（在庫が減り、発注書へ自動で入ります） ── */
     var ids = list.map(function(o){ return o.id; });
     registerOrder();
@@ -14573,6 +14586,172 @@ async function rtIkkiHariNaosu(){
   }else{
     dame.forEach(function(o){ rtIkkiSay('ng', '⚠️ ' + esc(String(o.nouhinDocNg))); });
   }
+}
+/* ══════════════════════════════════════════════════════════════════════
+   ✅ RTの登録は【1往復】　★2026-10-09 ひろみさん承認
+   承認済みモック：mocks/mock_RT登録は1往復_2026-10-09.html
+   ──────────────────────────────────────────────────────────────────────
+   ひろみさん 2026-10-09：
+   　「12から16往復していたものが1往復で終わるようにする。それになれば、ちゃんと伝票や納品書も
+   　　リンクがきちんと貼り付けられて、倉庫がそれを開いてプリントアウトができる」
+   　「今書いてあるものは何も消さない。他のところは何も変えないでください」
+
+   なぜ：登録→発注書に1行→ふだ待ち→PDF保存→V列→読み直し→保存 を、ブラウザがGASと12〜16往復で
+   　　　やっていて、どこか1つが外れると「行はあるのに書類が無い」が残った（9/13・9/17・9/24・10/5）。
+   どう：伝票PDF・納品書PDF・注文の中身を【1つの荷物】でGASの窓口 oosRtIkki に渡すだけ。
+   　　　GASが鍵をかけて、PDF保存→発注書に1行（V列のリンクも同時）→受注データにその1件 を書き、
+   　　　V列を読み返して返事する。返事が読めなければ【同じ荷物をもう一度送る】だけ（二重にならない）。
+   ★RT_IKKI_1OUFUKU を false にすると、今までの道（rtIkkiGo の ⑥⑦⑧）に戻ります。
+   　今までの部品（docFudaMachi・rtAttachDocsToOrder…）は消していません。カードの④は今までどおりそれを使います。
+   見張り：tests/test_rt_ikki.js（本物の rtIkkiGo を、ニセの fetch で動かす）
+   ══════════════════════════════════════════════════════════════════════ */
+var RT_IKKI_1OUFUKU = true;
+var _rtIkkiNimotsu = null;   /* 最後に送った荷物（［📄 同じ内容をもう一度送る］のため） */
+var RT_IKKI_MATTE = '<br><span style="font-weight:600">スプレッドシートに出るまで30秒ほどかかります。そのままお待ちください。</span>';
+
+/* 荷物を1回送る。返事が読めなければ null */
+async function rtIkkiOkuru_(nimotsu){
+  try{
+    var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: (typeof nimotsu === 'string') ? nimotsu : JSON.stringify(nimotsu) });   /* 文字で渡せば、その文字をそのまま送る */
+    var d = null; try{ d = await r.json(); }catch(eJ){ d = null; }
+    return d;
+  }catch(e){ return null; }
+}
+/* 書類2つ（納品書はこの画面で作る・伝票は読み込んだPDF）。作れなければ理由を投げる */
+async function rtIkkiShorui_(){
+  var nouhinB64 = await rtBuildNotePdfB64();
+  var base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName) ? rtDocBaseName
+           : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : 'RT');
+  base = String(base).replace(/[\\\/:*?\x22<>|]/g, '_');   /* \x22 ＝ "（見張りの切り出しが " を読み違えるため） */
+  var docs = [{ shu:'nouhin', b64:nouhinB64, filename: base + '_納品書.pdf' }];
+  var denpyouB64 = (typeof rtSlipPdfB64 !== 'undefined') ? rtSlipPdfB64 : '';
+  if(denpyouB64) docs.push({ shu:'denpyou', b64:denpyouB64, filename: base + '_伝票.pdf' });
+  return docs;
+}
+function rtIkkiOkuriNaoshiBtn_(){
+  return '<button onclick="rtIkkiOkuriNaoshi()" '
+    + 'style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:800;cursor:pointer">'
+    + '📄 同じ内容をもう一度送る</button>';
+}
+/* 登録の本体（rtIkkiGo の ⑤ のあとから呼ばれる） */
+async function rtIkki1Oufuku_(list){
+  /* ① 書類2つを先に作る（作れなければ登録しない） */
+  rtIkkiIma('⏳ 書類のPDFを作っています…');
+  var docs;
+  try{ docs = await rtIkkiShorui_(); }
+  catch(eP){ rtIkkiSay('ng', '⛔ <b>登録していません。</b>納品書のPDFを作れませんでした：' + esc(String((eP && eP.message) || eP))); return; }
+  /* ② 手元に登録（GASへの保存はしない＝oosRtIkki がその1件を書く） */
+  var ids = list.map(function(o){ return o.id; });
+  registerOrder({ rtIkki:true });
+  var toroku = (typeof orders !== 'undefined' ? orders : []).filter(function(o){ return ids.indexOf(o.id) >= 0; });
+  if(!toroku.length){
+    rtIkkiSay('ng', '⛔ <b>登録できませんでした。</b>下の白いボタンから受注登録画面をひらいて、お確かめください。');
+    return;
+  }
+  /* ③ 荷物を1回送る */
+  rtIkkiIma('⏳ 発注書に送っています…' + RT_IKKI_MATTE);
+  for(var i = 0; i < toroku.length; i++){
+    var o = toroku[i];
+    var yo = await yukaImportOne(o.id, { bodyDake:true });
+    var nimotsu = { action:'rtIkki', payload:{ mode:'toroku', slipNo:String((rtParsed && rtParsed.slipNo) || ''), order:o, yukaOrder:yo, docs:docs } };
+    var moji = JSON.stringify(nimotsu);   /* ★送った瞬間の荷物を【文字】で控える。押し直しは1文字も変えずに同じものを送る */
+    _rtIkkiNimotsu = { moji:moji, id:o.id, docsOnly:false, order:o };
+    var res = await rtIkkiOkuru_(moji);
+    rtIkkiKekkaDasu_(o, res, false);
+  }
+}
+/* 返事を読んで、注文に印を付け、結果を出す */
+function rtIkkiKekkaDasu_(o, res, docsOnly){
+  var num = esc(String(o.num || ''));
+  if(!res){
+    o.nouhinDocNg = '発注書に届いたか、まだ分かりません（返事が読めませんでした）。RT伝票取込の画面の［📄 同じ内容をもう一度送る］を押してください。';
+    if(typeof renderList === 'function') renderList();
+    rtIkkiSay('ng', '⚠️ <b>発注書に届いたか、まだ分かりません。</b>返事が読めませんでした（混み合っています）。<br>'
+      + '　もう一度 ［📄 同じ内容をもう一度送る］ を押してください。<b>二重にはなりません。</b>');
+    rtIkkiSay('ng', rtIkkiOkuriNaoshiBtn_());
+    rtIkkiSay('chui', '※ 押すと、GASが「もう入っている」なら同じ行とリンクを返します。入っていなければ、そのとき入れます。');
+    return;
+  }
+  if(res.status !== 'ok'){
+    if(!docsOnly){
+      /* GASが断った＝何も書いていない。手元の登録も取り下げる（在庫もRT残高も動いていない） */
+      orders = (typeof orders !== 'undefined' ? orders : []).filter(function(x){ return x.id !== o.id; });
+      if(typeof renderList === 'function') renderList();
+      rtIkkiSay('ng', '⚠️ <b>発注書に送れませんでした。</b>GASの理由：「' + esc(String(res.message || '不明')) + '」<br>'
+        + '　登録もしていません（在庫もRT残高も動いていません）。');
+    } else {
+      rtIkkiSay('ng', '⚠️ <b>貼れませんでした。</b>GASの理由：「' + esc(String(res.message || '不明')) + '」');
+    }
+    rtIkkiSay('ng', rtIkkiOkuriNaoshiBtn_());
+    return;
+  }
+  var r = res.order || {};
+  if(r.yukaKey) o.yukaKey = String(r.yukaKey);
+  if(r.yukaImport) o.yukaImport = r.yukaImport;
+  if(r.extraDocUrl){ o.extraDocUrl = r.extraDocUrl; o.extraDocName = r.extraDocName || ''; }
+  o.nouhinDocNg = String(r.nouhinDocNg || '');
+  /* 発注書を読み直さなくても、カードが「貼れている」を出せるように（GASが読み返したV列） */
+  if(typeof docVretsu !== 'undefined' && docVretsu && o.yukaKey && Array.isArray(res.vretsu)) docVretsu[String(o.yukaKey)] = res.vretsu;
+  if(typeof renderList === 'function') renderList();
+  if(res.hareta){
+    if(docsOnly){
+      rtIkkiSay('ok', '✅ <b>今度は2つとも貼れました。</b>発注書を読み直して確かめました。');
+    } else {
+      rtIkkiSay('ok', '✅ 登録しました　<b>' + num + '</b>'
+        + '<div style="font-weight:600;margin-top:3px">発注書に送り、📄 納品書 と 📄 発注伝票 を2つとも貼りました'
+        + '（発注書を読み直して確かめました）。</div>');
+      rtIkkiSay('chui', '※ 倉庫へは、まだ何も行きません。発注書のA列を🔵にしたときだけです（今までどおり）。');
+    }
+  } else {
+    if(!docsOnly) rtIkkiSay('ok', '✅ 登録しました　<b>' + num + '</b>');
+    rtIkkiSay('ng', '⚠️ ' + esc(String(o.nouhinDocNg)));
+    rtIkkiSay('ng', rtIkkiOkuriNaoshiBtn_());
+    rtIkkiSay('chui', '※ <b>登録は取り消していません</b>（取り消すと在庫とRT残高が二重に動くためです）。'
+      + '<br>※ この赤い文字は<b>受注一覧のカードにも残ります</b>。貼れるまで消えません。');
+  }
+}
+/* ［📄 同じ内容をもう一度送る］：最後に送った荷物を、そのままもう一度 */
+async function rtIkkiOkuriNaoshi(){
+  var n = _rtIkkiNimotsu; if(!n) return;
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === n.id; });
+  if(!o) o = n.order;   /* GASが断って取り下げた注文は、控えておいたものを使う */
+  rtIkkiIma('⏳ 同じ内容をもう一度送っています…' + RT_IKKI_MATTE);
+  var res = await rtIkkiOkuru_(n.moji);
+  if(res && res.status === 'ok' && !n.docsOnly && typeof orders !== 'undefined' && orders.indexOf(o) < 0) orders.push(o);
+  rtIkkiKekkaDasu_(o, res, !!n.docsOnly);
+}
+/* 同じ伝票がもう登録されているとき：V列を見て、足りなければ［📄 この注文に、書類2つを貼り直す］を出す */
+async function rtIkkiHariNaoshiAnnai_(mae){
+  var aN = false, aD = false;
+  if(mae && mae.yukaKey && typeof docVretsuYomu === 'function' && typeof rtDocHareteru === 'function'){
+    try{ await docVretsuYomu(true); }catch(e){}
+    aN = !!rtDocHareteru(mae, RT_DOC_NOUHIN);
+    aD = !!rtDocHareteru(mae, RT_DOC_DENPYOU);
+  }
+  rtIkkiSay('wait', 'この注文の発注書のV列：'
+    + (aN ? '<span style="color:#0f5a4a">📄 納品書（あり）</span>' : '<span style="color:#b91c1c">📄 納品書（まだ）</span>') + '　'
+    + (aD ? '<span style="color:#0f5a4a">📄 発注伝票（あり）</span>' : '<span style="color:#b91c1c">📄 発注伝票（まだ）</span>'));
+  if(aN && aD){ rtIkkiSay('ok', '📌 もう貼れています'); return; }
+  rtIkkiSay('ng', '<button onclick="rtIkkiHariNaoshi1(\'' + esc(String(mae.id)) + '\')" '
+    + 'style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:800;cursor:pointer">'
+    + '📄 この注文（' + esc(String(mae.num || '')) + '）に、書類2つを貼り直す</button>');
+  rtIkkiSay('chui', '※ 登録はしません（在庫もRT残高も動きません）。いま読み込んでいる伝票PDFと、この画面で作る納品書を、同じ荷物で送って<b>V列だけ</b>を直します。');
+}
+async function rtIkkiHariNaoshi1(id){
+  var o = (typeof orders !== 'undefined' ? orders : []).find(function(x){ return x.id === id; });
+  if(!o || !rtParsed) return;
+  rtIkkiIma('⏳ 書類のリンクを貼っています…' + RT_IKKI_MATTE);
+  var docs;
+  try{ docs = await rtIkkiShorui_(); }
+  catch(eP){ rtIkkiSay('ng', '⚠️ 納品書のPDFを作れませんでした：' + esc(String((eP && eP.message) || eP))); return; }
+  var nimotsu = { action:'rtIkki', payload:{ mode:'docsOnly', slipNo:String(rtParsed.slipNo || ''),
+    order:{ id:o.id, num:o.num, note:o.note || '', yukaKey:o.yukaKey || '', extraDocUrl:o.extraDocUrl || '', extraDocName:o.extraDocName || '' },
+    docs:docs } };
+  var moji = JSON.stringify(nimotsu);
+  _rtIkkiNimotsu = { moji:moji, id:o.id, docsOnly:true, order:o };
+  var res = await rtIkkiOkuru_(moji);
+  rtIkkiKekkaDasu_(o, res, true);
 }
 function applyRtToOrderForm(rtNokoru){
   /* ══════════════════════════════════════════════════════════════════

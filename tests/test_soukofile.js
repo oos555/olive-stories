@@ -255,7 +255,7 @@ has('⑥受注Ａ：もう一度押しても二重にならない案内', impIdx
    A:「記録のみ」(whSkip)が保存で捨てられ「未送信」に復活していた（2026-08-25報告）。
      原因＝GASの拡張データJSONの載せ忘れ（2026-08-24の送料と同じ穴）。書く側と読む側の両方を見張る。
    B: 取り置き登録で「送る目安」が必須になっていて先に進めなかった。確認1回に変更。 */
-const saveMainSrc = H.cut(gasSrc, 'saveOrdersMain');
+const saveMainSrc = H.cut(gasSrc, 'oosOrderGyou_');   /* ★2026-10-09 行の作り方は saveOrdersMain から oosOrderGyou_ に切り出した（中身は同じ） */
 has('⑧whSkipを保存する', saveMainSrc, 'whSkip: o.whSkip||null');
 has('⑧yukaImportを保存する', saveMainSrc, 'yukaImport: o.yukaImport||null');
 const loadAllSrc = H.cut(gasSrc, 'loadAll');
@@ -468,7 +468,7 @@ has('⑯T☑でも配りは同じ部品', chkSrc, 'oosTrackFanout_(key, track)')
 /* ★2026-09-24 ひろみさん「LINEお知らせ AG列みたいな形で、この文字を追加」→ 見出しに足した */
 has('⑯見出しは「状態を選択してください（LINEお知らせ → AG列）」', H.cut(gasSrc,'oosYukaShipBtnSetup'), 'setValue(OOS_YUKA_A_HEAD)');
 has('⑯見出しの文言', gasSrc, "var OOS_YUKA_A_HEAD    = '状態を選択してください（LINEお知らせ → AG列）';");
-has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'saveOrdersMain'), 'yukaKey: o.yukaKey');
+has('⑮ふだ（yukaKey）は保存で消えない（whitelist）', H.cut(gasSrc,'oosOrderGyou_'), 'yukaKey: o.yukaKey');   /* ★2026-10-09 oosOrderGyou_ に切り出し */
 
 /* 数字テスト：oosYukaStockDeductByKey_ を本物のまま砂場で動かす */
 {
