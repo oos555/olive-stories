@@ -807,6 +807,27 @@ eq('参考：0 で止まる', oya3, 0);
   eq('名刺親③ doGet に読む窓口 loadMeishiCards', H.cut(gasSrc, 'doGet').indexOf("'loadMeishiCards'") >= 0, true);
 }
 
+
+/* ══════ 📋 お届け先リストのひな形 第4版（2026-10-13 ひろみさん「足りないものを足し引きして、選べる・間違いのない・読み取れる形に」）══════ */
+{
+  const G = { console, String, Object, Array, Number };
+  vm.createContext(G);
+  ['OOS_HG', 'OOS_HG_OKURINUSHI', 'OOS_HG_JIKAN', 'OOS_HG_SHURUI'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G));
+  eq('ひな形④ 商品①はL列（12列目）から＝左に 送り主・お届け希望日・時間帯 の3列が増えた', G.OOS_HG.shohinCol, 12);
+  eq('ひな形④ 送り主の表記は3つから選ぶ（空欄＝ご依頼主）', G.OOS_HG_OKURINUSHI.join('／'), 'ご依頼主（取りまとめの方）／お届け先ご本人／オリーブオイル・ストーリーズ');
+  eq('ひな形④ 時間帯の▼は受注Ａの選択肢と同じ文言', G.OOS_HG_JIKAN.join('／'), '指定なし／午前中／日中（12〜18時）／夜間（18〜21時）');
+  const kt = H.cut(gasSrc, 'oosOkyakuHinagataKatachi_');
+  eq('ひな形④ 左の見出しに 送り主の表記・お届け希望日・時間帯 がある', kt.indexOf("'送り主の表記（▼）") >= 0 && kt.indexOf("'お届け希望日") >= 0 && kt.indexOf("'時間帯（▼）'") >= 0, true);
+  eq('ひな形④ 上の説明：お支払いはご依頼主（取りまとめの方）にまとめてご請求（案A）', kt.indexOf('お支払いは、ご依頼主（取りまとめの方）にまとめてご請求します') >= 0 && kt.indexOf("'ご依頼主（取りまとめの方）'") >= 0, true);
+  eq('ひな形④ 送り主と時間帯は▼（自由記入を認めない）', kt.indexOf('requireValueInList(OOS_HG_OKURINUSHI, true).setAllowInvalid(false)') >= 0 && kt.indexOf('requireValueInList(OOS_HG_JIKAN, true).setAllowInvalid(false)') >= 0, true);
+  eq('ひな形④ お届け希望日は文字のまま（12/20 が日付に化けない）', kt.indexOf("sh.getRange(top, 10, N, 1).setNumberFormat('@')") >= 0, true);
+  const hk = H.cut(gasSrc, 'oosOkyakuHinagata');
+  eq('ひな形④ 第4版の目印（6行目9列目＝送り主）で古い形を作り直す', hk.indexOf("sh.getRange(6, 9).getDisplayValue()).indexOf('送り主')") >= 0, true);
+  const ka = H.cut(gasSrc, 'oosOkyakuHinagataKara_');
+  eq('ひな形④ 「原本が空か」は左の全列（商品①の手前まで）を見る', ka.indexOf('for(var c = 2; c < c0; c++)') >= 0 && ka.indexOf("'送り主の表記', 'お届け希望日', '時間帯'") >= 0, true);
+  eq('ひな形④ Excel版を返す窓口（xlsx=1）がある', H.cut(gasSrc, 'doGet').indexOf('oosOkyakuHinagataXlsx_()') >= 0 && gasSrc.indexOf('oosOkyakuHinagataXlsx_(){') >= 0, true);
+}
+
 console.log('===== GAS と oos-zaiko.js の突き合わせ =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
 if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(f => console.log('  ' + f)); }
