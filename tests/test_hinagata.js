@@ -64,6 +64,12 @@ async function tamesu(kotae, nageru){
   eq('④ 置き場所：PDFの見出しの下・PDFを入れる枠の上にボタン2つ', i0 >= 0 && i0 < i1 && i1 < i2 && i2 < i3, true);
   eq('④ 注意書き「原本には、お届け先を書かないでください。」', idx.indexOf('<b>原本には、お届け先を書かないでください。</b>', i0) > 0 && idx.indexOf('<b>原本には、お届け先を書かないでください。</b>', i0) < i3, true);
 
+  /* ⑤ ★2026-10-13 ひろみさん「Excelをダウンロードできるように」：▼つきの .xlsx を GAS が返し、ボタンで保存する */
+  const i4 = idx.indexOf("⬇️ Excel版をダウンロード", i0);
+  eq("⑤ ボタン：✏️ の右に「⬇️ Excel版をダウンロード」", i2 >= 0 && i2 < i4 && i4 < i3, true);
+  const xf = H.cut(idx, "hinagataXlsxDownload");
+  eq("⑤ GASの xlsx=1 を呼び、base64 を Blob にして保存する", xf.indexOf("oosOkyakuHinagata&xlsx=1") >= 0 && xf.indexOf("atob(d.b64)") >= 0 && xf.indexOf("a.download = d.name") >= 0, true);
+  eq("⑤ 作れなかったら理由を枠に出す（黙らない）", xf.indexOf("⛔ Excelを作れませんでした：") >= 0, true);
   console.log('===== お届け先リストのひな形 =====');
   console.log(`PASS ${pass} / FAIL ${fail}`);
   if(fails.length){ console.log('--- FAIL の中身 ---'); fails.forEach(x => console.log('  ' + x)); }

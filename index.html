@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-09-01">
+<meta name="oos-version" content="2026-10-13-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -923,6 +923,7 @@ body{background:#fff}
         <div style="font-size:13px">お中元・お歳暮などで、お届け先がたくさんあるお客様には、このひな形を渡して書いてもらってください。並びがそろうので、取り込みの間違いが減ります。</div>
         <button type="button" id="hinagata-copy-btn" onclick="hinagataLinkCopy()" style="border:none;border-radius:9px;padding:8px 14px;font-weight:700;font-size:13px;margin:6px 6px 0 0;background:#2563eb;color:#fff;cursor:pointer">📋 お客様に渡すリンクをコピー</button>
         <button type="button" onclick="hinagataGenponHiraku()" style="border-radius:9px;padding:8px 14px;font-weight:700;font-size:13px;margin:6px 6px 0 0;background:#fff;color:#1d4ed8;border:1.5px solid #93b4ee;cursor:pointer">✏️ ひな形（原本）を開く</button>
+        <button type="button" id="hinagata-xlsx-btn" onclick="hinagataXlsxDownload()" style="border-radius:9px;padding:8px 14px;font-weight:700;font-size:13px;margin:6px 6px 0 0;background:#fff;color:#1d4ed8;border:1.5px solid #93b4ee;cursor:pointer">⬇️ Excel版をダウンロード</button>
         <div style="color:#8a8578;font-size:12.5px;margin-top:6px">・お客様に渡すのは「📋 お客様に渡すリンク」です。開くとお客様ご自身のコピーができ、原本は書きかえられません（Googleへのログインが要ります）。<br>・ひな形を直したいときは「✏️ ひな形（原本）を開く」から。商品と定価は、こちらで最新に入れ替えます。<br>・<b>原本には、お届け先を書かないでください。</b></div>
         <div id="hinagata-kekka"></div>
       </div>
@@ -12694,6 +12695,32 @@ function cancelPdfImport(){
    ★確かめずにコピーする形に戻さないでください。見張り：tests/test_hinagata.js
    ══════════════════════════════════════════════════════════════════════ */
 var OOS_HINAGATA_ID = '1ApOYH33oqIcqJjcGm5rr6RYRLxIQOSIPNisv644Inrw';
+/* ★2026-10-13 ひろみさん「Excelをダウンロードできるように」：GASが原本を .xlsx にして返す（▼・式つき。商品一覧のタブは書き込めない保護つき）。
+   Googleのアカウントが無い方に渡す用。並びはスプレッドシート版と同じなので、取り込みは同じ形で読める */
+async function hinagataXlsxDownload(){
+  var btn = document.getElementById('hinagata-xlsx-btn');
+  var box = document.getElementById('hinagata-kekka');
+  var moto = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Excelを作っています…'; }
+  try{
+    var d = await oosGetJson(GAS_URL + '?action=oosOkyakuHinagata&xlsx=1&t=' + Date.now());
+    if(!d || d.status !== 'ok' || !d.b64){
+      if(box) box.innerHTML = '<div style="background:#fdecec;border:1.5px solid #e8a0a0;color:#a11d1d;border-radius:8px;padding:8px 10px;font-weight:700;font-size:13px;margin-top:8px">⛔ Excelを作れませんでした：' + esc(String((d && d.message) || '返事が読めませんでした')) + '</div>';
+      return;
+    }
+    var bin = atob(d.b64), u8 = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    var blob = new Blob([u8], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = d.name || 'お届け先リスト（ご記入用）.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){} }, 2000);
+    if(box) box.innerHTML = '<div style="background:#e9f5ea;border:1px solid #b4d9b8;color:#1d6b2a;border-radius:8px;padding:7px 10px;font-weight:700;font-size:13px;margin-top:8px">✅ Excel版を保存しました（' + esc(a.download) + '）。Googleのアカウントが無い方にはこちらを渡してください。商品一覧のタブは書き込めないようにしてあります。</div>';
+  }catch(e){
+    if(box) box.innerHTML = '<div style="background:#fdecec;border:1.5px solid #e8a0a0;color:#a11d1d;border-radius:8px;padding:8px 10px;font-weight:700;font-size:13px;margin-top:8px">⛔ Excelを作れませんでした：' + esc(String((e && e.message) || e)) + '</div>';
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = moto; }
+  }
+}
 function hinagataGenponHiraku(){
   window.open('https://docs.google.com/spreadsheets/d/' + OOS_HINAGATA_ID + '/edit', '_blank');
 }
