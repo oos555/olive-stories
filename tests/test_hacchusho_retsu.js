@@ -76,8 +76,8 @@ ok('④発注書へ送るのは、外したあとの備考', IDX.indexOf('note: 
 /* ── ⑤ ↩️ アプリに差し戻す ───────────────────────── */
 ok('⑤A列の3つ目の言葉がある', /var OOS_YUKA_BTN_BACK = /.test(GAS));
 ok('⑤差し戻したあとの言葉もある', /var OOS_YUKA_BTN_BACK_DONE = /.test(GAS));
-ok('⑤新しい行のプルダウンが3つ',
-   GAS.indexOf('requireValueInList([OOS_YUKA_BTN_STOP, OOS_YUKA_BTN_GO, OOS_YUKA_BTN_BACK], true)') >= 0);
+ok('⑤新しい行のプルダウンが4つ（2026-10-13 夕 🟡 書類を貼り直す を足した）',
+   GAS.indexOf('requireValueInList([OOS_YUKA_BTN_STOP, OOS_YUKA_BTN_GO, OOS_YUKA_BTN_BACK, OOS_YUKA_BTN_HARI], true)') >= 0);
 ok('⑤A列を見張るところに分岐がある',
    bodyOf(GAS, 'oosYukaOnEdit').indexOf('oosYukaSashimodoshi_(sh, row)') >= 0);
 const sm = bodyOf(GAS, 'oosYukaSashimodoshi_');

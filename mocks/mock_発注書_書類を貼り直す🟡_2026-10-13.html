@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>モック2：発注書のA列に🟡「書類を貼り直す」は1回だけ（2026-10-13）</title>
+<style>
+body{font-family:"Yu Gothic UI","Meiryo",sans-serif;background:#f3f1ec;margin:0;padding:18px;color:#222}
+h1{font-size:18px;margin:0 0 6px}
+.sub{font-size:13px;color:#555;margin-bottom:14px}
+.sheet{background:#fff;border:1px solid #c9c4b8;border-radius:8px;overflow:auto;margin-bottom:16px}
+table{border-collapse:collapse;font-size:12.5px;min-width:1000px}
+th,td{border:1px solid #d9d4c8;padding:6px 8px;vertical-align:top;white-space:pre-line}
+th{background:#eceae3;font-weight:700;text-align:left}
+.a{width:210px;font-weight:700}
+.red{background:#f8d7d7;color:#8a1c1c}
+.blue{background:#d7e6f8;color:#0c447c}
+.yellow{background:#fff1b8;color:#6b4e00}
+.gray{background:#e5e5e5;color:#555}
+.v{width:330px}
+.v .ng{color:#b91c1c;font-weight:700}
+.v .wait{color:#8a5a00;font-weight:700}
+.v a{color:#0c447c}
+.memo{font-size:11.5px;color:#444;background:#fffbe6;border-left:3px solid #e0b24a;padding:4px 6px;margin-top:4px;font-weight:400}
+.tag{display:inline-block;font-size:11px;background:#333;color:#fff;border-radius:4px;padding:1px 6px;margin-bottom:4px}
+.dd{display:inline-block;border:1px solid #999;background:#fff;border-radius:4px;padding:3px 6px;font-size:12px;margin:2px 0}
+.dd div{padding:2px 4px}
+.flow{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 18px}
+.step{background:#fff;border:1px solid #c9c4b8;border-radius:8px;padding:10px 12px;font-size:13px;flex:1;min-width:230px}
+.step b{display:block;margin-bottom:4px}
+.q{background:#fff;border:1px solid #c9c4b8;border-radius:8px;padding:10px 14px;font-size:13px}
+.q li{margin:4px 0}
+</style></head><body>
+<h1>モック2：A列の🟡「書類を貼り直す」は<u>1回だけ</u>。ダメなら「LINEで倉庫へ」と出す（2026-10-13 ひろみさん）</h1>
+<div class="sub">赤の段階で「貼れていない → 🟡を選んでください」を必ず出す。🟡を選ぶと「1分お待ちください」。貼れたか貼れなかったかはGASがV列を読み返して判断する。行は倉庫にずっと見せたまま。</div>
+
+<div class="sheet"><table>
+<tr><th class="a">A列（本部の連絡）</th><th>B列</th><th>K列 お届け先</th><th class="v">V列 同梱書類（納品書）</th><th>X列 送り状NO.</th></tr>
+
+<tr><td class="a red"><span class="tag">① 登録直後・貼れていない</span>
+OOS未チェック 発送しないでください（登録済）
+<div class="memo">📄 伝票・納品書がまだ貼り付いていません。A列の▼で「🟡 書類を貼り直す」を選んでください。</div></td>
+<td>RT-20261005-2132
+670636
+依頼 10/13 〆 10/14</td><td>エクシブ蓼科</td>
+<td class="v"><span class="ng">⚠ 伝票・納品書がまだ貼り付いていません</span>
+<span class="ng">→ A列の▼で「🟡 書類を貼り直す」を選んでください</span></td><td></td></tr>
+
+<tr><td class="a yellow"><span class="tag">② 🟡を選んだ直後</span>
+🟡 書類を貼り直す
+<div class="memo">⏳ 貼り付けています。1分お待ちください。終わると赤に戻ります。</div></td>
+<td>RT-20261005-2132
+670636
+依頼 10/13 〆 10/14</td><td>エクシブ蓼科</td>
+<td class="v"><span class="wait">⏳ 貼り付けています。1分お待ちください。</span></td><td></td></tr>
+
+<tr><td class="a red"><span class="tag">③ 貼れた</span>
+OOS未チェック 発送しないでください（登録済）
+<div class="memo">📄 貼り付きました（15:38）。発送してよければ▼で「発送してください」に。</div></td>
+<td>RT-20261005-2132
+670636
+依頼 10/13 〆 10/14</td><td>エクシブ蓼科</td>
+<td class="v"><a href="#">📄 納品書（ひらく）</a>
+<a href="#">📄 発注伝票（ひらく）</a></td><td></td></tr>
+
+<tr><td class="a red"><span class="tag">④ 🟡を1回やっても貼れなかった</span>
+OOS未チェック 発送しないでください（登録済）
+<div class="memo">⚠ リンクが貼り付けられません。申し訳ありません。LINEで倉庫に伝票などをお知らせください。（この行の🟡は使い終わりました）</div></td>
+<td>RT-20261005-2132
+670636</td><td>エクシブ蓼科</td>
+<td class="v"><span class="ng">⚠ リンクが貼り付けられません。申し訳ありません。</span>
+<span class="ng">LINEで倉庫に伝票などをお知らせください。</span></td><td></td></tr>
+
+<tr><td class="a red"><span class="tag">⑤ ④のあと、もう一度🟡を選んだ</span>
+OOS未チェック 発送しないでください（登録済）
+<div class="memo">🟡はこの行で1回使い終わっています。LINEで倉庫に伝票などをお知らせください。</div></td>
+<td>RT-20261005-2132
+670636</td><td>エクシブ蓼科</td>
+<td class="v"><span class="ng">⚠ リンクが貼り付けられません。申し訳ありません。</span>
+<span class="ng">LINEで倉庫に伝票などをお知らせください。</span></td><td></td></tr>
+
+<tr><td class="a blue"><span class="tag">（ふつうの行）</span>
+発送してください（LINE通知済）</td>
+<td>RT-20261012-6225
+370269
+依頼 10/12 〆 10/17</td><td>ラグーナベイコート倶楽部</td>
+<td class="v"><a href="#">📄 納品書（ひらく）</a>
+<a href="#">📄 発注伝票（ひらく）</a></td><td></td></tr>
+</table></div>
+
+<div class="sub"><b>A列の▼（4つ → 5つ）</b>　赤・青・灰の文言は1文字も変えない</div>
+<div class="dd">
+<div class="red">OOS未チェック 発送しないでください（登録済）</div>
+<div class="blue">発送してください</div>
+<div class="blue">発送してください（LINE通知済）</div>
+<div class="gray">↩️ アプリに差し戻す（内容を直す）</div>
+<div class="yellow">🟡 書類を貼り直す　← 新しい（1行につき1回だけ）</div>
+</div>
+
+<div class="sub" style="margin-top:14px"><b>流れ</b></div>
+<div class="flow">
+<div class="step"><b>① 登録した瞬間（赤）</b>GASが自分でV列を読み返す。2つそろわなければ、その場でV列とA列のメモに「まだ貼り付いていません → 🟡を選んでください」。</div>
+<div class="step"><b>② 🟡を選ぶ</b>A列のメモとV列に「⏳ 貼り付けています。1分お待ちください」。GASがその行だけ、Driveの伝票PDF・納品書PDFを名前で探して貼る。終わったらV列を読み返して、貼れたかを判断。</div>
+<div class="step"><b>③ 貼れた</b>V列がリンク2つ。A列は赤に戻り、メモ「貼り付きました（HH:MM）」。あとはいつもどおり🔵へ。</div>
+<div class="step"><b>④ 貼れなかった</b>A列は赤に戻り、メモとV列に「リンクが貼り付けられません。申し訳ありません。LINEで倉庫に伝票などをお知らせください」。🟡はこの行ではもう動かない（⑤）。倉庫にはV列で「書類はLINEで届く・発送は1回」と見える。</div>
+</div>
+
+<div class="q"><b>2026-10-13 夕 ひろみさん決定（このモックが正本）</b><ol><li>④の文言はこのまま</li><li>倉庫向けの一行「書類はLINEで届きます」は出さない</li><li>🟡は赤の行だけ。青になったら働かない</li><li>5分後の自動貼り直しは消した。毎時の自動も消した。🟡（1行につき1回）の手動だけ</li></ol><b>変えないこと</b>：🔵は人が決める（自動で付けない）。倉庫が書ける3列はそのまま。行は倉庫に常に見える。赤・青・灰の文言は1文字も変えない。</div>
+</body></html>

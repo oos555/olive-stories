@@ -793,7 +793,7 @@ eq('参考：0 で止まる', oya3, 0);
 
   const dry = G.box.oosShoruiUmeru_(true);
   eq('書類埋め① 見るだけ（dry）では oosRtIkki を呼ばない', yobareta.length, 0);
-  eq('書類埋め② 足りない行は2つ（🔵・未発送・RT伝票取込・リンク無し）。発送済・リンク2つあり・Shopifyは見ない', dry.mita, 2);
+  eq('書類埋め② 足りない行は2つ（未発送・RT伝票取込・リンク無し）。発送済・リンク2つあり・Shopifyは見ない。A列の色は見ない（赤の行で使う）', dry.mita, 2);
   eq('書類埋め③ Driveに名前が合うPDFがある行だけ「予定」に入る（伝票＝_伝票番号_伝票／納品書＝注文番号_納品書）', dry.hatta.length + ':' + (dry.hatta[0] || {}).予定.join('／'), '1:エクシブ蓼科_20261005-2132_納品書.pdf／エクシブ蓼科_670636_伝票.pdf');
   eq('書類埋め④ Driveに無い行は「なし」に入る（勝手に貼らない）', dry.nai.length + ':' + (dry.nai[0] || {}).num, '1:RT-20261001-1111');
   const hon = G.box.oosShoruiUmeru_(false);
@@ -801,47 +801,95 @@ eq('参考：0 で止まる', oya3, 0);
   eq('書類埋め⑥ 荷物は id・番号・ふだ・伝票番号・送った時刻（元のまま）を持つ', [yobareta[0].order.id, yobareta[0].order.num, yobareta[0].order.yukaKey, yobareta[0].slipNo, yobareta[0].order.yukaImport.at].join('/'), 'o-a/RT-20261005-2132/K-a/670636/2026-10-05T14:22:07.362Z');
   eq('書類埋め⑦ PDFの中身（b64）は送らない＝Driveにある同じ名前を使うだけ', yobareta[0].docs.filter(d => d.b64).length + ':' + yobareta[0].docs.length, '0:2');
   eq('書類埋め⑧ 結果に「貼れた」が返る', hon.hatta[0].hareta, true);
-  eq('書類埋め⑨ 毎時の oosImaHassouJikan に相乗り（見張りは増やさない）', H.cut(gasSrc, 'oosImaHassouJikan').indexOf('oosShoruiUmeru_()') >= 0, true);
-  eq('書類埋め⑩ 窓口 ?action=oosShoruiUmeru&dry=1 がある', H.cut(gasSrc, 'doGet').indexOf("'oosShoruiUmeru'") >= 0, true);
+  eq('書類埋め⑨ 毎時の oosImaHassouJikan からは呼ばない（2026-10-13 夕：自動はやめて🟡の手動だけ）', H.cut(gasSrc, 'oosImaHassouJikan').indexOf('oosShoruiUmeru_') < 0, true);
+  eq('書類埋め⑩ 窓口 ?action=oosShoruiUmeru は見るだけ（dry固定）', H.cut(gasSrc, 'doGet').indexOf('oosShoruiUmeru_(true)') >= 0 && H.cut(gasSrc, 'doGet').indexOf('oosShoruiUmeru_(false') < 0, true);
+  yobareta.length = 0;
+  const hitotsu = G.box.oosShoruiUmeru_(false, 5);
+  eq('書類埋め⑬ 行を指定すると（🟡）その行だけ見る：5行目＝Driveに無い行→呼ばない・なし1件', yobareta.length + ':' + hitotsu.mita + ':' + hitotsu.nai.length, '0:1:1');
+  const hitotsu2 = G.box.oosShoruiUmeru_(false, 2);
+  eq('書類埋め⑭ 2行目を指定すると、その行だけ貼る', yobareta.length + ':' + hitotsu2.hatta.length, '1:1');
   eq('書類埋め⑪ oosRtIkki の書類だけ（docsOnly）で、送った時刻を今日に書き換えない', H.cut(gasSrc, 'oosRtIkki').indexOf('ari.extra.yukaImport.at) o.yukaImport = ari.extra.yukaImport') >= 0, true);
   eq('書類埋め⑫ RT書類フォルダを名前で探す読むだけの窓口 oosRtDocSagasu がある', H.cut(gasSrc, 'doGet').indexOf("'oosRtDocSagasu'") >= 0, true);
 }
 
-/* ══════ ⏱ 書類が貼れなかったら【5分後】にもう一度（oosShoruiAto）2026-10-13 ひろみさん「その日の朝や1日1回では間に合わない」══════ */
+/* ══════ 🟡 書類を貼り直す（発注書のA列・1行につき1回だけ・赤の行だけ）2026-10-13 夕 ひろみさん決定 ══════
+   承認済みモック：mocks/mock_発注書_書類を貼り直す🟡_2026-10-13.html
+   本物の oosYukaShoruiHariNaoshi_・oosHariGyouShirushi_ を、シート・設定の身代わりで動かす。貼る本体（oosShoruiUmeru_）は記録だけ取る作り物 */
 {
-  const tsukutta = [], keshita = [];
-  let triggers = [];
-  let umeruKekka = { status: 'ok', hatta: [{ hareta: true }], dame: [] };
-  let umeruKaisu = 0;
   const props = {};
+  let umeruKekka = { status: 'ok', hatta: [{ hareta: true }] };
+  const umeru = [];
+  function gyou(a, track, shipped, links){
+    const cell = { v: a, note: '' };
+    const vcell = { v: '', links: links || [] };
+    const sh = {
+      getRange(r, c, n, m){
+        if(c === 1 && !n) return { setValue(x){ cell.v = x; }, setNote(x){ cell.note = x; }, getValue(){ return cell.v; }, getNote(){ return cell.note; } };
+        if(c === 1 && n === 1) return { getDisplayValues(){ const row = new Array(32).fill(''); row[0] = cell.v; row[23] = track; row[24] = shipped; return [row]; } };
+        if(c === 22) return { setValue(x){ vcell.v = x; }, getRichTextValue(){ return { getRuns(){ return vcell.links.map(u => ({ getLinkUrl(){ return u; }, getText(){ return '📄'; } })); } }; } };
+        if(c === 40) return { getValue(){ return 'K-' + a.slice(0, 2); } };
+        return { getValue(){ return ''; } };
+      }
+    };
+    return { sh, cell, vcell };
+  }
   const G = H.makeSandbox({
-    ScriptApp: {
-      getProjectTriggers(){ return triggers.slice(); },
-      deleteTrigger(t){ keshita.push(t.getHandlerFunction()); triggers = triggers.filter(x => x !== t); },
-      newTrigger(fn){ return { timeBased(){ return { after(ms){ return { create(){ tsukutta.push(fn + ':' + ms); const t = { getHandlerFunction(){ return fn; } }; triggers.push(t); } }; } }; } }; }
-    },
     PropertiesService: { getScriptProperties(){ return { getProperty(k){ return props[k] === undefined ? null : props[k]; }, setProperty(k, v){ props[k] = v; }, deleteProperty(k){ delete props[k]; } }; } },
-    Logger: { log(){} },
-    oosShoruiUmeru_(){ umeruKaisu++; return umeruKekka; }
+    SpreadsheetApp: { flush(){} },
+    Utilities: { formatDate(){ return '15:38'; } },
+    oosKeyColByHeader_(){ return 40; },
+    oosShoruiUmeru_(dry, row){ umeru.push(row); return umeruKekka; }
   });
-  ['OOS_SHORUI_ATO_FN', 'OOS_SHORUI_ATO_PROP', 'OOS_MIHARI_ICHIJI'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G.ctx));
-  ['oosShoruiAtoYoyaku_', 'oosShoruiAto'].forEach(n => vm.runInContext(H.cut(gasSrc, n), G.ctx));
-  G.box.oosShoruiUmeru_ = function(){ umeruKaisu++; return umeruKekka; };
+  ['OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_GO_TSUCHI', 'OOS_YUKA_BTN_HARI',
+   'OOS_HARI_MSG_NAI', 'OOS_HARI_NOTE_NAI', 'OOS_HARI_MSG_MATTE', 'OOS_HARI_NOTE_MATTE', 'OOS_HARI_NOTE_OK', 'OOS_HARI_MSG_DAME', 'OOS_HARI_NOTE_DAME', 'OOS_HARI_NOTE_SUMI', 'OOS_HARI_NOTE_AO', 'OOS_HARI_PROP']
+    .forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G.ctx));
+  ['oosYukaGoKa_', 'oosHariGyouShirushi_', 'oosYukaShoruiHariNaoshi_'].forEach(n => vm.runInContext(H.cut(gasSrc, n), G.ctx));
+  G.box.oosShoruiUmeru_ = function(dry, row){ umeru.push(row); return umeruKekka; };
 
-  eq('5分後① 一時のものの一覧に oosShoruiAto がある（見張りの点検で消されない）', G.box.OOS_MIHARI_ICHIJI.indexOf('oosShoruiAto') >= 0, true);
-  const y1 = G.box.oosShoruiAtoYoyaku_();
-  eq('5分後② 予約が無ければ【5分後】に1回だけ作る', tsukutta.join('/'), 'oosShoruiAto:300000');
-  const y2 = G.box.oosShoruiAtoYoyaku_();
-  eq('5分後③ もう予約があれば増やさない', tsukutta.length + ':' + y2, '1:もう予約があります');
-  const r1 = G.box.oosShoruiAto();
-  eq('5分後④ 動いたら自分の予約を消して、埋め直し（oosShoruiUmeru_）を1回', keshita.join('/') + ':' + umeruKaisu, 'oosShoruiAto:1');
-  eq('5分後⑤ 全部貼れていれば、予約し直さない', triggers.length + ':' + (props.OOS_SHORUI_ATO_KAISU === undefined), '0:true');
-  umeruKekka = { status: 'ok', hatta: [{ hareta: false }], dame: [] };
-  G.box.oosShoruiAto(); G.box.oosShoruiAto(); G.box.oosShoruiAto();
-  eq('5分後⑥ まだ貼れないときは予約し直すが、2回まで（無限には回さない）。終わったら予約も数も残らない', tsukutta.length + ':' + triggers.length + ':' + (props.OOS_SHORUI_ATO_KAISU === undefined), '3:0:true');
+  eq('🟡① A列の文言は「🟡 書類を貼り直す」。赤・青・灰は1文字も変えない', [G.box.OOS_YUKA_BTN_HARI, G.box.OOS_YUKA_BTN_STOP, G.box.OOS_YUKA_BTN_GO, G.box.OOS_YUKA_BTN_GO_TSUCHI].join('｜'),
+     '🟡 書類を貼り直す｜OOS未チェック 発送しないでください（登録済）｜発送してください｜発送してください（LINE通知済）');
+  /* ③ 貼れた */
+  const r1 = gyou('OOS未チェック 発送しないでください（登録済）', '', '');
+  G.box.oosYukaShoruiHariNaoshi_(r1.sh, 18, 'OOS未チェック 発送しないでください（登録済）');
+  eq('🟡② その行だけ貼りに行く（18行目）', umeru.join(','), '18');
+  eq('🟡③ 貼れたら赤に戻り、メモ「貼り付きました（HH:MM）。発送してよければ▼で「発送してください」に。」', r1.cell.v + '｜' + r1.cell.note, 'OOS未チェック 発送しないでください（登録済）｜📄 貼り付きました（15:38）。発送してよければ▼で「発送してください」に。');
+  eq('🟡④ 使い終わった印が、その行のふだで残る', !!props['OOS_HARI_1KAI_K-OO'], true);
+  /* ⑤ 2回目は働かない */
+  umeru.length = 0;
+  G.box.oosYukaShoruiHariNaoshi_(r1.sh, 18, 'OOS未チェック 発送しないでください（登録済）');
+  eq('🟡⑤ 同じ行で2回目は貼りに行かず、メモ「🟡はこの行で1回使い終わっています。LINEで倉庫に伝票などをお知らせください。」', umeru.length + '｜' + r1.cell.v + '｜' + r1.cell.note, '0｜OOS未チェック 発送しないでください（登録済）｜🟡はこの行で1回使い終わっています。LINEで倉庫に伝票などをお知らせください。');
+  /* ④ 貼れなかった */
+  delete props['OOS_HARI_1KAI_K-OO'];
+  umeruKekka = { status: 'ok', hatta: [{ hareta: false }] };
+  const r2 = gyou('OOS未チェック 発送しないでください（登録済）', '', '');
+  const matte = [];
+  const origSet = r2.vcell;
+  G.box.oosYukaShoruiHariNaoshi_(r2.sh, 18, '');
+  eq('🟡⑥ 貼れなかったら赤に戻り、メモ「⚠ リンクが貼り付けられません。申し訳ありません。LINEで倉庫に伝票などをお知らせください。（この行の🟡は使い終わりました）」', r2.cell.v + '｜' + r2.cell.note, 'OOS未チェック 発送しないでください（登録済）｜⚠ リンクが貼り付けられません。申し訳ありません。LINEで倉庫に伝票などをお知らせください。（この行の🟡は使い終わりました）');
+  eq('🟡⑦ V列にも同じ赤い文字（倉庫にも見える）', r2.vcell.v, '⚠ リンクが貼り付けられません。申し訳ありません。\nLINEで倉庫に伝票などをお知らせください。');
+  /* 青の行 */
+  umeru.length = 0;
+  const r3 = gyou('発送してください（LINE通知済）', '', '');
+  G.box.oosYukaShoruiHariNaoshi_(r3.sh, 21, '発送してください（LINE通知済）');
+  eq('🟡⑧ 青の行では働かない：青に戻してメモ「🟡は赤（発送前）の行でだけ使えます。」', umeru.length + '｜' + r3.cell.v + '｜' + r3.cell.note, '0｜発送してください（LINE通知済）｜🟡は赤（発送前）の行でだけ使えます。');
+  /* V列にリンクがある行には文字を書かない */
+  const r4 = gyou('OOS未チェック 発送しないでください（登録済）', '', '', ['https://x/1']);
+  G.box.oosHariGyouShirushi_(r4.sh, 5, '文字', 'メモ');
+  eq('🟡⑨ V列にリンクが1つでもあれば文字で上書きしない（リンクを消さない）。メモは書く', r4.vcell.v + '｜' + r4.cell.note, '｜メモ');
+  /* 静かな見張り */
+  const oe = H.cut(gasSrc, 'oosYukaOnEdit');
+  eq('🟡⑩ A列で🟡を選ぶと onEdit が oosYukaShoruiHariNaoshi_ を呼ぶ（前の値も渡す）', oe.indexOf('oosYukaShoruiHariNaoshi_(sh, row, e.oldValue)') >= 0, true);
   const ik = H.cut(gasSrc, 'oosRtIkki');
-  eq('5分後⑦ oosRtIkki は「2つそろわなかった」ときに5分後を予約する', ik.indexOf('oosShoruiAtoYoyaku_()') > ik.indexOf("o.nouhinDocNg = ''; }"), true);
+  eq('🟡⑪ 登録で2つそろわなかったら、その場でV列とA列のメモに「🟡を選んでください」を書く（赤の段階で気づける）', ik.indexOf('oosHariNaiShirushi_(key, OOS_HARI_MSG_NAI, OOS_HARI_NOTE_NAI)') >= 0, true);
+  eq('🟡⑫ 受注Ａの赤い文字も「発注書のA列の▼で🟡を選んでください」の案内', ik.indexOf("'発注書のA列の▼で「' + OOS_YUKA_BTN_HARI + '」を選んでください（1行につき1回）。'") >= 0, true);
+  const imp = H.cut(gasSrc, 'oosYukaImportOrder');
+  eq('🟡⑬ 新しい行（赤）の▼に🟡が入る', imp.indexOf('OOS_YUKA_BTN_BACK, OOS_YUKA_BTN_HARI]') >= 0, true);
+  const ls = H.cut(gasSrc, 'oosSoukoMatomeSend');
+  eq('🟡⑭ 倉庫にLINEで知らせて青になった行の▼には🟡が無い（青では働かない）', ls.indexOf('OOS_YUKA_BTN_HARI') < 0, true);
+  eq('🟡⑮ 5分後の自動（oosShoruiAto）は消えていて、古い見張りの一覧にだけ名前が残る', gasSrc.indexOf('function oosShoruiAto') < 0 && gasSrc.indexOf('oosShoruiAtoYoyaku_') < 0 && H.cutVar(gasSrc, 'OOS_MIHARI_FURUI').indexOf("'oosShoruiAto'") >= 0, true);
+  eq('🟡⑯ 一時のものの一覧に oosShoruiAto は無い', H.cutVar(gasSrc, 'OOS_MIHARI_ICHIJI').indexOf('oosShoruiAto') < 0, true);
 }
+
 
 
 /* ══════ 📦 バサラ発注シート：商品①と②が同じときの注意メモ（2026-10-09 ひろみさん）／メール取込の停止 ══════ */
