@@ -750,6 +750,63 @@ eq('参考：0 で止まる', oya3, 0);
   eq('依頼〆⑫ oosYukaKigenKaku_ は🔵にした日を受け取れる（渡さなければ今日）', gasSrc.indexOf('oosYukaKigenKaku_(sh, row, key, disp, iraiDate)') >= 0 && gasSrc.indexOf('var irai = iraiDate ') >= 0, true);
 }
 
+/* ══════ 📄 V列に書類が無いRT行を、Driveに残っているPDFで毎時埋める（oosShoruiUmeru_）2026-10-13 ひろみさん「毎回毎回、本当に困る」══════
+   10/5のエクシブ蓼科：PDFは2つともDriveにあったのにV列だけ空のまま8日間。これが二度と「そのまま」にならないための見張り。 */
+{
+  const yobareta = [];
+  const juchu = [
+    ['o-a', '', 'RT-20261005-2132', '', '', '', '', '', '', '', 'RT伝票取込 ／ 伝票番号 670636 ／ 納品予定日 2026/10/14', 'shipped', '', '', '', '', '', '', '', JSON.stringify({ yukaKey: 'K-a', yukaImport: { at: '2026-10-05T14:22:07.362Z' } })],
+    ['o-c', '', 'RT-20261012-6225', '', '', '', '', '', '', '', 'RT伝票取込 ／ 伝票番号 370269', 'pending', '', '', '', '', '', '', '', JSON.stringify({ yukaKey: 'K-c' })],
+    ['o-d', '', 'RT-20261001-1111', '', '', '', '', '', '', '', 'RT伝票取込 ／ 伝票番号 999999', 'pending', '', '', '', '', '', '', '', JSON.stringify({ yukaKey: 'K-d' })]
+  ];
+  function run(url){ return { getRuns(){ return [{ getText(){ return '📄 納品書（ひらく）'; }, getLinkUrl(){ return url; } }, { getText(){ return '📄 発注伝票（ひらく）'; }, getLinkUrl(){ return url; } }]; } }; }
+  const gyou = [
+    /* A列, ..., 備考(21), 送り状(24), 発送済(25) */
+    { a: '発送してください（LINE通知済）', biko: '📦 ふつう ｜ RT伝票取込 ／ 納品先 ｲﾀﾘｱﾝ厨房', track: '', shipped: '', key: 'K-a', v: { getRuns(){ return []; } } },
+    { a: '発送してください', biko: 'RT伝票取込', track: '1234', shipped: 'TRUE', key: 'K-b', v: { getRuns(){ return []; } } },
+    { a: '発送してください（LINE通知済）', biko: 'RT伝票取込', track: '', shipped: '', key: 'K-c', v: run('https://x/1') },
+    { a: '発送してください（LINE通知済）', biko: 'RT伝票取込', track: '', shipped: '', key: 'K-d', v: { getRuns(){ return []; } } },
+    { a: '発送してください', biko: 'Shopifyから転記', track: '', shipped: '', key: 'K-e', v: { getRuns(){ return []; } } }
+  ];
+  const yukaSheet = {
+    getRange(r, c, n, m){
+      return {
+        getDisplayValues(){ return gyou.map(g => { const row = new Array(25).fill(''); row[0] = g.a; row[20] = g.biko; row[23] = g.track; row[24] = g.shipped; return row; }); },
+        getValues(){ return gyou.map(g => [g.key]); },
+        getRichTextValues(){ return gyou.map(g => [g.v]); }
+      };
+    }
+  };
+  const G = H.makeSandbox({
+    SHEET_ID_MAIN: 'MAIN',
+    SpreadsheetApp: { openById(){ return { getSheetByName(n){ return n === '受注データ' ? { getLastRow(){ return juchu.length + 1; }, getRange(){ return { getValues(){ return juchu; } }; } } : null; } }; } },
+    oosYukaFile_(){ return { getSheetByName(n){ return n === '発注書' ? yukaSheet : null; } }; },
+    oosLastDataRow_(){ return gyou.length + 1; },
+    oosKeyColByHeader_(){ return 40; },
+    oosRtDocFolder_(){ const names = ['エクシブ蓼科_670636_伝票.pdf', 'エクシブ蓼科_20261005-2132_納品書.pdf', '10月17日納品ラグーナ_370269_伝票.pdf']; let i = 0;
+      return { getFiles(){ return { hasNext(){ return i < names.length; }, next(){ return { getName(){ return names[i++]; } }; } }; } }; },
+    oosRtIkki(p){ yobareta.push(p); return { status: 'ok', hareta: true }; }
+  });
+  ['OOS_YC', 'OOS_YUKA_SHEET', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_GO_TSUCHI', 'OOS_RT_IKKI_NOUHIN', 'OOS_RT_IKKI_DENPYOU'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G.ctx));
+  vm.runInContext(H.cut(gasSrc, 'oosShoruiUmeru_'), G.ctx);
+  G.box.oosRtIkki = function(p){ yobareta.push(p); return { status: 'ok', hareta: true }; };
+
+  const dry = G.box.oosShoruiUmeru_(true);
+  eq('書類埋め① 見るだけ（dry）では oosRtIkki を呼ばない', yobareta.length, 0);
+  eq('書類埋め② 足りない行は2つ（🔵・未発送・RT伝票取込・リンク無し）。発送済・リンク2つあり・Shopifyは見ない', dry.mita, 2);
+  eq('書類埋め③ Driveに名前が合うPDFがある行だけ「予定」に入る（伝票＝_伝票番号_伝票／納品書＝注文番号_納品書）', dry.hatta.length + ':' + (dry.hatta[0] || {}).予定.join('／'), '1:エクシブ蓼科_20261005-2132_納品書.pdf／エクシブ蓼科_670636_伝票.pdf');
+  eq('書類埋め④ Driveに無い行は「なし」に入る（勝手に貼らない）', dry.nai.length + ':' + (dry.nai[0] || {}).num, '1:RT-20261001-1111');
+  const hon = G.box.oosShoruiUmeru_(false);
+  eq('書類埋め⑤ 本番では oosRtIkki（docsOnly）を1回だけ呼ぶ', yobareta.length + ':' + yobareta[0].mode, '1:docsOnly');
+  eq('書類埋め⑥ 荷物は id・番号・ふだ・伝票番号・送った時刻（元のまま）を持つ', [yobareta[0].order.id, yobareta[0].order.num, yobareta[0].order.yukaKey, yobareta[0].slipNo, yobareta[0].order.yukaImport.at].join('/'), 'o-a/RT-20261005-2132/K-a/670636/2026-10-05T14:22:07.362Z');
+  eq('書類埋め⑦ PDFの中身（b64）は送らない＝Driveにある同じ名前を使うだけ', yobareta[0].docs.filter(d => d.b64).length + ':' + yobareta[0].docs.length, '0:2');
+  eq('書類埋め⑧ 結果に「貼れた」が返る', hon.hatta[0].hareta, true);
+  eq('書類埋め⑨ 毎時の oosImaHassouJikan に相乗り（見張りは増やさない）', H.cut(gasSrc, 'oosImaHassouJikan').indexOf('oosShoruiUmeru_()') >= 0, true);
+  eq('書類埋め⑩ 窓口 ?action=oosShoruiUmeru&dry=1 がある', H.cut(gasSrc, 'doGet').indexOf("'oosShoruiUmeru'") >= 0, true);
+  eq('書類埋め⑪ oosRtIkki の書類だけ（docsOnly）で、送った時刻を今日に書き換えない', H.cut(gasSrc, 'oosRtIkki').indexOf('ari.extra.yukaImport.at) o.yukaImport = ari.extra.yukaImport') >= 0, true);
+  eq('書類埋め⑫ RT書類フォルダを名前で探す読むだけの窓口 oosRtDocSagasu がある', H.cut(gasSrc, 'doGet').indexOf("'oosRtDocSagasu'") >= 0, true);
+}
+
 
 /* ══════ 📦 バサラ発注シート：商品①と②が同じときの注意メモ（2026-10-09 ひろみさん）／メール取込の停止 ══════ */
 {
