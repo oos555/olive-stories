@@ -807,6 +807,42 @@ eq('参考：0 で止まる', oya3, 0);
   eq('書類埋め⑫ RT書類フォルダを名前で探す読むだけの窓口 oosRtDocSagasu がある', H.cut(gasSrc, 'doGet').indexOf("'oosRtDocSagasu'") >= 0, true);
 }
 
+/* ══════ ⏱ 書類が貼れなかったら【5分後】にもう一度（oosShoruiAto）2026-10-13 ひろみさん「その日の朝や1日1回では間に合わない」══════ */
+{
+  const tsukutta = [], keshita = [];
+  let triggers = [];
+  let umeruKekka = { status: 'ok', hatta: [{ hareta: true }], dame: [] };
+  let umeruKaisu = 0;
+  const props = {};
+  const G = H.makeSandbox({
+    ScriptApp: {
+      getProjectTriggers(){ return triggers.slice(); },
+      deleteTrigger(t){ keshita.push(t.getHandlerFunction()); triggers = triggers.filter(x => x !== t); },
+      newTrigger(fn){ return { timeBased(){ return { after(ms){ return { create(){ tsukutta.push(fn + ':' + ms); const t = { getHandlerFunction(){ return fn; } }; triggers.push(t); } }; } }; } }; }
+    },
+    PropertiesService: { getScriptProperties(){ return { getProperty(k){ return props[k] === undefined ? null : props[k]; }, setProperty(k, v){ props[k] = v; }, deleteProperty(k){ delete props[k]; } }; } },
+    Logger: { log(){} },
+    oosShoruiUmeru_(){ umeruKaisu++; return umeruKekka; }
+  });
+  ['OOS_SHORUI_ATO_FN', 'OOS_SHORUI_ATO_PROP', 'OOS_MIHARI_ICHIJI'].forEach(n => vm.runInContext(H.cutVar(gasSrc, n), G.ctx));
+  ['oosShoruiAtoYoyaku_', 'oosShoruiAto'].forEach(n => vm.runInContext(H.cut(gasSrc, n), G.ctx));
+  G.box.oosShoruiUmeru_ = function(){ umeruKaisu++; return umeruKekka; };
+
+  eq('5分後① 一時のものの一覧に oosShoruiAto がある（見張りの点検で消されない）', G.box.OOS_MIHARI_ICHIJI.indexOf('oosShoruiAto') >= 0, true);
+  const y1 = G.box.oosShoruiAtoYoyaku_();
+  eq('5分後② 予約が無ければ【5分後】に1回だけ作る', tsukutta.join('/'), 'oosShoruiAto:300000');
+  const y2 = G.box.oosShoruiAtoYoyaku_();
+  eq('5分後③ もう予約があれば増やさない', tsukutta.length + ':' + y2, '1:もう予約があります');
+  const r1 = G.box.oosShoruiAto();
+  eq('5分後④ 動いたら自分の予約を消して、埋め直し（oosShoruiUmeru_）を1回', keshita.join('/') + ':' + umeruKaisu, 'oosShoruiAto:1');
+  eq('5分後⑤ 全部貼れていれば、予約し直さない', triggers.length + ':' + (props.OOS_SHORUI_ATO_KAISU === undefined), '0:true');
+  umeruKekka = { status: 'ok', hatta: [{ hareta: false }], dame: [] };
+  G.box.oosShoruiAto(); G.box.oosShoruiAto(); G.box.oosShoruiAto();
+  eq('5分後⑥ まだ貼れないときは予約し直すが、2回まで（無限には回さない）。終わったら予約も数も残らない', tsukutta.length + ':' + triggers.length + ':' + (props.OOS_SHORUI_ATO_KAISU === undefined), '3:0:true');
+  const ik = H.cut(gasSrc, 'oosRtIkki');
+  eq('5分後⑦ oosRtIkki は「2つそろわなかった」ときに5分後を予約する', ik.indexOf('oosShoruiAtoYoyaku_()') > ik.indexOf("o.nouhinDocNg = ''; }"), true);
+}
+
 
 /* ══════ 📦 バサラ発注シート：商品①と②が同じときの注意メモ（2026-10-09 ひろみさん）／メール取込の停止 ══════ */
 {
