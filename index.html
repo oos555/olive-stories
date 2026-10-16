@@ -494,7 +494,7 @@ body{background:#fff}
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-13-01">
+<meta name="oos-version" content="2026-10-16-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -12941,8 +12941,25 @@ function rtShowDocName(){
   var msg  = document.getElementById('rt-docname-msg');
   if(!wrap || !box) return;
   wrap.style.display = 'block';
-  if(!box.value) box.value = rtDocNameSuggest();
+  /* ★2026-10-16 ゆかちゃん報告「伝票名を設定しても反映されない」の原因その1：
+     　前の伝票で決めた名前（rtDocBaseName と欄の中身）が、次の伝票を読んでも残っていました。
+     　そのまま登録すると、次の伝票の書類が【前の伝票の名前】で作られます
+     　（GASは同じ名前のPDFを作り直さないので、前の書類がそのまま貼られることもあります）。
+     ★伝票を読むたびに、名前を【この伝票の候補】に戻します。消さないでください。 */
+  rtDocBaseName = '';
+  box.value = rtDocNameSuggest();
   if(msg){ msg.textContent = 'いまは仮の名前です。直したら「この名前にする」を押してください。'; msg.style.color = '#8a6a1f'; }
+}
+
+/* ★2026-10-16 書類に付ける名前は【いまこの順】で決めます（ゆかちゃん報告の原因その2）：
+     ① 「この名前にする」で決めた名前 → ② 欄に打ってある名前（ボタンを押していなくても） → ③ 候補
+   それまでは①か③だけで、欄に打っただけでは使われませんでした。 */
+function rtDocNameIma_(){
+  if(typeof rtDocBaseName !== 'undefined' && rtDocBaseName) return rtDocBaseName;
+  var box = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('rt-docname') : null;
+  var typed = box ? String(box.value || '').trim() : '';
+  if(typed) return typed;
+  return (typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : 'RT';
 }
 
 /* 「この名前にする」を押したとき：ドライブの伝票の名前を変える */
@@ -13716,9 +13733,10 @@ async function rtAttachDocsToOrder(o){
         try{
           b64 = await rtBuildNotePdfB64();
           /* ★2026-09-10 伝票と納品書に【同じ名前】を付けて、ドライブで並ぶようにします */
-          var _base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
+          var _base = (typeof rtDocNameIma_ === 'function') ? rtDocNameIma_()   /* ★2026-10-16 欄に打った名前も使う */
+                    : ((typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
                     ? rtDocBaseName
-                    : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT'));
+                    : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : ((rtParsed.nouhinNo || rtParsed.slipNo || '') || 'RT')));
           nm = _base + '_納品書.pdf';
         }catch(e){ b64 = ''; }
       }
@@ -13737,9 +13755,10 @@ async function rtAttachDocsToOrder(o){
        　まだ無くて、いま伝票を開いているなら、ここで入れ直します。 */
     var denpyouUrl = rtDocHareteru(o, RT_DOC_DENPYOU) || o.extraDocUrl || '';
     if(!denpyouUrl && _denpyouKara && typeof rtSlipPdfB64 !== 'undefined' && rtSlipPdfB64){
-      var _bn = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
+      var _bn = (typeof rtDocNameIma_ === 'function') ? rtDocNameIma_()   /* ★2026-10-16 欄に打った名前も使う */
+              : ((typeof rtDocBaseName !== 'undefined' && rtDocBaseName)
               ? rtDocBaseName
-              : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : (_slip || 'RT'));
+              : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : (_slip || 'RT')));
       denpyouUrl = await rtPdfIreru_(rtSlipPdfB64, _bn + '_伝票.pdf');
       if(denpyouUrl){ o.extraDocUrl = denpyouUrl; o.extraDocName = _bn + '_伝票.pdf'; }
     }
@@ -14648,8 +14667,10 @@ async function rtIkkiOkuru_(nimotsu){
 /* 書類2つ（納品書はこの画面で作る・伝票は読み込んだPDF）。作れなければ理由を投げる */
 async function rtIkkiShorui_(){
   var nouhinB64 = await rtBuildNotePdfB64();
-  var base = (typeof rtDocBaseName !== 'undefined' && rtDocBaseName) ? rtDocBaseName
-           : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : 'RT');
+  /* ★2026-10-16 欄に打った名前も使う（rtDocNameIma_）。無い環境では今までどおり */
+  var base = (typeof rtDocNameIma_ === 'function') ? rtDocNameIma_()
+           : ((typeof rtDocBaseName !== 'undefined' && rtDocBaseName) ? rtDocBaseName
+           : ((typeof rtDocNameSuggest === 'function') ? rtDocNameSuggest() : 'RT'));
   base = String(base).replace(/[\\\/:*?\x22<>|]/g, '_');   /* \x22 ＝ "（見張りの切り出しが " を読み違えるため） */
   var docs = [{ shu:'nouhin', b64:nouhinB64, filename: base + '_納品書.pdf' }];
   var denpyouB64 = (typeof rtSlipPdfB64 !== 'undefined') ? rtSlipPdfB64 : '';
@@ -14822,6 +14843,12 @@ function applyRtToOrderForm(rtNokoru){
   addRecipient();
   const cards = document.querySelectorAll('.recipient-card');
   const card = cards[cards.length-1];
+  /* ★2026-10-16 ゆかちゃん報告「部門名が宛名に反映されない」の原因：
+     　カードは作った直後【✓ 発注者と同じ住所】のままで、下で入れる会社名・部門・住所は読まれず、
+     　登録の宛名は o-client（施設名だけ）になっていました（collectRecipients の isSame）。
+     　ECの注文でも、カードに入れた通販倉庫の住所ではなく施設の住所が発注書へ行っていました。
+     ★先に「別の住所に送る」にしてから、下で会社名・部門・住所を入れます。消さないでください。 */
+  if(typeof setRecipientAddrMode==='function') setRecipientAddrMode(card.id, false);
   const comRadio = card.querySelector('[data-role=rtypeCom]');
   if(comRadio){ comRadio.checked = true; if(typeof onRecipientTypeChange==='function') onRecipientTypeChange(card.id); }
   if(p.ecShip){

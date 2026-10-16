@@ -64,6 +64,7 @@ function sunaba(opt){
       if (id === 'rt-ikki-btn') return btn;
       if (id === 'rt-confirm-chk') return chk;
       if (id === 'order-alerts') return alerts;
+      if (id === 'rt-docname') return opt.docBox || null;   /* ★2026-10-16 名前の欄（打っただけ） */
       return null;
     }},
     orders: chuumon,
@@ -114,6 +115,8 @@ function sunaba(opt){
    'rtIkkiOkuru_','rtIkkiShorui_','rtIkkiOkuriNaoshiBtn_','rtIkki1Oufuku_','rtIkkiKekkaDasu_','rtIkkiOkuriNaoshi',
    'rtIkkiHariNaoshiAnnai_','rtIkkiHariNaoshi1']
     .forEach(function(n){ vm.runInContext(H.cut(SRC, n), ctx); });
+  /* ★2026-10-16 書類の名前の決め方（①決めた名前 ②欄に打った名前 ③候補）。無い版でも砂場は作る（⑭が落ちて教える） */
+  try{ vm.runInContext(H.cut(SRC, 'rtDocNameIma_'), ctx); }catch(_eN){}
   vm.runInContext('var rtIkkiChu = false; var _rtIkkiKekka = ""; var _rtIkkiIma = "";', ctx);
   return { ctx: ctx, log: log, btn: btn, ashiato: ashiato, chuumon: chuumon, nimotsu: nimotsu, vYonda: vYonda, henji: henji,
            run: function(){ return vm.runInContext('rtIkkiGo()', ctx); },
@@ -387,6 +390,51 @@ const OK_HENJI = { status: 'ok', mode: 'toroku', hareta: true,
     ok('⑬yukaImportOne は opt.bodyDake で中身だけ返す（作り方は1か所のまま）',
        yk.indexOf('if(opt.bodyDake) return JSON.parse(_body).order;') >= 0 && yk.indexOf("opt.bodyDake ? null : await fetchOrderFresh(id)") >= 0);
     ok('⑬GASの窓口は rtIkki（1回の荷物）', H.cut(SRC, 'rtIkki1Oufuku_').indexOf("action:'rtIkki'") >= 0);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     ⑭ 書類の名前（2026-10-16 ゆかちゃん報告「伝票名を設定しても反映されない」）
+        原因その1：前の伝票で決めた名前が、次の伝票でも残っていた
+        原因その2：欄に打っただけ（「この名前にする」を押していない）だと使われなかった
+     ══════════════════════════════════════════════════════════════ */
+  {
+    const s1 = sunaba({ pending: [chuumonTsukuru({})], docBox: { value: ' ベイコート0916 ' } });
+    const d1 = await vm.runInContext('rtIkkiShorui_()', s1.ctx);
+    ok('⑭欄に打っただけの名前でも、書類の名前に使う（ボタンを押していなくても）',
+       d1[0].filename === 'ベイコート0916_納品書.pdf' && d1[1].filename === 'ベイコート0916_伝票.pdf',
+       '（' + d1.map(function(x){ return x.filename; }).join(' / ') + '）');
+    const s2 = sunaba({ pending: [chuumonTsukuru({})], docBox: { value: 'ベイコート0916' }, baseName: 'きめた名前' });
+    const d2 = await vm.runInContext('rtIkkiShorui_()', s2.ctx);
+    ok('⑭「この名前にする」で決めた名前が、欄より先', d2[0].filename === 'きめた名前_納品書.pdf');
+    const s3 = sunaba({ pending: [chuumonTsukuru({})], docBox: { value: '' } });
+    const d3 = await vm.runInContext('rtIkkiShorui_()', s3.ctx);
+    ok('⑭どちらも無ければ候補（施設名_伝票番号）', d3[0].filename === 'サンクチュアリコート高山_380498_納品書.pdf');
+    const show = H.cut(SRC, 'rtShowDocName');
+    ok('⑭伝票を読むたびに、決めた名前を空に戻す（前の伝票の名前を引きずらない）', show.indexOf("rtDocBaseName = '';") >= 0);
+    ok('⑭伝票を読むたびに、欄をこの伝票の候補にする（if(!box.value) に戻さない）',
+       show.indexOf('box.value = rtDocNameSuggest();') >= 0 && show.indexOf('if(!box.value)') < 0);
+    ['rtIkkiShorui_', 'rtAttachDocsToOrder'].forEach(function(n){
+      ok('⑭' + n + ' は rtDocNameIma_ で名前を決める', H.cut(SRC, n).indexOf('rtDocNameIma_()') >= 0);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     ⑮ 宛名に部門が入る（2026-10-16 ゆかちゃん報告「部門名が宛名に反映されない」）
+        原因：届け先カードが【✓ 発注者と同じ住所】のままで、会社名・部門・住所がカードから読まれず
+        　　　宛名が o-client（施設名だけ）になっていた（ECの注文は通販倉庫の住所も捨てられていた）
+     ══════════════════════════════════════════════════════════════ */
+  {
+    const arf = H.cut(SRC, 'applyRtToOrderForm');
+    const i = arf.indexOf("setRecipientAddrMode(card.id, false)");
+    ok('⑮RT取込は、届け先カードを「別の住所に送る」にしてから中身を入れる', i >= 0);
+    ok('⑮会社名・部門を入れる【前】に切り替えている',
+       i >= 0 && i < arf.indexOf("rtSetVal(card,'companyName'") && i < arf.indexOf("rtSetVal(card,'deptName'"));
+    const cr = H.cut(SRC, 'collectRecipients');
+    ok('⑮collectRecipients は「同じ住所」のときカードを読まない作りのまま（だから切り替えが要る）',
+       cr.indexOf("deptName: isSame ? '' :") >= 0);
+    const rdn = H.cut(SRC, 'recipientDisplayName');
+    ok('⑮宛名は 会社名 部門 役職 担当者 の順でつなぐ（部門が入る）',
+       rdn.indexOf('[company, dept, position, person].filter(Boolean).join') >= 0);
   }
 
   if (fail) {
