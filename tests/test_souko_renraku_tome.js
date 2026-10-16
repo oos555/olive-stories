@@ -277,6 +277,10 @@ function ugokasuShipGo(note){
       → そのあと1つずつ決めていただきました。
         とめる：バサラから発注／在庫がありません／入荷のお知らせ／臨時入庫／発注書キャンセル
         のこす：🧾 バサラの請求書ができました（★これだけ止め木を通さない）
+      ★2026-10-16 ひろみさん決定：「バサラから発注」（原さんの☑）を【のこす】に移した。
+        「ゆかちゃんにその情報が1個と、ちゃんと受注したよって1個…それだけ」
+        （止め木で止まっていて、10/16 14:34 の受付にゆかちゃんが気づけなかった）
+        いま のこす＝2本（請求書・バサラ発注の受付）。とめる＝4本はそのまま。
    ══════════════════════════════════════════════════════════════════════ */
 ok('⑩本部への止め木の1行がある（OOS_HONBU_LINE_OFF）',
    /var OOS_HONBU_LINE_OFF = (true|false);/.test(GAS));
@@ -292,20 +296,24 @@ ok('⑩止め木は sendLineGroupMessage より【先】にある',
 /* のこす1本＝バサラの請求書。抜け道は1本だけ・使う場所も1か所だけ */
 ok('⑩のこす道がある（oosLineToHonbuAlways_）',
    GAS.indexOf('function oosLineToHonbuAlways_(') >= 0);
-ok('⑩のこす道を使っているのは1か所だけ',
-   (GAS.match(/oosLineToHonbuAlways_\(/g) || []).length - 1 === 1,
-   '（増えていたら、止めたはずのお知らせが抜けています）');
+ok('⑩のこす道を使っているのは2か所だけ（請求書・バサラ発注の受付）',
+   (GAS.match(/oosLineToHonbuAlways_\(/g) || []).length - 1 === 2,
+   '（増えていたら、止めたはずのお知らせが抜けています／減っていたら、ゆかちゃんにまた届きません）');
 ok('⑩のこす道を使っているのは【バサラの請求書】',
    /oosLineToHonbuAlways_\('🧾 '\+ym\+'分のバサラスター請求書/.test(GAS));
+ok('⑩のこす道を使っているのは【バサラ発注の受付（原さんの☑）】（2026-10-16）',
+   bodyOf(GAS, 'oosBasaraOrderAccept_').indexOf("oosLineToHonbuAlways_('📦 バサラスターから発注がありました（") >= 0,
+   '（oosLineToHonbu_ に戻すと止め木で止まり、ゆかちゃんに届きません）');
 ok('⑩のこす道には止め木を入れていない（請求書は止めない）',
    bodyOf(GAS, 'oosLineToHonbuAlways_').indexOf('OOS_HONBU_LINE_OFF') < 0);
 
 /* 出口の数え上げ。増えたら「新しい抜け道ができた」合図 */
-/* いまの7か所：①🔔要対応（notifyPendingAction・2026-07-27から呼び出しはコメントアウト済み）
-   ②バサラ取込の社内案内 ③入荷のお知らせを送った（統合マスタＮ）④在庫がありません（受注Ａ）
-   ⑤臨時入庫の自動反映 ⑥発注書でキャンセル ⑦バサラから発注（発注シートの受付） */
-ok('⑩本部LINEを出す場所は7か所のまま（増えたら新しい抜け道）',
-   (GAS.match(/oosLineToHonbu_\(/g) || []).length - 1 === 7,
+/* いまの6か所：①🔔要対応（notifyPendingAction・2026-07-27から呼び出しはコメントアウト済み）
+   ②バサラ取込の社内案内（メール取込） ③入荷のお知らせを送った（統合マスタＮ）④在庫がありません（受注Ａ）
+   ⑤臨時入庫の自動反映 ⑥発注書でキャンセル
+   ★2026-10-16 ⑦バサラから発注（発注シートの受付）は、のこす道（oosLineToHonbuAlways_）へ移した */
+ok('⑩本部LINEを出す場所（止め木を通る道）は6か所のまま（増えたら新しい抜け道）',
+   (GAS.match(/oosLineToHonbu_\(/g) || []).length - 1 === 6,
    '（いまは ' + ((GAS.match(/oosLineToHonbu_\(/g) || []).length - 1) + ' か所）');
 
 const zn = bodyOf(GAS, 'oosZaikoNashiSend');
@@ -338,7 +346,8 @@ function ugokasuHonbu(off){
     + H.cut(GAS, 'oosLineToHonbuAlways_') + '\n'
     + H.cut(GAS, 'oosZaikoNashiSend') + '\n'
     + 'var __kotae = oosZaikoNashiSend({orderNum:"TK-20260913-1234", source:"basara", items:["オルガニック 250ml"], recipient:"ためし様"});\n'
-    + 'var __seikyu = oosLineToHonbuAlways_("🧾 ためしの請求書ができました");', ctx);
+    + 'var __seikyu = oosLineToHonbuAlways_("🧾 ためしの請求書ができました");\n'
+    + 'var __hacchu = oosLineToHonbuAlways_("📦 バサラスターから発注がありました（BA-20261016-0000・ためし 様）");', ctx);
   return { okuri, nokoshi, mail, kotae: box.__kotae };
 }
 
@@ -354,6 +363,10 @@ ok('⑩【動かす】止めていても【請求書の知らせ】はちゃん�
    H1.okuri.filter(function(x){ return x[0].indexOf('請求書') >= 0 &&
      x[1] === 'Cb9f05779ceb4af80b6a33c626bb8ea83'; }).length === 1,
    '（ひろみさん「請求書はのこし」）');
+ok('⑩【動かす】止めていても【バサラ発注の受付】は本部（ゆか＆ひろみ）へ飛ぶ（2026-10-16）',
+   H1.okuri.filter(function(x){ return x[0].indexOf('バサラスターから発注がありました') >= 0 &&
+     x[1] === 'Cb9f05779ceb4af80b6a33c626bb8ea83'; }).length === 1,
+   '（ひろみさん「それさえ飛べばOK」）');
 
 const H2 = ugokasuHonbu(false);
 ok('⑩【動かす】再開（false）にすれば、本部LINEはちゃんと飛ぶ',
@@ -408,9 +421,9 @@ ok('⑨図（取り置き・予約）：「💬 倉庫にLINE 1通」がもう�
    TOR.indexOf('💬 倉庫にLINE 1通') < 0);
 ok('⑨図（取り置き・予約）：🔵のあと一文だけ、と書いてある',
    TOR.indexOf('📨 3分後に倉庫のLINEへ一文だけ') >= 0);
-ok('⑨図（請求）：のこした1本だと書いてある',
-   SEI.indexOf('のこした唯一のLINE') >= 0,
-   '（ひろみさん「請求書はのこし」）');
+ok('⑨図（請求）：のこしたLINEだと書いてある（2026-10-16からはバサラ発注の受付と2本）',
+   SEI.indexOf('のこしたLINE（2026-09-13）') >= 0 && SEI.indexOf('のこした唯一のLINE') < 0,
+   '（ひろみさん「請求書はのこし」／2026-10-16「それさえ飛べばOK」）');
 
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
