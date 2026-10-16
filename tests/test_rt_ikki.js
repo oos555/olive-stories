@@ -427,6 +427,11 @@ const OK_HENJI = { status: 'ok', mode: 'toroku', hareta: true,
     const arf = H.cut(SRC, 'applyRtToOrderForm');
     const i = arf.indexOf("setRecipientAddrMode(card.id, false)");
     ok('⑮RT取込は、届け先カードを「別の住所に送る」にしてから中身を入れる', i >= 0);
+    /* ★2026-10-16 ひろみさん「ECはこれでいいらしいので治さないで」：ECの注文は切り替えない＝
+       発注書には今までどおり施設の名前と住所（＋備考「EC注文（リゾートトラスト通販倉庫あて）」）で行く */
+    ok('⑮ECの注文（p.ecShip）は切り替えない（発注書は施設の名前と住所のまま）',
+       arf.indexOf("if(!p.ecShip && typeof setRecipientAddrMode==='function') setRecipientAddrMode(card.id, false);") >= 0,
+       '（ECまで切り替えると、発注書のお届け先が通販倉庫に変わります）');
     ok('⑮会社名・部門を入れる【前】に切り替えている',
        i >= 0 && i < arf.indexOf("rtSetVal(card,'companyName'") && i < arf.indexOf("rtSetVal(card,'deptName'"));
     const cr = H.cut(SRC, 'collectRecipients');
