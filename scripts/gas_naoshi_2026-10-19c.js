@@ -122,7 +122,7 @@ function oosHassouBiWake_(text, now){
   var day = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy/MM/dd');
   var rest = (s.slice(0, m.index) + m[1] + s.slice(m.index + m[0].length)).replace(/\\s+/g, ' ').replace(/^[\\s、,：:]+|[\\s、,：:]+$/g, '').trim();
   return { day: day, track: rest || String(text || '').trim() };
-}}
+}
 
 /* ★人が実行（oosBasaraHassoubiRetsu からも呼ばれる）：発注書のX列の見出しを「日にちも一緒に」に直す */
 function oosYukaOkurijouMidashi(){
