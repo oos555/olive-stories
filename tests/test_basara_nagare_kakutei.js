@@ -121,6 +121,46 @@ ok('③A列の言葉は変えない（赤と青の2つ）',
 /* ── ④ 倉庫が送り状NO.を書いた ──────────────────────────── */
 ok('④送り状NO.は、原さんのシートへ自動で戻る',
   fanout.indexOf('bsh.getRange(brow, oosBasaraTrackCol_(bsh)).setValue(track)') >= 0);
+/* ★2026-10-19 原さん「発送日がスプレッドシートに記載をいただけると幸いです」→ 送り状NO.の左に【発送日】（発送者記入欄・自動） */
+ok('④送り状NO.と一緒に、その日を【発送日】の列にも入れる（2026-10-19）',
+  fanout.indexOf('oosBasaraShipDayCol_(bsh)') >= 0 && fanout.indexOf("Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd')") >= 0,
+  '（原さんが自分のシートで発送日を見られるように）');
+/* 【動かす】本物の oosTrackFanout_ を、身代わりの発注シートで動かして確かめる */
+function ugokasuFanout(sudeni){
+  const heads = []; for(let i=0;i<26;i++) heads.push('列'+(i+1));
+  heads[24] = '発送日\n（発送者記入欄・発送したら自動で入ります）';
+  heads[25] = '送り状NO.\n（発送者記入欄・発送後に弊社がこちらに記載します）';
+  const cells = {}; if(sudeni) cells['5,25'] = sudeni;
+  const kaita = [];
+  const bsh = { getLastColumn(){ return 26; },
+    getRange(r, c, nr){ if(r === 1 && nr === 1) return { getValues(){ return [heads]; } };
+      return { getDisplayValue(){ return cells[r+','+c] || ''; }, setValue(v){ kaita.push([r, c, String(v)]); cells[r+','+c] = String(v); return this; } }; } };
+  const box = { String, Object, JSON, Date, Math, Number, Array, Logger:{ log(){} }, SHEET_ID_MAIN:'x',
+    Utilities:{ formatDate(){ return '2026/10/19'; } },
+    SpreadsheetApp:{ openById(){ return { getSheetByName(){ return null; } }; } },
+    oosBasaraFile_(){ return { getSheetByName(){ return bsh; } }; },
+    oosFindRowByKey_(){ return 5; }, oosKeyColByHeader_(){ return 27; }, oosBasaraLockRow_(){} };
+  vm.createContext(box);
+  vm.runInContext(H.cut(GAS,'oosBasaraTrackCol_') + '\n' + H.cut(GAS,'oosBasaraShipDayCol_') + '\n' + H.cut(GAS,'oosTrackFanout_')
+    + '\noosTrackFanout_("K1","4523-0000");', box);
+  return kaita;
+}
+{
+  const k1 = ugokasuFanout('');
+  ok('④【動かす】送り状NO.は26列目へ、発送日はその日が25列目へ入る',
+    k1.some(x => x[0] === 5 && x[1] === 26 && x[2] === '4523-0000') && k1.some(x => x[0] === 5 && x[1] === 25 && x[2] === '2026/10/19'),
+    JSON.stringify(k1));
+  const k2 = ugokasuFanout('2026/10/01');
+  ok('④【動かす】発送日がもう入っていれば上書きしない（同じ番号を2回配っても最初の日のまま）',
+    !k2.some(x => x[1] === 25), JSON.stringify(k2));
+}
+ok('④列の地図：発送日＝25・送り状NO.＝26（shipDay:25, track:26）',
+  GAS.indexOf('shipDay:25, track:26,') >= 0);
+ok('④並べ直しは「発送 ▼」が「発送日」を拾わない', GAS.indexOf("{at:OOS_BC.ship,  has:['発送'], not:['送り状','発送日']}") >= 0);
+ok('④列を入れる関数は人が実行する1回きり（oosBasaraHassoubiRetsu・2回目は列を増やさない）',
+  bodyOf(GAS, 'oosBasaraHassoubiRetsu').indexOf('「発送日」の列はもうあります') >= 0);
+ok('④原さんが書けるのは A と C〜X のまま（発送日・送り状NO.は保護の中）',
+  bodyOf(GAS, 'oosBasaraHassoubiRetsu').indexOf('sh.getRange(2,3,1000,OOS_BC.noshi-2)') >= 0);
 ok('④戻したら、その行もロックする（発送後に書き換えさせない）',
   fanout.indexOf('oosBasaraLockRow_(bsh, brow)') >= 0,
   '（発送後に数や金額を書き換えられると、水増し請求ができてしまいます）');
