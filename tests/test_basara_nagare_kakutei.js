@@ -125,8 +125,10 @@ ok('④送り状NO.は、原さんのシートへ自動で戻る',
 ok('④送り状NO.と一緒に、その日を【発送日】の列にも入れる（2026-10-19）',
   fanout.indexOf('oosBasaraShipDayCol_(bsh)') >= 0 && fanout.indexOf("Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd')") >= 0,
   '（原さんが自分のシートで発送日を見られるように）');
-/* 【動かす】本物の oosTrackFanout_ を、身代わりの発注シートで動かして確かめる */
-function ugokasuFanout(sudeni){
+/* 【動かす】本物の oosTrackFanout_ を、身代わりの発注シートで動かして確かめる
+   ★2026-10-19 ひろみさん「発送日は送り状NO.のマスに一緒に書いてもらう・自動で入る・でも直せる」
+   　day（X列に書かれた日付）を渡す形。day があれば上書き、無ければ空のときだけ書いた日。 */
+function ugokasuFanout(sudeni, day){
   const heads = []; for(let i=0;i<26;i++) heads.push('列'+(i+1));
   heads[24] = '発送日\n（発送者記入欄・発送したら自動で入ります）';
   heads[25] = '送り状NO.\n（発送者記入欄・発送後に弊社がこちらに記載します）';
@@ -142,7 +144,7 @@ function ugokasuFanout(sudeni){
     oosFindRowByKey_(){ return 5; }, oosKeyColByHeader_(){ return 27; }, oosBasaraLockRow_(){} };
   vm.createContext(box);
   vm.runInContext(H.cut(GAS,'oosBasaraTrackCol_') + '\n' + H.cut(GAS,'oosBasaraShipDayCol_') + '\n' + H.cut(GAS,'oosTrackFanout_')
-    + '\noosTrackFanout_("K1","4523-0000");', box);
+    + '\noosTrackFanout_("K1","4523-0000"' + (day === undefined ? '' : ',' + JSON.stringify(day)) + ');', box);
   return kaita;
 }
 {
@@ -153,6 +155,33 @@ function ugokasuFanout(sudeni){
   const k2 = ugokasuFanout('2026/10/01');
   ok('④【動かす】発送日がもう入っていれば上書きしない（同じ番号を2回配っても最初の日のまま）',
     !k2.some(x => x[1] === 25), JSON.stringify(k2));
+  const k3 = ugokasuFanout('2026/10/19', '2026/10/18');
+  ok('④【動かす】X列に日付が書いてあれば、その日で上書きする（倉庫さんが直せる・2026-10-19）',
+    k3.some(x => x[0] === 5 && x[1] === 25 && x[2] === '2026/10/18'), JSON.stringify(k3));
+}
+/* ── ④-3 X列の文字を【発送日】と【送り状NO.】に分ける（本物の oosHassouBiWake_ を動かす）── */
+{
+  const bx = { String, Number, Date, RegExp, Utilities:{ formatDate(d){ return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0'); } } };
+  vm.createContext(bx);
+  vm.runInContext(bodyOfFull(GAS, 'oosHassouBiWake_'), bx);
+  const now = new Date(2026, 9, 19);   /* 2026/10/19 に書いたとして */
+  const w = (t) => vm.runInContext('oosHassouBiWake_(' + JSON.stringify(t) + ', new Date(2026, 9, 19))', bx);
+  ok('④-3「10/18 佐川：452334067721」→ 発送日 2026/10/18・番号「佐川：452334067721」',
+    JSON.stringify(w('10/18 佐川：452334067721')) === JSON.stringify({ day:'2026/10/18', track:'佐川：452334067721' }), JSON.stringify(w('10/18 佐川：452334067721')));
+  ok('④-3 日付が無い「佐川：452334067721」→ 発送日は空（＝書いた日が自動で入る）・番号はそのまま',
+    JSON.stringify(w('佐川：452334067721')) === JSON.stringify({ day:'', track:'佐川：452334067721' }));
+  ok('④-3「2026/10/18 ヤマト 1234-5678」も読める', w('2026/10/18 ヤマト 1234-5678').day === '2026/10/18' && w('2026/10/18 ヤマト 1234-5678').track === 'ヤマト 1234-5678');
+  ok('④-3「10月18日　佐川：4523」（全角スペース）も読める', w('10月18日　佐川：4523').day === '2026/10/18' && w('10月18日　佐川：4523').track === '佐川：4523');
+  ok('④-3 全角の「１０／１８ 佐川：4523」も読める', w('１０／１８ 佐川：4523').day === '2026/10/18');
+  ok('④-3 12月に発送して1月に書いた「12/28 佐川：4523」は去年の12/28（明日より先なら去年）',
+    vm.runInContext('oosHassouBiWake_("12/28 佐川：4523", new Date(2027, 0, 5)).day', bx) === '2026/12/28');
+  ok('④-3 番号の中の数字を日付と取りちがえない「佐川：4523-3406-7382」', w('佐川：4523-3406-7382').day === '' && w('佐川：4523-3406-7382').track === '佐川：4523-3406-7382');
+  const te = bodyOf(GAS, 'oosYukaTrackEdit_'), sc = bodyOf(GAS, 'oosYukaShipCheck_');
+  ok('④-3 送り状NO.を書いたときも、発送済☑のときも、分けてから配る',
+    te.indexOf('oosHassouBiWake_(track)') >= 0 && te.indexOf('oosTrackFanout_(key, wake.track, wake.day)') >= 0 &&
+    sc.indexOf('oosHassouBiWake_(track)') >= 0 && sc.indexOf('oosTrackFanout_(key, wake2.track, wake2.day)') >= 0);
+  ok('④-3 発注書X列の見出しに「日にちも一緒に」と「直すときは」が書いてある（ひろみさん「枠のところに書いといて」）',
+    /var OOS_YUKA_HEAD_TRACK = '送り状NO\.ご記入お願いします。\\n日にちも一緒に入れてください（例：10\/18 佐川：452334067721）\\n※日にちが無いときは書いた日が発送日になります。直すときはこのマスの日にちを直してください（原さんのシートにも反映されます）';/.test(GAS));
 }
 ok('④列の地図：発送日＝25・送り状NO.＝26（shipDay:25, track:26）',
   GAS.indexOf('shipDay:25, track:26,') >= 0);
