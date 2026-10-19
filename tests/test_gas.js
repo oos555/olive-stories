@@ -512,6 +512,13 @@ eq('参考：0 で止まる', oya3, 0);
   const r2 = G.oosMihariSeiri(false);
   eq('見張りの整理⑮ もう一度やっても何も変わらない（何回でも同じ）', r2.消した.length + r2.入れた.length + ':' + tr.length, '0:17');
   eq('見張りの整理⑯ doGet に点検・整理の窓口がある', /action === 'oosMihariSeiri'/.test(H.cut(gasSrc, 'doGet')), true);
+  /* ★2026-10-19 実測：Webアプリ（doGet）経由で作った見張りは、そのときのデプロイの版に固定され（実行数の「導入」＝バージョン 416）、
+     clasp push（Head）の直しを見ない。10/16 の本部LINEの直しが 10/19 に効かなかった原因。
+     → doGet からは【読むだけ】。作り直すのは編集画面から oosMihariHeadNiModosu（＝Head になる）。 */
+  eq('見張りの整理⑱ doGet 経由の oosMihariSeiri は読むだけ（版に固定された見張りを作らない）',
+     H.cut(gasSrc, 'doGet').indexOf("makeResponse(oosMihariSeiri(true))") >= 0 && H.cut(gasSrc, 'doGet').indexOf("oosMihariSeiri(e.parameter.dry") < 0, true);
+  eq('見張りの整理⑲ 編集画面から見張りを Head に戻す関数がある（oosMihariHeadNiModosu）',
+     typeof H.cut(gasSrc, 'oosMihariHeadNiModosu') === 'string' && H.cut(gasSrc, 'oosMihariHeadNiModosu').indexOf('oosMihariSeiri(false)') >= 0, true);
   eq('見張りの整理⑰ 昔の簡易トリガー onEdit は止めてある', /\nfunction onEdit\(/.test(gasSrc), false);
 
   /* 🚚 いま発送する分の作り直しは、中身が変わる列だけ */
