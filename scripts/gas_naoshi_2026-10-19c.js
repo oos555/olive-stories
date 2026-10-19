@@ -98,7 +98,7 @@ const tsuika = `
    発注書のX列（送り状NO.）の見出しと、日付と番号を分ける係。
    ★見出しの言葉はここで決める（ひろみさんの言葉のまま）。
    ══════════════════════════════════════════════════════════════════════ */
-var OOS_YUKA_HEAD_TRACK = '送り状NO.ご記入お願いします。\\n日にちも一緒に入れてください（例：10/18 佐川：452334067721）\\n※日にちが無いときは書いた日が発送日になります。直すときはこのマスの日にちを直してください（原さんのシートにも反映されます）';
+var OOS_YUKA_HEAD_TRACK = '送り状番号、発送日、発送業者名を記入してください（例：10/18 佐川：452334067721）\\n※日にちが無いときは書いた日が発送日になります。直すときはこのマスの日にちを直してください';
 
 /* X列の文字を【発送日】と【送り状NO.】に分ける。
    日付の形：10/18・10-18・10.18・2026/10/18・10月18日（全角の数字も可）。先頭にあるものだけ日付と見る。
@@ -107,18 +107,22 @@ var OOS_YUKA_HEAD_TRACK = '送り状NO.ご記入お願いします。\\n日に�
 function oosHassouBiWake_(text, now){
   var s = String(text || '').replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
                             .replace(/[／]/g, '/').replace(/[－ー]/g, '-').replace(/[　]/g, ' ').trim();
-  var m = s.match(/^(?:(\\d{4})[\\/\\-.年])?(\\d{1,2})[\\/\\-.月](\\d{1,2})日?[\\s、,：:]*/);
+  /* ★2026-10-19 ひろみさん「送り状番号、発送日、発送業者名」の順で書かれることもあるので、日付は【どこにあっても】読む。
+     ただし前後が区切り（先頭・末尾・空白・、,：:）のものだけ。番号の中の「23-10」などは日付と見ない。 */
+  var re = /(^|[\\s、,：:])((?:\\d{4}[\\/\\-.年])?(\\d{1,2})[\\/\\-.月](\\d{1,2})日?)(?=$|[\\s、,：:])/;
+  var m = s.match(re);
   if(!m) return { day:'', track:String(text || '').trim() };
   var base = now || new Date();
-  var y = m[1] ? Number(m[1]) : base.getFullYear();
-  var mo = Number(m[2]), d = Number(m[3]);
+  var ym = m[2].match(/^(\\d{4})[\\/\\-.年]/);
+  var y = ym ? Number(ym[1]) : base.getFullYear();
+  var mo = Number(m[3]), d = Number(m[4]);
   if(!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31)) return { day:'', track:String(text || '').trim() };
   var dt = new Date(y, mo - 1, d);
-  if(!m[1] && dt.getTime() > base.getTime() + 24*60*60*1000) dt = new Date(y - 1, mo - 1, d);
+  if(!ym && dt.getTime() > base.getTime() + 24*60*60*1000) dt = new Date(y - 1, mo - 1, d);
   var day = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy/MM/dd');
-  var rest = s.slice(m[0].length).trim();
+  var rest = (s.slice(0, m.index) + m[1] + s.slice(m.index + m[0].length)).replace(/\\s+/g, ' ').replace(/^[\\s、,：:]+|[\\s、,：:]+$/g, '').trim();
   return { day: day, track: rest || String(text || '').trim() };
-}
+}}
 
 /* ★人が実行（oosBasaraHassoubiRetsu からも呼ばれる）：発注書のX列の見出しを「日にちも一緒に」に直す */
 function oosYukaOkurijouMidashi(){
