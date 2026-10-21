@@ -163,6 +163,8 @@ if(gasSrc){
   ok('⑥ ［終了］はスプシに残す（oosSampleOwari）', /oosSampleOwari/.test(sp));
   ok('⑥ 読み込み中は「ありません」と言わない', /⏳ サンプル台帳を読み込み中です…/.test(sp));
   ok('⑥ RTの施設▼は台帳と同じ16施設', /<option>サンクチュアリコート日光<\/option>/.test(sp) && /<option>メイプルポイントゴルフクラブ レストラン<\/option>/.test(sp));
+  /* ★2026-10-22 ひろみさん「RTの施設の選択肢に 名古屋本社購買部 も入れておいて」 */
+  ok('⑥ RTの施設▼に 名古屋本社購買部 がある（2026-10-22 ひろみさん）', /<option>名古屋本社購買部<\/option>/.test(sp));
   ok('⑥ 見積Ｍから一覧の関数が消えている（sampleYomu／sampleCard／teTasuHiraku）', !/function sampleYomu|function sampleCard|function teTasuHiraku/.test(mt));
   ok('⑥ 見積Ｍには引っ越し先のリンクが残る', /eigyo\/sample\.html/.test(mt));
   ok('⑥ 受注Ａの「サンプルの注文→すぐ足す」はそのまま', /oosSampleSync/.test(read('index.html')));
