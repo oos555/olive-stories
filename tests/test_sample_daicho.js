@@ -144,6 +144,17 @@ if(gasSrc){
     eq('⑤ 自社（オリーブオイル・ストーリーズ）は その他', o3[13], 'その他');
     eq('⑤ 目的・渡した見積・次の追いかけ日・メモはそのまま', [o1[5], o1[6], o1[7], o1[10]].join('|'), 'レストランでの採用検討用|③ RT専用価格リスト|2026-10-09|9/28発送');
     eq('⑤ 2回流しても何も変わらない', ctx.oosSampleKatachiNaoshi().naoshita, 0);
+    /* ★2026-10-22 RT施設マスタの文字化け行の片づけ（U+FFFD が入った名前だけ・読むだけ／&kesu=1） */
+    if(typeof ctx.oosRtFacMojibakeSeiri === 'function'){
+      const fs2 = ctx.rtFacSheet_();
+      fs2.c.push(['芦屋ベイコート倶楽部','','','','','']); fs2.c.push(['��É','','','','','']); fs2.c.push(['名古屋本社購買部','','','','','']);
+      fs2.deleteRow = function(r){ this.c.splice(r-1, 1); };
+      const d0 = ctx.oosRtFacMojibakeSeiri(false);
+      eq('⑤b 文字化けの行を見つけるだけ（消さない）', d0.mitsuketa === 1 && d0.keshita === 0 && fs2.c.length === 4, true);
+      const d1 = ctx.oosRtFacMojibakeSeiri(true);
+      eq('⑤b &kesu=1 で文字化けの行だけ消す（ふつうの施設は残る）', d1.keshita === 1 && fs2.c.map(r => r[0]).join('|') === 'name|芦屋ベイコート倶楽部|名古屋本社購買部', true);
+      eq('⑤b 2回目は何もしない', ctx.oosRtFacMojibakeSeiri(true).keshita, 0);
+    }
     /* doGet の窓口 */
     ok('⑤ 窓口 ?action=oosSampleKatachiNaoshi が doGet にある（&dry=1 つき）', H.cut(gasSrc, 'doGet').indexOf("'oosSampleKatachiNaoshi'") >= 0 && H.cut(gasSrc, 'doGet').indexOf('e.parameter.dry') >= 0);
   }
