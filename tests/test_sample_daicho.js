@@ -152,7 +152,7 @@ if(gasSrc){
       const d0 = ctx.oosRtFacMojibakeSeiri(false);
       eq('⑤b 文字化けの行を見つけるだけ（消さない）', d0.mitsuketa === 1 && d0.keshita === 0 && fs2.c.length === 4, true);
       const d1 = ctx.oosRtFacMojibakeSeiri(true);
-      eq('⑤b &kesu=1 で文字化けの行だけ消す（ふつうの施設は残る）', d1.keshita === 1 && fs2.c.map(r => r[0]).join('|') === 'name|芦屋ベイコート倶楽部|名古屋本社購買部', true);
+      eq('⑤b &kesu=1 で文字化けの行だけ消す（ふつうの施設は残る）', d1.keshita === 1 && fs2.c.map(r => r[0]).join('|') === '施設名|芦屋ベイコート倶楽部|名古屋本社購買部', true);
       eq('⑤b 2回目は何もしない', ctx.oosRtFacMojibakeSeiri(true).keshita, 0);
     }
     /* doGet の窓口 */
