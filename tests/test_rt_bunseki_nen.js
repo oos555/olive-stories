@@ -213,7 +213,8 @@ const DAI = [
   ok('親⑤ アプリから消すのは端末の控えだけ（タブの行は消さない）', H.cut(SRC, 'delPerson').indexOf('名刺情報タブ（親）の行は消しません') >= 0);
   ok('親⑤ ⚠️ の札がカードに出る', H.cut(SRC, 'buildPersonCard').indexOf('⚠️ まだスプシに送れていません') >= 0);
   ok('親⑤ 「シェフで」見つからないとき、人物カードにいる人を案内する', H.cut(SRC, 'renderDaicho').indexOf('この方は<b>人物カード</b>にはいます') >= 0);
-  ok('親⑤ 版 2026-10-09-01', SRC.indexOf('oos-version" content="2026-10-09-01"') >= 0);
+  /* ★2026-10-21 版を上げた（🎁 サンプル台帳の窓口を施設カードに足した）。版の一致そのものは test_mihari_soten が見ている */
+  ok('親⑤ 版 2026-10-21-01', SRC.indexOf('oos-version" content="2026-10-21-01"') >= 0);
 }
 
 if (fail) {

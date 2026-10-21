@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ═════════════════════════════════════════════════════════════════
+     🎁 サンプル台帳（営業のお隣の4つ目の部屋）★2026-10-21 新設
+     ─────────────────────────────────────────────────────────────────
+     承認モック：mocks/mock_営業K_サンプル台帳_2026-10-21.html（ひろみさん「この状態で作ってください」）
+     ひろみさん：「誰に何をいつどんな風にサンプルをあげてどういう目的であげたのかが分かる一覧表。
+     　RTの場合はRTのカードの中にそれが入っててほしい。RT以外（これからお付き合いするかもしれない方）や
+     　オリーブオイル以外（芦屋ベイコートへ送った牛肉）もある。牛肉がどこのものかも分かるように。
+     　次のアクションをいつ起こすのか、結果どうだったのかも」
+     　「サンプル発送先は営業の中に入れてもらおうかな。私が分かっていればいいことなので」
+     　「あんまり下へ下へといっぱい余白を作ってスクロールするのも嫌」
+     ・親：スプシ「🎁 サンプル発送先」（13列はそのまま・右に8列）。書くのはこの画面だけ。
+     ・RTシェフ台帳の施設カードは【読むだけの窓口】（施設・会社の字で結ぶ）。
+     ・見積Ｍにあった「サンプル発送先リスト」はここへ引っ越し（2026-10-21）。
+     ★この2行と ../oos-version.js / ../version.json を消さないでください。
+     ═════════════════════════════════════════════════════════════════ -->
+<meta name="oos-version" content="2026-10-21-01">
+<script src="../oos-version.js"></script>
+<title>🎁 サンプル台帳 ｜ オリーブオイル・ストーリーズ</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:#f5f1e8;color:#2b2a26;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;font-size:14px;line-height:1.55}
+  .phone{max-width:760px;margin:0 auto;padding:0 0 40px}
+  .head{background:#8a5a12;color:#fff;padding:10px 14px;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px}
+  .head h1{font-family:"Zen Maru Gothic",sans-serif;font-weight:700;font-size:18px;margin:0}
+  .head .sub{font-size:11px;opacity:.9}
+  .head .modoru{margin-left:auto;font-size:12px;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .note{margin:10px 12px 0;padding:8px 12px;border-radius:10px;background:#fff8e6;border:1px solid #ecd9a8;font-size:12.5px;color:#6b5124;line-height:1.7}
+  .note b{color:#8a5a12}
+  .sync{margin:6px 12px 0;font-size:12px;color:#6b6a63;min-height:16px}
+  .sync.ng{color:#b91c1c;font-weight:800}
+
+  /* ── ＋1行たす（たたんであるとボタン1本） ── */
+  .add{margin:10px 12px 0}
+  .add-btn{width:100%;background:#fff;border:1.5px solid #c9a86a;border-radius:10px;padding:9px 12px;font-size:14px;font-weight:800;color:#8a5a12;text-align:left;cursor:pointer}
+  .add-btn span{float:right;font-weight:400;color:#9a8f7e;font-size:12px}
+  .form{display:none;background:#fff;border:1.5px solid #c9a86a;border-top:none;border-radius:0 0 10px 10px;padding:10px 12px 12px}
+  .form.on{display:block}
+  .add.on .add-btn{border-radius:10px 10px 0 0}
+  .g{display:grid;grid-template-columns:64px 1fr;gap:6px 8px;align-items:center;margin-bottom:6px}
+  .g .l{font-size:12px;font-weight:800;color:#8a5a12;text-align:right}
+  .g .f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .form input,.form select,.form textarea{font:inherit;font-size:13.5px;border:1.5px solid #d5cfc3;border-radius:7px;padding:5px 8px;background:#fff;color:#2b2a26}
+  .form input[type=date]{width:140px}
+  .form .w1{width:110px}.form .w2{width:170px}.form .w3{flex:1;min-width:160px}
+  .form .hint{font-size:11.5px;color:#9a8f7e}
+  .form .act{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+  .b{border:none;border-radius:9px;padding:8px 14px;font-weight:800;font-size:13.5px;cursor:pointer;color:#fff;background:#8a5a12}
+  .b.w{background:#fff;color:#8a5a12;border:1.5px solid #c9a86a}
+  .b.g{background:#eeece6;color:#6b6a63}
+  .b.s{padding:5px 10px;font-size:12.5px}
+  .b:disabled{opacity:.5;cursor:default}
+
+  /* ── しぼりこみ（チップ・1行） ── */
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 12px 6px;align-items:center}
+  .chips .t{font-size:11.5px;color:#9a8f7e;font-weight:800;margin-right:-2px}
+  .chip{border:1.5px solid #d5cfc3;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;color:#6b6a63;cursor:pointer}
+  .chip.on{background:#8a5a12;border-color:#8a5a12;color:#fff}
+  .chips .sep{width:1px;height:18px;background:#d5cfc3;margin:0 2px}
+  .count{font-size:12px;color:#6b6a63;margin:0 12px 6px;font-weight:700}
+
+  /* ── 1件＝1行（押すとひらく） ── */
+  .list{margin:0 12px}
+  .row{background:#fff;border:1px solid #e9e3d7;border-left:4px solid #cfc7b6;border-radius:8px;margin-bottom:5px}
+  .row.rt{border-left-color:#274a78}.row.tori{border-left-color:#4a5a2a}.row.mikomi{border-left-color:#d98324}
+  .row.osoi{background:#fff6f5;border-color:#e6b1ab;border-left-color:#dc2626}
+  .row.usu{opacity:.55}
+  .r1{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer}
+  .r1 .d{flex-shrink:0;width:52px;font-size:12px;font-weight:800;color:#6b6a63;line-height:1.25}
+  .r1 .d small{display:block;font-size:10px;font-weight:700;color:#9a8f7e}
+  .r1 .d.red{color:#dc2626}.r1 .d.red small{color:#dc2626}
+  .r1 .mid{flex:1;min-width:0}
+  .r1 .who{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r1 .who .p{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;margin-right:4px;vertical-align:1px}
+  .p.rt{background:#e6edf7;color:#274a78}.p.tori{background:#eaf0dc;color:#4a5a2a}.p.mikomi{background:#fdebd6;color:#b2600f}.p.sono{background:#eeece6;color:#6b6a63}
+  .r1 .what{font-size:12.5px;color:#4b4a44;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r1 .what b{color:#2b2a26}
+  .r1 .st{flex-shrink:0;font-size:11px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .st.a{background:#eef3fb;color:#274a78}.st.b{background:#fff3e0;color:#9a5a10}.st.c{background:#e9f5ec;color:#1f6b3a}.st.x{background:#eeece6;color:#6b6a63}
+  .r1 .ar{flex-shrink:0;color:#9a8f7e;font-size:12px;width:12px}
+  .r2{display:none;border-top:1px dashed #e9e3d7;padding:8px 10px 10px;background:#fffdf8;border-radius:0 0 8px 8px}
+  .row.open .r2{display:block}
+  .row.open .r1 .ar{transform:rotate(90deg)}
+  .kv{display:grid;grid-template-columns:78px 1fr;gap:3px 8px;font-size:12.5px;align-items:center}
+  .kv .k{color:#8a5a12;font-weight:800;text-align:right}
+  .kv input,.kv select,.kv textarea{font:inherit;font-size:13px;border:1.5px solid #d5cfc3;border-radius:7px;padding:4px 7px;background:#fff;color:#2b2a26}
+  .kv textarea{width:100%;min-height:34px;resize:vertical}
+  .kv .line{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .kv .w1{width:110px}.kv .w2{width:170px}
+  .r2 .act{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .r2 .kekka{font-size:12px;color:#1f6b3a;font-weight:800}
+  .r2 .kekka.ng{color:#b91c1c}
+  .r2 .rtlink{font-size:12px;color:#274a78;font-weight:800;margin-left:auto}
+  .jidou{font-size:10.5px;color:#9a8f7e;font-weight:800}
+  .empty{padding:14px;text-align:center;color:#9a8f7e;font-size:13px;background:#fff;border:1px dashed #d5cfc3;border-radius:8px}
+  .lock{margin:14px 12px;background:#fff;border:1px solid #e3ded2;border-radius:14px;padding:22px 20px;font-size:14px;line-height:1.8}
+  @media (max-width:520px){ .r1 .what{white-space:normal} .form .w2{width:140px} .kv .w2{width:140px} }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="head">
+    <div><h1>🎁 サンプル台帳</h1><div class="sub">だれに・何を・いつ・どんな風に・何のために ／ 次はいつ何を ／ 結果</div></div>
+    <a class="modoru" href="index.html">← 営業のお隣</a>
+  </div>
+
+  <div id="lock" class="lock" style="display:none">
+    <b>🔑 まだ鍵が開いていません</b><br><br>
+    玄関の「🎨 アトリエ」から入りなおしてください。
+    <br><br><a href="../home.html" style="color:#0c447c;font-weight:700">→ 玄関へ</a>
+  </div>
+
+  <div id="main" style="display:none">
+  <div class="note">👑 社長専用（営業のお隣の中）。受注Ａで「無料／有償サンプル」の注文を登録したぶんは<b>自動で1行</b>入ります。<b>牛肉・手渡し・訪問時</b>など受注Ａを通らないものは「＋1行たす」。
+  見積Ｍにあった「サンプル発送先リスト」は<b>ここへ引っ越し</b>（見積Ｍは価格リストのリンク置き場だけになります）。</div>
+  <div class="sync" id="sync"></div>
+
+  <!-- ＋1行たす -->
+  <div class="add" id="add">
+    <button class="add-btn" onclick="toggleAdd()">＋ 1行たす <span>（受注Ａを通らないサンプル：牛肉・手渡し・訪問時）</span></button>
+    <div class="form" id="form">
+      <div class="g">
+        <div class="l">だれに</div>
+        <div class="f">
+          <select id="f-kubun" class="w1" onchange="kubunChanged()"><option value="rt">RT</option><option value="tori">お取引先</option><option value="mikomi" selected>これからの方</option><option value="sono">その他</option></select>
+          <select id="f-fac" class="w2" style="display:none"><option value="">（RTの施設▼）</option><option>サンクチュアリコート日光</option><option>サンクチュアリコート琵琶湖</option><option>サンクチュアリコート高山</option><option>横浜ベイコート倶楽部</option><option>ラグーナベイコート倶楽部</option><option>グランドエクシブ鳴門</option><option>芦屋ベイコート倶楽部</option><option>エクシブ有馬離宮</option><option>エクシブ箱根離宮</option><option>ホテルトラスティ名古屋 栄</option><option>ザ・カハラ・ホテル＆リゾート 横浜</option><option>エクシブ京都 八瀬離宮</option><option>東京ベイコート倶楽部</option><option>エクシブ湯河原離宮</option><option>グランドエクシブ軽井沢</option><option>メイプルポイントゴルフクラブ レストラン</option></select>
+          <input id="f-co" class="w2" placeholder="会社・お店">
+          <input id="f-who" class="w2" placeholder="担当者（お名前）">
+        </div>
+        <div class="l">何を</div>
+        <div class="f">
+          <select id="f-hin" class="w1"><option value="oil">🫒 オイル</option><option value="beef">🥩 牛肉</option><option value="sono">その他</option></select>
+          <input id="f-nani" class="w3" placeholder="品名・量（例：黒毛和牛 サーロイン 約500g）">
+          <input id="f-doko" class="w2" placeholder="どこのもの（産地・仕入先）">
+        </div>
+        <div class="l">いつ</div>
+        <div class="f">
+          <input id="f-date" type="date">
+          <select id="f-how" class="w1"><option>発送</option><option>手渡し</option><option>訪問時</option><option>注文に同梱</option></select>
+          <select id="f-yu" class="w1"><option>無償</option><option>有償</option></select>
+          <select id="f-by" class="w1"><option>ひろみ</option><option>ゆか</option><option>その他</option></select>
+          <span class="hint">← だれが渡したか</span>
+        </div>
+        <div class="l">何のため</div>
+        <div class="f"><input id="f-moku" class="w3" placeholder="目的（例：鉄板焼の冬コースで採用してもらうため）" style="width:100%"></div>
+        <div class="l">次は</div>
+        <div class="f">
+          <input id="f-next" type="date">
+          <input id="f-nextw" class="w3" placeholder="次のアクション（例：電話で味の感想を聞く）">
+        </div>
+      </div>
+      <div class="act">
+        <button class="b" id="f-add" onclick="addRow()">この1行をたす</button>
+        <button class="b g" onclick="toggleAdd()">やめる</button>
+        <span class="hint">目的・次は、あとからでも書けます（行をひらいて）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- しぼりこみ -->
+  <div class="chips" id="chips">
+    <span class="t">だれ</span>
+    <span class="chip on" data-g="k" data-v="">すべて</span><span class="chip" data-g="k" data-v="rt">RT</span><span class="chip" data-g="k" data-v="tori">お取引先</span><span class="chip" data-g="k" data-v="mikomi">これからの方</span>
+    <span class="sep"></span><span class="t">何を</span>
+    <span class="chip on" data-g="h" data-v="">すべて</span><span class="chip" data-g="h" data-v="oil">🫒</span><span class="chip" data-g="h" data-v="beef">🥩</span>
+    <span class="sep"></span><span class="t">状況</span>
+    <span class="chip on" data-g="s" data-v="ima">追いかけ中</span><span class="chip" data-g="s" data-v="owari">成約・見送りも</span>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="list" id="list"><div class="empty">⏳ サンプル台帳を読み込み中です…</div></div>
+  <div class="note" style="margin-top:8px">並びは<b>次のアクションの日が近い順</b>。日が過ぎたものは<b>赤</b>で一番上。1件は1行で、押すと<b>結果・メモ</b>が書けます。成約・見送りはふだん隠れています（チップで出せる）。［終了］した行はスプシに残り、ここからは消えます＝今までどおり。</div>
+  </div>
+
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+
+/* ── 鍵：営業のお隣（index.html）と同じ見方。玄関の社長の鍵（oos_unlock_secret）でも、アトリエの印（oos_atelier_ok）でも入れる ── */
+function akerarete(){
+  try{
+    if(localStorage.getItem('oos_atelier_ok') === '1') return true;
+    var v = JSON.parse(localStorage.getItem('oos_unlock_secret') || 'null');
+    return !!(v && v.p);
+  }catch(e){ return false; }
+}
+
+/* ── 見出しの字（スプシの値）と画面の印の対応 ── */
+var KUBUN = { rt:'RT', tori:'お取引先', mikomi:'これからの方', sono:'その他' };
+var KUBUN_GYAKU = { 'RT':'rt', 'お取引先':'tori', 'これからの方':'mikomi', 'その他':'sono' };
+var HIN = { oil:'🫒', beef:'🥩', sono:'📦' };
+var HIN_JI = { oil:'オリーブオイル', beef:'牛肉', sono:'その他' };
+var HIN_GYAKU = { 'オリーブオイル':'oil', '牛肉':'beef', 'その他':'sono' };
+var ST_CLS = { '送った':'a', '反応待ち':'b', '商談中':'b', '成約':'c', '見送り':'x' };
+var JOKYO = ['送った','反応待ち','商談中','成約','見送り'];
+var WATASHI = ['発送','手渡し','訪問時','注文に同梱'];
+var DARE = ['ひろみ','ゆか','その他'];
+
+var ROWS = [];            /* スプシの行（GASの oosSampleList の形そのまま＋画面用の印） */
+var F = { k:'', h:'', s:'ima' };
+var OPEN = -1;
+var today = new Date();
+function ymd(d){ return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function md(s){ var m = String(s || '').match(/^\d{4}-(\d{2})-(\d{2})/); return m ? (+m[1]) + '/' + (+m[2]) : ''; }
+function setSync(msg, ng){ var el = document.getElementById('sync'); if(el){ el.textContent = msg || ''; el.className = 'sync' + (ng ? ' ng' : ''); } }
+
+async function gasGet(action){ var r = await fetch(GAS_URL + '?action=' + encodeURIComponent(action) + '&t=' + Date.now(), { cache:'no-store' }); return r.json(); }
+async function gasPost(body){ var r = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) }); return r.json(); }
+
+/* スプシの1行 → 画面の印（k・h）を付ける。kubun が空の行は「その他」で出す（▼で直せる） */
+function shirushi(r){
+  r.k = KUBUN_GYAKU[r.kubun] || 'sono';
+  r.h = HIN_GYAKU[r.hinmoku] || (r.hinmoku ? 'sono' : 'oil');
+  return r;
+}
+function te(r){ return !r.id || String(r.id).charAt(0) === 'M'; }   /* 手で足した行（送った日・相手・何を・有償無償も直せる） */
+function isOsoi(r){ return !!(r.oikakeBi && r.oikakeBi < ymd(today) && !(r.jokyo === '成約' || r.jokyo === '見送り')); }
+function owatta(r){ return r.jokyo === '終了'; }
+function whoJi(r){ return r.shisetsu || r.aite || ''; }
+
+/* ── RTの施設▼：まず台帳と同じ字の16施設（HTMLに書いてある）。RT施設マスタ（GAS）にある施設も足す ── */
+async function facYomu(){
+  try{
+    var d = await gasGet('loadRtFacilities');
+    var list = (d && d.data && d.data.facilities) || [];
+    var sel = document.getElementById('f-fac'); if(!sel) return;
+    var aru = {}; Array.prototype.forEach.call(sel.options, function(o){ aru[o.value] = true; });
+    list.forEach(function(f){ if(f && f.name && !aru[f.name]){ var o = document.createElement('option'); o.textContent = f.name; sel.appendChild(o); aru[f.name] = true; } });
+  }catch(e){}
+}
+function facOptionsHtml(sel){
+  var src = document.getElementById('f-fac');
+  var h = '';
+  Array.prototype.forEach.call(src.options, function(o){ h += '<option value="' + esc(o.value) + '"' + (o.value === sel ? ' selected' : '') + '>' + esc(o.textContent) + '</option>'; });
+  if(sel && !Array.prototype.some.call(src.options, function(o){ return o.value === sel; })) h += '<option value="' + esc(sel) + '" selected>' + esc(sel) + '</option>';
+  return h;
+}
+
+/* ── 読み込み ── */
+async function yomu(){
+  setSync('☁️ 読み込み中…');
+  try{
+    var d = await gasGet('oosSampleList');
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || '読めませんでした');
+    ROWS = (d.rows || []).map(shirushi);
+    setSync('');
+    render();
+  }catch(e){
+    setSync('⚠ 読み込めませんでした（' + (e.message || e) + '）。🔄 画面を開き直してください。', true);
+    document.getElementById('list').innerHTML = '<div class="empty">⚠ サンプル台帳を読み込めませんでした。🔄 画面を開き直してください。</div>';
+  }
+}
+
+/* ── ＋1行たす ── */
+function toggleAdd(){
+  var a = document.getElementById('add'); a.classList.toggle('on'); document.getElementById('form').classList.toggle('on');
+  if(a.classList.contains('on')){ if(!document.getElementById('f-date').value) document.getElementById('f-date').value = ymd(today); kubunChanged(); }
+}
+function kubunChanged(){ var rt = document.getElementById('f-kubun').value === 'rt'; document.getElementById('f-fac').style.display = rt ? '' : 'none'; document.getElementById('f-co').style.display = rt ? 'none' : ''; }
+function v(id){ return (document.getElementById(id).value || '').trim(); }
+async function addRow(){
+  var k = v('f-kubun'), fac = k === 'rt' ? v('f-fac') : '', co = k === 'rt' ? fac : v('f-co');
+  if(k === 'rt' && !fac){ alert('RTの施設を▼から選んでください（施設名が、RTカードに結びつく鍵です）'); return; }
+  if(!co && !v('f-who')){ alert('だれに（会社・お店 か 担当者）を入れてください'); return; }
+  if(!v('f-nani')){ alert('何を、を入れてください'); return; }
+  var tantou = v('f-who');
+  var row = {
+    id:'', okuttaBi:(v('f-date') || ymd(today)), aite:(tantou ? (co ? tantou + '（' + co + '）' : tantou) : co), nani:v('f-nani'), yushou:v('f-yu'), bangou:'',
+    mokuteki:v('f-moku'), mitsumori:'', oikakeBi:v('f-next'), oikake:v('f-nextw'), jokyo:'送った', memo:'',
+    kubun:KUBUN[k], shisetsu:co, tantou:tantou, hinmoku:HIN_JI[v('f-hin')], doko:v('f-doko'), watashikata:v('f-how'), kekka:'', dare:v('f-by'),
+    atoAri:true
+  };
+  var btn = document.getElementById('f-add'); btn.disabled = true; setSync('☁️ たしています…');
+  try{
+    var d = await gasPost({ action:'oosSampleSave', row:row });
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || 'たせませんでした');
+    row.id = d.id || ''; shirushi(row); ROWS.push(row);
+    ['f-co','f-who','f-nani','f-doko','f-moku','f-next','f-nextw'].forEach(function(i){ document.getElementById(i).value = ''; });
+    toggleAdd(); OPEN = ROWS.length - 1; F.s = (row.jokyo === '成約' || row.jokyo === '見送り') ? 'owari' : F.s; render();
+    setSync('✅ たしました：' + whoJi(row) + (row.k === 'rt' ? '（RTカードにも出ます）' : ''));
+    var el = document.getElementById('row-' + OPEN); if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  }catch(e){
+    setSync('⚠ たせませんでした：' + (e.message || e) + '（書いた内容は消えていません。もう一度押してください）', true);
+  } finally { btn.disabled = false; }
+}
+
+/* ── 一覧 ── */
+function render(){
+  var list = document.getElementById('list');
+  var idx = ROWS.map(function(r, i){ return i; }).filter(function(i){ var r = ROWS[i];
+    if(owatta(r)) return false;                               /* ［終了］した行は出さない（スプシには残る） */
+    if(F.k && r.k !== F.k) return false; if(F.h && r.h !== F.h) return false;
+    if(F.s === 'ima' && (r.jokyo === '成約' || r.jokyo === '見送り')) return false; return true; });
+  idx.sort(function(a, b){ var x = ROWS[a], y = ROWS[b]; var ox = isOsoi(x), oy = isOsoi(y); if(ox !== oy) return ox ? -1 : 1;
+    var dx = x.oikakeBi || '9999', dy = y.oikakeBi || '9999'; if(dx !== dy) return dx < dy ? -1 : 1; return (y.okuttaBi || '') < (x.okuttaBi || '') ? -1 : 1; });
+  document.getElementById('count').textContent = idx.length + '件' + (F.s === 'ima' ? '（追いかけ中）' : '');
+  if(!idx.length){ list.innerHTML = '<div class="empty">' + (ROWS.length ? 'この条件の行はありません' : 'まだ1行もありません。受注Ａでサンプルを登録するか、「＋ 1行たす」で足すと、ここに入ります。') + '</div>'; return; }
+  list.innerHTML = idx.map(function(i){ var r = ROWS[i]; var osoi = isOsoi(r); var usu = (r.jokyo === '成約' || r.jokyo === '見送り');
+    var who = esc(whoJi(r)) + (r.tantou ? ' <span style="font-weight:700;color:#6b6a63">' + esc(r.tantou) + '</span>' : '');
+    var d = r.oikakeBi ? ('<div class="d' + (osoi ? ' red' : '') + '"><small>' + (osoi ? 'すぎた' : '次') + '</small>' + md(r.oikakeBi) + '</div>') : ('<div class="d"><small>次</small>—</div>');
+    return '<div class="row ' + r.k + (osoi ? ' osoi' : '') + (usu ? ' usu' : '') + (OPEN === i ? ' open' : '') + '" id="row-' + i + '">'
+      + '<div class="r1" onclick="toggleRow(' + i + ')">' + d
+      + '<div class="mid"><div class="who"><span class="p ' + r.k + '">' + KUBUN[r.k] + '</span>' + who + '</div>'
+      + '<div class="what">' + HIN[r.h] + ' <b>' + esc(r.nani) + '</b>' + (r.doko ? '（' + esc(r.doko) + '）' : '') + ' ・ ' + md(r.okuttaBi) + ' ' + esc(r.watashikata || '') + (r.watashikata ? '・' : '') + esc(r.yushou) + (r.mokuteki ? ' ・ ' + esc(r.mokuteki) : '') + '</div></div>'
+      + '<span class="st ' + (ST_CLS[r.jokyo] || 'a') + '">' + esc(r.jokyo || '送った') + '</span><span class="ar">▶</span></div>'
+      + '<div class="r2">' + (OPEN === i ? r2Html(r, i) : '') + '</div></div>';
+  }).join('');
+}
+function opt(list, cur){ return list.map(function(s){ return '<option' + (cur === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join(''); }
+function r2Html(r, i){
+  var T = te(r);
+  var jd = T ? '' : ' <span class="jidou">（自動・受注Ａ' + (r.bangou ? ' 伝票 ' + esc(r.bangou) : '') + '）</span>';
+  return '<div class="kv">'
+    + '<span class="k">だれに</span><span class="line"><select class="w1" onchange="ROWS[' + i + '].kubun=this.value;kubunHenka(' + i + ',this)">' + opt(['RT','お取引先','これからの方','その他'], r.kubun || 'その他') + '</select>'
+    +   '<select class="w2" id="fac-' + i + '" style="' + (r.kubun === 'RT' ? '' : 'display:none') + '" onchange="ROWS[' + i + '].shisetsu=this.value">' + facOptionsHtml(r.shisetsu) + '</select>'
+    +   '<input class="w2" id="co-' + i + '" value="' + esc(r.shisetsu) + '" placeholder="会社・お店" style="' + (r.kubun === 'RT' ? 'display:none' : '') + '" oninput="ROWS[' + i + '].shisetsu=this.value">'
+    +   '<input class="w2" value="' + esc(r.tantou) + '" placeholder="担当者（お名前）" oninput="ROWS[' + i + '].tantou=this.value">'
+    +   (r.k === 'rt' ? '<span class="jidou">→ RTカードに出ます</span>' : '') + '</span>'
+    + '<span class="k">何を</span><span class="line"><select class="w1" onchange="ROWS[' + i + '].hinmoku=this.value">' + opt(['オリーブオイル','牛肉','その他'], r.hinmoku || 'オリーブオイル') + '</select>'
+    +   (T ? '<input style="flex:1;min-width:150px" value="' + esc(r.nani) + '" placeholder="品名・量" oninput="ROWS[' + i + '].nani=this.value">' : '<span>' + esc(r.nani) + jd + '</span>')
+    +   '<input class="w2" value="' + esc(r.doko) + '" placeholder="どこのもの（産地・仕入先）" oninput="ROWS[' + i + '].doko=this.value"></span>'
+    + '<span class="k">いつ</span><span class="line">' + (T ? '<input type="date" value="' + esc(r.okuttaBi) + '" onchange="ROWS[' + i + '].okuttaBi=this.value">' : '<span>' + esc(r.okuttaBi) + '</span>')
+    +   '<select class="w1" onchange="ROWS[' + i + '].watashikata=this.value">' + opt(WATASHI, r.watashikata || '発送') + '</select>'
+    +   (T ? '<select class="w1" onchange="ROWS[' + i + '].yushou=this.value">' + opt(['無償','有償','有償・無償'], r.yushou || '無償') + '</select>' : '<span>' + esc(r.yushou) + '</span>')
+    +   '<span class="jidou">渡した人：</span><select class="w1" onchange="ROWS[' + i + '].dare=this.value">' + opt([''].concat(DARE), r.dare || '') + '</select></span>'
+    + '<span class="k">何のため</span><span><input value="' + esc(r.mokuteki) + '" placeholder="目的" style="width:100%" oninput="ROWS[' + i + '].mokuteki=this.value"></span>'
+    + '<span class="k">次は</span><span class="line"><input type="date" value="' + esc(r.oikakeBi) + '" onchange="ROWS[' + i + '].oikakeBi=this.value"><input value="' + esc(r.oikake) + '" placeholder="次のアクション" style="flex:1;min-width:150px" oninput="ROWS[' + i + '].oikake=this.value"></span>'
+    + '<span class="k">状況</span><span><select onchange="ROWS[' + i + '].jokyo=this.value">' + opt(JOKYO, r.jokyo || '送った') + '</select></span>'
+    + '<span class="k">結果・感想</span><span><textarea placeholder="例：脂の甘みを気に入ってくださった。12月のコースで使う方向" oninput="ROWS[' + i + '].kekka=this.value">' + esc(r.kekka) + '</textarea></span>'
+    + '<span class="k">メモ</span><span><textarea placeholder="自由メモ" oninput="ROWS[' + i + '].memo=this.value">' + esc(r.memo) + '</textarea></span>'
+    + '</div><div class="act"><button class="b s" onclick="save(' + i + ',this)">💾 保存</button><button class="b s g" onclick="owari(' + i + ',this)">✅ 終了</button><span class="kekka" id="kk-' + i + '"></span>'
+    + (r.k === 'rt' && r.shisetsu ? '<a class="rtlink" href="../rt_chef_daicho.html?q=' + encodeURIComponent(r.shisetsu) + '">🍽️ RTカードで見る →</a>' : '') + '</div>';
+}
+function kubunHenka(i, sel){ var rt = sel.value === 'RT'; var f = document.getElementById('fac-' + i), c = document.getElementById('co-' + i); if(f) f.style.display = rt ? '' : 'none'; if(c) c.style.display = rt ? 'none' : ''; if(rt && f){ ROWS[i].shisetsu = f.value; } else if(c){ ROWS[i].shisetsu = c.value; } }
+function toggleRow(i){ OPEN = (OPEN === i ? -1 : i); render(); }
+
+/* ── 保存（その行だけ描き直す。ほかの行の書きかけは消えない） ── */
+async function save(i, btn){
+  var r = ROWS[i]; var k = document.getElementById('kk-' + i);
+  if(r.kubun === 'RT' && !r.shisetsu){ alert('RTの施設を▼から選んでください（施設名が、RTカードに結びつく鍵です）'); return; }
+  btn.disabled = true; if(k){ k.className = 'kekka'; k.textContent = '保存しています…'; }
+  try{
+    var body = {}; Object.keys(r).forEach(function(x){ if(x !== 'k' && x !== 'h') body[x] = r[x]; }); body.atoAri = true;
+    var d = await gasPost({ action:'oosSampleSave', row:body });
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || '保存できませんでした');
+    shirushi(r); render();
+    var k2 = document.getElementById('kk-' + i); if(k2){ k2.className = 'kekka'; k2.textContent = '✅ 保存しました'; }
+  }catch(e){
+    btn.disabled = false;
+    if(k){ k.className = 'kekka ng'; k.textContent = '⚠ 保存できませんでした：' + (e.message || e) + '（書いた内容は消えていません。もう一度押してください）'; }
+  }
+}
+/* ── ［終了］：スプシには「終了」と終了した日が残り、この一覧からは消える ── */
+async function owari(i, btn){
+  var r = ROWS[i]; if(!r || !r.id) return;
+  if(!confirm(whoJi(r) + ' を終了にしますか？\n\nこの一覧からは消えます。スプシには「終了」として残ります。')) return;
+  var k = document.getElementById('kk-' + i);
+  btn.disabled = true; if(k){ k.className = 'kekka'; k.textContent = '終了にしています…'; }
+  try{
+    var d = await gasPost({ action:'oosSampleOwari', id:r.id });
+    if(!d || d.status !== 'ok') throw new Error((d && d.message) || '終了にできませんでした');
+    r.jokyo = '終了'; OPEN = -1; render();
+  }catch(e){
+    btn.disabled = false;
+    if(k){ k.className = 'kekka ng'; k.textContent = '⚠ 終了にできませんでした：' + (e.message || e) + '（もう一度押してください）'; }
+  }
+}
+document.getElementById('chips').addEventListener('click', function(e){ var c = e.target.closest('.chip'); if(!c) return; var g = c.getAttribute('data-g'); F[g] = c.getAttribute('data-v'); document.querySelectorAll('.chip[data-g=' + g + ']').forEach(function(x){ x.classList.toggle('on', x === c); }); OPEN = -1; render(); });
+
+(function boot(){
+  if(!akerarete()){ document.getElementById('lock').style.display = ''; return; }
+  document.getElementById('main').style.display = '';
+  facYomu();
+  yomu();
+})();
+</script>
+</body>
+</html>

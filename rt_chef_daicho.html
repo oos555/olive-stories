@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-09-01">
+<meta name="oos-version" content="2026-10-21-01">
 <script src="oos-version.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -917,10 +917,13 @@ function lockAgain(msg){
 function openMain(){
   document.getElementById('lock-view').style.display='none';
   document.getElementById('main-view').style.display='block';
+  /* ★2026-10-21 サンプル台帳の「🍽️ RTカードで見る →」から来たとき（?q=施設名）は、その施設で絞って開く */
+  try{ var _qp=new URLSearchParams(location.search).get('q'); if(_qp && document.getElementById('q')) document.getElementById('q').value=_qp; }catch(eQ){}
   fillFacOptions(); renderDaicho(); renderExamples(); renderPeople();
   renderOilRank();
   loadContactsFromMaster();
   loadRtFacMaster();   // RT施設マスタ（台帳が親）を読み込み→FACに反映（お客様マスタより優先）
+  if(typeof sampleYomu==='function') sampleYomu();   /* ★2026-10-21 🎁 サンプル台帳（読むだけ）→ 施設カードに出す */
   applyBossGate();
 }
 
@@ -1319,7 +1322,9 @@ function renderDaicho(){
         ((d.addr||d.tel)?'<div class="mini" style="margin:4px 0 2px;">'+(d.addr?'📍 '+esc(d.addr)+'<br>':'')+(d.tel?'☎ '+esc(d.tel):'')+'</div>':'')+
         (d.lineage.length?'<div class="lineage">歴代：'+d.lineage.map(esc).join(' <span class="arrow">←</span> ')+'</div>':'')+
         oilsHtml(f)+barsHtml(nowOils(f))+monthHtml(f)+
-        '<div class="tip">次の一手：'+nextTip(f)+'</div></div>';
+        /* ★2026-10-21 🎁 サンプル台帳（営業のお隣）の窓口。追いかけ日をすぎたサンプルがあるときだけ「次の一手」もサンプル優先（承認モック mock_営業K_サンプル台帳_2026-10-21） */
+        (typeof sampleWakuHtml==='function' ? sampleWakuHtml(f) : '')+
+        ((typeof sampleOsoiAru==='function' && sampleOsoiAru(f)) ? '<div class="tip tip-sam">次の一手：'+sampleTip(f)+'</div>' : '<div class="tip">次の一手：'+nextTip(f)+'</div>')+'</div>';
     });
   } else if(curMode==='chef'){
     Object.keys(CHEF_CAREER).forEach(function(chef){
@@ -2450,7 +2455,10 @@ function saveKatsudo(){
     refFrom: (katType==='intro'? ((document.getElementById('kat-from').value||'').trim()||who):''),
     refTo: (katType==='intro'? (document.getElementById('kat-to').value||'').trim():''),
     img1:katPhotos[0]||'', img2:katPhotos[1]||'', img3:katPhotos[2]||'',
-    createdAt: katEditId ? (katFindCreatedAt(katEditId)||new Date().toISOString()) : new Date().toISOString()
+    createdAt: katEditId ? (katFindCreatedAt(katEditId)||new Date().toISOString()) : new Date().toISOString(),
+    /* ★2026-10-21 🎁サンプル は サンプル台帳（🎁 サンプル発送先）にも1行入る（GAS oosSampleKaraKatsudo_）。
+       　相手が人（名刺）のときは、その人の施設を fac で添える。施設名がRTカードに結びつく鍵 */
+    fac: (katType==='sample' && typeof katFacOf==='function') ? katFacOf(who) : ''
   };
   var btn=document.getElementById('kat-save'); if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'saveRtActivity',password:pw,rec:rec})})
@@ -2462,7 +2470,9 @@ function saveKatsudo(){
         for(var i=0;i<KATSUDO.length;i++){ if(KATSUDO[i].id===rec.id){ KATSUDO[i]=rec; found=true; break; } }
         if(!found) KATSUDO.push(rec);
         resetKatForm(); renderKatList(); renderKatRefMap();
-        if(typeof setSync==='function') setSync('記録しました');
+        var _sm = (d.sample && d.sample.status==='ok') ? '記録しました（🎁 サンプル台帳にも入りました）' : (d.sample && d.sample.status==='error' ? '記録しました（⚠ サンプル台帳には入れられませんでした：'+(d.sample.message||'不明')+'）' : '記録しました');
+        if(typeof setSync==='function') setSync(_sm);
+        if(d.sample && d.sample.status==='ok' && typeof sampleYomu==='function') sampleYomu();   /* ★2026-10-21 施設カードの🎁をすぐ更新 */
       } else { alert('保存できませんでした：'+((d&&d.message)||'不明')); }
     })
     .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='この内容で記録する'; } alert('通信できませんでした。'); });
@@ -2603,7 +2613,7 @@ function memoBuildSkeleton(){
     '<div class="memo-note">名刺やカードがまだ無い人のこと・今度会う人・その場で決まったこと…を、どこにも紐づけず思いついたまま書き留める場所です。スタッフも見られます。</div>'
     +'<div class="card">'
       +'<div id="memo-form-title" style="font-weight:800;font-size:16px;margin-bottom:10px;">✍️ ちょこっと書きとめる</div>'
-      +'<textarea id="memo-text" class="memo-in" style="min-height:74px;" placeholder="例：東京ベイコートの新しい料理長は麻生さん。まだ名刺もらってない。近いうち仕込み中にご挨拶に行く予定。"></textarea>'
+      +'<textarea id="memo-text" class="memo-in" style="min-height:74px;" placeholder="例：東京ベイコートの新しい料理長は浅野さん。まだ名刺もらってない。近いうち仕込み中にご挨拶に行く予定。"></textarea>'
       +'<div style="display:flex;gap:8px;align-items:center;margin-top:11px;flex-wrap:wrap;">'
         +'<span style="font-size:13px;color:#6f6a5f;font-weight:700;">日付</span>'
         +'<input id="memo-date" type="date" class="memo-in" style="width:auto;">'
@@ -2688,6 +2698,85 @@ function memoRenderList(){
   }).join('');
 }
 
+</script>
+
+<!-- ═════════════════════════════════════════════════════════════════
+     ★2026-10-21 🎁 サンプル台帳の窓口（施設カードの中）
+     ─────────────────────────────────────────────────────────────────
+     ひろみさん：「RTの場合はRTのカードの中にそれが入っててほしい」「これからホテルがどんどん増えていくから」
+     承認モック：mocks/mock_営業K_サンプル台帳_2026-10-21.html
+     ・親はスプシ「🎁 サンプル発送先」。書くのは【営業のお隣 → 🎁 サンプル台帳（eigyo/sample.html）】だけ。
+     　ここは【読むだけ】。この画面に書く機能を付けないでください（親は1つ）。
+     ・15列目「施設・会社」が、この施設の名前で始まる行（例「サンクチュアリコート高山 ｲﾀﾘｱﾝﾚｽﾄﾗﾝ」）を出す。
+     ・カードの中では「🎁 サンプル N件」の1行にたたむ。追いかけ日をすぎた行があるときだけ、たたまずに赤で出す。
+     ・サンプルが1件もない施設には枠を出さない。［終了］した行は出さない。
+     ═════════════════════════════════════════════════════════════════ -->
+<style>
+  .rts{border:1.5px solid #e6c98f;background:#fff8ec;border-radius:10px;padding:8px 10px;margin-top:8px}
+  .rts .t{font-weight:800;font-size:13px;color:#6b5124;display:flex;align-items:center;gap:8px;cursor:pointer;flex-wrap:wrap}
+  .rts .t .n{background:#8a5a12;color:#fff;border-radius:999px;font-size:10.5px;padding:1px 7px}
+  .rts .t .osoi{color:#dc2626;font-size:12px}
+  .rts .t .go{margin-left:auto;font-size:11.5px;color:#274a78;font-weight:800}
+  .rts .items{display:none;margin-top:6px}
+  .rts.open .items{display:block}
+  .rts .it{font-size:12.5px;padding:5px 0;border-top:1px dashed #e6c98f;display:grid;grid-template-columns:50px 1fr;gap:2px 8px}
+  .rts .it:first-child{border-top:none}
+  .rts .it .d{font-weight:800;color:#8a6a2a;font-size:11.5px}
+  .rts .it .red{color:#dc2626;font-weight:800}
+  .rts .st{border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800;background:#eef3fb;color:#274a78}
+  .rts .st.b{background:#fff3e0;color:#9a5a10}.rts .st.c{background:#e9f5ec;color:#1f6b3a}.rts .st.x{background:#eeece6;color:#6b6a63}
+  .tip.tip-sam{background:#fff3e0;border-color:#e6c98f}
+</style>
+<script>
+var SAMPLES=[];               /* 🎁 サンプル発送先の行（GAS oosSampleList・読むだけ） */
+var SAMPLE_OPEN={};           /* 施設ごとの「ひらく／たたむ」 */
+var SAMPLE_ST={'送った':'a','反応待ち':'b','商談中':'b','成約':'c','見送り':'x'};
+function sampleYomu(){
+  try{
+    fetch(GAS_URL+'?action=oosSampleList&t='+Date.now(),{cache:'no-store'})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d&&d.status==='ok'){ SAMPLES=d.rows||[]; if(curMode==='fac' && document.getElementById('q')) renderDaicho(); } })
+      .catch(function(){});
+  }catch(e){}
+}
+function sampleMd(s){ var m=String(s||'').match(/^\d{4}-(\d{2})-(\d{2})/); return m?(+m[1])+'/'+(+m[2]):''; }
+function sampleOsoi(r){ return !!(r.oikakeBi && r.oikakeBi<today() && !(r.jokyo==='成約'||r.jokyo==='見送り')); }
+/* この施設の行：15列目「施設・会社」がこの施設名そのもの、またはこの施設名で始まる（部署つき）行。終了は出さない */
+function sampleRowsFor(f){
+  return SAMPLES.filter(function(r){
+    if(!r || r.jokyo==='終了') return false;
+    var s=String(r.shisetsu||''); if(!s) return false;
+    return s===f || s.indexOf(f)===0;
+  }).sort(function(a,b){ return (b.okuttaBi||'')<(a.okuttaBi||'')?-1:1; });
+}
+function sampleOsoiAru(f){ return sampleRowsFor(f).some(sampleOsoi); }
+function sampleHin(r){ return r.hinmoku==='牛肉'?'🥩':(r.hinmoku==='その他'?'📦':'🫒'); }
+function sampleWakuHtml(f){
+  var rows=sampleRowsFor(f); if(!rows.length) return '';
+  var osoi=rows.filter(sampleOsoi); var open=(SAMPLE_OPEN[f]===true)||(SAMPLE_OPEN[f]!==false && osoi.length>0);
+  var key=f.split("'").join('');
+  return '<div class="rts'+(open?' open':'')+'"><div class="t" onclick="SAMPLE_OPEN[\''+esc(key)+'\']='+(open?'false':'true')+';renderDaicho()">🎁 サンプル <span class="n">'+rows.length+'件</span>'
+    +(osoi.length?'<span class="osoi">⚠ 追いかけ日すぎ '+osoi.length+'件</span>':'')
+    +'<span class="go">'+(open?'▲ たたむ':'▼ ひらく')+'　｜ 書くのは営業のお隣 🎁 →</span></div>'
+    +'<div class="items">'+rows.map(function(r){ var o=sampleOsoi(r); var owari=(r.jokyo==='成約'||r.jokyo==='見送り');
+      return '<div class="it"><span class="d">'+sampleMd(r.okuttaBi)+'</span><span>'+sampleHin(r)+' <b>'+esc(r.nani||'')+'</b>'+(r.doko?'（'+esc(r.doko)+'）':'')+' '+esc(r.yushou||'')+(r.watashikata?'・'+esc(r.watashikata):'')+(r.tantou?' → '+esc(r.tantou):'')+'</span>'
+        +(r.mokuteki?'<span class="d">目的</span><span>'+esc(r.mokuteki)+'</span>':'')
+        +'<span class="d">いま</span><span><span class="st '+(SAMPLE_ST[r.jokyo]||'a')+'">'+esc(r.jokyo||'送った')+'</span>'
+        +(r.kekka?'　'+esc(r.kekka):'')
+        +((r.oikakeBi&&!owari)?'　<span class="'+(o?'red':'')+'">'+(o?'⚠ ':'')+'次 '+sampleMd(r.oikakeBi)+(r.oikake?'「'+esc(r.oikake)+'」':'')+(o?' がすぎています':'')+'</span>':'')
+        +'</span></div>'; }).join('')+'</div></div>';
+}
+function sampleTip(f){
+  var o=sampleRowsFor(f).filter(sampleOsoi)[0]; if(!o) return nextTip(f);
+  return '<b>🎁 サンプルの追いかけが先。</b>'+esc(o.oikake||'追いかけ')+'（'+sampleMd(o.oikakeBi)+'）がまだ。感想を聞いてから次の話へ。';
+}
+/* できごと記録で 🎁サンプル を記録するとき：相手が人（名刺）なら、その人の施設を添える（施設名がRTカードに結びつく鍵） */
+function katFacOf(who){
+  if(!who) return '';
+  if(FAC[who]) return who;
+  for(var i=0;i<PEOPLE.length;i++){ if(PEOPLE[i]&&PEOPLE[i].name===who) return PEOPLE[i].fac||''; }
+  return '';
+}
 </script>
 </body>
 </html>

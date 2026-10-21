@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>たたき台：🎁 サンプル台帳（営業のお隣に置く・さわって試せる版）2026-10-21</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:#f5f1e8;color:#2b2a26;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;font-size:14px;line-height:1.55}
+  .phone{max-width:760px;margin:0 auto;padding:0 0 40px}
+  .head{background:#8a5a12;color:#fff;padding:10px 14px;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px}
+  .head h1{font-family:"Zen Maru Gothic",sans-serif;font-weight:700;font-size:18px;margin:0}
+  .head .sub{font-size:11px;opacity:.9}
+  .head .modoru{margin-left:auto;font-size:12px;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .note{margin:10px 12px 0;padding:8px 12px;border-radius:10px;background:#fff8e6;border:1px solid #ecd9a8;font-size:12.5px;color:#6b5124;line-height:1.7}
+  .note b{color:#8a5a12}
+  .mockbar{margin:10px 12px 0;padding:6px 10px;border-radius:8px;background:#eef3fb;border:1px dashed #9fb4d6;font-size:12px;color:#274a78}
+
+  /* ── ＋1行たす（たたんであるとボタン1本） ── */
+  .add{margin:10px 12px 0}
+  .add-btn{width:100%;background:#fff;border:1.5px solid #c9a86a;border-radius:10px;padding:9px 12px;font-size:14px;font-weight:800;color:#8a5a12;text-align:left;cursor:pointer}
+  .add-btn span{float:right;font-weight:400;color:#9a8f7e;font-size:12px}
+  .form{display:none;background:#fff;border:1.5px solid #c9a86a;border-top:none;border-radius:0 0 10px 10px;padding:10px 12px 12px}
+  .form.on{display:block}
+  .add.on .add-btn{border-radius:10px 10px 0 0}
+  .g{display:grid;grid-template-columns:64px 1fr;gap:6px 8px;align-items:center;margin-bottom:6px}
+  .g .l{font-size:12px;font-weight:800;color:#8a5a12;text-align:right}
+  .g .f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .form input,.form select,.form textarea{font:inherit;font-size:13.5px;border:1.5px solid #d5cfc3;border-radius:7px;padding:5px 8px;background:#fff;color:#2b2a26}
+  .form input[type=date]{width:140px}
+  .form .w1{width:110px}.form .w2{width:170px}.form .w3{flex:1;min-width:160px}
+  .form textarea{width:100%;min-height:36px;resize:vertical}
+  .form .hint{font-size:11.5px;color:#9a8f7e}
+  .form .act{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .b{border:none;border-radius:9px;padding:8px 14px;font-weight:800;font-size:13.5px;cursor:pointer;color:#fff;background:#8a5a12}
+  .b.w{background:#fff;color:#8a5a12;border:1.5px solid #c9a86a}
+  .b.g{background:#eeece6;color:#6b6a63}
+  .b.s{padding:5px 10px;font-size:12.5px}
+
+  /* ── しぼりこみ（チップ・1行） ── */
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 12px 6px;align-items:center}
+  .chips .t{font-size:11.5px;color:#9a8f7e;font-weight:800;margin-right:-2px}
+  .chip{border:1.5px solid #d5cfc3;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;color:#6b6a63;cursor:pointer}
+  .chip.on{background:#8a5a12;border-color:#8a5a12;color:#fff}
+  .chips .sep{width:1px;height:18px;background:#d5cfc3;margin:0 2px}
+  .count{font-size:12px;color:#6b6a63;margin:0 12px 6px;font-weight:700}
+
+  /* ── 1件＝1行（押すとひらく） ── */
+  .list{margin:0 12px}
+  .row{background:#fff;border:1px solid #e9e3d7;border-left:4px solid #cfc7b6;border-radius:8px;margin-bottom:5px}
+  .row.rt{border-left-color:#274a78}.row.tori{border-left-color:#4a5a2a}.row.mikomi{border-left-color:#d98324}
+  .row.osoi{background:#fff6f5;border-color:#e6b1ab;border-left-color:#dc2626}
+  .row.usu{opacity:.55}
+  .r1{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer}
+  .r1 .d{flex-shrink:0;width:52px;font-size:12px;font-weight:800;color:#6b6a63;line-height:1.25}
+  .r1 .d small{display:block;font-size:10px;font-weight:700;color:#9a8f7e}
+  .r1 .d.red{color:#dc2626}.r1 .d.red small{color:#dc2626}
+  .r1 .mid{flex:1;min-width:0}
+  .r1 .who{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r1 .who .p{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;margin-right:4px;vertical-align:1px}
+  .p.rt{background:#e6edf7;color:#274a78}.p.tori{background:#eaf0dc;color:#4a5a2a}.p.mikomi{background:#fdebd6;color:#b2600f}.p.sono{background:#eeece6;color:#6b6a63}
+  .r1 .what{font-size:12.5px;color:#4b4a44;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r1 .what b{color:#2b2a26}
+  .r1 .st{flex-shrink:0;font-size:11px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .st.a{background:#eef3fb;color:#274a78}.st.b{background:#fff3e0;color:#9a5a10}.st.c{background:#e9f5ec;color:#1f6b3a}.st.x{background:#eeece6;color:#6b6a63}
+  .r1 .ar{flex-shrink:0;color:#9a8f7e;font-size:12px;width:12px}
+  .r2{display:none;border-top:1px dashed #e9e3d7;padding:8px 10px 10px;background:#fffdf8;border-radius:0 0 8px 8px}
+  .row.open .r2{display:block}
+  .row.open .r1 .ar{transform:rotate(90deg)}
+  .kv{display:grid;grid-template-columns:78px 1fr;gap:3px 8px;font-size:12.5px;align-items:center}
+  .kv .k{color:#8a5a12;font-weight:800;text-align:right}
+  .kv input,.kv select,.kv textarea{font:inherit;font-size:13px;border:1.5px solid #d5cfc3;border-radius:7px;padding:4px 7px;background:#fff;color:#2b2a26}
+  .kv textarea{width:100%;min-height:34px;resize:vertical}
+  .kv .line{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .kv .w1{width:110px}.kv .w2{width:170px}
+  .r2 .act{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .r2 .kekka{font-size:12px;color:#1f6b3a;font-weight:800}
+  .r2 .rtlink{font-size:12px;color:#274a78;font-weight:800;margin-left:auto}
+  .jidou{font-size:10.5px;color:#9a8f7e;font-weight:800}
+  .empty{padding:14px;text-align:center;color:#9a8f7e;font-size:13px;background:#fff;border:1px dashed #d5cfc3;border-radius:8px}
+
+  /* ── 下：RTカードではこう見える ── */
+  .sec{margin:22px 12px 6px;font-size:13px;font-weight:800;color:#8a5a12;display:flex;align-items:center;gap:8px}
+  .sec .mini{font-weight:400;color:#9a8f7e;font-size:11.5px}
+  .rtwrap{margin:0 12px;background:#fdfcf8;border:1px solid #e3e0d6;border-radius:12px;padding:10px 12px}
+  .rtcard{border:1px solid #e3e0d6;border-radius:12px;padding:12px 14px;background:#fff}
+  .rtcard h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .genre{font-size:11px;border-radius:999px;padding:1px 9px;background:#e9efd9;color:#4a5a2a;font-weight:800}
+  .rtkv{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#4b4a44}
+  .rtmini{font-size:12px;color:#6b6a63;margin:3px 0}
+  .bars{margin:6px 0;font-size:12px;color:#9a8f7e;border:1px dashed #e3e0d6;border-radius:8px;padding:6px 9px}
+  .rts{border:1.5px solid #e6c98f;background:#fff8ec;border-radius:10px;padding:8px 10px;margin-top:8px}
+  .rts .t{font-weight:800;font-size:13px;color:#6b5124;display:flex;align-items:center;gap:8px;cursor:pointer}
+  .rts .t .n{background:#8a5a12;color:#fff;border-radius:999px;font-size:10.5px;padding:1px 7px}
+  .rts .t .go{margin-left:auto;font-size:11.5px;color:#274a78}
+  .rts .items{display:none;margin-top:6px}
+  .rts.open .items{display:block}
+  .rts .it{font-size:12.5px;padding:5px 0;border-top:1px dashed #e6c98f;display:grid;grid-template-columns:50px 1fr;gap:2px 8px}
+  .rts .it:first-child{border-top:none}
+  .rts .it .d{font-weight:800;color:#8a6a2a;font-size:11.5px}
+  .rts .it .red{color:#dc2626;font-weight:800}
+  .tip{background:#f3f6ec;border-radius:8px;padding:6px 9px;font-size:12px;margin-top:8px}
+  .tip.sam{background:#fff3e0}
+
+  /* ── 玄関（営業のお隣）に4つ目の部屋 ── */
+  .heya{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 12px}
+  .to{background:#fff;border:1px solid #e3ded2;border-radius:12px;padding:10px 8px;text-align:center;font-size:12px}
+  .to .e{font-size:22px;line-height:1.2}
+  .to .na{font-weight:800;font-size:13px}
+  .to .setsu{color:#8a8377;font-size:10.5px}
+  .to.new{border:2px solid #c9a86a;background:#fff8ec}
+  .q{margin:0 12px;background:#fff;border:1px solid #e3e0d6;border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.9}
+  .q b{color:#8a5a12}
+  @media (max-width:520px){ .heya{grid-template-columns:repeat(2,1fr)} .r1 .what{white-space:normal} .form .w2{width:140px} }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="head">
+    <div><h1>🎁 サンプル台帳</h1><div class="sub">だれに・何を・いつ・どんな風に・何のために ／ 次はいつ何を ／ 結果</div></div>
+    <a class="modoru" href="#">← 営業のお隣</a>
+  </div>
+
+  <div class="mockbar">承認済みモック（2026-10-21 ひろみさん「この状態で作ってください」）。これは<b>さわって試せる見本</b>です。保存はされません。「＋1行たす」で足すと、下の<b>RTカード</b>にも入るのを見られます。<br>
+  <span style="font-size:11px">承認後に足した1点（実装と同じにするため）：ひらいた行で、だれに（区分▼・施設▼／会社・担当者）・何を（品目▼・どこのもの）・いつ（渡し方▼・渡した人▼）も直せます。受注Ａから自動で入る行は区分・担当者・どこのものをあとから書く必要があるためです。RTの施設▼はRTシェフ台帳と同じ16施設。</span></div>
+
+  <div class="note">👑 社長専用（営業のお隣の中）。受注Ａで「無料／有償サンプル」の注文を登録したぶんは<b>自動で1行</b>入ります。<b>牛肉・手渡し・訪問時</b>など受注Ａを通らないものは「＋1行たす」。
+  見積Ｍにあった「サンプル発送先リスト」は<b>ここへ引っ越し</b>（見積Ｍは価格リストのリンク置き場だけになります）。</div>
+
+  <!-- ＋1行たす -->
+  <div class="add" id="add">
+    <button class="add-btn" onclick="toggleAdd()">＋ 1行たす <span>（受注Ａを通らないサンプル：牛肉・手渡し・訪問時）</span></button>
+    <div class="form" id="form">
+      <div class="g">
+        <div class="l">だれに</div>
+        <div class="f">
+          <select id="f-kubun" class="w1" onchange="kubunChanged()"><option value="rt">RT</option><option value="tori">お取引先</option><option value="mikomi" selected>これからの方</option><option value="sono">その他</option></select>
+          <select id="f-fac" class="w2" style="display:none"><option value="">（RTの施設▼）</option><option>サンクチュアリコート日光</option><option>サンクチュアリコート琵琶湖</option><option>サンクチュアリコート高山</option><option>横浜ベイコート倶楽部</option><option>ラグーナベイコート倶楽部</option><option>グランドエクシブ鳴門</option><option>芦屋ベイコート倶楽部</option><option>エクシブ有馬離宮</option><option>エクシブ箱根離宮</option><option>ホテルトラスティ名古屋 栄</option><option>ザ・カハラ・ホテル＆リゾート 横浜</option><option>エクシブ京都 八瀬離宮</option><option>東京ベイコート倶楽部</option><option>エクシブ湯河原離宮</option><option>グランドエクシブ軽井沢</option><option>メイプルポイントゴルフクラブ レストラン</option></select>
+          <input id="f-co" class="w2" placeholder="会社・お店">
+          <input id="f-who" class="w2" placeholder="担当者（お名前）">
+        </div>
+        <div class="l">何を</div>
+        <div class="f">
+          <select id="f-hin" class="w1"><option value="oil">🫒 オイル</option><option value="beef">🥩 牛肉</option><option value="sono">その他</option></select>
+          <input id="f-nani" class="w3" placeholder="品名・量（例：黒毛和牛 サーロイン 約500g）">
+          <input id="f-doko" class="w2" placeholder="どこのもの（産地・仕入先）">
+        </div>
+        <div class="l">いつ</div>
+        <div class="f">
+          <input id="f-date" type="date">
+          <select id="f-how" class="w1"><option>発送</option><option>手渡し</option><option>訪問時</option><option>注文に同梱</option></select>
+          <select id="f-yu" class="w1"><option>無償</option><option>有償</option></select>
+          <select id="f-by" class="w1"><option>ひろみ</option><option>ゆか</option><option>その他</option></select>
+          <span class="hint">← だれが渡したか</span>
+        </div>
+        <div class="l">何のため</div>
+        <div class="f"><input id="f-moku" class="w3" placeholder="目的（例：鉄板焼の冬コースで採用してもらうため）" style="width:100%"></div>
+        <div class="l">次は</div>
+        <div class="f">
+          <input id="f-next" type="date">
+          <input id="f-nextw" class="w3" placeholder="次のアクション（例：電話で味の感想を聞く）">
+        </div>
+      </div>
+      <div class="act">
+        <button class="b" onclick="addRow()">この1行をたす</button>
+        <button class="b g" onclick="toggleAdd()">やめる</button>
+        <span class="hint">目的・次は、あとからでも書けます（行をひらいて）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- しぼりこみ -->
+  <div class="chips" id="chips">
+    <span class="t">だれ</span>
+    <span class="chip on" data-g="k" data-v="">すべて</span><span class="chip" data-g="k" data-v="rt">RT</span><span class="chip" data-g="k" data-v="tori">お取引先</span><span class="chip" data-g="k" data-v="mikomi">これからの方</span>
+    <span class="sep"></span><span class="t">何を</span>
+    <span class="chip on" data-g="h" data-v="">すべて</span><span class="chip" data-g="h" data-v="oil">🫒</span><span class="chip" data-g="h" data-v="beef">🥩</span>
+    <span class="sep"></span><span class="t">状況</span>
+    <span class="chip on" data-g="s" data-v="ima">追いかけ中</span><span class="chip" data-g="s" data-v="owari">成約・見送りも</span>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+  <div class="note" style="margin-top:8px">並びは<b>次のアクションの日が近い順</b>。日が過ぎたものは<b>赤</b>で一番上。1件は1行で、押すと<b>結果・メモ</b>が書けます。成約・見送りはふだん隠れています（チップで出せる）。［終了］した行はスプシに残り、ここからは消えます＝今までどおり。</div>
+
+  <!-- RTカード -->
+  <div class="sec">🍽️ RTシェフ台帳の施設カードでは、こう見えます <span class="mini">（読むだけの窓口。書くのはこの台帳で）</span></div>
+  <div class="rtwrap">
+    <div class="rtcard" id="rtcard"></div>
+    <div class="rtmini" style="margin-top:8px">・「だれに」が <b>RT ＋ 施設▼</b> の行だけが、その施設のカードに入ります（施設名が鍵）。<br>・ホテルが増えても長くならないよう、カードの中では<b>「🎁 サンプル 3件」の1行にたたんで</b>おき、押すとひらきます。追いかけ日を過ぎたものがあるときだけ、たたまずに赤で出します。<br>・サンプルが1件もない施設には、この枠は出ません。</div>
+  </div>
+
+  <!-- 玄関 -->
+  <div class="sec">💼 営業のお隣に、4つ目の部屋として入ります</div>
+  <div class="heya">
+    <div class="to"><div class="e">📣</div><div class="na">マーケ</div><div class="setsu">お便り・発信のネタ帳</div></div>
+    <div class="to"><div class="e">📂</div><div class="na">書類</div><div class="setsu">よく開く書類</div></div>
+    <div class="to"><div class="e">🗒️</div><div class="na">外部依頼</div><div class="setsu">外に頼んだこと</div></div>
+    <div class="to new"><div class="e">🎁</div><div class="na">サンプル</div><div class="setsu">だれに何を・次はいつ</div></div>
+  </div>
+
+  <div class="sec">❓ 決めていただきたいこと</div>
+  <div class="q">
+    <b>①</b> RTシェフ台帳の「📇 できごと記録」にも「🎁 サンプル」があります。<b>できごと記録で🎁を選んだら、この台帳にも自動で1行入る</b>（写真はできごと記録に残る）でよいですか。それとも、できごと記録の🎁はやめて「サンプルはこちら」と案内だけにしますか。<br>
+    <b>②</b> 「だれが渡したか（ひろみ／ゆか）」の欄は要りますか。要らなければ外します。<br>
+    <b>③</b> 見積Ｍの「サンプル発送先リスト」は<b>消して</b>よいですか（スプシは同じものを使い続けるので、行は1つも消えません）。
+  </div>
+
+</div>
+
+<script>
+/* ── 見本のデータ（保存されません） ── */
+var today = new Date(); function ymd(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function daysAgo(n){ var d=new Date(today); d.setDate(d.getDate()-n); return ymd(d); }
+var KUBUN={rt:'RT',tori:'お取引先',mikomi:'これからの方',sono:'その他'};
+var HIN={oil:'🫒',beef:'🥩',sono:'📦'};
+var ST_CLS={'送った':'a','反応待ち':'b','商談中':'b','成約':'c','見送り':'x'};
+var ROWS=[
+ {k:'rt',fac:'芦屋ベイコート倶楽部',co:'芦屋ベイコート倶楽部',who:'○○総料理長',h:'beef',nani:'黒毛和牛 サーロイン 約500g',doko:'○○牧場（△△県）／仕入先：□□',date:daysAgo(6),how:'発送',yu:'無償',by:'ひろみ',moku:'鉄板焼の冬コースで採用してもらうため',next:daysAgo(2),nextw:'電話で味の感想を聞く',st:'反応待ち',kekka:'',memo:'到着日に「届きました」のLINEあり。シェフは今週いっぱい繁忙。',auto:false},
+ {k:'mikomi',fac:'',co:'○○トラットリア',who:'△△オーナーシェフ',h:'oil',nani:'トゥリリエ 250ml ×1、アイバリック 500ml ×1',doko:'スペイン・○○農園／△△農園',date:daysAgo(3),how:'発送',yu:'無償',by:'ひろみ',moku:'展示会で名刺交換。前菜用のオイルを探していた',next:daysAgo(-7),nextw:'メールで感想を聞く＋②の見積を説明',st:'送った',kekka:'',memo:'',auto:true,den:'1234-5678-9012'},
+ {k:'rt',fac:'東京ベイコート倶楽部',co:'東京ベイコート倶楽部',who:'浅野料理長',h:'oil',nani:'トゥリリエ 250ml ×2',doko:'スペイン・○○農園',date:daysAgo(10),how:'訪問時',yu:'無償',by:'ひろみ',moku:'新任料理長へのご挨拶。前任と同じ銘柄の継続をお願い',next:daysAgo(-12),nextw:'仕込み中にうかがって感想を聞く',st:'送った',kekka:'',memo:'',auto:false},
+ {k:'tori',fac:'',co:'中村先生',who:'中村先生',h:'oil',nani:'オルチャ 500ml ×1',doko:'イタリア・□□農園',date:daysAgo(20),how:'発送',yu:'有償',by:'ゆか',moku:'新しいロットの味の確認',next:daysAgo(-1),nextw:'次の定期便の前に電話',st:'商談中',kekka:'',memo:'',auto:true,den:'9876-5432-1098'},
+ {k:'rt',fac:'芦屋ベイコート倶楽部',co:'芦屋ベイコート倶楽部',who:'前任 □□シェフ',h:'oil',nani:'トゥリリエ 250ml ×2',doko:'スペイン・○○農園',date:'2026-06-02',how:'訪問時',yu:'無償',by:'ひろみ',moku:'ラグーナ時代の好みを芦屋でも',next:'',nextw:'',st:'成約',kekka:'7月から定期で入っている',memo:'',auto:false},
+ {k:'rt',fac:'エクシブ有馬離宮',co:'エクシブ有馬離宮',who:'小山シェフ',h:'oil',nani:'アイバリック 500ml ×1',doko:'スペイン・△△農園',date:'2026-09-30',how:'発送',yu:'無償',by:'ひろみ',moku:'穴見シェフの後任へ。同じ銘柄の継続',next:'',nextw:'',st:'成約',kekka:'10/10 訪問。同じ銘柄で継続。10月の定期便に入った',memo:'',auto:true,den:'2222-3333-4444'}
+];
+var F={k:'',h:'',s:'ima'}; var OPEN=-1;
+
+function toggleAdd(){ var a=document.getElementById('add'); a.classList.toggle('on'); document.getElementById('form').classList.toggle('on'); if(a.classList.contains('on')){ document.getElementById('f-date').value=ymd(today); kubunChanged(); } }
+function kubunChanged(){ var rt=document.getElementById('f-kubun').value==='rt'; document.getElementById('f-fac').style.display=rt?'':'none'; document.getElementById('f-co').style.display=rt?'none':''; }
+function v(id){ return (document.getElementById(id).value||'').trim(); }
+function addRow(){
+  var k=v('f-kubun'), fac=k==='rt'?v('f-fac'):'', co=k==='rt'?fac:v('f-co');
+  if(k==='rt'&&!fac){ alert('RTの施設を▼から選んでください（施設名が、RTカードに結びつく鍵です）'); return; }
+  if(!co&&!v('f-who')){ alert('だれに（会社・お店 か 担当者）を入れてください'); return; }
+  if(!v('f-nani')){ alert('何を、を入れてください'); return; }
+  ROWS.push({k:k,fac:fac,co:co,who:v('f-who'),h:v('f-hin'),nani:v('f-nani'),doko:v('f-doko'),date:v('f-date')||ymd(today),how:v('f-how'),yu:v('f-yu'),by:v('f-by'),moku:v('f-moku'),next:v('f-next'),nextw:v('f-nextw'),st:'送った',kekka:'',memo:'',auto:false});
+  ['f-co','f-who','f-nani','f-doko','f-moku','f-next','f-nextw'].forEach(function(i){ document.getElementById(i).value=''; });
+  toggleAdd(); OPEN=ROWS.length-1; render(); renderRt();
+  var el=document.getElementById('row-'+OPEN); if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function md(s){ return s? s.slice(5).replace('-','/') : ''; }
+function isOsoi(r){ return r.next && r.next<ymd(today) && !(r.st==='成約'||r.st==='見送り'); }
+function render(){
+  var list=document.getElementById('list'); var idx=ROWS.map(function(r,i){return i;}).filter(function(i){ var r=ROWS[i];
+    if(F.k&&r.k!==F.k) return false; if(F.h&&r.h!==F.h) return false;
+    if(F.s==='ima'&&(r.st==='成約'||r.st==='見送り')) return false; return true; });
+  idx.sort(function(a,b){ var x=ROWS[a],y=ROWS[b]; var ox=isOsoi(x),oy=isOsoi(y); if(ox!==oy) return ox?-1:1;
+    var dx=x.next||'9999',dy=y.next||'9999'; if(dx!==dy) return dx<dy?-1:1; return (y.date||'')<(x.date||'')?-1:1; });
+  document.getElementById('count').textContent=idx.length+'件'+(F.s==='ima'?'（追いかけ中）':'');
+  if(!idx.length){ list.innerHTML='<div class="empty">この条件の行はありません</div>'; return; }
+  list.innerHTML=idx.map(function(i){ var r=ROWS[i]; var osoi=isOsoi(r); var usu=(r.st==='成約'||r.st==='見送り');
+    var who=(r.fac||r.co)+(r.who?' <span style="font-weight:700;color:#6b6a63">'+esc(r.who)+'</span>':'');
+    var d=r.next?('<div class="d'+(osoi?' red':'')+'"><small>'+(osoi?'すぎた':'次')+'</small>'+md(r.next)+'</div>'):('<div class="d"><small>次</small>—</div>');
+    return '<div class="row '+r.k+(osoi?' osoi':'')+(usu?' usu':'')+(OPEN===i?' open':'')+'" id="row-'+i+'">'
+      +'<div class="r1" onclick="toggleRow('+i+')">'+d
+      +'<div class="mid"><div class="who"><span class="p '+r.k+'">'+KUBUN[r.k]+'</span>'+who+'</div>'
+      +'<div class="what">'+HIN[r.h]+' <b>'+esc(r.nani)+'</b>'+(r.doko?'（'+esc(r.doko)+'）':'')+' ・ '+md(r.date)+' '+esc(r.how)+'・'+esc(r.yu)+(r.moku?' ・ '+esc(r.moku):'')+'</div></div>'
+      +'<span class="st '+(ST_CLS[r.st]||'a')+'">'+esc(r.st)+'</span><span class="ar">▶</span></div>'
+      /* ★2026-10-21 本番と同じく、ひらいた行では だれに（区分▼・施設▼／会社・担当者）・何を（品目▼・どこのもの）・いつ（渡し方▼・渡した人▼）も直せる
+         （受注Ａから自動で入った行は、区分・担当者・どこのものをあとから書く必要があるため）。自動の行の 品名・日付・有償無償 は直せない */
+      +'<div class="r2"><div class="kv">'
+      +'<span class="k">だれに</span><span class="line"><select class="w1" onchange="ROWS['+i+'].k=({RT:\'rt\',お取引先:\'tori\',これからの方:\'mikomi\',その他:\'sono\'})[this.value]">'+['RT','お取引先','これからの方','その他'].map(function(s){return '<option'+(KUBUN[r.k]===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +   (r.k==='rt'?'<select class="w2" onchange="ROWS['+i+'].fac=this.value;ROWS['+i+'].co=this.value">'+Array.prototype.map.call(document.getElementById('f-fac').options,function(o){return '<option'+(o.value===r.fac?' selected':'')+'>'+esc(o.textContent)+'</option>';}).join('')+'</select>'
+                    :'<input class="w2" value="'+esc(r.co)+'" placeholder="会社・お店" oninput="ROWS['+i+'].co=this.value">')
+      +   '<input class="w2" value="'+esc(r.who)+'" placeholder="担当者（お名前）" oninput="ROWS['+i+'].who=this.value">'
+      +   (r.k==='rt'?'<span class="jidou">→ RTカードに出ます</span>':'')+'</span>'
+      +'<span class="k">何を</span><span class="line"><select class="w1" onchange="ROWS['+i+'].h=({オリーブオイル:\'oil\',牛肉:\'beef\',その他:\'sono\'})[this.value]">'+['オリーブオイル','牛肉','その他'].map(function(s){return '<option'+(({oil:'オリーブオイル',beef:'牛肉',sono:'その他'})[r.h]===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +   (r.auto?'<span>'+esc(r.nani)+' <span class="jidou">（自動・受注Ａ 伝票 '+esc(r.den)+'）</span></span>':'<input style="flex:1;min-width:150px" value="'+esc(r.nani)+'" placeholder="品名・量" oninput="ROWS['+i+'].nani=this.value">')
+      +   '<input class="w2" value="'+esc(r.doko)+'" placeholder="どこのもの（産地・仕入先）" oninput="ROWS['+i+'].doko=this.value"></span>'
+      +'<span class="k">いつ</span><span class="line">'+(r.auto?'<span>'+esc(r.date)+'</span>':'<input type="date" value="'+esc(r.date)+'" onchange="ROWS['+i+'].date=this.value">')
+      +   '<select class="w1" onchange="ROWS['+i+'].how=this.value">'+['発送','手渡し','訪問時','注文に同梱'].map(function(s){return '<option'+(r.how===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +   (r.auto?'<span>'+esc(r.yu)+'</span>':'<select class="w1" onchange="ROWS['+i+'].yu=this.value">'+['無償','有償','有償・無償'].map(function(s){return '<option'+(r.yu===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>')
+      +   '<span class="jidou">渡した人：</span><select class="w1" onchange="ROWS['+i+'].by=this.value">'+['','ひろみ','ゆか','その他'].map(function(s){return '<option'+(r.by===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></span>'
+      +'<span class="k">何のため</span><span><input value="'+esc(r.moku)+'" placeholder="目的" style="width:100%" oninput="ROWS['+i+'].moku=this.value"></span>'
+      +'<span class="k">次は</span><span class="line"><input type="date" value="'+esc(r.next)+'" onchange="ROWS['+i+'].next=this.value"><input value="'+esc(r.nextw)+'" placeholder="次のアクション" style="flex:1;min-width:150px" oninput="ROWS['+i+'].nextw=this.value"></span>'
+      +'<span class="k">状況</span><span><select onchange="ROWS['+i+'].st=this.value">'+['送った','反応待ち','商談中','成約','見送り'].map(function(s){return '<option'+(r.st===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></span>'
+      +'<span class="k">結果・感想</span><span><textarea placeholder="例：脂の甘みを気に入ってくださった。12月のコースで使う方向" oninput="ROWS['+i+'].kekka=this.value">'+esc(r.kekka)+'</textarea></span>'
+      +'<span class="k">メモ</span><span><textarea placeholder="自由メモ" oninput="ROWS['+i+'].memo=this.value">'+esc(r.memo)+'</textarea></span>'
+      +'</div><div class="act"><button class="b s" onclick="save('+i+',this)">💾 保存</button><button class="b s g" onclick="owari('+i+')">✅ 終了</button><span class="kekka" id="kk-'+i+'"></span>'
+      +(r.k==='rt'?'<a class="rtlink" href="#rtcard" onclick="showRt(\''+esc(r.fac)+'\')">🍽️ RTカードで見る →</a>':'')+'</div></div></div>';
+  }).join('');
+}
+function toggleRow(i){ OPEN=(OPEN===i?-1:i); render(); }
+function save(i,b){ var k=document.getElementById('kk-'+i); k.textContent='✅ 保存しました（見本なので本当には保存されません）'; render(); renderRt(); var el=document.getElementById('kk-'+i); if(el) el.textContent='✅ 保存しました'; }
+function owari(i){ if(!confirm((ROWS[i].fac||ROWS[i].co)+' を終了にしますか？\n\nこの一覧からは消えます。スプシには「終了」として残ります。')) return; ROWS.splice(i,1); OPEN=-1; render(); renderRt(); }
+document.getElementById('chips').addEventListener('click',function(e){ var c=e.target.closest('.chip'); if(!c) return; var g=c.getAttribute('data-g'); F[g]=c.getAttribute('data-v'); document.querySelectorAll('.chip[data-g='+g+']').forEach(function(x){ x.classList.toggle('on',x===c); }); OPEN=-1; render(); });
+
+/* ── RTカード（窓口） ── */
+var RTFAC='芦屋ベイコート倶楽部'; var RTOPEN=false;
+function showRt(f){ RTFAC=f; RTOPEN=true; renderRt(); }
+function renderRt(){
+  var rows=ROWS.filter(function(r){ return r.k==='rt'&&r.fac===RTFAC; }).sort(function(a,b){ return (b.date||'')<(a.date||'')?-1:1; });
+  var osoi=rows.filter(isOsoi); var open=RTOPEN||osoi.length>0;
+  var sam='';
+  if(rows.length){
+    sam='<div class="rts'+(open?' open':'')+'"><div class="t" onclick="RTOPEN=!RTOPEN;renderRt()">🎁 サンプル <span class="n">'+rows.length+'件</span>'
+      +(osoi.length?'<span style="color:#dc2626;font-size:12px">⚠ 追いかけ日すぎ '+osoi.length+'件</span>':'')+'<span class="go">'+(open?'▲ たたむ':'▼ ひらく')+'　｜ 書くのは営業のお隣 🎁 →</span></div>'
+      +'<div class="items">'+rows.map(function(r){ var o=isOsoi(r);
+        return '<div class="it"><span class="d">'+md(r.date)+'</span><span>'+HIN[r.h]+' <b>'+esc(r.nani)+'</b>'+(r.doko?'（'+esc(r.doko)+'）':'')+' '+esc(r.yu)+'・'+esc(r.how)+(r.who?' → '+esc(r.who):'')+'</span>'
+          +(r.moku?'<span class="d">目的</span><span>'+esc(r.moku)+'</span>':'')
+          +'<span class="d">いま</span><span><span class="st '+(ST_CLS[r.st]||'a')+'">'+esc(r.st)+'</span>'
+          +(r.kekka?'　'+esc(r.kekka):'')
+          +(r.next&&!(r.st==='成約'||r.st==='見送り')?'　<span class="'+(o?'red':'')+'">'+(o?'⚠ ':'')+'次 '+md(r.next)+(r.nextw?'「'+esc(r.nextw)+'」':'')+(o?' がすぎています':'')+'</span>':'')
+          +'</span></div>'; }).join('')+'</div></div>';
+  }
+  var tip=osoi.length?'<div class="tip sam">次の一手：<b>🎁 サンプルの追いかけが先。</b>'+esc(osoi[0].nextw||'追いかけ')+'（'+md(osoi[0].next)+'）がまだ。感想を聞いてから次の話へ。</div>'
+                     :'<div class="tip">次の一手：いま<b>トゥリリエ</b>をよく購入。旧ロットの案内先候補。<span class="jidou">（今までどおりの文）</span></div>';
+  document.getElementById('rtcard').innerHTML='<h3>'+esc(RTFAC)+' <span class="genre">鉄板焼</span><select style="margin-left:auto;font:inherit;font-size:12px;border:1px solid #d5cfc3;border-radius:7px;padding:2px 6px" onchange="RTFAC=this.value;RTOPEN=false;renderRt()">'
+    +['芦屋ベイコート倶楽部','東京ベイコート倶楽部','エクシブ有馬離宮','横浜ベイコート倶楽部'].map(function(f){return '<option'+(f===RTFAC?' selected':'')+'>'+f+'</option>';}).join('')+'</select></h3>'
+    +'<div class="rtmini" style="color:#274a78;font-weight:700">🏷 RT呼称：'+(RTFAC==='芦屋ベイコート倶楽部'?'芦屋(鉄板)':'…')+'</div>'
+    +'<div class="rtkv"><span>現シェフ：<b>○○</b></span><span>担当者：<b>△△</b></span></div>'
+    +'<div class="rtmini">📍 住所　☎ 電話（今までどおり）</div>'
+    +'<div class="bars">いま使っているオイル・月ごとの本数（今までどおり・ここは変えません）</div>'
+    +sam+tip;
+}
+render(); renderRt();
+</script>
+</body>
+</html>
