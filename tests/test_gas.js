@@ -457,16 +457,16 @@ eq('参考：0 で止まる', oya3, 0);
   const tm = fs.readFileSync(require('path').join(__dirname, '..', 'eigyo', 'tanomi_memo.html'), 'utf8');
   eq('頼みごとメモ③ 画面が使うタブの名前と同じ', /var SHEET_NAME = '頼みごとメモ';/.test(tm), true);
   /* ★2026-10-22 輸入・原価Ｅ「🌿 農園とのやり取り記録と改善」も同じ穴だった（2026-07-31 から端末にしか残っていなかった） */
-  eq('農園トラブル対応① 社長の鍵（原価Ｅの鍵と同じ）で開く', G.stickyMemoPasswordOk('農園トラブル対応', 'S1'), true);
-  eq('農園トラブル対応② ほかの鍵では開かない', G.stickyMemoPasswordOk('農園トラブル対応', 'J1') || G.stickyMemoPasswordOk('農園トラブル対応', 'G1'), false);
+  eq('農園とのやり取り 追記・ルール① 社長の鍵（原価Ｅの鍵と同じ）で開く', G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'S1'), true);
+  eq('農園とのやり取り 追記・ルール② ほかの鍵では開かない', G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'J1') || G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'G1'), false);
   const im = fs.readFileSync(require('path').join(__dirname, '..', 'import.html'), 'utf8');
-  eq('農園トラブル対応③ 画面が使うタブの名前と同じ', /var TR_SHEET='農園トラブル対応';/.test(im), true);
-  eq('農園トラブル対応④ 原価Ｅの鍵は社長の鍵（COST_DATA_PASSWORD＝secret）', /const COST_DATA_PASSWORD = GROUP_PASSWORDS\.secret;/.test(gasSrc), true);
-  eq('農園トラブル対応⑤ サーバーに無く端末にあるときは、開いただけで送る', H.cut(im, 'trGasLoad').indexOf('trGasSave()') >= 0 && H.cut(im, 'trGasLoad').indexOf('まだデータなし') >= 0, true);
-  /* ★2026-10-22 台帳21件の親はスプシ「農園トラブル台帳」（HTMLの定数はもう空） */
-  eq('農園トラブル台帳① 画面に21件の定数が残っていない（親はスプシ）', /var TROUBLE_ROWS = \[\];/.test(im) && !/"mondai": "インボイス/.test(im), true);
-  eq('農園トラブル台帳② 開いたとき loadFarmTroubleRows で読む', H.cut(im, 'trRowsLoad').indexOf('loadFarmTroubleRows') >= 0 && H.cut(im, 'trRender').indexOf('trRowsLoad()') >= 0, true);
-  eq('農園トラブル台帳③ 読み込み中は「空」を見せない', H.cut(im, 'trRenderTable').indexOf('読み込み中です') >= 0, true);
+  eq('農園とのやり取り 追記・ルール③ 画面が使うタブの名前と同じ', /var TR_SHEET='農園とのやり取り 追記・ルール';/.test(im), true);
+  eq('農園とのやり取り 追記・ルール④ 原価Ｅの鍵は社長の鍵（COST_DATA_PASSWORD＝secret）', /const COST_DATA_PASSWORD = GROUP_PASSWORDS\.secret;/.test(gasSrc), true);
+  eq('農園とのやり取り 追記・ルール⑤ サーバーに無く端末にあるときは、開いただけで送る', H.cut(im, 'trGasLoad').indexOf('trGasSave()') >= 0 && H.cut(im, 'trGasLoad').indexOf('まだデータなし') >= 0, true);
+  /* ★2026-10-22 台帳21件の親はスプシ「農園とのやり取り記録と改善」（HTMLの定数はもう空） */
+  eq('農園とのやり取り記録と改善① 画面に21件の定数が残っていない（親はスプシ）', /var TROUBLE_ROWS = \[\];/.test(im) && !/"mondai": "インボイス/.test(im), true);
+  eq('農園とのやり取り記録と改善② 開いたとき loadFarmTroubleRows で読む', H.cut(im, 'trRowsLoad').indexOf('loadFarmTroubleRows') >= 0 && H.cut(im, 'trRender').indexOf('trRowsLoad()') >= 0, true);
+  eq('農園とのやり取り記録と改善③ 読み込み中は「空」を見せない', H.cut(im, 'trRenderTable').indexOf('読み込み中です') >= 0, true);
   {
     const sheets = {}; const mk = () => { const s = { c:[], getLastRow(){ return s.c.length; }, setFrozenRows(){}, setColumnWidth(){},
       getRange(r, c, nr, nc){ nr = nr || 1; nc = nc || 1; const rg = { setValues(v){ v.forEach((row, i) => { s.c[r-1+i] = s.c[r-1+i] || []; row.forEach((x, j) => { s.c[r-1+i][c-1+j] = x; }); }); return rg; },
@@ -476,14 +476,14 @@ eq('参考：0 で止まる', oya3, 0);
       SpreadsheetApp:{ openById(){ return { getSheetByName(n){ return sheets[n] || null; }, insertSheet(n){ sheets[n] = mk(); return sheets[n]; } }; } } };
     vm.createContext(F);
     vm.runInContext([ 'OOS_FARM_TROUBLE_SHEET', 'OOS_FARM_TROUBLE_ATAMA', 'OOS_FARM_TROUBLE_SEED' ].map(n => H.cutVar(gasSrc, n)).join('\n') + '\n' + ['oosFarmTroubleIkou', 'loadFarmTroubleRows'].map(n => H.cut(gasSrc, n)).join('\n'), F);
-    eq('農園トラブル台帳④ 種は21件・8列', F.OOS_FARM_TROUBLE_SEED.length === 21 && F.OOS_FARM_TROUBLE_SEED.every(r => r.length === 8), true);
+    eq('農園とのやり取り記録と改善④ 種は21件・8列', F.OOS_FARM_TROUBLE_SEED.length === 21 && F.OOS_FARM_TROUBLE_SEED.every(r => r.length === 8), true);
     const k1 = F.oosFarmTroubleIkou();
-    eq('農園トラブル台帳⑤ 1回目：シートを作って21件入れる', k1.ireta === 21 && sheets['農園トラブル台帳'].c.length === 22, true);
+    eq('農園とのやり取り記録と改善⑤ 1回目：シートを作って21件入れる', k1.ireta === 21 && sheets['農園とのやり取り記録と改善'].c.length === 22, true);
     const k2 = F.oosFarmTroubleIkou();
-    eq('農園トラブル台帳⑥ 2回目：増えない', k2.ireta === 0 && k2.mou === true && sheets['農園トラブル台帳'].c.length === 22, true);
+    eq('農園とのやり取り記録と改善⑥ 2回目：増えない', k2.ireta === 0 && k2.mou === true && sheets['農園とのやり取り記録と改善'].c.length === 22, true);
     const L = F.loadFarmTroubleRows('S1');
-    eq('農園トラブル台帳⑦ 社長の鍵で21件読める（項目名は画面と同じ no/bun/jiki/mondai/genin/taiou/sai/jotai）', L.rows.length === 21 && Object.keys(L.rows[0]).join(',') === 'no,bun,jiki,mondai,genin,taiou,sai,jotai' && L.rows[0].bun === '通関・書類', true);
-    eq('農園トラブル台帳⑧ ほかの鍵では読めない', F.loadFarmTroubleRows('J1').status, 'error');
+    eq('農園とのやり取り記録と改善⑦ 社長の鍵で21件読める（項目名は画面と同じ no/bun/jiki/mondai/genin/taiou/sai/jotai）', L.rows.length === 21 && Object.keys(L.rows[0]).join(',') === 'no,bun,jiki,mondai,genin,taiou,sai,jotai' && L.rows[0].bun === '通関・書類', true);
+    eq('農園とのやり取り記録と改善⑧ ほかの鍵では読めない', F.loadFarmTroubleRows('J1').status, 'error');
   }
 }
 
