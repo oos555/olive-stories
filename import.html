@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-22-06">
+<meta name="oos-version" content="2026-10-22-07">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -1197,7 +1197,9 @@ function showPanel(name, btn){
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='history') renderHistory();
-  if(name==='shiire' && typeof shiireLoad==='function') shiireLoad();   /* ★2026-10-22 仕入れ価格（€表示）は開くたびに輸入記録から作り直す */
+  /* ★2026-10-22 ひろみさん「読み込むときに何度も行ったり来たりしてない？」→ 仕入れ価格（€表示）は【最初に開いたとき1回だけ】読む。
+     　輸入ノートで保存・削除したあとは SH.loaded=false になるので、次に開いたとき読み直す（タブを切り替えるたびには読まない） */
+  if(name==='shiire' && typeof shiireLoad==='function' && !SH.loaded) shiireLoad();
   if(name==='note') ynInitPanel();
   if(name==='cost'){ renderCostProductTable(); renderProfitHeatmap(); renderRateSimulation(); renderNovelloNotes(); }
   if(name==='prep') prepRender();
@@ -3791,6 +3793,7 @@ async function ynPersist(note){
     const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'saveImportBatch', password: password, batch: note }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     const data = await res.json();
     if(data.status!=='ok') return { ok:false, msg:(data.message||'保存に失敗しました') };
+    try{ if(typeof SH!=='undefined') SH.loaded=false; }catch(eSh){}   /* ★2026-10-22 輸入ノートが変わった → 仕入れ価格（€表示）は次に開いたとき読み直す */
     // 読み直して自己点検（新しい項目がGASを往復できているか）
     const res2 = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getImportData', password: password }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
     const data2 = await res2.json();
@@ -3866,6 +3869,7 @@ async function ynDelete(){
   ynCurrent = null; ynDirty=false;
   const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify({ action:'getImportData', password: password }), headers:{'Content-Type':'text/plain;charset=utf-8'} });
   try{ const d = await res.json(); if(d.status==='ok') importBatches = d.data.batches||[]; }catch(e){}
+  try{ if(typeof SH!=='undefined') SH.loaded=false; }catch(eSh){}   /* ★2026-10-22 消したあとも仕入れ価格（€表示）を読み直す */
   document.getElementById('yn-detail').style.display='none';
   ynAllFromBatches(); ynRenderCards();
   /* ★2026-09-30 読み直して、本当に消えたかを確かめてから言う（消えていないのに「消しました」と言わない） */

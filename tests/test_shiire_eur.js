@@ -123,7 +123,9 @@ if(gasSrc){
   ok('① 鍵：「✏️ 修正する」→ 確認（本当に修正しますか）→ 開ける', /id="sh-lock"[^>]*>✏️ 修正する（輸入ノートを開く）</.test(im) && H.cut(im, 'shiireLockToggle').indexOf('本当に修正しますか') >= 0 && H.cut(im, 'shiireLockToggle').indexOf('SH.kaishu=true') >= 0);
   ok('① 鍵がかかっていればマスを押しても輸入ノートへ飛ばない', H.cut(im, 'shiireOpen').indexOf('if(!SH.kaishu)') >= 0 && H.cut(im, 'shiireOpen').indexOf('修正するには') >= 0);
   ok('⑦ 下の横のバーがこの表にもつく（.sh-tblwrap）', im.indexOf(".tbl-wrap, .tr-tblwrap, .sh-tblwrap,") >= 0);
-  ok('⑦ 開くたびに輸入記録から作り直す', H.cut(im, 'showPanel').indexOf('shiireLoad()') >= 0 && H.cut(im, 'shiireLoad').indexOf('loadShiirePrice') >= 0);
+  /* ★2026-10-22 ひろみさん「何度も行ったり来たりしてない？」：最初に開いたとき1回だけ。保存・削除のあとだけ読み直す */
+  ok('⑦ 最初に開いたとき1回だけ読む（タブを切り替えるたびには読まない）', H.cut(im, 'showPanel').indexOf("!SH.loaded) shiireLoad()") >= 0 && H.cut(im, 'shiireLoad').indexOf('loadShiirePrice') >= 0);
+  ok('⑦ 輸入ノートで保存・削除したら次に開いたとき読み直す', H.cut(im, 'ynPersist').indexOf('SH.loaded=false') >= 0 && H.cut(im, 'ynDelete').indexOf('SH.loaded=false') >= 0);
   ok('④ 昔の回は karui:true・status draft・輸入ノートの保存（ynPersist）を通る', /karui:true, farm:farm, status:'draft'/.test(H.cut(im, 'shiireKakoHozon')) && H.cut(im, 'shiireKakoHozon').indexOf('ynPersist(note)') >= 0);
   ok('④ 年度平均は karui を飛ばす', H.cut(im, 'ynNendoRows').indexOf('if(b.karui) return;') >= 0);
   ok('④ karui の回は確定にできない', H.cut(im, 'ynFix').indexOf('ynCurrent.karui') >= 0);
