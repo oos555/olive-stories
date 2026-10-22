@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-22-03">
+<meta name="oos-version" content="2026-10-22-04">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -268,6 +268,7 @@ tr:last-child td{border-bottom:none}
     <button class="tab active" onclick="showPanel('note',this)">📦 輸入ノート</button>
     <button class="tab" onclick="showPanel('prep',this)" style="color:#0f5a4a;font-weight:700">🧮 輸入準備計算室</button>
     <button class="tab" onclick="showPanel('trouble',this)" style="color:#33421f;font-weight:700">🌿 農園とのやり取り記録と改善</button>
+    <button class="tab" onclick="showPanel('shiire',this)" style="color:#1d4ed8;font-weight:700">🇪🇺 仕入れ価格（€表示）</button>
     <button class="tab" onclick="showPanel('new',this)" style="display:none">輸入を記録する</button>
     <button class="tab" onclick="showPanel('history',this)" style="display:none">輸入履歴・年次比較</button>
     <button class="tab" onclick="showPanel('cost',this)" style="color:#b91c1c">🔒原価データ</button>
@@ -606,6 +607,81 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <!-- 輸入履歴・年次比較 -->
+  <!-- ★2026-10-22 🇪🇺 仕入れ価格（€表示）── 輸入記録から作る読むだけの表（ひろみさん承認・モック mocks/mock_原価E_仕入れ価格ユーロ_2026-10-22.html）
+       親は輸入記録1つ。ここは数字を持たない。マスは直せない（押すと輸入ノートのその回が開く）。
+       昔の輸入は下の軽い入口から輸入ノートへ（€とレートだけ・karui）。スプシ側のタブはGASが作る。 -->
+  <div id="panel-shiire" class="panel">
+    <style>
+      #panel-shiire .sh-intro{background:#f0f6ff;border:1.5px solid #9fb4d6;border-radius:10px;padding:10px 13px;font-size:13px;color:#1e3a5f;line-height:1.8;margin-bottom:10px}
+      #panel-shiire .sh-intro b{color:#1d4ed8}
+      #panel-shiire .sh-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+      #panel-shiire .sh-chip{border:1.5px solid #cfd6bd;background:#fff;border-radius:999px;padding:3px 11px;font-size:12.5px;font-weight:800;color:#4a5a2a;cursor:pointer}
+      #panel-shiire .sh-chip.on{background:#4a5a2a;border-color:#4a5a2a;color:#fff}
+      #panel-shiire .sh-sep{width:1px;height:20px;background:#d5cfc3;margin:0 4px}
+      #panel-shiire .sh-b{border:none;border-radius:9px;padding:7px 13px;font-weight:800;font-size:13px;cursor:pointer;color:#fff;background:#1d4ed8;font-family:inherit}
+      #panel-shiire .sh-b.w{background:#fff;color:#1d4ed8;border:1.5px solid #9fb4d6;text-decoration:none;display:inline-block}
+      #panel-shiire .sh-b.g{background:#eeece6;color:#6b6a63}
+      #panel-shiire .sh-t{font-size:11.5px;color:#9a8f7e;font-weight:800}
+      #panel-shiire .sh-tblwrap{overflow-x:auto;border:1px solid #e3e0d6;border-radius:10px;margin-top:8px;background:#fff}
+      #panel-shiire table.sh{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:900px}
+      #panel-shiire table.sh th,#panel-shiire table.sh td{border-right:1px solid #eee9df;border-bottom:1px solid #eee9df;padding:5px 7px;white-space:nowrap;text-align:right}
+      #panel-shiire table.sh th{background:#f3f1ea;color:#4b4a44;font-weight:800;text-align:center;position:sticky;top:0}
+      #panel-shiire table.sh th.g{background:#e9efd9;color:#33421f}
+      #panel-shiire table.sh th.g small{display:block;font-weight:700;color:#6b7a3a;font-size:11px}
+      #panel-shiire table.sh th.gk{background:#fff3e0;color:#9a5a10}
+      #panel-shiire table.sh td.l,#panel-shiire table.sh th.l{text-align:left}
+      #panel-shiire .st1{position:sticky;left:0;background:#fff;z-index:2;min-width:110px}
+      #panel-shiire .st2{position:sticky;left:110px;background:#fff;z-index:2;min-width:120px}
+      #panel-shiire .st3{position:sticky;left:230px;background:#fff;z-index:2;min-width:64px;border-right:2px solid #d8d3c7}
+      #panel-shiire td.eur{font-weight:800;cursor:pointer}
+      #panel-shiire td.eur:hover{outline:2px solid #1d4ed8;outline-offset:-2px}
+      #panel-shiire td.yen{color:#6b6a63}
+      #panel-shiire td.up{background:#fde8e8;color:#b91c1c}
+      #panel-shiire td.down{background:#e0edf7;color:#1e40af}
+      #panel-shiire td.nasi{color:#c9c3b5}
+      #panel-shiire td.saishin{background:#fff8ec;font-weight:800}
+      #panel-shiire td.sa{font-weight:800}
+      #panel-shiire .d{font-size:10.5px;font-weight:800;margin-left:3px}
+      #panel-shiire .sh-legend{font-size:12px;color:#6b6a63;margin:6px 0 0;line-height:1.8}
+      #panel-shiire .sh-legend .k{display:inline-block;width:14px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:3px}
+      #panel-shiire .sh-form{display:none;background:#fffdf7;border:1.5px solid #c9a86a;border-radius:10px;padding:10px 12px;margin:6px 0 8px}
+      #panel-shiire .sh-form.on{display:block}
+      #panel-shiire .sh-form input,#panel-shiire .sh-form select{font:inherit;font-size:13px;border:1.5px solid #d5cfc3;border-radius:7px;padding:4px 7px;background:#fff}
+      #panel-shiire .sh-form .g{display:grid;grid-template-columns:150px 1fr;gap:6px 8px;align-items:center;margin-bottom:6px}
+      #panel-shiire .sh-form .l{font-size:12px;font-weight:800;color:#8a5a12;text-align:right}
+      #panel-shiire .sh-form table{border-collapse:collapse;font-size:12.5px}
+      #panel-shiire .sh-form th,#panel-shiire .sh-form td{border:1px solid #eee9df;padding:3px 6px;text-align:right}
+      #panel-shiire .sh-form th{background:#f3f1ea}
+      #panel-shiire .sh-msg{font-size:12.5px;font-weight:800;min-height:18px}
+    </style>
+    <div class="sh-intro">この表は<b>輸入ノート（輸入記録）から毎回その場で作る、読むだけの表</b>です。自分では数字を持ちません。<br>
+    横は<b>農園×輸入年月を1回ずつ</b>、1回ごとに <b>€ ｜ ¥</b>（¥＝€×その回のレート）。見出しにその回のレート。右端に<b>最新€</b>と<b>前回との差</b>。<br>
+    <b>マスは直せません。</b>マスを押すと輸入ノートのその回が開くので、そこで直します（直した瞬間、この表も原価も同じ数字になります）。商品名・サイズは名簿（統合マスタＮ）のもの。</div>
+    <div class="sh-row">
+      <span class="sh-t">農園</span>
+      <span id="sh-farmchips"><span class="sh-chip on" data-f="">すべて</span></span>
+      <span class="sh-sep"></span><span class="sh-t">見せ方</span>
+      <span class="sh-chip on" id="sh-c-yen" onclick="shiireYenToggle()">€と¥</span><span class="sh-chip" id="sh-c-up" onclick="shiireUpToggle()">値上がりした行だけ</span>
+      <span class="sh-sep"></span>
+      <button class="sh-b w" onclick="shiireKakoToggle()">＋ 昔の輸入を入れる（輸入ノートへ）</button>
+      <a class="sh-b w" id="sh-sps" href="#" target="_blank" rel="noopener" style="display:none">📄 スプシで見る</a>
+      <span class="sh-msg" id="sh-msg"></span>
+    </div>
+    <div class="sh-form" id="sh-form">
+      <div style="font-weight:800;color:#8a5a12;margin-bottom:6px">昔の輸入（輸入ノートに無い回）を入れる ── これは<u>輸入ノートの軽い入口</u>です。保存先は輸入記録。送料・関税が分からない回は €とレートだけで保存できます（円の原価は空のまま・原価データにも年度平均にも入れません）</div>
+      <div class="g">
+        <div class="l">農園</div><div><select id="sh-k-farm"><option value="novavera">ノバベラ</option><option value="mozzicato">モジカート</option><option value="letrecolonne">レ・トレ・コロンネ</option></select></div>
+        <div class="l">輸入年月</div><div><input id="sh-k-ym" placeholder="例 2023/05" style="width:110px"></div>
+        <div class="l">レート（1€＝¥）</div><div><input id="sh-k-rate" placeholder="例 150.2" style="width:110px"></div>
+        <div class="l">商品ごとの €単価</div>
+        <div><div class="sh-tblwrap" style="max-height:320px;overflow:auto;margin:0"><table id="sh-k-tbl"><thead><tr><th style="text-align:left">商品</th><th>サイズ</th><th>€単価</th><th>本数（分かれば）</th></tr></thead><tbody id="sh-k-tbody"></tbody></table></div>
+        <div style="font-size:12px;color:#9a8f7e;margin-top:4px">（名簿にある容量つきの商品が全部並びます。€が空の行は保存しません。本数は分かれば）</div></div>
+      </div>
+      <div class="sh-row"><button class="sh-b" id="sh-k-save" onclick="shiireKakoHozon()">この回を輸入ノートに保存</button><button class="sh-b g" onclick="shiireKakoToggle()">やめる</button><span class="sh-msg" id="sh-k-msg"></span></div>
+    </div>
+    <div class="sh-tblwrap"><table class="sh" id="sh-tbl"><tr><td style="padding:12px;color:#8a8578;text-align:left">⏳ 仕入れ価格を輸入記録から作っています…</td></tr></table></div>
+    <div class="sh-legend"><span class="k" style="background:#fde8e8"></span>前の回より上がった　<span class="k" style="background:#e0edf7"></span>下がった　<span class="k" style="background:#fff8ec"></span>最新　「—」＝その回にこの商品は無い　／　列は古い回が左・新しい回が右　／　スプシのタブ「仕入れ価格（€表示）」は輸入ノートを保存するたびに自動で作り直されます</div>
+  </div>
   <div id="panel-history" class="panel">
     <div class="info-box">これまでの輸入記録です。農園ごとに、為替レート・仕入額・輸入量の推移を比べられます。</div>
     <div class="g3" style="margin-bottom:1rem">
@@ -1112,6 +1188,7 @@ function showPanel(name, btn){
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='history') renderHistory();
+  if(name==='shiire' && typeof shiireLoad==='function') shiireLoad();   /* ★2026-10-22 仕入れ価格（€表示）は開くたびに輸入記録から作り直す */
   if(name==='note') ynInitPanel();
   if(name==='cost'){ renderCostProductTable(); renderProfitHeatmap(); renderRateSimulation(); renderNovelloNotes(); }
   if(name==='prep') prepRender();
@@ -2796,7 +2873,7 @@ function ynRenderCards(){
     if(rate) prevRate = rate;
     const isNote = (c.t==='note');
     const fixed = isNote ? (o.status==='fixed') : true;
-    const badge = isNote ? (fixed? '<span style="font-size:10px;background:#e1efe3;color:#166534;border-radius:99px;padding:2px 8px;font-weight:700">✅ 確定</span>'
+    const badge = (isNote && o.karui) ? '<span style="font-size:10px;background:#eef3fb;color:#274a78;border-radius:99px;padding:2px 8px;font-weight:700">€だけ（昔の記録）</span>' : isNote ? (fixed? '<span style="font-size:10px;background:#e1efe3;color:#166534;border-radius:99px;padding:2px 8px;font-weight:700">✅ 確定</span>'
                                   : '<span style="font-size:10px;background:#fef3c7;color:#78350f;border-radius:99px;padding:2px 8px;font-weight:700">⏳ 仮</span>')
                          : '<span style="font-size:10px;background:#eeece6;color:#57534e;border-radius:99px;padding:2px 8px;font-weight:700">旧記録</span>';
     const lines = isNote ? (o.lines||[]) : (o.items||[]);
@@ -3117,6 +3194,7 @@ function ynNendoRows(){
   var rows = [], nosku = [];
   (importBatches||[]).forEach(function(b){
     if(!b) return;
+    if(b.karui) return;   /* ★2026-10-22 €とレートだけの昔の回（仕入れ価格の表のため）は年度平均に入れない */
     var nd = ynNendoOf(b.yearMonth); if(nd==null) return;
     if(b.kind==='note'){
       var st = (b.status==='fixed') ? 'fixed' : 'draft';
@@ -3735,6 +3813,7 @@ async function ynSave(silent){
   else { showSyncStatus('⚠️ '+r.msg, true); }
 }
 async function ynFix(){
+  if(ynCurrent && ynCurrent.karui){ alert('この回は「€だけ（昔の記録）」です。経費が入っていないので確定にはできません（仕入れ価格の表には出ています）。'); return; }   /* ★2026-10-22 */
   if(!ynCurrent) return;
   ynSync();
   const c = ynCalc(ynCurrent);
@@ -4679,6 +4758,124 @@ function prepExportCSV(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+</script>
+<script>
+/* ===== 🇪🇺 仕入れ価格（€表示）2026-10-22 ── 読むだけの表（親は輸入記録・GAS loadShiirePrice）=====
+   ・この画面は数字を持たない。マスに入力欄を出さない（見張り tests/test_shiire_eur.js）
+   ・マスを押す → 輸入ノートのその回（ynOpenNote／ynOpenOld）
+   ・昔の輸入 → 輸入ノートの軽い入口（karui:true・status draft・€とレートだけ）。原価データにも年度平均にも入らない */
+var SH = { cols:[], rows:[], loaded:false, err:'', farm:'', yen:true, up:false, tsukutta:'' };
+function shEsc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function shE(v){ return v==null?'—':'€'+Number(v).toFixed(2); }
+function shY(v,r){ return (v==null||!r)?'—':'¥'+Math.round(v*r).toLocaleString(); }
+async function shiireLoad(){
+  var m=document.getElementById('sh-msg'); if(m){ m.textContent='☁️ 輸入記録から作っています…'; m.style.color='#8a6d3f'; }
+  if(!password){ SH.err='鍵が開いていません'; SH.loaded=true; shiireRender(); return; }
+  try{
+    var res=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'loadShiirePrice',password:password})});
+    var d=JSON.parse(await res.text());
+    if(d && d.status==='ok' && d.data){ SH.cols=d.data.cols||[]; SH.rows=d.data.rows||[]; SH.tsukutta=d.data.tsukutta||''; SH.err=''; }
+    else SH.err=(d&&d.message)||'読めませんでした';
+  }catch(e){ SH.err='通信できません'; }
+  SH.loaded=true;
+  if(m){ m.textContent=SH.err?('⚠ '+SH.err):''; m.style.color=SH.err?'#b91c1c':'#1f6b3a'; }
+  shiireFarmChips(); shiireRender();
+}
+function shiireFarms(){ var fs=[]; SH.rows.forEach(function(r){ if(fs.indexOf(r.farm)<0) fs.push(r.farm); }); return fs; }
+function shiireFarmChips(){
+  var box=document.getElementById('sh-farmchips'); if(!box) return;
+  var h='<span class="sh-chip'+(SH.farm===''?' on':'')+'" data-f="" onclick="shiireFarm(\'\')">すべて</span>';
+  shiireFarms().forEach(function(f){ h+='<span class="sh-chip'+(SH.farm===f?' on':'')+'" onclick="shiireFarm(this.getAttribute(\'data-f\'))" data-f="'+shEsc(f)+'">'+shEsc(f)+'</span>'; });
+  box.innerHTML=h;
+}
+function shiireFarm(f){ SH.farm=f; shiireFarmChips(); shiireRender(); }
+function shiireYenToggle(){ SH.yen=!SH.yen; var c=document.getElementById('sh-c-yen'); if(c){ c.classList.toggle('on',SH.yen); c.textContent=SH.yen?'€と¥':'€だけ'; } shiireRender(); }
+function shiireUpToggle(){ SH.up=!SH.up; var c=document.getElementById('sh-c-up'); if(c) c.classList.toggle('on',SH.up); shiireRender(); }
+function shiireRowCells(r, cols){
+  var prev=null, html='', have=[];
+  cols.forEach(function(c){
+    var v=(r.cells&&r.cells[c.id]!=null)?Number(r.cells[c.id]):null; var cls='eur', d='';
+    if(v!=null && prev!=null){ if(v>prev){ cls+=' up'; d='<span class="d">▲'+((v-prev)/prev*100).toFixed(0)+'%</span>'; } else if(v<prev){ cls+=' down'; d='<span class="d">▼'+((prev-v)/prev*100).toFixed(0)+'%</span>'; } }
+    if(v==null) cls='eur nasi';
+    html+='<td class="'+cls+'" onclick="shiireOpen(\''+shEsc(c.id)+'\')" title="輸入ノートの「'+shEsc(c.farm+' '+c.ym)+'」の回をひらく">'+shE(v)+d+'</td>';
+    if(SH.yen) html+='<td class="yen'+(v==null?' nasi':'')+'">'+shY(v,c.rate)+'</td>';
+    if(v!=null){ prev=v; have.push(v); }
+  });
+  var last=have.length?have[have.length-1]:null, before=have.length>1?have[have.length-2]:null;
+  var sa='—', saCls='sa', up=false;
+  if(last!=null&&before!=null){ var df=last-before; sa=(df>0?'+':'')+'€'+df.toFixed(2)+'（'+(df>0?'+':'')+(df/before*100).toFixed(0)+'%）'; saCls+= df>0?' up':(df<0?' down':''); up=df>0; }
+  return {html:html,last:last,sa:sa,saCls:saCls,up:up};
+}
+function shiireRender(){
+  var tbl=document.getElementById('sh-tbl'); if(!tbl) return;
+  if(!SH.loaded){ tbl.innerHTML='<tr><td style="padding:12px;color:#8a8578;text-align:left">⏳ 仕入れ価格を輸入記録から作っています…</td></tr>'; return; }
+  if(SH.err && !SH.rows.length){ tbl.innerHTML='<tr><td style="padding:12px;color:#b91c1c;text-align:left">⚠ 輸入記録を読めませんでした（'+shEsc(SH.err)+'）。🔄 画面を開き直してください。</td></tr>'; return; }
+  var farms=shiireFarms().filter(function(f){ return !SH.farm||f===SH.farm; });
+  var h='';
+  farms.forEach(function(f){
+    var cols=SH.cols.filter(function(c){ return c.farm===f; });
+    h+='<tr><th class="l st1">農園</th><th class="l st2">商品</th><th class="st3">サイズ</th>';
+    cols.forEach(function(c){ h+='<th class="g" colspan="'+(SH.yen?2:1)+'">'+shEsc(c.farm+' '+c.ym)+(c.karui?' <span style="font-size:10px;color:#9a5a10">€だけ</span>':'')+'<small>1€＝¥'+(c.rate?Number(c.rate).toFixed(1):'—')+'</small></th>'; });
+    if(!cols.length) h+='<th class="g">（輸入ノートにこの農園の回がまだ無い）<small>「＋ 昔の輸入を入れる」から</small></th>';
+    h+='<th class="gk">最新€</th><th class="gk">前回との差</th></tr>';
+    if(SH.yen&&cols.length){ h+='<tr><th class="st1"></th><th class="st2"></th><th class="st3"></th>'; cols.forEach(function(){ h+='<th>€</th><th>¥</th>'; }); h+='<th></th><th></th></tr>'; }
+    var n=0;
+    SH.rows.filter(function(r){ return r.farm===f; }).forEach(function(r){
+      var rc=shiireRowCells(r,cols);
+      if(SH.up && !rc.up) return;
+      n++;
+      h+='<tr><td class="l st1">'+shEsc(r.farm)+'</td><td class="l st2">'+shEsc(r.name)+(r.meiboNashi?' <span style="font-size:10px;color:#b91c1c">名簿なし</span>':'')+'</td><td class="st3">'+shEsc(r.size)+'</td>'+rc.html
+        +(cols.length?'':'<td class="nasi">—</td>')+'<td class="saishin">'+shE(rc.last)+'</td><td class="'+rc.saCls+'">'+rc.sa+'</td></tr>';
+    });
+    if(!n) h+='<tr><td class="l" colspan="6" style="color:#9a8f7e">（この条件の行はありません）</td></tr>';
+  });
+  if(!farms.length) h='<tr><td style="padding:12px;color:#8a8578;text-align:left">輸入記録がまだ1回もありません。</td></tr>';
+  tbl.innerHTML=h;
+}
+/* マスを押す → 輸入ノートのその回 */
+function shiireOpen(id){
+  var b=(importBatches||[]).find(function(x){ return x && String(x.id)===String(id); });
+  var btn=document.querySelector('.tab-row .tab[onclick*="\'note\'"]');
+  if(btn) showPanel('note', btn);
+  if(!b){ if(typeof showSyncStatus==='function') showSyncStatus('⚠ その回が輸入ノートに見つかりません（画面を開き直してください）'); return; }
+  var sel=document.getElementById('yn-farm'); if(sel && b.farm){ sel.value=b.farm; }
+  if(b.kind==='note'){ if(typeof ynOpenNote==='function') ynOpenNote(b.id); }
+  else { if(typeof ynOpenOld==='function') ynOpenOld(b.id); }
+  if(typeof ynRenderCards==='function') ynRenderCards();
+  if(typeof ynScrollToDetail==='function') ynScrollToDetail();
+}
+/* 昔の輸入を入れる（輸入ノートの軽い入口） */
+function shiireKakoToggle(){
+  var f=document.getElementById('sh-form'); if(!f) return;
+  f.classList.toggle('on');
+  if(f.classList.contains('on')){
+    var list=[];
+    if(typeof OOS_PRODUCTS!=='undefined' && OOS_PRODUCTS && OOS_PRODUCTS.length){ list=OOS_PRODUCTS.filter(function(p){ return (typeof isProductActiveE!=='function'||isProductActiveE(p)) && mlFromName_(p.name)>0; }).map(function(p){ return {sku:p.sku,name:p.name}; }); }
+    var t=document.getElementById('sh-k-tbody');
+    if(t){ t.innerHTML=list.map(function(p){ var ml=mlFromName_(p.name); var sz=ml>=1000?((ml/1000)+'L'):(ml+'ml'); var nm=String(p.name).replace(/s*d+(?:.d+)?s*(ml|ｍｌ|mL|ML|L|Ｌ|リットル)s*/g,' ').replace(/s+/g,' ').trim(); return '<tr><td style="text-align:left">'+shEsc(nm)+'</td><td>'+shEsc(sz)+'</td><td><input data-sku="'+shEsc(p.sku)+'" data-k="eur" inputmode="decimal" style="width:84px;text-align:right"></td><td><input data-sku="'+shEsc(p.sku)+'" data-k="qty" inputmode="numeric" style="width:84px;text-align:right"></td></tr>'; }).join('')+(list.length?'':'<tr><td colspan="4" style="text-align:left;color:#9a8f7e">名簿がまだ読めていません。少し待って、もう一度開いてください。</td></tr>'); }
+  }
+}
+async function shiireKakoHozon(){
+  var msg=document.getElementById('sh-k-msg'); var btn=document.getElementById('sh-k-save');
+  var farm=(document.getElementById('sh-k-farm')||{}).value||'', ym=((document.getElementById('sh-k-ym')||{}).value||'').trim(), rate=parseFloat((document.getElementById('sh-k-rate')||{}).value)||0;
+  if(!farm){ alert('農園を選んでください'); return; }
+  if(!/^\d{4}\/\d{2}$/.test(ym)){ alert('輸入年月は 2023/05 のように入れてください'); return; }
+  if(!(rate>0)){ alert('レート（1€＝¥）を入れてください'); return; }
+  var lines=[]; var eurs={}, qtys={};
+  Array.prototype.forEach.call(document.querySelectorAll('#sh-k-tbl input[data-sku]'), function(i){ var v=parseFloat(i.value)||0; if(i.getAttribute('data-k')==='eur') eurs[i.getAttribute('data-sku')]=v; else qtys[i.getAttribute('data-sku')]=v; });
+  Object.keys(eurs).forEach(function(sku){ if(eurs[sku]>0) lines.push({ sku:sku, qty:(qtys[sku]||0), eur:eurs[sku], ml:(typeof ynMlOfSku==='function'?ynMlOfSku(sku):0) }); });
+  if(!lines.length){ alert('€単価を1つ以上入れてください'); return; }
+  if(!confirm('輸入ノートに「'+(typeof ynFarmLabel==='function'?ynFarmLabel(farm):farm)+' '+ym+'」の回（€とレートだけ・'+lines.length+'商品）を保存しますか？\n\n原価データにも年度平均にも入りません。仕入れ価格の表に列が1本増えます。')) return;
+  var note={ id:'note_'+Date.now(), kind:'note', karui:true, farm:farm, status:'draft', yearMonth:ym, exchangeRate:rate,
+    invoiceNo:'', shipInvoiceNo:'', blNo:'', lines:lines,
+    exp:{ airEur:'', airDiscEur:'', airDiscMemo:'', taxImport:'', taxCustoms:'', taxOther:'', sagawaAirport:'', sagawaTransport:'', warehouse:'', otherJp:'', otherJpMemo:'' },
+    adjEur:'', adjMemo:'', notes:'昔の輸入（€とレートだけ・仕入れ価格の表のため）', createdAt:new Date().toISOString() };
+  if(btn) btn.disabled=true; if(msg){ msg.textContent='☁️ 保存しています…'; msg.style.color='#8a6d3f'; }
+  var r = (typeof ynPersist==='function') ? await ynPersist(note) : {ok:false,msg:'輸入ノートの保存が使えません'};
+  if(btn) btn.disabled=false;
+  if(r && r.ok){ if(msg){ msg.textContent='✅ 輸入ノートに保存しました'; msg.style.color='#1f6b3a'; } shiireKakoToggle(); if(typeof ynRenderCards==='function') ynRenderCards(); shiireLoad(); }
+  else { if(msg){ msg.textContent='⚠ 保存できませんでした：'+((r&&r.msg)||'不明')+'（書いた内容は消えていません）'; msg.style.color='#b91c1c'; } }
+}
 </script>
 <script>
 /* ===== 🌿 農園とのやり取り記録と改善（トラブル台帳＋ルール化）2026-07-31 追加 =====
