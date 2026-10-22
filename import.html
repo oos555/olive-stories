@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-22-04">
+<meta name="oos-version" content="2026-10-22-05">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -635,6 +635,10 @@ tr:last-child td{border-bottom:none}
       #panel-shiire .st3{position:sticky;left:230px;background:#fff;z-index:2;min-width:64px;border-right:2px solid #d8d3c7}
       #panel-shiire td.eur{font-weight:800;cursor:pointer}
       #panel-shiire td.eur:hover{outline:2px solid #1d4ed8;outline-offset:-2px}
+      #panel-shiire table.locked td.eur{cursor:default}
+      #panel-shiire table.locked td.eur:hover{outline:none}
+      #panel-shiire td.eur .yen{display:block;font-weight:600;font-size:11px;color:#6b6a63}
+      #panel-shiire #sh-lock.on{background:#9a5a10;border-color:#9a5a10;color:#fff}
       #panel-shiire td.yen{color:#6b6a63}
       #panel-shiire td.up{background:#fde8e8;color:#b91c1c}
       #panel-shiire td.down{background:#e0edf7;color:#1e40af}
@@ -655,14 +659,15 @@ tr:last-child td{border-bottom:none}
       #panel-shiire .sh-msg{font-size:12.5px;font-weight:800;min-height:18px}
     </style>
     <div class="sh-intro">この表は<b>輸入ノート（輸入記録）から毎回その場で作る、読むだけの表</b>です。自分では数字を持ちません。<br>
-    横は<b>農園×輸入年月を1回ずつ</b>、1回ごとに <b>€ ｜ ¥</b>（¥＝€×その回のレート）。見出しにその回のレート。右端に<b>最新€</b>と<b>前回との差</b>。<br>
-    <b>マスは直せません。</b>マスを押すと輸入ノートのその回が開くので、そこで直します（直した瞬間、この表も原価も同じ数字になります）。商品名・サイズは名簿（統合マスタＮ）のもの。</div>
+    横は<b>農園×輸入年月を1回ずつ</b>。マスは <b>€</b> と、その下に <b>(¥)</b>（€×その回のレート）。見出しにその回のレート。右端に<b>最新€</b>と<b>前回との差</b>。<br>
+    <b>マスは直せません。</b>直すときは「✏️ 修正する」→ 確認 → マスを押すと輸入ノートのその回が開くので、そこで直します（直した瞬間、この表も原価も同じ数字になります）。ふだんは鍵がかかっていて、間違えて触っても何も起きません。</div>
     <div class="sh-row">
       <span class="sh-t">農園</span>
       <span id="sh-farmchips"><span class="sh-chip on" data-f="">すべて</span></span>
       <span class="sh-sep"></span><span class="sh-t">見せ方</span>
       <span class="sh-chip on" id="sh-c-yen" onclick="shiireYenToggle()">€と¥</span><span class="sh-chip" id="sh-c-up" onclick="shiireUpToggle()">値上がりした行だけ</span>
       <span class="sh-sep"></span>
+      <button class="sh-b w" id="sh-lock" onclick="shiireLockToggle()">✏️ 修正する（輸入ノートを開く）</button>
       <button class="sh-b w" onclick="shiireKakoToggle()">＋ 昔の輸入を入れる（輸入ノートへ）</button>
       <a class="sh-b w" id="sh-sps" href="#" target="_blank" rel="noopener" style="display:none">📄 スプシで見る</a>
       <span class="sh-msg" id="sh-msg"></span>
@@ -4764,7 +4769,7 @@ function prepExportCSV(){
    ・この画面は数字を持たない。マスに入力欄を出さない（見張り tests/test_shiire_eur.js）
    ・マスを押す → 輸入ノートのその回（ynOpenNote／ynOpenOld）
    ・昔の輸入 → 輸入ノートの軽い入口（karui:true・status draft・€とレートだけ）。原価データにも年度平均にも入らない */
-var SH = { cols:[], rows:[], loaded:false, err:'', farm:'', yen:true, up:false, tsukutta:'' };
+var SH = { cols:[], rows:[], loaded:false, err:'', farm:'', yen:true, up:false, tsukutta:'', kaishu:false };   /* kaishu＝「✏️ 修正する」を押して確認したか */
 function shEsc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function shE(v){ return v==null?'—':'€'+Number(v).toFixed(2); }
 function shY(v,r){ return (v==null||!r)?'—':'¥'+Math.round(v*r).toLocaleString(); }
@@ -4797,8 +4802,9 @@ function shiireRowCells(r, cols){
     var v=(r.cells&&r.cells[c.id]!=null)?Number(r.cells[c.id]):null; var cls='eur', d='';
     if(v!=null && prev!=null){ if(v>prev){ cls+=' up'; d='<span class="d">▲'+((v-prev)/prev*100).toFixed(0)+'%</span>'; } else if(v<prev){ cls+=' down'; d='<span class="d">▼'+((prev-v)/prev*100).toFixed(0)+'%</span>'; } }
     if(v==null) cls='eur nasi';
-    html+='<td class="'+cls+'" onclick="shiireOpen(\''+shEsc(c.id)+'\')" title="輸入ノートの「'+shEsc(c.farm+' '+c.ym)+'」の回をひらく">'+shE(v)+d+'</td>';
-    if(SH.yen) html+='<td class="yen'+(v==null?' nasi':'')+'">'+shY(v,c.rate)+'</td>';
+    /* ★2026-10-22 ひろみさん「円をユーロの下にカッコで」：1マスに €、その下に (¥) */
+    var yen = (SH.yen && v!=null) ? '<br><span class="yen">('+shY(v,c.rate)+')</span>' : '';
+    html+='<td class="'+cls+'" onclick="shiireOpen(\''+shEsc(c.id)+'\')" title="輸入ノートの「'+shEsc(c.farm+' '+c.ym)+'」の回をひらく">'+shE(v)+d+yen+'</td>';
     if(v!=null){ prev=v; have.push(v); }
   });
   var last=have.length?have[have.length-1]:null, before=have.length>1?have[have.length-2]:null;
@@ -4815,10 +4821,9 @@ function shiireRender(){
   farms.forEach(function(f){
     var cols=SH.cols.filter(function(c){ return c.farm===f; });
     h+='<tr><th class="l st1">農園</th><th class="l st2">商品</th><th class="st3">サイズ</th>';
-    cols.forEach(function(c){ h+='<th class="g" colspan="'+(SH.yen?2:1)+'">'+shEsc(c.farm+' '+c.ym)+(c.karui?' <span style="font-size:10px;color:#9a5a10">€だけ</span>':'')+'<small>1€＝¥'+(c.rate?Number(c.rate).toFixed(1):'—')+'</small></th>'; });
+    cols.forEach(function(c){ h+='<th class="g">'+shEsc(c.farm+' '+c.ym)+(c.karui?' <span style="font-size:10px;color:#9a5a10">€だけ</span>':'')+'<small>1€＝¥'+(c.rate?Number(c.rate).toFixed(1):'—')+'</small></th>'; });
     if(!cols.length) h+='<th class="g">（輸入ノートにこの農園の回がまだ無い）<small>「＋ 昔の輸入を入れる」から</small></th>';
     h+='<th class="gk">最新€</th><th class="gk">前回との差</th></tr>';
-    if(SH.yen&&cols.length){ h+='<tr><th class="st1"></th><th class="st2"></th><th class="st3"></th>'; cols.forEach(function(){ h+='<th>€</th><th>¥</th>'; }); h+='<th></th><th></th></tr>'; }
     var n=0;
     SH.rows.filter(function(r){ return r.farm===f; }).forEach(function(r){
       var rc=shiireRowCells(r,cols);
@@ -4831,9 +4836,22 @@ function shiireRender(){
   });
   if(!farms.length) h='<tr><td style="padding:12px;color:#8a8578;text-align:left">輸入記録がまだ1回もありません。</td></tr>';
   tbl.innerHTML=h;
+  tbl.classList.toggle('locked', !SH.kaishu);
 }
-/* マスを押す → 輸入ノートのその回 */
+/* ★2026-10-22 ひろみさん「パッと触った時に間違えて消さないように。修正ボタンを押して、本当に修正しますかと聞いてから触れるように」
+   　ふだんは鍵がかかっていて、マスを押しても輸入ノートへ飛ばない。「✏️ 修正する」→ 確認 → この画面を離れるまで開ける */
+function shiireLockToggle(){
+  if(!SH.kaishu){
+    if(!confirm('本当に修正しますか？\n\n「OK」を押すと、表のマスを押したときに輸入ノートのその回が開きます（数字を直すのは輸入ノートの中です）。\nこの表そのものは直せません。')) return;
+    SH.kaishu=true;
+  } else { SH.kaishu=false; }
+  var b=document.getElementById('sh-lock'); if(b){ b.textContent=SH.kaishu?'🔒 修正をやめる':'✏️ 修正する（輸入ノートを開く）'; b.classList.toggle('on',SH.kaishu); }
+  var m=document.getElementById('sh-msg'); if(m){ m.textContent=SH.kaishu?'✏️ 修正中：マスを押すと輸入ノートのその回が開きます':''; m.style.color='#9a5a10'; }
+  shiireRender();
+}
+/* マスを押す → 輸入ノートのその回（鍵がかかっていれば案内だけ） */
 function shiireOpen(id){
+  if(!SH.kaishu){ var m0=document.getElementById('sh-msg'); if(m0){ m0.textContent='🔒 修正するには、上の「✏️ 修正する」を押してください（間違えて触っても何も起きません）'; m0.style.color='#9a5a10'; } return; }
   var b=(importBatches||[]).find(function(x){ return x && String(x.id)===String(id); });
   var btn=document.querySelector('.tab-row .tab[onclick*="\'note\'"]');
   if(btn) showPanel('note', btn);
@@ -5099,7 +5117,7 @@ async function trGasLoad(){
   function wideBoxes(){
     var p = document.querySelector('.panel.active');
     if(!p) return [];
-    var list = p.querySelectorAll('.tbl-wrap, .tr-tblwrap, [style*="overflow-x:auto"]');
+    var list = p.querySelectorAll('.tbl-wrap, .tr-tblwrap, .sh-tblwrap, [style*="overflow-x:auto"]');   /* ★2026-10-22 .sh-tblwrap＝仕入れ価格（€表示）の表（ひろみさん「下に横のバーを」） */
     return Array.prototype.filter.call(list, function(el){
       return el.offsetParent && (el.scrollWidth > el.clientWidth + 4);
     });
