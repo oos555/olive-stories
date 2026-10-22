@@ -1,0 +1,202 @@
+<title>在庫管理表 セット入力モック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* レイアウト：Googleスプレッドシートの見た目をまねた「タブ付きの表」1枚。上に短い説明、下にタブ。 */
+:root{
+  --bg:#f6f7f4; --paper:#ffffff; --fg:#1f2a24; --muted:#5f6b64; --line:#d9e0db;
+  --head:#1e6b43; --head-fg:#ffffff; --tabbar:#eef2ee; --tab-on:#d7ebdd;
+  --new:#2563eb; --new-bg:#eaf1ff; --set:#5a3a7a; --set-bg:#f3ecfa;
+  --oil:#a12b2b; --oil-bg:#fde8e8; --box:#4a3a7a; --box-bg:#ece7f6; --bag:#2b2a26; --bag-bg:#e4e2dc;
+  --old:#8a9088; --old-bg:#f1f3f0; --up:#1e6b43; --up-bg:#e7f1dc; --warn:#9a5b00; --warn-bg:#fff3dc;
+  --font:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic",Meiryo,system-ui,sans-serif;
+  --mono:"Consolas","Yu Gothic UI",monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#161a17; --paper:#1f2521; --fg:#e8ece9; --muted:#a4ada7; --line:#36403a;
+  --head:#2f8a5b; --head-fg:#ffffff; --tabbar:#232a26; --tab-on:#2f4a3a;
+  --new:#7fa8ff; --new-bg:#1f2b44; --set:#cdb3ea; --set-bg:#32283f;
+  --oil:#ff9d9d; --oil-bg:#3d2626; --box:#c9bbee; --box-bg:#2e2a3d; --bag:#e8ece9; --bag-bg:#3a3a37;
+  --old:#8a9088; --old-bg:#262b28; --up:#9fd3a8; --up-bg:#22352a; --warn:#f0c070; --warn-bg:#3c3220;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#161a17; --paper:#1f2521; --fg:#e8ece9; --muted:#a4ada7; --line:#36403a;
+  --head:#2f8a5b; --head-fg:#ffffff; --tabbar:#232a26; --tab-on:#2f4a3a;
+  --new:#7fa8ff; --new-bg:#1f2b44; --set:#cdb3ea; --set-bg:#32283f;
+  --oil:#ff9d9d; --oil-bg:#3d2626; --box:#c9bbee; --box-bg:#2e2a3d; --bag:#e8ece9; --bag-bg:#3a3a37;
+  --old:#8a9088; --old-bg:#262b28; --up:#9fd3a8; --up-bg:#22352a; --warn:#f0c070; --warn-bg:#3c3220;
+  color-scheme:dark }
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.7}
+.wrap{max-width:1040px;margin:0 auto;padding-block:20px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:20px;margin:0 0 4px;text-wrap:balance}
+.lead{color:var(--muted);font-size:13px;margin:0 0 14px}
+h2{font-size:15px;margin:22px 0 8px;color:var(--head)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.step{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.step b{display:block;font-size:13px;margin-bottom:2px}
+.step small{color:var(--muted);font-size:12px;line-height:1.5;display:block}
+@media (max-width:720px){.steps{grid-template-columns:1fr}}
+
+/* スプレッドシートふうの枠 */
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tabs{display:flex;gap:4px;background:var(--tabbar);padding:6px 8px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{border:1px solid var(--line);border-bottom:none;background:var(--paper);color:var(--fg);font:inherit;font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px 8px 0 0;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--tab-on);color:var(--head)}
+.tab:focus-visible{outline:2px solid var(--new);outline-offset:-2px}
+.pane{padding:12px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-size:12.5px;white-space:nowrap;width:100%;font-variant-numeric:tabular-nums}
+th,td{border:1px solid var(--line);padding:5px 8px;vertical-align:middle}
+th{background:var(--head);color:var(--head-fg);font-weight:700;text-align:left}
+td.n,th.n{text-align:right}
+td.rowno{color:var(--muted);background:var(--tabbar);text-align:center;width:38px}
+.newcol{background:var(--new-bg)}
+th.newcol{background:var(--new);color:#fff}
+.pill{display:inline-block;border-radius:6px;padding:0 8px;font-size:12px;font-weight:700}
+.p-oil{background:var(--oil-bg);color:var(--oil)} .p-box{background:var(--box-bg);color:var(--box)} .p-bag{background:var(--bag-bg);color:var(--bag)}
+.p-set{background:var(--set-bg);color:var(--set);font-weight:800}
+tr.old td{color:var(--old);background:var(--old-bg)}
+tr.old .pill{opacity:.55}
+.auto{color:var(--muted);font-size:12px;white-space:normal;max-width:360px}
+input[type=number]{width:72px;font:inherit;font-size:14px;font-weight:800;text-align:right;padding:3px 6px;border:2px solid var(--new);border-radius:6px;background:var(--paper);color:var(--fg)}
+input[type=number]:focus-visible{outline:2px solid var(--new);outline-offset:1px}
+select{font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--fg);max-width:260px}
+.delta{display:inline-block;min-width:44px;text-align:right;font-weight:800;color:var(--up);background:var(--up-bg);border-radius:6px;padding:0 6px;margin-left:6px}
+.delta.zero{color:var(--muted);background:transparent;font-weight:600}
+.note{font-size:12.5px;color:var(--muted);margin-top:8px}
+.tag{display:inline-block;background:var(--new);color:#fff;border-radius:6px;font-size:11px;font-weight:800;padding:0 7px;margin-left:6px;vertical-align:middle}
+.warn{display:inline-block;background:var(--warn-bg);color:var(--warn);font-weight:800;border-radius:6px;padding:0 8px}
+.kv{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;margin:8px 0 0}
+.kv span b{color:var(--head)}
+.try{background:var(--new-bg);border:1px solid var(--new);border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13px}
+.try b{color:var(--new)}
+</style>
+
+<div class="wrap">
+<h1>在庫管理表：セットを「1行」で書いて、中身は自動で減る</h1>
+<p class="lead">2026-10-22　ゆかちゃんへ。こういう形にできます（これは見本です。数字は例）。下の表は動くので、<b>青い枠の数を変えて</b>みてください。</p>
+
+<div class="steps">
+  <div class="step"><b>1　書くのは1行だけ</b><small>商品名のプルダウンで「YS100 your story 100ml×3本ギフト」を選び、出入数に<b>セットの個数</b>を入れる。</small></div>
+  <div class="step"><b>2　中身は自動で出る</b><small>隣の「中身（自動）」に、ギフト箱・オイル3本・紙袋が出る。打ち込む欄ではない。</small></div>
+  <div class="step"><b>3　福岡タブ・倉庫タブで自動で減る</b><small>中身5つの「売上」が、それぞれ個数ぶん増える（＝在庫が減る）。行を消せば元に戻る。</small></div>
+</div>
+
+<div class="sheet">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-led" aria-selected="true" aria-controls="pane-led">在庫管理</button>
+    <button class="tab" role="tab" id="tab-fuk" aria-selected="false" aria-controls="pane-fuk">福岡</button>
+    <button class="tab" role="tab" id="tab-comp" aria-selected="false" aria-controls="pane-comp">セット構成</button>
+    <button class="tab" role="tab" id="tab-exp" aria-selected="false" aria-controls="pane-exp">展開（自動）<span class="tag" style="background:var(--muted)">裏方</span></button>
+  </div>
+
+  <!-- 在庫管理 -->
+  <div class="pane" id="pane-led" role="tabpanel" aria-labelledby="tab-led">
+    <div class="try">▶ <b>やってみる：</b>743行目の出入数（青い枠）を 1 → 30 に変えて、「福岡」タブを見てください。中身5つの売上が同じだけ増えます。商品名を変えたり、0にしたりもできます。</div>
+    <div class="scroll"><table>
+      <tr><th></th><th>月</th><th>日</th><th>商品名</th><th class="newcol">中身（自動）<span class="tag">新しい列</span></th><th class="n">出入数</th><th>出入場所</th><th>理由</th><th>重要メモ</th></tr>
+      <tr class="old"><td class="rowno">732</td><td>6</td><td>17</td><td><span class="pill p-box">100ml3本ギフト箱</span></td><td class="newcol"></td><td class="n">30</td><td>福岡</td><td>【出庫】売上</td><td>いままでの書き方（5行）</td></tr>
+      <tr class="old"><td class="rowno">733</td><td>6</td><td>17</td><td><span class="pill p-oil">オルガニック100mlA5(2027.11)</span></td><td class="newcol"></td><td class="n">30</td><td>福岡</td><td>【出庫】売上</td><td>yourstoryトルコからのを使用</td></tr>
+      <tr class="old"><td class="rowno">734</td><td>6</td><td>17</td><td><span class="pill p-oil">メメジック100mlA5(2027.11)</span></td><td class="newcol"></td><td class="n">30</td><td>福岡</td><td>【出庫】売上</td><td>yourstoryトルコからのを使用</td></tr>
+      <tr class="old"><td class="rowno">735</td><td>6</td><td>17</td><td><span class="pill p-oil">シェフズブレンド100mlA5(2027.11)</span></td><td class="newcol"></td><td class="n">30</td><td>福岡</td><td>【出庫】売上</td><td>yourstoryトルコからのを使用</td></tr>
+      <tr class="old"><td class="rowno">736</td><td>6</td><td>17</td><td><span class="pill p-bag">紙袋黒大</span></td><td class="newcol"></td><td class="n">30</td><td>福岡</td><td>【出庫】売上</td><td></td></tr>
+      <tr><td class="rowno">742</td><td>6</td><td>19</td><td><span class="pill p-oil">オルガニック250mlA5(2027.11)</span></td><td class="newcol auto" id="nk742"></td><td class="n">1</td><td>福岡</td><td>【出庫】売上</td><td>ギフト（単品は今までどおり）</td></tr>
+      <tr><td class="rowno">743</td><td>10</td><td>22</td>
+        <td><select id="name743" aria-label="商品名">
+          <option value="SET">YS100 your story 100ml×3本ギフト</option>
+          <option value="オルガニック100mlA5(2027.11)">オルガニック100mlA5(2027.11)</option>
+          <option value="紙袋黒大">紙袋黒大</option>
+          <option value="NG">（セット構成に無い名前を入れてしまった例）</option>
+        </select></td>
+        <td class="newcol auto" id="nk743"></td>
+        <td class="n"><input type="number" id="qty743" min="0" max="999" value="1" aria-label="出入数"></td>
+        <td>福岡</td><td>【出庫】売上</td><td>新しい書き方（1行）</td></tr>
+    </table></div>
+    <p class="note">灰色の5行（732〜736）は、いま書いてある形。そのまま残します。これからは743行目のように<b>1行</b>で書けます。両方が混ざっていても、数は正しく出ます。</p>
+  </div>
+
+  <!-- 福岡 -->
+  <div class="pane" id="pane-fuk" role="tabpanel" aria-labelledby="tab-fuk" hidden>
+    <div class="scroll"><table>
+      <tr><th>商品名</th><th class="n">売上（いまの数・例）</th><th class="n">売上（743行目を入れたあと）</th><th class="n">在庫の動き</th></tr>
+      <tbody id="fukBody"></tbody>
+    </table></div>
+    <p class="note">「売上」は、在庫管理タブの【出庫】売上を商品ごとに合計したもの。今までと同じ数式で、見る先が「展開（自動）」に変わるだけ。倉庫タブも同じ仕組みです。</p>
+  </div>
+
+  <!-- セット構成 -->
+  <div class="pane" id="pane-comp" role="tabpanel" aria-labelledby="tab-comp" hidden>
+    <div class="scroll"><table>
+      <tr><th>セット名（商品名のプルダウンに出る名前）</th><th>中身の商品名</th><th class="n">1セットあたり</th></tr>
+      <tr><td rowspan="5"><span class="pill p-set">YS100 your story 100ml×3本ギフト</span></td><td><span class="pill p-box">100ml3本ギフト箱</span></td><td class="n">1</td></tr>
+      <tr><td><span class="pill p-oil">オルガニック100mlA5(2027.11)</span></td><td class="n">1</td></tr>
+      <tr><td><span class="pill p-oil">メメジック100mlA5(2027.11)</span></td><td class="n">1</td></tr>
+      <tr><td><span class="pill p-oil">シェフズブレンド100mlA5(2027.11)</span></td><td class="n">1</td></tr>
+      <tr><td><span class="pill p-bag">紙袋黒大</span></td><td class="n">1</td></tr>
+    </table></div>
+    <p class="note">中身を覚えておく場所。ロットが変わって商品名が変わったとき、新しいセットを作るときは、<b>このタブだけ</b>直します。YS250（2本セット）などは同じ形で行を足せば使えます。</p>
+  </div>
+
+  <!-- 展開 -->
+  <div class="pane" id="pane-exp" role="tabpanel" aria-labelledby="tab-exp" hidden>
+    <div class="scroll"><table>
+      <tr><th></th><th>月</th><th>日</th><th>商品名</th><th class="n">出入数</th><th>出入場所</th><th>理由</th><th>もとの行</th></tr>
+      <tbody id="expBody"></tbody>
+    </table></div>
+    <p class="note">在庫管理タブを上から読み、セットの行だけを中身にほどいた一覧。数式1つで自動で出ます。人は触りません（ふだんは隠しておきます）。福岡タブ・倉庫タブはここを合計しています。</p>
+  </div>
+</div>
+
+<h2>決まりごと</h2>
+<div class="kv">
+  <span><b>過去の行は触らない</b>（5行書きのまま残す）</span>
+  <span><b>行を勝手に増やさない</b>（数式だけ。消せば戻る）</span>
+  <span><b>まずコピーの表で</b>試して、数が合ってから本物へ</span>
+</div>
+
+<script>
+(function(){
+  var PARTS=[['100ml3本ギフト箱','p-box',120],['オルガニック100mlA5(2027.11)','p-oil',352],['メメジック100mlA5(2027.11)','p-oil',311],['シェフズブレンド100mlA5(2027.11)','p-oil',288],['紙袋黒大','p-bag',141]];
+  var SINGLES={'オルガニック250mlA5(2027.11)':['p-oil',96]};
+  var SETNAME='YS100 your story 100ml×3本ギフト';
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  tabs.forEach(function(t){ t.addEventListener('click',function(){
+    tabs.forEach(function(x){ x.setAttribute('aria-selected', x===t?'true':'false'); document.getElementById(x.getAttribute('aria-controls')).hidden = (x!==t); });
+  });});
+  var sel=document.getElementById('name743'), qty=document.getElementById('qty743');
+  function pill(name,cls){ return '<span class="pill '+cls+'">'+name+'</span>'; }
+  function render(){
+    var q=Math.max(0, parseInt(qty.value,10)||0), v=sel.value;
+    var nk=document.getElementById('nk743');
+    var add={}; PARTS.forEach(function(p){ add[p[0]]=0; });
+    var expRows=[];
+    if(v==='SET'){
+      nk.textContent=PARTS.map(function(p){return p[0]+' ×'+(1*q);}).join('／');
+      PARTS.forEach(function(p){ add[p[0]]+=q; expRows.push([p[0],p[1],q,'743（セットをほどいた）']); });
+    } else if(v==='NG'){
+      nk.innerHTML='<span class="warn">⚠ セット構成にありません</span>';
+    } else {
+      nk.textContent='';
+      if(add[v]!==undefined) add[v]+=q;
+      var cls=(v==='紙袋黒大')?'p-bag':'p-oil';
+      expRows.push([v,cls,q,'743（単品はそのまま）']);
+    }
+    var fb='';
+    PARTS.forEach(function(p){
+      var d=add[p[0]];
+      fb+='<tr><td>'+pill(p[0],p[1])+'</td><td class="n">'+p[2]+'</td><td class="n"><b>'+(p[2]+d)+'</b></td><td class="n"><span class="delta'+(d?'':' zero')+'">'+(d?'−'+d+'本':'動かない')+'</span></td></tr>';
+    });
+    Object.keys(SINGLES).forEach(function(n){ fb+='<tr><td>'+pill(n,SINGLES[n][0])+'</td><td class="n">'+SINGLES[n][1]+'</td><td class="n">'+SINGLES[n][1]+'</td><td class="n"><span class="delta zero">動かない</span></td></tr>'; });
+    document.getElementById('fukBody').innerHTML=fb;
+    var eb='';
+    var fixed=[['100ml3本ギフト箱','p-box',30],['オルガニック100mlA5(2027.11)','p-oil',30],['メメジック100mlA5(2027.11)','p-oil',30],['シェフズブレンド100mlA5(2027.11)','p-oil',30],['紙袋黒大','p-bag',30]];
+    fixed.forEach(function(r,i){ eb+='<tr class="old"><td class="rowno">'+(i+1)+'</td><td>6</td><td>17</td><td>'+pill(r[0],r[1])+'</td><td class="n">'+r[2]+'</td><td>福岡</td><td>【出庫】売上</td><td>'+(732+i)+'（単品はそのまま）</td></tr>'; });
+    eb+='<tr><td class="rowno">6</td><td>6</td><td>19</td><td>'+pill('オルガニック250mlA5(2027.11)','p-oil')+'</td><td class="n">1</td><td>福岡</td><td>【出庫】売上</td><td>742（単品はそのまま）</td></tr>';
+    expRows.forEach(function(r,i){ eb+='<tr><td class="rowno">'+(7+i)+'</td><td>10</td><td>22</td><td>'+pill(r[0],r[1])+'</td><td class="n"><b>'+r[2]+'</b></td><td>福岡</td><td>【出庫】売上</td><td>'+r[3]+'</td></tr>'; });
+    if(v==='NG') eb+='<tr><td class="rowno">7</td><td>10</td><td>22</td><td><span class="warn">⚠ 名前が合わない行</span></td><td class="n">'+q+'</td><td>福岡</td><td>【出庫】売上</td><td>743（どの商品にも入らない）</td></tr>';
+    document.getElementById('expBody').innerHTML=eb;
+  }
+  sel.addEventListener('change',render); qty.addEventListener('input',render);
+  render();
+})();
+</script>
+</div>
