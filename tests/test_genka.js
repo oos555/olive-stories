@@ -59,6 +59,7 @@ function ctxWith(sheets){
   });
   vm.runInContext(H.cutVar(gasSrc, 'OOS_PAYLOAD_SHEET_MAP'), G.ctx);
   vm.runInContext(H.cut(gasSrc, 'oosGuardEmptyPayload_'), G.ctx);
+  vm.runInContext(H.cut(gasSrc, 'oosGenkaNamae_'), G.ctx);   /* ★2026-10-22 商品名が空なら商品マスタから埋める（loadProducts が無ければ空のまま） */
   vm.runInContext(H.cut(gasSrc, 'saveCostData'), G.ctx);
   return G;
 }
@@ -139,6 +140,27 @@ G = ctxWith(sheets);
 payload = { priceMaster: [] };
 skipped = G.box.oosGuardEmptyPayload_(G.box.SpreadsheetApp.openById('x'), payload);
 eq('⑥-3 もともと空なら止めない', skipped.length, 0);
+
+/* ── ⑦ 商品名が空の行を残さない（2026-10-22 ひろみさん「42行目以降プロダクトネームが入ってない。事故が起こる」）──
+   保存のとき商品名が無ければ、商品マスタ（名簿・親）の name で埋める。原価・メモは変えない。 */
+sheets = { '原価データ（非公開）': makeSheet([
+  ['ORG100','オルガニック100ml', 820, 'メモA'],
+  ['CAS5L','', 9000, '輸入記録より自動反映']
+]) };
+G = ctxWith(sheets);
+G.box.loadProducts = function(){ return { status:'ok', products:[ { sku:'CAS5L', name:'カサアルバート 5L' }, { sku:'NEW1', name:'新しい商品' } ] }; };
+res = G.box.saveCostData('テスト用のあいことば', { costs:[ { sku:'CAS5L', costPerUnit:9100 }, { sku:'NEW1', costPerUnit:500 }, { sku:'ZZZ', costPerUnit:10 } ] });
+after = sheets['原価データ（非公開）']._data();
+eq('⑦-1 保存は通る', res.status, 'ok');
+eq('⑦-2 商品名が空だった行は商品マスタの名前で埋まる（原価は送った値・メモはそのまま）', after.find(r => r[0] === 'CAS5L'), ['CAS5L','カサアルバート 5L', 9100, '輸入記録より自動反映']);
+eq('⑦-3 新しく足す行も商品名つき', after.find(r => r[0] === 'NEW1'), ['NEW1','新しい商品', 500, '']);
+eq('⑦-4 商品マスタに無い品番は空のまま（勝手な名前を作らない）', after.find(r => r[0] === 'ZZZ')[1], '');
+eq('⑦-5 もともと名前がある行はそのまま', after.find(r => r[0] === 'ORG100')[1], 'オルガニック100ml');
+/* 名簿が読めない環境（loadProducts が無い）でも保存は止まらない */
+sheets = { '原価データ（非公開）': makeSheet([['CAS5L','', 9000, '']]) };
+G = ctxWith(sheets);
+res = G.box.saveCostData('テスト用のあいことば', { costs:[ { sku:'CAS5L', costPerUnit:9100 } ] });
+eq('⑦-6 名簿が読めなくても保存は通る（名前は空のまま）', res.status === 'ok' && sheets['原価データ（非公開）']._data()[0][1] === '', true);
 
 console.log('===== 原価・価格マスタの守り（GASの本物の関数）=====');
 console.log(`PASS ${pass} / FAIL ${fail}`);
