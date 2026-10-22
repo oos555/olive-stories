@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-09-30-01">
+<meta name="oos-version" content="2026-10-22-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -4856,7 +4856,13 @@ async function trGasLoad(){
       var arr=d.memos||(d.data&&d.data.memos)||d.data||[];
       var st=(arr.find)?arr.find(function(m){return String(m.id)==='state';}):null;
       if(st && st.text){ try{ trApplyState(JSON.parse(st.text)); localStorage.setItem(TR_LS_KEY, st.text); trGasStatus('☁️ 共有データを読み込みました','#0f7a4a'); }catch(e){ trGasStatus('⚠️ 共有データの形式が読めません（端末保存を使用）','#b06a1a'); } }
-      else trGasStatus('☁️ 共有保存に接続OK（まだデータなし）','#0f7a4a');
+      else {
+        trGasStatus('☁️ 共有保存に接続OK（まだデータなし）','#0f7a4a');
+        /* ★2026-10-22 サーバーにまだ無く、この端末に書いたもの（追記・ルール）があれば、開いただけでサーバーへ送る。
+           　2026-07-31〜10-22 はGAS側がこのタブの名前を知らず、端末にしか残っていなかった（ひろみさん「必ず残しておいてもらいたいもの」）。
+           　送るのはこの端末の分だけ・上書きではなく初回の登録。 */
+        try{ if((trState && ((trState.rules||[]).length || Object.keys(trState.followups||{}).length))){ trGasReady=true; trGasSave(); } }catch(eUp){}
+      }
     } else if((d.message||'').indexOf('不明')>=0){ trGasStatus('⚠️ 共有保存はGAS更新後に有効（今は端末保存のみ）','#b06a1a'); }
     else trGasStatus('⚠️ 共有読込に失敗（端末の保存を使用）','#b06a1a');
   }catch(e){ trGasStatus('⚠️ 通信できません（端末の保存を使用）','#b06a1a'); }

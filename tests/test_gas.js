@@ -456,6 +456,13 @@ eq('参考：0 で止まる', oya3, 0);
   eq('頼みごとメモ② ほかの鍵では開かない', G.stickyMemoPasswordOk('頼みごとメモ', 'J1') || G.stickyMemoPasswordOk('頼みごとメモ', 'G1'), false);
   const tm = fs.readFileSync(require('path').join(__dirname, '..', 'eigyo', 'tanomi_memo.html'), 'utf8');
   eq('頼みごとメモ③ 画面が使うタブの名前と同じ', /var SHEET_NAME = '頼みごとメモ';/.test(tm), true);
+  /* ★2026-10-22 輸入・原価Ｅ「🌿 農園とのやり取り記録と改善」も同じ穴だった（2026-07-31 から端末にしか残っていなかった） */
+  eq('農園トラブル対応① 社長の鍵（原価Ｅの鍵と同じ）で開く', G.stickyMemoPasswordOk('農園トラブル対応', 'S1'), true);
+  eq('農園トラブル対応② ほかの鍵では開かない', G.stickyMemoPasswordOk('農園トラブル対応', 'J1') || G.stickyMemoPasswordOk('農園トラブル対応', 'G1'), false);
+  const im = fs.readFileSync(require('path').join(__dirname, '..', 'import.html'), 'utf8');
+  eq('農園トラブル対応③ 画面が使うタブの名前と同じ', /var TR_SHEET='農園トラブル対応';/.test(im), true);
+  eq('農園トラブル対応④ 原価Ｅの鍵は社長の鍵（COST_DATA_PASSWORD＝secret）', /const COST_DATA_PASSWORD = GROUP_PASSWORDS\.secret;/.test(gasSrc), true);
+  eq('農園トラブル対応⑤ サーバーに無く端末にあるときは、開いただけで送る', H.cut(im, 'trGasLoad').indexOf('trGasSave()') >= 0 && H.cut(im, 'trGasLoad').indexOf('まだデータなし') >= 0, true);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
