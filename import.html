@@ -389,6 +389,7 @@ tr:last-child td{border-bottom:none}
       </div>
       <div style="margin-bottom:10px">
         <button class="btn-sm" onclick="prepToggleAddForm()" style="border:1.5px solid #0f5a4a;background:#e7f2ee;color:#0f5a4a;font-weight:800;font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer">＋ 商品を追加（自分で記入）</button><span style="display:inline-flex;align-items:center;gap:7px;margin-left:12px;vertical-align:middle"><span style="font-size:13px;font-weight:800;color:#7a2f00;white-space:nowrap">📝 メモ用</span><input id="prep-table-memo" type="text" oninput="prepSetTableMemo(this.value)" placeholder="例：今回は11の倍数の箱数でオーダー" style="width:320px;max-width:60vw;padding:7px 10px;font-size:13px;color:#2b2a26;border:1.5px solid #e0b84a;background:#fffbe6;border-radius:7px"></span>
+        <div id="prep-meibo-note" style="font-size:12px;color:#1f5136;background:#e9f3ec;border:1px solid #bfe0cb;border-radius:8px;padding:6px 10px;margin:8px 0 0;line-height:1.7">📋 <b>統合マスタNの名簿</b>に、<b>生産地が「トルコ」</b>の商品が増えると、この表にも自動で増えます（<span style="background:#dbe9f6;color:#1f4e78;border-radius:5px;padding:0 5px;font-weight:800">名簿</span>の印つき・在庫と目標は0で入るので打ち込んでください）。いらない行は 🗑 で消せます（消したものは戻ってきません）。</div>
         <div id="prep-addform" style="display:none;border:2px solid #0f5a4a;background:#f4faf8;border-radius:12px;padding:13px;margin-top:8px">
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px">
             <div><label style="display:block;font-size:11px;font-weight:800;color:#4a5a54;margin-bottom:2px">品目名 ＊</label><input id="pa-name" placeholder="例：唐辛子オイル 100ml" style="width:100%;border:1.5px solid #cdd6cf;border-radius:7px;padding:7px 9px;font-size:14px"></div>
@@ -465,7 +466,7 @@ tr:last-child td{border-bottom:none}
       <div style="padding:0 16px 14px;font-size:12px;line-height:1.75;color:#2b2a26">
         <p style="margin:8px 0;color:#8a6d3f">※これはあとで直すとき用のメモです（中村様は普段開かなくて大丈夫）。時間が経っても分かるよう、アプリ本体の中に入れてあります。最終更新：2026-07-31。</p>
         <p style="margin:8px 0;color:#57534e">このタブを直すとき用のメモ。中村様は普段開かなくてOK。ClaudeやエンジニアがあとでこのHTMLを見れば、しくみをすぐ思い出せるように書いてある（別ファイル『輸入準備計算_説明書.md』と同じ内容）。プレフィックスは prep* で自己完結。既存関数は変更していない。<br><b>このアプリEには、しくみの別グループがもう1つある：</b>「🌿 農園とのやり取り記録と改善」タブ＝プレフィックス tr*（下の専用セクション参照）。prep* とは別物で、混ぜない。</p><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">置き場所</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">ファイル：import.html（アプリE／輸入・原価）。タブは既存の showPanel('name',this) 方式。タブ行に showPanel('prep',this) ボタン、showPanel() 内に if(name==='prep') prepRender(); を1行追加。</li><li style="margin:3px 0">パネル本体は &lt;div id="panel-prep" class="panel"&gt;…&lt;/div&gt;。JSは末尾の &lt;script&gt; 内に prep* で追加。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">データモデル</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">PREP_PRODUCTS：商品配列。各フィールド＝ id(不変キー), sku(自社品番・編集可), name(日本語名), cat, vol, cont(容器 瓶/缶/箱), rt(RT社内コード＝セット照合キー), box(入数＝1箱の本数), res(直接予約), stock(現在庫), target(★残したい販売在庫), exp(賞味期限), lblLang, lblPrint, lblColor, lblUrl(裏ラベル画像URL), enName(英語名の上書き)。</li><li style="margin:3px 0">PREP_SETS：セット構成。{set:RTコード, comp:中身のRTコード, qty:1セットあたり本数} の配列。照合はRTコード。</li><li style="margin:3px 0">グローバル：prepMode({id:'up'|'down'}), prepHistory(確定記録配列), prepFolderUrl(農園共有フォルダURL)。</li></ul><p style="margin:8px 0;background:#fdecea;border:1px solid #f3b4ad;border-radius:6px;padding:6px 10px;color:#7a1a12">⚠️ RTコード（rt。例 4101229）はRT社内の番号。自社の商品管理番号（品番＋バーコード下4桁。例 ORG500-5354）とは別物。混同するとミスになる。自社側の唯一の正は名簿（master.html / TurboMaster）。</p><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">計算ロジック prepCalc()</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">setDerived ＝ Σ（PREP_SETS のうち comp==p.rt の行）qty × そのセット商品のres</li><li style="margin:3px 0">remain（出荷後に残る数）＝ stock − res − setDerived（マイナス可＝不足）</li><li style="margin:3px 0">want（輸入したい本数）＝ max(target − remain, 0)</li><li style="margin:3px 0">box有：切上 up=ceil(want/box)・upN=up×box・upSur=upN−want／切捨 down=floor(want/box)・downN=down×box・downSh=want−downN。finalBox＝prepMode[id]が'down'ならdown、既定up。finalN=finalBox×box。<b>【2026-07-31 変更】画面の「▲切上／▼切捨」の選択ボタンは廃止し、丸め列は「✏ 手で決める」だけにした（中村様指示：丸めはClaudeが自動で計算するので手選択は不要）。</b>up/down/upSur/downSh は今も内部で計算しているが画面には出さない。既定は常に up（＝箱がぴったり埋まる切上）で最終箱数を表示。prepChoose(id,mode) 関数は残置（未使用・無害）。手で変えたいときだけ prepManualOn(id) で手入力に切替（finalBox/finalN を初期値に、以後は p.manual/manualBoxes/manualN が優先）。</li><li style="margin:3px 0">box無：finalN=want, finalBox=null</li><li style="margin:3px 0">realRemain（実際に残る販売在庫）＝ remain + finalN</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">描画</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">prepRender()：メイン表。先頭で一度だけ localStorage→(あれば)GAS読込。末尾で prepRenderOrderEN() / prepRenderHistory() / prepRenderFolder() / prepSaveLocal()。</li><li style="margin:3px 0">prepRenderOrderEN()：英語表。prepEnName()(enName優先), prepEnCont()(瓶→Bottle等)。賞味期限・言語・印刷地・色・URLは商品ごとのinput/select。#prep-folder-en に農園共有フォルダをコピー表示。</li><li style="margin:3px 0">prepRenderHistory()：prepHistory を年ごと見出し＋日付ごと details で新しい順表示。</li><li style="margin:3px 0">prepRenderFolder()：#prep-folder-url と #prep-folder-link を prepFolderUrl に同期。</li><li style="margin:3px 0"><b>同梱依頼物（copack）＝オイル以外で「箱に一緒に入れてほしいもの」。</b>データ＝prepCopack 配列 {name, qty, unit, tr(品目名のトルコ語), memo, <b>trUnit(単位のトルコ語), trMemo(メモのトルコ語)</b>}。編集表＝prepRenderCopack()／農園向け表＝prepRenderCopackEN()（見出し「📦 Koliye eklenecekler」）。<b>【2026-07-31 変更】農園に送る書類なので"品目名だけ"でなく単位・メモも含め全項目をトルコ語にした。</b>農園向けはトルコ語(大)＋日本語(小)の二段：copackBiCell(tr, ja)。トルコ語が空なら日本語を大きく出し「（トルコ語 未記入）」を添える。ハンドラ prepCopackAdd/Del/Set。翻訳ボタン prepTranslateJaToTr()＝同梱依頼物（品目名・単位・メモ）＋備考の日本語をまとめてトルコ語化して各trフィールドに入れる（日本語は残す）。翻訳はGASの translateBatch（LanguageApp）。</li>
-                <li style="margin:3px 0">選択肢定数：PREP_LANG_OPTS / PREP_PRINT_OPTS / PREP_COLOR_OPTS / PREP_CONT_OPTS。</li><li style="margin:3px 0">編集ハンドラ：prepSetFree(在庫・目標=確認なし), prepSetRes(予約=確認あり), prepEditMaster(品番・容量・容器・入数=クリック＋確認), prepSetLbl(英語表の各項目), prepBulk(一括), prepSetFolder, prepChoose(箱丸め)。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">確定・記録</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">prepFinalize()：finalN&gt;0 の行をスナップショットして prepHistory.unshift()。形＝{id, date(ISO), dateStr, memo, folderUrl, total, items:[{jpname,enName,sku,vol,cont,box,finalBox,finalN,exp,lang,print,color,url}]}</li><li style="margin:3px 0">prepDeleteHistory(id)：確認のうえ1件削除。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">保存（永続化）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">状態の形：{v:1, mode, history, folderUrl, p:{ id:{s,r,t,b,name,sku,vol,cont,exp,lblLang,lblPrint,lblColor,lblUrl,enName} }}</li><li style="margin:3px 0">prepBuildState() で作り prepApplyState() で戻す。</li><li style="margin:3px 0">localStorage：キー oos_prep_state_v1（prepSaveLocal/prepLoadLocal）。</li><li style="margin:3px 0">GAS：prepGasSave()=POST savePrepState / prepGasLoad()=POST getPrepState。既存 GAS_URL と password(=COST_DATA_PASSWORD) を流用。1.5秒デバウンス、初回オープンで一度 prepGasLoad。</li><li style="margin:3px 0">堅牢化：GASのPOST応答は googleusercontent へリダイレクトされ fetch で応答本文を読めないことがある（書込は成功しているのに）。prepGasSave は応答が読めないとき getPrepState で読み直し state===payload 一致なら成功と判定。失敗表示は琥珀色に緩和。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">GAS側（サーバー）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">追加関数は2つ：savePrepState(password, stateJson) と getPrepState(password)。パスワードは COST_DATA_PASSWORD。</li><li style="margin:3px 0">保存先：スプレッドシート「輸入準備計算保存」シート。A1=state(JSON文字列)、B1=保存日時。空/{}は保存拒否（消さない安全装置）。</li><li style="margin:3px 0">doPost に2行、doGet に任意で getPrepState 1ブロック。反映は必ず『デプロイを管理→既存デプロイを編集→新バージョン』（新規にするとURLが変わる）。完成版一式は GAS_完成版_これを全部貼り付け.gs。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">よくある変更のやり方</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">商品を足す/減らす：PREP_PRODUCTS に要素を追加/削除（id,sku,name,cat,vol,cont,rt,box,res,stock,target を埋める）。英語名は自動、必要なら enName で上書き。</li><li style="margin:3px 0">入数を変える：box を変更（名簿 master.html の boxQty と一致させる）。</li><li style="margin:3px 0">セット構成を変える：PREP_SETS を編集（RTコードで set↔comp）。</li><li style="margin:3px 0">目標の初期値：PREP_PRODUCTS[].target。箱丸め既定：prepCalc の mode=prepMode[p.id]||'up'（常に切上）。丸め列は「✏ 手で決める」だけ（切上/切捨ボタンは2026-07-31に撤去）。もし切上/切捨の手選択ボタンを復活させたいときは prepRender の choose 生成（r.box&gt;0 の分岐）に prepChoose(id,'up'/'down') ボタン2つを戻す。</li><li style="margin:3px 0">言語/印刷地/色/容器の選択肢：PREP_LANG_OPTS / PREP_PRINT_OPTS / PREP_COLOR_OPTS / PREP_CONT_OPTS。英語名マップ：PREP_EN_NAME と prepEnName の分岐。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">注意点</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">RTコード ≠ 自社商品管理番号。突合は名簿(TurboMaster)を唯一の正として。</li><li style="margin:3px 0">GitHub Pagesのキャッシュ：差し替え後はスーパーリロード。</li><li style="margin:3px 0">prep* 以外の既存関数・データは触らない。</li><li style="margin:3px 0">状態JSONは『輸入準備計算保存』A1の1セルに全部入る（約5万文字まで）。将来とても大きくなるなら履歴だけ別シート化の余地。</li></ul><h4 style="margin:18px 0 4px;color:#33421f;font-size:13px">🌿 農園とのやり取り記録と改善タブ（プレフィックス tr*・2026-07-31 新設）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0"><b>目的：</b>農園（Novavera）との過去トラブル台帳（全21件・以前ムスタファさんとのWhatsAppから拾い出し）を残し、右端「✍️ その後の対応」にいつ・どう対応したかを書き込み、決めごとにしたいものを上の「📌 ルール化するもの」枠にためていく。</li><li style="margin:3px 0"><b>置き場所：</b>パネル &lt;div id="panel-trouble" class="panel"&gt;。タブ行に showPanel('trouble',this) ボタン、showPanel() 内に if(name==='trouble') trRender(); 。JSは prep* とは別に <b>tr*</b> で自己完結。</li><li style="margin:3px 0"><b>ルール枠：</b>5カテゴリ（書類／ラベル／賞味期限／梱包／その他）＋自作カテゴリ。1件＝1行の箇条書き（枠なし・色バー＋見出し＋箇条書き、空カテゴリは「（まだ無し）」を1行）。クリックで編集(trRuleInput)／🔴赤(trToggleRed)／🗑削除(trDelRule)／右の選択で分類変更(trRuleCat)／Enterで同カテゴリに次行(trAddRuleAfter)。台帳の各行「→ ルールに移す」(trMoveToRule)は、その行の「分類」からカテゴリを推定(trCatFromBunrui＝キーワード一致・不明はその他)して、対応内容を該当カテゴリに入れる。</li><li style="margin:3px 0"><b>描画：</b>trRender() → trRenderCatBtns() / trRenderRules() / trRenderTable()。台帳は横スクロール表(min-width 1180px)。</li><li style="margin:3px 0"><b>保存：</b>既存の saveStickyMemo / loadStickyMemos を<b>専用シート「農園とのやり取り 追記・ルール」</b>（定数 TR_SHEET）で流用＝<b>GAS改修なし</b>。localStorage は trSaveLocal/trLoadLocal、GASは trGasSave/trGasLoad（既存 GAS_URL＋password＝COST_DATA_PASSWORD）。頼みごとメモ等の他データには触らない安全マージ。</li><li style="margin:3px 0"><b>注意：</b>tr* と prep* を混ぜない。台帳の初期21件はコード内の配列（TROUBLE系）に持つ。「その後の対応」とルールだけが保存対象。</li></ul>
+                <li style="margin:3px 0">選択肢定数：PREP_LANG_OPTS / PREP_PRINT_OPTS / PREP_COLOR_OPTS / PREP_CONT_OPTS。</li><li style="margin:3px 0">編集ハンドラ：prepSetFree(在庫・目標=確認なし), prepSetRes(予約=確認あり), prepEditMaster(品番・容量・容器・入数=クリック＋確認), prepSetLbl(英語表の各項目), prepBulk(一括), prepSetFolder, prepChoose(箱丸め)。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">確定・記録</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">prepFinalize()：finalN&gt;0 の行をスナップショットして prepHistory.unshift()。形＝{id, date(ISO), dateStr, memo, folderUrl, total, items:[{jpname,enName,sku,vol,cont,box,finalBox,finalN,exp,lang,print,color,url}]}</li><li style="margin:3px 0">prepDeleteHistory(id)：確認のうえ1件削除。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">保存（永続化）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">状態の形：{v:1, mode, history, folderUrl, p:{ id:{s,r,t,b,name,sku,vol,cont,exp,lblLang,lblPrint,lblColor,lblUrl,enName} }}</li><li style="margin:3px 0">prepBuildState() で作り prepApplyState() で戻す。</li><li style="margin:3px 0">localStorage：キー oos_prep_state_v1（prepSaveLocal/prepLoadLocal）。</li><li style="margin:3px 0">GAS：prepGasSave()=POST savePrepState / prepGasLoad()=POST getPrepState。既存 GAS_URL と password(=COST_DATA_PASSWORD) を流用。1.5秒デバウンス、初回オープンで一度 prepGasLoad。</li><li style="margin:3px 0">堅牢化：GASのPOST応答は googleusercontent へリダイレクトされ fetch で応答本文を読めないことがある（書込は成功しているのに）。prepGasSave は応答が読めないとき getPrepState で読み直し state===payload 一致なら成功と判定。失敗表示は琥珀色に緩和。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">GAS側（サーバー）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">追加関数は2つ：savePrepState(password, stateJson) と getPrepState(password)。パスワードは COST_DATA_PASSWORD。</li><li style="margin:3px 0">保存先：スプレッドシート「輸入準備計算保存」シート。A1=state(JSON文字列)、B1=保存日時。空/{}は保存拒否（消さない安全装置）。</li><li style="margin:3px 0">doPost に2行、doGet に任意で getPrepState 1ブロック。反映は必ず『デプロイを管理→既存デプロイを編集→新バージョン』（新規にするとURLが変わる）。完成版一式は GAS_完成版_これを全部貼り付け.gs。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">よくある変更のやり方</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">商品を足す/減らす：PREP_PRODUCTS に要素を追加/削除（id,sku,name,cat,vol,cont,rt,box,res,stock,target を埋める）。英語名は自動、必要なら enName で上書き。<b>【2026-10-29 追加】統合マスタNの名簿（OOS_PRODUCTS）で生産地に「トルコ」が入っている商品は、prepMeiboSync() が prepRender のたびに自動で prepAdded へ足す（fromMeibo:true・id='M_'+品番・🗑で消すと prepRemoved に残り戻らない）。名簿が親なので、ふつうの商品追加は名簿に登録すれば足りる。</b></li><li style="margin:3px 0">入数を変える：box を変更（名簿 master.html の boxQty と一致させる）。</li><li style="margin:3px 0">セット構成を変える：PREP_SETS を編集（RTコードで set↔comp）。</li><li style="margin:3px 0">目標の初期値：PREP_PRODUCTS[].target。箱丸め既定：prepCalc の mode=prepMode[p.id]||'up'（常に切上）。丸め列は「✏ 手で決める」だけ（切上/切捨ボタンは2026-07-31に撤去）。もし切上/切捨の手選択ボタンを復活させたいときは prepRender の choose 生成（r.box&gt;0 の分岐）に prepChoose(id,'up'/'down') ボタン2つを戻す。</li><li style="margin:3px 0">言語/印刷地/色/容器の選択肢：PREP_LANG_OPTS / PREP_PRINT_OPTS / PREP_COLOR_OPTS / PREP_CONT_OPTS。英語名マップ：PREP_EN_NAME と prepEnName の分岐。</li></ul><h4 style="margin:14px 0 4px;color:#1f4e78;font-size:13px">注意点</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0">RTコード ≠ 自社商品管理番号。突合は名簿(TurboMaster)を唯一の正として。</li><li style="margin:3px 0">GitHub Pagesのキャッシュ：差し替え後はスーパーリロード。</li><li style="margin:3px 0">prep* 以外の既存関数・データは触らない。</li><li style="margin:3px 0">状態JSONは『輸入準備計算保存』A1の1セルに全部入る（約5万文字まで）。将来とても大きくなるなら履歴だけ別シート化の余地。</li></ul><h4 style="margin:18px 0 4px;color:#33421f;font-size:13px">🌿 農園とのやり取り記録と改善タブ（プレフィックス tr*・2026-07-31 新設）</h4><ul style="margin:4px 0 4px 18px;padding:0"><li style="margin:3px 0"><b>目的：</b>農園（Novavera）との過去トラブル台帳（全21件・以前ムスタファさんとのWhatsAppから拾い出し）を残し、右端「✍️ その後の対応」にいつ・どう対応したかを書き込み、決めごとにしたいものを上の「📌 ルール化するもの」枠にためていく。</li><li style="margin:3px 0"><b>置き場所：</b>パネル &lt;div id="panel-trouble" class="panel"&gt;。タブ行に showPanel('trouble',this) ボタン、showPanel() 内に if(name==='trouble') trRender(); 。JSは prep* とは別に <b>tr*</b> で自己完結。</li><li style="margin:3px 0"><b>ルール枠：</b>5カテゴリ（書類／ラベル／賞味期限／梱包／その他）＋自作カテゴリ。1件＝1行の箇条書き（枠なし・色バー＋見出し＋箇条書き、空カテゴリは「（まだ無し）」を1行）。クリックで編集(trRuleInput)／🔴赤(trToggleRed)／🗑削除(trDelRule)／右の選択で分類変更(trRuleCat)／Enterで同カテゴリに次行(trAddRuleAfter)。台帳の各行「→ ルールに移す」(trMoveToRule)は、その行の「分類」からカテゴリを推定(trCatFromBunrui＝キーワード一致・不明はその他)して、対応内容を該当カテゴリに入れる。</li><li style="margin:3px 0"><b>描画：</b>trRender() → trRenderCatBtns() / trRenderRules() / trRenderTable()。台帳は横スクロール表(min-width 1180px)。</li><li style="margin:3px 0"><b>保存：</b>既存の saveStickyMemo / loadStickyMemos を<b>専用シート「農園とのやり取り 追記・ルール」</b>（定数 TR_SHEET）で流用＝<b>GAS改修なし</b>。localStorage は trSaveLocal/trLoadLocal、GASは trGasSave/trGasLoad（既存 GAS_URL＋password＝COST_DATA_PASSWORD）。頼みごとメモ等の他データには触らない安全マージ。</li><li style="margin:3px 0"><b>注意：</b>tr* と prep* を混ぜない。台帳の初期21件はコード内の配列（TROUBLE系）に持つ。「その後の対応」とルールだけが保存対象。</li></ul>
       </div>
     </details>
   </div>
@@ -935,6 +936,13 @@ function applyProductsE(products){
   try{
     var d = document.getElementById('yn-detail');
     if(d && d.style.display !== 'none' && typeof ynRenderDetail === 'function') ynRenderDetail();
+  }catch(e){}
+  /* ★2026-10-29 名簿があとから届いたら、開いている「🧮 輸入準備計算室」も描き直す
+     （prepRender の中で prepMeiboSync が走り、名簿に増えた商品が表に足される）。
+     開いていないときは、タブを開いたときの prepRender で足されるので何もしない。★消さないでください */
+  try{
+    var pp = document.getElementById('panel-prep');
+    if(pp && pp.classList.contains('active') && typeof prepRender === 'function') prepRender();
   }catch(e){}
 }
 async function initializeProductsE(){
@@ -3891,6 +3899,54 @@ var prepAdded = [];   /* 自分で足した商品（完全オブジェクト） 
 var prepRemoved = []; /* 消した商品のid */
 var prepCopack = []; /* 同梱依頼物（オイル以外）：{name,qty,unit,tr,memo} */
 function prepProducts(){ return PREP_PRODUCTS.concat(prepAdded).filter(function(p){ return prepRemoved.indexOf(p.id)<0; }); }
+/* ★2026-10-29 ひろみさん「統合マスターの名簿に商品が増えたら、この準備室のところにも増やしてほしい」
+   （ザクロソース 100ml を名簿に入れたのに、この表に出てこなかった）
+   ・商品の親は統合マスタNの名簿（このページでは OOS_PRODUCTS）。ここでは【表に足すだけ】で、名簿は書き換えない。
+   ・足す条件：名簿で active、かつ 生産地（origin）に「トルコ」が入っている商品
+     （この表はノヴァヴェラ農園（トルコ）への発注計算なので、イタリアの油や紙袋・箱は足さない）。
+   ・すでに表にある品番（PREP_PRODUCTS／自分で足した分）は足さない。
+   ・足した商品は prepAdded に入る（＝自分で足した商品と同じ扱いで共有保存される）。印は fromMeibo:true、id は 'M_'+品番。
+   ・🗑で消したものは prepRemoved に id が残るので、次に開いても戻ってこない。
+   ・名簿がまだ届いていないとき（OOS_PRODUCTS が空）は何もしない。★消さないでください */
+function prepMeiboVol(name){
+  var s=String(name||'').replace(/[０-９．]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
+  var m=s.match(/([0-9]+(?:\.[0-9]+)?)\s*(ml|ｍｌ|ＭＬ|mL|ML|l|ℓ|L|Ｌ)/);
+  if(!m) return '';
+  var n=Number(m[1]), u=m[2].toLowerCase();
+  if(u==='ml'||u==='ｍｌ') return n+'ml';      /* 「250ｍｌ」（全角）も 250ml に */
+  return Math.round(n*1000)+'ml';              /* 「2L」「5ℓ」は 2000ml / 5000ml（既存の表と同じ書き方） */
+}
+function prepMeiboCont(container,isSet){
+  var c=String(container||'');
+  if(isSet) return '箱';
+  if(c.indexOf('缶')>=0) return '缶';
+  if(c.indexOf('瓶')>=0) return '瓶';
+  if(c.indexOf('箱')>=0) return '箱';
+  return '瓶';
+}
+function prepMeiboSync(){
+  var list=(typeof OOS_PRODUCTS!=='undefined'&&OOS_PRODUCTS)?OOS_PRODUCTS:[];
+  if(!list.length) return [];
+  var have={}; PREP_PRODUCTS.concat(prepAdded).forEach(function(p){ if(p&&p.sku) have[String(p.sku).trim()]=true; });
+  var added=[];
+  list.forEach(function(m){
+    if(!m||!m.sku) return;
+    if(typeof isProductActiveE==='function' && !isProductActiveE(m)) return;
+    if(String(m.origin||'').indexOf('トルコ')<0) return;
+    var sku=String(m.sku).trim(); if(!sku||have[sku]) return;
+    var id='M_'+sku;
+    if(prepRemoved.indexOf(id)>=0) return;
+    var box=(m.boxQty!=null&&String(m.boxQty).trim()!==''&&!isNaN(Number(m.boxQty)))?Number(m.boxQty):null;
+    var prod={ id:id, sku:sku, name:(m.name||sku), cat:(m.group||'（名簿）'), vol:prepMeiboVol(m.name), cont:prepMeiboCont(m.container,!!m.isSet),
+      rt:null, box:box, res:0, stock:0, target:0, fromMeibo:true };
+    if(m.isSet) prod.noFarm=true;   /* セットは国内で組むので農園には発注しない（YS100と同じ扱い） */
+    prepAdded.push(prod); have[sku]=true; added.push(prod);
+  });
+  if(added.length){   /* 保存は呼び出し元 prepRender の末尾（prepSaveLocal）で行われる */
+    try{ if(typeof showSyncStatus==='function') showSyncStatus('📋 名簿から '+added.length+'件を表に足しました：'+added.map(function(p){return p.name;}).join('／')); }catch(e){}
+  }
+  return added;
+}
 function prepNewProdId(){ return 'U'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
 var prepLabelLinks = [];
 function prepNum(v){ v=(v==null?'':(''+v)).replace(/,/g,'').trim(); if(v==='') return null; var n=Number(v); return isNaN(n)?null:n; }
@@ -3970,6 +4026,7 @@ function prepMcell(id,field,label,val,isNum){
 function prepRender(){
   var wrap=document.getElementById('prep-table-wrap'); if(!wrap) return;
   if(!window.__prepLoaded){ prepLoadLocal(); window.__prepLoaded=true; prepGasLoad(); }
+  prepMeiboSync();   /* ★2026-10-29 名簿（統合マスタN）に増えた商品を表に足す。何度呼んでも同じ品番は二重に足さない */
   var rows=prepCalc();
   var IN='background:#fffbe6;', IMP='background:#fde3b3;font-weight:800;';
   var h='<table style="min-width:1320px">';
@@ -3996,7 +4053,7 @@ function prepRender(){
     } else choose='<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:#999">入数未設定</span><button class="btn-sm" onclick="prepManualOn(\''+p.id+'\')" style="font-size:10px;padding:2px 4px;color:#7a2f00">✏ 手で決める</button></div>';
     var fBox=(r.finalBox==null)?'—':(r.finalBox+'箱');
     h+='<tr>'
-      +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+' <button title="この商品を表から消す" onclick="prepRemoveProduct(\''+p.id+'\')" style="border:1px solid #e0b5b1;background:#fff;color:#a1443c;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;cursor:pointer;margin-left:4px">🗑</button>'+((prepAdded.indexOf(p)>=0)?' <span style="font-size:10px;font-weight:800;color:#0f5a4a;background:#d3efe6;border-radius:5px;padding:1px 5px">追加</span>':'')+'</td>'
+      +'<td style="text-align:left;font-weight:600;white-space:nowrap">'+prepMcell(p.id,'name','商品名',p.name,false)+' <button title="この商品を表から消す" onclick="prepRemoveProduct(\''+p.id+'\')" style="border:1px solid #e0b5b1;background:#fff;color:#a1443c;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;cursor:pointer;margin-left:4px">🗑</button>'+((prepAdded.indexOf(p)>=0)?(p.fromMeibo?' <span title="統合マスタNの名簿から自動で足した商品" style="font-size:10px;font-weight:800;color:#1f4e78;background:#dbe9f6;border-radius:5px;padding:1px 5px">名簿</span>':' <span style="font-size:10px;font-weight:800;color:#0f5a4a;background:#d3efe6;border-radius:5px;padding:1px 5px">追加</span>'):'')+'</td>'
       +'<td style="text-align:center;color:#1f4e78;font-weight:700">'+prepMcell(p.id,'sku','品番',p.sku,false)+'</td>'
       +'<td style="text-align:center">'+prepMcell(p.id,'vol','容量',p.vol,false)+'</td>'
       +'<td style="text-align:center">'+prepMcell(p.id,'cont','容器',p.cont,false)+'</td>'
@@ -4296,7 +4353,10 @@ function prepRemoveProduct(id){
   var p=prepFind(id); var nm=p?p.name:id;
   if(!confirm('「'+nm+'」を本当に消しますか？')) return;
   var ai=-1; for(var k=0;k<prepAdded.length;k++){ if(prepAdded[k].id===id){ ai=k; break; } }
-  if(ai>=0){ prepAdded.splice(ai,1); }            /* 自分で足したもの→リストから削除 */
+  if(ai>=0){ prepAdded.splice(ai,1);              /* 自分で足したもの→リストから削除 */
+    /* ★2026-10-29 名簿から自動で足した商品は、消したことを覚えておく（覚えないと次に開いたとき名簿からまた足される） */
+    if(p && p.fromMeibo && prepRemoved.indexOf(id)<0) prepRemoved.push(id);
+  }
   else { if(prepRemoved.indexOf(id)<0) prepRemoved.push(id); } /* 元からのもの→非表示リストへ */
   prepSaveLocal(); if(typeof prepGasSaveSoon==='function') prepGasSaveSoon();
   prepRender();
