@@ -15,7 +15,9 @@
      ③ 商品管理番号の作り方（mbKanriFrom）も変えない。品番が何であっても同じ計算。
      ④ 打った字は 大文字の英数字とハイフン だけにそろえる（全角→半角）。
      ⑤ 保存で止めるもの：空／すでに名簿か価格リストにある品番／
-        種類が箱・紙袋・備品なのに頭が BOX-／BAG-／MISC- でないもの。
+        種類が箱・紙袋・備品なのに頭が BOX／BAG／MISC でないもの。
+        ★2026-10-29 ひろみさん指示：品番にハイフンを入れない（自動は SET007・BOX004、自分で決めるときもハイフンは止める）。
+          管理番号の「-」の後ろはバーコードの下4桁だけ、にそろえるため。保存済みの SET-002 などはそのまま。
         自分で決めたときは、自動の「付け直しました」はしない。
      ⑥ 保存の形は増やさない。GASの変更なし。
 
@@ -97,11 +99,13 @@ const htmlPre = run("meiboEditRowHtml(null, {})");
 ok('①お知らせから品番つきで開いたとき：ボタンは出ない（品番は先に決まっている）', htmlPre.indexOf('✏️ 自分で決める</button>') < 0 && htmlPre.indexOf('押すと書けます') < 0);
 ok('①お知らせから品番つきで開いたとき：品番は OIL-003 で readonly', /id="mp-sku" value="OIL-003" readonly/.test(htmlPre));
 
-/* ── ② 自動の付け方は変わらない ───────────────────────────────── */
-ok('②自動：BOX は BOX-002（BOX-001 のつぎ）', run("mbNextSku('BOX')") === 'BOX-002');
-ok('②自動：SET は SET-003', run("mbNextSku('SET')") === 'SET-003');
-ok('②自動：OIL（単発）は OIL-004（価格リストの OIL-003 も見る）', run("mbNextSku('OIL')") === 'OIL-004');
-ok('②自動：ETC は ETC-001', run("mbNextSku('ETC')") === 'ETC-001');
+/* ── ② 自動の付け方（★2026-10-29 からハイフンなし。前からある SET-002 などの番号の続きから） ── */
+ok('②自動：BOX は BOX002（BOX-001 のつぎ・ハイフンなし）', run("mbNextSku('BOX')") === 'BOX002');
+ok('②自動：SET は SET003（SET-002 のつぎ・ハイフンなし）', run("mbNextSku('SET')") === 'SET003');
+ok('②自動：OIL（単発）は OIL004（価格リストの OIL-003 も見る）', run("mbNextSku('OIL')") === 'OIL004');
+ok('②自動：ETC は ETC001', run("mbNextSku('ETC')") === 'ETC001');
+ok('②自動：自動で付いた品番にハイフンは入らない', run("[mbNextSku('BOX'),mbNextSku('SET'),mbNextSku('OIL'),mbNextSku('ETC'),mbNextSku('BAG'),mbNextSku('MISC')].join('')").indexOf('-') < 0);
+ok('②自動：ハイフンなしの番号（BOX002）がすでにあれば、そのつぎ（BOX003）', run("PRODUCTS.push({sku:'BOX002'}); var _r = mbNextSku('BOX'); PRODUCTS.pop(); _r") === 'BOX003');
 
 /* ── ④ 打った字をそろえる ─────────────────────────────────────── */
 ok('④小文字 → 大文字', run("mbSkuNormalize('ys100')") === 'YS100');
@@ -116,7 +120,7 @@ run("mbSkuManual = true; document.getElementById('mp-sku').value = 'YS300'; docu
 ok('🅱自分で決めているあいだは、種類を変えても品番は YS300 のまま', el('mp-sku').value === 'YS300');
 ok('🅱そのときオイルの3文字欄はかくれる', el('mp-oilsku').style.display === 'none');
 run("mbSkuManual = false; mbKindChanged();");
-ok('🅰自動にもどすと、種類（箱）から BOX-002 が付く', el('mp-sku').value === 'BOX-002');
+ok('🅰自動にもどすと、種類（箱）から BOX002 が付く', el('mp-sku').value === 'BOX002');
 run("mbSkuManual = true; document.getElementById('mp-sku').value = 'YS300'; document.getElementById('mp-oil3').value='ARM'; document.getElementById('mp-oilsize').value='500'; mbOilSkuChanged();");
 ok('🅱自分で決めているあいだは、3文字＋サイズでも上書きしない', el('mp-sku').value === 'YS300');
 
@@ -126,7 +130,7 @@ ok('✏️ 押すと欄が書ける（readonly が外れる）', el('mp-sku').re
 ok('✏️ 押すと「※いまは🅱自分で決めています…」', el('mp-sku-mode').textContent === '※いまは🅱自分で決めています（自動で付いた番号も上から書き直せます）');
 ok('✏️ 押すと欄の例は「例：YS100」', el('mp-sku').placeholder === '例：YS100');
 run("document.getElementById('mp-kind').value = 'SET'; mbSkuAutoBack();");
-ok('🔄 押すと欄は readonly に戻り、種類（セット）から SET-003 が付く', el('mp-sku').readOnly === true && el('mp-sku').value === 'SET-003');
+ok('🔄 押すと欄は readonly に戻り、種類（セット）から SET003 が付く', el('mp-sku').readOnly === true && el('mp-sku').value === 'SET003');
 ok('🔄 押すと「※いまは🅰自動です」', el('mp-sku-mode').textContent === '※いまは🅰自動です');
 
 /* ── ⑤ 止める／通す（本物の mbSkuManualProblem） ─────────────────── */
@@ -137,13 +141,18 @@ ok('⑤小文字で打っても重複を見つける（ys100）', run("mbSkuManu
 ok('⑤価格リストにある品番（OIL-003）も止める', run("mbSkuManualProblem('OIL-003')").indexOf('すでに使われています') > 0);
 ok('⑤新しい品番（GFT002）は通す', run("mbSkuManualProblem('GFT002')") === '');
 ok('⑤種類なしで YS200 は通す', run("mbSkuManualProblem('YS200')") === '');
+/* ★2026-10-29 ハイフン入りは止める */
+ok('⑤ハイフン入り（YS-100）は止める', run("mbSkuManualProblem('YS-100')").indexOf('ハイフン') > 0);
+ok('⑤ハイフン入りの理由は「管理番号の「-」のうしろはバーコードの下4桁だけ」', run("mbSkuManualProblem('YS-100')").indexOf('バーコードの下4桁だけ') > 0);
+ok('⑤ハイフンなし（BOX001）は通す（種類なし）', run("mbSkuManualProblem('BOX001')") === '');
 run("document.getElementById('mp-kind').value = 'BOX'");
-ok('⑤種類が箱なのに頭が BOX- でない（GB01）は止める', run("mbSkuManualProblem('GB01')").indexOf('頭を「BOX-」') > 0);
-ok('⑤種類が箱で BOX-GIFT1 は通す', run("mbSkuManualProblem('BOX-GIFT1')") === '');
+ok('⑤種類が箱なのに頭が BOX でない（GB01）は止める', run("mbSkuManualProblem('GB01')").indexOf('頭を「BOX」') > 0);
+ok('⑤種類が箱で BOXGIFT1 は通す', run("mbSkuManualProblem('BOXGIFT1')") === '');
+ok('⑤種類が箱で BOX-003（ハイフン入り）は止める', run("mbSkuManualProblem('BOX-003')").indexOf('ハイフン') > 0);
 run("document.getElementById('mp-kind').value = 'BAG'");
-ok('⑤種類が紙袋なのに頭が BAG- でない は止める', run("mbSkuManualProblem('FUKURO1')").indexOf('頭を「BAG-」') > 0);
+ok('⑤種類が紙袋なのに頭が BAG でない は止める', run("mbSkuManualProblem('FUKURO1')").indexOf('頭を「BAG」') > 0);
 run("document.getElementById('mp-kind').value = 'MISC'");
-ok('⑤種類が備品なのに頭が MISC- でない は止める', run("mbSkuManualProblem('ETC-9')").indexOf('頭を「MISC-」') > 0);
+ok('⑤種類が備品なのに頭が MISC でない は止める', run("mbSkuManualProblem('ETC9')").indexOf('頭を「MISC」') > 0);
 run("document.getElementById('mp-kind').value = 'SET'");
 ok('⑤種類がセットなら頭は自由（YS300 は通す）', run("mbSkuManualProblem('YS300')") === '');
 
@@ -165,10 +174,14 @@ async function saveWith(manual, sku, kind){
   ok('⑤保存：空なので送らない', fetched === 0);
 
   await saveWith(true, 'GB01', 'BOX');
-  ok('⑤保存：箱なのに頭が BOX- でないと止まる', alerts.length === 1 && alerts[0].indexOf('頭を「BOX-」') > 0, JSON.stringify(alerts));
+  ok('⑤保存：箱なのに頭が BOX でないと止まる', alerts.length === 1 && alerts[0].indexOf('頭を「BOX」') > 0, JSON.stringify(alerts));
+
+  await saveWith(true, 'YS-300', 'SET');
+  ok('⑤保存：ハイフン入り（YS-300）は止まる', alerts.length === 1 && alerts[0].indexOf('ハイフン') > 0, JSON.stringify(alerts));
+  ok('⑤保存：ハイフン入りなので送らない', fetched === 0);
 
   await saveWith(false, 'SET-002', 'SET');
-  ok('⑤保存：🅰自動のときの重複は今までどおり「付け直しました」（SET-003）', alerts.length === 1 && alerts[0].indexOf('付け直しました') > 0 && el('mp-sku').value === 'SET-003', JSON.stringify(alerts));
+  ok('⑤保存：🅰自動のときの重複は今までどおり「付け直しました」（SET003・ハイフンなし）', alerts.length === 1 && alerts[0].indexOf('付け直しました') > 0 && el('mp-sku').value === 'SET003', JSON.stringify(alerts));
   ok('⑤保存：付け直したのでまだ送らない', fetched === 0);
 
   /* ── 新しく開くときは🅰自動から（本物の meiboStartNew） ── */
@@ -178,7 +191,9 @@ async function saveWith(manual, sku, kind){
   /* ── ③ 商品管理番号は品番が何であっても同じ計算 ── */
   ok('③YS300 ＋ バーコード …7050 → YS300-7050', run("mbKanriFrom('YS300','4580256047050')") === 'YS300-7050');
   ok('③YS300 でバーコード無し → YS300 のまま', run("mbKanriFrom('YS300','')") === 'YS300');
-  ok('③自動の BOX-002 でも同じ計算（バーコード無し → そのまま）', run("mbKanriFrom('BOX-002','')") === 'BOX-002');
+  ok('③自動の BOX002 でも同じ計算（バーコード無し → そのまま）', run("mbKanriFrom('BOX002','')") === 'BOX002');
+  ok('③BOX002 ＋ バーコード …7050 → BOX002-7050（ハイフンの後ろはバーコードだけ）', run("mbKanriFrom('BOX002','4580256047050')") === 'BOX002-7050');
+  ok('③前からある SET-002 の管理番号の計算は変えていない（SET-002 ＋ 無し → SET-002）', run("mbKanriFrom('SET-002','')") === 'SET-002');
 
   /* ── ⑥ 保存の形は増えていない（prod に新しい項目を足していない） ── */
   const saveSrc = cut(M, 'meiboSaveRow');
