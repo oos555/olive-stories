@@ -71,7 +71,7 @@ const ctx = { PRODUCTS, findProductBySku: sku => PRODUCTS.find(p => p.sku === sk
 vm.createContext(ctx);
 vm.runInContext(src, ctx);
 
-/* ── ② ただのセット → SET-下4桁-下4桁 ────────────────────────── */
+/* ── ② ただのセット → セットの品番-下4桁-下4桁（★2026-10-29 から品番はハイフンなし SET007。前からある SET-002 はそのまま） ── */
 eq('②オイル2本のセット', ctx.mbKanriFrom('SETX', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }]), 'SETX-9063-9100');
 eq('②オイル3本のセット', ctx.mbKanriFrom('SETY', '', [{ sku: 'ORG250', qty: 1 }, { sku: 'MEM250', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SETY-9063-9100-9230');
 eq('②100mlと250mlの混ぜセット', ctx.mbKanriFrom('SETZ', '', [{ sku: 'ORG100', qty: 1 }, { sku: 'CHF250', qty: 1 }]), 'SETZ-5149-9230');
@@ -233,7 +233,7 @@ ok('⑦セットの番号をバーコード欄に書き込んでいない',
 }
 
 /* ── 結果 ───────────────────────────────────────────────── */
-const title = 'セットの商品管理番号 SET-下4桁-下4桁（2026-09-09 ひろみさん決定）';
+const title = 'セットの商品管理番号 セットの品番-下4桁-下4桁（2026-09-09 ひろみさん決定）';
 if (fail) {
   console.log('  ★ ' + title + ' PASS ' + pass + ' / FAIL ' + fail);
   fails.forEach(x => console.log(x));
