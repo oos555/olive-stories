@@ -5546,6 +5546,7 @@ function meiboStartNew(sku){
   meiboClearDraft();
   meiboAddingNew = true; meiboEditingSku = '__new__';
   meiboNewSkuPrefill = sku || '';
+  mbSkuManual = false;          /* ★2026-10-29 新しく開くときは🅰自動から */
   renderMeibo();
   setTimeout(function(){ var e=document.getElementById('mp-sku'); if(e) e.focus(); },40);
 }
@@ -5676,6 +5677,10 @@ function mbKindChanged(){
   /* ★2026-09-09夜 オイルのときは、品番を自動で作らず【ローマ字3文字＋サイズ】を聞く。
      ひろみさんが決めた3文字が、そのオイルのサイズ違いが増えたときの品番ルールになります。 */
   var oilBox = document.getElementById('mp-oilsku');
+  /* ★2026-10-29 「✏️ 自分で決める」のあいだは、種類を変えても品番を書き換えない（区分だけ合わせる） */
+  if(mbSkuManual){
+    if(oilBox) oilBox.style.display = 'none';
+  } else {
   if(oilBox) oilBox.style.display = (v === 'OIL') ? '' : 'none';
   if(v === 'OIL'){
     s.value = '';
@@ -5685,6 +5690,7 @@ function mbKindChanged(){
     /* ★2026-09-09夜 その他オイルの品番は OIL- にそろえる（種類のコードは OIL2 だが頭は OIL） */
     s.value = mbNextSku(v === 'OIL2' ? 'OIL' : v);
   }
+  }
   /* 種類を選んだら、区分も合わせて入れておく（あとから変えられます） */
   var wantG = MB_KIND_GROUP[v];
   if(wantG){
@@ -5692,7 +5698,91 @@ function mbKindChanged(){
     if(gsel){ for(var gi=0; gi<gsel.options.length; gi++){ if(gsel.options[gi].value === wantG){ gsel.selectedIndex = gi; break; } } }
   }
   mbToggleOilFields(v === 'OIL');
+  mbSkuCheck();                 // ★2026-10-29 品番のとなりの案内（自分で決めるときの見張り）
   mbPreviewKanri();             // ★2026-08-07 品番が入ったので商品管理番号を出す（この時点はまだ品番だけ）
+}
+/* ══════════════════════════════════════════════════════════════════
+   ✏️ 品番を「自分で決める」（2026-10-29 ひろみさん指示・承認済みモック
+   mocks/mock_master_名簿_品番を自分で決める_2026-10-29.html）
+   ──────────────────────────────────────────────────────────────────
+   ひろみさんの言葉：「Your Story みたいなギフトボックスは最初に YS100 とかつけてから、
+   その下に管理番号を作りたい。自動でつける場合と手動にする場合と両方選べるように。
+   あるいは自動で作ってもらって、それを手直しして上から自分が好きな数字にもできるように」
+   ・新規のときだけ。いまある商品の品番は今までどおり直せない（注文・在庫・価格が品番でつながる）。
+   ・自動の付け方（mbNextSku／オイルの3文字＋サイズ）は1文字も変えていない。
+   ・商品管理番号の作り方（mbKanriFrom）も変えていない。品番が何であっても同じ計算。
+   ・打った字は大文字の英数字とハイフンだけにそろえる（全角→半角）。
+   ・保存で止めるもの：空／すでに名簿か価格リストにある品番／種類が箱・紙袋・備品なのに
+     頭が BOX-／BAG-／MISC- でないもの（mbIsBihin が頭の文字で備品を見分けているため。
+     頭が変わると、その箱を入れたセットの管理番号の作り方がくずれる）。
+   ・保存の形は増やさない。GASの変更なし。
+   ══════════════════════════════════════════════════════════════════ */
+var mbSkuManual = false;
+var MB_BIHIN_HEAD = { BOX:'BOX-', BAG:'BAG-', MISC:'MISC-' };
+function mbSkuManualOn(){
+  var s = document.getElementById('mp-sku'); if(!s) return;
+  mbSkuManual = true;
+  s.readOnly = false;
+  s.style.background = '#fffdf0'; s.style.borderColor = '#d9a400'; s.style.color = '#1c1917';
+  s.placeholder = '例：YS100';
+  var oilBox = document.getElementById('mp-oilsku'); if(oilBox) oilBox.style.display = 'none';
+  var b1 = document.getElementById('mp-sku-manual-btn'); if(b1) b1.style.display = 'none';
+  var b2 = document.getElementById('mp-sku-auto-btn');   if(b2) b2.style.display = '';
+  var m  = document.getElementById('mp-sku-mode'); if(m) m.textContent = '※いまは🅱自分で決めています（自動で付いた番号も上から書き直せます）';
+  s.focus();
+  mbSkuCheck(); mbPreviewKanri();
+}
+function mbSkuAutoBack(){
+  var s = document.getElementById('mp-sku'); if(!s) return;
+  mbSkuManual = false;
+  s.readOnly = true;
+  s.style.background = '#efece5'; s.style.borderColor = ''; s.style.color = '#57534e';
+  s.placeholder = '← 左で種類を選ぶと入ります';
+  var b1 = document.getElementById('mp-sku-manual-btn'); if(b1) b1.style.display = '';
+  var b2 = document.getElementById('mp-sku-auto-btn');   if(b2) b2.style.display = 'none';
+  var m  = document.getElementById('mp-sku-mode'); if(m) m.textContent = '※いまは🅰自動です';
+  mbKindChanged();              // 種類から自動の番号を付け直す
+}
+/* 打った字をそろえる：全角の英数字とハイフンを半角に → 大文字 → 英数字とハイフン以外は消す */
+function mbSkuNormalize(str){
+  return String(str || '')
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[－ー―‐]/g, '-')
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '');
+}
+function mbSkuTyped(){
+  var s = document.getElementById('mp-sku'); if(!s || !mbSkuManual) return;
+  var v = mbSkuNormalize(s.value);
+  if(v !== s.value) s.value = v;
+  mbSkuCheck(); mbPreviewKanri();
+}
+/* 自分で決めた品番が保存できるかを調べる。だめなら理由の文を返す。OKなら ''。 */
+function mbSkuManualProblem(sku){
+  var v = String(sku || '').trim();
+  if(!v) return '品番を入れてください（例：YS100）';
+  if(mbUsedSkus()[v.toUpperCase()]) return '⚠️ 品番 ' + v + ' はすでに使われています。同じ商品を2つ作ることはできません';
+  var k = document.getElementById('mp-kind');
+  var kv = k ? k.value : '';
+  if(MB_BIHIN_HEAD[kv] && v.toUpperCase().indexOf(MB_BIHIN_HEAD[kv]) !== 0){
+    var kl = (k && k.selectedOptions && k.selectedOptions[0]) ? k.selectedOptions[0].textContent.replace(/^\S+\s/, '') : '箱・紙袋・備品';
+    return '⚠️ ' + kl + ' は、頭を「' + MB_BIHIN_HEAD[kv] + '」にしてください（セットの管理番号の数え方に使っています）';
+  }
+  return '';
+}
+function mbSkuCheck(){
+  var h = document.getElementById('mp-sku-hint'); if(!h) return;
+  var s = document.getElementById('mp-sku');
+  var v = s ? (s.value || '').trim() : '';
+  if(!mbSkuManual){
+    h.style.color = '#5a7291'; h.style.fontWeight = '400';
+    h.textContent = v ? '自動で付いた番号です。変えたいときは「✏️ 自分で決める」。' : '種類を選ぶと自動で付きます。自分で決めたいときは「✏️ 自分で決める」。';
+    return;
+  }
+  var ng = mbSkuManualProblem(v);
+  h.style.fontWeight = '700';
+  if(ng){ h.style.color = '#b42318'; h.textContent = ng; }
+  else  { h.style.color = '#1f5132'; h.textContent = '✓ 使える品番です（保存すると、あとから変えられません）'; }
 }
 /* ★2026-09-09夜 オイルの品番＝ローマ字3文字＋サイズ（例 ARM500）。
    3文字はひろみさんが決めます。同じ3文字がすでにあれば、それが今後のルールになります。 */
@@ -5702,6 +5792,7 @@ function mbOilSkuChanged(){
   var s = document.getElementById('mp-sku');
   var hint = document.getElementById('mp-oilsku-hint');
   if(!a || !b || !s) return;
+  if(mbSkuManual) return;        // ★2026-10-29 自分で決めているあいだは、3文字＋サイズで上書きしない
   var three = String(a.value||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
   a.value = three;
   var size  = String(b.value||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
@@ -5831,7 +5922,8 @@ function meiboSnapshotForm(){
     sku: val('mp-sku'), kind: val('mp-kind'), name: val('mp-name'), shipUnit: val('mp-unit'), lotCode: val('mp-lot'), expiry: val('mp-exp'), lotNote: val('mp-lotnote'),
     group: val('mp-group'), groupNew: val('mp-group-new'), boxQty: val('mp-box'),
     origin: val('mp-origin'), farm: val('mp-farm'), container: val('mp-container'),
-    noWholesale: chk('mp-nw'), active: chk('mp-active')
+    noWholesale: chk('mp-nw'), active: chk('mp-active'),
+    skuManual: mbSkuManual     /* ★2026-10-29 「✏️ 自分で決める」の途中かどうかも覚える */
   };
 }
 function meiboClearDraft(){ meiboFormDraft = null; }
@@ -5839,6 +5931,8 @@ function meiboRestoreForm(){
   var d = meiboFormDraft; if(!d) return;
   function set(id, v){ var e=document.getElementById(id); if(e && v!=null) e.value = v; }
   var k = document.getElementById('mp-kind'); if(k && d.kind) k.value = d.kind;
+  /* ★2026-10-29 書きかけが「✏️ 自分で決める」の途中なら、その状態（書ける欄）に戻してから品番を書き戻す */
+  if(d.skuManual && document.getElementById('mp-sku-manual-btn')){ mbSkuManualOn(); }
   set('mp-sku', d.sku); set('mp-name', d.name); set('mp-box', d.boxQty); set('mp-unit', d.shipUnit); set('mp-lot', d.lotCode); set('mp-exp', d.expiry); set('mp-lotnote', d.lotNote);
   set('mp-origin', d.origin); set('mp-farm', d.farm); set('mp-container', d.container);
   var g = document.getElementById('mp-group'); if(g && d.group) g.value = d.group;
@@ -5846,6 +5940,7 @@ function meiboRestoreForm(){
   if(typeof mbGroupChanged === 'function') mbGroupChanged();
   var nw = document.getElementById('mp-nw'); if(nw) nw.checked = d.noWholesale;
   var ac = document.getElementById('mp-active'); if(ac) ac.checked = d.active;
+  if(typeof mbSkuCheck === 'function') mbSkuCheck();   /* ★2026-10-29 書き戻した品番で案内を出し直す */
 }
 
 /* ★2026-07-24 名簿からロット・賞味期限を直せるようにするための道具 ─────────────
@@ -5937,7 +6032,10 @@ function meiboEditRowHtml(p, sp){
     '<div class="mp-head">'+(isNew?'➕ 新しい商品をつくる':'✏️ '+esc(v.name||v.sku)+' を直す')+'</div>'+
     /* ★2026-09-09夜 読み込み中は、ロット欄が空に見える。打ち直すと二重になるので知らせる */
     (_lotLoading ? '<div style="margin:8px 0;padding:9px 12px;border:2px solid #b45309;border-radius:9px;background:#fff7ed;color:#7c2d12;font-weight:800;line-height:1.6">⏳ 在庫データ（ロット）をまだ読み込んでいます。<br><span style="font-weight:400">いまロット欄は空に見えますが、まだ本当の中身が届いていないだけです。ここで打って保存すると<b>ロットが二重にできます</b>。画面に「✅ 保存されたデータを読み込みました」と出てから入れてください。</span></div>' : '')+
-    '<div class="mp-note" style="margin:0 0 8px">品番（sku）だけ自動でつきます。ほかの欄はすべて自由に書けます（うすい字は「例」なので、そのまま上から書いてください）。</div>'+
+    /* ★2026-10-29 ひろみさん指示：品番は「自動」でも「自分で決める」でもよい（承認済みモック mock_master_名簿_品番を自分で決める_2026-10-29.html） */
+    ((isNew && !meiboNewSkuPrefill)
+      ? '<div class="mp-note" style="margin:0 0 8px">品番（sku）は種類を選ぶと自動でつきます。自分で決めたいときは「✏️ 自分で決める」を押すと書けます（自動で付いた番号を上から書き直すのもここ）。ほかの欄はすべて自由に書けます（うすい字は「例」なので、そのまま上から書いてください）。</div>'
+      : '<div class="mp-note" style="margin:0 0 8px">品番（sku）だけ自動でつきます。ほかの欄はすべて自由に書けます（うすい字は「例」なので、そのまま上から書いてください）。</div>')+
     /* ★2026-09-09夜 ひろみさん決定の品番の頭のルール。選ぶだけで頭が付きます */
     (isNew ? '<div class="mp-note" style="margin:0 0 10px;padding:8px 11px;background:#f7fbff;border:1px solid #cfe0f0;border-radius:9px;line-height:1.7">'+
       '<b style="color:#0c447c">品番の頭のきまり</b>（種類を選ぶと自動で付きます）<br>'+
@@ -5945,11 +6043,12 @@ function meiboEditRowHtml(p, sp){
       '🫒 その他オイル（単発） … <b>OIL-</b>（例 OIL-001 モンテ物産）<br>'+
       '🍯 オイル以外輸入商品 … <b>ETC-</b>（例 ETC-001 ザクロソース）<br>'+
       '🎁 セット … <b>SET-</b>　📦 箱 … <b>BOX-</b>　🛍 紙袋・オーガンジー … <b>BAG-</b><br>'+
-      '🧰 その他の備品 … <b>MISC-</b>'+
+      '🧰 その他の備品 … <b>MISC-</b><br>'+
+      '✏️ 自分で決めるとき（例 ギフトセット <b>YS100</b>）… 品番の欄の「✏️ 自分で決める」を押して書きます。商品管理番号はその下に今までどおり自動でできます'+
     '</div>' : '')+
     '<div class="mp-grid">'+
       (isNew && !meiboNewSkuPrefill
-        ? '<div class="mp-fg"><label>種類　※品番はこれで自動でつきます</label><select id="mp-kind" onchange="mbKindChanged()"><option value="">（選ぶ）</option>'+
+        ? '<div class="mp-fg"><label>種類　※🅰自動のときは、これで品番が付きます</label><select id="mp-kind" onchange="mbKindChanged()"><option value="">（選ぶ）</option>'+
             (mbFixedLeft().length
               ? '<optgroup label="── 品番が決まっている商品（写真も登録済み）──">'+
                   mbFixedLeft().map(function(f){ return '<option value="FIXED:'+esc(f.sku)+'">🎁 '+esc(f.name)+'（'+esc(f.sku)+'）</option>'; }).join('')+
@@ -5958,7 +6057,10 @@ function meiboEditRowHtml(p, sp){
             '<optgroup label="── 新しくつくる（番号は自動）──">'+
               MB_KINDS.map(function(k){ return '<option value="'+k.code+'">'+esc(k.label)+'</option>'; }).join('')+
             '</optgroup>'+
-          '</select></div>'+
+          '</select>'+
+            /* ★2026-10-29 自分で決めるときは種類は任意（承認済みモックの文言） */
+            '<div class="mp-note" style="margin-top:4px;color:#5a7291">（🅱自分で決めるときは、種類は選んでも選ばなくてもよい。区分を合わせたいときだけ選ぶ）</div>'+
+          '</div>'+
           /* ★2026-09-09夜 オイルのときだけ出る、品番の作り方の欄 */
           '<div class="mp-fg" id="mp-oilsku" style="display:none;grid-column:1/-1;padding:10px 12px;border:1px dashed #9ec6a8;border-radius:10px;background:#f5faf6">'+
             '<label style="color:#1f5132;font-weight:800">オイルの品番を決める（ローマ字3文字 ＋ サイズ）</label>'+
@@ -5974,7 +6076,17 @@ function meiboEditRowHtml(p, sp){
             '<div id="mp-oilsku-hint" style="margin-top:6px;font-size:12.5px;color:#1f5132;font-weight:700">ローマ字を3文字入れてください（例：ARM＝アルモニア）</div>'+
           '</div>'
         : '')+
-      '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>'+
+      /* ★2026-10-29 新規のときだけ「✏️ 自分で決める」「🔄 自動にもどす」を出す。いまある商品の品番は今までどおり直せない（注文・在庫・価格が品番でつながっているため） */
+      ((isNew && !meiboNewSkuPrefill)
+        ? '<div class="mp-fg"><label>品番（sku）　<span id="mp-sku-mode" style="color:#57534e;font-weight:400">※いまは🅰自動です</span></label>'+
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+              '<input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly oninput="mbSkuTyped()" style="flex:1;min-width:160px;background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="← 左で種類を選ぶと入ります">'+
+              '<button type="button" class="btn-sm" id="mp-sku-manual-btn" onclick="mbSkuManualOn()">✏️ 自分で決める</button>'+
+              '<button type="button" class="btn-sm" id="mp-sku-auto-btn" onclick="mbSkuAutoBack()" style="display:none">🔄 自動にもどす</button>'+
+            '</div>'+
+            '<div id="mp-sku-hint" style="margin-top:4px;font-size:12.5px;color:#5a7291;min-height:1.4em">種類を選ぶと自動で付きます。自分で決めたいときは「✏️ 自分で決める」。</div>'+
+          '</div>'
+        : '<div class="mp-fg"><label>品番（sku）　※自動でつきます・手では直せません</label><input type="text" id="mp-sku" value="'+esc(v.sku)+'" readonly style="background:#efece5;color:#57534e;font-weight:800;font-family:monospace" placeholder="'+(isNew?'← 左で種類を選ぶと入ります':'ORG500')+'"></div>')+
       fg('商品名','mp-name',v.name,'オルガニック 500ml')+
       fg('出荷単位（この形で出す）','mp-unit',v.shipUnit,'1箱／20本 など')+
       /* ★2026-09-13 ひろみさん指示：単位表示（空なら、決めごとから自動で決まります） */
@@ -6009,6 +6121,10 @@ function meiboEditRowHtml(p, sp){
         '<button type="button" class="btn-sm" onclick="mkAddKousei()" style="margin-top:4px">＋ 中身を足す</button>'+
       '</div>'+
     '</div>'+
+    /* ★2026-10-29 新規のときだけ、品番はあとから変えられないことを知らせる（承認済みモックの文言） */
+    ((isNew && !meiboNewSkuPrefill)
+      ? '<div style="margin-top:10px;padding:8px 11px;background:#fff7ed;border:1px solid #f0c38a;border-radius:9px;font-size:12.5px;color:#7c2d12">⚠️ <b>品番は、いちど保存すると あとから変えられません。</b>注文・在庫・価格がぜんぶ品番でつながっているためです。自分で決めるときは、保存の前にもう一度見てください。（いまある商品を「直す」画面の品番欄は、今までどおり直せません）</div>'
+      : '')+
     '<div class="mp-foot">'+
       '<button class="np-btn" onclick="meiboSaveRow()">この内容で保存する</button>'+
       '<button class="btn-sm" onclick="meiboCancelEdit()">やめる</button>'+
@@ -6048,8 +6164,13 @@ async function meiboSaveRow(){
   var st = document.getElementById('mp-status');
   var sku = (document.getElementById('mp-sku').value||'').trim();
   var name = (document.getElementById('mp-name').value||'').trim();
+  /* ★2026-10-29 自分で決めた品番は、空・重複・備品の頭ちがい を止める（自動の付け直しはしない） */
+  if(meiboAddingNew && mbSkuManual){
+    var _ng = mbSkuManualProblem(sku);
+    if(_ng){ alert(_ng.replace(/^⚠️ /, '')); mbSkuCheck(); return; }
+  }
   if(!sku){ alert('種類を選んでください（品番はそれで自動でつきます）'); return; }
-  if(meiboAddingNew){
+  if(meiboAddingNew && !mbSkuManual){
     // ★保存の直前にもう一度だけ、同じ品番が無いか確かめる（開いたまま時間が経った時の事故を防ぐ）
     var used = mbUsedSkus();
     if(used[sku.toUpperCase()]){

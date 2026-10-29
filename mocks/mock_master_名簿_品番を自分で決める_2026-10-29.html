@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>たたき台：名簿の品番を「自動」でも「自分で」でも決められるように（2026-10-29）</title>
+<style>
+  body{font-family:"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif;background:#f6f4ee;color:#1c1917;margin:0;padding:18px;line-height:1.6}
+  h1{font-size:19px;margin:0 0 6px}
+  .sub{color:#57534e;font-size:13px;margin-bottom:14px}
+  .wrap{max-width:900px;margin:0 auto}
+  .card{background:#fff;border:1px solid #e7e5e4;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .mp-head{font-weight:800;font-size:15px;margin-bottom:8px}
+  .mp-note{font-size:12.5px;color:#57534e}
+  .mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .mp-fg{display:flex;flex-direction:column;gap:3px}
+  .mp-fg label{font-size:12px;font-weight:700;color:#44403c}
+  .mp-fg input,.mp-fg select{font-size:14px;padding:7px 9px;border:1px solid #d6d3d1;border-radius:8px;background:#fff}
+  .sku-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .sku-row input{flex:1;min-width:160px;font-family:monospace;font-weight:800;font-size:16px;letter-spacing:.03em}
+  .sku-auto{background:#efece5 !important;color:#57534e}
+  .sku-manual{background:#fffdf0 !important;border-color:#d9a400 !important;color:#1c1917}
+  .btn{border:1px solid #cbd5e1;background:#f8fafc;border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .btn.on{background:#fff3c4;border-color:#d9a400;color:#7a5200}
+  .hint{font-size:12.5px;font-weight:700;margin-top:4px;min-height:1.4em}
+  .hint.ok{color:#1f5132}.hint.ng{color:#b42318}.hint.info{color:#5a7291;font-weight:400}
+  .kanri{margin-top:6px;padding:6px 10px;border-radius:8px;background:#eaf3ff;border:1px solid #bdd7ec;font-size:12px;color:#0c447c;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+  .kanri b.val{font-family:monospace;font-size:14px;letter-spacing:.02em}
+  .rule{padding:8px 11px;background:#f7fbff;border:1px solid #cfe0f0;border-radius:9px;font-size:12.5px;line-height:1.7;margin:0 0 10px}
+  .warn{padding:8px 11px;background:#fff7ed;border:1px solid #f0c38a;border-radius:9px;font-size:12.5px;color:#7c2d12;margin-top:10px}
+  .save{margin-top:12px;display:flex;gap:10px;align-items:center}
+  .save button{background:#1f5132;color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:800;font-size:14px;cursor:pointer}
+  .save button:disabled{background:#a8a29e;cursor:not-allowed}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid #e7e5e4;padding:6px 8px;text-align:left;vertical-align:top}
+  th{background:#f5f5f4}
+  .tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:800;background:#e7e5e4}
+  code{font-family:monospace;background:#f5f5f4;padding:0 4px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>たたき台：名簿の品番を「自動」でも「自分で」でも決められるように</h1>
+  <div class="sub">統合マスタＮ ▸ 名簿 ▸ ➕ 新しい商品をつくる ── 品番のところだけを切り出した見本です。下の欄は本当に動きます（保存はしません）。</div>
+
+  <div class="card">
+    <div class="mp-head">➕ 新しい商品をつくる（品番のところ）</div>
+    <div class="rule">
+      <b style="color:#0c447c">品番の決め方は2つ</b><br>
+      🅰 <b>自動</b> … 種類を選ぶと番号が付きます（今までどおり）。<br>
+      🅱 <b>自分で決める</b> … 「✏️ 自分で決める」を押すと、品番の欄に好きな文字を書けます。自動で付いた番号を<b>上から書き直す</b>のもここです（例：ギフトセットは <b>YS100</b> と決めてから、その下に商品管理番号を作る）。
+    </div>
+
+    <div class="mp-grid">
+      <div class="mp-fg">
+        <label>種類　※🅰自動のときは、これで品番が付きます</label>
+        <select id="mp-kind" onchange="kindChanged()">
+          <option value="">（選ぶ）</option>
+          <option value="OIL">🫒 オイル</option>
+          <option value="ETC">🍯 その他オイル以外の商品</option>
+          <option value="OIL2">🫒 その他オイル（単発・OIL-）</option>
+          <option value="SET">🎁 セット（ギフトではない）</option>
+          <option value="BOX">📦 箱・ギフトボックス</option>
+          <option value="BAG">🛍 紙袋</option>
+          <option value="MISC">🧰 その他の備品</option>
+        </select>
+        <div class="hint info" id="kind-hint">（🅱自分で決めるときは、種類は選んでも選ばなくてもよい。区分を合わせたいときだけ選ぶ）</div>
+      </div>
+
+      <div class="mp-fg">
+        <label>品番（sku）　<span id="sku-mode-label" style="color:#57534e;font-weight:400">※いまは🅰自動です</span></label>
+        <div class="sku-row">
+          <input type="text" id="mp-sku" class="sku-auto" readonly placeholder="← 左で種類を選ぶと入ります" oninput="skuTyped()">
+          <button class="btn" id="btn-manual" onclick="toggleManual()">✏️ 自分で決める</button>
+          <button class="btn" id="btn-auto" onclick="backToAuto()" style="display:none">🔄 自動にもどす</button>
+        </div>
+        <div class="hint info" id="sku-hint">種類を選ぶと自動で付きます。自分で決めたいときは「✏️ 自分で決める」。</div>
+        <div class="kanri"><span>商品管理番号<span style="color:#0b5a53;font-weight:700">（STORESにもこれを入れます）</span></span><b class="val" id="kanri-val">—</b><span id="kanri-hint" style="color:#5a7291">（品番が決まると出ます）</span></div>
+      </div>
+
+      <div class="mp-fg">
+        <label>商品名</label>
+        <input type="text" id="mp-name" placeholder="例：your story 100ml×3本セット +ギフト箱+紙袋黒大">
+      </div>
+      <div class="mp-fg">
+        <label style="color:#0c447c">バーコード（JAN）　※下4桁が「商品管理番号」になります</label>
+        <input type="text" id="mp-barcode" placeholder="例：4580256047050" oninput="previewKanri()" style="font-family:monospace">
+      </div>
+    </div>
+
+    <div class="warn">⚠️ <b>品番は、いちど保存すると あとから変えられません。</b>注文・在庫・価格がぜんぶ品番でつながっているためです。自分で決めるときは、保存の前にもう一度見てください。（いまある商品を「直す」画面の品番欄は、今までどおり直せません）</div>
+
+    <div class="save">
+      <button id="btn-save" onclick="trySave()" disabled>この内容で保存する</button>
+      <span class="mp-note" id="save-note">（見本なので、押しても保存はしません。出るメッセージだけ本番と同じにします）</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="mp-head">保存のときに止める／止めないの決め（ここを見てほしい）</div>
+    <table>
+      <tr><th style="width:36%">書いた品番</th><th>どうなる</th></tr>
+      <tr><td>空のまま</td><td><span class="tag" style="background:#fde2e2;color:#b42318">止める</span> 「品番を入れてください（例：YS100）」</td></tr>
+      <tr><td>すでに名簿か価格リストにある品番（例 <code>YS100</code>・<code>ORG500</code>）</td><td><span class="tag" style="background:#fde2e2;color:#b42318">止める</span> 「品番 YS100 はすでに使われています。同じ商品を2つ作ることはできません」</td></tr>
+      <tr><td>小文字・全角・スペース・記号（<code>ys 100</code>・<code>ＹＳ１００</code>・<code>YS/100</code>）</td><td><span class="tag" style="background:#fff3c4;color:#7a5200">自動で直す</span> 打った瞬間に <b>大文字の英数字とハイフン</b>だけにそろえます（<code>YS100</code>）。全角は半角に。</td></tr>
+      <tr><td>種類が「箱」「紙袋」「その他の備品」なのに、頭が <code>BOX-</code>／<code>BAG-</code>／<code>MISC-</code> でない</td><td><span class="tag" style="background:#fde2e2;color:#b42318">止める</span> 箱・紙袋・備品は、頭の文字で「備品」と見分けています（セットの管理番号に入れない／ギフトセットかどうか）。頭が変わると、その箱を入れたセットの管理番号の作り方がくずれるため。<br><span class="mp-note">※ここは「警告だけ出して通す」にもできます。どちらがよいか決めてください。</span></td></tr>
+      <tr><td>それ以外（<code>YS100</code>・<code>GFT002</code>・<code>ARM-SET1</code> など）</td><td><span class="tag" style="background:#d1fae5;color:#1f5132">通す</span> 「✓ 使える品番です」。商品管理番号は今までどおり <b>品番＋バーコード下4桁</b>（セットはセットのルール）で作ります。</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="mp-head">変わらないこと</div>
+    <ul class="mp-note" style="margin:0;padding-left:18px">
+      <li>🅰自動の付け方（ORG250・OIL-001・SET-002・BOX-004 …）は1文字も変えません。</li>
+      <li>商品管理番号の作り方（品番＋バーコード下4桁／セットのルール）は変えません。品番が何であっても同じ計算です。</li>
+      <li>いまある商品の品番は、今までどおり直せません（読むだけ）。</li>
+      <li>保存の形（スプレッドシートの列・項目名）は増やしません。GASの変更はありません。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* 見本用の「いまある品番」。本番は名簿＋価格リストの全部を見ます */
+var USED = ['ORG100','ORG250','ORG500','MEN100','CHF100','YS100','YS250A','YS250B','YS250C','GFT001',
+            'OIL-001','ETC-001','SET-001','SET-002','BOX-001','BOX-002','BAG-001','MISC-001'];
+var BIHIN_HEAD = { BOX:'BOX-', BAG:'BAG-', MISC:'MISC-' };
+var manual = false;
+
+function nextSku(kind){
+  if(!kind) return '';
+  if(kind==='OIL') return '';           /* 本番はローマ字3文字＋サイズの欄が出る（見本では省略） */
+  var head = (kind==='OIL2') ? 'OIL' : kind;
+  var max = 0;
+  USED.forEach(function(s){ var m = new RegExp('^'+head+'-?(\\d+)$').exec(s); if(m) max = Math.max(max, parseInt(m[1],10)); });
+  return head + '-' + String(max+1).padStart(3,'0');
+}
+function kindChanged(){
+  var k = document.getElementById('mp-kind').value;
+  var kh = document.getElementById('kind-hint');
+  if(!manual){
+    document.getElementById('mp-sku').value = nextSku(k);
+    kh.textContent = (k==='OIL') ? '（本番ではここで「ローマ字3文字＋サイズ」の欄が出ます。見本では省略）' : '（🅱自分で決めるときは、種類は選んでも選ばなくてもよい）';
+  }
+  checkSku(); previewKanri();
+}
+function toggleManual(){
+  manual = true;
+  var s = document.getElementById('mp-sku');
+  s.readOnly = false; s.className = 'sku-manual'; s.placeholder = '例：YS100'; s.focus();
+  document.getElementById('btn-manual').style.display = 'none';
+  document.getElementById('btn-auto').style.display = '';
+  document.getElementById('sku-mode-label').textContent = '※いまは🅱自分で決めています（自動で付いた番号も上から書き直せます）';
+  checkSku(); previewKanri();
+}
+function backToAuto(){
+  manual = false;
+  var s = document.getElementById('mp-sku');
+  s.readOnly = true; s.className = 'sku-auto'; s.placeholder = '← 左で種類を選ぶと入ります';
+  document.getElementById('btn-manual').style.display = '';
+  document.getElementById('btn-auto').style.display = 'none';
+  document.getElementById('sku-mode-label').textContent = '※いまは🅰自動です';
+  kindChanged();
+}
+function toHankaku(str){ return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); }).replace(/[－ー―‐]/g,'-'); }
+function skuTyped(){
+  var s = document.getElementById('mp-sku');
+  var v = toHankaku(String(s.value||'')).toUpperCase().replace(/[^A-Z0-9-]/g,'');
+  if(v !== s.value) s.value = v;
+  checkSku(); previewKanri();
+}
+function checkSku(){
+  var s = document.getElementById('mp-sku');
+  var h = document.getElementById('sku-hint');
+  var k = document.getElementById('mp-kind').value;
+  var v = (s.value||'').trim();
+  var ok = false;
+  if(!manual){
+    h.className = 'hint info';
+    h.textContent = v ? '自動で付いた番号です。変えたいときは「✏️ 自分で決める」。' : '種類を選ぶと自動で付きます。自分で決めたいときは「✏️ 自分で決める」。';
+    ok = !!v;
+  } else if(!v){
+    h.className = 'hint ng'; h.textContent = '品番を入れてください（例：YS100）';
+  } else if(USED.indexOf(v) >= 0){
+    h.className = 'hint ng'; h.textContent = '⚠️ 品番 ' + v + ' はすでに使われています。同じ商品を2つ作ることはできません';
+  } else if(BIHIN_HEAD[k] && v.indexOf(BIHIN_HEAD[k]) !== 0){
+    h.className = 'hint ng'; h.textContent = '⚠️ ' + document.getElementById('mp-kind').selectedOptions[0].textContent.replace(/^[^ ]+ /,'') + ' は、頭を「' + BIHIN_HEAD[k] + '」にしてください（セットの管理番号の数え方に使っています）';
+  } else {
+    h.className = 'hint ok'; h.textContent = '✓ 使える品番です（保存すると、あとから変えられません）';
+    ok = true;
+  }
+  document.getElementById('btn-save').disabled = !ok;
+}
+function previewKanri(){
+  var sku = (document.getElementById('mp-sku').value||'').trim();
+  var bc  = (document.getElementById('mp-barcode').value||'').replace(/[^0-9A-Za-z]/g,'');
+  var out = document.getElementById('kanri-val'), hint = document.getElementById('kanri-hint');
+  if(!sku){ out.textContent='—'; hint.textContent='（品番が決まると出ます）'; return; }
+  var tail = bc.length>=4 ? bc.slice(-4) : '';
+  if(tail){ out.textContent = sku + '-' + tail; hint.textContent = '✓ バーコード下4桁入り'; }
+  else { out.textContent = sku; hint.textContent = bc ? 'あと'+Math.max(0,4-bc.length)+'桁でバーコード入りになります' : 'バーコードを入れると「-下4桁」が付きます'; }
+}
+function trySave(){
+  var sku = (document.getElementById('mp-sku').value||'').trim();
+  alert('（見本）本番ならここで保存します。\n\n品番：' + sku + '\n商品管理番号：' + document.getElementById('kanri-val').textContent + '\n決め方：' + (manual ? '🅱 自分で決めた' : '🅰 自動'));
+}
+</script>
+</body>
+</html>
