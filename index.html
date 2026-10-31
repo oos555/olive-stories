@@ -14549,7 +14549,12 @@ async function rtIkkiGo(){
     /* ── ④ 在庫（承認済みモックの文言どおり）。★先にいちばん新しい在庫を読み直します（2026-09-24） ── */
     await zaikoYomiNaosu();
     var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
-    if(short.length){
+    if(short.length && typeof RT_ZAIKO_FUSOKU_DEMO_SUSUMU !== 'undefined' && RT_ZAIKO_FUSOKU_DEMO_SUSUMU){
+      /* ★2026-10-31 一時的：止めずに進める（上の RT_ZAIKO_FUSOKU_DEMO_SUSUMU を参照） */
+      rtIkkiSay('chui', '※ アプリの在庫では足りませんが、いまは止めずに進めます（在庫の数を直すまでの一時対応）。<br>'
+        + short.map(function(s){
+            return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ アプリの販売可能 ' + s.avail + '本'; }).join('<br>'));
+    }else if(short.length){
       rtIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
         + short.map(function(s){
             return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
@@ -14652,6 +14657,11 @@ async function rtIkkiHariNaosu(){
    見張り：tests/test_rt_ikki.js（本物の rtIkkiGo を、ニセの fetch で動かす）
    ══════════════════════════════════════════════════════════════════════ */
 var RT_IKKI_1OUFUKU = true;
+/* ★2026-10-31 ひろみさん指示（一時的）：アプリの在庫数が実際の在庫とずれていて、
+   　在庫が足りているRTの注文（メメジック500ml 24本）が「在庫が足りません」で止まったため、
+   　RT伝票取込の［✅ 登録して発注書まで送る］では、在庫不足でも止めずに進めます（注意だけ出します）。
+   　在庫が正しく直ったら、ここを false に戻してください（元の「止める」動きに戻ります）。 */
+var RT_ZAIKO_FUSOKU_DEMO_SUSUMU = true;
 var _rtIkkiNimotsu = null;   /* 最後に送った荷物（［📄 同じ内容をもう一度送る］のため） */
 var RT_IKKI_MATTE = '<br><span style="font-weight:600">スプレッドシートに出るまで30秒ほどかかります。そのままお待ちください。</span>';
 
