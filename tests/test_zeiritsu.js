@@ -37,8 +37,9 @@ const PRODUCTS = pBox.PRODUCTS.concat([
   { id:992, sku:'MISC001', name:'初版ピッツァ本 サイン入り', group:'その他' },
   { id:993, sku:'MISC002', name:'トルコ500ml用 空瓶（要後付け注ぎ口1個）', group:'その他' },
   { id:994, sku:'MISC003', name:'空瓶用後付け注ぐ口', group:'その他' },
-  { id:995, sku:'ETC-001', name:'ザクロソース', group:'その他' },
-  { id:996, sku:'OIL-001', name:'モンテ物産 イタリア産スタルツェブレンド5ℓ', group:'その他オイル' },
+  { id:995, sku:'ETC001', name:'ザクロソース', group:'オイル以外輸入商品' },      /* ★2026-11-04 ETC-001 → ETC001 */
+  { id:999, sku:'ETC002', name:'ザクロソース 100ｍｌ', group:'オイル以外輸入商品' }, /* ★2026-11-04 ひろみさん「食品として8%」 */
+  { id:996, sku:'OIL001', name:'モンテ物産 イタリア産スタルツェブレンド5ℓ', group:'その他オイル' },
   { id:997, sku:'BOX-SEAL', name:'ギフトボックス（シールのみ・お包みなし）', group:'ギフト箱・備品' },
   { id:998, sku:'BOX-WRAP', name:'包装紙で巻いたギフトボックス', group:'ギフト箱・備品' }
 ]);
@@ -53,9 +54,10 @@ const WANT = {
   PRI100:8, PRI250:8, PRI500:8, PRI3L:8,
   ZAI250:8, ZAI500:8,
   AGR100:8, AGR250:8, AGR3L:8,
-  TGR100:8, ARM500:8, ARM3L:8, CAS5L:8, 'OIL-001':8,
+  TGR100:8, ARM500:8, ARM3L:8, CAS5L:8, OIL001:8,
   CUP001:8, CUP002:8, CUP003:8,
-  'ETC-001':8,                                   /* ★ざくろソース（前は10%になっていた）*/
+  ETC001:8,                                      /* ★ざくろソース（前は10%になっていた）*/
+  ETC002:8,                                      /* ★ざくろソース 100ml（2026-11-04 まで名指しに無く10%だった）*/
   /* セット（中身がオイル）＝8% */
   YS100:8, YS250A:8, YS250B:8, YS250C:8, GFT001:8,
   /* 食品でないもの＝10% */
@@ -73,7 +75,9 @@ console.log('\n■ ② ゆかさんの報告そのもの');
 t('② 紙袋 黒 大 は 10%', Z.rateForSku('BAG002', PRODUCTS), 0.1);
 t('② 紙袋 黒 小 は 10%', Z.rateForSku('BAG001', PRODUCTS), 0.1);
 t('② 紙袋 500ml用 は 10%', Z.rateForSku('BAG003', PRODUCTS), 0.1);
-t('② ざくろソースは 8%', Z.rateForSku('ETC-001', PRODUCTS), 0.08);
+t('② ざくろソースは 8%', Z.rateForSku('ETC001', PRODUCTS), 0.08);
+t('② ざくろソース 100ml も 8%（2026-11-04）', Z.rateForSku('ETC002', PRODUCTS), 0.08);
+t('② 古い品番 ETC-001 で残っている記録も 8%', Z.rateForSku('ETC-001', [{ sku:'ETC-001', name:'ザクロソース', group:'その他' }]), 0.08);
 t('② オリーブオイルは 8%', Z.rateForSku('ORG500', PRODUCTS), 0.08);
 
 /* ── ③ わからないものは10%（8%を既定にしない）── */

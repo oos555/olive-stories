@@ -51,7 +51,7 @@ if(gasSrc){
     loadProducts(){ return { status:'ok', products:[
       { sku:'ORG250', name:'オルガニック 250ml', origin:'トルコ' }, { sku:'ORG500', name:'オルガニック 500ml', origin:'トルコ' },
       { sku:'PRI250', name:'プリモフルット 250ml', origin:'イタリア' }, { sku:'CAS5L', name:'カサアルバート 5L', origin:'イタリア' },
-      { sku:'ETC-002', name:'ザクロソース 100ｍｌ', origin:'トルコ' }, { sku:'PRI3L', name:'プリモフルット 3L', origin:'イタリア' },
+      { sku:'ETC002', name:'ザクロソース 100ｍｌ', origin:'トルコ' }, { sku:'PRI3L', name:'プリモフルット 3L', origin:'イタリア' },
       { sku:'BOX1', name:'ギフト箱', origin:'' } ] }; } });
   const names = ['OOS_SHIIRE_SHEET','OOS_SHIIRE_BAK','OOS_FARM_JI','OOS_SHIIRE_SHOHIN'].map(n => H.cutVar(gasSrc, n)).join('\n') + '\n'
     + ['readSheetGlobal','oosImportBatchesAll_','oosShiireMl_','oosShiireSizeJi_','oosShiireBaseName_','oosShiireTable_','loadShiirePrice','oosShiireSheetBuild_','getImportData','saveImportBatch','deleteImportBatch','oosGenkaNamae_'].map(n => H.cut(gasSrc, n)).join('\n');
@@ -83,7 +83,7 @@ if(gasSrc){
     const zai = t.rows.find(r => r.name === 'ザイトゥーン' && r.size === '100ml');
     ok('⑥ 名簿に無いもの（ザイトゥーン 100ml）は行を出して「名簿なし」・マスは空', zai && zai.meiboNashi === true && zai.sku === '' && Object.keys(zai.cells).length === 0);
     const zak = t.rows.find(r => r.name === 'ザクロソース' && r.size === '100ml');
-    ok('⑥ 名簿の全角「ｍｌ」でも結びつく（ザクロソース 100ml ＝ ETC-002）', zak && zak.sku === 'ETC-002' && zak.meiboNashi === false);
+    ok('⑥ 名簿の全角「ｍｌ」でも結びつく（ザクロソース 100ml ＝ ETC002）', zak && zak.sku === 'ETC002' && zak.meiboNashi === false);
     eq('⑦ 鍵がちがえば読めない', ctx.loadShiirePrice('J1').status, 'error');
     eq('⑦ 社長の鍵で読める（表のもとが返る）', ctx.loadShiirePrice('S1').data.cols.length, 4);
 
