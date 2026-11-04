@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-10-29-01">
+<meta name="oos-version" content="2026-11-04-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -4149,10 +4149,32 @@ function prepSaveLocal(){
 function prepLoadLocal(){
   try{ var raw=localStorage.getItem(PREP_LS_KEY); if(raw) prepApplyState(JSON.parse(raw)); }catch(err){}
 }
+/* ★2026-11-04 ひろみさん「そろそろ次の輸入を始めたいので、輸入準備計算室を全部まっさらにしたい。数字も、その下のメモも。
+   初期設定に戻すのボタンを押したんだけど、全部データが残った状態になっています」
+   前の作り：この端末の保存（localStorage）だけ消して開き直していた。でも開き直すと GAS（共有保存）の数字がそのまま
+   　　戻ってくるので「押したのに全部残っている」になっていた。しかも「初期値」はコードに書かれた2026年8月の古い数字だった。
+   今の作り：数字（現在庫・予約・目標・手入力）・賞味期限・商品ごとのメモ・📝メモ用・同梱依頼物を全部 0／空にして、
+   　　この端末にも GAS にも保存する（開き直しはしない）。
+   残すもの：商品の並び（名簿から足した分・🗑で消した分）・ラベルの設定（言語／印刷地／色／英語名）・「農園に出さない」の印・
+   　　農園共有フォルダ・ラベルについて・備考（農園への決まりごと）・📋輸入確定の記録。
+   ★この決めごとを戻さないでください */
+function prepClearForNext(){
+  PREP_PRODUCTS.concat(prepAdded).forEach(function(p){
+    if(!p) return;
+    p.stock=0; p.res=0; p.target=0;
+    p.manual=false; p.manualBoxes=null; p.manualN=null;
+    p.exp=''; p.notes=[];
+  });
+  prepMode={}; prepTableMemo=''; prepCopack=[];
+  var fm=document.getElementById('prep-fin-memo'); if(fm) fm.value='';
+}
 function prepReset(){
-  if(!confirm('入力を消して初期値に戻しますか？（この端末の保存は消えます）\n※GAS(共有)の保存はこの操作では消えません。')) return;
-  try{ localStorage.removeItem(PREP_LS_KEY); }catch(err){}
-  window.__prepLoaded=false; prepMode={}; location.reload();
+  if(!confirm('輸入準備計算室を まっさら にしますか？\n\n消えるもの：現在庫・予約・目標・手入力の箱数／本数・賞味期限・商品ごとのメモ・📝メモ用・同梱依頼物\n残るもの：商品の並び・ラベルの設定・備考・📋輸入確定の記録\n\n※この端末と GAS（共有保存）の両方が まっさら になります。')) return;
+  prepClearForNext();
+  prepSaveLocal();
+  prepRender();
+  if(typeof prepGasSave==='function') prepGasSave(true);
+  if(typeof showSyncStatus==='function') showSyncStatus('🔄 輸入準備計算室を まっさら にしました');
 }
 function prepGasStatus(txt,color){ var el=document.getElementById('prep-gas-status'); if(el){ el.textContent=txt; el.style.color=color||'#57534e'; } }
 function prepGasSaveSoon(){ if(!prepGasReady) return; clearTimeout(prepGasTimer); prepGasTimer=setTimeout(prepGasSave,1500); }
