@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-11-04-02">
+<meta name="oos-version" content="2026-11-04-03">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -3908,7 +3908,24 @@ var prepAdded = [];   /* 自分で足した商品（完全オブジェクト） 
 var prepRemoved = []; /* 消した商品のid */
 var prepCopack = []; /* 同梱依頼物（オイル以外）：{name,qty,unit,tr,memo} */
 var prepHowMode = 'target';   /* ★2026-11-04 計算のやり方：'target'＝🅰 目標から／'bottles'＝🅱 輸入する本数から（承認済みモック 2026-11-04） */
-function prepProducts(){ return PREP_PRODUCTS.concat(prepAdded).filter(function(p){ return prepRemoved.indexOf(p.id)<0; }); }
+/* ★2026-11-04 ひろみさん「グループごとに並べたい。オルガニックなら100・250・500・750・2L・5L。シェフズブレンドは250が上で100が次、
+   離れたところに500がある。ザクロソースも小さいmlから並べたい」
+   ・グループ＝品番の頭のアルファベット（ORG／MEM／CHF／ETC／YS／MISC／SET／BOX…）。グループの順は、いままでの表で先に出てくる順のまま
+   ・グループの中は 容量（ml）の小さい順。容量が読めないもの（セット等）はそのグループの最後に、いままでの順のまま
+   ・並べ替えは見た目だけ。数字・保存の形・輸入ノートに送る中身は変わらない ★消さないでください */
+function prepGroupKey(p){ var m=String((p&&p.sku)||'').match(/^[A-Za-z]+/); return m?m[0].toUpperCase():String((p&&p.id)||''); }
+function prepVolMl(p){ var s=String((p&&p.vol)||''); var m=s.match(/(\d+(?:\.\d+)?)\s*(ml|ｍｌ|mL|ML)/); if(m) return Number(m[1]); m=s.match(/(\d+(?:\.\d+)?)\s*(L|l|ℓ|Ｌ)/); if(m) return Number(m[1])*1000; return null; }
+function prepSortProducts(list){
+  var order={}, n=0; list.forEach(function(p){ var g=prepGroupKey(p); if(!(g in order)) order[g]=n++; });
+  return list.map(function(p,i){ return {p:p,i:i,g:order[prepGroupKey(p)],ml:prepVolMl(p)}; })
+    .sort(function(a,b){
+      if(a.g!==b.g) return a.g-b.g;
+      var am=(a.ml==null)?Infinity:a.ml, bm=(b.ml==null)?Infinity:b.ml;
+      if(am!==bm) return am-bm;
+      return a.i-b.i;
+    }).map(function(x){ return x.p; });
+}
+function prepProducts(){ return prepSortProducts(PREP_PRODUCTS.concat(prepAdded).filter(function(p){ return prepRemoved.indexOf(p.id)<0; })); }
 /* ★2026-10-29 ひろみさん「統合マスターの名簿に商品が増えたら、この準備室のところにも増やしてほしい」
    （ザクロソース 100ml を名簿に入れたのに、この表に出てこなかった）
    ・商品の親は統合マスタNの名簿（このページでは OOS_PRODUCTS）。ここでは【表に足すだけ】で、名簿は書き換えない。

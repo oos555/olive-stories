@@ -109,5 +109,20 @@ ok(run('prepHowMode') === 'target' && run('prepFind("ORG100").impN') === 7, '読
 run('prepHowMode="bottles"; prepClearForNext();');
 ok(run('prepCalc().every(function(r){return r.finalN===0 && (r.p.impN==null);})') && run('prepHowMode') === 'bottles', 'まっさらで ① も空・やり方は残る');
 
+console.log('テスト5：並び（グループごと・容量の小さい順／2026-11-04 ひろみさん指示）');
+run('prepRemoved=[]; prepAdded=[{id:"M_CHF500",sku:"CHF500",name:"シェフズブレンド 500ml",vol:"500ml",cont:"瓶",box:12,fromMeibo:true},{id:"M_CHF2L",sku:"CHF2L",name:"シェフズブレンド 2L",vol:"2000ml",cont:"缶",box:6,fromMeibo:true},{id:"M_ETC002",sku:"ETC002",name:"ザクロソース 100ｍｌ",vol:"100ml",cont:"瓶",box:24,fromMeibo:true},{id:"M_SET002",sku:"SET002",name:"国別人気オイルセット",vol:"",cont:"箱",box:2,fromMeibo:true,noFarm:true}];');
+const seq = run('prepProducts().map(function(p){return p.sku;})');
+const grp = (pre) => seq.filter(s => s.indexOf(pre) === 0);
+ok(JSON.stringify(grp('ORG')) === JSON.stringify(['ORG100','ORG250','ORG500','ORG750','ORG2L','ORG5L']), 'オルガニック：100→250→500→750→2L→5L ' + JSON.stringify(grp('ORG')));
+ok(JSON.stringify(grp('MEM')) === JSON.stringify(['MEM100','MEM250','MEM500','MEM750','MEM2L','MEM5L']), 'メメジック：100→250→500→750→2L→5L');
+ok(JSON.stringify(grp('CHF')) === JSON.stringify(['CHF100','CHF250','CHF500','CHF2L']), 'シェフズブレンド：100→250→500→2L（名簿から足した500・2Lも同じ組に入る） ' + JSON.stringify(grp('CHF')));
+ok(JSON.stringify(grp('ETC')) === JSON.stringify(['ETC002','ETC001']), 'ザクロソース：100ml(ETC002)→250ml(ETC001)');
+const firstOf = (pre) => seq.findIndex(s => s.indexOf(pre) === 0);
+ok(firstOf('ORG') < firstOf('MEM') && firstOf('MEM') < firstOf('CHF') && firstOf('CHF') < firstOf('YS') && firstOf('YS') < firstOf('MISC') && firstOf('MISC') < firstOf('ETC') && firstOf('ETC') < firstOf('SET'), 'グループの順はいままでの表の順（ORG→MEM→CHF→YS→MISC→ETC→SET）');
+ok(grp('ORG').every((s,i,a)=>i===0 || seq.indexOf(a[i-1])===seq.indexOf(s)-1), 'オルガニック6つは離れずに続けて並ぶ');
+ok(seq.length === run('PREP_PRODUCTS.length + prepAdded.length'), '並べ替えで行が増えたり減ったりしない（' + seq.length + '行）');
+ok(run('prepCalc().map(function(r){return r.p.sku;}).join()') === seq.join(), 'prepCalc（表・農園向け表・ノートに送る中身）も同じ順');
+ok(run('prepVolMl({vol:"100ml×3"})') === 100 && run('prepVolMl({vol:"2000ml"})') === 2000 && run('prepVolMl({vol:""})') === null, '容量の読み取り：100ml×3→100・2000ml→2000・空→読めない');
+
 console.log('\n結果: PASS ' + pass + ' / FAIL ' + fail);
 process.exit(fail ? 1 : 0);
