@@ -336,7 +336,7 @@ KNOWN_WATCHERS.forEach(function(w){
     var i = t.indexOf('BANK_ACCOUNTS = [');
     if(i < 0) return '（無い）';
     var j = t.indexOf('];', i);
-    return t.slice(i, j).replace(/s+/g, ' ').trim();
+    return t.slice(i, j).replace(/\s+/g, ' ').trim();   /* ★2026-11-04 空白・改行をそろえてからくらべる（\s の \ が抜けていて、改行の種類（CRLF/LF）が違うだけで落ちていた） */
   }
   var a1 = kouza('oos-doc.js'), a2 = kouza('mitsumori.html'), a3 = kouza('billing.html');
   /* ★2026-09-14 見積Мはまっさらにしました（ひろみさん指示）。作り直したらここを戻す
