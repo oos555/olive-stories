@@ -1297,6 +1297,20 @@ function hacchuushoGyou(payload){
          kiroku.reg.length === regMae && log().indexOf('⛔ <b>登録していません。</b>在庫が足りません。') >= 0
          && log().indexOf('オルガニック 250ml … 必要 3本 ／ 販売可能 1本（2本たりません）') >= 0);
 
+      /* C-2. ★2026-11-05 ひろみさん指示（一時的）：RT_ZAIKO_FUSOKU_DEMO_SUSUMU が true なら、在庫が足りなくても
+         止めずに登録まで進み、注意だけ出す（通常の登録画面でも RT伝票取込と同じ扱い）。終わったら false に戻す */
+      vm.runInContext('var RT_ZAIKO_FUSOKU_DEMO_SUSUMU = true;', _S.ctx);
+      const c2 = { id:'p3b', status:'pending', enclosedDoc:'なし' };
+      B._pendingOrders = [c2]; B.nagareMaeRender(); B.juchuKakuninChk(true);
+      const regMae2 = kiroku.reg.length;
+      await B.juchuIkkiGo();
+      ok('⑱-90b 一時対応（2026-11-05）：在庫が足りなくても止めずに登録まで進み、注意だけ出す',
+         kiroku.reg.length === regMae2 + 1
+         && log().indexOf('止めずに登録を続けます') >= 0
+         && log().indexOf('オルガニック 250ml … 必要 3本 ／ アプリの販売可能 1本') >= 0
+         && log().indexOf('⛔ <b>登録していません。</b>在庫が足りません。') < 0);
+      vm.runInContext('RT_ZAIKO_FUSOKU_DEMO_SUSUMU = false;', _S.ctx);
+
       /* D. 取り置き・予約は今までの流れのまま */
       vm.runInContext('__zaikoTarinai = [];', _S.ctx);
       B._pendingOrders = [{ id:'w1', status:'held', enclosedDoc:'なし' }]; B.nagareMaeRender();

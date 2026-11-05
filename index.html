@@ -9503,7 +9503,14 @@ async function juchuIkkiGo(){
     await zaikoYomiNaosu();
     juchuIkkiIma('');
     var short = (typeof checkStockShortage === 'function') ? checkStockShortage(list) : [];
-    if(short.length){
+    if(short.length && typeof RT_ZAIKO_FUSOKU_DEMO_SUSUMU !== 'undefined' && RT_ZAIKO_FUSOKU_DEMO_SUSUMU){
+      /* ★2026-11-05 ひろみさん指示（一時的）：通常の登録画面でも、在庫不足で止めずに進める
+         （RT伝票取込と同じ扱い。下の RT_ZAIKO_FUSOKU_DEMO_SUSUMU を false に戻せば元の「止める」に戻ります） */
+      juchuIkkiSay('chui', '⚠ アプリの在庫データ上は足りませんが、止めずに登録を続けます（在庫の数を直すまでの一時対応）。<br>'
+        + short.map(function(s){
+            return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ アプリの販売可能 ' + s.avail + '本'; }).join('<br>')
+        + '<br>※ このあと確認の窓が出たら「OK」を押してください。');
+    }else if(short.length){
       juchuIkkiSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>'
         + short.map(function(s){
             return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail
@@ -9828,7 +9835,11 @@ async function noshipGo(){
         return;
       }
       var short = checkStockShortage(list);
-      if(short.length){
+      if(short.length && typeof RT_ZAIKO_FUSOKU_DEMO_SUSUMU !== 'undefined' && RT_ZAIKO_FUSOKU_DEMO_SUSUMU){
+        /* ★2026-11-05 ひろみさん指示（一時的）：発送なしの登録でも、在庫不足で止めずに進める（上の juchuIkkiGo と同じ） */
+        noshipSay('chui', '⚠ アプリの在庫データ上は足りませんが、止めずに登録を続けます（在庫の数を直すまでの一時対応）。<br>' + short.map(function(s){
+          return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ アプリの販売可能 ' + s.avail + '本'; }).join('<br>'));
+      }else if(short.length){
         noshipSay('ng', '⛔ <b>登録していません。</b>在庫が足りません。<br>' + short.map(function(s){
           return '　' + esc(s.name) + ' … 必要 ' + s.need + '本 ／ 販売可能 ' + s.avail + '本（' + (s.need - s.avail) + '本たりません）'; }).join('<br>'));
         noshipSay('chui', '※ 在庫を入れてから、もう一度押してください。「在庫は減らさない」の請求なら、◀ 戻って直してください。');
@@ -14660,7 +14671,10 @@ var RT_IKKI_1OUFUKU = true;
 /* ★2026-10-31 ひろみさん指示（一時的）：アプリの在庫数が実際の在庫とずれていて、
    　在庫が足りているRTの注文（メメジック500ml 24本）が「在庫が足りません」で止まったため、
    　RT伝票取込の［✅ 登録して発注書まで送る］では、在庫不足でも止めずに進めます（注意だけ出します）。
-   　在庫が正しく直ったら、ここを false に戻してください（元の「止める」動きに戻ります）。 */
+   　在庫が正しく直ったら、ここを false に戻してください（元の「止める」動きに戻ります）。
+   ★2026-11-05 ひろみさん指示：通常の登録画面（juchuIkkiGo）と発送なしの登録（noshipGo）も同じ扱いにしました。
+   　ひろみさん「在庫があるなしに関わらず、RTの伝票と納品書が作れるように。アプリの在庫は信用できない」。
+   　このスイッチ1つで、3か所とも元の「止める」に戻ります。 */
 var RT_ZAIKO_FUSOKU_DEMO_SUSUMU = true;
 var _rtIkkiNimotsu = null;   /* 最後に送った荷物（［📄 同じ内容をもう一度送る］のため） */
 var RT_IKKI_MATTE = '<br><span style="font-weight:600">スプレッドシートに出るまで30秒ほどかかります。そのままお待ちください。</span>';
