@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>たたき台：輸入・原価E 利益ヒートマップに「計算用」列を足す 2026-11-10</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f7f5ef;color:#2b2a26;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;font-size:14px;line-height:1.6}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 14px 60px}
+  .mockbar{margin:12px 0 0;padding:7px 11px;border-radius:8px;background:#eef3fb;border:1px dashed #9fb4d6;font-size:12px;color:#274a78}
+  .intro{background:#f0f6ff;border:1.5px solid #9fb4d6;border-radius:10px;padding:10px 13px;font-size:13px;color:#1e3a5f;line-height:1.8;margin:10px 0}
+  .intro b{color:#1d4ed8}
+  h2{font-size:15px;margin:22px 0 8px;color:#4a5a2a;border-top:2px solid #e3e0d6;padding-top:8px}
+  .card{background:#fff;border:1px solid #e3e0d6;border-radius:12px;padding:12px 14px;margin:0 0 10px}
+  .q{font-size:13.5px;line-height:2}
+  .q b{color:#8a5a12}
+  .cols{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .left{flex:1 1 640px;min-width:520px}
+  .right{flex:1 1 340px;min-width:320px}
+  .tblwrap{overflow:auto;border:1px solid #e3e0d6;border-radius:10px;background:#fff;max-height:520px}
+  table.hm{border-collapse:collapse;font-size:12px;width:100%}
+  table.hm th{background:#f3f1ea;color:#4b4a44;font-weight:800;position:sticky;top:0;z-index:1;border-bottom:1px solid #e3e0d6}
+  table.hm th small{display:block;font-size:9.5px;font-weight:600;color:#8a867c}
+  table.hm td{border-bottom:1px solid #eee9df}
+  td.hm-cell{cursor:pointer}
+  td.hm-cell:hover{outline:3px solid #1a1a18 !important;outline-offset:-3px !important;filter:brightness(.97)}
+  td.hm-cell.hm-sel{outline:3px solid #1a1a18 !important;outline-offset:-3px !important}
+  tr.sim-row-hl td{box-shadow:inset 0 0 0 2px #e0a020}
+  th.nk{background:#efe9fb;color:#4c1d95;border-left:3px solid #7c3aed}
+  td.nkcell{border-left:3px solid #7c3aed}
+  .sku{font-size:13px;font-family:monospace;font-weight:700;color:#2b3a4c;background:#e6ecf3;display:inline-block;padding:2px 8px;border-radius:5px;margin-top:3px;letter-spacing:.5px}
+  .panel{border:1.5px solid #cfc6b8;border-radius:10px;background:#fcfbf8;padding:12px}
+  .panel.nk{border-color:#7c3aed;background:#fbf9ff}
+  .btn{border:none;border-radius:9px;padding:9px 13px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit}
+  .btn-green{background:#3b6d11;color:#fff}
+  .btn-purple{background:#6d28d9;color:#fff}
+  .btn-white{background:#fff;border:1.5px solid #b9b09c;color:#2b2a26}
+  .btn-sm{border:1px solid #b9b09c;background:#fff;border-radius:7px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .editbanner{background:#f3eefc;border:2px solid #7c3aed;border-radius:10px;padding:8px 11px;font-size:14px;font-weight:800;color:#4c1d95;margin-bottom:9px;line-height:1.55}
+  .pill{background:#6d28d9;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px}
+  .note{font-size:11.5px;color:#6b7280;line-height:1.7}
+  .warn{background:#fff6e6;border:1.5px solid #e0a020;border-radius:9px;padding:8px 10px;font-size:12.5px;color:#8a5a12;line-height:1.7;margin-top:10px}
+  table.sim{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+  table.sim th{text-align:right;padding:5px 4px;font-weight:600;border-bottom:1px solid #e2ddd2;color:#57534e}
+  table.sim th:first-child{text-align:left}
+  table.sim td{padding:6px 4px;text-align:right}
+  table.sim td:first-child{text-align:left}
+  tr.sim-sel-row td{background:#f3eefc;font-weight:800}
+  .box{border:1.5px solid #d9cdb8;border-radius:10px;background:#fffdf7;padding:12px;margin-top:10px}
+  .box.nk{border-color:#c4b5fd;background:#fbf9ff}
+  .box h4{margin:0 0 7px;font-size:13px;font-weight:800;color:#8a5a12}
+  .box.nk h4{color:#4c1d95}
+  input[type=text]{font:inherit;border:1.5px solid #b9b09c;border-radius:9px;text-align:center;font-weight:800;background:#fff}
+  select{font:inherit;border:1.5px solid #b9b09c;border-radius:8px;padding:5px 8px;background:#fff;font-weight:700}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+  .tag.new{background:#efe9fb;color:#4c1d95;border:1px solid #c4b5fd}
+  .tag.teian{background:#fef3c7;color:#78350f;border:1px solid #ead08a}
+  .undo{border:1.5px solid #97C459;border-radius:10px;background:#f2f8ea;padding:11px 12px;margin-top:12px;display:none}
+  .cmp{display:flex;justify-content:space-between;font-size:13px;padding:4px 6px;border-bottom:1px solid #eef1f4}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mockbar">✅ 承認済みモック（2026-11-10 ひろみさん「この形でOK」）：輸入・原価E「利益ヒートマップ」の一番右に <b>計算用</b> の列を1本足す ── 2026-11-10 ／ 数字はぜんぶ見本です（本物の原価ではありません）</div>
+
+  <div class="intro">
+    <b>やりたいこと</b>：値上げを考えるとき、本番の価格（定価・卸①…）を触らずに「この金額にしたらどうなる？」を試せる<b>計算用のマス</b>が欲しい。<br>
+    <b>作るもの</b>：表の一番右端に <span class="tag new">計算用（NK）</span> の列を足す。マスを押すと、右のシミュレーションが<b>いつもと同じ</b>に動く（掛け率バー・直接入力・利益率・うちの儲け・販売店の儲け・500ml換算）。<br>
+    <b>違うのはここだけ</b>：計算用の金額は<b>お客様の価格には使われない</b>。受注A・売上C・見積M・統合マスタNの価格リストには出ない。輸入Eの中だけの「考えるメモ」。
+  </div>
+
+  <div class="cols">
+    <div class="left">
+      <div style="font-size:13px;font-weight:800;margin-bottom:6px">💹 利益ヒートマップ（いまの9列 ＋ 右端に1列）</div>
+      <div class="tblwrap">
+        <table class="hm" id="hm"></table>
+      </div>
+      <div class="note" style="margin-top:6px">※ 計算用のマスは、まだ金額がないときは「＋計算」と出ます（本番の列の「＋設定」と区別するため）。色の意味は他の列と同じ（利益率35%未満＝赤、35〜40%＝黄、40%以上＝青）。</div>
+    </div>
+
+    <div class="right">
+      <div class="panel nk" id="panel">
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">📐 <span id="sim-tier-title">計算用</span>シミュレーション</div>
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #b9b09c;border-radius:9px;padding:5px 8px;margin-bottom:6px">
+          <span style="font-size:12px;color:#8a5a12;font-weight:700;white-space:nowrap">商品を選ぶ ▼</span>
+          <select id="picker" onchange="pickerChange()" style="flex:1;border:none;background:transparent"></select>
+        </div>
+        <div id="sim-empty" style="font-size:12px;color:#8a857c;padding:22px 4px;text-align:center;line-height:1.7">← 左の表で <b>計算用</b> のマスを押してください</div>
+        <div id="sim-content" style="display:none">
+          <div class="editbanner" id="editbanner"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <span id="sim-name" style="font-size:15px;font-weight:700"></span>
+            <span id="sim-nowbadge" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px"></span>
+          </div>
+          <div id="sim-sub" style="font-size:12px;color:#57534e;margin:5px 0 10px"></div>
+
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;color:#57534e;white-space:nowrap">掛け率</span>
+            <input type="range" id="sim-rate" min="1.1" max="3.5" step="0.01" value="1.5" style="flex:1" oninput="onSlide()">
+            <span id="sim-ratev" style="font-size:16px;font-weight:700;min-width:52px;text-align:right">×1.50</span>
+          </div>
+
+          <div class="box nk">
+            <h4>📈 値上げ率で入れる</h4>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px">
+              <span>今の</span>
+              <select id="base-tier" onchange="onPct()">
+                <option value="general">定価</option>
+                <option value="wholesale1">卸①</option>
+                <option value="wholesale2">卸②</option>
+                <option value="rt">RT</option>
+                <option value="basara">卸バサラスター</option>
+              </select>
+              <span>から</span>
+              <input type="text" id="pct" value="10" inputmode="numeric" style="width:64px;height:36px;font-size:16px" oninput="onPct()">
+              <span>％ 上げると →</span>
+              <strong id="pct-result" style="font-size:16px;color:#4c1d95">¥—</strong>
+              <button class="btn-sm" onclick="usePct()">この金額で見る</button>
+            </div>
+            <div class="note" style="margin-top:5px">「10％値上げしたら利益はどうなる？」を、掛け率を探さずにそのまま入れられます。</div>
+          </div>
+
+          <table class="sim">
+            <thead><tr><th>段階</th><th>価格 ／ 利益率</th><th>うちの儲け</th><th>販売店の儲け</th></tr></thead>
+            <tbody id="sim-tbody"></tbody>
+          </table>
+          <div id="sim-marginline" style="font-size:12px;text-align:right;margin-top:5px"></div>
+
+          <div class="box nk">
+            <h4>🔍 今の価格とくらべて（値上げ率）</h4>
+            <div id="cmp-rows"></div>
+            <div class="note" style="margin-top:5px">計算用の金額が、今のそれぞれの価格より何％高い（低い）かです。</div>
+          </div>
+
+          <button class="btn btn-purple" style="width:100%;margin-top:10px" onclick="keep()">この金額を計算用に残す</button>
+          <button class="btn btn-white" style="width:100%;margin-top:8px;border:2px solid #dc2626;color:#dc2626" id="clear-btn" onclick="clearNK()">🗑 計算用を消す</button>
+          <div class="warn">⚠️ ここで残した金額は<b>計算用のメモ</b>です。お客様の価格は変わりません。<br>本当に値上げすると決めたら、いつも通り <b>定価や卸①のマスを押して</b> 反映してください（計算用から自動では移りません）。</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px" id="extras">
+        <div class="box" style="margin-top:0">
+          <h4>✏️ 金額を直接入れて修正する</h4>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:17px;font-weight:700">¥</span>
+            <input type="text" id="direct" inputmode="numeric" style="flex:1;height:44px;font-size:20px" oninput="onDirect()">
+            <span id="direct-pct" style="font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;white-space:nowrap"></span>
+          </div>
+          <div class="note" style="margin-top:6px">いまと同じ。バーを使わずに金額をそのまま打てます。</div>
+        </div>
+        <div class="box" style="margin-top:0;border-color:#cdd8e0;background:#f7fafc">
+          <h4 style="color:#2f6690">📏 500ml換算（サイズ違いの比較用）</h4>
+          <div id="p5-size" class="note"></div>
+          <div id="p5-rows"></div>
+        </div>
+      </div>
+      <div class="undo" id="undo"></div>
+    </div>
+  </div>
+
+  <h2>✅ 決まったこと（2026-11-10 ひろみさん承認・原文「1 A　2名前は計算用　３　いる　４　いる　５確認梨で残す」）</h2>
+  <div class="card q">
+    <b>①しまう場所</b>：<b>A</b> 価格マスタに「計算用」の列を1本足す（GASを直して、いつもの「デプロイを管理 → 新バージョン」）。他のアプリはこの列を読まない。<br>
+    <b>②名前と記号</b>：列の名前は「<b>計算用</b>」、記号は NK。<br>
+    <b>③「値上げ率で入れる」欄</b>：<b>いる</b><br>
+    <b>④「今の価格とくらべて」の表</b>：<b>いる</b><br>
+    <b>⑤残すときの確認</b>：<b>確認なしでそのまま残す</b>（消すときだけ確認を出す）
+  </div>
+
+  <h2>🔒 変わらないこと</h2>
+  <div class="card q">
+    ・いまの9列（商品・原価・定価・卸①・卸②・RT・卸バサラスター・旧ロット・不良品用特価・特別提供価格）は<b>位置も文言もそのまま</b>。<br>
+    ・本番の価格を反映する流れ（確認 → 取り直し → 1マスだけ保存 → 自己点検）は<b>触らない</b>。計算用も同じ道を通って保存する（Aのとき）。<br>
+    ・原価データ・特価・価格マスタを消す動きは足さない。消せるのは「🗑 計算用を消す」で<b>計算用の1マスだけ</b>。<br>
+    ・受注A・売上C・見積M・統合マスタN・oos-kakaku.js は<b>一切触らない</b>。
+  </div>
+</div>
+
+<script>
+// ─── 見本データ（本物ではありません） ───
+const SKUS = [
+  { sku:'MIHON500', name:'見本商品A 500ml', group:'見本の農園', ml:500, cost:3200,
+    p:{general:9121, wholesale1:6884, wholesale2:5473, rt:6884, basara:6200, oldlot:0, defect:5473, special:0, nk:0} },
+  { sku:'MIHON250', name:'見本商品A 250ml', group:'見本の農園', ml:250, cost:1800,
+    p:{general:4750, wholesale1:3800, wholesale2:2850, rt:3800, basara:3400, oldlot:0, defect:0, special:0, nk:5200} },
+  { sku:'MIHON2L',  name:'見本商品A 2L',    group:'見本の農園', ml:2000, cost:9800,
+    p:{general:24300, wholesale1:18225, wholesale2:14580, rt:18225, basara:0, oldlot:13000, defect:0, special:0, nk:0} },
+  { sku:'MIHONB250',name:'見本商品B 250ml', group:'見本の農園2', ml:250, cost:2100,
+    p:{general:6200, wholesale1:4960, wholesale2:4960, rt:4960, basara:0, oldlot:0, defect:0, special:4500, nk:0} }
+];
+const TIERS = [
+  { tier:'general',    label:'定価（TK）',           short:'定価',   code:'TK',  bg:'' },
+  { tier:'wholesale1', label:'卸①（OS1）',          short:'卸①',   code:'OS1', bg:'' },
+  { tier:'wholesale2', label:'卸②（OS2）',          short:'卸②',   code:'OS2', bg:'#eef4fb' },
+  { tier:'rt',         label:'RT',                   short:'RT',     code:'RT',  bg:'' },
+  { tier:'basara',     label:'卸バサラスター（BA）', short:'卸バサラ<br>スター', code:'BA', bg:'#eef7ef' },
+  { tier:'oldlot',     label:'旧ロット（QR）',       short:'旧ロット', code:'QR', bg:'#fdf6e3' },
+  { tier:'defect',     label:'不良品用特価（FT）',   short:'不良品<br>用特価', code:'FT', bg:'#fdeeee' },
+  { tier:'special',    label:'特別提供価格（IT）',   short:'特別提<br>供価格', code:'IT', bg:'#fdf3df' },
+  { tier:'nk',         label:'計算用（NK）',   short:'計算用', code:'NK', bg:'#efe9fb' }
+];
+function profitColor(rate){
+  if(rate <= 0) return {bg:'#7f1d1d', fg:'#fff'};
+  if(rate < 0.15) return {bg:'#dc2626', fg:'#fff'};
+  if(rate < 0.25) return {bg:'#ef4444', fg:'#fff'};
+  if(rate < 0.35) return {bg:'#f87171', fg:'#7f1d1d'};
+  if(rate < 0.40) return {bg:'#fef3c7', fg:'#78350f'};
+  if(rate < 0.50) return {bg:'#dbeafe', fg:'#1e3a8a'};
+  return {bg:'#93c5fd', fg:'#1e3a8a'};
+}
+function marginTextColor(pct){ if(pct < 35) return '#b91c1c'; if(pct < 40) return '#854f0b'; return '#3b6d11'; }
+function yen(v){ return '¥' + Math.round(v).toLocaleString(); }
+let cur = null, curPrice = 0;
+
+function renderHM(){
+  let h = '<thead><tr><th style="padding:6px 8px;text-align:left">商品</th><th style="padding:6px 6px;text-align:right">原価</th>';
+  TIERS.forEach(t => { h += '<th class="'+(t.tier==='nk'?'nk':'')+'" style="padding:6px 5px;text-align:right;background:'+(t.tier==='nk'?'':t.bg)+'">'+t.short+'<small>'+t.code+'</small></th>'; });
+  h += '</tr></thead><tbody>';
+  let g = '';
+  SKUS.forEach(p => {
+    if(p.group !== g){ g = p.group; h += '<tr><td colspan="11" style="padding:6px 8px;background:#eeece6;font-weight:800">'+g+'</td></tr>'; }
+    h += '<tr data-sku="'+p.sku+'" class="'+(cur===p.sku?'sim-row-hl':'')+'"><td style="padding:5px 8px;font-weight:600">'+p.name+'<br><span class="sku">'+p.sku+'</span></td>';
+    h += '<td style="padding:5px 6px;text-align:right;color:#57534e">'+yen(p.cost)+'<div style="font-size:9px;color:#8a867c;font-weight:700">✏ 直す</div></td>';
+    TIERS.forEach(t => {
+      const v = p.p[t.tier]||0, isNK = t.tier==='nk';
+      const cls = 'hm-cell'+(isNK?' nkcell':'')+(cur===p.sku && isNK?' hm-sel':'');
+      if(!v){
+        h += '<td class="'+cls+'" '+(isNK?'onclick="load(\''+p.sku+'\')"':'')+' style="padding:5px 6px;text-align:right;background:'+(isNK?'#f3eefc':'#f4f1ea')+';color:'+(isNK?'#6d28d9':'#8a867c')+';font-weight:700;outline:1px solid rgba(0,0,0,.06)">'+(isNK?'＋計算':'＋設定')+'</td>';
+        return;
+      }
+      const rate = (v-p.cost)/v, c = profitColor(rate);
+      const kake = (t.tier!=='general' && p.p.general>0) ? '<span style="font-size:10px;font-weight:800;color:#7a4d0c">'+(v/p.p.general*10).toFixed(1)+'掛</span> ／ ' : '';
+      h += '<td class="'+cls+'" '+(isNK?'onclick="load(\''+p.sku+'\')"':'')+' style="padding:5px 6px;text-align:right;background:'+c.bg+';color:'+c.fg+';font-weight:600;outline:1px solid rgba(0,0,0,.06)">'+yen(v)+'<br>'+kake+'<span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
+    });
+    h += '</tr>';
+  });
+  document.getElementById('hm').innerHTML = h + '</tbody>';
+}
+function fillPicker(){
+  const s = document.getElementById('picker');
+  s.innerHTML = '<option value="">― 商品を選ぶ ―</option>' + SKUS.map(p => '<option value="'+p.sku+'">'+p.name+'</option>').join('');
+  if(cur) s.value = cur;
+}
+function pickerChange(){ const v = document.getElementById('picker').value; if(v) load(v); }
+function load(sku){
+  const p = SKUS.find(x => x.sku===sku); if(!p) return;
+  cur = sku;
+  const has = p.p.nk > 0;
+  const start = has ? p.p.nk : p.p.general; // 出発点：計算用が空なら今の定価
+  document.getElementById('sim-empty').style.display = 'none';
+  document.getElementById('sim-content').style.display = 'block';
+  document.getElementById('editbanner').innerHTML = '🖐 いま計算中： <span class="pill">'+p.name+'</span> の <span class="pill">計算用</span>';
+  document.getElementById('sim-name').textContent = p.name;
+  const nb = document.getElementById('sim-nowbadge');
+  if(has){ const c = profitColor((p.p.nk-p.cost)/p.p.nk); nb.textContent = '今 '+((p.p.nk-p.cost)/p.p.nk*100).toFixed(1)+'%'; nb.style.background=c.bg; nb.style.color=c.fg; }
+  else { nb.textContent = '未計算'; nb.style.background='#f3eefc'; nb.style.color='#6d28d9'; }
+  document.getElementById('sim-sub').textContent = has
+    ? '原価 '+yen(p.cost)+' ／ 今の計算用 '+yen(p.p.nk)+'（×'+(p.p.nk/p.cost).toFixed(2)+'）'
+    : '原価 '+yen(p.cost)+' ／ 計算用はまだ空です（今の定価 '+yen(p.p.general)+' を出発点に始めます）';
+  document.getElementById('clear-btn').style.display = has ? 'block' : 'none';
+  document.getElementById('picker').value = sku;
+  const r = Math.min(3.5, Math.max(1.1, start/p.cost));
+  document.getElementById('sim-rate').value = r.toFixed(2);
+  renderHM();
+  renderTier(Math.round(p.cost*r), 'load');
+}
+function onSlide(){ if(!cur) return; const p = SKUS.find(x=>x.sku===cur); const r = parseFloat(document.getElementById('sim-rate').value); document.getElementById('sim-ratev').textContent='×'+r.toFixed(2); renderTier(Math.round(p.cost*r),'slider'); }
+function onDirect(){ if(!cur) return; const el=document.getElementById('direct'); el.value=el.value.replace(/[^0-9]/g,''); const v=parseInt(el.value||'0',10); if(v>0) renderTier(v,'direct'); }
+function onPct(){
+  if(!cur) return; const p = SKUS.find(x=>x.sku===cur);
+  const base = p.p[document.getElementById('base-tier').value]||0;
+  const pct = parseFloat(document.getElementById('pct').value)||0;
+  const v = base>0 ? Math.round(base*(1+pct/100)) : 0;
+  document.getElementById('pct-result').textContent = v>0 ? yen(v) : '（その価格は未設定）';
+  return v;
+}
+function usePct(){ const v = onPct(); if(v>0) renderTier(v,'pct'); }
+function renderTier(price, from){
+  const p = SKUS.find(x=>x.sku===cur); curPrice = price;
+  const gLive = p.p.general;
+  let h = '';
+  TIERS.forEach(t => {
+    const sel = t.tier==='nk';
+    const val = sel ? price : (p.p[t.tier]||0), has = val>0;
+    const m = has ? (val-p.cost)/val*100 : 0;
+    let theirs = null; if(has){ theirs = (t.tier==='general') ? 0 : (gLive>0 ? gLive-val : null); }
+    const kake = (t.tier!=='general' && gLive>0 && has) ? ' <span style="font-size:11px;font-weight:800;color:#7a4d0c">'+(val/gLive*10).toFixed(1)+'掛</span> ／' : '';
+    h += '<tr'+(sel?' class="sim-sel-row"':'')+'><td style="font-weight:'+(sel?800:600)+'">'+t.label+(sel?'<br><span style="font-size:10px;font-weight:400;color:#6d28d9">計算中</span>':'')+'</td>'
+      + '<td style="font-weight:'+(sel?800:600)+(sel?';font-size:14px':'')+'">'+(has ? yen(val)+kake+' <span style="font-size:11px;font-weight:700;color:'+marginTextColor(m)+'">'+m.toFixed(0)+'%</span>' : '-')+'</td>'
+      + '<td>'+(has ? yen(val-p.cost) : '-')+'</td>'
+      + '<td style="color:'+(theirs!=null && theirs<0 ? '#b91c1c':'#2b2a26')+'">'+(theirs!=null ? yen(theirs) : '-')+'</td></tr>';
+  });
+  document.getElementById('sim-tbody').innerHTML = h;
+  const margin = (price-p.cost)/price*100;
+  document.getElementById('sim-marginline').innerHTML = '計算用の利益率 <strong style="color:'+marginTextColor(margin)+'">'+margin.toFixed(1)+'%</strong>';
+  // 今の価格とくらべて
+  document.getElementById('cmp-rows').innerHTML = ['general','wholesale1','wholesale2','rt','basara'].map(k => {
+    const t = TIERS.find(x=>x.tier===k), b = p.p[k]||0;
+    if(!b) return '<div class="cmp"><span style="color:#57534e">'+t.label+'</span><span style="color:#c9c3b5">未設定</span></div>';
+    const d = (price/b-1)*100;
+    return '<div class="cmp"><span style="color:#57534e">'+t.label+' '+yen(b)+'</span><strong style="color:'+(d>=0?'#b91c1c':'#1e40af')+'">'+(d>=0?'＋':'－')+Math.abs(d).toFixed(1)+'％</strong></div>';
+  }).join('');
+  if(from!=='slider'){ const r = Math.min(3.5, Math.max(1.1, price/p.cost)); document.getElementById('sim-rate').value=r.toFixed(2); document.getElementById('sim-ratev').textContent='×'+r.toFixed(2); }
+  if(from!=='direct') document.getElementById('direct').value = price;
+  const dp = document.getElementById('direct-pct'), c = profitColor(margin/100); dp.textContent = margin.toFixed(1)+'%'; dp.style.background=c.bg; dp.style.color=c.fg;
+  onPct();
+  // 500ml換算
+  document.getElementById('p5-size').textContent = 'この商品は '+p.ml+'ml。500mlあたりに直すと：';
+  document.getElementById('p5-rows').innerHTML = TIERS.map(t => {
+    const sel = t.tier==='nk', v = sel ? price : (p.p[t.tier]||0);
+    return '<div class="cmp" style="'+(sel?'background:#f3eefc;border-radius:6px':'')+'"><span style="'+(sel?'color:#4c1d95;font-weight:800':'color:#57534e')+'">'+t.label+(sel?'（計算中）':'')+'</span><span style="font-weight:'+(sel?800:700)+'">'+(v>0 ? yen(v*500/p.ml) : '-')+'</span></div>';
+  }).join('');
+}
+function keep(){
+  const p = SKUS.find(x=>x.sku===cur); const before = p.p.nk;
+  p.p.nk = curPrice; renderHM();
+  document.getElementById('clear-btn').style.display = 'block';
+  showUndo('残しました：'+p.name+' の 計算用', before, curPrice, '✅ 計算用に残しました（サーバー保存も確認済み）');
+}
+function clearNK(){
+  const p = SKUS.find(x=>x.sku===cur); const before = p.p.nk;
+  if(!confirm('「'+p.name+'」の 計算用 '+yen(before)+' を消します。よろしいですか？\n\n※お客様の価格は変わりません。あとで「↩ 元に戻す」で '+yen(before)+' に戻せます。')) return;
+  p.p.nk = 0; renderHM(); load(cur);
+  showUndo('消しました：'+p.name+' の 計算用', before, 0, '✅ 計算用を消しました');
+}
+function showUndo(title, a, b, status){
+  const u = document.getElementById('undo'); u.style.display='block';
+  u.innerHTML = '<div style="font-size:13.5px;font-weight:800;color:#27500A">'+title+'</div><div style="font-size:14px;color:#3B6D11;margin-top:2px">'+(a>0?yen(a):'未計算')+' → <strong style="font-size:16px">'+(b>0?yen(b):'未計算')+'</strong></div><button class="btn btn-white" style="margin-top:8px" onclick="alert(\'（本番では、いまの「↩ 元に戻す」と同じ仕組みで戻します）\')">↩ 元に戻す（'+(a>0?yen(a):'未計算')+' に戻して保存）</button><div class="note" style="margin-top:6px">画面の上に出る知らせ：「'+status+'」</div>';
+}
+renderHM(); fillPicker();
+</script>
+</body>
+</html>

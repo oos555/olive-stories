@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-11-04-03">
+<meta name="oos-version" content="2026-11-10-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -783,11 +783,13 @@ tr:last-child td{border-bottom:none}
             <span class="hm-chip hm-chip-code" style="background:#fdf6e3;color:#8a5a12">QR＝旧ロット</span>
             <span class="hm-chip hm-chip-code">FT＝不良品用特価</span>
             <span class="hm-chip hm-chip-code">IT＝特別提供価格</span>
+            <span class="hm-chip hm-chip-code" style="background:#efe9fb;color:#4c1d95">NK＝計算用</span>
           </div>
           <div class="hm-help-label">🔔 保存のときの確認</div>
           <div class="hm-chips">
             <span class="hm-chip" style="background:#fdf0d8;color:#78350f"><strong>定価・卸①・RT</strong> → しっかり確認が出る</span>
             <span class="hm-chip" style="background:#f5f0e8;color:#57534e"><strong>卸②・BA・QR・FT・IT</strong> → 軽い確認だけ</span>
+            <span class="hm-chip" style="background:#efe9fb;color:#4c1d95"><strong>NK（計算用）</strong> → 確認なし（計算用のメモ・お客様の価格には使われない）</span>
           </div>
           <div class="hm-help-note">※利益率＝（売値−原価）÷売値。掛け率は売値÷原価。FT・IT・BA・QRは「＋設定」から新しく決められ、決めたITは見積・請求書Mの特価入口が自動で拾います。</div>
         </div>
@@ -839,6 +841,26 @@ tr:last-child td{border-bottom:none}
               <input type="range" id="sim-rate" min="1.1" max="3.5" step="0.01" value="1.5" style="flex:1" oninput="onSimSlide()">
               <span id="sim-ratev" style="font-size:16px;font-weight:700;min-width:52px;text-align:right">×1.50</span>
             </div>
+            <!-- ★2026-11-10 計算用（NK）のときだけ出る：値上げ率で入れる（承認済みモック mock_輸入E_値上げ計算用_2026-11-10.html） -->
+            <div id="sim-keisan-pct" style="display:none;border:1.5px solid #c4b5fd;border-radius:10px;background:#fbf9ff;padding:12px;margin-top:10px">
+              <h4 style="margin:0 0 7px;font-size:13px;font-weight:800;color:#4c1d95">📈 値上げ率で入れる</h4>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px">
+                <span>今の</span>
+                <select id="keisan-base" onchange="onKeisanPct()" style="font:inherit;border:1.5px solid #b9b09c;border-radius:8px;padding:5px 8px;background:#fff;font-weight:700">
+                  <option value="priceGeneral">定価</option>
+                  <option value="priceWholesale1">卸①</option>
+                  <option value="priceWholesale2">卸②</option>
+                  <option value="priceRT">RT</option>
+                  <option value="priceBasara">卸バサラスター</option>
+                </select>
+                <span>から</span>
+                <input type="text" id="keisan-pct" value="10" inputmode="numeric" oninput="onKeisanPct()" style="width:64px;height:36px;border:1.5px solid #b9b09c;border-radius:9px;text-align:center;font-size:16px;font-weight:800;background:#fff">
+                <span>％ 上げると →</span>
+                <strong id="keisan-pct-result" style="font-size:16px;color:#4c1d95">¥—</strong>
+                <button class="btn-sm" onclick="useKeisanPct()">この金額で見る</button>
+              </div>
+              <div style="font-size:11.5px;color:#6b7280;line-height:1.7;margin-top:5px">「10％値上げしたら利益はどうなる？」を、掛け率を探さずにそのまま入れられます。</div>
+            </div>
             <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:12px">
               <thead><tr style="color:#57534e">
                 <th style="text-align:left;padding:5px 4px;font-weight:600;border-bottom:1px solid #e2ddd2">段階</th>
@@ -849,8 +871,14 @@ tr:last-child td{border-bottom:none}
               <tbody id="sim-tier-tbody"></tbody>
             </table>
             <div id="sim-marginline" style="font-size:12px;text-align:right;margin-top:5px"></div>
+            <div id="sim-keisan-cmp" style="display:none;border:1.5px solid #c4b5fd;border-radius:10px;background:#fbf9ff;padding:12px;margin-top:10px">
+              <h4 style="margin:0 0 7px;font-size:13px;font-weight:800;color:#4c1d95">🔍 今の価格とくらべて（値上げ率）</h4>
+              <div id="keisan-cmp-rows"></div>
+              <div style="font-size:11.5px;color:#6b7280;line-height:1.7;margin-top:5px">計算用の金額が、今のそれぞれの価格より何％高い（低い）かです。</div>
+            </div>
             <button class="btn btn-green" style="width:100%;margin-top:10px" id="sim-apply-btn">この金額を卸②に使う</button>
             <button class="btn" style="width:100%;margin-top:10px;background:#fff;border:2px solid #dc2626;color:#dc2626;font-weight:800;display:none" id="sim-clear-btn" onclick="clearSelectedTier()">🗑 この価格を消して＋設定に戻す</button>
+            <div id="sim-keisan-warn" style="display:none;background:#fff6e6;border:1.5px solid #e0a020;border-radius:9px;padding:8px 10px;font-size:12.5px;color:#8a5a12;line-height:1.7;margin-top:10px">⚠️ ここで残した金額は<b>計算用のメモ</b>です。お客様の価格は変わりません。<br>本当に値上げすると決めたら、いつも通り <b>定価や卸①のマスを押して</b> 反映してください（計算用から自動では移りません）。</div>
           </div>
         </div>
         <div id="sim-extras-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
@@ -1826,7 +1854,7 @@ function setFieldOnMaster(master, sku, field, value){
   let r = master.find(function(x){ return x.sku===sku; });
   if(!r){
     const dp = (typeof DEFAULT_PRICES!=='undefined' && DEFAULT_PRICES[sku]) ? DEFAULT_PRICES[sku] : {};
-    r = {sku:sku, productName:(dp.productName||sku), priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOldLot:0};
+    r = {sku:sku, productName:(dp.productName||sku), priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOldLot:0, priceKeisan:0};
     master.push(r);
   }
   r[field] = value;
@@ -2074,7 +2102,7 @@ function profitColor(rate){
 function renderProfitHeatmap(){
   const tbl = document.getElementById('profit-heatmap-table');
   if(!tbl) return;
-  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">TK</span></th><th style="padding:6px 6px;text-align:right">卸①<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS1</span></th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS2</span></th><th style="padding:6px 6px;text-align:right">RT<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">RT</span></th><th style="padding:6px 5px;text-align:right;background:#eef7ef">卸バサラ<br>スター<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">BA</span></th><th style="padding:6px 5px;text-align:right;background:#fdf6e3;color:#8a5a12">旧ロット<br><span style="font-size:9.5px;font-weight:600;color:#b08018">QR</span></th><th style="padding:6px 5px;text-align:right;background:#fdeeee">不良品<br>用特価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">FT</span></th><th style="padding:6px 5px;text-align:right;background:#fdf3df">特別提<br>供価格<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">IT</span></th></tr></thead><tbody>';
+  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">TK</span></th><th style="padding:6px 6px;text-align:right">卸①<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS1</span></th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS2</span></th><th style="padding:6px 6px;text-align:right">RT<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">RT</span></th><th style="padding:6px 5px;text-align:right;background:#eef7ef">卸バサラ<br>スター<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">BA</span></th><th style="padding:6px 5px;text-align:right;background:#fdf6e3;color:#8a5a12">旧ロット<br><span style="font-size:9.5px;font-weight:600;color:#b08018">QR</span></th><th style="padding:6px 5px;text-align:right;background:#fdeeee">不良品<br>用特価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">FT</span></th><th style="padding:6px 5px;text-align:right;background:#fdf3df">特別提<br>供価格<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">IT</span></th><th style="padding:6px 5px;text-align:right;background:#efe9fb;color:#4c1d95;border-left:3px solid #7c3aed">計算用<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">NK</span></th></tr></thead><tbody>';
   // ★2026-07-19 商品マスタ（請求Cの価格マスタ閲覧）と同じ商品・同じグループ・同じ並びで表示する。
   //   商品マスタが未取得のときは従来どおり価格マスタの並びで表示（フォールバック）。
   let items;
@@ -2094,7 +2122,7 @@ function renderProfitHeatmap(){
   });
   groupOrder.forEach(function(g){
     if(g !== ''){
-      html += '<tr><td colspan="10" style="padding:6px 8px;background:#eeece6;font-weight:800;color:#2b2a26">'+esc(g)+'</td></tr>';
+      html += '<tr><td colspan="11" style="padding:6px 8px;background:#eeece6;font-weight:800;color:#2b2a26">'+esc(g)+'</td></tr>';
     }
     byGroup[g].forEach(function(p){
       const cost = getCostForSku(p.sku);
@@ -2103,7 +2131,7 @@ function renderProfitHeatmap(){
       if(!cost){
         // 原価が未入力の商品：隠さずに⚠️印で表示（金額は薄く表示のみ・色分けと調整は原価を入れてから）
         html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を入れられます（セット・備品もOK）" style="padding:5px 6px;text-align:right;cursor:pointer"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span><div style="font-size:9px;color:#a05a10;font-weight:700;margin-top:2px">＋原価を入れる</div></td>';   /* ★2026-08-07 セット・備品を含め、どの商品も原価を直接入れられる（本物の原価） */
-        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
+        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceKeisan'].forEach(function(key){
           const price = parseFloat(priceRec[key])||0;
           html += '<td style="padding:5px 6px;text-align:right;color:#9ca3af">'+(price? '¥'+price.toLocaleString() : '-')+'</td>';
         });
@@ -2116,13 +2144,17 @@ function renderProfitHeatmap(){
         html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<div style="font-size:9px;color:#8a867c;font-weight:700;margin-top:2px">✏ 直す</div></td>';
       }
       const _openTK = parseFloat(priceRec['priceGeneral'])||0; // ◯掛け計算用の定価
-      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial'].forEach(function(key){
+      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceKeisan'].forEach(function(key){
         const price = parseFloat(priceRec[key])||0;
         const emptySettable = true; // ★2026-08-04 定価も含めて、空(未設定)なら＋設定として表示し、押して設定できる（適用時に「定価はほんとうに変えますか？」で確認）
         if(!price && emptySettable){
           const tierKey0 = HM_KEY_TO_TIER[key];
           const tierLabel0 = simTierByKey(tierKey0).label;
           const selCls0 = (p.sku===currentSimSku && tierKey0===currentSimTier) ? ' hm-sel' : '';
+          if(key==='priceKeisan'){ /* ★2026-11-10 計算用は「＋計算」（本番の列の「＋設定」と区別する） */
+            html += '<td class="hm-cell'+selCls0+'" data-tier="keisan" onclick="heatmapCellClick(\''+p.sku+'\',\'keisan\')" title="押すと右で計算用を計算できます" style="padding:5px 6px;text-align:right;background:#f3eefc;color:#6d28d9;font-weight:700;border-left:3px solid #7c3aed;outline:1px solid rgba(0,0,0,.06)">＋計算</td>';
+            return;
+          }
           html += '<td class="hm-cell'+selCls0+'" data-tier="'+tierKey0+'" onclick="heatmapCellClick(\''+p.sku+'\',\''+tierKey0+'\')" title="押すと右で'+tierLabel0+'を設定できます" style="padding:5px 6px;text-align:right;background:#f4f1ea;color:#8a867c;font-weight:600;outline:1px solid rgba(0,0,0,.06)">＋設定</td>';
           return;
         }
@@ -2133,7 +2165,7 @@ function renderProfitHeatmap(){
         const tierKey = HM_KEY_TO_TIER[key];
         const tierLabel = simTierByKey(tierKey).label;
         const selCls = (p.sku===currentSimSku && tierKey===currentSimTier) ? ' hm-sel' : '';
-        const clickAttr = ' class="hm-cell'+selCls+'" data-tier="'+tierKey+'" onclick="heatmapCellClick(\''+p.sku+'\',\''+tierKey+'\')" title="押すと右で'+tierLabel+'を調整できます" style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600;outline:1px solid rgba(0,0,0,.06)"';
+        const clickAttr = ' class="hm-cell'+selCls+'" data-tier="'+tierKey+'" onclick="heatmapCellClick(\''+p.sku+'\',\''+tierKey+'\')" title="押すと右で'+tierLabel+'を調整できます" style="padding:5px 6px;text-align:right;background:'+col.bg+';color:'+col.fg+';font-weight:600;'+(key==='priceKeisan'?'border-left:3px solid #7c3aed;':'')+'outline:1px solid rgba(0,0,0,.06)"';
         var _kakeHM = (key!=='priceGeneral' && _openTK>0) ? '<span style="font-size:10px;font-weight:800;color:#7a4d0c">'+(price/_openTK*10).toFixed(1)+'掛</span> ／ ' : '';
         html += '<td'+clickAttr+'>¥'+price.toLocaleString()+'<br>'+_kakeHM+'<span style="font-size:10px">'+(rate*100).toFixed(0)+'%</span></td>';
       });
@@ -2184,10 +2216,11 @@ const SIM_TIERS = [
   { tier:'basara',     label:'卸バサラスター（BA）', field:'priceBasara',     strong:false },
   { tier:'oldlot',     label:'旧ロット（QR）',       field:'priceOldLot',     strong:false },
   { tier:'defect',     label:'不良品用特価（FT）',       field:'priceDefect',     strong:false },
-  { tier:'special',    label:'特別提供価格（IT）',     field:'priceSpecial',    strong:false }
+  { tier:'special',    label:'特別提供価格（IT）',     field:'priceSpecial',    strong:false },
+  { tier:'keisan',     label:'計算用（NK）',          field:'priceKeisan',     strong:false, keisan:true } /* ★2026-11-10 値上げを考えるための計算用。お客様の価格には使われない。確認なしで残す */
 ];
 function simTierByKey(t){ return SIM_TIERS.find(function(x){ return x.tier===t; }) || SIM_TIERS[2]; }
-const HM_KEY_TO_TIER = { priceGeneral:'general', priceWholesale1:'wholesale1', priceWholesale2:'wholesale2', priceRT:'rt', priceBasara:'basara', priceOldLot:'oldlot', priceDefect:'defect', priceSpecial:'special' };
+const HM_KEY_TO_TIER = { priceGeneral:'general', priceWholesale1:'wholesale1', priceWholesale2:'wholesale2', priceRT:'rt', priceBasara:'basara', priceOldLot:'oldlot', priceDefect:'defect', priceSpecial:'special', priceKeisan:'keisan' };
 
 let currentSimSku = null;       // いま右に出している商品
 let currentSimTier = 'wholesale2'; // いま調整している段階
@@ -2260,6 +2293,7 @@ function loadSimPanel(sku, tier, opts){
   if(!cur){
     // ★2026-08-04 定価も空(＋設定)から設定できるように解除（適用時に「定価はほんとうに変えますか？」で確認）
     cur = parseFloat(rec.priceWholesale2) || Math.round(cost * 1.5); // 出発点：卸②、無ければ原価×1.5
+    if(T.keisan && (parseFloat(rec.priceGeneral)||0) > 0) cur = parseFloat(rec.priceGeneral); // ★2026-11-10 計算用は今の定価を出発点にする
   }
   currentSimSku = sku;
   currentSimTier = tier;
@@ -2277,17 +2311,21 @@ function loadSimPanel(sku, tier, opts){
   const contentEl = document.getElementById('sim-content'); if(contentEl) contentEl.style.display = 'block';
   setSimExtras(true);
   // 「🗑 消して＋設定に戻す」ボタンは、定価以外で、いま金額が入っているマスのときだけ出す
-  { var _clrBtn = document.getElementById('sim-clear-btn'); if(_clrBtn){ _clrBtn.style.display = (tier!=='general' && !wasUnset) ? 'block' : 'none'; } }
+  { var _clrBtn = document.getElementById('sim-clear-btn'); if(_clrBtn){ _clrBtn.style.display = (tier!=='general' && !wasUnset) ? 'block' : 'none'; _clrBtn.textContent = T.keisan ? '🗑 計算用を消す' : '🗑 この価格を消して＋設定に戻す'; } }
+  // ★2026-11-10 計算用（NK）のときだけ出る箱（値上げ率で入れる／今の価格とくらべて／注意書き）
+  ['sim-keisan-pct','sim-keisan-cmp','sim-keisan-warn'].forEach(function(id){ var _e = document.getElementById(id); if(_e) _e.style.display = T.keisan ? 'block' : 'none'; });
 
   // タイトル・直接入力の見出し・500mlの段名・適用ボタンを、選んだ段階に合わせる
-  const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.label;
+  const tt = document.getElementById('sim-tier-title'); if(tt) tt.textContent = T.keisan ? '計算用' : T.label;
   const dh = document.getElementById('sim-direct-head'); if(dh) dh.textContent = '✏️ 金額を直接入れて修正する';
   // ★2026-07-20 いま何をいじっているかを常に大きく表示（入れ間違い防止）
-  { var _whoHtml = '🖐 いま調整中： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>';
+  { var _whoHtml = T.keisan
+      ? '🖐 いま計算中： <span style="background:#6d28d9;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#6d28d9;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">計算用</span>'
+      : '🖐 いま調整中： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>';
     var _eb = document.getElementById('sim-editbanner'); if(_eb) _eb.innerHTML = _whoHtml;
     var _dw = document.getElementById('sim-direct-who'); if(_dw) _dw.innerHTML = '✏️ ここで直すのは： <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(p.name)+'</span> の <span style="background:#8a5a12;color:#fff;border-radius:99px;padding:2px 11px;font-size:13px">'+esc(T.label)+'</span>'; }
   const pn = document.getElementById('p5-sel-name'); if(pn) pn.textContent = T.label;
-  const bl = 'この金額を' + T.label + 'に使う';
+  const bl = T.keisan ? 'この金額を計算用に残す' : ('この金額を' + T.label + 'に使う');
   var _b1 = document.getElementById('sim-apply-btn'); if(_b1) _b1.textContent = bl;
   var _b2 = document.getElementById('sim-direct-apply'); if(_b2) _b2.textContent = bl;
 
@@ -2295,8 +2333,8 @@ function loadSimPanel(sku, tier, opts){
   const nowPct = (cur - cost) / cur * 100;
   const nb = document.getElementById('sim-nowbadge');
   if(wasUnset){
-    nb.textContent = '未設定';
-    nb.style.background = '#f4f1ea'; nb.style.color = '#8a867c';
+    nb.textContent = T.keisan ? '未計算' : '未設定';
+    nb.style.background = T.keisan ? '#f3eefc' : '#f4f1ea'; nb.style.color = T.keisan ? '#6d28d9' : '#8a867c';
   } else {
     const c = profitColor(nowPct / 100);
     nb.textContent = '今 ' + nowPct.toFixed(1) + '%';
@@ -2305,8 +2343,12 @@ function loadSimPanel(sku, tier, opts){
 
   const curRate = cost > 0 ? cur / cost : 1.5;
   document.getElementById('sim-sub').textContent = wasUnset
-    ? ('原価 ¥' + cost.toLocaleString() + ' ／ ' + T.label + 'はまだ未設定です（卸②の金額を出発点に調整を始めます）')
-    : ('原価 ¥' + cost.toLocaleString() + ' ／ 今の' + T.label + ' ¥' + cur.toLocaleString() + '（×' + curRate.toFixed(2) + '）');
+    ? (T.keisan && (parseFloat(rec.priceGeneral)||0) > 0
+        ? ('原価 ¥' + cost.toLocaleString() + ' ／ 計算用はまだ空です（今の定価 ¥' + cur.toLocaleString() + ' を出発点に始めます）')
+        : ('原価 ¥' + cost.toLocaleString() + ' ／ ' + T.label + 'はまだ未設定です（卸②の金額を出発点に調整を始めます）'))
+    : (T.keisan
+        ? ('原価 ¥' + cost.toLocaleString() + ' ／ 今の計算用 ¥' + cur.toLocaleString() + '（×' + curRate.toFixed(2) + '）')
+        : ('原価 ¥' + cost.toLocaleString() + ' ／ 今の' + T.label + ' ¥' + cur.toLocaleString() + '（×' + curRate.toFixed(2) + '）'));
   if(isProvisionalCost(currentSimSku)){ var _ss=document.getElementById('sim-sub'); if(_ss){ _ss.innerHTML = '<span style="font-weight:800;color:#a05a10;background:#fdf0d8;border-radius:4px;padding:1px 6px">⏳仮原価</span> ' + _ss.textContent; } }
 
   const start = Math.min(3.5, Math.max(1.1, Math.round(curRate * 100) / 100));
@@ -2355,7 +2397,8 @@ function renderTier(price, from){
     basara:     parseFloat(rec.priceBasara)     || 0,
     oldlot:     parseFloat(rec.priceOldLot)     || 0,
     defect:     parseFloat(rec.priceDefect)     || 0,
-    special:    parseFloat(rec.priceSpecial)    || 0
+    special:    parseFloat(rec.priceSpecial)    || 0,
+    keisan:     parseFloat(rec.priceKeisan)     || 0
   };
   currentTierPrice = price;
   currentW2Price = price; // 後方互換
@@ -2372,7 +2415,7 @@ function renderTier(price, from){
     let theirs;
     if(row.tier === 'general') theirs = has ? 0 : null;          // 定価の販売店儲けは0
     else theirs = (gLive > 0 && has) ? (gLive - val) : null;      // 販売店の儲け＝定価−その段の価格
-    const nameCell = row.label + (isSel ? '<br><span style="font-size:10px;font-weight:400;color:#8a5a0b">調整中</span>' : '');
+    const nameCell = row.label + (isSel ? '<br><span style="font-size:10px;font-weight:400;color:#8a5a0b">' + (row.keisan ? '計算中' : '調整中') + '</span>' : '');
     const kakeCell = (row.tier !== 'general' && gLive > 0 && has) ? (' <span style="font-size:11px;font-weight:800;color:#7a4d0c">' + (val/gLive*10).toFixed(1) + '掛</span> ／') : '';
     const priceCell = has ? ('¥' + val.toLocaleString() + kakeCell + pctSpan(m)) : '-';
     const oursCell = (ours != null) ? ('¥' + ours.toLocaleString()) : '-';
@@ -2387,7 +2430,8 @@ function renderTier(price, from){
   const tb = document.getElementById('sim-tier-tbody'); if(tb) tb.innerHTML = html;
 
   const margin = price > 0 ? (price - cost) / price * 100 : 0;
-  document.getElementById('sim-marginline').innerHTML = T.label + 'の利益率 <strong style="color:' + marginTextColor(margin) + '">' + margin.toFixed(1) + '%</strong>';
+  document.getElementById('sim-marginline').innerHTML = (T.keisan ? '計算用' : T.label) + 'の利益率 <strong style="color:' + marginTextColor(margin) + '">' + margin.toFixed(1) + '%</strong>';
+  if(T.keisan) renderKeisanCompare(rec, price); // ★2026-11-10 今の価格とくらべて（値上げ率）
 
   // バーと直接入力を相互に同期（いま操作している方は上書きしない）
   if(from !== 'slider'){
@@ -2408,6 +2452,43 @@ function renderTier(price, from){
   const b2 = document.getElementById('sim-direct-apply'); if(b2) b2.onclick = apply;
 }
 
+// ★2026-11-10 計算用（NK）：今の価格とくらべて（値上げ率）。承認済みモック mock_輸入E_値上げ計算用_2026-11-10.html の「🔍 今の価格とくらべて」
+function renderKeisanCompare(rec, price){
+  var box = document.getElementById('keisan-cmp-rows'); if(!box) return;
+  var rows = [
+    {field:'priceGeneral',    label:'定価（TK）'},
+    {field:'priceWholesale1', label:'卸①（OS1）'},
+    {field:'priceWholesale2', label:'卸②（OS2）'},
+    {field:'priceRT',         label:'RT'},
+    {field:'priceBasara',     label:'卸バサラスター（BA）'}
+  ];
+  box.innerHTML = rows.map(function(r){
+    var b = parseFloat(rec[r.field]) || 0;
+    if(!b) return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 6px;border-bottom:1px solid #eef1f4"><span style="color:#57534e">'+r.label+'</span><span style="color:#c9c3b5">未設定</span></div>';
+    var d = (price / b - 1) * 100;
+    return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 6px;border-bottom:1px solid #eef1f4"><span style="color:#57534e">'+r.label+' ¥'+b.toLocaleString()+'</span><strong style="color:'+(d >= 0 ? '#b91c1c' : '#1e40af')+'">'+(d >= 0 ? '＋' : '－')+Math.abs(d).toFixed(1)+'％</strong></div>';
+  }).join('');
+  onKeisanPct();
+}
+// ★2026-11-10 計算用（NK）：値上げ率で入れる（「今の定価から10％上げると → ¥…」）
+function onKeisanPct(){
+  if(!currentSimSku) return 0;
+  var rec = priceRecForSku(currentSimSku);
+  var baseEl = document.getElementById('keisan-base'), pctEl = document.getElementById('keisan-pct'), out = document.getElementById('keisan-pct-result');
+  if(!baseEl || !pctEl || !out) return 0;
+  pctEl.value = (pctEl.value || '').replace(/[^0-9.\-]/g, '');
+  var base = parseFloat(rec[baseEl.value]) || 0;
+  var pct = parseFloat(pctEl.value) || 0;
+  var v = base > 0 ? Math.round(base * (1 + pct / 100)) : 0;
+  out.textContent = v > 0 ? ('¥' + v.toLocaleString()) : '（その価格は未設定）';
+  return v;
+}
+function useKeisanPct(){
+  if(!currentSimSku || currentSimTier !== 'keisan') return;
+  var v = onKeisanPct();
+  if(v > 0) renderTier(v, 'pct');
+}
+
 // 500ml換算（枠の外・サイズ違いの比較用）
 function renderPer500(master, adjPrice, tier){
   const ml = currentSimMl || 500;
@@ -2423,14 +2504,15 @@ function renderPer500(master, adjPrice, tier){
     {t:'basara',     label:'卸バサラスター（BA）'},
     {t:'oldlot',     label:'旧ロット（QR）'},
     {t:'defect',     label:'不良品用特価（FT）'},
-    {t:'special',    label:'特別提供価格（IT）'}
+    {t:'special',    label:'特別提供価格（IT）'},
+    {t:'keisan',     label:'計算用（NK）'}
   ];
   box.innerHTML = rows.map(function(r){
     const sel = (r.t === tier);
     const v = conv(sel ? adjPrice : (master ? master[r.t] : 0));
     const txt = (v != null) ? '¥' + v.toLocaleString() : '-';
     return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 6px;border-bottom:1px solid #eef1f4'+(sel?';background:#fff7ed;border-radius:6px':'')+'">'
-      + '<span style="'+(sel?'color:#b45309;font-weight:800':'color:#57534e')+'">'+r.label+(sel?'（調整中）':'')+'</span>'
+      + '<span style="'+(sel?'color:#b45309;font-weight:800':'color:#57534e')+'">'+r.label+(sel?(r.t==='keisan'?'（計算中）':'（調整中）'):'')+'</span>'
       + '<span style="font-weight:'+(sel?'800':'700')+';color:#2b2a26">'+txt+'</span></div>';
   }).join('');
 }
@@ -2547,7 +2629,7 @@ function applyLocalPriceEdits(master){
     let r = master.find(function(x){ return x.sku===s; });
     if(!r){
       const dp = DEFAULT_PRICES[s] || {};
-      r = {sku:s, productName:s, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0};
+      r = {sku:s, productName:s, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceKeisan:0};
       master.push(r);
     }
     Object.keys(priceLocalEdits[s]).forEach(function(f){ r[f] = priceLocalEdits[s][f]; });
@@ -2572,22 +2654,23 @@ function currentShownTierPrice(sku, field){
   return parseFloat(rec[field])||0;
 }
 function priceYenLabel(v){ return v>0 ? ('¥'+v.toLocaleString()) : '未設定'; }
+function priceYenLabelK(v, h){ return v>0 ? ('¥'+v.toLocaleString()) : ((h && h.tier==='keisan') ? '未計算' : '未設定'); } // ★2026-11-10 計算用は「未計算」
 function renderPriceUndo(){
   var area = document.getElementById('price-undo-area');
   if(!area) return;
   if(!priceUndoHistory.length){ area.innerHTML=''; return; }
   var h = priceUndoHistory[0];
   var html = '<div style="border:1.5px solid #97C459;border-radius:10px;background:#f2f8ea;padding:11px 12px">'+
-    '<div style="font-size:13.5px;font-weight:800;color:#27500A">反映しました：'+esc(h.name)+' の '+esc(h.label)+'</div>'+
-    '<div style="font-size:14px;color:#3B6D11;margin-top:2px">'+priceYenLabel(h.oldPrice)+' → <strong style="font-size:16px">'+priceYenLabel(h.newPrice)+'</strong></div>'+
-    '<button class="btn" style="margin-top:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700" onclick="revertPriceChange(0)">↩ 元に戻す（'+priceYenLabel(h.oldPrice)+' に戻して保存）</button>'+
+    '<div style="font-size:13.5px;font-weight:800;color:#27500A">'+(h.verb||'反映しました')+'：'+esc(h.name)+' の '+esc(h.tier==='keisan'?'計算用':h.label)+'</div>'+
+    '<div style="font-size:14px;color:#3B6D11;margin-top:2px">'+priceYenLabelK(h.oldPrice,h)+' → <strong style="font-size:16px">'+priceYenLabelK(h.newPrice,h)+'</strong></div>'+
+    '<button class="btn" style="margin-top:8px;background:#fff;border:1.5px solid #b9b09c;color:#2b2a26;font-weight:700" onclick="revertPriceChange(0)">↩ 元に戻す（'+priceYenLabelK(h.oldPrice,h)+' に戻して保存）</button>'+
     '</div>';
   if(priceUndoHistory.length > 1){
     html += '<div style="font-size:12.5px;font-weight:700;color:#57534e;margin:10px 0 4px">このページで反映した履歴</div><table style="width:100%;border-collapse:collapse;font-size:13px">';
     priceUndoHistory.forEach(function(x, i){
       if(i===0) return;
-      html += '<tr style="border-top:1px solid #e7e2d6"><td style="padding:6px 4px">'+esc(x.name)+' ／ '+esc(x.label)+'</td>'+
-        '<td style="padding:6px 4px;text-align:right;color:#57534e">'+priceYenLabel(x.oldPrice)+' → '+priceYenLabel(x.newPrice)+'</td>'+
+      html += '<tr style="border-top:1px solid #e7e2d6"><td style="padding:6px 4px">'+esc(x.name)+' ／ '+esc(x.tier==='keisan'?'計算用':x.label)+'</td>'+
+        '<td style="padding:6px 4px;text-align:right;color:#57534e">'+priceYenLabelK(x.oldPrice,x)+' → '+priceYenLabelK(x.newPrice,x)+'</td>'+
         '<td style="padding:6px 4px;text-align:right"><button class="btn-sm" onclick="revertPriceChange('+i+')">元に戻す</button></td></tr>';
     });
     html += '</table>';
@@ -2621,6 +2704,9 @@ async function applyRateToTier(sku, tier, price){
   } else if(T.strong){
     // 卸①・RT は基本の価格 → 強い確認
     ok = confirm('⚠️ 「'+T.label+'」は基本の価格です。\nコロコロ変えるものではありません。\n\n本当に ¥'+price.toLocaleString()+' に変更しますか？\n（価格マスタが更新され、即座に保存されます）');
+  } else if(T.keisan){
+    // ★2026-11-10 計算用（NK）は計算のメモ。お客様の価格には使われないので確認なしで残す（ひろみさん「確認なしで残す」）
+    ok = true;
   } else {
     // 卸②・卸バサラスター・不良品用特価・特別提供価格 は軽い確認
     ok = confirm('この商品の「'+T.label+'」価格を ¥'+price.toLocaleString()+' に反映しますか？\n（価格マスタが更新され、即座に保存されます）');
@@ -2630,7 +2716,7 @@ async function applyRateToTier(sku, tier, price){
   var beforePrice = currentShownTierPrice(sku, T.field);
   if(Math.round(beforePrice) !== Math.round(price)){
     var pInfo = allCostSkus().find(function(x){ return x.sku === sku; });
-    priceUndoHistory.unshift({ sku:sku, name:(pInfo && pInfo.name) || sku, tier:tier, label:T.label, field:T.field, oldPrice:beforePrice, newPrice:price });
+    priceUndoHistory.unshift({ sku:sku, name:(pInfo && pInfo.name) || sku, tier:tier, label:T.label, field:T.field, oldPrice:beforePrice, newPrice:price, verb:(T.keisan ? '残しました' : '反映しました') });
     if(priceUndoHistory.length > 20) priceUndoHistory.length = 20;
     renderPriceUndo();
   }
@@ -2670,7 +2756,7 @@ async function applyRateToTierNow(sku, T, price){
         const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
         const kept = !!(back && Math.round(parseFloat(back[T.field])||0) === Math.round(price));
         if(kept){
-          showSyncStatus('✅ '+T.label+'に反映しました（サーバー保存も確認済み）');
+          showSyncStatus(T.keisan ? '✅ 計算用に残しました（サーバー保存も確認済み）' : ('✅ '+T.label+'に反映しました（サーバー保存も確認済み）'));
         } else {
           priceGasMissingFields[T.label] = 1;
           showPriceGasBanner(Object.keys(priceGasMissingFields));
@@ -2702,9 +2788,12 @@ function clearSelectedTier(){
   if(!cur){ return; } // すでに＋設定（空）なら何もしない
   var pInfo = allCostSkus().find(function(x){ return x.sku===sku; });
   var nm = (pInfo && pInfo.name) || sku;
-  if(!confirm('「'+nm+'」の '+T.label+' の価格 ¥'+cur.toLocaleString()+' を消して、\n＋設定（未設定）の状態に戻します。よろしいですか？\n\n※あとで「↩ 元に戻す」で ¥'+cur.toLocaleString()+' に戻せます。')) return;
+  var _clrMsg = T.keisan
+    ? ('「'+nm+'」の 計算用 ¥'+cur.toLocaleString()+' を消します。よろしいですか？\n\n※お客様の価格は変わりません。あとで「↩ 元に戻す」で ¥'+cur.toLocaleString()+' に戻せます。')
+    : ('「'+nm+'」の '+T.label+' の価格 ¥'+cur.toLocaleString()+' を消して、\n＋設定（未設定）の状態に戻します。よろしいですか？\n\n※あとで「↩ 元に戻す」で ¥'+cur.toLocaleString()+' に戻せます。');
+  if(!confirm(_clrMsg)) return;
   // 「元に戻す」履歴に積む（oldPrice＝消す前の価格、newPrice＝0＝未設定）
-  priceUndoHistory.unshift({ sku:sku, name:nm, tier:tier, label:T.label, field:T.field, oldPrice:cur, newPrice:0 });
+  priceUndoHistory.unshift({ sku:sku, name:nm, tier:tier, label:T.label, field:T.field, oldPrice:cur, newPrice:0, verb:(T.keisan ? '消しました' : '反映しました') });
   if(priceUndoHistory.length > 20) priceUndoHistory.length = 20;
   renderPriceUndo();
   showSyncStatus('消しています...');
@@ -2749,7 +2838,7 @@ async function clearTierPriceNow(sku, T){
         const back = ((chk.data||{}).priceMaster||[]).find(function(x){ return x.sku===sku; });
         const cleared = !(back && (parseFloat(back[T.field])||0) > 0);
         if(cleared){
-          showSyncStatus('✅ '+T.label+'を消して＋設定に戻しました（サーバー保存も確認済み）');
+          showSyncStatus(T.keisan ? '✅ 計算用を消しました' : ('✅ '+T.label+'を消して＋設定に戻しました（サーバー保存も確認済み）'));
         } else {
           showSyncStatus('⚠️ 消したはずが、サーバーには金額が残っています。画面を開き直して確認してください', true);
         }
