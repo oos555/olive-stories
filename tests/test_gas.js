@@ -456,6 +456,13 @@ eq('参考：0 で止まる', oya3, 0);
   eq('頼みごとメモ② ほかの鍵では開かない', G.stickyMemoPasswordOk('頼みごとメモ', 'J1') || G.stickyMemoPasswordOk('頼みごとメモ', 'G1'), false);
   const tm = fs.readFileSync(require('path').join(__dirname, '..', 'eigyo', 'tanomi_memo.html'), 'utf8');
   eq('頼みごとメモ③ 画面が使うタブの名前と同じ', /var SHEET_NAME = '頼みごとメモ';/.test(tm), true);
+  /* ★2026-11-10 備品（紙袋・シール・カップ）の購入記録への入口。中村様「いつもどこに記録したっけと探してしまうので、外部依頼のページに結びつけて」
+     親はDropboxのエクセル2つ（発注枚数管理表／紙袋・テイスティングカップ）と、やりとり記録のフォルダ。写しは持たない・開くだけ。 */
+  const bihinHref = function(id){ var m = tm.match(new RegExp('id="' + id + '"[^>]*href="([^"]*)"')); return m ? m[1] : ''; };
+  eq('頼みごとメモ④ 備品の購入記録「発注枚数管理表」へのボタンがある（Dropboxのプレビューで開く）', bihinHref('bihin-kanri').indexOf('https://www.dropbox.com/preview/') === 0 && bihinHref('bihin-kanri').endsWith(encodeURIComponent('シール印刷・紙袋等　発注枚数管理表.xlsx')), true);
+  eq('頼みごとメモ⑤ 「紙袋・テイスティングカップ」へのボタンがある', bihinHref('bihin-shina').indexOf('https://www.dropbox.com/preview/') === 0 && bihinHref('bihin-shina').endsWith(encodeURIComponent('紙袋・テイスティングカップ.xlsx')), true);
+  eq('頼みごとメモ⑥ やりとり記録のフォルダ（カップオイル・紙袋・箱など）へのボタンがある', bihinHref('bihin-folder').indexOf('https://www.dropbox.com/home/') === 0 && bihinHref('bihin-folder').endsWith(encodeURIComponent('カップオイル・紙袋・箱など')), true);
+  eq('頼みごとメモ⑦ 入口は3つのタブのボタンの下（どのタブでも見える・タブの中に入れていない）', tm.indexOf('id="bihin-box"') > tm.indexOf('id="mtab-fixed"') && tm.indexOf('id="bihin-box"') < tm.indexOf('<div id="tab-tanomi">'), true);
   /* ★2026-10-22 輸入・原価Ｅ「🌿 農園とのやり取り記録と改善」も同じ穴だった（2026-07-31 から端末にしか残っていなかった） */
   eq('農園とのやり取り 追記・ルール① 社長の鍵（原価Ｅの鍵と同じ）で開く', G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'S1'), true);
   eq('農園とのやり取り 追記・ルール② ほかの鍵では開かない', G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'J1') || G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'G1'), false);
