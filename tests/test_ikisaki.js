@@ -185,7 +185,8 @@ function hacchuushoGyou(payload){
      入れ忘れると本物の関数が動かせず、見張りが空回りします（見張りの砂場に親を入れる決まり）。 */
   ['OOS_YUKA_SHEET','OOS_YC','OOS_YUKA_BTN_STOP','OOS_YUKA_BTN_GO','OOS_YUKA_BTN_BACK','OOS_YUKA_BTN_HARI'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
   /* ★2026-09-24 注文番号は B列（oosYukaBangouText_）。砂場にも入れます */
-  ['oosLastDataRow_','oosYukaBangouText_','oosYukaBangouOf_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
+  /* ★2026-11-13 かぎ係（oosKagiDe_）も砂場に入れます（本物の oosYukaImportOrder が入口で呼ぶため） */
+  ['oosLastDataRow_','oosYukaBangouText_','oosYukaBangouOf_','oosKagiDe_','oosYukaImportOrder'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   vm.runInContext(code, ctx);
   const res = box.oosYukaImportOrder(payload);
   return { res: res, gyou: yuka.rows[0] || [], box: box };
