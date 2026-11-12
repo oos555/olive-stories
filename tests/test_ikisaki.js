@@ -171,7 +171,10 @@ function hacchuushoGyou(payload){
   const box = {
     console, JSON, Object, Array, String, Number, Math, Date, RegExp, Boolean, parseInt, parseFloat, isNaN,
     Logger:{ log(){} },
-    SpreadsheetApp:{ newDataValidation(){ const o={ requireValueInList(){return o;}, setAllowInvalid(){return o;}, build(){return {};} }; return o; } },
+    SpreadsheetApp:{ newDataValidation(){ const o={ requireValueInList(){return o;}, setAllowInvalid(){return o;}, build(){return {};} }; return o; }, flush(){} },
+    /* ★2026-11-13 本物の oosYukaImportOrder は入口で鍵（LockService）をかけるようになりました（2件同時の☑で行が消えた事故の再発防止）。
+       砂場にも鍵を入れないと本物が動きません。鍵そのものの見張りは tests/test_yuka_kagi.js です */
+    LockService:{ getScriptLock(){ return { waitLock(){}, releaseLock(){}, tryLock(){ return true; }, hasLock(){ return true; } }; } },
     oosYukaFile_(){ return { getSheetByName(n){ return n === '発注書' ? yuka : null; } }; },
     oosKeyColByHeader_(){ return 28; }
   };
