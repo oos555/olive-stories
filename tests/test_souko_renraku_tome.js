@@ -296,9 +296,14 @@ ok('⑩止め木は sendLineGroupMessage より【先】にある',
 /* のこす1本＝バサラの請求書。抜け道は1本だけ・使う場所も1か所だけ */
 ok('⑩のこす道がある（oosLineToHonbuAlways_）',
    GAS.indexOf('function oosLineToHonbuAlways_(') >= 0);
-ok('⑩のこす道を使っているのは2か所だけ（請求書・バサラ発注の受付）',
-   (GAS.match(/oosLineToHonbuAlways_\(/g) || []).length - 1 === 2,
+/* ★2026-11-13 ひろみさん決め1（mocks/mock_発注書との突き合わせ点検_2026-11-13.html ⑤）：
+   🔍 発注書との突き合わせ点検の知らせを、のこす道の【3本目】にした（呼ぶのは oosTsukiLineHonbu_ の1か所だけ）。
+   2本→3本。これ以上増えたら、新しい抜け道。 */
+ok('⑩のこす道を使っているのは3か所だけ（請求書・バサラ発注の受付・発注書との突き合わせ点検）',
+   (GAS.match(/oosLineToHonbuAlways_\(/g) || []).length - 1 === 3,
    '（増えていたら、止めたはずのお知らせが抜けています／減っていたら、ゆかちゃんにまた届きません）');
+ok('⑩3本目は 突き合わせ点検の oosTsukiLineHonbu_（2026-11-13）',
+   bodyOf(GAS, 'oosTsukiLineHonbu_').indexOf('oosLineToHonbuAlways_(text)') >= 0);
 ok('⑩のこす道を使っているのは【バサラの請求書】',
    /oosLineToHonbuAlways_\('🧾 '\+ym\+'分のバサラスター請求書/.test(GAS));
 ok('⑩のこす道を使っているのは【バサラ発注の受付（原さんの☑）】（2026-10-16）',
