@@ -61,10 +61,10 @@ const ba = cutFn(GAS, 'oosTsukiBasara_');
 ok('③原さんのシートは「✅ 受付」の行だけ', ba.indexOf("a.indexOf('✅ 受付')") >= 0);
 ok('③発送ずみ（送り状・発送日あり）の受付は「発注書に無い」に数えない', cutFn(GAS, 'oosTsukiawaseTenken').indexOf('if(!b.shipped') >= 0);
 
-/* ── ④ 本部LINE（モック②）：見つかったときだけ・1日1回・のこす道の3本目 ── */
+/* ── ④ 本部LINE（モック②）：見つかったときだけ・同じものは1回だけ（2026-11-13 ひろみさん）・のこす道の3本目 ── */
 const tenken = cutFn(GAS, 'oosTsukiawaseTenken');
 ok('④知らせるのは見つかったときだけ', tenken.indexOf('if(shiraseru.length) oosTsukiLineHonbu_(') >= 0);
-ok('④同じものは1日1回（知らせた日時の日付が今日なら送らない）', tenken.indexOf('oosTsukiHiKey_(kizu)') >= 0 && tenken.indexOf('kyou) return;') >= 0);
+ok('④同じものは見つけたときの1回だけ（知らせた日時に何か入っていれば送らない・「1日1回」の日付くらべは残っていない）', tenken.indexOf('何度も何度も送らなくて') >= 0 && tenken.indexOf('oosTsukiHiKey_') < 0 && GAS.indexOf('oosTsukiHiKey_') < 0);
 ok('④✅ になった行は知らせ直さない', tenken.indexOf('OOS_TSUKI_JOUTAI_MI) return;') >= 0);
 ok('④本部LINEは のこす道（oosLineToHonbuAlways_）を1か所から', cutFn(GAS, 'oosTsukiLineHonbu_').indexOf('oosLineToHonbuAlways_(text)') >= 0);
 ok('④点検・入れ直しのどちらも oosTsukiLineHonbu_ を通る（直に Always_ を呼ばない）', tenken.indexOf('oosLineToHonbuAlways_') < 0 && cutFn(GAS, 'oosTsukiawaseIreNaosu_').indexOf('oosLineToHonbuAlways_') < 0);
@@ -147,13 +147,18 @@ ok('⑥doGet／doPost から見張りを作る窓口は無い（Webアプリ経�
     oosTsukiLineHonbu_(t){ sent.push(t); }
   };
   vm.createContext(box);
-  ['oosTsukiHizuke_','oosTsukiHiKey_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
+  ['oosTsukiHizuke_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
   const r1 = box.oosTsukiawaseTenken();
   ok('⑦筒井様の形（受付ずみ・発注書に無い）を1件見つける', r1 && r1.status === 'ok' && r1.mitsuketa === 1, JSON.stringify(r1));
   ok('⑦点検タブに1行（未対応・☑つき・転記キー）', tabRows.length === 1 && tabRows[0][2] === '発注書に無い' && tabRows[0][3] === 'BA-20261112-4364' && tabRows[0][7] === '未対応' && tabRows[0][0] === false && tabRows[0][10] === 'K-TSUTSUI', JSON.stringify(tabRows[0]));
   ok('⑦本部LINEを1通', sent.length === 1 && /発注書に入っていない注文が 1件/.test(sent[0]) && /BA-20261112-4364 筒井様/.test(sent[0]));
   const r2 = box.oosTsukiawaseTenken();
-  ok('⑦同じ日の2回目は、見つけるが送らない（1日1回）', r2.mitsuketa === 1 && r2.shiraseta === 0 && sent.length === 1 && tabRows.length === 1);
+  ok('⑦2回目は、見つけるが送らない（同じものは1回だけ）', r2.mitsuketa === 1 && r2.shiraseta === 0 && sent.length === 1 && tabRows.length === 1);
+  /* 日付が変わっても送らない（2026-11-13 ひろみさん「何度も何度も送らなくて」） */
+  box.Utilities.formatDate = function(){ return '11/14 00:07'; };
+  const r2b = box.oosTsukiawaseTenken();
+  ok('⑦次の日（0:07）になっても、同じものは送らない', r2b.mitsuketa === 1 && r2b.shiraseta === 0 && sent.length === 1, 'sent=' + sent.length);
+  box.Utilities.formatDate = function(){ return '11/13 00:00'; };
   /* 直ったら ✅ 解消 */
   box.oosTsukiHacchusho_ = function(){ return { ok:true, keyRows:{ 'K-NAKAGUCHI':[47], 'K-TSUTSUI':[48] }, numRows:{} }; };
   const r3 = box.oosTsukiawaseTenken();
@@ -194,18 +199,17 @@ ok('⑥doGet／doPost から見張りを作る窓口は無い（Webアプリ経�
     oosTsukiLineHonbu_(t){ sent.push(t); }
   };
   vm.createContext(box);
-  ['oosTsukiHizuke_','oosTsukiHiKey_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
+  ['oosTsukiHizuke_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
   /* (1) きょう直す前に書かれた行：知らせた日時が Date に化けている（本物の J2 と同じ状態） */
   tabRows.push(['（☑なし）', new Date(2026,10,13,11,7), '発注書に無い', 'RT-20260917-6266', '高山', '受注Ａ（📥 9/17 22:53）', '受注Ａの受注一覧で「📥 発注書に送る」を押す', '未対応', '', new Date(2026,10,13,13,7), 'K-TAKAYAMA']);
   const r1 = box.oosTsukiawaseTenken();
-  ok('⑧知らせた日時が日付型に化けていても「今日もう知らせた」と読めて、送らない', r1 && r1.mitsuketa === 1 && r1.shiraseta === 0 && sent.length === 0, JSON.stringify(r1) + ' sent=' + sent.length);
-  ok('⑧Date を渡しても今日の鍵になる', box.oosTsukiHiKey_(new Date(2026,10,13,13,7)) === '11/13' && box.oosTsukiHiKey_('11/13 13:07') === '11/13');
+  ok('⑧知らせた日時が日付型に化けていても「もう知らせた」と読めて、送らない', r1 && r1.mitsuketa === 1 && r1.shiraseta === 0 && sent.length === 0, JSON.stringify(r1) + ' sent=' + sent.length);
   /* (2) 新しく見つけた行：日時の3列は文字で書く（化けない）→ 2回目も送らない */
   tabRows.length = 0;
   const r2 = box.oosTsukiawaseTenken();
   const r3 = box.oosTsukiawaseTenken();
   ok('⑧新しい行の見つけた日時・知らせた日時は文字のまま（書式@）', typeof tabRows[0][1] === 'string' && typeof tabRows[0][9] === 'string' && fmt['2:2'] === '@' && fmt['2:10'] === '@', JSON.stringify([tabRows[0][1], tabRows[0][9], fmt]));
-  ok('⑧1時間後の2回目は送らない（1日1回）', r2.shiraseta === 1 && r3.shiraseta === 0 && sent.length === 1, 'sent=' + sent.length);
+  ok('⑧1時間後の2回目は送らない（同じものは1回だけ）', r2.shiraseta === 1 && r3.shiraseta === 0 && sent.length === 1, 'sent=' + sent.length);
 })();
 
 /* ── 結果 ───────────────────────────────────────────────── */
