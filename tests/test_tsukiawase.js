@@ -129,7 +129,7 @@ ok('⑥doGet／doPost から見張りを作る窓口は無い（Webアプリ経�
       setValues(vv){ for(let i=0;i<vv.length;i++){ tabRows[r-2+i] = vv[i].slice(); } return this; },
       setValue(v){ if(!tabRows[r-2]) tabRows[r-2]=new Array(11).fill(''); tabRows[r-2][c-1]=v; return this; },
       insertCheckboxes(){ if(!tabRows[r-2]) tabRows[r-2]=new Array(11).fill(''); tabRows[r-2][c-1]=false; return this; },
-      setFontWeight(){ return this; }, setBackground(){ return this; }, setWrap(){ return this; }
+      setFontWeight(){ return this; }, setBackground(){ return this; }, setWrap(){ return this; }, setNumberFormat(){ return this; }
     }; },
     insertRowBefore(){ tabRows.unshift(new Array(11).fill('')); }, setFrozenRows(){}, setColumnWidth(){}
   };
@@ -147,7 +147,7 @@ ok('⑥doGet／doPost から見張りを作る窓口は無い（Webアプリ経�
     oosTsukiLineHonbu_(t){ sent.push(t); }
   };
   vm.createContext(box);
-  ['oosTsukiHizuke_','oosTsukiHiKey_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
+  ['oosTsukiHizuke_','oosTsukiHiKey_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
   const r1 = box.oosTsukiawaseTenken();
   ok('⑦筒井様の形（受付ずみ・発注書に無い）を1件見つける', r1 && r1.status === 'ok' && r1.mitsuketa === 1, JSON.stringify(r1));
   ok('⑦点検タブに1行（未対応・☑つき・転記キー）', tabRows.length === 1 && tabRows[0][2] === '発注書に無い' && tabRows[0][3] === 'BA-20261112-4364' && tabRows[0][7] === '未対応' && tabRows[0][0] === false && tabRows[0][10] === 'K-TSUTSUI', JSON.stringify(tabRows[0]));
@@ -158,6 +158,54 @@ ok('⑥doGet／doPost から見張りを作る窓口は無い（Webアプリ経�
   box.oosTsukiHacchusho_ = function(){ return { ok:true, keyRows:{ 'K-NAKAGUCHI':[47], 'K-TSUTSUI':[48] }, numRows:{} }; };
   const r3 = box.oosTsukiawaseTenken();
   ok('⑦発注書に入ったら「✅ 解消（…の点検で発注書にありました）」になり、送らない', r3.mitsuketa === 0 && sent.length === 1 && /^✅ 解消（/.test(String(tabRows[0][7])), String(tabRows[0][7]));
+})();
+
+/* ── ⑧ 2026-11-13 13時の事故：スプシが「11/13 11:07」を日付型に変える → 読み戻すと Date → 「今日」と一致せず毎時LINE（実際に11:07・12:07・13:07の3通）──
+   砂場のスプシを本物に寄せる：文字が日付の形なら、書式が「@」（文字）でない限り Date に化ける */
+(function(){
+  const sent = [];
+  const tabRows = [];
+  const fmt = {};
+  const hinichiRashii = (v) => (typeof v === 'string') && /^[0-9]{1,2}[/][0-9]{1,2} [0-9]{2}:[0-9]{2}$/.test(v);
+  const bakeru = (r, c, v) => (hinichiRashii(v) && fmt[r + ':' + c] !== '@') ? new Date(2026, 10, 13, 11, 7) : v;
+  const tab = {
+    getLastRow(){ return tabRows.length + 1; },
+    getRange(r, c, nr, nc){ return {
+      getValues(){ const out=[]; for(let i=0;i<(nr||1);i++){ out.push((tabRows[r-2+i]||new Array(11).fill('')).slice(c-1, c-1+(nc||1))); } return out; },
+      setValues(vv){ for(let i=0;i<vv.length;i++){ tabRows[r-2+i] = vv[i].map((v, j) => bakeru(r+i, c+j, v)); } return this; },
+      setValue(v){ if(!tabRows[r-2]) tabRows[r-2]=new Array(11).fill(''); tabRows[r-2][c-1]=bakeru(r, c, v); return this; },
+      setNumberFormat(f){ fmt[r + ':' + c] = f; return this; },
+      insertCheckboxes(){ if(!tabRows[r-2]) tabRows[r-2]=new Array(11).fill(''); tabRows[r-2][c-1]=false; return this; },
+      setFontWeight(){ return this; }, setBackground(){ return this; }, setWrap(){ return this; }
+    }; },
+    insertRowBefore(){ tabRows.unshift(new Array(11).fill('')); Object.keys(fmt).forEach(k => delete fmt[k]); }, setFrozenRows(){}, setColumnWidth(){}
+  };
+  const box = {
+    Utilities: { formatDate(d, tz, pat){ return pat === 'M/d' ? '11/13' : '11/13 00:00'; } }, Logger:{ log(){} }, String, Number, Date, Object, Array, JSON, Math,
+    OOS_TSUKI_START:'2026-09-10', OOS_TSUKI_JOUTAI_MI:'未対応', OOS_TSUKI_SHEET:'🔍 発注書との突き合わせ',
+    OOS_TSUKI_NANI:{ nai:'発注書に無い', meisai:'御請求明細に無い', nijuu:'二重' }, OOS_TSUKI_MIDASHI:new Array(11).fill('x'),
+    OOS_TSUKI_COL:{ chk:1, mitsuketa:2, nani:3, num:4, name:5, dedokoro:6, naoshikata:7, joutai:8, naoshita:9, shiraseta:10, key:11 },
+    OOS_TSUKI_NAOSHIKATA:{ basara:'A列の☑で、原さんのシートの受付済みの行から入れ直します', juchu:'受注Ａの受注一覧で「📥 発注書に送る」を押す', meisai:'原さんのシートの御請求明細をご確認ください', nijuu:'発注書で片方を手で消す' },
+    oosTsukiHacchusho_(){ return { ok:true, keyRows:{}, numRows:{} }; },
+    oosTsukiJuchu_(){ const rec = { id:'o1', num:'RT-20260917-6266', name:'高山', status:'pending', registeredAt:'2026-09-17T13:51:53.793Z', source:'manual', key:'K-TAKAYAMA', okutta:true, okuttaAt:'2026-09-17T13:53:05.047Z', whSkip:false, sashimodoshi:false };
+                      return { ok:true, list:[rec], byKey:{ 'K-TAKAYAMA':rec } }; },
+    oosTsukiBasara_(){ return { ok:true, list:[], meisaiNums:{} }; },
+    oosTsukiSheet_(){ return tab; },
+    oosTsukiLineHonbu_(t){ sent.push(t); }
+  };
+  vm.createContext(box);
+  ['oosTsukiHizuke_','oosTsukiHiKey_','oosTsukiMojiDe_','oosTsukiawaseTenken','oosTsukiLineBun_'].forEach(function(n){ vm.runInContext(cutFn(GAS, n), box); });
+  /* (1) きょう直す前に書かれた行：知らせた日時が Date に化けている（本物の J2 と同じ状態） */
+  tabRows.push(['（☑なし）', new Date(2026,10,13,11,7), '発注書に無い', 'RT-20260917-6266', '高山', '受注Ａ（📥 9/17 22:53）', '受注Ａの受注一覧で「📥 発注書に送る」を押す', '未対応', '', new Date(2026,10,13,13,7), 'K-TAKAYAMA']);
+  const r1 = box.oosTsukiawaseTenken();
+  ok('⑧知らせた日時が日付型に化けていても「今日もう知らせた」と読めて、送らない', r1 && r1.mitsuketa === 1 && r1.shiraseta === 0 && sent.length === 0, JSON.stringify(r1) + ' sent=' + sent.length);
+  ok('⑧Date を渡しても今日の鍵になる', box.oosTsukiHiKey_(new Date(2026,10,13,13,7)) === '11/13' && box.oosTsukiHiKey_('11/13 13:07') === '11/13');
+  /* (2) 新しく見つけた行：日時の3列は文字で書く（化けない）→ 2回目も送らない */
+  tabRows.length = 0;
+  const r2 = box.oosTsukiawaseTenken();
+  const r3 = box.oosTsukiawaseTenken();
+  ok('⑧新しい行の見つけた日時・知らせた日時は文字のまま（書式@）', typeof tabRows[0][1] === 'string' && typeof tabRows[0][9] === 'string' && fmt['2:2'] === '@' && fmt['2:10'] === '@', JSON.stringify([tabRows[0][1], tabRows[0][9], fmt]));
+  ok('⑧1時間後の2回目は送らない（1日1回）', r2.shiraseta === 1 && r3.shiraseta === 0 && sent.length === 1, 'sent=' + sent.length);
 })();
 
 /* ── 結果 ───────────────────────────────────────────────── */
