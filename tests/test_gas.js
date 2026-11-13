@@ -510,7 +510,8 @@ eq('参考：0 で止まる', oya3, 0);
   ['oosMihariSeiri','oosMihariIchiran','oosImaHassouIruKa_','oosHakkouAtoYoyaku_','oosHakkouAto']
     .forEach(n => vm.runInContext(H.cut(gasSrc, n), G));
   const kimariFn = G.OOS_MIHARI_KIMARI.map(k => k.fn);
-  eq('見張りの整理① 要る自動実行の表は15本（時間11・入力のたび4）', kimariFn.length + ':' + G.OOS_MIHARI_KIMARI.filter(k => k.shu === 'edit').length, '15:4');
+  /* ★2026-11-13 ひろみさん承認の 🔍 発注書との突き合わせ点検で2本増えた（時間：oosTsukiawaseTenken／入力のたび：oosTsukiawaseOnEdit）。15本→17本 */
+  eq('見張りの整理① 要る自動実行の表は17本（時間12・入力のたび5）', kimariFn.length + ':' + G.OOS_MIHARI_KIMARI.filter(k => k.shu === 'edit').length, '17:5');
   eq('見張りの整理② 表の名前がだぶっていない', new Set(kimariFn).size, kimariFn.length);
   eq('見張りの整理③ 古いもの（捨てる）に、やめた4本が入っている',
      ['basaraWatch','updateViewCopy','oosSoukoStockSync','oosSoukoOnEdit'].every(n => !!G.OOS_MIHARI_FURUI[n]), true);
@@ -537,15 +538,15 @@ eq('参考：0 で止まる', oya3, 0);
   eq('見張りの整理⑧ 一時のもの（3分まとめLINE）は消さない', d.lines.some(l => l.indexOf('⏳ 一時') >= 0), true);
   const r = G.oosMihariSeiri(false);
   const nokori = tr.map(t => t.getHandlerFunction());
-  eq('見張りの整理⑨ 整理すると 15本＋見覚えなし1＋一時1＝17本', tr.length, 17);
+  eq('見張りの整理⑨ 整理すると 17本＋見覚えなし1＋一時1＝19本（2026-11-13 突き合わせ点検で+2）', tr.length, 19);
   eq('見張りの整理⑩ 古い2本が消えている', nokori.filter(n => n === 'basaraWatch' || n === 'updateViewCopy').length, 0);
   eq('見張りの整理⑪ basaraWatchV2 は1本だけ', nokori.filter(n => n === 'basaraWatchV2').length, 1);
   eq('見張りの整理⑫ oosYukaOnEdit は正しいファイルの1本だけ', tr.filter(t => t.getHandlerFunction() === 'oosYukaOnEdit').map(t => t.getTriggerSourceId()).join(), 'YUKA');
-  eq('見張りの整理⑬ 足りなかった13本を入れた', r.入れた.length, 13);
+  eq('見張りの整理⑬ 足りなかった15本を入れた（2026-11-13 突き合わせ点検で+2）', r.入れた.length, 15);
   eq('見張りの整理⑭ 入力のたび（onEdit）は正しいファイルに付く',
      ['oosKanriOnEdit:KANRI','oosHonbuOnEdit:HONBU','oosBasaraSheetOnEdit:BASARA'].every(x => tr.some(t => t.getHandlerFunction() + ':' + t.getTriggerSourceId() === x)), true);
   const r2 = G.oosMihariSeiri(false);
-  eq('見張りの整理⑮ もう一度やっても何も変わらない（何回でも同じ）', r2.消した.length + r2.入れた.length + ':' + tr.length, '0:17');
+  eq('見張りの整理⑮ もう一度やっても何も変わらない（何回でも同じ）', r2.消した.length + r2.入れた.length + ':' + tr.length, '0:19');
   eq('見張りの整理⑯ doGet に点検・整理の窓口がある', /action === 'oosMihariSeiri'/.test(H.cut(gasSrc, 'doGet')), true);
   eq('見張りの整理⑱ doGet 経由では見張りを作り直せない（oosMihariSeiri(e.parameter.dry …) が無い）', H.cut(gasSrc, 'doGet').indexOf("oosMihariSeiri(e.parameter.dry") < 0, true);
   /* ★2026-10-19 実測：Webアプリ（doGet）経由で作った見張りは、そのときのデプロイの版に固定され（実行数の「導入」＝バージョン 416）、
