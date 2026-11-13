@@ -133,7 +133,9 @@ function sandbox(opt){
   /* ★2026-09-13 倉庫への自動連絡の止め木（OOS_SOUKO_RENRAKU_OFF）も、本物を砂場に入れます。
      入れ忘れると「全部PASSなのに、古い決めごとを測っている」状態になります。 */
   ['OOS_SOUKO_RENRAKU_OFF', 'OOS_SOUKO_MATOME_ON', 'OOS_YUKA_MATOME_MIN', 'OOS_YUKA_SHEET', 'OOS_YC', 'OOS_YUKA_BTN_STOP', 'OOS_YUKA_BTN_GO', 'OOS_YUKA_BTN_DONE',
-   'OOS_YL_SHEET', 'OOS_YL_STAY', 'OOS_YL_GO', 'OOS_YL'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
+   'OOS_YL_SHEET', 'OOS_YL_STAY', 'OOS_YL_GO', 'OOS_YL',
+   /* ★2026-11-13 在庫の数で止めないスイッチ（本物の oosYukaShipGo_ が読む）。見張りは tests/test_zaiko_tomenai.js */
+   'OOS_ZAIKO_DE_TOMENAI'].forEach(function(n){ code += H.cutVar(gasSrc, n) + '\n'; });
   ['oosLastDataRow_', 'oosYukaShipGo_', 'oosYoyakuListSummary_', 'oosYoyakuListGo_'].forEach(function(n){ code += H.cut(gasSrc, n) + '\n'; });
   /* 合計行の作り直しは、この見張りでは本題ではないので、シートを探しに行かせない */
   code += 'function oosYoyakuListSheet_(){ return null; }\n';
@@ -237,24 +239,25 @@ function sandbox(opt){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   ③ 在庫不足 … 2回目でも送らない。発注書に作った行も消す
+   ③ 在庫不足 … ★2026-11-13 ひろみさん決定で【止めない】に変わりました
+   　ひろみさん：「アプリでカウントしてた在庫の数は全くもうめちゃめちゃに狂ってるので、勝手に止めちゃってる状態が
+   　　続いています。なので、在庫切れがあったら止めるとかそういうのも全部切ってもらって」
+   　→ 在庫が足りない計算でも、発注書に1行入って「✅ 送りました」になる（🔵の安全網が赤に戻さないため）。
+   　　止める作り（赤に戻す・行を消す）はコードに残っていて、OOS_ZAIKO_DE_TOMENAI を false にすれば元どおり。
+   　　見張り：tests/test_zaiko_tomenai.js
    ══════════════════════════════════════════════════════════════════════ */
 {
   const s = sandbox({ stockShort: true });
   s.push();
-  eq('③A列は「🗓 まだ出しません」に戻る', s.stateA(), '🗓 まだ出しません');
-  inc('③在庫が足りないと言う',           s.noteA(), '在庫が足りないため、まだ送れません', true);
-  inc('③何が何本足りないかも書く',       s.noteA(), '販売可能 0本', true);
-  inc('③入荷したらまた押せると書く',     s.noteA(), '在庫が入ってから、もう一度お試しください', true);
-  eq('③倉庫LINEは飛ばない',              s.lineSent.length, 0);
-  eq('③発注書に作った行は消す',          s.yuka.rows.length, 0);
-  eq('③消したのは作った行',              JSON.stringify(s.yuka.deleted), JSON.stringify([2]));
-  eq('③受注Ａの状態は変えない',          s.statusSet.length, 0);
-  /* もう一度押しても、やはり送らない */
+  inc('③在庫が足りない計算でも送れる（2026-11-13 ひろみさん決定）', s.stateA(), '✅ 送りました', true);
+  eq('③発注書に1行入る（消さない）',      s.yuka.rows.length, 1);
+  eq('③発注書の行を消していない',        JSON.stringify(s.yuka.deleted), JSON.stringify([]));
+  eq('③倉庫への一文のまとめ送りを1回予約する', (s.box.__yoyaku || []).length, 1);
+  /* もう一度選んでも、二重には送らない（④と同じ） */
   s.yl.rows[0][0] = '📦 発注書へ送って出荷を依頼する';
+  s.yl.rows[0][0] = '✅ 送りました 9/10 18:00（発注書 2行目）';
   s.push();
-  eq('③もう一度押しても送らない',        s.stateA(), '🗓 まだ出しません');
-  eq('③もう一度押しても倉庫LINEは飛ばない', s.lineSent.length, 0);
+  eq('③もう一度選んでも発注書の行は増えない', s.yuka.rows.length, 1);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
