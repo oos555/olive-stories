@@ -38,7 +38,12 @@ function fresh(){
   }));
   H.runZaiko(ctx);
   vm.runInContext(H.cutVar(src,'DEFECT_LEVELS'),ctx);
+  vm.runInContext(H.cutVar(src,'OOS_ZAIKO_DE_TOMENAI'),ctx);
   vm.runInContext(code,ctx);
+  /* ★2026-11-13 ひろみさん「切って」：本番は OOS_ZAIKO_DE_TOMENAI = true（在庫の数で止めない）。
+     ①〜⑫は「止める作りがコードに残っているか（false に戻せば元どおりか）」の見張りとして、false で動かす。
+     true のときの動きは ⑬ で見る。 */
+  box.OOS_ZAIKO_DE_TOMENAI = false;
   return box;
 }
 const ord=(over)=>Object.assign({id:'x',num:'BA-1',status:'pending',notified:false,stockDeducted:false,stockLog:[],
@@ -161,7 +166,8 @@ eq('⑩ もう一度押しても二重に引かない', b.lots[0].stock, 2);
     alert:function(m){ alerts.push(m); }, confirm:function(){ return true; },
     persistStockDeduct:function(){}, renderSlipSelect:function(){}, gotoSlip:function(){}
   }));
-  H.runZaiko(ctx); vm.runInContext(H.cutVar(src,'DEFECT_LEVELS'),ctx); vm.runInContext(code,ctx);
+  H.runZaiko(ctx); vm.runInContext(H.cutVar(src,'DEFECT_LEVELS'),ctx); vm.runInContext(H.cutVar(src,'OOS_ZAIKO_DE_TOMENAI'),ctx); vm.runInContext(code,ctx);
+  box.OOS_ZAIKO_DE_TOMENAI = false;   /* ★2026-11-13 止める作りが残っているかを見る（本番は true） */
   vm.runInContext(H.cut(src,'convertSelectedHoldToShipping'), ctx);
   const ng={id:'ng',num:'BA-NG',status:'reserved',notified:false,stockDeducted:false,stockLog:[],
     lines:[{productId:1,bottles:1,boxes:0,boxQty:1,condition:'normal'}]};      // 在庫0
@@ -232,6 +238,26 @@ b=fresh();
   eq('⑫ 他の注文の🔒は守る（足りなければ止まる）', h1.status, 'held');
   eq('⑫ そのときは知らせる', alerts.length>0, true);
 }
+
+/* ── ⑬ ★2026-11-13 ひろみさん決定：在庫の数で止めない（本番の状態＝スイッチ true）──
+      ひろみさん：「アプリでカウントしてた在庫の数は全くもうめちゃめちゃに狂ってるので、勝手に止めちゃってる
+      　状態が続いています。なので、在庫切れがあったら止めるとかそういうのも全部切ってもらって」→「切って」
+      スイッチが入っているあいだ：在庫0でも「在庫待ち」にしない・アラートを出さない・発注書へ移せる。
+      計算（shortagesNow）は残っている。★ここが落ちたら、🔒が勝手に戻っています。 */
+eq('⑬ 本番のスイッチは true（在庫の数で止めない）', /var OOS_ZAIKO_DE_TOMENAI = true;/.test(src), true);
+eq('⑬ スイッチは1つだけ', (src.match(/var OOS_ZAIKO_DE_TOMENAI\s*=/g)||[]).length, 1);
+b=fresh(); b.OOS_ZAIKO_DE_TOMENAI = true;
+o=ord(); b.orders.push(o);                                  /* ORG250 は在庫0 */
+eq('⑬ 在庫0でも「在庫待ち」にしない', b.isZaikoMachi(o), false);
+eq('⑬ 青いアラートの元（orderShortages）は空', b.orderShortages(o).length, 0);
+eq('⑬ 計算そのもの（shortagesNow）は残っている（1本たりない）', (b.shortagesNow(o)[0]||{}).short, 1);
+b=fresh(); b.OOS_ZAIKO_DE_TOMENAI = true;
+o=ord({id:'r9',status:'reserved'}); b.orders.push(o);       /* 在庫0のまま 発注書へ */
+alerts.length=0;
+b.convertToShipping('r9');
+eq('⑬ 在庫0でも発注書へ移せる（止めない）', o.status, 'pending');
+eq('⑬ 止めた理由の知らせは出ない', alerts.length, 0);
+eq('⑬ 棚は0のまま（無いものは引けない）', b.lots[0].stock, 0);
 
 console.log('===== 在庫が足りない注文の扱い =====');
 console.log(`PASS ${pass} / FAIL ${fail}`);

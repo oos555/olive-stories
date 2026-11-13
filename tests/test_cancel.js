@@ -36,6 +36,7 @@ function fresh(){
   }));
   H.runZaiko(ctx);
   vm.runInContext(H.cutVar(src,'DEFECT_LEVELS'),ctx);
+  vm.runInContext(H.cutVar(src,'OOS_ZAIKO_DE_TOMENAI'),ctx);   /* ★2026-11-13 在庫の数で止めないスイッチ（convertToShipping が読む） */
   vm.runInContext(code,ctx);
   return box;
 }
