@@ -156,9 +156,32 @@ ok('⑧ 保存の道は既存（取り直し→1マス→自己点検）をそ�
 ok('⑧ 消すのは clearSelectedTier（1マスずつ・確認あり）。定価は消せないまま', H.cut(im, 'clearSelectedTier').indexOf('定価は消せません。卸①〜特別提供価格を選ぶと消せます。') >= 0 && H.cut(im, 'clearSelectedTier').indexOf('を消して、\\n＋設定（未設定）の状態に戻します。よろしいですか？') >= 0);
 ok('⑧ costLoadedOk ゲートは残っている', im.indexOf('costLoadedOk') >= 0);
 
-/* ⑨ お客様の価格の道には入れない（今回は輸入Eの中だけ） */
+/* ⑨ お客様の価格の道には入れない（受注A・売上C・見積M・単価の親）。
+   ★2026-11-16 夜 ひろみさん「統合マスターの方の価格リストにもちゃんとこれが反映しているかどうかをチェックして」
+   　「受注Aとか見積もりとかはいらない」→ 統合マスタNの価格リスト（閲覧のみ）には映す。他は出さない */
 ok('⑨ oos-kakaku.js に priceOriosanto は無い', H.read('oos-kakaku.js').indexOf('priceOriosanto') < 0 && H.read('oos-kakaku.js').indexOf('オリオサント') < 0);
-ok('⑨ master.html / billing.html / mitsumori.html / index.html に priceOriosanto は無い', ['master.html','billing.html','mitsumori.html','index.html'].every(f => H.read(f).indexOf('priceOriosanto') < 0));
+ok('⑨ billing.html / mitsumori.html / index.html に priceOriosanto は無い', ['billing.html','mitsumori.html','index.html'].every(f => H.read(f).indexOf('priceOriosanto') < 0));
+{
+  const ms = H.read('master.html');
+  const rp = H.cut(ms, 'renderPrice');
+  ok('⑨ 統合マスタNの価格リストの見出し：特別価格 の右に オリオサント', /<th class="num" style="background:#fdf3df">特別価格<\/th><th class="num" style="background:#e6f4ea;color:#14532d">オリオサント<\/th>\s*<\/tr><\/thead>/.test(ms));
+  ok('⑨ 統合マスタNの価格リストの colspan は 10（商品＋9つの価格）', (rp.match(/colspan="10"/g) || []).length === 2 && rp.indexOf('colspan="9"') < 0 && ms.indexOf('<tbody id="price-body"><tr><td colspan="10"') >= 0);
+  ok('⑨ 統合マスタNは価格を保存しない（priceMaster を saveAllData に送る行が無い）', !/payload:\{\s*priceMaster/.test(ms));
+  /* 本物の renderPrice を見本データで動かす：1行が10マス・最後のマスがオリオサント価格（空なら —） */
+  const mels = {};
+  const mel = id => mels[id] || (mels[id] = { id, style:{}, innerHTML:'' });
+  const MG = H.makeSandbox({ document: { getElementById: mel, querySelector(){ return null; }, querySelectorAll(){ return []; } } });
+  vm.runInContext(['renderPrice','mPriceCell','mPriceFor'].map(n => H.cut(ms, n)).join('\n')
+    + '\nfunction yen(v){ v = parseFloat(v)||0; return v > 0 ? ("¥" + v.toLocaleString()) : ""; }\nfunction esc(s){ return String(s); }\nfunction mGroupOrderWithItems(){ return ["見本"]; }\nfunction mIsActive(){ return true; }\nfunction mIsNoWholesale(){ return false; }\n'
+    + 'var PRODUCTS = [{sku:"A", name:"見本A", group:"見本"}, {sku:"B", name:"見本B", group:"見本"}];\n'
+    + 'var priceMaster = [{sku:"A", priceGeneral:9121, priceWholesale1:6884, priceWholesale2:5473, priceRT:6884, priceBasara:0, priceOldLot:0, priceDefect:0, priceSpecial:0, priceOriosanto:6000}, {sku:"B", priceGeneral:4750, priceWholesale1:3800}];\n', MG.ctx);
+  MG.box.renderPrice();
+  const prows = mel('price-body').innerHTML.split('<tr>').filter(r => r.indexOf('pname') >= 0);
+  ok('⑨ 価格リストの1行は10マス（商品＋定価＋卸①〜特別価格＋オリオサント）', prows.length === 2 && (prows[0].match(/<td/g) || []).length === 10 && (prows[1].match(/<td/g) || []).length === 10);
+  ok('⑨ オリオサント価格が入っている商品は最後のマスに ¥6,000', /<td class="num" style="background:#f0f8f2">¥6,000<\/td>$/.test(prows[0].replace(/<\/tr>\s*$/, '')));
+  ok('⑨ まだ決めていない商品は最後のマスが「—」', /<td class="num" style="background:#f0f8f2"><span class="dash">—<\/span><\/td>$/.test(prows[1].replace(/<\/tr>\s*$/, '')));
+  ok('⑨ 特別価格のマスの右隣がオリオサント（順序）', prows[0].indexOf('background:#fdf9f0') < prows[0].indexOf('background:#f0f8f2'));
+}
 
 /* ⑩ 計算用（NK）の決めごとはそのまま（2026-11-10）：keisan/keisan2 は最後・確認なし */
 ok('⑩ SIM_TIERS の最後は 計算用定価 → 計算用卸 のまま', /\{ tier:'keisan',[^\n]*\n\s*\{ tier:'keisan2',[^\n]*\n\];/.test(tiersSrc));
