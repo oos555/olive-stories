@@ -80,7 +80,7 @@ if(gasSrc){
     eq('① 送っていない商品(MEM500)は残る', mem[0], 'MEM500');
     eq('① 送っていない商品の計算用は0のまま', mem[11], 0);
     eq('① 送っていない商品の計算用卸も0のまま', mem[12], 0);
-    eq('① 行は13列で書かれる', org.length, 13);
+    eq('① 行は14列で書かれる（★2026-11-16 14列目 priceOriosanto＝オリオサント価格が足された）', org.length, 14);
   }
   /* ② 計算用を消す（null）→ 0 になる。続けて別の商品を消しても最初のが戻らない */
   {
@@ -120,8 +120,8 @@ if(gasSrc){
     const loadSrc = H.cut(gasSrc, 'loadAllData');
     ok('⑤ loadAllData が priceKeisan を返す', /priceKeisan:\(r\.length > 11 \? r\[11\] : 0\)/.test(loadSrc));
     ok('⑤ loadAllData が priceKeisanOroshi を返す', /priceKeisanOroshi:\(r\.length > 12 \? r\[12\] : 0\)/.test(loadSrc));
-    ok('⑤ saveAllData の headers に priceKeisan・priceKeisanOroshi（12・13列目）がある', /const headers = \[[^\]]*'priceOldLot','priceKeisan','priceKeisanOroshi'\]/.test(H.cut(gasSrc, 'saveAllData')));
-    ok('⑤ saveAllData の _pmFields に priceKeisan・priceKeisanOroshi がある', /const _pmFields = \[[^\]]*'priceOldLot','priceKeisan','priceKeisanOroshi'\]/.test(H.cut(gasSrc, 'saveAllData')));
+    ok('⑤ saveAllData の headers に priceKeisan・priceKeisanOroshi（12・13列目）がある（★2026-11-16 その右に14列目 priceOriosanto）', /const headers = \[[^\]]*'priceOldLot','priceKeisan','priceKeisanOroshi'(,'priceOriosanto')?\]/.test(H.cut(gasSrc, 'saveAllData')));
+    ok('⑤ saveAllData の _pmFields に priceKeisan・priceKeisanOroshi がある', /const _pmFields = \[[^\]]*'priceOldLot','priceKeisan','priceKeisanOroshi'(,'priceOriosanto')?\]/.test(H.cut(gasSrc, 'saveAllData')));
   }
 }
 
@@ -132,9 +132,10 @@ const tiersSrc = H.cutVar(im, 'SIM_TIERS');
 const mapSrc = H.cutVar(im, 'HM_KEY_TO_TIER');
 
 /* ⑥ 列：右端が「計算用定価 NK-TK」「計算用卸 NK-OS」。9列の並びはそのまま */
-ok('⑥ 見出しの一番右が 計算用定価（NK-TK）→ 計算用卸（NK-OS）', /特別提<br>供価格<br>[^<]*<span[^>]*>IT<\/span><\/th><th[^>]*>計算用<br>定価<br><span[^>]*>NK-TK<\/span><\/th><th[^>]*>計算用<br>卸<br><span[^>]*>NK-OS<\/span><\/th><\/tr><\/thead>/.test(hm));
-ok('⑥ グループ行の colspan が 12', hm.indexOf('colspan="12"') >= 0 && hm.indexOf('colspan="11"') < 0 && hm.indexOf('colspan="10"') < 0);
-ok('⑥ 列のループの最後が priceKeisan, priceKeisanOroshi（2か所）', (hm.match(/'priceSpecial','priceKeisan','priceKeisanOroshi'\]\.forEach/g) || []).length === 2);
+/* ★2026-11-16 IT と NK-TK の間に「オリオサント価格（OR）」が1列入った（test_oriosanto.js）。右端が計算用2本なのは変わらない */
+ok('⑥ 見出しの一番右が 計算用定価（NK-TK）→ 計算用卸（NK-OS）', /<th[^>]*>計算用<br>定価<br><span[^>]*>NK-TK<\/span><\/th><th[^>]*>計算用<br>卸<br><span[^>]*>NK-OS<\/span><\/th><\/tr><\/thead>/.test(hm));
+ok('⑥ グループ行の colspan が 13（2026-11-16 OR が1列増えて 12→13）', hm.indexOf('colspan="13"') >= 0 && hm.indexOf('colspan="12"') < 0 && hm.indexOf('colspan="11"') < 0);
+ok('⑥ 列のループの最後が priceKeisan, priceKeisanOroshi（2か所）', (hm.match(/'priceOriosanto','priceKeisan','priceKeisanOroshi'\]\.forEach/g) || []).length === 2);
 ok('⑥ 空のマスは「＋計算」（本番の列の「＋設定」と区別）', hm.indexOf('>＋計算</td>') >= 0 && hm.indexOf('を計算できます') >= 0);
 ok('⑥ 計算用卸の掛は計算用定価から（空なら定価から）', /priceKeisanOroshi[^\n]*priceRec\.priceKeisan/.test(hm) && hm.indexOf('_kakeBase') >= 0);
 
@@ -204,7 +205,7 @@ ok('⑩ billing.html / mitsumori.html / index.html に priceKeisan は無い', [
   /* 計算用定価を 10,000 で計算中（計算用卸はまだ空）→ 計算用卸の行は「-」、組み合わせは「計算用卸を入れると…」 */
   G.box.renderTier(10000, 'direct');
   let tb = el('sim-tier-tbody').innerHTML;
-  ok('⑪ 段の表は10行（8段＋計算用定価＋計算用卸）', (tb.match(/<tr/g) || []).length === 10);
+  ok('⑪ 段の表は11行（8段＋オリオサント価格＋計算用定価＋計算用卸）★2026-11-16 OR が1行増えた', (tb.match(/<tr/g) || []).length === 11);
   ok('⑪ 計算用定価の行：販売店の儲けは ¥0（定価と同じ）', /計算用定価（NK-TK）[\s\S]*?計算中[\s\S]*?<td[^>]*>¥10,000[\s\S]*?<td[^>]*>¥6,800<\/td><td[^>]*>¥0<\/td>/.test(tb));
   ok('⑪ 卸①の行の販売店の儲けは今の定価から（¥9,121−¥6,884＝¥2,237）', tb.indexOf('¥2,237') >= 0);
   ok('⑪ 組み合わせ：計算用卸が空なら案内', el('sim-keisan-pair').innerHTML.indexOf('計算用卸を入れると、掛・販売店の儲け・うちの儲けがここに出ます') >= 0 && el('sim-keisan-pair').innerHTML.indexOf('計算用定価 <strong>¥10,000</strong>') >= 0);

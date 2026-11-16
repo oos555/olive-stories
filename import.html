@@ -7,7 +7,7 @@
 <!-- ★2026-08-18 版の見張り（古いコピーを開いていたら自動で最新に取り直す）。
      この2行と oos-version.js / version.json を消さないでください。
      消すと「直したのに古いまま」「戻ったように見える」が また起きます。 -->
-<meta name="oos-version" content="2026-11-10-02">
+<meta name="oos-version" content="2026-11-16-01">
 <script src="oos-version.js"></script>
 <!-- ★2026-09-12 日付の形をそろえる【親】。スプシを通ると時刻つきに化けるため。
      これが無いと「NaN月NaN日」や、1日ずれた出荷指示が出ます。消さないでください。 -->
@@ -783,13 +783,14 @@ tr:last-child td{border-bottom:none}
             <span class="hm-chip hm-chip-code" style="background:#fdf6e3;color:#8a5a12">QR＝旧ロット</span>
             <span class="hm-chip hm-chip-code">FT＝不良品用特価</span>
             <span class="hm-chip hm-chip-code">IT＝特別提供価格</span>
+            <span class="hm-chip hm-chip-code" style="background:#e6f4ea;color:#14532d">OR＝オリオサント価格</span>
             <span class="hm-chip hm-chip-code" style="background:#efe9fb;color:#4c1d95">NK-TK＝計算用定価</span>
             <span class="hm-chip hm-chip-code" style="background:#efe9fb;color:#4c1d95">NK-OS＝計算用卸</span>
           </div>
           <div class="hm-help-label">🔔 保存のときの確認</div>
           <div class="hm-chips">
             <span class="hm-chip" style="background:#fdf0d8;color:#78350f"><strong>定価・卸①・RT</strong> → しっかり確認が出る</span>
-            <span class="hm-chip" style="background:#f5f0e8;color:#57534e"><strong>卸②・BA・QR・FT・IT</strong> → 軽い確認だけ</span>
+            <span class="hm-chip" style="background:#f5f0e8;color:#57534e"><strong>卸②・BA・QR・FT・IT・OR</strong> → 軽い確認だけ</span>
             <span class="hm-chip" style="background:#efe9fb;color:#4c1d95"><strong>NK-TK・NK-OS（計算用定価・計算用卸）</strong> → 確認なし（計算用のメモ・お客様の価格には使われない）</span>
           </div>
           <div class="hm-help-note">※利益率＝（売値−原価）÷売値。掛け率は売値÷原価。FT・IT・BA・QRは「＋設定」から新しく決められ、決めたITは見積・請求書Mの特価入口が自動で拾います。</div>
@@ -1856,7 +1857,7 @@ function setFieldOnMaster(master, sku, field, value){
   let r = master.find(function(x){ return x.sku===sku; });
   if(!r){
     const dp = (typeof DEFAULT_PRICES!=='undefined' && DEFAULT_PRICES[sku]) ? DEFAULT_PRICES[sku] : {};
-    r = {sku:sku, productName:(dp.productName||sku), priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOldLot:0, priceKeisan:0, priceKeisanOroshi:0};
+    r = {sku:sku, productName:(dp.productName||sku), priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOriosanto:0, priceOldLot:0, priceKeisan:0, priceKeisanOroshi:0};
     master.push(r);
   }
   r[field] = value;
@@ -2104,7 +2105,7 @@ function profitColor(rate){
 function renderProfitHeatmap(){
   const tbl = document.getElementById('profit-heatmap-table');
   if(!tbl) return;
-  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">TK</span></th><th style="padding:6px 6px;text-align:right">卸①<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS1</span></th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS2</span></th><th style="padding:6px 6px;text-align:right">RT<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">RT</span></th><th style="padding:6px 5px;text-align:right;background:#eef7ef">卸バサラ<br>スター<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">BA</span></th><th style="padding:6px 5px;text-align:right;background:#fdf6e3;color:#8a5a12">旧ロット<br><span style="font-size:9.5px;font-weight:600;color:#b08018">QR</span></th><th style="padding:6px 5px;text-align:right;background:#fdeeee">不良品<br>用特価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">FT</span></th><th style="padding:6px 5px;text-align:right;background:#fdf3df">特別提<br>供価格<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">IT</span></th><th style="padding:6px 5px;text-align:right;background:#efe9fb;color:#4c1d95;border-left:3px solid #7c3aed">計算用<br>定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">NK-TK</span></th><th style="padding:6px 5px;text-align:right;background:#efe9fb;color:#4c1d95">計算用<br>卸<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">NK-OS</span></th></tr></thead><tbody>';
+  let html = '<thead><tr><th style="padding:6px 8px;text-align:left;white-space:nowrap">商品</th><th style="padding:6px 6px;text-align:right">原価</th><th style="padding:6px 6px;text-align:right">定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">TK</span></th><th style="padding:6px 6px;text-align:right">卸①<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS1</span></th><th style="padding:6px 6px;text-align:right;background:#eef4fb">卸②<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OS2</span></th><th style="padding:6px 6px;text-align:right">RT<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">RT</span></th><th style="padding:6px 5px;text-align:right;background:#eef7ef">卸バサラ<br>スター<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">BA</span></th><th style="padding:6px 5px;text-align:right;background:#fdf6e3;color:#8a5a12">旧ロット<br><span style="font-size:9.5px;font-weight:600;color:#b08018">QR</span></th><th style="padding:6px 5px;text-align:right;background:#fdeeee">不良品<br>用特価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">FT</span></th><th style="padding:6px 5px;text-align:right;background:#fdf3df">特別提<br>供価格<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">IT</span></th><th style="padding:6px 5px;text-align:right;background:#e6f4ea;color:#14532d">オリオ<br>サント<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">OR</span></th><th style="padding:6px 5px;text-align:right;background:#efe9fb;color:#4c1d95;border-left:3px solid #7c3aed">計算用<br>定価<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">NK-TK</span></th><th style="padding:6px 5px;text-align:right;background:#efe9fb;color:#4c1d95">計算用<br>卸<br><span style="font-size:9.5px;font-weight:600;color:#8a867c">NK-OS</span></th></tr></thead><tbody>';
   // ★2026-07-19 商品マスタ（請求Cの価格マスタ閲覧）と同じ商品・同じグループ・同じ並びで表示する。
   //   商品マスタが未取得のときは従来どおり価格マスタの並びで表示（フォールバック）。
   let items;
@@ -2124,7 +2125,7 @@ function renderProfitHeatmap(){
   });
   groupOrder.forEach(function(g){
     if(g !== ''){
-      html += '<tr><td colspan="12" style="padding:6px 8px;background:#eeece6;font-weight:800;color:#2b2a26">'+esc(g)+'</td></tr>';
+      html += '<tr><td colspan="13" style="padding:6px 8px;background:#eeece6;font-weight:800;color:#2b2a26">'+esc(g)+'</td></tr>';
     }
     byGroup[g].forEach(function(p){
       const cost = getCostForSku(p.sku);
@@ -2133,7 +2134,7 @@ function renderProfitHeatmap(){
       if(!cost){
         // 原価が未入力の商品：隠さずに⚠️印で表示（金額は薄く表示のみ・色分けと調整は原価を入れてから）
         html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を入れられます（セット・備品もOK）" style="padding:5px 6px;text-align:right;cursor:pointer"><span style="background:#fdf0d8;color:#a05a10;font-weight:700;border-radius:5px;padding:2px 7px;font-size:10.5px;white-space:nowrap">⚠️ 原価未入力</span><div style="font-size:9px;color:#a05a10;font-weight:700;margin-top:2px">＋原価を入れる</div></td>';   /* ★2026-08-07 セット・備品を含め、どの商品も原価を直接入れられる（本物の原価） */
-        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceKeisan','priceKeisanOroshi'].forEach(function(key){
+        ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceOriosanto','priceKeisan','priceKeisanOroshi'].forEach(function(key){
           const price = parseFloat(priceRec[key])||0;
           html += '<td style="padding:5px 6px;text-align:right;color:#9ca3af">'+(price? '¥'+price.toLocaleString() : '-')+'</td>';
         });
@@ -2146,7 +2147,7 @@ function renderProfitHeatmap(){
         html += '<td onclick="editConfirmedCost(\''+p.sku+'\')" title="押すと原価を直せます" style="padding:5px 6px;text-align:right;color:#57534e;cursor:pointer">¥'+cost.toLocaleString()+'<div style="font-size:9px;color:#8a867c;font-weight:700;margin-top:2px">✏ 直す</div></td>';
       }
       const _openTK = parseFloat(priceRec['priceGeneral'])||0; // ◯掛け計算用の定価
-      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceKeisan','priceKeisanOroshi'].forEach(function(key){
+      ['priceGeneral','priceWholesale1','priceWholesale2','priceRT','priceBasara','priceOldLot','priceDefect','priceSpecial','priceOriosanto','priceKeisan','priceKeisanOroshi'].forEach(function(key){
         const price = parseFloat(priceRec[key])||0;
         const emptySettable = true; // ★2026-08-04 定価も含めて、空(未設定)なら＋設定として表示し、押して設定できる（適用時に「定価はほんとうに変えますか？」で確認）
         if(!price && emptySettable){
@@ -2221,11 +2222,12 @@ const SIM_TIERS = [
   { tier:'oldlot',     label:'旧ロット（QR）',       field:'priceOldLot',     strong:false },
   { tier:'defect',     label:'不良品用特価（FT）',       field:'priceDefect',     strong:false },
   { tier:'special',    label:'特別提供価格（IT）',     field:'priceSpecial',    strong:false },
+  { tier:'orio',       label:'オリオサント価格（OR）', field:'priceOriosanto',  strong:false }, /* ★2026-11-16 ひろみさん「オリオサントのれいこさん用の価格をつくりたかった。特別提供の後ろで」。IT と同じ扱い（軽い確認・1マスずつ消せる）。価格マスタ14列目 */
   { tier:'keisan',     label:'計算用定価（NK-TK）',   field:'priceKeisan',       strong:false, keisan:true, kname:'計算用定価', kbase:'priceGeneral',    kbaseLabel:'定価' }, /* ★2026-11-10 値上げを考えるための計算用。お客様の価格には使われない。確認なしで残す */
   { tier:'keisan2',    label:'計算用卸（NK-OS）',     field:'priceKeisanOroshi', strong:false, keisan:true, kname:'計算用卸',   kbase:'priceWholesale1', kbaseLabel:'卸①' }  /* ★2026-11-10 ひろみさん「計算用定価、計算用卸っていうのを作りたい」。販売店の儲けと掛は計算用定価から出す */
 ];
 function simTierByKey(t){ return SIM_TIERS.find(function(x){ return x.tier===t; }) || SIM_TIERS[2]; }
-const HM_KEY_TO_TIER = { priceGeneral:'general', priceWholesale1:'wholesale1', priceWholesale2:'wholesale2', priceRT:'rt', priceBasara:'basara', priceOldLot:'oldlot', priceDefect:'defect', priceSpecial:'special', priceKeisan:'keisan', priceKeisanOroshi:'keisan2' };
+const HM_KEY_TO_TIER = { priceGeneral:'general', priceWholesale1:'wholesale1', priceWholesale2:'wholesale2', priceRT:'rt', priceBasara:'basara', priceOldLot:'oldlot', priceDefect:'defect', priceSpecial:'special', priceOriosanto:'orio', priceKeisan:'keisan', priceKeisanOroshi:'keisan2' };
 
 let currentSimSku = null;       // いま右に出している商品
 let currentSimTier = 'wholesale2'; // いま調整している段階
@@ -2403,6 +2405,7 @@ function renderTier(price, from){
     oldlot:     parseFloat(rec.priceOldLot)     || 0,
     defect:     parseFloat(rec.priceDefect)     || 0,
     special:    parseFloat(rec.priceSpecial)    || 0,
+    orio:       parseFloat(rec.priceOriosanto)  || 0,
     keisan:     parseFloat(rec.priceKeisan)     || 0,
     keisan2:    parseFloat(rec.priceKeisanOroshi) || 0
   };
@@ -2532,6 +2535,7 @@ function renderPer500(master, adjPrice, tier){
     {t:'oldlot',     label:'旧ロット（QR）'},
     {t:'defect',     label:'不良品用特価（FT）'},
     {t:'special',    label:'特別提供価格（IT）'},
+    {t:'orio',       label:'オリオサント価格（OR）'},
     {t:'keisan',     label:'計算用定価（NK-TK）'},
     {t:'keisan2',    label:'計算用卸（NK-OS）'}
   ];
@@ -2657,7 +2661,7 @@ function applyLocalPriceEdits(master){
     let r = master.find(function(x){ return x.sku===s; });
     if(!r){
       const dp = DEFAULT_PRICES[s] || {};
-      r = {sku:s, productName:s, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceKeisan:0, priceKeisanOroshi:0};
+      r = {sku:s, productName:s, priceGeneral:dp.priceGeneral||0, priceWholesale1:dp.priceWholesale1||0, priceWholesale2:dp.priceWholesale2||0, priceRT:dp.priceRT||0, priceBasara:dp.priceBasara||0, priceDefect:0, priceSpecial:0, priceOriosanto:0, priceKeisan:0, priceKeisanOroshi:0};
       master.push(r);
     }
     Object.keys(priceLocalEdits[s]).forEach(function(f){ r[f] = priceLocalEdits[s][f]; });
