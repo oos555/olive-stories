@@ -460,7 +460,10 @@ eq('参考：0 で止まる', oya3, 0);
      親はDropboxのエクセル2つ（発注枚数管理表／紙袋・テイスティングカップ）と、やりとり記録のフォルダ。写しは持たない・開くだけ。 */
   const bihinHref = function(id){ var m = tm.match(new RegExp('id="' + id + '"[^>]*href="([^"]*)"')); return m ? m[1] : ''; };
   /* ★2026-11-11 中村様「差し替えて」：ボタン3つ → 1つにまとめたExcel「備品台帳（紙袋・シール・印刷物）.xlsx」を開くボタン1つ。見張りも④⑤⑥の3つ → ④の1つ（数は2つ減る） */
-  eq('頼みごとメモ④ 備品の購入記録は「備品台帳」を開くボタン1つ（Dropboxのプレビューで開く・古い3つのボタンは無い）', bihinHref('bihin-daicho').indexOf('https://www.dropbox.com/preview/') === 0 && bihinHref('bihin-daicho').endsWith(encodeURIComponent('備品台帳（紙袋・シール・印刷物）.xlsx')) && [bihinHref('bihin-kanri'), bihinHref('bihin-shina'), bihinHref('bihin-folder')].join('') === '' && tm.indexOf('購入備品の管理') > 0, true);   /* 箱の名前は「購入備品の管理」（2026-11-11 中村様） */
+  /* ★2026-11-17 ひろみさん「ファイル名 備品台帳2026～ にして」：Excelの名前を「備品台帳2026～.xlsx」に。Dropboxのリンクもその名前。古い3つのボタンは無いまま */
+  eq('頼みごとメモ④ 備品の購入記録は「備品台帳2026～.xlsx」をDropboxのプレビューで開くボタン（古い3つのボタンは無い）', bihinHref('bihin-daicho').indexOf('https://www.dropbox.com/preview/') === 0 && bihinHref('bihin-daicho').endsWith(encodeURIComponent('備品台帳2026～.xlsx')) && [bihinHref('bihin-kanri'), bihinHref('bihin-shina'), bihinHref('bihin-folder')].join('') === '' && tm.indexOf('購入備品の管理') > 0, true);   /* 箱の名前は「購入備品の管理」（2026-11-11 中村様） */
+  /* ★2026-11-17 ひろみさん「クリックするとそのExcelが開くっていうのが理想」：このパソコンのExcelで直接開くボタン。href は oos-bihin:open だけ（ファイルの場所はリンクに書かない・Windows側の C:\Users\cucin\oos\open-bihin.vbs が持つ） */
+  eq('頼みごとメモ⑧ 「このパソコンのExcelで開く」ボタンは oos-bihin:open で、Dropboxのボタンより先に並ぶ', bihinHref('bihin-excel') === 'oos-bihin:open' && tm.indexOf('id="bihin-excel"') < tm.indexOf('id="bihin-daicho"') && tm.indexOf('このパソコンのExcelで開く') > 0, true);
   eq('頼みごとメモ⑦ 入口は3つのタブのボタンの下（どのタブでも見える・タブの中に入れていない）', tm.indexOf('id="bihin-box"') > tm.indexOf('id="mtab-fixed"') && tm.indexOf('id="bihin-box"') < tm.indexOf('<div id="tab-tanomi">'), true);
   /* ★2026-10-22 輸入・原価Ｅ「🌿 農園とのやり取り記録と改善」も同じ穴だった（2026-07-31 から端末にしか残っていなかった） */
   eq('農園とのやり取り 追記・ルール① 社長の鍵（原価Ｅの鍵と同じ）で開く', G.stickyMemoPasswordOk('農園とのやり取り 追記・ルール', 'S1'), true);
