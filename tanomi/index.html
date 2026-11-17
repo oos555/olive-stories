@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🤝 チームの頼みごと</title>
+<!-- ★版の目印。tests/test_mihari_soten.js が version.json と突き合わせます。この2行と version.json を消さないでください。 -->
+<meta name="oos-version" content="2026-11-17-01">
+<script src="../oos-version.js"></script>
+<!--
+  🤝 チームの頼みごと（単独の1本・玄関からはつながない）
+  正本：mocks/mock_チーム頼みごと_2026-11-17.html（2026-11-17 ひろみさん「これで作って」）
+  ・ねらいは1つ：「頼んだ／受けた」がお互いに見えること。会話はLINE、ここは開いている頼みごとの台帳だけ。
+  ・書くのは4つだけ：何を／誰に（何人でも・みんな・自分も）／いつまで（日付を選ぶだけ）／完成の形（任意）
+  ・状態はボタン4つだけ：受けた／質問あり／無理→いつなら／できた。押した人と日時が残る。何人かに頼んだら一人ずつ押す。
+  ・鍵はゆかメモJと同じ（group 'j'・この端末が覚えた oos_unlock_j をそのまま使う）
+  ・保存は今のGASの「チーム頼みごと」シート（saveStickyMemo／kind:'teamtask'）。GASは stickyMemoPasswordOk に1行足しただけ。
+  ・この端末の記録（localStorage）はサーバーが空で返っても消さない（安全マージ・外部依頼Tと同じ）
+-->
+<style>
+  :root { --ink:#2b2a26; --sub:#6b5f4e; --mute:#8a857a; --line:#d8cfc0; --brown:#8a7a4a; --rose:#8d6a66; --orange:#e0a23c; --red:#d9534f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f1efe9; color:var(--ink); font-family:"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif; font-size:13px; line-height:1.55; }
+  .phone { max-width:760px; margin:0 auto; background:#fff; min-height:100vh; padding-bottom:40px; }
+  .top { background:var(--brown); color:#fff; padding:12px 14px; }
+  .top .t { font-size:17px; font-weight:800; }
+  .top .s { font-size:11.5px; opacity:.9; margin-top:2px; }
+  #sync { font-size:11px; color:var(--mute); margin:6px 12px 0; min-height:14px; }
+  .addform { margin:10px 12px 0; border:2px solid #c39c98; background:#fbf7f6; border-radius:13px; padding:12px; }
+  .lbl2 { font-size:12.5px; font-weight:800; color:#5a4340; margin:8px 0 3px; }
+  .lbl2 small { font-weight:600; color:#8a7a77; }
+  .v-in { width:100%; border:2px solid var(--line); border-radius:10px; padding:9px 11px; font-size:15px; font-weight:700; color:var(--ink); background:#fff; font-family:inherit; }
+  .v-in:focus { outline:none; border-color:var(--rose); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips span { border:2px solid var(--line); background:#fff; border-radius:9px; padding:6px 11px; font-weight:800; color:var(--sub); font-size:13px; cursor:pointer; user-select:none; }
+  .chips span.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  .hint { font-size:11.5px; color:var(--mute); margin-top:3px; }
+  .formbtns { display:flex; gap:8px; margin-top:12px; }
+  .formbtns button { flex:1; border:none; font-size:14px; font-weight:800; padding:10px; border-radius:10px; font-family:inherit; cursor:pointer; }
+  .mk { background:var(--rose); color:#fff; } .cancel { background:#eee; color:#555; }
+  .count { color:var(--mute); font-size:12px; margin:12px 12px 4px; font-weight:700; }
+  .card { margin:8px 12px; background:#fff; border:2px solid #e3dccb; border-radius:12px; padding:10px 12px; }
+  .card.q { border-color:var(--orange); background:#fff9ec; }
+  .card.late { border-color:var(--red); }
+  .card.done { opacity:.6; }
+  .r1 { display:flex; gap:8px; align-items:flex-start; }
+  .r1 .what { flex:1; font-size:15px; font-weight:800; color:var(--ink); word-break:break-word; }
+  .r1 .due { flex:0 0 auto; text-align:right; font-size:12px; font-weight:800; color:var(--sub); }
+  .r1 .due b { display:block; font-size:14px; }
+  .due.near b, .due.late b { color:var(--red); }
+  .r2 { font-size:12.5px; color:#5b5a53; margin-top:4px; }
+  .r2 .arrow { color:var(--brown); font-weight:800; }
+  .r3 { font-size:12px; color:var(--sub); margin-top:4px; background:#f6f3eb; border-radius:8px; padding:6px 9px; white-space:pre-wrap; word-break:break-word; }
+  .st { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
+  .st button { border:2px solid var(--line); background:#fff; color:var(--sub); font-size:12px; font-weight:800; padding:6px 10px; border-radius:9px; font-family:inherit; cursor:pointer; }
+  .st button.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  .st button.on.q { background:var(--orange); border-color:var(--orange); }
+  .st button.ok { border-color:var(--rose); color:var(--rose); }
+  .st button.ok.on { background:var(--rose); color:#fff; }
+  .st .mark { font-size:11.5px; color:var(--mute); font-weight:700; margin-left:auto; text-align:right; }
+  .sm { font-size:11.5px; color:var(--mute); margin-top:6px; }
+  .sm a { color:var(--brown); font-weight:800; text-decoration:none; margin-right:10px; cursor:pointer; }
+  .tools { margin:14px 12px 0; display:flex; gap:6px; flex-wrap:wrap; }
+  .tools button { flex:1 1 46%; border:2px solid var(--line); background:#fff; color:var(--sub); font-size:12px; font-weight:800; padding:8px 6px; border-radius:9px; font-family:inherit; cursor:pointer; }
+  .empty { text-align:center; color:var(--mute); padding:22px 10px; font-weight:700; }
+  .editform { margin:0; }
+  /* 鍵の窓 */
+  #keyov { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
+  #keyov .box { background:#fff; border-radius:14px; padding:22px 20px; max-width:340px; width:100%; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+  #keyov .h { font-size:16px; font-weight:800; margin-bottom:8px; }
+  #keyov input { width:100%; border:2px solid var(--line); border-radius:10px; padding:10px 12px; font-size:18px; font-family:inherit; }
+  #keyov button { width:100%; margin-top:10px; border:none; background:var(--brown); color:#fff; font-weight:800; font-size:15px; padding:11px; border-radius:10px; font-family:inherit; cursor:pointer; }
+  #keymsg { font-size:12px; color:var(--red); min-height:16px; margin-top:6px; }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#2b2a26; color:#fff; padding:9px 14px; border-radius:10px; font-size:13px; font-weight:700; opacity:0; transition:opacity .2s; pointer-events:none; max-width:92vw; }
+  .toast.show { opacity:.95; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="top"><div class="t">🤝 チームの頼みごと</div><div class="s">単独のページ（玄関からはつながない）／ 鍵は1つ（チームの合鍵）</div></div>
+  <div id="sync"></div>
+
+  <!-- 入力はいちばん上にまとめる：わたしは → 誰に → 何を → いつまで → 完成の形 -->
+  <div class="addform" id="addform">
+    <div class="lbl2" style="margin-top:0">わたしは <small>（この端末で1回選べば次から覚えます）</small></div>
+    <div class="chips" id="me-chips"></div>
+    <div class="lbl2">誰に <small>（何人でも押せます。もう一度押すと外れます。自分も選べます）</small></div>
+    <div class="chips" id="to-chips"></div>
+    <div class="hint">「みんな」を押すと4人全部が入り、もう一度押すと全部外れます。例：ゆかとおだもだけ → その2つだけ押す。</div>
+    <div class="lbl2">何を <small>（1行で）</small></div>
+    <input class="v-in" id="f-what" placeholder="例）100ml裏ラベルの改良版（賞味期限2つ）">
+    <div class="lbl2">いつまで <small>（日付を選ぶ。「明日」「3日後」のような押しボタンは置かない）</small></div>
+    <input class="v-in" id="f-due" type="date">
+    <div class="lbl2">完成の形 <small>（どんな形で・どこに出せば完成か。なくてもOK）</small></div>
+    <input class="v-in" id="f-how" placeholder="例）PDFをDropboxの部分ラベルフォルダへ。印刷して12/5までに福岡へ">
+    <div class="formbtns"><button class="mk" onclick="tCreate()">記録して、LINEに貼る文をコピー</button><button class="cancel" onclick="tClearForm()">消す</button></div>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+
+  <div class="tools">
+    <button onclick="tCopyOpenList()">📋 開いている一覧をコピー（月曜にLINEへ貼る用）</button>
+    <button id="done-toggle" onclick="tToggleDone()">▷ できたもの（0）を見る</button>
+  </div>
+  <div id="done-list"></div>
+</div>
+
+<div id="keyov"><div class="box"><div class="h">🔑 チームの合鍵を入れてください</div><div style="font-size:12px;color:#6b5f4e;margin-bottom:8px">ゆかメモと同じ鍵です。この端末で1回入れれば次からは聞きません。</div><input id="keyin" type="password" autocomplete="current-password"><div id="keymsg"></div><button id="keyok">ひらく</button></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* 合鍵の文字はこのファイルに書きません。入力された合鍵をGASに送り、GAS側で判定します。 */
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRNgyNZ3HjU7nPSpxCn7uUiMu3MY6ZijEsCtB7Toj_7x9Fu1v5VFyMDLheNZAON4OV/exec';
+var SHEET_NAME = 'チーム頼みごと';          /* GAS stickyMemoPasswordOk に 2026-11-17 追加（ゆかメモJと同じ鍵 group 'j'） */
+var KEY_GROUP  = 'j';
+var UNLOCK_KEY = 'oos_unlock_j';           /* ゆかメモJと同じ置き場。ゆかメモで入れた鍵がそのまま使える */
+var CACHE_KEY  = 'oos_team_tanomi_cache_v1';
+var ME_KEY     = 'oos_team_tanomi_me';
+var MEMBERS = ['ひろみ','ゆか','おだも','あやちん'];           /* 「みんな」＝この4人 */
+var TO_CHOICES = ['みんな','ひろみ','ゆか','おだも','あやちん','れいこさん'];
+var STATES = { received:'受けた', question:'質問あり', cannot:'無理→いつなら', done:'できた' };
+
+var password = '';
+var TASKS = [];
+var ME = '';
+var TO = [];
+var doneOpen = false;
+
+/* ── 小道具 ── */
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function escAttr(x){ return (x==null?'':String(x)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg){ var t=document.getElementById('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); clearTimeout(toast._h); toast._h=setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+function setSync(msg){ var el=document.getElementById('sync'); if(el) el.textContent=msg||''; }
+function pad2(n){ return (n<10?'0':'')+n; }
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function dueParts(due){ var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(due||''); if(!m) return null; return { y:+m[1], mo:+m[2], d:+m[3], date:new Date(+m[1], +m[2]-1, +m[3]) }; }
+function dueLabel(due){ var p=dueParts(due); if(!p) return '（日付なし）'; var yobi='日月火水木金土'[p.date.getDay()]; return p.mo+'/'+p.d+'（'+yobi+'）'; }
+function daysLeft(due, today){ var p=dueParts(due); if(!p) return null; var t=dueParts(today||todayStr()); return Math.round((p.date - t.date)/86400000); }
+function daysText(n){ if(n==null) return ''; if(n>0) return 'あと'+n+'日'; if(n===0) return 'きょう'; return (-n)+'日すぎ'; }
+function stamp(iso){ try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes()); }catch(e){ return ''; } }
+function shortDate(iso){ try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate(); }catch(e){ return ''; } }
+
+/* ── 保存の形（GASの付箋メモと同じ入れ物に、kind:'teamtask' のJSONを入れる）── */
+function isTaskMemo(m){ if(!m) return false; try{ var pp=JSON.parse(m.text||'{}'); return pp && pp.kind==='teamtask'; }catch(e){ return false; } }
+function fromTask(m){
+  if(!m) return null;
+  var pp={}; try{ pp=JSON.parse(m.text||'{}'); }catch(e){ return null; }
+  if(pp.kind!=='teamtask') return null;
+  return { id:String(m.id), kind:'teamtask', what:pp.what||'', to:Array.isArray(pp.to)?pp.to:[], by:pp.by||'', due:pp.due||'', how:pp.how||'',
+           states:(pp.states&&typeof pp.states==='object')?pp.states:{}, createdAt:m.createdAt||pp.createdAt||'' };
+}
+function toTask(t){
+  return { id:String(t.id),
+    text: JSON.stringify({ kind:'teamtask', what:t.what||'', to:t.to||[], by:t.by||'', due:t.due||'', how:t.how||'', states:t.states||{} }),
+    reminderDate: t.due||'', tellSomeone:false, done: isAllDone(t), createdAt: t.createdAt||new Date().toISOString() };
+}
+function isAllDone(t){ var to=(t.to||[]); if(!to.length) return false; for(var i=0;i<to.length;i++){ var s=(t.states||{})[to[i]]; if(!s || s.s!=='done') return false; } return true; }
+function hasQuestion(t){ var st=t.states||{}; for(var k in st){ if(st[k] && st[k].s==='question') return true; } return false; }
+function anyResponse(t){ var st=t.states||{}; for(var k in st){ if(st[k] && st[k].s) return true; } return false; }
+function isEveryone(to){ if(!to || to.length!==MEMBERS.length) return false; for(var i=0;i<MEMBERS.length;i++){ if(to.indexOf(MEMBERS[i])<0) return false; } return true; }
+function toLabel(to){ to=to||[]; return isEveryone(to) ? 'みんな（'+MEMBERS.join('・')+'）' : to.join('・'); }
+/* 並び：質問あり → 〆切が近い順（日付なしは最後）。できたものは別の段に */
+function sortOpen(list){
+  return list.slice().sort(function(a,b){
+    var qa=hasQuestion(a)?0:1, qb=hasQuestion(b)?0:1; if(qa!==qb) return qa-qb;
+    var da=a.due||'9999-99-99', db=b.due||'9999-99-99'; if(da!==db) return da<db?-1:1;
+    return String(a.createdAt).localeCompare(String(b.createdAt));
+  });
+}
+
+/* ── LINEに貼る文 ── */
+function lineText(t){
+  var lines=['【頼みごと】'+(t.by||'')+' → '+toLabel(t.to), '何を：'+(t.what||''), 'いつまで：'+dueLabel(t.due)];
+  if(t.how) lines.push('完成の形：'+t.how);
+  lines.push('受けたら「受けた」、聞きたいことがあれば「質問あり」を押してください（チームの頼みごと）');
+  return lines.join('\n');
+}
+function openListText(list, today){
+  var open=sortOpen((list||TASKS).filter(function(t){ return !isAllDone(t); }));
+  var head='【開いている頼みごと】'+shortDate(today?new Date(today):new Date())+'現在 '+open.length+'件';
+  var rows=open.map(function(t){
+    var tag=hasQuestion(t)?'（質問あり・'+(t.by||'')+'の返事待ち）':(anyResponse(t)?'':'（まだ返事なし）');
+    return '・'+dueLabel(t.due)+'まで ／ '+toLabel(t.to)+'：'+t.what+tag;
+  });
+  return [head].concat(rows).join('\n');
+}
+function copyText(txt, msg){
+  var done=function(){ toast(msg||'コピーしました'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ window.prompt('この文字をコピーしてください', txt); }); }
+  else { window.prompt('この文字をコピーしてください', txt); }
+}
+
+/* ── 画面 ── */
+function renderMeChips(){
+  var box=document.getElementById('me-chips'); if(!box) return;
+  box.innerHTML = MEMBERS.map(function(n){ return '<span class="'+(ME===n?'on':'')+'" onclick="setMe(\''+n+'\')">'+esc(n)+'</span>'; }).join('');
+}
+function setMe(n){ ME=n; try{ localStorage.setItem(ME_KEY, n); }catch(e){} renderMeChips(); renderList(); }
+function renderToChips(){
+  var box=document.getElementById('to-chips'); if(!box) return;
+  box.innerHTML = TO_CHOICES.map(function(n){ var on = (n==='みんな') ? isEveryone(TO) : (TO.indexOf(n)>=0); return '<span class="'+(on?'on':'')+'" onclick="toggleTo(\''+n+'\')">'+esc(n)+'</span>'; }).join('');
+}
+function toggleTo(n){
+  if(n==='みんな'){ TO = isEveryone(TO) ? TO.filter(function(x){ return MEMBERS.indexOf(x)<0; }) : MEMBERS.slice().concat(TO.filter(function(x){ return MEMBERS.indexOf(x)<0; })); }
+  else { var i=TO.indexOf(n); if(i>=0) TO.splice(i,1); else TO.push(n); }
+  renderToChips();
+}
+function tClearForm(){ TO=[]; renderToChips(); var w=document.getElementById('f-what'), d=document.getElementById('f-due'), h=document.getElementById('f-how'); if(w) w.value=''; if(d) d.value=''; if(h) h.value=''; }
+function tCreate(){
+  if(!ME){ alert('まず「わたしは」を選んでください。'); return; }
+  var what=(document.getElementById('f-what').value||'').trim();
+  var due=(document.getElementById('f-due').value||'').trim();
+  var how=(document.getElementById('f-how').value||'').trim();
+  if(!TO.length){ alert('「誰に」を1人以上選んでください。'); return; }
+  if(!what){ alert('「何を」を1行で入れてください。'); return; }
+  if(!due){ alert('「いつまで」の日付を選んでください。'); return; }
+  var t={ id:Date.now()+''+Math.floor(Math.random()*1000), kind:'teamtask', what:what, to:TO.slice(), by:ME, due:due, how:how, states:{}, createdAt:new Date().toISOString() };
+  TASKS.push(t); tSaveSync(t); tClearForm(); renderList();
+  copyText(lineText(t), '記録しました。LINEに貼る文をコピーしました');
+}
+function card(t, today){
+  var n=daysLeft(t.due, today), q=hasQuestion(t), all=isAllDone(t);
+  var dueCls = (n!=null && n<0) ? 'late' : ((n!=null && n<=3) ? 'near' : '');
+  var cls='card'+(q?' q':'')+((n!=null && n<0 && !all)?' late':'')+(all?' done':'');
+  var my = (t.states||{})[ME] || {};
+  var marks=[];
+  (t.to||[]).forEach(function(p){ var s=(t.states||{})[p]; if(!s||!s.s){ marks.push(p+' まだ'); return; } var tx=p+' '+(STATES[s.s]||s.s); if(s.at) tx+='（'+stamp(s.at)+'）'; if(s.note) tx+='「'+s.note+'」'; marks.push(tx); });
+  var mark = anyResponse(t) ? marks.join('／') : 'まだ返事なし（24時間たったら頼んだ人がもう一度聞く）';
+  var btn=function(k, extra){ return '<button class="'+(extra||'')+(my.s===k?' on':'')+(k==='question'&&my.s===k?' q':'')+'" onclick="tState(\''+t.id+'\',\''+k+'\')">'+STATES[k]+'</button>'; };
+  return '<div class="'+cls+'" id="card-'+escAttr(t.id)+'">'
+    +'<div class="r1"><div class="what">'+esc(t.what)+'</div><div class="due '+dueCls+'">〆切<b>'+esc(dueLabel(t.due))+'</b>'+esc(daysText(n))+'</div></div>'
+    +'<div class="r2">'+esc(t.by)+' <span class="arrow">→</span> '+esc(toLabel(t.to))+'　（'+esc(shortDate(t.createdAt))+'に頼んだ）</div>'
+    +(t.how?('<div class="r3">完成の形：'+esc(t.how)+'</div>'):'')
+    +'<div class="st">'+btn('received')+btn('question')+btn('cannot')+btn('done','ok')+'<span class="mark">'+esc(mark)+'</span></div>'
+    +'<div class="sm"><a onclick="tCopyLine(\''+t.id+'\')">📋 LINEに貼る文をコピー</a><a onclick="tEdit(\''+t.id+'\')">✏️ 直す</a></div>'
+    +'</div>';
+}
+function renderList(){
+  var box=document.getElementById('list'), cnt=document.getElementById('count'); if(!box) return;
+  var open=sortOpen(TASKS.filter(function(t){ return !isAllDone(t); }));
+  var done=TASKS.filter(function(t){ return isAllDone(t); }).sort(function(a,b){ return String(b.createdAt).localeCompare(String(a.createdAt)); });
+  if(cnt) cnt.textContent='開いている頼みごと（'+open.length+'件）／ 〆切が近い順。🟠は「質問あり」＝返事をしないと止まっているもの。';
+  box.innerHTML = open.length ? open.map(function(t){ return card(t); }).join('') : '<div class="empty">いま開いている頼みごとはありません。<br>上の欄から入れられます。</div>';
+  var tg=document.getElementById('done-toggle'); if(tg) tg.textContent=(doneOpen?'▽':'▷')+' できたもの（'+done.length+'）を'+(doneOpen?'とじる':'見る');
+  var dl=document.getElementById('done-list'); if(dl) dl.innerHTML = doneOpen ? done.map(function(t){ return card(t); }).join('') : '';
+}
+function tToggleDone(){ doneOpen=!doneOpen; renderList(); }
+function tFind(id){ for(var i=0;i<TASKS.length;i++){ if(String(TASKS[i].id)===String(id)) return TASKS[i]; } return null; }
+function tCopyLine(id){ var t=tFind(id); if(t) copyText(lineText(t), 'LINEに貼る文をコピーしました'); }
+function tCopyOpenList(){ copyText(openListText(), '開いている一覧をコピーしました'); }
+/* 状態を押す：押した人（わたしは）の分だけ変わる。何人かに頼んだときは一人ずつ押す */
+function tState(id, k){
+  var t=tFind(id); if(!t) return;
+  if(!ME){ alert('まず「わたしは」を選んでください。'); return; }
+  if((t.to||[]).indexOf(ME)<0){ if(!confirm(ME+'さんはこの頼みごとの相手ではありません。代わりに押しますか？')) return; }
+  var note='';
+  if(k==='question'){ note=(window.prompt('聞きたいことを1行で（LINEにも書いてください）', '')||'').trim(); }
+  if(k==='cannot'){ note=(window.prompt('いつならできますか？（例：11/28）', '')||'').trim(); if(!note){ return; } }
+  if(!t.states) t.states={};
+  var cur=t.states[ME];
+  if(cur && cur.s===k && k!=='question' && k!=='cannot'){ delete t.states[ME]; }   /* 同じボタンをもう一度＝取り消し */
+  else { t.states[ME]={ s:k, at:new Date().toISOString(), note:note }; }
+  tSaveSync(t); renderList();
+}
+function tEdit(id){
+  var t=tFind(id); if(!t) return;
+  var c=document.getElementById('card-'+id); if(!c) return;
+  var toChips=TO_CHOICES.map(function(n){ var on=(n==='みんな')?isEveryone(t.to):(t.to.indexOf(n)>=0); return '<span class="'+(on?'on':'')+'" onclick="tEditTo(\''+id+'\',\''+n+'\')">'+esc(n)+'</span>'; }).join('');
+  c.outerHTML = '<div class="addform editform" id="card-'+escAttr(id)+'">'
+    +'<div class="lbl2" style="margin-top:0">誰に</div><div class="chips" id="e-to-'+escAttr(id)+'">'+toChips+'</div>'
+    +'<div class="lbl2">何を <small>（1行で）</small></div><input class="v-in" id="e-what" value="'+escAttr(t.what)+'">'
+    +'<div class="lbl2">いつまで</div><input class="v-in" id="e-due" type="date" value="'+escAttr(t.due)+'">'
+    +'<div class="lbl2">完成の形 <small>（なくてもOK）</small></div><input class="v-in" id="e-how" value="'+escAttr(t.how)+'">'
+    +'<div class="formbtns"><button class="mk" onclick="tSaveEdit(\''+id+'\')">記録する</button><button class="cancel" onclick="renderList()">やめる</button></div></div>';
+  tEdit._to = t.to.slice();
+}
+function tEditTo(id, n){
+  var to=tEdit._to||[];
+  if(n==='みんな'){ to = isEveryone(to) ? to.filter(function(x){ return MEMBERS.indexOf(x)<0; }) : MEMBERS.slice().concat(to.filter(function(x){ return MEMBERS.indexOf(x)<0; })); }
+  else { var i=to.indexOf(n); if(i>=0) to.splice(i,1); else to.push(n); }
+  tEdit._to=to;
+  var box=document.getElementById('e-to-'+id); if(box) box.innerHTML=TO_CHOICES.map(function(m){ var on=(m==='みんな')?isEveryone(to):(to.indexOf(m)>=0); return '<span class="'+(on?'on':'')+'" onclick="tEditTo(\''+id+'\',\''+m+'\')">'+esc(m)+'</span>'; }).join('');
+}
+function tSaveEdit(id){
+  var t=tFind(id); if(!t) return;
+  var what=(document.getElementById('e-what').value||'').trim(), due=(document.getElementById('e-due').value||'').trim(), how=(document.getElementById('e-how').value||'').trim();
+  var to=(tEdit._to||[]).slice();
+  if(!to.length){ alert('「誰に」を1人以上選んでください。'); return; }
+  if(!what){ alert('「何を」を1行で入れてください。'); return; }
+  if(!due){ alert('「いつまで」の日付を選んでください。'); return; }
+  t.what=what; t.due=due; t.how=how; t.to=to;
+  tSaveSync(t); renderList();
+}
+
+/* ── 保存・同期（外部依頼Tと同じ安全マージ）── */
+function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(TASKS)); }catch(e){} }
+function loadCache(){ try{ var c=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]'); if(c.length) TASKS=c; }catch(e){} }
+function gasPost(body, cb){
+  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); }).then(function(d){ cb(null, d); }).catch(function(e){ cb(e, null); });
+}
+function syncSaveTask(t, cb){
+  gasPost({ action:'saveStickyMemo', sheetName:SHEET_NAME, password:password, memo:toTask(t) }, function(err, d){
+    if(err){ if(cb) cb(err, d); return; }
+    if(d && d.status==='ok'){ if(cb) cb(null, d); return; }
+    if(cb) cb(new Error((d && (d.message||d.error||d.status)) || 'サーバーが保存を受け付けませんでした'), d);
+  });
+}
+function tSaveSync(t){ saveCache(); setSync('☁️ 保存中…'); syncSaveTask(t, function(err){ if(err){ setSync('⚠️ パソコンに保存できませんでした／この端末には残っています'); } else { setSync('☁️ みんなと同期しました'); } }); }
+function itemsById(arr){ var m={}; (arr||[]).forEach(function(x){ if(x&&x.id!=null) m[String(x.id)]=x; }); return m; }
+function rePush(list, i){ if(i>=list.length){ setSync('☁️ この端末の記録は安全です（パソコンにも保存を試みました）'); return; } syncSaveTask(list[i], function(){ rePush(list, i+1); }); }
+function syncLoad(done){
+  setSync('☁️ 読み込み中…');
+  gasPost({ action:'loadStickyMemos', sheetName:SHEET_NAME, password:password }, function(err, d){
+    if(err){ setSync('⚠️ オフライン（この端末の記録を表示中）'); if(done) done(true); return; }
+    if(d && d.status==='ok'){
+      var raw = (d.data && d.data.memos) || d.memos || [];
+      var server=[]; raw.forEach(function(m){ if(isTaskMemo(m)){ var t=fromTask(m); if(t) server.push(t); } });
+      /* 安全マージ：サーバーが空・少なく返ってきても、この端末に入っている記録は消さない */
+      var sm=itemsById(server), merged=server.slice(), unsynced=[];
+      TASKS.forEach(function(local){ if(!local||local.id==null) return; if(!sm[String(local.id)]){ merged.push(local); unsynced.push(local); } });
+      TASKS=merged; saveCache(); renderList();
+      if(unsynced.length){ setSync('☁️ 未同期の'+unsynced.length+'件をパソコンに送っています…'); rePush(unsynced, 0); } else { setSync('☁️ みんなと同期しています'); }
+      if(done) done(true);
+    } else {
+      var msg=(d&&(d.message||d.error||d.status))||'中身が空でした';
+      setSync('⚠️ サーバーからの返事：'+msg+'（この端末の記録は残しています）');
+      if(done) done(false, msg);
+    }
+  });
+}
+
+/* ── 鍵（ゆかメモJと同じ group 'j'・同じ置き場 oos_unlock_j）── */
+function savedKey(){ try{ var v=JSON.parse(localStorage.getItem(UNLOCK_KEY)||'null'); return (v&&v.p)?String(v.p):''; }catch(e){ return ''; } }
+function markUnlocked(pw){ try{ localStorage.setItem(UNLOCK_KEY, JSON.stringify({p:pw})); }catch(e){} }
+function clearUnlock(){ try{ localStorage.removeItem(UNLOCK_KEY); }catch(e){} }
+function oosPwSoroe(s){ return String(s==null?'':s).replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); }).replace(/[\s　]/g,'').toUpperCase(); }
+function askKey(msg){
+  var ov=document.getElementById('keyov'), inp=document.getElementById('keyin'), m=document.getElementById('keymsg'), btn=document.getElementById('keyok');
+  ov.style.display='flex'; m.textContent=msg||''; inp.value=''; setTimeout(function(){ inp.focus(); },50);
+  function go(){
+    var pw=oosPwSoroe(inp.value); if(!pw){ m.textContent='合鍵を入れてください'; return; }
+    btn.disabled=true;
+    gasPost({ action:'verifyPassword', group:KEY_GROUP, password:pw }, function(err, r){
+      btn.disabled=false;
+      if(err){ m.textContent='通信エラーです。もう一度押してください'; return; }
+      if(r && r.status==='ok'){ password=pw; markUnlocked(pw); ov.style.display='none'; syncLoad(); return; }
+      m.textContent=(r && r.message)||'合鍵が違います';
+    });
+  }
+  btn.onclick=go; inp.onkeydown=function(e){ if(e.key==='Enter') go(); };
+}
+function boot(){
+  try{ ME=localStorage.getItem(ME_KEY)||''; }catch(e){}
+  renderMeChips(); renderToChips(); loadCache(); renderList();
+  password=savedKey();
+  if(!password){ askKey(''); return; }
+  syncLoad(function(ok, msg){ if(!ok && msg==='パスワードが違います'){ clearUnlock(); password=''; askKey('前の鍵が古くなっていました。新しい合鍵を入れてください'); } });
+}
+boot();
+</script>
+</body>
+</html>

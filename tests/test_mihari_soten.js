@@ -169,7 +169,10 @@ KNOWN_WATCHERS.forEach(function(w){
    コード側に必ず「上書きします」の注記があることを人が確認してから足すこと。 */
 {
   const gasPath = H.gasPath();   /* ★2026-10-05 置き場所は harness だけが知っている */
-  const ALLOWED_INTENTIONAL_OVERRIDE = ['oosRenrakuRoute'];  // 末尾に「上書きします」の注記あり（画面からの入口を安全に足す手法）
+  const ALLOWED_INTENTIONAL_OVERRIDE = ['oosRenrakuRoute',  // 末尾に「上書きします」の注記あり（画面からの入口を安全に足す手法）
+    'stickyMemoPasswordOk'];  /* ★2026-11-17 🤝 チームの頼みごと：シート「チーム頼みごと」を group j で開く1行を足すため、
+                                 末尾に同名関数を置く「貼るだけ」方式で渡した（koushin-ni-tsuite の手渡しルール）。末尾に「上書き」の注記あり。
+                                 動きは tests/test_team_tanomi.js ⑧ が砂場で確かめる。 */
   if(fs.existsSync(gasPath)){
     const gasSrc = fs.readFileSync(gasPath, 'utf8');
     const re = /(?:^|\n)function\s+([A-Za-z0-9_]+)\s*\(/g;  // 行頭＝インデント無しのみ
